@@ -109,3 +109,12 @@ pub(crate) fn check_callable_environment(module:&TypedModule,request:&requests::
     b.spend(leaves.len().saturating_add(request.contract.self_leaves.len()))?;
     if leaves!=request.contract.self_leaves{return Err(bad("callable hidden environment changes an exact actual mode/source/whole-child occurrence"));}Ok(())
 }
+
+/// Reuse this kernel's complete Context proof when a concrete slot relates a
+/// port's whole pointee domain to a result or another actual argument.
+pub(crate) fn context_port_inner(module:&TypedModule,interface:&DynInterface,port:u32,budget:&mut Budget)->Check<Vec<(u32,u32)>>{
+    let ports=context_ports::check(module,interface,|ty,b|values::intrinsic(module,ty,b).map(|domain|domain.count),budget)?;
+    let row=ports.get(port as usize).ok_or_else(||bad("Context inner-map query selects an absent port"))?;
+    budget.spend(row.inner.len().saturating_mul(2).saturating_add(1))?;
+    Ok(row.inner.clone())
+}

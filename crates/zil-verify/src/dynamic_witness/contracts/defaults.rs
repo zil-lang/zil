@@ -43,6 +43,14 @@ fn compatible(port:&context_ports::Port,leaf:&requests::Leaf,b:&mut Budget)->Che
     Ok(leaf.classes.len()==port.inner.len()&&port.inner.iter().all(|(class,binder)|leaf.classes.iter().filter(|row|row.class==*class&&row.path==[LifeTypeProjection::Pointee]&&row.binder==StorageBinder::Fixed(*binder)).count()==1))
 }
 
+fn short_result(port:&context_ports::Port,leaf:&requests::Leaf,b:&mut Budget)->Check<bool>{
+    dynamic_metadata::ty(&port.leaf,b)?;dynamic_metadata::ty(&leaf.ty,b)?;
+    let (Type::Address{mutable:input,inner},Type::Address{mutable:output,inner:result})=(&port.leaf,&leaf.ty)else{return Ok(false);};
+    if (*output&&!*input)||inner!=result{return Ok(false);}
+    b.spend(port.inner.len().saturating_mul(leaf.classes.len()).saturating_add(1))?;
+    Ok(leaf.classes.len()==port.inner.len()&&port.inner.iter().all(|(class,binder)|leaf.classes.iter().filter(|row|row.class==*class&&row.path==[LifeTypeProjection::Pointee]&&row.binder==StorageBinder::Fixed(*binder)).count()==1))
+}
+
 pub(in crate::dynamic_witness) fn instantiate(module:&TypedModule,owner:&SemanticDynOwner,recipe:&DynSignatureRecipe,signature:&mut signatures::Resolved,interface:&DynInterface,scope:DynInstantiationScope,b:&mut Budget)->Check<()>{
     if interface.context.is_none()||!canonical(module,owner,recipe,b)?{return Ok(());}
     let Some(receiver)=signature.parameters.first()else{return Err(bad("default Context method has no real receiver"));};
@@ -51,6 +59,8 @@ pub(in crate::dynamic_witness) fn instantiate(module:&TypedModule,owner:&Semanti
     let mut arguments=Vec::new();
     for(index,value)in signature.parameters.iter().enumerate().skip(1){for mut leaf in inventory::self_leaves(module,value,scope,b)?{leaf.source.base=StorageBase::Parameter(index as u32);b.spend(1)?;arguments.push(leaf);}}
     let result=if matches!(signature.result.ty,Type::Address{..})&&!signature.result.life.slots.is_empty(){inventory::self_leaves(module,&signature.result,scope,b)?.into_iter().find(|row|row.source.path.is_empty())}else{None};
+    let head_binder=receiver.life.slots.iter().find(|row|row.path.is_empty()).and_then(|row|receiver.classes.get(row.binder as usize)).copied();
+    let short=result.as_ref().is_some_and(|result|matches!(&result.kind,requests::LeafKind::Physical{outer:requests::Borrow::Variable{binder:StorageBinder::Invocation(index),..},..}if head_binder==Some(StorageBinder::Invocation(*index))));
     let c=&mut signature.contract;
     b.spend(ports.len().saturating_mul(11))?;
     for(index,row)in ports.iter().enumerate(){
@@ -61,7 +71,8 @@ pub(in crate::dynamic_witness) fn instantiate(module:&TypedModule,owner:&Semanti
         b.spend(2)?;let mut sources=vec![StorageSource::Exact(position.clone())];
         if mutable{for argument in &arguments{if compatible(row,argument,b)?{dynamic_metadata::position(&argument.source,b)?;b.spend(1)?;sources.push(StorageSource::Exact(argument.source.clone()));}}}
         c.guarantees.as_mut().ok_or_else(||bad("default Context after-state disappeared"))?.push(DynGuarantee::StorageSources(StorageSourceBinding{position:position.clone(),sources}));
-        if let(Some(result),Some(DynResultSource::Borrow{sources,..}))=(&result,&mut c.result){if compatible(row,result,b)?{sources.push(StorageSource::Exact(position));}}
+        if let(Some(result),Some(DynResultSource::Borrow{sources,..}))=(&result,&mut c.result){if compatible(row,result,b)?{b.spend(2)?;sources.push(StorageSource::Exact(position.clone()));}
+            if short&&short_result(row,result,b)?{b.spend(4)?;sources.push(StorageSource::ReborrowedLeaf{source:position,head:head(0)});}}
     }
     // Result argument alternatives require the same complete Fixed class and
     // inner occurrence map as the result; no invocation head is a Fixed source.
