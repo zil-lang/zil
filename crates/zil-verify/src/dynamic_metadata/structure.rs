@@ -18,45 +18,20 @@ fn cacheable(ty:&Type)->bool{!matches!(ty,
 )&&!ty.is_b0_scalar()}
 
 type TypeFact=(usize,usize,Profile);
-// This is the existing exact success set, partitioned by pointer identity.
-// A collision still searches a complete ordered key (depth and profile too),
-// so no approximate key can prove a fact. Growth and every real key copy are
-// paid before insertion; the old set remains intact if growth runs out of work.
-struct TypeFacts{buckets:Vec<BTreeSet<TypeFact>>,len:usize}
+// The exact set's logical length determines its search allowance. Pointer
+// values are equality keys, never layout/cost selectors: fresh clones and
+// decoded trees perform the same work for the same logical query stream.
+struct TypeFacts(BTreeSet<TypeFact>);
 impl TypeFacts{
-    fn new(b:&mut Budget)->Check<Self>{
-        let mut result=Self{buckets:Vec::new(),len:0};
-        result.grow(8,b)?;Ok(result)
-    }
+    fn new()->Self{Self(BTreeSet::new())}
     #[cfg(test)]
-    fn len(&self)->usize{self.len}
-    fn bucket(ptr:usize,count:usize)->usize{
-        let hash=ptr.wrapping_mul(0x9e3779b97f4a7c15u64 as usize);
-        hash>>(usize::BITS-count.ilog2())
-    }
+    fn len(&self)->usize{self.0.len()}
     fn contains(&self,key:&TypeFact,b:&mut Budget)->Check<bool>{
-        // Registration publishes only a nonempty bucket directory. Its
-        // one-time allocation removes the per-query empty-directory branch;
-        // an empty fact set still performs the exact ordinary bucket lookup.
-        b.spend(3)?;let bucket=&self.buckets[Self::bucket(key.0,self.buckets.len())];
-        b.spend(lookup(bucket.len()))?;Ok(bucket.contains(key))
-    }
-    fn grow(&mut self,count:usize,b:&mut Budget)->Check<()>{
-        let words=std::mem::size_of::<BTreeSet<TypeFact>>().div_ceil(std::mem::size_of::<usize>());
-        b.spend(count.saturating_mul(words).saturating_add(self.buckets.len()).saturating_add(2))?;
-        let mut buckets:Vec<BTreeSet<TypeFact>>=(0..count).map(|_|BTreeSet::new()).collect();
-        for old in &self.buckets{for key in old{
-            b.spend(3)?;let to=Self::bucket(key.0,count);
-            b.spend(lookup(buckets[to].len()).saturating_add(6))?;
-            buckets[to].insert(*key);
-        }}
-        self.buckets=buckets;Ok(())
+        b.spend(lookup(self.0.len()))?;Ok(self.0.contains(key))
     }
     fn insert(&mut self,key:TypeFact,b:&mut Budget)->Check<()>{
-        if self.len.saturating_add(1)>self.buckets.len()/2&&self.buckets.len()<4096{self.grow(self.buckets.len()*2,b)?;}
-        b.spend(3)?;let to=Self::bucket(key.0,self.buckets.len());
-        b.spend(lookup(self.buckets[to].len()).saturating_add(6))?;
-        if self.buckets[to].insert(key){self.len+=1;}Ok(())
+        b.spend(lookup(self.0.len()).saturating_add(2))?;
+        self.0.insert(key);Ok(())
     }
 }
 
@@ -74,6 +49,7 @@ pub(crate) struct Structure{
     store_success:BTreeMap<(usize,bool,bool),Vec<Limits>>,
     stored_bounds:BTreeMap<(usize,usize),Vec<Limits>>,
     owners:BTreeMap<(OwnerKey,SemanticDefinitionId),usize>,
+    lexical_scopes:BTreeMap<OwnerKey,Vec<SemanticDefinitionId>>,
     shared_types:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
     type_owners:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
 }
@@ -87,7 +63,7 @@ impl Structure{
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:TypeFacts::new(b)?,recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),
+            type_success:TypeFacts::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),lexical_scopes:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -121,6 +97,14 @@ impl Structure{
         for table in &module.dyn_vtables{result.ty(&table.self_type,b)?;if let Some(rows)=&table.implementation_witnesses{for row in rows{result.visit(row,b)?;}}}
         if let Some(program)=&module.semantic{
             result.visit(program,b)?;
+            for binding in &program.dyn_scopes{
+                b.spend(lookup(result.lexical_scopes.len()).saturating_add(2))?;
+                let rows=result.lexical_scopes.entry(owner_key(&binding.owner)).or_default();
+                b.spend(1usize.saturating_add(if rows.len()==rows.capacity(){rows.len()}else{0}))?;
+                // Duplicate claims remain duplicate candidates. Registration
+                // proves no declaration/method/namespace correspondence.
+                rows.push(binding.scope);
+            }
             for definition in &program.definitions{
                 result.recipe(definition,b)?;
                 for requirement in &definition.requirements{result.requirement(requirement,b)?;}
@@ -251,6 +235,16 @@ pub(crate) fn owner_success(program:&SemanticModule,declarations:&[DynDeclaratio
     let fee=lookup(state.owners.len()).saturating_add(2);b.spend(fee)?;
     b.structural.as_mut().unwrap().owners.insert((owner_key(owner),requested),index);Ok(())
 }
+/// All original scope claims for this exact owner and immutable module.
+/// The consumer still proves the complete owner, mixed formals and actual Γ.
+pub(crate) fn lexical_scopes(module:&TypedModule,owner:&SemanticDynOwner,b:&mut Budget)->Check<Option<Vec<SemanticDefinitionId>>>{
+    let Some(state)=&b.structural else{return Ok(None);};
+    if state.module!=module as *const TypedModule as usize{return Ok(None);}
+    let fee=lookup(state.lexical_scopes.len());b.spend(fee)?;
+    let state=b.structural.take().unwrap();
+    let result=(||{let rows=state.lexical_scopes.get(&owner_key(owner));b.spend(rows.map_or(0,Vec::len))?;Ok(Some(rows.cloned().unwrap_or_default()))})();
+    b.structural=Some(state);result
+}
 pub(crate) fn resource_known(module:&TypedModule,record:&Type,b:&mut Budget)->Check<Option<usize>>{
     let Some(state)=&b.structural else{return Ok(None);};
     if state.module!=module as *const TypedModule as usize{return Ok(None);}
@@ -379,19 +373,19 @@ pub(crate) fn shared_type(ty:&Type,b:&mut Budget)->Check<Option<std::rc::Rc<crat
 mod tests{
     use super::*;
     #[test]
-    fn bucketed_type_facts_preserve_exact_depth_profiles_and_failed_growth(){
-        let mut b=Budget::new(&Limits::default());let mut facts=TypeFacts::new(&mut b).unwrap();let mut expected=BTreeSet::new();
-        assert!(!facts.contains(&(0,0,(1_000_000,128)),&mut b).unwrap(),"an allocated empty directory supplies no fact");
+    fn exact_type_facts_keep_depth_profiles_and_allocation_independent_work(){
+        let mut b=Budget::new(&Limits::default());let mut facts=TypeFacts::new();let mut shifted=TypeFacts::new();let mut expected=BTreeSet::new();
         for index in 0..1024usize{let key=(0x1000+index*256,index%7,(1_000_000,128));facts.insert(key,&mut b).unwrap();expected.insert(key);}
+        for key in expected.iter().rev(){shifted.insert((key.0+0x1000000,key.1,key.2),&mut b).unwrap();}
         assert_eq!(facts.len(),expected.len());
-        for key in &expected{assert!(facts.contains(key,&mut b).unwrap());assert!(!facts.contains(&(key.0,key.1+13,key.2),&mut b).unwrap());assert!(!facts.contains(&(key.0,key.1,(key.2.0-1,key.2.1)),&mut b).unwrap());}
-        let count=facts.buckets.len()*2;let words=std::mem::size_of::<BTreeSet<TypeFact>>().div_ceil(std::mem::size_of::<usize>());
-        let mut short=Budget::new(&Limits{max_analysis_steps:count*words+facts.buckets.len()+5,..Limits::default()});
-        assert!(facts.grow(count,&mut short).is_err());assert_eq!(facts.len(),expected.len());
-        for key in &expected{assert!(facts.contains(key,&mut b).unwrap(),"failed reindex cannot lose or invent prior exact facts");}
-        // Multiple complete keys at the same pointer are never first-match
-        // aliases: all exact depth/profile coordinates remain independent.
-        let key=*expected.iter().next().unwrap();facts.insert((key.0,key.1+13,key.2),&mut b).unwrap();assert!(facts.contains(&(key.0,key.1+13,key.2),&mut b).unwrap());assert_eq!(facts.len(),expected.len()+1);
+        for key in &expected{
+            let mut first=Budget::new(&Limits::default());let mut other=Budget::new(&Limits::default());
+            assert!(facts.contains(key,&mut first).unwrap());assert!(shifted.contains(&(key.0+0x1000000,key.1,key.2),&mut other).unwrap());assert_eq!(first.remaining,other.remaining);
+            assert!(!facts.contains(&(key.0,key.1+13,key.2),&mut b).unwrap());assert!(!facts.contains(&(key.0,key.1,(key.2.0-1,key.2.1)),&mut b).unwrap());
+        }
+        let key=*expected.iter().next().unwrap();let new=(key.0,key.1+13,key.2);
+        let mut short=Budget::new(&Limits{max_analysis_steps:0,..Limits::default()});assert!(facts.insert(new,&mut short).is_err());assert_eq!(facts.len(),expected.len());assert!(!facts.contains(&new,&mut b).unwrap());
+        facts.insert(new,&mut b).unwrap();assert!(facts.contains(&new,&mut b).unwrap());assert_eq!(facts.len(),expected.len()+1);
     }
     fn record()->Type{Type::Record{name:"registered_complete_payload_".repeat(16),fields:vec![("whole_field".repeat(8),Type::Tuple(vec![Type::I32,Type::Array{element:Box::new(Type::U8),length:4}]))]}}
     fn fixture()->TypedModule{
@@ -405,6 +399,75 @@ mod tests{
     fn budget(module:&TypedModule)->Budget{
         let mut b=Budget::new(&Limits::default());
         b.structural=Some(Structure::register(module,&mut b).unwrap());b
+    }
+    #[test]
+    fn lexical_scope_directory_keeps_owner_kinds_namespaces_and_duplicate_claims(){
+        let mut module=fixture();
+        let declaration=LifeDeclarationId{module:zil_base::ModuleId(7),declaration:zil_base::NodeId(9),compiler:false};
+        let scope=|index|SemanticDefinitionId{module:zil_base::ModuleId(7),index};
+        let owners=[
+            SemanticDynOwner::Declaration(declaration),
+            SemanticDynOwner::Declaration(LifeDeclarationId{compiler:true,..declaration}),
+            SemanticDynOwner::MethodSignature{declaration,member:0},
+            SemanticDynOwner::MethodDefinition(DynDefinitionId{module:declaration.module,source:declaration.declaration}),
+            SemanticDynOwner::Declaration(LifeDeclarationId{module:zil_base::ModuleId(8),..declaration}),
+        ];
+        let mut rows:Vec<_>=owners.iter().enumerate().map(|(index,owner)|SemanticDynScopeBinding{owner:owner.clone(),scope:scope(index as u32)}).collect();
+        rows.push(SemanticDynScopeBinding{owner:owners[0].clone(),scope:scope(11)});
+        module.semantic=Some(SemanticModule{definitions:vec![],instances:vec![],sites:vec![],dyn_scopes:rows});
+        let mut b=budget(&module);
+        for(index,owner)in owners.iter().enumerate(){
+            let expected=if index==0{vec![scope(0),scope(11)]}else{vec![scope(index as u32)]};
+            assert_eq!(lexical_scopes(&module,owner,&mut b).unwrap(),Some(expected));
+        }
+        let missing=SemanticDynOwner::MethodSignature{declaration,member:1};
+        assert_eq!(lexical_scopes(&module,&missing,&mut b).unwrap(),Some(vec![]));
+        let copy=module.clone();
+        assert_eq!(lexical_scopes(&copy,&owners[0],&mut b).unwrap(),None);
+        assert_eq!(lexical_scopes(&module,&owners[0],&mut Budget::new(&Limits::default())).unwrap(),None);
+        b.remaining=lookup(b.structural.as_ref().unwrap().lexical_scopes.len());
+        assert!(lexical_scopes(&module,&owners[0],&mut b).is_err());
+        assert!(b.structural.is_some(),"failed row copying restores the enclosing immutable directory");
+        b.remaining=Limits::default().max_analysis_steps;
+        assert_eq!(lexical_scopes(&module,&owners[0],&mut b).unwrap(),Some(vec![scope(0),scope(11)]));
+        // Rows are merely untrusted claims; registration does not synthesize
+        // an original definition or choose the first duplicate as authority.
+        assert!(module.semantic.as_ref().unwrap().definitions.is_empty());
+    }
+    #[test]
+    fn inexpensive_bounds_keep_full_cold_walk_quotas_work_and_no_published_fact(){
+        let mut module=fixture();
+        let shapes=vec![
+            Type::Address{mutable:false,inner:Box::new(Type::I32)},
+            Type::Desc(Box::new(Type::ByteBuffer)),
+            Type::Array{element:Box::new(Type::Bool),length:7},
+            Type::Record{name:"complete_name".repeat(64),fields:vec![("complete_field".repeat(32),Type::I32)]},
+            Type::Tuple(vec![Type::I32,Type::U32]),
+            Type::ErrorUnion{error:Box::new(Type::Unit),result:Box::new(Type::I64)},
+            Type::FunctionPointer{parameters:vec![Type::I32],result:Box::new(Type::Bool)},
+        ];
+        let start=module.functions[0].locals.len();
+        for ty in shapes{let f=&mut module.functions[0];f.locals.push(LocalDecl{id:LocalId(f.locals.len() as u32),name:"cheap_complete_tree".into(),ty,mutable:false,span:f.span});}
+        let mut b=budget(&module);
+        for local in &module.functions[0].locals[start..]{
+            assert!(super::super::inexpensive_bounds(&local.ty));
+            for (nodes,depth_cap) in [(Limits::default().max_nodes,128),(0,128),(1,128),(Limits::default().max_nodes,0),(Limits::default().max_nodes,1)]{
+                for depth in [0,1]{
+                    b.limits.max_nodes=nodes;b.limits.max_call_depth=depth_cap;
+                    let before=b.remaining;let entries=b.structural.as_ref().unwrap().type_success.len();
+                    let actual=super::super::type_bounds_at(&local.ty,depth,&mut b);
+                    let mut cold=Budget::new(&b.limits);let cold_before=cold.remaining;
+                    let expected=super::super::type_walk(&local.ty,depth,false,&mut cold);
+                    assert_eq!(actual,expected);assert_eq!(before-b.remaining,cold_before-cold.remaining);
+                    assert_eq!(entries,b.structural.as_ref().unwrap().type_success.len());
+                }
+            }
+        }
+        b.limits=Limits::default();
+        let named=&module.functions[0].locals[start+3].ty;
+        let before=b.remaining;super::super::type_bounds_at(named,0,&mut b).unwrap();let bounds=before-b.remaining;
+        let before=b.remaining;super::super::ty(named,&mut b).unwrap();
+        assert!(before-b.remaining>bounds,"real copies and equality retain the complete name-byte traversal");
     }
     #[test]
     fn store_element_static_success_keeps_mode_limits_module_and_temporary_separate(){
@@ -457,7 +520,13 @@ mod tests{
         let before=b.remaining;super::super::ty(ty,&mut b).unwrap();assert!(before-b.remaining>hot,"copy/equality prepayment is not a pure bounds lookup");
         let entries=b.structural.as_ref().unwrap().type_success.len();
         let temporary=ty.clone();let before=b.remaining;
-        super::super::type_bounds_at(&temporary,0,&mut b).unwrap();assert!(before-b.remaining>=cold/2);
+        super::super::type_bounds_at(&temporary,0,&mut b).unwrap();let actual=before-b.remaining;
+        let mut cold_walk=Budget::new(&b.limits);let cold_before=cold_walk.remaining;
+        super::super::type_walk(&temporary,0,false,&mut cold_walk).unwrap();
+        // A temporary executes the complete cold walker. Its two real index
+        // lookups cannot publish a success for this unregistered allocation.
+        let lookups=lookup(entries).saturating_add(lookup(b.structural.as_ref().unwrap().types.len()));
+        assert_eq!(actual,cold_before-cold_walk.remaining+lookups);
         assert_eq!(entries,b.structural.as_ref().unwrap().type_success.len());
         b.limits.max_nodes=1;
         let actual=super::super::type_bounds_at(ty,0,&mut b).unwrap_err();

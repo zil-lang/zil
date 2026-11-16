@@ -200,16 +200,18 @@ pub(super) fn scope<'a>(
         .semantic
         .as_ref()
         .ok_or_else(|| bad("original static query has no semantic scopes"))?;
-    b.spend(program.dyn_scopes.len())?;
     let owner = SemanticDynOwner::Declaration(id);
-    let mut rows = program.dyn_scopes.iter().filter(|r| r.owner == owner);
-    let row = rows
-        .next()
-        .ok_or_else(|| bad("original declaration has no lexical scope binding"))?;
-    if rows.next().is_some() {
-        return Err(bad("original declaration has duplicate lexical scopes"));
-    }
-    bridge::owner(module, &owner, row.scope, b)
+    let scope=if let Some(rows)=dynamic_metadata::lexical_scopes(module,&owner,b)?{
+        let [scope]=rows.as_slice()else{return Err(bad(if rows.is_empty(){"original declaration has no lexical scope binding"}else{"original declaration has duplicate lexical scopes"}));};*scope
+    }else{
+        b.spend(program.dyn_scopes.len())?;
+        let mut rows=program.dyn_scopes.iter().filter(|row|row.owner==owner);
+        let row=rows.next().ok_or_else(||bad("original declaration has no lexical scope binding"))?;
+        if rows.next().is_some(){return Err(bad("original declaration has duplicate lexical scopes"));}row.scope
+    };
+    // This location is only an untrusted structural claim. Every query still
+    // proves its complete original owner, kinds, mixed formals and scope.
+    bridge::owner(module, &owner, scope, b)
 }
 
 fn actual_equal(

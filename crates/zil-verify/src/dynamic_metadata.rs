@@ -2,7 +2,7 @@
 //! This grants no Context, port, cleanup or return-source authority.
 use super::*;
 mod structure;
-pub(crate) use structure::{Structure,owner_known,owner_success,resource_known,resource_success,store_element_known,store_element_success,stored_type_known,stored_type_success,shared_type,adopt_type_cell};
+pub(crate) use structure::{Structure,owner_known,owner_success,lexical_scopes,resource_known,resource_success,store_element_known,store_element_success,stored_type_known,stored_type_success,shared_type,adopt_type_cell};
 fn pay(b: &mut Budget, nodes: &mut usize, cap: usize, n: usize) -> Check<()> {
     *nodes = nodes
         .checked_add(n)
@@ -185,9 +185,24 @@ fn type_walk(root:&Type,initial_depth:usize,copy_or_compare:bool,b:&mut Budget)-
 /// Pure bounds only. Callers that clone, hash or compare the complete Type
 /// continue to use ty(), whose full traversal prepays that actual work.
 fn type_bounds_at(root:&Type,depth:usize,b:&mut Budget)->Check<()>{
+    // A complete fixed small tree is cheaper to walk than to look up and
+    // publish a fact. This selects the ordinary cold walker, including every
+    // node/depth/path bound, and never supplies an intrinsic-domain proof.
+    if inexpensive_bounds(root){return type_walk(root,depth,false,b);}
     if structure::type_known(root,depth,b)?{return Ok(());}
     type_walk(root,depth,false,b)?;
     structure::type_success(root,depth,b)
+}
+fn inexpensive_bounds(ty:&Type)->bool{
+    fn leaf(ty:&Type)->bool{ty.is_b0_scalar()||matches!(ty,Type::ByteBuffer|Type::ForeignHandle|Type::SyncCell(_)|Type::TaskI32|Type::CWideString|Type::Closure(_)|Type::Dyn{..}|Type::OwnedDyn{..})}
+    match ty{
+        Type::Address{inner,..}|Type::Desc(inner)|Type::Managed(inner)|Type::Slice{element:inner}|Type::Array{element:inner,..}|Type::OwnedStore{element:inner}|Type::Mutex{payload:inner}|Type::Registration{environment:inner}|Type::AsyncRegistration{environment:inner}|Type::Opaque{hidden:inner,..}=>leaf(inner),
+        Type::Record{fields,..}|Type::Package{fields,..}=>fields.is_empty()||matches!(fields.as_slice(),[(_,child)]if leaf(child)),
+        Type::Tuple(fields)=>fields.len()<=2&&fields.iter().all(leaf),
+        Type::ErrorUnion{error,result}=>leaf(error)&&leaf(result),
+        Type::FunctionPointer{parameters,result}|Type::ForeignCallback{parameters,result}=>parameters.len()<=1&&parameters.iter().all(leaf)&&leaf(result),
+        _=>false,
+    }
 }
 pub(crate) fn bounds_type(root:&Type,b:&mut Budget)->Check<()>{type_bounds_at(root,0,b)}
 /// The exact public DTV callbacks, without allocating/copying a DTV payload.
