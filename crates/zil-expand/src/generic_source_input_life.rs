@@ -564,7 +564,12 @@ mod short_receiver_views {
         ] {
             let source = SourceUnit::new(FileId(0), ModuleId(0), "short-view.zil", text);
             let syntax = zil_syntax::parse(&source).into_result().unwrap();
-            let core = crate::expand(&source, &syntax).unwrap();
+            let aliases = std::collections::BTreeMap::new();
+            let core = crate::expand_with_map_semantics(&source, &syntax, &zil_base::Limits::default(),
+                &zil_base::TargetProfile::default(), crate::source_context::SourceIdentityContext::ClosedSnapshot {
+                    root: source.module_id, aliases: &aliases,
+                    declarations: crate::source_context::DeclarationPlacement::Original,
+                }).unwrap().core;
             let providers = core.functions.iter().filter(|function| {
                 function.parameters.first().is_some_and(|parameter|
                     parameter.name == super::super::trait_instances::LOWERED_RECEIVER_NAME)

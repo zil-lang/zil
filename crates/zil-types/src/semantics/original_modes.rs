@@ -79,6 +79,16 @@ impl Check<'_, '_> {
                     matches!(nominal, SemanticTypeRecipe::Nominal { definition, .. } if matches!(self.definition(*definition)?.body, SemanticDefinitionBody::Nominal { kind: LifeNominalKind::Resource, .. })),
                 )
             }
+            CoreExprKind::RecordConstructor {
+                definition: Some(definition),
+                ..
+            } => Ok(matches!(
+                self.definition(*definition)?.body,
+                SemanticDefinitionBody::Nominal {
+                    kind: LifeNominalKind::Resource,
+                    ..
+                }
+            )),
             CoreExprKind::Call { callee, .. } => {
                 let Some(path) = self.declaration_path(callee, variables, depth + 1)? else {
                     return Ok(false);

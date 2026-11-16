@@ -69,6 +69,7 @@ impl super::original_walk::Context for Index<'_> {
             CoreExprKind::Call { .. } | CoreExprKind::CallDynSlot { .. } => Kind::Call,
             CoreExprKind::Closure { .. } => Kind::Closure,
             CoreExprKind::Record { .. }
+            | CoreExprKind::RecordConstructor { .. }
             | CoreExprKind::RecordUpdate { .. }
             | CoreExprKind::Tuple(_)
             | CoreExprKind::Array(_) => Kind::Construct,

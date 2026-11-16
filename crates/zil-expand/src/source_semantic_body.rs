@@ -1029,16 +1029,42 @@ impl Builder<'_, '_, '_, '_> {
                 }
             }
             s::ExprKind::Record { ty, base, fields } => {
+                let mut inferred_definition = None;
                 let ty = if let Some(ty) = ty {
+                    let written_application = matches!(ty.kind, s::ExprKind::TypeApply { .. });
                     let ty = super::plan::type_expression(ty, self.budget)?;
+                    if base.is_none()
+                        && !written_application
+                        && let s::TypeKind::Named { path: names, args } = &ty.kind
+                        && args.is_empty()
+                        && names.as_slice() != ["Self"]
+                        && (self.builtin_shadow(names, ty.span)?
+                            || self.compiler_nominal(names, ty.span)?.is_none())
+                    {
+                        let row = self.named(names, ty.span)?;
+                        if matches!(
+                            self.inventory.declarations[row].item.kind,
+                            s::ItemKind::Aggregate(_)
+                        ) && !self.inventory.declarations[row].parameters().is_empty()
+                        {
+                            // No application was written. Keep the declaration
+                            // and every real field for independent whole-mixed
+                            // inference instead of claiming an empty application.
+                            inferred_definition = Some(self.id(row));
+                        }
+                    }
                     // A fresh literal names the resource payload it creates.
                     // Explicit Ref/Desc and nested modes remain written Types;
                     // an update instead retains its ordinary existing value.
-                    Some(if base.is_none() {
-                        self.body_local_annotation(&ty, path, depth + 1)?
+                    if inferred_definition.is_some() {
+                        None
                     } else {
-                        self.body_type(&ty, path, depth + 1)?
-                    })
+                        Some(if base.is_none() {
+                            self.body_local_annotation(&ty, path, depth + 1)?
+                        } else {
+                            self.body_type(&ty, path, depth + 1)?
+                        })
+                    }
                 } else {
                     None
                 };
@@ -1081,7 +1107,7 @@ impl Builder<'_, '_, '_, '_> {
                     match ty {
                         Some(ty) => CoreExprKind::Record { ty, fields: result },
                         None => CoreExprKind::RecordConstructor {
-                            definition: None,
+                            definition: inferred_definition,
                             fields: result,
                         },
                     }

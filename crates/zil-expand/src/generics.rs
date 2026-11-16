@@ -2261,9 +2261,22 @@ impl<'a> Engine<'a> {
                     env.domain = f.name.clone();
                 }
                 let source_enum_result = self.source_enum_return.is_some();
+                // A wanted whole Type belongs to this declaration's original
+                // domain. Its physical header may already contain a stored
+                // nominal layout with no source actuals, so it cannot constrain
+                // an argument whose lexical environment retains the full type.
+                let source_result = self
+                    .stored_source_results
+                    .get(self.storage_function_key.as_ref().unwrap_or(&f.name))
+                    .map(|result| -> R<_> {
+                        self.budget.ty(result)?;
+                        Ok(result.clone())
+                    })
+                    .transpose()?;
                 let body_result = self
                     .source_enum_return
                     .take()
+                    .or(source_result)
                     .or_else(|| f.return_type.clone())
                     .unwrap_or_else(|| check::unit(f.span));
                 let saved_result = self.return_type.replace(body_result);
