@@ -365,6 +365,10 @@ def runtime_samples(args, rows, oracle, leaf, environments, env):
             'iterations': quality.RUNTIME_GATES['iterations'], 'samples': samples}
 
 
+def restarts_worker(request):
+    return request['name'] == 'warm-restart'
+
+
 def run_window(args, workloads, native, env, environments, sustained=False):
     requests = history(args.epochs)
     if sustained:
@@ -395,7 +399,7 @@ def run_window(args, workloads, native, env, environments, sustained=False):
                 leaf = base/'requests'/f'{index:03d}-{name}'
                 leaf.mkdir(parents=True)
                 rc.save(leaf/'source-equivalence.json', equivalence)
-                if name == 'warm-restart':
+                if restarts_worker(request):
                     for arm in matched.ARMS[:2]:
                         close_worker(args, native, workers.pop(arm))
                         workers[arm] = start_worker(args, native, environments, arm, source, user, base/'resident'/arm/'1')

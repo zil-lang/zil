@@ -29,4 +29,6 @@ description: Optimize ZIL compilation against Rust, prioritizing actual user wai
 
 至少观察冷编译、无修改、连续私改、接口/广改、缓存进程重启及紧接着的首次修改。重启与首改按真实连续流程合计，不拼接不相邻请求。按绝对等待和区块差额判断，不只看倍率。
 
+普通 CLI 每次启动新编译器，必须单独覆盖“关闭进程→先修改源码→新进程首个编译请求”。不能以“重启后先无改预热，再修改”代替这个高频路径，也不把两次请求合计冒充一次直接首改。原始布局或缓存产品只能选择候选，当前完整输入、原预算和独立检查仍决定准入。正式直接首改对照使用实际 main/当前/Rust；profile 诊断不作跨窗口比值。
+
 用户盘量包括实际 semantic/object cache、最终产物和 Rust target，注明采样边界；不用 SDK/宿主 target/证据清理冒充产品节省。规模应逐步覆盖大项目，未测工业多 crate、proc-macro/build.rs、分钟级/GB级场景要明确，不能宣称覆盖完备。

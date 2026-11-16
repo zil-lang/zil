@@ -27,6 +27,10 @@ struct ObservedReads {
     calls: std::sync::Arc<BTreeSet<String>>,
     work: usize,
 }
+struct BodyObservation<'a> {
+    blocks: &'a zil_llvm_api::model::SharedVec<zil_llvm_api::model::Block>,
+    reads: std::sync::Arc<ObservedReads>,
+}
 
 #[cfg(test)]
 std::thread_local! {
@@ -43,7 +47,28 @@ impl CurrentGraph {
         }
         let mut remaining = budget.checked_sub(module.items.len())?;
         let mut rows = Vec::with_capacity(module.items.len());
+        // Current emit templates can share actual immutable block arrays across
+        // different symbols. Reuse only their raw observations, charge the same
+        // work, and bind every reference against the current symbol table below.
+        let mut bodies = BTreeMap::<usize, BodyObservation<'_>>::new();
         for (index, item) in module.items.iter().enumerate() {
+            let body = match item {
+                Item::Function(function) => function.blocks.as_ref(),
+                _ => None,
+            };
+            if let Some(blocks) = body
+                && let Some(observed) = bodies.get(&(blocks.as_ptr() as usize))
+                && (observed.blocks.ptr_eq(blocks) || observed.blocks == blocks)
+            {
+                remaining = remaining.checked_sub(observed.reads.work)?;
+                rows.push(observed.reads.clone());
+                #[cfg(test)]
+                GRAPH_WORK.with(|work| {
+                    let (fresh, reused) = work.get();
+                    work.set((fresh, reused + 1));
+                });
+                continue;
+            }
             if let Some(old) = previous.and_then(|old| {
                 let prior = match item {
                     Item::Function(f) => *old.bound.names.get(&f.name)?,
@@ -57,6 +82,15 @@ impl CurrentGraph {
             }) {
                 remaining = remaining.checked_sub(old.work)?;
                 rows.push(old.clone());
+                if let Some(blocks) = body {
+                    bodies.insert(
+                        blocks.as_ptr() as usize,
+                        BodyObservation {
+                            blocks,
+                            reads: old.clone(),
+                        },
+                    );
+                }
                 #[cfg(test)]
                 GRAPH_WORK.with(|work| {
                     let (fresh, reused) = work.get();
@@ -98,11 +132,21 @@ impl CurrentGraph {
                 }
                 Item::NamedType(..) => {}
             }
-            rows.push(std::sync::Arc::new(ObservedReads {
+            let observed = std::sync::Arc::new(ObservedReads {
                 references,
                 calls: std::sync::Arc::new(calls),
                 work: before - remaining,
-            }));
+            });
+            if let Some(blocks) = body {
+                bodies.insert(
+                    blocks.as_ptr() as usize,
+                    BodyObservation {
+                        blocks,
+                        reads: observed.clone(),
+                    },
+                );
+            }
+            rows.push(observed);
         }
         let bound = std::sync::Arc::new(ClassGraph::read(module, &rows)?);
         Some(Self {
@@ -309,6 +353,43 @@ impl Layout {
         {
             return None;
         }
+        Self::derive_classes(
+            module,
+            lir,
+            entry,
+            count,
+            classes,
+            observed,
+            Some((self, old_source, old_graph)),
+        )
+    }
+
+    /// No prior machine or serialized role is needed for direct-restart edits.
+    /// Derive the original policy from this request's actual raw graph once.
+    pub(super) fn plan_classes_current(
+        module: &Module,
+        lir: &LirView<'_>,
+        entry: EntryPoint,
+        count: usize,
+        classes: &BTreeSet<String>,
+        observed: &CurrentGraph,
+    ) -> Option<Self> {
+        if !observed.matches(module) || !(2..=MAX_UNITS).contains(&count) {
+            return None;
+        }
+        Self::derive_classes(module, lir, entry, count, classes, observed, None)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn derive_classes(
+        module: &Module,
+        lir: &LirView<'_>,
+        entry: EntryPoint,
+        count: usize,
+        classes: &BTreeSet<String>,
+        observed: &CurrentGraph,
+        previous: Option<(&Self, &Module, &CurrentGraph)>,
+    ) -> Option<Self> {
         let graph = &observed.bound;
         let defs = module
             .items
@@ -348,10 +429,13 @@ impl Layout {
         if members.len() < 2 {
             return None;
         }
-        let mut old_owners = vec![usize::MAX; old_source.items.len()];
-        for unit in &self.units {
-            for &index in &unit.definitions {
-                *old_owners.get_mut(index)? = unit.owner;
+        let mut old_owners =
+            vec![usize::MAX; previous.map_or(0, |(_, source, _)| source.items.len())];
+        if let Some((layout, _, _)) = previous {
+            for unit in &layout.units {
+                for &index in &unit.definitions {
+                    *old_owners.get_mut(index)? = unit.owner;
+                }
             }
         }
         let named = module
@@ -366,15 +450,17 @@ impl Layout {
                 }
             })
             .collect::<BTreeMap<_, _>>();
-        let remap = old_source
-            .items
-            .iter()
-            .map(|item| match item {
-                Item::NamedType(name, _) => named.get(name.as_str()).copied(),
-                Item::Function(function) => graph.names.get(&function.name).copied(),
-                Item::Global(global) => graph.names.get(&global.name).copied(),
-            })
-            .collect::<Vec<_>>();
+        let remap = previous.map_or_else(Vec::new, |(_, source, _)| {
+            source
+                .items
+                .iter()
+                .map(|item| match item {
+                    Item::NamedType(name, _) => named.get(name.as_str()).copied(),
+                    Item::Function(function) => graph.names.get(&function.name).copied(),
+                    Item::Global(global) => graph.names.get(&global.name).copied(),
+                })
+                .collect::<Vec<_>>()
+        });
         let map_indices = |indices: &[usize]| -> Option<Vec<usize>> {
             let mut mapped = indices
                 .iter()
@@ -406,24 +492,35 @@ impl Layout {
         let mut pending = Vec::new();
         for (owner, definitions) in members {
             let mut exhausted = false;
-            let retained = self
-                .units
-                .iter()
-                .find(|unit| unit.owner == owner)
-                .and_then(|old| {
-                    let unit = Unit {
-                        owner,
-                        definitions: map_indices(&old.definitions)?,
-                        imports: map_indices(&old.imports)?,
-                        prelude: map_indices(&old.prelude)?,
-                        declarations: map_indices(&old.declarations)?,
+            let retained = previous.and_then(|(layout, _, old_graph)| {
+                let old = layout.units.iter().find(|unit| unit.owner == owner)?;
+                let unit = Unit {
+                    owner,
+                    definitions: map_indices(&old.definitions)?,
+                    imports: map_indices(&old.imports)?,
+                    prelude: map_indices(&old.prelude)?,
+                    declarations: map_indices(&old.declarations)?,
+                };
+                if unit.definitions != definitions {
+                    return None;
+                }
+                // A body-only change preserves roles; a changed edge, removed
+                // symbol or moved callee owner rebuilds this unit's closure.
+                for &index in old.definitions.iter().chain(&old.imports) {
+                    remaining = match remaining.checked_sub(1) {
+                        Some(left) => left,
+                        None => {
+                            exhausted = true;
+                            return None;
+                        }
                     };
-                    if unit.definitions != definitions {
+                    let current = remap[index]?;
+                    let before = &old_graph.rows[index];
+                    let after = &observed.rows[current];
+                    if before.references != after.references || before.calls != after.calls {
                         return None;
                     }
-                    // A body-only change preserves roles; a changed edge, removed
-                    // symbol or moved callee owner rebuilds this unit's closure.
-                    for &index in old.definitions.iter().chain(&old.imports) {
+                    for &target in &old_graph.bound.reads[index].references {
                         remaining = match remaining.checked_sub(1) {
                             Some(left) => left,
                             None => {
@@ -431,27 +528,13 @@ impl Layout {
                                 return None;
                             }
                         };
-                        let current = remap[index]?;
-                        let before = &old_graph.rows[index];
-                        let after = &observed.rows[current];
-                        if before.references != after.references || before.calls != after.calls {
+                        if old_owners[target] != owners[remap[target]?] {
                             return None;
                         }
-                        for &target in &old_graph.bound.reads[index].references {
-                            remaining = match remaining.checked_sub(1) {
-                                Some(left) => left,
-                                None => {
-                                    exhausted = true;
-                                    return None;
-                                }
-                            };
-                            if old_owners[target] != owners[remap[target]?] {
-                                return None;
-                            }
-                        }
                     }
-                    Some(unit)
-                });
+                }
+                Some(unit)
+            });
             if exhausted {
                 return None;
             }
@@ -529,10 +612,16 @@ impl Layout {
             });
         }
         let layout = Self { units };
-        // Recheck the entire result, including untouched units: complete imports,
-        // current class definitions, local state and the ORIGINAL source-only
-        // total copy budget. An adaptation never grants additional allowance.
-        layout.valid_classes_observed(module, lir, entry, count, classes, observed)?;
+        if previous.is_some() {
+            // Retained roles are proposals. Recheck the complete current
+            // closure/local-state/copy-budget contract before replay.
+            layout.valid_classes_observed(module, lir, entry, count, classes, observed)?;
+        } else if !layout.valid_in_domain(module, lir, count, Some(classes)) {
+            // Fresh roles already came from the complete current closure walk
+            // above. Still check every role, clone collision and the original
+            // SOURCE-only total copy budget; class cost never enlarges it.
+            return None;
+        }
         Some(layout)
     }
     /// Both the original planner and a checked receipt use this exact emitter.

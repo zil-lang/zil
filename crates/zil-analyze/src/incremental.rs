@@ -28,6 +28,11 @@ pub struct AnalysisStats {
     pub product_plan_rows_replaced: usize,
     pub product_semantic_functions_compared: usize,
     pub product_relocated_function_bindings: usize,
+    pub bootstrap_templates: usize,
+    pub bootstrap_initialization_reuses: usize,
+    pub bootstrap_local_reuses: usize,
+    pub bootstrap_scope_reuses: usize,
+    pub bootstrap_hold_reuses: usize,
 }
 
 #[derive(Clone)]

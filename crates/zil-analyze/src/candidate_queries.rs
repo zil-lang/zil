@@ -7,6 +7,9 @@ use std::hash::Hash;
 use std::sync::Arc;
 use zil_base::{Fingerprint, FingerprintBuilder};
 
+#[path = "candidate_bootstrap.rs"]
+mod bootstrap;
+
 /// Results from the most recent successful Analyze epoch. An equal `output`
 /// means the raw FunctionPlan is equal; it says nothing about unchanged machine
 /// code or unchanged Verify inputs. Consumers must also bind the actual raw CFG.
@@ -31,6 +34,7 @@ pub(super) struct Entry {
     costs: [usize; 3],
     result: FunctionPlan,
     output: Fingerprint,
+    body_selector: u64,
 }
 
 pub(super) struct InitializationEntry {
@@ -95,6 +99,9 @@ struct Work {
     compatible: bool,
     costs: [Option<usize>; 3],
     executed: bool,
+    body_selector: u64,
+    template: Option<FunctionId>,
+    holds: Option<crate::HoldRows>,
 }
 
 pub(super) struct Queries {
@@ -107,12 +114,20 @@ pub(super) struct Queries {
     pub(super) resources: resources::incremental::Request,
     prior_initializations: Arc<BTreeMap<FunctionId, Arc<Initialized>>>,
     initializations: BTreeMap<FunctionId, Arc<Initialized>>,
+    bootstrap_templates: usize,
+    bootstrap_initialization_reuses: usize,
+    bootstrap_stage_reuses: [usize; 3],
 }
 
 impl Queries {
     pub(super) fn record_stats(&self, stats: &mut AnalysisStats) {
         stats.candidate_inputs_built = self.inputs_built;
         stats.dependency_signatures_checked = self.dependency_signatures_checked;
+        stats.bootstrap_templates = self.bootstrap_templates;
+        stats.bootstrap_initialization_reuses = self.bootstrap_initialization_reuses;
+        stats.bootstrap_local_reuses = self.bootstrap_stage_reuses[0];
+        stats.bootstrap_scope_reuses = self.bootstrap_stage_reuses[1];
+        stats.bootstrap_hold_reuses = self.bootstrap_stage_reuses[2];
         self.resources.record_stats(stats);
     }
 
@@ -133,6 +148,9 @@ impl Queries {
             resources: resources::incremental::Request::new(resources, limits),
             prior_initializations,
             initializations: BTreeMap::new(),
+            bootstrap_templates: 0,
+            bootstrap_initialization_reuses: 0,
+            bootstrap_stage_reuses: [0; 3],
         }
     }
 
@@ -175,6 +193,8 @@ impl Queries {
         module.target.fingerprint().hash(&mut context);
         let context = context.digest();
         let mut work = BTreeMap::new();
+        let mut templates = bootstrap::Templates::new(self.limits.max_analysis_steps);
+        let mut signatures = BTreeMap::<FunctionId, Option<Signature>>::new();
         'functions: for function in &module.functions {
             let prior = self.prior.get(&function.id).cloned();
             // SharedVec equality first checks immutable allocation identity.
@@ -182,7 +202,7 @@ impl Queries {
             let same_input = prior
                 .as_ref()
                 .is_some_and(|prior| semantic_input_eq(&prior.function, function));
-            let (input, ids) = if same_input {
+            let (input, ids, body_selector) = if same_input {
                 let prior = prior.as_ref().expect("same input");
                 (
                     prior.input,
@@ -191,6 +211,7 @@ impl Queries {
                         .iter()
                         .map(|signature| signature.id)
                         .collect::<Vec<_>>(),
+                    prior.body_selector,
                 )
             } else {
                 let Some(input) = scalar_input(function) else {
@@ -210,14 +231,18 @@ impl Queries {
                 else {
                     continue 'functions;
                 };
-                let Some(signature) = Signature::of(target) else {
+                let Some(signature) = signatures
+                    .entry(id)
+                    .or_insert_with(|| Signature::of(target))
+                    .as_ref()
+                else {
                     continue 'functions;
                 };
                 same_dependencies &= prior
                     .as_ref()
                     .and_then(|prior| prior.dependencies.get(index))
-                    == Some(&signature);
-                dependencies.push(signature);
+                    == Some(signature);
+                dependencies.push(signature.clone());
             }
             let dependencies = if same_dependencies {
                 prior
@@ -248,6 +273,10 @@ impl Queries {
                     && prior.dependency_fingerprint == dependency_fingerprint
                     && prior.limits == self.limits
             });
+            let template = dependencies
+                .is_empty()
+                .then(|| templates.bind(function, body_selector))
+                .flatten();
             work.insert(
                 function.id,
                 Work {
@@ -259,9 +288,13 @@ impl Queries {
                     compatible,
                     costs: [None; 3],
                     executed: false,
+                    body_selector,
+                    template,
+                    holds: None,
                 },
             );
         }
+        self.bootstrap_templates = templates.len();
         self.work = work;
     }
 
@@ -271,16 +304,28 @@ impl Queries {
         input: Option<&incremental::Input>,
         budget: &mut Budget,
     ) -> CompileResult<Option<Initialization>> {
-        let Some(prior) = self.prior_initializations.get(&function.id) else {
+        let prior = self
+            .prior_initializations
+            .get(&function.id)
+            .filter(|prior| {
+                (input.is_none() && semantic_input_eq(&prior.function, function)
+                    || input.is_some_and(|input| prior.value.input == *input))
+                    && prior.value.value.cost <= budget.remaining()
+            });
+        let template = input
+            .is_none()
+            .then(|| self.work.get(&function.id)?.template)
+            .flatten()
+            .and_then(|id| self.initializations.get(&id))
+            .filter(|entry| entry.value.value.cost <= budget.remaining());
+        let Some(prior) = prior.or(template) else {
             return Ok(None);
         };
         let same_input = input.is_none() && semantic_input_eq(&prior.function, function);
-        if !(same_input || input.is_some_and(|input| prior.value.input == *input))
-            || prior.value.value.cost > budget.remaining()
-        {
-            return Ok(None);
-        }
         budget.spend(prior.value.value.cost, "cached initialization")?;
+        if prior.function.id != function.id {
+            self.bootstrap_initialization_reuses += 1;
+        }
         let initialized = if same_input {
             prior.clone()
         } else {
@@ -316,7 +361,7 @@ impl Queries {
         stage: usize,
         budget: &mut Budget,
     ) -> CompileResult<bool> {
-        let Some(work) = self.work.get_mut(&function.id) else {
+        let Some(work) = self.work.get(&function.id) else {
             return Ok(false);
         };
         if work.compatible
@@ -324,10 +369,31 @@ impl Queries {
             && prior.costs[stage] <= budget.remaining()
         {
             let cost = prior.costs[stage];
+            let holds = (stage == 2).then(|| prior.result.holds.clone());
             budget.spend(cost, "cached function candidate stage")?;
+            let work = self.work.get_mut(&function.id).expect("current work");
             work.costs[stage] = Some(cost);
+            if let Some(holds) = holds {
+                work.holds = Some(holds);
+            }
             return Ok(true);
         }
+        let template = work
+            .template
+            .and_then(|id| self.work.get(&id))
+            .and_then(|source| source.costs[stage].map(|cost| (cost, source.holds.clone())));
+        if let Some((cost, holds)) = template.filter(|(cost, _)| *cost <= budget.remaining()) {
+            budget.spend(cost, "cached function candidate stage")?;
+            let work = self.work.get_mut(&function.id).expect("current work");
+            work.costs[stage] = Some(cost);
+            work.holds = holds;
+            // The current ID still produces a new raw candidate/cache row;
+            // these separate counters report the body evaluator reuse.
+            work.executed = true;
+            self.bootstrap_stage_reuses[stage] += 1;
+            return Ok(true);
+        }
+        let work = self.work.get_mut(&function.id).expect("current work");
         work.executed = true;
         Ok(false)
     }
@@ -391,17 +457,19 @@ impl Queries {
             // scalar row never incurs an uncharged COW copy in global assembly.
             // Fresh richer rows remain uniquely owned until those checks end.
             return Ok(self.work[&function.id]
-                .prior
-                .as_ref()
-                .expect("hit entry")
-                .result
                 .holds
+                .as_ref()
+                .expect("successful current Hold stage")
                 .clone());
         }
         let before = budget.remaining();
         let result = execute(budget)?;
         self.save_cost(function, 2, before, budget);
-        Ok(result.into())
+        let result: crate::HoldRows = result.into();
+        if let Some(work) = self.work.get_mut(&function.id) {
+            work.holds = Some(result.clone());
+        }
+        Ok(result)
     }
 
     pub(super) fn finish(
@@ -410,6 +478,7 @@ impl Queries {
         plan: &CandidatePlan,
         stats: &mut AnalysisStats,
     ) -> FinishedQueries {
+        self.record_stats(stats);
         stats.candidate_inputs_built = self.inputs_built;
         stats.dependency_signatures_checked = self.dependency_signatures_checked;
         let mut entries = BTreeMap::new();
@@ -458,6 +527,7 @@ impl Queries {
                             .map(|cost| cost.expect("complete function stage")),
                         result: result.clone(),
                         output,
+                        body_selector: work.body_selector,
                     })
                 };
                 entries.insert(function.id, entry);
@@ -498,6 +568,12 @@ impl Queries {
 /// caller and are deliberately absent from semantic input equality. Keep the
 /// destructure exhaustive so a new raw field cannot silently escape the key.
 pub(super) fn semantic_input_eq(previous: &TypedFunction, current: &TypedFunction) -> bool {
+    previous.id == current.id
+        && previous.name == current.name
+        && semantic_body_eq(previous, current)
+}
+
+fn semantic_body_eq(previous: &TypedFunction, current: &TypedFunction) -> bool {
     let TypedFunction {
         storage_life,
         call_kind,
@@ -505,8 +581,8 @@ pub(super) fn semantic_input_eq(previous: &TypedFunction, current: &TypedFunctio
         callable_return_contract,
         callable_contract,
         protocol_contract,
-        id,
-        name,
+        id: _,
+        name: _,
         foreign,
         environment,
         parameters,
@@ -533,8 +609,6 @@ pub(super) fn semantic_input_eq(previous: &TypedFunction, current: &TypedFunctio
         &previous.callable_contract,
         &previous.protocol_contract,
     ) || (
-        id,
-        name,
         foreign,
         environment,
         parameters,
@@ -542,8 +616,6 @@ pub(super) fn semantic_input_eq(previous: &TypedFunction, current: &TypedFunctio
         result_mode,
         entry,
     ) != (
-        &previous.id,
-        &previous.name,
         &previous.foreign,
         &previous.environment,
         &previous.parameters,
@@ -635,18 +707,15 @@ fn scalar_envelope(function: &TypedFunction) -> bool {
         && scalar(&function.return_type)
 }
 
-fn scalar_input(function: &TypedFunction) -> Option<(Fingerprint, Vec<FunctionId>)> {
+fn scalar_input(function: &TypedFunction) -> Option<(Fingerprint, Vec<FunctionId>, u64)> {
     if !scalar_envelope(function)
         || !function.locals.iter().all(|local| scalar(&local.ty))
         || !function.values.iter().all(scalar)
     {
         return None;
     }
-    let mut hash = FingerprintBuilder::new();
+    let mut hash = bootstrap::InputHasher::new(function);
     let mut callees = BTreeSet::new();
-    "zil-analyze-scalar-input-v1".hash(&mut hash);
-    function.id.hash(&mut hash);
-    function.name.hash(&mut hash);
     function.parameters.hash(&mut hash);
     function.return_type.hash(&mut hash);
     function.result_mode.hash(&mut hash);
@@ -739,7 +808,8 @@ fn scalar_input(function: &TypedFunction) -> Option<(Fingerprint, Vec<FunctionId
             Terminator::Trap => 4u8.hash(&mut hash),
         }
     }
-    Some((hash.digest(), callees.into_iter().collect()))
+    let (input, selector) = hash.finish_input();
+    Some((input, callees.into_iter().collect(), selector))
 }
 
 fn output_fingerprint(result: &FunctionPlan) -> Fingerprint {

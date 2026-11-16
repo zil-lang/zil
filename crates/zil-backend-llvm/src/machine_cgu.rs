@@ -442,6 +442,19 @@ pub(crate) fn partition_classes_reusing(
                 cache.load_classes_observed(&module, lir, entry, count, classes, observed)
             })
     });
+    // A direct CLI restart may already contain the first edit. There is then
+    // neither a previous Materialization nor an exact disk key. Build CURRENT
+    // roles with the indexed graph already read above, rather than rebuilding
+    // named call/reference sets in the original full planner.
+    let current_plan = if selected.is_none() && previous.is_none() {
+        observed.as_ref().and_then(|observed| {
+            layout::Layout::plan_classes_current(&module, lir, entry, count, classes, observed)
+        })
+    } else {
+        None
+    };
+    let planned_current = current_plan.is_some();
+    let selected = selected.or(current_plan);
     if let Some(cached) = selected
         && valid_declaration_prelude(&module)
     {
@@ -458,12 +471,12 @@ pub(crate) fn partition_classes_reusing(
         // A reused in-process recipe is published under the CURRENT complete
         // key. It must never report the previous module's disk layout key.
         let layout_key = cache.as_ref().map(|cache| cache.key().to_hex());
-        let pending = if retained_layout {
+        let pending = if retained_layout || planned_current {
             cache.and_then(|cache| cache.pending(&cached))
         } else {
             None
         };
-        let layout_key = if retained_layout {
+        let layout_key = if retained_layout || planned_current {
             pending.as_ref().map(|pending| pending.key().to_hex())
         } else {
             layout_key
@@ -476,7 +489,7 @@ pub(crate) fn partition_classes_reusing(
             pending,
             materialization: Some(materialization),
             layout_key,
-            reused_layout: true,
+            reused_layout: !planned_current,
         });
     }
     let source = module.clone();

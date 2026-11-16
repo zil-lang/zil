@@ -39,6 +39,24 @@ impl std::fmt::Debug for CanonicalHandle {
     }
 }
 impl FunctionProduct {
+    /// Reuse a real decoder's canonical bytes after the sealed current-product
+    /// relation and complete canonical function equality have both succeeded.
+    /// Encoded-only fragments or changed limits use the original writer.
+    pub fn canonical_encoding(
+        &self,
+        current: &TypedFunction,
+        limits: &Limits,
+        maximum_bytes: usize,
+    ) -> Option<zil_ir::wire::RawFunctionEncoding> {
+        let function = self.canonical_function(current)?;
+        self.canonical
+            .as_ref()?
+            .entry
+            .encoding
+            .get()?
+            .bind_decoded_owner(function, limits, maximum_bytes)
+    }
+
     /// Only the exact current raw function bound by the successful closed
     /// producer may use this identity; public digest/Arc fields are not proof.
     pub fn canonical_identity(&self, current: &TypedFunction) -> Option<Fingerprint> {

@@ -250,6 +250,12 @@ impl SemanticPublicationSession {
             .map_or(&self.plan_slots, |memory| &memory.plan_slots);
         let mut canonical = publication_prefix(old_canonical, count);
         let mut slots = publication_prefix(old_slots, count);
+        let mut retained_bytes = slots
+            .iter()
+            .filter_map(|slot| slot.get())
+            .fold(0usize, |bytes, raw| {
+                bytes.saturating_add(raw.shared_bytes().len())
+            });
         let mut bindings = publication_prefix(old_bindings, count);
         let dirty = previous.map_or_else(
             || (0..count).collect(),
@@ -294,7 +300,11 @@ impl SemanticPublicationSession {
                             .map(Arc::new)
                     })
             };
-            let (body, slot) = if let Some(body) = body {
+            let old_bytes = slots
+                .get(index)
+                .and_then(|slot| slot.get())
+                .map_or(0, |raw| raw.shared_bytes().len());
+            let (body, mut slot) = if let Some(body) = body {
                 // Full function equality includes every header, local, value,
                 // block and relative span. A product digest never selects bytes.
                 let reused = prior.filter(|old| old.as_ref() == body.as_ref());
@@ -313,6 +323,29 @@ impl SemanticPublicationSession {
                     .unwrap_or_else(|| Arc::new(OnceLock::new()));
                 (None, slot)
             };
+            let retained_other = retained_bytes.saturating_sub(old_bytes);
+            if slot.get().is_none()
+                && let Some(body) = &body
+                && let Some(raw) = product.and_then(|product| {
+                    product.canonical_encoding(
+                        function,
+                        limits,
+                        limits.max_source_bytes.saturating_sub(retained_other),
+                    )
+                })
+                && raw
+                    .decoded_function()
+                    .is_some_and(|owner| owner.as_ref() == body.as_ref())
+            {
+                // A function-cache restore can precede any whole semantic
+                // candidate. Carry its actual decoder association into the
+                // first publication instead of serializing the same CFG again.
+                // New slots are staged locally; failed publication cannot fill
+                // a successful checkpoint's shared raw hints.
+                slot = Arc::new(OnceLock::from(raw));
+            }
+            retained_bytes =
+                retained_other.saturating_add(slot.get().map_or(0, |raw| raw.shared_bytes().len()));
             canonical_count -= usize::from(prior.is_some());
             canonical_count += usize::from(body.is_some());
             let binding = FunctionBinding {
@@ -1843,6 +1876,59 @@ mod tests {
         )
     }
     const CANONICAL_SOURCE: &str = "fn f(x:i32)->i32{if x<10{return x+1;}else{return x*2;}} fn g(x:i32)->i32{if x<10{return x+3;}else{return x*4;}} pub fn main()->i32{let a=f(2);let b=g(a);let c=f(b);return c;}";
+
+    #[test]
+    fn direct_restart_edit_lends_decoded_cfg_bytes_to_first_semantic_publication() {
+        let directory = directory();
+        let path = directory.join("main.zil");
+        let limits = Limits::default();
+        let mut cold = CompilationSession::default();
+        let (typed, _, _) = canonical_fixture(&mut cold, &path, CANONICAL_SOURCE);
+        let target = typed.module.target.clone();
+        let items = cold
+            .function_types
+            .encode_item_products(&target, &limits, &mut FunctionEncodingStats::default())
+            .unwrap();
+        let buffers = items
+            .items
+            .iter()
+            .map(|item| (item.content_fingerprint, item.bytes.clone()))
+            .collect::<BTreeMap<_, _>>();
+        drop(cold);
+        let mut current = CompilationSession::default();
+        assert!(current.function_types.restore_item_products(
+            &items.manifest,
+            &mut |key| buffers.get(&key).cloned(),
+            &target,
+            &limits,
+        ));
+        // No whole semantic candidate or prior publication survives the process.
+        // Only the genuine per-function decoder owners are available.
+        let edited = format!("\n{}", CANONICAL_SOURCE.replace("x+1", "x+17"));
+        let (typed, candidate, products) = canonical_fixture(&mut current, &path, &edited);
+        let mut publication = SemanticPublicationSession::default();
+        let (segments, stats, prepared) = publication
+            .prepare_with_products(&typed, &candidate, &limits, false, Some(&products))
+            .unwrap();
+        assert_eq!((stats.serialized_functions, stats.reused_functions), (1, 2));
+        publication.install(prepared);
+        let logical = manifest(&segments, &publication.bindings, &limits).unwrap();
+        let (restored, plan) = decode_bound(&flatten(&segments), &logical, &limits).unwrap();
+        assert_eq!(
+            (restored.clone(), plan.clone()),
+            ((*typed).clone(), (*candidate).clone())
+        );
+        zil_verify::verify_module(restored.module, plan, &target, &limits).unwrap();
+        let product = products.iter().find(|product| product.reused).unwrap();
+        let mut forged = typed.module.functions[product.id.0 as usize].clone();
+        forged.span.end += 1;
+        assert!(
+            product
+                .canonical_encoding(&forged, &limits, limits.max_source_bytes)
+                .is_none()
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn equal_plan_rows_reach_packed_storage_without_reencoding_or_dirty_bytes() {

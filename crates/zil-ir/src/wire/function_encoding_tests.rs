@@ -1,5 +1,136 @@
 use super::*;
 
+#[test]
+fn decoded_owner_relabel_matches_real_writer_and_refuses_every_other_change() {
+    let (module, _) = fixture();
+    let limits = Limits::default();
+    let source = &module.functions[0];
+    let raw = encode_raw_function(source, &limits).unwrap();
+    assert!(
+        raw.bind_decoded_owner(Arc::new(source.clone()), &limits, usize::MAX)
+            .is_none()
+    );
+    let (decoded, raw) =
+        decode_raw_function_shared_owner(raw.shared_bytes(), &limits, limits.max_nodes).unwrap();
+    for name in [
+        source.name.as_str(),
+        "long.current.diagnostic.name",
+        "当前名字",
+    ] {
+        let mut current = decoded.as_ref().clone();
+        current.name = name.into();
+        let current = Arc::new(current);
+        let expected = encode_raw_function(&current, &limits).unwrap();
+        let bytes = expected.shared_bytes().len();
+        let bound = raw
+            .bind_decoded_owner(current.clone(), &limits, bytes)
+            .unwrap();
+        assert_eq!(bound.shared_bytes(), expected.shared_bytes());
+        assert_eq!(bound.node_cost(), expected.node_cost());
+        assert!(Arc::ptr_eq(bound.decoded_function().unwrap(), &current));
+        assert!(
+            raw.bind_decoded_owner(current.clone(), &limits, bytes - 1)
+                .is_none()
+        );
+        let changed_limits = Limits {
+            max_nodes: limits.max_nodes - 1,
+            ..limits.clone()
+        };
+        assert!(
+            raw.bind_decoded_owner(current, &changed_limits, usize::MAX)
+                .is_none()
+        );
+    }
+    let mut mutants = Vec::new();
+    let mut changed = decoded.as_ref().clone();
+    changed.blocks[0].instructions[0].kind = InstructionKind::Constant(Constant::I32(43));
+    mutants.push(changed);
+    let mut changed = decoded.as_ref().clone();
+    changed.span.end += 1;
+    mutants.push(changed);
+    let mut changed = decoded.as_ref().clone();
+    changed.id.0 += 1;
+    mutants.push(changed);
+    let mut changed = decoded.as_ref().clone();
+    changed.return_type = Type::I64;
+    mutants.push(changed);
+    for changed in mutants {
+        assert!(
+            raw.bind_decoded_owner(Arc::new(changed), &limits, usize::MAX)
+                .is_none()
+        );
+    }
+}
+
+#[test]
+fn decoded_owner_fragments_keep_original_aggregate_n_and_n_minus_one_errors() {
+    let (mut module, plan) = fixture();
+    let limits = Limits::default();
+    let normal = encode_module_candidate(&module, &plan, &limits).unwrap();
+    let mut writer = Writer::new(&limits);
+    writer.header(MODULE_MAGIC).unwrap();
+    writer.module(&module).unwrap();
+    writer.plan(&plan).unwrap();
+    assert_eq!(writer.output, normal);
+    let nodes = limits.max_nodes - writer.nodes;
+    module.functions[0].name = "longer-current-name".into();
+    let size = encode_module_candidate(&module, &plan, &limits)
+        .unwrap()
+        .len();
+    for current in [
+        Limits {
+            max_nodes: nodes,
+            ..limits.clone()
+        },
+        Limits {
+            max_nodes: nodes - 1,
+            ..limits.clone()
+        },
+        Limits {
+            max_source_bytes: size,
+            ..limits.clone()
+        },
+        Limits {
+            max_source_bytes: size - 1,
+            ..limits.clone()
+        },
+    ] {
+        let slots = module
+            .functions
+            .iter()
+            .map(|function| {
+                // Prime each independently under the exact limits when it fits;
+                // aggregate exhaustion must still use the original inner failure.
+                let mut old = function.clone();
+                old.name = "old".into();
+                let raw = encode_raw_function(&old, &current).unwrap();
+                let (_, raw) = decode_raw_function_shared_owner(
+                    raw.shared_bytes(),
+                    &current,
+                    current.max_nodes,
+                )
+                .unwrap();
+                OnceLock::from(
+                    raw.bind_decoded_owner(
+                        Arc::new(function.clone()),
+                        &current,
+                        current.max_source_bytes,
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let actual = encode_module_candidate_with_function_encodings(
+            &module,
+            &plan,
+            &module.functions.iter().zip(&slots).collect::<Vec<_>>(),
+            &current,
+            &mut FunctionEncodingStats::default(),
+        );
+        assert_eq!(actual, encode_module_candidate(&module, &plan, &current));
+    }
+}
+
 fn fixture() -> (TypedModule, CandidatePlan) {
     let function = TypedFunction {
         storage_life: None,

@@ -987,6 +987,179 @@ fn real_class_split_merge_rebuilds_only_changed_units_after_disk_restart() {
 }
 
 #[test]
+fn direct_restart_first_edit_derives_current_roles_after_old_exact_key_misses() {
+    let directory = Directory::new();
+    let (original, source, classes) = split_class_fixture(7);
+    let producer = super::super::partition_classes_reusing(
+        original.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        16,
+        &classes,
+        Some(&directory.0),
+        None,
+    )
+    .unwrap();
+    let old_key = producer.pending.as_ref().unwrap().key();
+    producer.pending.unwrap().pin().unwrap().commit();
+    drop(producer.materialization);
+    drop(producer.plan);
+    let old_cache = Cache::new(
+        &directory.0,
+        &original,
+        &source.as_view(),
+        EntryPoint::None,
+        16,
+        true,
+        CallImportPolicy::Complete,
+    )
+    .unwrap()
+    .with_classes(&classes);
+    let old_layout = old_cache.read().unwrap();
+    let (edited, _, split) = split_class_fixture(19);
+    assert!(split.len() > classes.len());
+    let current_cache = || {
+        Cache::new(
+            &directory.0,
+            &edited,
+            &source.as_view(),
+            EntryPoint::None,
+            16,
+            true,
+            CallImportPolicy::Complete,
+        )
+        .unwrap()
+        .with_classes(&split)
+    };
+    assert_ne!(old_key, current_cache().key());
+    assert!(current_cache().read().is_none());
+    let mut recorded = None;
+    let expected = super::super::partition_view_once(
+        edited.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        16,
+        true,
+        true,
+        &mut recorded,
+        None,
+        &mut 0,
+        &split,
+    );
+    assert!(expected.fallback.is_none());
+
+    // Even a checksummed old recipe filed under the NEW exact key cannot lend
+    // its old indices, slots, owner assignments or completed marker. The first
+    // actual request is already edited and has NO in-process materialization.
+    current_cache()
+        .pending(&old_layout)
+        .unwrap()
+        .pin()
+        .unwrap()
+        .commit();
+    let graph = CurrentGraph::read(&edited, None).unwrap();
+    assert!(
+        current_cache()
+            .load_classes_observed(
+                &edited,
+                &source.as_view(),
+                EntryPoint::None,
+                16,
+                &split,
+                &graph,
+            )
+            .is_none()
+    );
+    let current = super::super::partition_classes_reusing(
+        edited.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        16,
+        &split,
+        Some(&directory.0),
+        None,
+    )
+    .unwrap();
+    assert!(
+        !current.reused_layout,
+        "fresh current planning is not a disk hit"
+    );
+    assert_eq!(current.plan.units, expected.units);
+    assert_eq!(current.materialization.as_ref().unwrap().reused_items, 0);
+    assert!(
+        current
+            .materialization
+            .as_ref()
+            .unwrap()
+            .has_completed_roles()
+    );
+    let pending = current.pending.unwrap();
+    assert_eq!(pending.key(), current_cache().key());
+    assert_eq!(
+        current.layout_key.as_deref(),
+        Some(pending.key().to_hex().as_str())
+    );
+    assert_eq!(
+        current_cache().read().unwrap(),
+        old_layout,
+        "no early publication"
+    );
+    pending.pin().unwrap().commit();
+    assert_eq!(current_cache().read(), recorded);
+    let restarted = super::super::partition_classes_reusing(
+        edited.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        16,
+        &split,
+        Some(&directory.0),
+        None,
+    )
+    .unwrap();
+    assert!(restarted.reused_layout);
+    assert_eq!(restarted.plan.units, expected.units);
+    for unit in &restarted.plan.units {
+        zil_llvm_api::validate_module(unit).unwrap();
+    }
+}
+
+#[test]
+fn current_shared_body_observations_keep_original_work_and_current_symbol_binding() {
+    let mut caller = function("caller", Some("callee"));
+    let mut other = caller.clone();
+    other.name = "other".into();
+    let mut module = Module {
+        triple: TargetProfile::host_llvm().triple,
+        fingerprint: "current".into(),
+        items: vec![
+            Item::Function(caller.clone()),
+            Item::Function(function("callee", None)),
+            Item::Function(other),
+        ]
+        .into(),
+    };
+    GRAPH_WORK.with(|work| work.set((0, 0)));
+    let graph = CurrentGraph::read(&module, None).unwrap();
+    GRAPH_WORK.with(|work| assert_eq!(work.get(), (2, 1)));
+    assert!(std::sync::Arc::ptr_eq(&graph.rows[0], &graph.rows[2]));
+    let required = module.items.len() + graph.rows.iter().map(|row| row.work).sum::<usize>();
+    assert!(CurrentGraph::read_bounded(&module, None, required).is_some());
+    assert!(CurrentGraph::read_bounded(&module, None, required - 1).is_none());
+    let Op::Call { callee, .. } = &mut caller.blocks.as_mut().unwrap()[0].instructions[0].op else {
+        unreachable!()
+    };
+    *callee = Val::Global("other".into());
+    module.items[0] = Item::Function(caller);
+    let changed = CurrentGraph::read(&module, None).unwrap();
+    assert!(!std::sync::Arc::ptr_eq(&changed.rows[0], &changed.rows[2]));
+    let Item::Function(callee) = &mut module.items[1] else {
+        unreachable!()
+    };
+    callee.name = "renamed".into();
+    assert!(CurrentGraph::read(&module, None).is_none());
+}
+
+#[test]
 fn class_adaptation_preserves_source_grouping_and_original_copy_budget() {
     let (original, source, classes) = split_class_fixture(7);
     let first = super::super::partition_classes_reusing(

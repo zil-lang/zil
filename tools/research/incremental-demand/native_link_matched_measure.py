@@ -702,8 +702,8 @@ def zil_request(args, workloads, fixtures, current, source, source_meta, directo
     return row
 
 
-def archive_native_profile(args):
-    """After the entire native matrix, retain the actual compiled-policy SDK inputs."""
+def archive_native_profile(args, archive_inputs=False):
+    """Audit actual SDK identities; copy inputs only for an explicit archive request."""
     manifest = args.native_link_profile
     data = manifest.read_bytes()
     if file_hash(manifest) != args.native_link_profile_sha256:
@@ -737,13 +737,17 @@ def archive_native_profile(args):
         size, mode, identity = file_table[name]
         if len(content) != size or path.stat().st_mode & 0o7777 != mode or rc.sha(content) != identity:
             raise ValueError('actual SDK input mode/size/bytes differ from compiled policy')
-        files.append({'path': name, 'mode': mode, **blob(args.out, content, '.sdk-input')})
+        identity_record = {'path': name, 'mode': mode, 'bytes': size, 'sha256': identity}
+        if archive_inputs:
+            identity_record.update(blob(args.out, content, '.sdk-input'))
+        files.append(identity_record)
         actual_files.add(name)
     if actual_files != set(file_table) or actual_dirs != directories or not files:
         raise ValueError('actual native SDK complete file/directory inventory differs')
     return {'manifest': preserve(args.out, manifest, '.native-link-policy'), 'snapshot_root': str(root),
+            'archived_inputs': archive_inputs,
             'files': files, 'directories': sorted(directories),
-            'capture_boundary': 'Full SDK files are archived only after every measured native request; this does not prewarm the first candidate cold profile load.'}
+            'capture_boundary': 'Complete SDK identity audit after all measured requests; SDK bytes are copied only when explicitly requested with archive_inputs=True.'}
 
 
 def publication_recovery(args, workloads, fixtures, source, directory, project, target,

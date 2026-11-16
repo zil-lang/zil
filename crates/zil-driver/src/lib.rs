@@ -668,6 +668,21 @@ impl CompileReport {
                 total.product_relocated_function_bindings = total
                     .product_relocated_function_bindings
                     .saturating_add(work.product_relocated_function_bindings);
+                total.bootstrap_templates = total
+                    .bootstrap_templates
+                    .saturating_add(work.bootstrap_templates);
+                total.bootstrap_initialization_reuses = total
+                    .bootstrap_initialization_reuses
+                    .saturating_add(work.bootstrap_initialization_reuses);
+                total.bootstrap_local_reuses = total
+                    .bootstrap_local_reuses
+                    .saturating_add(work.bootstrap_local_reuses);
+                total.bootstrap_scope_reuses = total
+                    .bootstrap_scope_reuses
+                    .saturating_add(work.bootstrap_scope_reuses);
+                total.bootstrap_hold_reuses = total
+                    .bootstrap_hold_reuses
+                    .saturating_add(work.bootstrap_hold_reuses);
             }
             for (phase, nanos) in &attempt.phase_timings_ns {
                 *self.phase_timings_ns.entry(*phase).or_default() += nanos;
@@ -817,8 +832,8 @@ fn frontend_stats_json(
         || "null".into(),
         |stats| {
             format!(
-                "{{\"executed_functions\":{},\"reused_functions\":{},\"retained_queries\":{},\"candidate_reused_functions\":{},\"candidate_executed_functions\":{},\"equal_function_results\":{},\"changed_function_results\":{},\"shared_program_reuses\":{},\"initialization_inputs_built\":{},\"candidate_inputs_built\":{},\"dependency_signatures_checked\":{},\"resource_transfers_executed\":{},\"resource_transfers_reused\":{},\"retained_candidate_queries\":{},\"product_admission_functions_checked\":{},\"product_function_queries_executed\":{},\"product_function_queries_reused\":{},\"product_global_obligations_executed\":{},\"product_global_obligations_reused\":{},\"product_plan_rows_replaced\":{},\"product_semantic_functions_compared\":{},\"product_relocated_function_bindings\":{}}}",
-                stats.executed_functions, stats.reused_functions, stats.retained_queries, stats.candidate_reused_functions, stats.candidate_executed_functions, stats.equal_function_results, stats.changed_function_results, stats.shared_program_reuses, stats.initialization_inputs_built, stats.candidate_inputs_built, stats.dependency_signatures_checked, stats.resource_transfers_executed, stats.resource_transfers_reused, stats.retained_candidate_queries, stats.product_admission_functions_checked, stats.product_function_queries_executed, stats.product_function_queries_reused, stats.product_global_obligations_executed, stats.product_global_obligations_reused, stats.product_plan_rows_replaced, stats.product_semantic_functions_compared, stats.product_relocated_function_bindings,
+                "{{\"executed_functions\":{},\"reused_functions\":{},\"retained_queries\":{},\"candidate_reused_functions\":{},\"candidate_executed_functions\":{},\"equal_function_results\":{},\"changed_function_results\":{},\"shared_program_reuses\":{},\"initialization_inputs_built\":{},\"candidate_inputs_built\":{},\"dependency_signatures_checked\":{},\"resource_transfers_executed\":{},\"resource_transfers_reused\":{},\"retained_candidate_queries\":{},\"product_admission_functions_checked\":{},\"product_function_queries_executed\":{},\"product_function_queries_reused\":{},\"product_global_obligations_executed\":{},\"product_global_obligations_reused\":{},\"product_plan_rows_replaced\":{},\"product_semantic_functions_compared\":{},\"product_relocated_function_bindings\":{},\"bootstrap_templates\":{},\"bootstrap_initialization_reuses\":{},\"bootstrap_local_reuses\":{},\"bootstrap_scope_reuses\":{},\"bootstrap_hold_reuses\":{}}}",
+                stats.executed_functions, stats.reused_functions, stats.retained_queries, stats.candidate_reused_functions, stats.candidate_executed_functions, stats.equal_function_results, stats.changed_function_results, stats.shared_program_reuses, stats.initialization_inputs_built, stats.candidate_inputs_built, stats.dependency_signatures_checked, stats.resource_transfers_executed, stats.resource_transfers_reused, stats.retained_candidate_queries, stats.product_admission_functions_checked, stats.product_function_queries_executed, stats.product_function_queries_reused, stats.product_global_obligations_executed, stats.product_global_obligations_reused, stats.product_plan_rows_replaced, stats.product_semantic_functions_compared, stats.product_relocated_function_bindings, stats.bootstrap_templates, stats.bootstrap_initialization_reuses, stats.bootstrap_local_reuses, stats.bootstrap_scope_reuses, stats.bootstrap_hold_reuses,
             )
         },
     );

@@ -31,6 +31,64 @@ pub fn raw_scalar_function_id(bytes: &[u8]) -> Option<FunctionId> {
 }
 
 impl RawFunctionEncoding {
+    /// Bind this real decoder's bytes to a complete equal current raw value.
+    /// Only its recorded diagnostic-name field may differ. The caller's
+    /// original Writer still enforces ordered node/byte quotas and first errors.
+    pub fn bind_decoded_owner(
+        &self,
+        function: Arc<TypedFunction>,
+        limits: &Limits,
+        maximum_bytes: usize,
+    ) -> Option<Self> {
+        if !self.matches_limits(limits) {
+            return None;
+        }
+        let decoded = self.decoded.as_ref()?;
+        let mut comparable = function.as_ref().clone();
+        comparable.name = decoded.function.name.clone();
+        if comparable != *decoded.function {
+            return None;
+        }
+        let text_start = decoded.name.start.checked_add(4)?;
+        if self.bytes.get(text_start..decoded.name.end)? != decoded.function.name.as_bytes() {
+            return None;
+        }
+        let length = self
+            .bytes
+            .len()
+            .checked_sub(decoded.name.len())?
+            .checked_add(4)?
+            .checked_add(function.name.len())?;
+        if length > maximum_bytes.min(limits.max_source_bytes) {
+            return None;
+        }
+        if function.name == decoded.function.name {
+            let mut encoding = self.clone();
+            encoding.decoded = Some(DecodedFunction {
+                function,
+                name: decoded.name.clone(),
+            });
+            return Some(encoding);
+        }
+        let name_length = u32::try_from(function.name.len()).ok()?;
+        let name_end = text_start.checked_add(function.name.len())?;
+        let mut bytes = Vec::with_capacity(length);
+        bytes.extend_from_slice(self.bytes.get(..decoded.name.start)?);
+        bytes.extend_from_slice(&name_length.to_le_bytes());
+        bytes.extend_from_slice(function.name.as_bytes());
+        bytes.extend_from_slice(self.bytes.get(decoded.name.end..)?);
+        Some(Self {
+            bytes: bytes.into(),
+            limits: limits.clone(),
+            nodes: self.nodes,
+            fingerprint: OnceLock::new(),
+            decoded: Some(DecodedFunction {
+                function,
+                name: decoded.name.start..name_end,
+            }),
+        })
+    }
+
     /// The actual immutable function produced by the same successful Reader
     /// that established these bytes, boundaries and node cost. Encoded-only
     /// fragments and FunctionPlan encodings do not carry a decoded owner.
