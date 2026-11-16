@@ -669,6 +669,20 @@ impl Check<'_, '_, '_> {
         self.budget.node(ty.span, depth)?;
         Ok(match &ty.kind {
             TypeKind::Group(inner) => self.ty(inner, scope, depth + 1)?,
+            TypeKind::Named { path, args }
+                if path.as_slice() == ["Managed"]
+                    && matches!(args.as_slice(), [GenericArg::Type(_)]) =>
+            {
+                // This private pass projects lexical classes, not ownership:
+                // given inputs, give expressions and managed fields already
+                // carry their resource payload's complete class fact. Project
+                // the same sealed wrapper in written types. The immutable AST
+                // and ordinary type/give checks retain the full Managed head.
+                let [GenericArg::Type(payload)] = args.as_slice() else {
+                    unreachable!()
+                };
+                self.ty(payload, scope, depth + 1)?
+            }
             TypeKind::Named { path, args } => {
                 if path.as_slice() == ["Self"]
                     && args.is_empty()
@@ -3149,6 +3163,56 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
 #[cfg(test)]
 mod local_class_tests {
     use super::*;
+
+    #[test]
+    fn managed_task_class_projection_preserves_all_retained_inputs() {
+        for (text, accepted) in [
+            (
+                "fn keep<life a>(give input:Task<i32,&'a mut i32>)->impl FnOnce()->Managed<Task<i32,&'a mut i32>>{return move()=>give input;}",
+                true,
+            ),
+            (
+                "fn keep<life a,life b>(give first:Task<i32,&'a mut i32>,give second:Task<i32,&'b mut i32>)->impl FnOnce()->Managed<Task<i32,&'b mut i32>>{return move()=>give second;}",
+                true,
+            ),
+            (
+                "fn keep<life a,life b>(give input:Task<i32,&'a mut i32>)->impl FnOnce()->Managed<Task<i32,&'b mut i32>>{return move()=>give input;}",
+                false,
+            ),
+            (
+                "fn keep<life a>(give input:Task<i32>)->impl FnOnce()->Managed<Task<i32,&'a mut i32>>{return move()=>give input;}",
+                false,
+            ),
+            (
+                "fn keep<life a>(give input:Task<i32,&'a mut i32>)->impl FnOnce()->Managed<Task<i32,&'a mut i32>>{return move()=>missing();}",
+                false,
+            ),
+            (
+                "fn keep<life a,life b>(input:Store<Managed<Task<i32,&'a mut i32>>>)->Store<Managed<Task<i32,&'b mut i32>>>{return input;}",
+                false,
+            ),
+        ] {
+            let source = zil_base::SourceUnit::new(
+                zil_base::FileId(0),
+                zil_base::ModuleId(0),
+                "managed-task-source-classes.zil",
+                text,
+            );
+            let parsed = zil_syntax::parse(&source).into_result().unwrap();
+            let limits = zil_base::Limits::default();
+            let mut budget = Budget::new(&limits);
+            crate::lifetimes::validate(&parsed, &mut budget).unwrap();
+            let checked = validate(&parsed, &mut budget);
+            if accepted {
+                checked.unwrap_or_else(|error| panic!("{text}: {error:?}"));
+            } else {
+                assert!(
+                    checked.is_err(),
+                    "class projection accepted another or unknown Task context: {text}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn local_borrows_cannot_satisfy_a_declared_retained_source_class() {

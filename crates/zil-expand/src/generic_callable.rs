@@ -874,18 +874,9 @@ fn template_with_state(
                 direct_owner = Some(index);
             }
             match (kind, mode) {
-                (CallableKind::FnMut, None)
-                    if !owning
-                        && !owned_factory
-                        && !forwarded
-                        && !retained_registration
-                        && !owned_registration_input =>
-                {
-                    return Err(unsupported(
-                        input.span,
-                        "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
-                    ));
-                }
+                // By-value FnMut owns an affine environment. Whether it is
+                // invoked through a real mutable local is a body obligation,
+                // checked after the original move/binding has been recorded.
                 (CallableKind::FnMut, Some(false)) | (CallableKind::FnOnce, Some(_)) => {
                     return Err(error(
                         input.span,

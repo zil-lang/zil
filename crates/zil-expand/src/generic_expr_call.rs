@@ -1148,13 +1148,14 @@ impl Engine<'_> {
                     // A dynamic call still has a statically known complete
                     // signature. Preserve its result for following source
                     // patterns; Types checks the actual call independently.
-                    match callee_type.as_ref().map(grouped).map(|ty| &ty.kind) {
-                        Some(TypeKind::Function { result, .. }) => {
-                            self.budget.ty(result)?;
-                            Some(*result.clone())
-                        }
-                        _ => None,
+                    let result = callee_type.as_ref().and_then(|ty| match &grouped(ty).kind {
+                        TypeKind::Function { result, .. } => Some(result.as_ref()),
+                        _ => callable::opaque_signature(ty).map(|(_, _, result)| result),
+                    });
+                    if let Some(result) = result {
+                        self.budget.ty(result)?;
                     }
+                    result.cloned()
                 }
             }
         };

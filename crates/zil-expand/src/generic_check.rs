@@ -92,7 +92,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     let owned_dispatch = function.generics.len() == 1 && callable.as_ref().is_some_and(|bounds| {
         !bounds.owned_state && !bounds.owned_factory && bounds.state_bindings.is_empty()
             && matches!(bounds.roles.as_slice(), [role]
-                if (role.kind == zil_ir::CallableKind::FnOnce || bounds.forwarded)
+                if (matches!(role.kind, zil_ir::CallableKind::FnOnce | zil_ir::CallableKind::FnMut) || bounds.forwarded)
                     && callable::parameter_mode(&function.params[role.index].ty, &role.generic_name) == Some(None))
     });
     for p in &function.params {
@@ -5117,7 +5117,6 @@ impl Check<'_, '_, '_> {
                 )))
                 .map(Some);
             };
-            let owned_state = bounds.owned_state || bounds.owned_factory || bounds.forwarded;
             let bound = bounds
                 .bindings()
                 .find(|bound| callable::parameter_mode(&local.ty, &bound.generic_name).is_some());
@@ -5134,7 +5133,7 @@ impl Check<'_, '_, '_> {
             } else {
                 None
             };
-            let (kind, mode, parameters, mut result, factory_local) = if let Some(bound) = bound {
+            let (kind, mode, parameters, mut result) = if let Some(bound) = bound {
                 for parameter in &bound.parameters {
                     self.budget.ty(parameter)?;
                 }
@@ -5144,14 +5143,13 @@ impl Check<'_, '_, '_> {
                     callable::parameter_mode(&local.ty, &bound.generic_name).unwrap(),
                     bound.parameters.clone(),
                     bound.result.clone(),
-                    false,
                 )
             } else if let Some((kind, parameters, result)) = callable::opaque_signature(&local.ty) {
                 for parameter in parameters {
                     self.budget.ty(parameter)?;
                 }
                 self.budget.ty(result)?;
-                (kind, None, parameters.to_vec(), result.clone(), true)
+                (kind, None, parameters.to_vec(), result.clone())
             } else {
                 return (Err(error(
                             e.span,
@@ -5185,22 +5183,10 @@ impl Check<'_, '_, '_> {
             match kind {
                 zil_ir::CallableKind::Fn => {}
                 zil_ir::CallableKind::FnMut if mode == Some(true) => {}
-                zil_ir::CallableKind::FnMut if local.mutable && (factory_local || owned_state) => {}
-                zil_ir::CallableKind::FnMut if factory_local => {
+                zil_ir::CallableKind::FnMut if mode.is_none() && local.mutable => {}
+                zil_ir::CallableKind::FnMut if mode.is_none() => {
                     return (Err(error(e.span, "local FnMut call requires a mutable binding")))
                         .map(Some);
-                }
-                zil_ir::CallableKind::FnMut
-                    if self
-                        .callable
-                        .as_ref()
-                        .is_some_and(|bounds| bounds.forwarded) =>
-                {
-                    return (Err(error(
-                        e.span,
-                        "FnMut forwarding call requires a mutable binding",
-                    )))
-                    .map(Some);
                 }
                 zil_ir::CallableKind::FnOnce if mode.is_none() => {
                     self.alias_invalidate(state, local.id, None, callee.span)?;
@@ -5291,18 +5277,9 @@ impl Check<'_, '_, '_> {
             unreachable!("call dispatcher")
         };
         if let Some((abi, function)) = self.foreign_signatures.get(target) {
-            if !self.defer_body
-                && !self
-                    .callable
-                    .as_ref()
-                    .is_some_and(|b| b.dual_names().is_some())
-            {
-                return (Err(unsupported(
-                    e.span,
-                    "foreign calls in this parametric profile are not implemented",
-                )))
-                .map(Some);
-            }
+            // A concrete scalar C call does not depend on the number of
+            // callable binders. Its unsafe scope, full signature and actual
+            // argument use are checked below in the original generic body.
             if !self.unsafe_scope {
                 return (Err(error(
                     e.span,
@@ -5335,7 +5312,7 @@ impl Check<'_, '_, '_> {
             {
                 return (Err(unsupported(
                     e.span,
-                    "dual State marker calls require a direct concrete C scalar signature",
+                    "parametric foreign calls require a direct concrete C scalar signature",
                 )))
                 .map(Some);
             }
@@ -6846,19 +6823,13 @@ impl Check<'_, '_, '_> {
                         self.for_range(pattern, iterable, body, state, statement.span)?;
                     flow.returns |= iteration_flow.returns;
                 }
-                StmtKind::Unsafe(body)
-                    if self
-                        .callable
-                        .as_ref()
-                        .is_some_and(|b| b.dual_names().is_some())
-                        || self.defer_body
-                        || self.scoped_callback_block(body, 0)? =>
-                {
+                StmtKind::Unsafe(body) => {
                     let mut inner = self.clone_state(state)?;
                     let saved = self.unsafe_scope;
                     self.unsafe_scope = true;
-                    let inner_flow = self.block(body, &mut inner)?;
+                    let checked = self.block(body, &mut inner);
                     self.unsafe_scope = saved;
+                    let inner_flow = checked?;
                     self.join_states(state, &[&inner], statement.span)?;
                     flow.fallthrough = inner_flow.fallthrough;
                     flow.returns |= inner_flow.returns;
