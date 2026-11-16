@@ -639,6 +639,25 @@ pub fn scope_with_candidates(
     scope(ty, &mut fuel, 0)
 }
 
+/// Check that a complete actual value has no free class coordinates. This is
+/// geometry only: it supplies no Copy, Drop, ownership, target or loan premise.
+pub fn closed_with_candidates(
+    ty: &Type,
+    scopes: ScopeCandidates<'_>,
+    limits: &Limits,
+    remaining: &mut usize,
+) -> Result<()> {
+    let mut fuel = Fuel {
+        limits,
+        remaining,
+        nodes: 0,
+        scopes,
+    };
+    fuel.ty(ty, 0)?;
+    fuel.scopes()?;
+    closed(ty, &mut fuel, 0)
+}
+
 /// Construct an untrusted physical subvalue view and complete child->parent
 /// relation. `prefix` never dereferences an address or owning manager. Empty
 /// explicit class domains are preserved; unresolved scopes are errors.

@@ -106,12 +106,13 @@ pub(super) fn prepare_creators(
                             unsupported(f.span, "creator address class count overflow")
                         })?;
                 }
-                ty if ty.is_copy_value() => {}
-                _ => {
-                    return Err(unsupported(
-                        f.span,
-                        "external capture result requires its complete actual creator class header",
-                    ));
+                ty => {
+                    zil_ir::source_projection::closed_with_candidates(ty,
+                        zil_ir::source_projection::ScopeCandidates { closures: &module.closures, interfaces: &module.dyn_interfaces },
+                        limits, left).map_err(|error| match error {
+                            zil_ir::source_projection::ProjectionError::Limit => Diagnostic::limit(Phase::Types, "creator closed class geometry work exceeded", Some(f.span)),
+                            _ => unsupported(f.span, "external capture result requires its complete actual creator class header"),
+                        })?;
                 }
             }
         }

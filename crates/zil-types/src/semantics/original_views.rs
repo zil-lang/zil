@@ -285,7 +285,7 @@ impl Check<'_, '_> {
             .view_bounds
             .contains_key(&(owner, Query::Expression(operand.id)))
         {
-            self.owned_place_bound(owner, operand, variables, depth + 1)?;
+            self.place_borrow_bound(owner, operand, variables, depth + 1)?;
         }
         let Some(bound) = self
             .proof
@@ -334,7 +334,7 @@ impl Check<'_, '_> {
         );
         Ok(wanted.clone())
     }
-    fn owned_place_bound(
+    pub(super) fn place_borrow_bound(
         &mut self,
         owner: SemanticDefinitionId,
         expression: &SemanticOriginalExpr,
@@ -344,6 +344,14 @@ impl Check<'_, '_> {
         self.pay(1, depth)?;
         match &expression.kind {
             CoreExprKind::Name(name) => {
+                self.view_bound(owner, expression, variables, depth + 1)?;
+                if self
+                    .proof
+                    .view_bounds
+                    .contains_key(&(owner, Query::Expression(expression.id)))
+                {
+                    return Ok(());
+                }
                 let Some(binding) = variables.get(name) else {
                     return Ok(());
                 };
@@ -375,11 +383,11 @@ impl Check<'_, '_> {
                 )
             }
             CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
-                self.owned_place_bound(owner, value, variables, depth + 1)?;
+                self.place_borrow_bound(owner, value, variables, depth + 1)?;
                 self.view_bound(owner, expression, variables, depth + 1)
             }
             CoreExprKind::Member { object, .. } => {
-                self.owned_place_bound(owner, object, variables, depth + 1)?;
+                self.place_borrow_bound(owner, object, variables, depth + 1)?;
                 self.view_bound(owner, expression, variables, depth + 1)
             }
             _ => Ok(()),

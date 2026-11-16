@@ -458,6 +458,14 @@ impl Check<'_, '_> {
                     ));
                 }
                 self.call_requirements(owner, callee, arguments, depth + 1)?;
+                // A definition-local proof may release captured views without
+                // ever transporting their private lifetime names to the caller.
+                self.contexts.push(*definition);
+                let original = self.cleanup_capability(*definition, hidden, depth + 1);
+                self.contexts.pop();
+                if original? {
+                    return Ok(true);
+                }
                 // The original definition remains checked under its abstract
                 // premises. This application has its own complete mixed
                 // arguments and may prove cleanup of that specialized value;

@@ -1,6 +1,8 @@
 //! Actual method boundaries consume the independently checked original provider
 //! theorem. Concrete receiver images never prove generic conformance.
 use super::*;
+#[path = "world_callable_views.rs"]
+mod callable_views;
 #[path = "world_invocation.rs"]
 mod invocation;
 fn recipe_type(
@@ -789,8 +791,31 @@ pub(super) fn callable(
         scope: SemanticScopeRef::Ancestor(0),
         source: SemanticOriginalTypeSource::Expression(scheme.callee_node),
     };
-    let expected = world.ty(instance.id, &callee_query, World::type_of(raw_value)?)?;
-    world.same(instance.id, raw_value, &expected, implicit)?;
+    let expected = recipe_type(world, instance.id, &callee_query)?;
+    if World::type_of(raw_value)? == World::type_of(&expected)? {
+        world.same(instance.id, raw_value, &expected, implicit)?;
+    } else if matches!(World::type_of(raw_value)?, Type::Address { inner, .. }
+        if inner.as_ref() == World::type_of(&expected)? && matches!(inner.as_ref(), Type::Closure(_)))
+    {
+        // The Source name still denotes the complete owning environment. The
+        // actual call borrows that exact place; authenticate this view before
+        // comparing its entire pointee domain with the original occurrence.
+        callable_views::check(
+            world,
+            instance,
+            original,
+            site,
+            scheme.callee_node,
+            raw_value,
+            values,
+            locals,
+        )?;
+        world.same(instance.id, closure_value, &expected, implicit)?;
+    } else {
+        return Err(bad(
+            "actual callable view changes its complete original callee constructor",
+        ));
+    }
     let signature = &scheme.signature;
     if arguments.len() != signature.parameters.len()
         || function.parameters.len() != arguments.len()
