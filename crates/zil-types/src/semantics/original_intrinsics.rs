@@ -216,6 +216,7 @@ impl Check<'_, '_> {
                         .collect::<Vec<_>>();
                     let (worker_actuals, worker_signature) = self.solve_signature(
                         owner,
+                        expression,
                         &arguments[0],
                         &[&arguments[1]],
                         signature,
@@ -1149,6 +1150,7 @@ impl Check<'_, '_> {
                 self.effective_result(worker, &signature.result, depth + 1)?;
             let (actuals, signature) = self.solve_signature(
                 owner,
+                expression,
                 worker_expression,
                 &operands,
                 &worker_signature,

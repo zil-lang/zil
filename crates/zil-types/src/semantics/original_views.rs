@@ -11,6 +11,9 @@ pub(crate) enum ViewBorrowStepKind {
     Alias {
         binding: NodeId,
     },
+    ReadLocal {
+        binding: NodeId,
+    },
     Field {
         definition: SemanticDefinitionId,
         ordinal: u32,
@@ -175,7 +178,32 @@ impl Check<'_, '_> {
                     return Ok(());
                 }
                 if binding.mutable || binding.written {
-                    return Ok(());
+                    let lifetime = match &binding.ty {
+                        SemanticTypeRecipe::Address { lifetime, .. }
+                        | SemanticTypeRecipe::Desc { lifetime, .. } => lifetime,
+                        _ => return Ok(()),
+                    };
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        lifetime,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    return self.insert_view_bound(
+                        owner,
+                        Query::Expression(expression.id),
+                        ViewBorrowBound {
+                            root: ViewBorrowRoot::Local(binding_node),
+                            lifetime: Some(lifetime.clone()),
+                            steps: vec![ViewBorrowStep {
+                                node: expression.id,
+                                kind: ViewBorrowStepKind::ReadLocal {
+                                    binding: binding_node,
+                                },
+                            }],
+                        },
+                        depth + 1,
+                    );
                 }
                 step = Some(ViewBorrowStepKind::Alias {
                     binding: binding_node,
@@ -297,6 +325,17 @@ impl Check<'_, '_> {
             ));
         };
         let bound = snapshot_bound(bound, self.limits, self.left, depth + 1)?;
+        let region = self.region_key(owner, wanted, depth + 1)?;
+        if region.is_some_and(|(region_owner, _)| region_owner == owner) {
+            self.record_region_source(
+                owner,
+                wanted,
+                expression,
+                bound.lifetime.as_ref().unwrap_or(occurrence),
+                variables,
+                depth + 1,
+            )?;
+        }
         let allowed = match (&bound.lifetime, wanted) {
             (
                 None,
@@ -393,38 +432,13 @@ impl Check<'_, '_> {
             _ => Ok(()),
         }
     }
-    fn life_outlives(
+    pub(super) fn life_outlives(
         &mut self,
         owner: SemanticDefinitionId,
         source: &SemanticLifeRecipe,
         target: &SemanticLifeRecipe,
         depth: usize,
     ) -> R<bool> {
-        let requirements = self.original_requirements(owner, depth + 1)?;
-        self.pay(
-            requirements.len().saturating_mul(4).saturating_add(4),
-            depth,
-        )?;
-        let mut frontier = vec![source];
-        let mut seen = Vec::new();
-        while let Some(current) = frontier.pop() {
-            if self.same_life(current, target)? {
-                return Ok(true);
-            }
-            self.pay(seen.len().saturating_add(1), depth)?;
-            if seen.contains(&current) {
-                continue;
-            }
-            seen.push(current);
-            for requirement in requirements.iter() {
-                if let SemanticRequirementRecipe::Outlives { longer, shorter } = requirement {
-                    if self.same_life(current, longer)? {
-                        self.pay(1, depth)?;
-                        frontier.push(shorter);
-                    }
-                }
-            }
-        }
-        Ok(false)
+        self.call_region_outlives(owner, source, target, &mut Vec::new(), depth)
     }
 }

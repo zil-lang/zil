@@ -220,8 +220,9 @@ impl Check<'_, '_> {
         )?;
         let operands = arguments.iter().collect::<Vec<_>>();
         let holes = vec![SemanticActualRecipe::Infer; definition.parameters.len()];
-        let (actuals, solved) = self.solve_signature(
+        let (actuals, solved) = self.solve_signature_roles(
             owner,
+            expression,
             callee,
             &operands,
             &template,
@@ -230,6 +231,9 @@ impl Check<'_, '_> {
             variables,
             wanted,
             true,
+            &BTreeMap::new(),
+            &[],
+            1,
             depth + 1,
         )?;
         let frames = [

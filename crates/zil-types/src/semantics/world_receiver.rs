@@ -248,6 +248,57 @@ pub(super) fn seal(
     else {
         return Ok(());
     };
+    // A call-local receiver region is not the receiver storage's own borrow
+    // occurrence. Exact roots and access were checked above; retain that real
+    // source and authorize only this independently solved call/operand edge.
+    let call_region = {
+        let ledger = world.ledger;
+        let proof = ledger.original.borrow();
+        let proof = proof
+            .as_ref()
+            .ok_or_else(|| bad("method region lost its original proof"))?;
+        world.pay(index::search(proof.call_regions.len()))?;
+        if let Some(region) = proof.call_regions.get(&(original.id, *ordinal)) {
+            let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+                return Err(bad("method region has no original body"));
+            };
+            world.pay(site_nodes.len().saturating_add(region.sources.len()))?;
+            if !site_nodes.iter().any(|row| {
+                row.site == site.recipe && row.node == SemanticOriginalNode::Expression(region.call)
+            }) || !region
+                .sources
+                .iter()
+                .any(|source| source.at == SemanticOriginalNode::Expression(node))
+            {
+                return Err(bad(
+                    "method receiver region belongs to another original call or argument",
+                ));
+            }
+            true
+        } else {
+            false
+        }
+    };
+    if call_region {
+        let source = roles::outer(world, &actual)?;
+        let target = world.class(
+            caller.id,
+            &SemanticClassExpr::Implicit {
+                scope: SemanticScopeRef::Ancestor(0),
+                ordinal: *ordinal,
+            },
+            implicit,
+        )?;
+        world.pay(world.receiver_adaptations.len().saturating_add(1))?;
+        world.receiver_adaptations.push(Adaptation {
+            caller: caller.id,
+            site: site.recipe,
+            operand,
+            source,
+            target,
+        });
+        return Ok(());
+    }
     let SemanticDefinitionBody::FunctionWithBody {
         sites, site_nodes, ..
     } = &original.body

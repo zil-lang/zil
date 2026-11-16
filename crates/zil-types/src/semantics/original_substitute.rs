@@ -1176,6 +1176,19 @@ fn universal_callable_at(
     result.invocation_lifetimes = invocation_lifetimes;
     Ok(result)
 }
+/// Eliminate only the signature's own real nonzero Bound frame at a call.
+/// The body remains checked with its original rigid Bound coordinates.
+pub(crate) fn universal_callable_own(
+    value: &SemanticSignatureRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticSignatureRecipe> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut opened = value.clone();
+    let count = opened.bound_lifetimes;
+    opened.bound_lifetimes = 0;
+    universal_callable_at(&opened, count, 0, limits, left)
+}
 /// Eliminate the real outer-to-inner frames in their declaration order. Each
 /// frame keeps its complete (including phantom) role block after the original
 /// Invocation prefix; unrelated nested binders keep their own coordinates.

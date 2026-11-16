@@ -874,6 +874,7 @@ impl Check<'_, '_> {
         let holes = vec![SemanticActualRecipe::Infer; definition.parameters.len()];
         let (actuals, solved) = self.solve_signature_roles(
             owner,
+            expression,
             callee,
             &operands,
             &signature,
@@ -882,9 +883,24 @@ impl Check<'_, '_> {
             variables,
             wanted,
             true,
+            &BTreeMap::new(),
             &roles,
+            0,
             depth + 1,
         )?;
+        if receiver_borrow.is_some() {
+            let ordinal = receiver_parameter
+                .ok_or_else(|| bad("implicit method borrow has no original receiver ordinal"))?;
+            receiver_borrow = Some(copy_recipe(
+                &solved
+                    .parameters
+                    .get(ordinal as usize)
+                    .ok_or_else(|| bad("solved method receiver is absent"))?
+                    .ty,
+                self.limits,
+                self.left,
+            )?);
+        }
         // Method requirements may reference both the method and parent frame.
         let frames = [(0, actuals.as_slice()), (1, parent_actuals.as_slice())];
         let substitution = substitute::Substitution {
@@ -1288,7 +1304,7 @@ impl Check<'_, '_> {
             return Ok(());
         }
         for requirement in self.original_requirements(owner, depth + 1)?.iter() {
-            for (premise, kind, signature) in
+            for (premise, kind, signature, _) in
                 self.callable_premises(requirement, &value, &mut Vec::new(), depth + 1)?
             {
                 if premise == &value && compatible(kind, required) {
@@ -1321,6 +1337,7 @@ impl Check<'_, '_> {
             &'p SemanticTypeRecipe,
             CallableKind,
             SemanticSignatureRecipe,
+            BTreeMap<u32, call_regions::Role>,
         )>,
     > {
         self.pay(1, depth)?;
@@ -1337,7 +1354,9 @@ impl Check<'_, '_> {
                         .saturating_add(1),
                     depth,
                 )?;
-                frames.push(*lifetimes);
+                if *lifetimes != 0 {
+                    frames.push(*lifetimes);
+                }
                 let result: R<()> = (|| {
                     for requirement in requirements {
                         candidates.extend(self.callable_premises(
@@ -1349,7 +1368,9 @@ impl Check<'_, '_> {
                     }
                     Ok(())
                 })();
-                frames.pop();
+                if *lifetimes != 0 {
+                    frames.pop();
+                }
                 result?;
             }
             SemanticRequirementRecipe::Callable {
@@ -1357,13 +1378,36 @@ impl Check<'_, '_> {
                 kind,
                 signature,
             } if ty == value => {
+                let mut origins = BTreeMap::new();
+                let mut offset = signature.invocation_lifetimes;
+                for (position, count) in frames.iter().enumerate() {
+                    let frame_depth = u32::try_from(frames.len() - position - 1)
+                        .map_err(|_| bad("original callable frame depth overflows"))?
+                        .checked_add(u32::from(signature.bound_lifetimes != 0))
+                        .ok_or_else(|| bad("original callable bound depth overflows"))?;
+                    for index in 0..*count {
+                        self.pay(1, depth)?;
+                        origins.insert(
+                            offset
+                                .checked_add(index)
+                                .ok_or_else(|| bad("original callable role ordinal overflows"))?,
+                            call_regions::Role::Bound {
+                                depth: frame_depth,
+                                index,
+                            },
+                        );
+                    }
+                    offset = offset
+                        .checked_add(*count)
+                        .ok_or_else(|| bad("original callable role directory overflows"))?;
+                }
                 let signature = substitute::universal_callable_frames(
                     signature,
                     frames,
                     self.limits,
                     self.left,
                 )?;
-                candidates.push((ty, *kind, signature));
+                candidates.push((ty, *kind, signature, origins));
             }
             _ => {}
         }
@@ -1408,11 +1452,12 @@ impl Check<'_, '_> {
         };
         let value = self.observation_type(owner, value, depth + 1)?;
         let mut selected = self.concrete_callable(&value, depth + 1)?;
+        let mut invocation_origins = BTreeMap::new();
         if selected.is_none() {
             for requirement in self.original_requirements(owner, depth + 1)?.iter() {
                 let candidates =
                     self.callable_premises(requirement, &value, &mut Vec::new(), depth + 1)?;
-                for (ty, kind, signature) in candidates {
+                for (ty, kind, signature, origins) in candidates {
                     if ty == &value {
                         if selected.is_some() {
                             return Err(pending(
@@ -1420,6 +1465,7 @@ impl Check<'_, '_> {
                             ));
                         }
                         selected = Some((kind, signature));
+                        invocation_origins = origins;
                     }
                 }
             }
@@ -1449,9 +1495,25 @@ impl Check<'_, '_> {
         }
         self.pay(arguments.len(), depth)?;
         let arguments: Vec<_> = arguments.iter().collect();
+        let signature = if signature.bound_lifetimes != 0 {
+            let offset = signature.invocation_lifetimes;
+            for index in 0..signature.bound_lifetimes {
+                self.pay(1, depth)?;
+                invocation_origins.insert(
+                    offset
+                        .checked_add(index)
+                        .ok_or_else(|| bad("original callable bound role directory overflows"))?,
+                    call_regions::Role::Bound { depth: 0, index },
+                );
+            }
+            substitute::universal_callable_own(&signature, self.limits, self.left)?
+        } else {
+            signature
+        };
         let signature = self.inference_template(&signature, &[], false, depth + 1)?;
-        let (actuals, signature) = self.solve_signature(
+        let (actuals, signature) = self.solve_signature_roles(
             owner,
+            expression,
             callee,
             &arguments,
             &signature,
@@ -1460,6 +1522,9 @@ impl Check<'_, '_> {
             variables,
             wanted,
             true,
+            &invocation_origins,
+            &[],
+            0,
             depth + 1,
         )?;
         if !actuals.is_empty() {

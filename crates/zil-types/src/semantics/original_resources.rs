@@ -211,6 +211,14 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> R<bool> {
         self.pay(1, depth)?;
+        if let Some((owner, ordinal)) = self.region_key(owner, lifetime, depth + 1)? {
+            return self.static_call_region_sources(
+                owner,
+                ordinal,
+                &mut BTreeSet::new(),
+                depth + 1,
+            );
+        }
         let SemanticOuterLifeRecipe::Class(lifetime) = lifetime else {
             return Ok(true);
         };
@@ -230,15 +238,15 @@ impl Check<'_, '_> {
         };
         self.static_role_sources(owner, binding, &mut BTreeSet::new(), depth + 1)
     }
-    fn static_role_sources(
+    pub(super) fn static_role_sources(
         &mut self,
         owner: SemanticDefinitionId,
         binding: NodeId,
-        active: &mut BTreeSet<(SemanticDefinitionId, NodeId)>,
+        active: &mut BTreeSet<(SemanticDefinitionId, Option<NodeId>, Option<u32>)>,
         depth: usize,
     ) -> R<bool> {
         self.pay(active.len().saturating_add(1), depth)?;
-        if !active.insert((owner, binding)) {
+        if !active.insert((owner, Some(binding), None)) {
             return Err(bad("original static region has a cyclic source equation"));
         }
         let count = self
@@ -266,10 +274,13 @@ impl Check<'_, '_> {
                 OriginalRoleEscape::Role { owner, binding } => {
                     self.static_role_sources(owner, binding, active, depth + 1)?
                 }
+                OriginalRoleEscape::CallRegion { owner, ordinal } => {
+                    self.static_call_region_sources(owner, ordinal, active, depth + 1)?
+                }
                 OriginalRoleEscape::Input { .. } | OriginalRoleEscape::LocalPlace { .. } => false,
             };
         }
-        active.remove(&(owner, binding));
+        active.remove(&(owner, Some(binding), None));
         Ok(all)
     }
 }
@@ -399,6 +410,7 @@ impl Check<'_, '_> {
         let operands = values.iter().collect::<Vec<_>>();
         let (actuals, solved) = self.solve_signature(
             owner,
+            expression,
             object,
             &operands,
             &signature,

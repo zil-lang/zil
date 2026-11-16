@@ -5,6 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use zil_base::NodeId;
 #[path = "original_associated.rs"]
 mod associated;
+#[path = "original_call_regions.rs"]
+mod call_regions;
 #[path = "original_calls.rs"]
 mod calls;
 #[path = "original_capture_candidates.rs"]
@@ -185,6 +187,7 @@ pub(super) struct Proof {
     pub(super) definition_positions: std::rc::Rc<BTreeMap<SemanticDefinitionId, usize>>,
     view_bounds: BTreeMap<(SemanticDefinitionId, Query), views::ViewBorrowBound>,
     pub borrow_roles: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
+    pub(super) call_regions: BTreeMap<(SemanticDefinitionId, u32), call_regions::CallRegion>,
     pub field_reborrows: BTreeMap<(SemanticDefinitionId, NodeId), FieldReborrow>,
     pub declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
     pub associated_complete: BTreeSet<LifeDeclarationId>,
@@ -262,6 +265,10 @@ pub(super) enum OriginalRoleEscape {
     Role {
         owner: SemanticDefinitionId,
         binding: NodeId,
+    },
+    CallRegion {
+        owner: SemanticDefinitionId,
+        ordinal: u32,
     },
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2269,6 +2276,7 @@ impl<'a> Check<'a, '_> {
     fn solve_signature(
         &mut self,
         owner: SemanticDefinitionId,
+        call: &SemanticOriginalExpr,
         callee: &SemanticOriginalExpr,
         arguments: &[&SemanticOriginalExpr],
         signature: &SemanticSignatureRecipe,
@@ -2281,6 +2289,7 @@ impl<'a> Check<'a, '_> {
     ) -> R<(Vec<SemanticActualRecipe>, SemanticSignatureRecipe)> {
         self.solve_signature_roles(
             owner,
+            call,
             callee,
             arguments,
             signature,
@@ -2289,13 +2298,16 @@ impl<'a> Check<'a, '_> {
             variables,
             wanted,
             template_ready,
+            &BTreeMap::new(),
             &[],
+            0,
             depth,
         )
     }
     fn solve_signature_roles(
         &mut self,
         owner: SemanticDefinitionId,
+        call: &SemanticOriginalExpr,
         callee: &SemanticOriginalExpr,
         arguments: &[&SemanticOriginalExpr],
         signature: &SemanticSignatureRecipe,
@@ -2304,7 +2316,9 @@ impl<'a> Check<'a, '_> {
         variables: &mut BTreeMap<String, Binding>,
         wanted: Option<&SemanticTypeRecipe>,
         template_ready: bool,
+        invocation_origins: &BTreeMap<u32, call_regions::Role>,
         roles: &[(NodeId, SemanticTypeRecipe)],
+        parameter_offset: u32,
         depth: usize,
     ) -> R<(Vec<SemanticActualRecipe>, SemanticSignatureRecipe)> {
         self.pay(arguments.len().saturating_add(formals.len()), depth)?;
@@ -2321,6 +2335,21 @@ impl<'a> Check<'a, '_> {
         }
         let result_type = copy_recipe(&signature.result, self.limits, self.left)?;
         signature.result = self.mode_type(owner, signature.result_mode, result_type, depth + 1)?;
+        self.pay(invocation_origins.len(), depth)?;
+        let mut invocation_origins = invocation_origins.clone();
+        if signature.bound_lifetimes != 0 {
+            for index in 0..signature.bound_lifetimes {
+                self.pay(1, depth)?;
+                invocation_origins.insert(
+                    signature
+                        .invocation_lifetimes
+                        .checked_add(index)
+                        .ok_or_else(|| bad("original call Bound directory overflows"))?,
+                    call_regions::Role::Bound { depth: 0, index },
+                );
+            }
+            signature = substitute::universal_callable_own(&signature, self.limits, self.left)?;
+        }
         let signature = if template_ready {
             signature
         } else {
@@ -2365,33 +2394,53 @@ impl<'a> Check<'a, '_> {
                 )?;
             }
         }
-        let mut static_inputs = Vec::new();
-        for (argument, parameter) in arguments.iter().zip(&signature.parameters) {
+        let mut outer_inputs = Vec::new();
+        for (parameter_ordinal, (argument, parameter)) in
+            arguments.iter().zip(&signature.parameters).enumerate()
+        {
             // Primitive context fixes unsuffixed literals without importing any
             // unsolved target inference variable into the caller's expression.
             self.pay(solutions.len(), depth)?;
             for actual in solutions.iter().flatten() {
                 crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
             }
-            let complete_actuals = solutions.iter().cloned().collect::<Option<Vec<_>>>();
-            let complete_parameter = if let Some(actuals) = &complete_actuals {
-                let frames = [(u32::MAX, actuals.as_slice())];
-                substitute::caller_context(
-                    &parameter.ty,
-                    &substitute::Substitution {
-                        frames: &frames,
-                        selves: &[],
-                        environments: &[],
-                        implicit: &implicit,
-                        invocation: &invocation,
-                        shift: 0,
-                    },
-                    self.limits,
-                    self.left,
-                )?
-            } else {
-                None
-            };
+            let mut partial_actuals = Vec::new();
+            for (ordinal, (formal, solution)) in formals.iter().zip(&solutions).enumerate() {
+                let reference = SemanticFormalRef {
+                    scope: SemanticScopeRef::Ancestor(u32::MAX),
+                    ordinal: ordinal as u32,
+                };
+                partial_actuals.push(if let Some(actual) = solution {
+                    actual.clone()
+                } else {
+                    match formal {
+                        SemanticFormal::Lifetime => {
+                            SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(reference))
+                        }
+                        SemanticFormal::Type { .. } => {
+                            SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference))
+                        }
+                        SemanticFormal::Const { carrier } => SemanticActualRecipe::Const {
+                            carrier: copy_recipe(carrier, self.limits, self.left)?,
+                            value: SemanticConstRecipe::Formal(reference),
+                        },
+                    }
+                });
+            }
+            let frames = [(u32::MAX, partial_actuals.as_slice())];
+            let complete_parameter = substitute::caller_context(
+                &parameter.ty,
+                &substitute::Substitution {
+                    frames: &frames,
+                    selves: &[],
+                    environments: &[],
+                    implicit: &implicit,
+                    invocation: &invocation,
+                    shift: 0,
+                },
+                self.limits,
+                self.left,
+            )?;
             let hint = complete_parameter.as_ref().or_else(|| {
                 matches!(parameter.ty, SemanticTypeRecipe::Atom(_)).then_some(&parameter.ty)
             });
@@ -2419,11 +2468,33 @@ impl<'a> Check<'a, '_> {
                 argument,
                 depth + 1,
             )?;
-            if let Some((expected_life, actual_inner, expected_inner)) =
-                self.static_call_input(owner, &actual, &parameter.ty, depth + 1)?
-            {
+            let roots = match (&parameter.ty, &actual) {
+                (
+                    SemanticTypeRecipe::Address {
+                        mutable: requested,
+                        lifetime,
+                        inner,
+                    },
+                    SemanticTypeRecipe::Address {
+                        mutable: available,
+                        inner: actual_inner,
+                        ..
+                    },
+                ) if !*requested || *available => {
+                    Some((lifetime, inner.as_ref(), actual_inner.as_ref(), false))
+                }
+                (
+                    SemanticTypeRecipe::Desc { lifetime, inner },
+                    SemanticTypeRecipe::Desc {
+                        inner: actual_inner,
+                        ..
+                    },
+                ) => Some((lifetime, inner.as_ref(), actual_inner.as_ref(), true)),
+                _ => None,
+            };
+            if let Some((expected, inner, actual_inner, head)) = roots {
                 self.unify(
-                    expected_inner,
+                    inner,
                     actual_inner,
                     formals,
                     &mut solutions,
@@ -2431,28 +2502,54 @@ impl<'a> Check<'a, '_> {
                     &mut invocation,
                     depth + 1,
                 )?;
-                self.pay(1, depth)?;
-                static_inputs.push((*argument, expected_life));
+                let variable = call_regions::variable(expected);
+                let selector = if let Some(variable) = variable {
+                    Some(match variable {
+                        call_regions::Variable::Life(ordinal) => call_regions::Role::Life(ordinal),
+                        call_regions::Variable::Implicit(ordinal) => {
+                            if head {
+                                call_regions::Role::Head(
+                                    parameter_offset
+                                        .checked_add(
+                                            u32::try_from(parameter_ordinal).map_err(|_| {
+                                                bad("call parameter ordinal overflows")
+                                            })?,
+                                        )
+                                        .ok_or_else(|| {
+                                            bad("call parameter coordinate overflows")
+                                        })?,
+                                )
+                            } else {
+                                call_regions::Role::Implicit(ordinal)
+                            }
+                        }
+                        call_regions::Variable::Invocation(ordinal) => invocation_origins
+                            .get(&ordinal)
+                            .copied()
+                            .unwrap_or(call_regions::Role::Invocation(ordinal)),
+                    })
+                } else {
+                    None
+                };
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    expected,
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                outer_inputs.push(call_regions::Input {
+                    variable,
+                    selector,
+                    expression: argument,
+                    actual,
+                    expected: expected.clone(),
+                    expression_is_borrowed: !roles.iter().any(|(node, _)| *node == argument.id),
+                });
                 continue;
             }
             self.unify(
                 &parameter.ty,
                 &actual,
-                formals,
-                &mut solutions,
-                &mut implicit,
-                &mut invocation,
-                depth + 1,
-            )?;
-        }
-        // A constant source imposes an outlives bound, not an equality. Solve
-        // all nonconstant inputs first; a later real input must not collide
-        // with a prematurely chosen region for an earlier static literal.
-        for (argument, expected_life) in static_inputs {
-            self.solve_static_call_region(
-                owner,
-                argument,
-                expected_life,
                 formals,
                 &mut solutions,
                 &mut implicit,
@@ -2471,6 +2568,17 @@ impl<'a> Check<'a, '_> {
                 depth + 1,
             )?;
         }
+        self.settle_call_inputs(
+            owner,
+            call,
+            &outer_inputs,
+            formals,
+            &mut solutions,
+            &mut implicit,
+            &mut invocation,
+            variables,
+            depth + 1,
+        )?;
         self.pay(solutions.len(), depth)?;
         let mut actuals = solutions
             .into_iter()
@@ -2587,6 +2695,13 @@ impl<'a> Check<'a, '_> {
                 self.prove_trait(owner, ty, application, depth + 1)?
             }
             SemanticRequirementRecipe::TypeEqual { left, right } => self.same(left, right)?,
+            SemanticRequirementRecipe::Outlives { longer, shorter } => {
+                if !self.life_outlives(owner, longer, shorter, depth + 1)? {
+                    return Err(bad(
+                        "original caller lacks the complete directed lifetime bound",
+                    ));
+                }
+            }
             SemanticRequirementRecipe::Callable {
                 ty,
                 kind,
@@ -3895,6 +4010,7 @@ impl<'a> Check<'a, '_> {
                 let arguments: Vec<_> = arguments.iter().collect();
                 let (actuals, solved_signature) = self.solve_signature(
                     owner,
+                    expression,
                     callee,
                     &arguments,
                     &signature,

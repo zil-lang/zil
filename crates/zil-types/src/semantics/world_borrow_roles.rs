@@ -230,6 +230,34 @@ fn trace(
                     incoming.ok_or_else(|| bad("projected input alias has no real initializer"))?,
                 );
             }
+            ViewBorrowStepKind::ReadLocal { binding } => {
+                if role.root != ViewBorrowRoot::Local(*binding) {
+                    return Err(bad(
+                        "call loan read changes its original mutable local root",
+                    ));
+                }
+                let local = binding_local(world, instance, original, *binding)?;
+                let actual = world.local(locals, local)?;
+                match cursor {
+                    Cursor::Value(value) if matches!(producer(world, function, value)?.0, InstructionKind::Load(found) if *found == local) =>
+                        {}
+                    _ => {
+                        return Err(bad(
+                            "call loan does not read its real reaching mutable local",
+                        ));
+                    }
+                }
+                let expected = world.ty(
+                    instance.id,
+                    &SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        source: SemanticOriginalTypeSource::Binding(*binding),
+                    },
+                    World::type_of(&actual)?,
+                )?;
+                world.same(instance.id, &actual, &expected, implicit)?;
+                reached_input = true;
+            }
             ViewBorrowStepKind::Parameter => {
                 let ViewBorrowRoot::Parameter(parameter) = role.root else {
                     return Err(bad("projected loan changes its original root kind"));
@@ -267,7 +295,7 @@ fn trace(
                     Cursor::Local(found) if found == local => {}
                     Cursor::Value(value)
                         if matches!(producer(world, function, value)?.0,
-                        InstructionKind::BorrowLocal { local: found } | InstructionKind::BorrowLocalMut { local: found }
+                        InstructionKind::BorrowLocal { local: found } | InstructionKind::BorrowLocalMut { local: found } | InstructionKind::DescribeLocal { local: found }
                         if *found == local) => {}
                     _ => {
                         return Err(bad(
@@ -413,7 +441,10 @@ pub(super) fn apply(
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<(SharedType, roles::Source)>> {
-    if !matches!(World::type_of(actual)?, Type::Address { .. }) {
+    if !matches!(
+        World::type_of(actual)?,
+        Type::Address { .. } | Type::Desc(_)
+    ) {
         return Ok(None);
     }
     {
@@ -490,7 +521,10 @@ pub(super) fn apply(
         return Ok(None);
     }
     if World::type_of(actual)? != World::type_of(expected)?
-        || !matches!(World::type_of(actual)?, Type::Address { .. })
+        || !matches!(
+            World::type_of(actual)?,
+            Type::Address { .. } | Type::Desc(_)
+        )
     {
         return Err(bad(
             "projected borrow role changes its complete actual type or access mode",

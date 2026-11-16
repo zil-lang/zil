@@ -187,7 +187,7 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
-    fn role_source(
+    pub(super) fn role_source(
         &mut self,
         owner: SemanticDefinitionId,
         expression: &SemanticOriginalExpr,
@@ -198,6 +198,9 @@ impl Check<'_, '_> {
         self.pay(1, depth)?;
         if matches!(lifetime, SemanticOuterLifeRecipe::Static) {
             return Ok(OriginalRoleEscape::Static);
+        }
+        if let Some((owner, ordinal)) = self.region_key(owner, lifetime, depth + 1)? {
+            return Ok(OriginalRoleEscape::CallRegion { owner, ordinal });
         }
         match &expression.kind {
             CoreExprKind::Name(name) => {
@@ -333,10 +336,10 @@ impl Check<'_, '_> {
         }
         Ok(None)
     }
-    fn escape_source(
+    pub(super) fn escape_source(
         &mut self,
         escape: &OriginalRoleEscape,
-        active: &mut BTreeSet<(SemanticDefinitionId, NodeId)>,
+        active: &mut BTreeSet<(SemanticDefinitionId, Option<NodeId>, Option<u32>)>,
         depth: usize,
     ) -> R<()> {
         self.pay(1, depth)?;
@@ -364,6 +367,9 @@ impl Check<'_, '_> {
             OriginalRoleEscape::Role { owner, binding } => {
                 self.escape_role(*owner, *binding, active, depth + 1)
             }
+            OriginalRoleEscape::CallRegion { owner, ordinal } => {
+                self.escape_call_region(*owner, *ordinal, active, depth + 1)
+            }
             OriginalRoleEscape::LocalPlace { .. } => Err(bad(
                 "original escaping value retains a borrow of local storage",
             )),
@@ -373,11 +379,11 @@ impl Check<'_, '_> {
         &mut self,
         owner: SemanticDefinitionId,
         binding: NodeId,
-        active: &mut BTreeSet<(SemanticDefinitionId, NodeId)>,
+        active: &mut BTreeSet<(SemanticDefinitionId, Option<NodeId>, Option<u32>)>,
         depth: usize,
     ) -> R<()> {
         self.pay(active.len().saturating_add(1), depth)?;
-        if !active.insert((owner, binding)) {
+        if !active.insert((owner, Some(binding), None)) {
             return Err(bad(
                 "original inferred escaping role has a cyclic source equation",
             ));
@@ -413,7 +419,7 @@ impl Check<'_, '_> {
         for source in &sources {
             self.escape_source(source, active, depth + 1)?;
         }
-        active.remove(&(owner, binding));
+        active.remove(&(owner, Some(binding), None));
         self.proof
             .proof_mut()?
             .local_roles
@@ -444,6 +450,9 @@ impl Check<'_, '_> {
         lifetime: &SemanticOuterLifeRecipe,
         depth: usize,
     ) -> R<()> {
+        if let Some((owner, ordinal)) = self.region_key(owner, lifetime, depth + 1)? {
+            return self.escape_call_region(owner, ordinal, &mut BTreeSet::new(), depth + 1);
+        }
         let mut role = None;
         self.pay(self.proof.local_roles.len(), depth)?;
         for ((role_owner, binding), declaration) in &self.proof.local_roles {
@@ -694,6 +703,19 @@ impl Check<'_, '_> {
         for binding in roles {
             self.escape_role(owner, binding, &mut BTreeSet::new(), depth + 1)?;
         }
+        self.pay(self.proof.call_regions.len(), depth)?;
+        let regions = self
+            .proof
+            .call_regions
+            .iter()
+            .filter_map(|((region_owner, ordinal), region)| {
+                (*region_owner == owner && region.escapes).then_some(*ordinal)
+            })
+            .collect::<Vec<_>>();
+        for ordinal in regions {
+            self.escape_call_region(owner, ordinal, &mut BTreeSet::new(), depth + 1)?;
+        }
+        self.recheck_call_region_bounds(owner, depth + 1)?;
         Ok(())
     }
 }
