@@ -379,6 +379,7 @@ pub(super) fn pointee(
     let Type::Address { inner, .. } = &input.ty else {
         return Err(fail("whole pointee query is not an Address"));
     };
+    geometry::retain_child(&input.geometry, geometry::Child::Inner, b)?;
     let life = match inner.as_ref() {
         Type::Dyn { .. } | Type::OwnedDyn { .. } => dyn_domain(inner, inventory, b)?,
         Type::MutexGuard { .. } => mutex_guard_domain(inner, b)?,
@@ -442,8 +443,8 @@ pub(super) fn pointee(
             .ok_or_else(|| fail("whole pointee class is out of range"))?;
         put(&mut classes, class.clone(), b)?;
     }
-    crate::dyn_metadata::ty(inner, b)?;
-    Ok(Value::new(inner.as_ref().clone(), life, classes))
+    let geometry = geometry::project(&input.geometry, geometry::Child::Inner, &life, b)?;
+    Ok(Value::from_geometry(geometry, classes))
 }
 
 fn mutex_guard_domain(ty: &Type, b: &mut Budget) -> CompileResult<StorageLifeShape> {
@@ -552,10 +553,7 @@ fn actual_equal_paid(
     };
     let geometry = inventory.geometry.type_value(ty, life, b)?;
     let expected = match expected_owner {
-        Some(owner)
-            if (expected_life.is_some() || empty_shape(&owner.life))
-                && geometry::has_current_receipt(owner, b)? =>
-        {
+        Some(owner) if expected_life.is_some() || empty_shape(&owner.life) => {
             b.spend(1, "semantic geometry shared result")?;
             std::sync::Arc::clone(owner)
         }
@@ -1359,15 +1357,26 @@ pub(super) fn resolved(
     b: &mut Budget,
     depth: usize,
 ) -> CompileResult<Value> {
+    let SemanticTypeValue::Resolved { ty, life, classes } = input else {
+        return Err(fail("Core type remains in an executable semantic value"));
+    };
+    resolved_parts(instance, ty, life, classes, inventory, b, depth)
+}
+fn resolved_parts(
+    instance: &SemanticInstance,
+    ty: &Type,
+    life: &StorageLifeShape,
+    classes: &[SemanticClassExpr],
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+    depth: usize,
+) -> CompileResult<Value> {
     b.spend(1, WORK)?;
     if depth > b.partial_depth {
         return Err(unknown(
             "complete semantic type value exceeds its finite depth",
         ));
     }
-    let SemanticTypeValue::Resolved { ty, life, classes } = input else {
-        return Err(fail("Core type remains in an executable semantic value"));
-    };
     let geometry = inventory.geometry.resolved(ty, life, b)?;
     let ty = &geometry.ty;
     let life = &geometry.life;
@@ -1375,6 +1384,18 @@ pub(super) fn resolved(
         return Err(fail(
             "complete semantic type value omits an intrinsic class",
         ));
+    }
+    // Publish only physical child Type identities before independent domain
+    // qualification recursively visits them. No child class image is stored.
+    match ty {
+        Type::Address { .. } | Type::Desc(_) => {
+            geometry::retain_child(&geometry, geometry::Child::Inner, b)?;
+        }
+        Type::ErrorUnion { .. } => {
+            geometry::retain_child(&geometry, geometry::Child::UnionError, b)?;
+            geometry::retain_child(&geometry, geometry::Child::UnionResult, b)?;
+        }
+        _ => {}
     }
     match ty {
         Type::Address { .. }
@@ -1410,11 +1431,11 @@ pub(super) fn resolved(
             for index in 0..child.binder_count {
                 put(&mut locals, Class::Local(index), b)?;
             }
-            crate::dyn_metadata::ty(error, b)?;
-            crate::dyn_metadata::ty(result, b)?;
+            let error = geometry::project(&geometry, geometry::Child::UnionError, &empty(), b)?;
+            let result = geometry::project(&geometry, geometry::Child::UnionResult, &child, b)?;
             let expected = error_union(
-                scalar(error.as_ref().clone()),
-                Value::new(result.as_ref().clone(), child, locals),
+                Value::from_geometry(error, Vec::new()),
+                Value::from_geometry(result, locals),
                 b,
             )?;
             if expected.life != *life {
@@ -1559,21 +1580,17 @@ pub(super) fn resolved(
                 put(&mut child_expressions, expression.clone(), b)?;
                 put(&mut local_classes, Class::Local(binder), b)?;
             }
-            crate::dyn_metadata::ty(inner, b)?;
-            crate::dyn_metadata::shape(&child_life, b)?;
-            let child = SemanticTypeValue::Resolved {
-                ty: inner.as_ref().clone(),
-                life: child_life.clone(),
-                classes: child_expressions,
-            };
-            // Recursively validate the child's intrinsic domain. External image
-            // equality does not shrink that domain or its phantom inventory.
-            resolved(instance, &child, inventory, b, depth + 1)?;
-            crate::dyn_metadata::ty(inner, b)?;
+            let child = geometry::project(&geometry, geometry::Child::Inner, &child_life, b)?;
+            // Recursively validate the complete child with its actual fresh
+            // expressions. Only immutable physical geometry is shared.
+            resolved_parts(
+                instance, &child.ty, &child.life, &child_expressions,
+                inventory, b, depth + 1,
+            )?;
             let expected = address(
                 *mutable,
                 Class::Local(0),
-                Value::new(inner.as_ref().clone(), child_life, local_classes),
+                Value::from_geometry(child, local_classes),
                 b,
             )?;
             if expected.life != *life {

@@ -48,7 +48,8 @@ pub(super) struct Budget {
     pub(super) geometry_next_type: usize,
     pub(super) geometry_next_value: usize,
     // Exact child Type identity and its complete bounded comparison work.
-    pub(super) geometry_child_types: BTreeMap<(usize, Option<usize>, usize), (usize, usize)>,
+    pub(super) geometry_child_types:
+        BTreeMap<(usize, crate::semantic::geometry::Child), (usize, usize)>,
     cost_profiling: bool,
     costs: BTreeMap<String, (usize, usize)>,
     metadata_costs: BTreeMap<(&'static str, &'static str, u32), (usize, usize)>,

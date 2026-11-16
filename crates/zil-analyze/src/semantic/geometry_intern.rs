@@ -16,8 +16,7 @@ pub(super) struct Receipt {
 #[derive(Clone, Copy)]
 pub(super) enum Node {
     Root,
-    Field(Option<usize>, usize),
-    Payload,
+    Child(Child),
 }
 #[derive(Clone)]
 pub(crate) struct TypeRecord {
@@ -148,30 +147,55 @@ fn hash<T: Hash + ?Sized>(value: &T, b: &mut Budget) -> CompileResult<u64> {
     }
 }
 pub(super) fn node(owner: &Geometry, selector: Node) -> CompileResult<&Type> {
-    if matches!(selector, Node::Payload) {
-        return match &owner.ty {
-            Type::Managed(inner) | Type::Desc(inner) => Ok(inner.as_ref()),
-            _ => Err(fail("retained payload Type has another owning coordinate")),
-        };
-    }
-    let Node::Field(variant, field) = selector else {
+    let Node::Child(child) = selector else {
         return Ok(&owner.ty);
     };
-    let storage = match &owner.ty {
-        Type::BorrowedStorage { storage, .. } => storage.as_ref(),
-        ty => ty,
-    };
-    match (storage, variant) {
-        (Type::Record { fields, .. } | Type::Package { fields, .. }, None) => {
-            fields.get(field).map(|(_, ty)| ty)
+    match child {
+        Child::Inner => match &owner.ty {
+            Type::Address { inner, .. }
+            | Type::Managed(inner)
+            | Type::Desc(inner)
+            | Type::Slice { element: inner }
+            | Type::Array { element: inner, .. }
+            | Type::OwnedStore { element: inner }
+            | Type::Mutex { payload: inner }
+            | Type::Registration { environment: inner }
+            | Type::AsyncRegistration { environment: inner }
+            | Type::Opaque { hidden: inner, .. }
+            | Type::BorrowedStorage { storage: inner, .. }
+            | Type::Task { result: inner, .. }
+            | Type::MutexGuard { payload: inner, .. } => Ok(inner.as_ref()),
+            _ => Err(fail("retained child Type has another physical constructor")),
+        },
+        Child::UnionError | Child::UnionResult => match &owner.ty {
+            Type::ErrorUnion { error, result } => Ok(if child == Child::UnionError {
+                error
+            } else {
+                result
+            }),
+            _ => Err(fail(
+                "retained sum child Type has another physical constructor",
+            )),
+        },
+        Child::Field(variant, field) => {
+            let storage = match &owner.ty {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                ty => ty,
+            };
+            match (storage, variant) {
+                (Type::Record { fields, .. } | Type::Package { fields, .. }, None) => {
+                    fields.get(field).map(|(_, ty)| ty)
+                }
+                (Type::Enum { variants, .. }, Some(variant)) => variants
+                    .get(variant)
+                    .and_then(|(_, fields)| fields.get(field)),
+                _ => None,
+            }
+            .ok_or_else(|| fail("nominal child geometry has no exact physical field coordinate"))
         }
-        (Type::Enum { variants, .. }, Some(variant)) => variants
-            .get(variant)
-            .and_then(|(_, fields)| fields.get(field)),
-        _ => None,
     }
-    .ok_or_else(|| fail("nominal child geometry has no exact physical field coordinate"))
 }
+
 fn type_candidates(
     ty: &Type,
     raw_work: usize,
@@ -349,7 +373,7 @@ pub(super) fn retain_payload(parent: &Type, payload: &Type, b: &mut Budget) -> C
     let Some(owner) = owner else {
         return Ok(());
     };
-    if !std::ptr::eq(node(&owner, Node::Payload)?, payload) {
+    if !std::ptr::eq(node(&owner, Node::Child(Child::Inner))?, payload) {
         return Err(fail("retained payload changes its exact parent Type"));
     }
     if registered_type(payload, b)?.is_some() {
@@ -361,7 +385,7 @@ pub(super) fn retain_payload(parent: &Type, payload: &Type, b: &mut Budget) -> C
     let (digest, id) = type_candidates(payload, raw_work, b)?;
     let type_id = match id {
         Some(id) => id,
-        None => add_type(&owner, Node::Payload, digest, raw_work, b)?,
+        None => add_type(&owner, Node::Child(Child::Inner), digest, raw_work, b)?,
     };
     b.lookup(
         b.geometry_types.len(),
@@ -379,7 +403,7 @@ pub(super) fn retain_payload(parent: &Type, payload: &Type, b: &mut Budget) -> C
             module,
             nominal: None,
             type_id,
-            coordinate: Node::Payload,
+            coordinate: Node::Child(Child::Inner),
         },
     );
     Ok(())
@@ -618,10 +642,6 @@ fn current_receipt<'a>(owner: &'a Geometry, b: &Budget) -> Option<&'a Receipt> {
             && Arc::ptr_eq(&row.epoch, &b.geometry_epoch)
     })
 }
-pub(super) fn has_current_receipt(owner: &Arc<Geometry>, b: &mut Budget) -> CompileResult<bool> {
-    b.spend(1, "semantic geometry immutable receipt")?;
-    Ok(current_receipt(owner, b).is_some())
-}
 pub(super) fn owned(owner: &Arc<Geometry>, b: &mut Budget) -> CompileResult<Receipt> {
     b.spend(1, "semantic geometry immutable receipt")?;
     if let Some(receipt) = current_receipt(owner, b) {
@@ -646,18 +666,13 @@ pub(super) fn owned(owner: &Arc<Geometry>, b: &mut Budget) -> CompileResult<Rece
     register(owner, &receipt, b)?;
     Ok(receipt)
 }
-pub(super) fn field_equal(
-    owner: &Arc<Geometry>,
-    variant: Option<usize>,
-    field: usize,
-    expected: &Arc<Geometry>,
-    b: &mut Budget,
-) -> CompileResult<bool> {
-    // Validate the exact coordinate on every query, including a cache hit.
-    let actual = node(owner, Node::Field(variant, field))?;
+fn child_type(owner: &Arc<Geometry>, child: Child, b: &mut Budget) -> CompileResult<usize> {
+    // A Type-only entry retains this exact real parent, whose whole domain was
+    // checked independently. It creates no empty-domain child Value.
+    let actual = node(owner, Node::Child(child))?;
     b.spend(1, "semantic geometry physical field selector")?;
     let owner_receipt = owned(owner, b)?;
-    let key = (owner_receipt.type_id, variant, field);
+    let key = (owner_receipt.type_id, child);
     b.lookup(
         b.geometry_child_types.len(),
         "semantic geometry physical child Type query",
@@ -671,7 +686,7 @@ pub(super) fn field_equal(
         let (digest, id) = type_candidates(actual, raw, b)?;
         let id = match id {
             Some(id) => id,
-            None => add_type(owner, Node::Field(variant, field), digest, raw, b)?,
+            None => add_type(owner, Node::Child(child), digest, raw, b)?,
         };
         b.lookup(
             b.geometry_child_types.len(),
@@ -681,18 +696,57 @@ pub(super) fn field_equal(
         b.geometry_child_types.insert(key, (id, raw));
         (id, raw)
     };
-    b.spend(1, "semantic geometry immutable field Type receipt")?;
-    if let Some(receipt) = current_receipt(expected, b) {
-        return Ok(id == receipt.type_id);
-    }
-    // This consumer compares only a physical child Type. A temporary expected
-    // value need not become a globally retained geometry merely for equality.
-    // Preserve full raw Type AND domain validation, then compare every Type
-    // component directly; hashes or actual class images grant no shortcut.
-    let (expected_work, _) = bounds(&expected.ty, &expected.life, b)?;
-    b.spend(
-        raw_work.max(expected_work),
-        "complete nominal child Type equality comparison",
+    b.lookup(
+        b.geometry_types.len(),
+        "semantic geometry physical child coordinate",
     )?;
-    Ok(actual == &expected.ty)
+    let address = actual as *const Type as usize;
+    if registered_type(actual, b)?.is_none() {
+        b.spend(1, "semantic geometry shared result")?;
+        b.geometry_types.insert(
+            address,
+            TypeEntry {
+                owner: Arc::clone(owner),
+                raw_work,
+                raw_limits: limits(b),
+                module: b.geometry_module,
+                nominal: None,
+                type_id: id,
+                coordinate: Node::Child(child),
+            },
+        );
+    }
+    Ok(id)
+}
+pub(super) fn retain_child(
+    owner: &Arc<Geometry>,
+    child: Child,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    child_type(owner, child, b)?;
+    Ok(())
+}
+pub(super) fn project(
+    owner: &Arc<Geometry>,
+    child: Child,
+    life: &StorageLifeShape,
+    b: &mut Budget,
+) -> CompileResult<Arc<Geometry>> {
+    child_type(owner, child, b)?;
+    // The caller's fresh full domain, rather than the parent's shape or a
+    // cached class vector, forms the child geometry on every projection.
+    borrowed(node(owner, Node::Child(child))?, life, b)
+}
+pub(super) fn field_equal(
+    owner: &Arc<Geometry>,
+    variant: Option<usize>,
+    field: usize,
+    expected: &Arc<Geometry>,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let id = child_type(owner, Child::Field(variant, field), b)?;
+    // Retain this actual expected owner after complete Type/domain checking.
+    // Every current class image and nominal field obligation stays separate.
+    let expected = owned(expected, b)?;
+    Ok(id == expected.type_id)
 }

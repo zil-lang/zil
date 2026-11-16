@@ -43,6 +43,30 @@ impl PartialEq for Geometry {
 impl Eq for Geometry {}
 pub(crate) use intern::{GeometryRecord, TypeRecord};
 
+// A physical Type selector only. The caller separately reconstructs every
+// complete child domain and current class image before making a Value.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Child {
+    Inner,
+    UnionError,
+    UnionResult,
+    Field(Option<usize>, usize),
+}
+pub(super) fn retain_child(
+    owner: &Arc<Geometry>,
+    child: Child,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    intern::retain_child(owner, child, budget)
+}
+pub(super) fn project(
+    owner: &Arc<Geometry>,
+    child: Child,
+    life: &StorageLifeShape,
+    budget: &mut Budget,
+) -> CompileResult<Arc<Geometry>> {
+    intern::project(owner, child, life, budget)
+}
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) enum Unary {
     Address(bool),
@@ -540,12 +564,6 @@ pub(super) fn same_geometry(
     let right = intern::owned(right, budget)?;
     Ok(left.geometry_id == right.geometry_id)
 }
-pub(super) fn has_current_receipt(
-    owner: &Arc<Geometry>,
-    budget: &mut Budget,
-) -> CompileResult<bool> {
-    intern::has_current_receipt(owner, budget)
-}
 pub(super) fn check_geometry(owner: &Arc<Geometry>, budget: &mut Budget) -> CompileResult<()> {
     intern::owned(owner, budget)?;
     Ok(())
@@ -724,17 +742,18 @@ mod tests {
         assert!(field_equal(&owner, None, 0, &expected, &mut budget).unwrap());
         assert!(field_equal(&owner, None, 2, &expected, &mut budget).is_err());
         let mut temporary = Arc::new(Geometry::new(Type::I32, value::empty()));
-        let registered_roots = budget.geometry_types.len();
         assert!(field_equal(&owner, None, 0, &temporary, &mut budget).unwrap());
-        assert_eq!(budget.geometry_types.len(), registered_roots);
-        assert_eq!(Arc::strong_count(&temporary), 1);
-        // The same temporary address may later hold another complete Type;
-        // it acquired no borrowed-pointer cache entry from this comparison.
-        let changed = Arc::get_mut(&mut temporary).unwrap();
+        // A comparison now retains this real immutable owner, not an address
+        // of a caller-owned temporary. Mutation must create another owner.
+        assert!(Arc::strong_count(&temporary) > 1);
+        let original = Arc::clone(&temporary);
+        let changed = Arc::make_mut(&mut temporary);
         changed.ty = Type::U32;
         changed.invalidate();
+        assert!(!Arc::ptr_eq(&original, &temporary));
+        assert_eq!(original.ty, Type::I32);
         assert!(!field_equal(&owner, None, 0, &temporary, &mut budget).unwrap());
-        assert_eq!(budget.geometry_types.len(), registered_roots);
+        assert!(field_equal(&owner, None, 0, &original, &mut budget).unwrap());
 
         let mut other_budget = Budget::new(&zil_base::Limits::default());
         let _ = copy_geometry(&Type::F64, &value::empty(), &mut other_budget).unwrap();

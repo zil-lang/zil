@@ -2036,7 +2036,7 @@ impl Check<'_, '_> {
         let initialized = crate::shared_initialization(function, b)?;
         let mut pending = vec![(local, at.0, at.1)];
         let mut seen = BTreeSet::new();
-        let mut selected = None;
+        let mut selected: Option<Value> = None;
         while let Some((local, at_block, end)) = pending.pop() {
             b.lookup(seen.len(), WORK)?;
             if !seen.insert((local, at_block, end)) {
@@ -2134,13 +2134,14 @@ impl Check<'_, '_> {
                 );
             }
             if let Some(value) = origin {
-                crate::dyn_metadata::ty(&value.ty, b)?;
-                crate::dyn_metadata::shape(&value.life, b)?;
+                value.check_geometry(b)?;
                 b.spend(value.classes.len().saturating_add(1), WORK)?;
-                if selected.as_ref().is_some_and(|old| old != &value) {
-                    return Err(unknown(
-                        "semantic local needs its complete joined role/source dependency relation",
-                    ));
+                if let Some(old) = &selected {
+                    if !old.equal_paid(&value, b)? {
+                        return Err(unknown(
+                            "semantic local needs its complete joined role/source dependency relation",
+                        ));
+                    }
                 }
                 selected = Some(value);
             }
