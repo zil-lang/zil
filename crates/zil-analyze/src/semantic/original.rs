@@ -293,6 +293,8 @@ struct Solver<'a, 'i> {
     nominal_declaration: Option<SemanticDefinitionId>,
     call_variables: BTreeMap<Term, call_regions::Role>,
     call_parameters: BTreeSet<Term>,
+    constructor_templates: BTreeMap<(SemanticDefinitionId, NodeId), Term>,
+    constructor_constants: BTreeMap<Term, Term>,
 }
 pub(super) fn resource(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::limit(
@@ -1307,6 +1309,9 @@ impl Solver<'_, '_> {
                 } else {
                     Ok(Some(term))
                 }
+            }
+            CoreExprKind::RecordConstructor { definition, fields } => {
+                self.record_constructor_hint(frame, expression.id, *definition, fields, b, depth + 1)
             }
             CoreExprKind::RecordUpdate { base, .. } => {
                 self.lexical_input_hint(frame, base, b, depth + 1)
@@ -2524,6 +2529,9 @@ impl Solver<'_, '_> {
                     } else {
                         term
                     }
+                }
+                CoreExprKind::RecordConstructor { definition, fields } => {
+                    self.record_constructor(frame, value.id, *definition, fields, b, depth + 1)?
                 }
                 CoreExprKind::RecordUpdate { ty, base, fields } => {
                     let term = self.expression(frame, base, b, depth + 1)?;
@@ -4067,6 +4075,8 @@ pub(super) fn check(
         nominal_declaration: None,
         call_variables: BTreeMap::new(),
         call_parameters: BTreeSet::new(),
+        constructor_templates: BTreeMap::new(),
+        constructor_constants: BTreeMap::new(),
     };
     solver.trait_catalog(b)?;
     for definition in &program.definitions {
@@ -4183,6 +4193,7 @@ pub(super) fn check(
             b,
         )?;
     }
+    solver.check_record_constructor_actuals(b)?;
     for term in &solver.integers {
         let root = solver.type_root(*term, b)?;
         if !matches!(&solver.state.arena[root],Kind::Atom(ty) if integer_width(ty).is_some()) {

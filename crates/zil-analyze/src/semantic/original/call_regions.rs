@@ -10,6 +10,7 @@ pub(super) enum Role {
     Head(u32),
     Invocation(u32),
     Bound(u32, u32),
+    ConstructorLife(u32),
 }
 impl Role {
     fn suffix(self) -> ([u32; 4], usize) {
@@ -19,6 +20,7 @@ impl Role {
             Self::Head(n) => ([u32::MAX, 2, n, 0], 3),
             Self::Invocation(n) => ([u32::MAX, 3, n, 0], 3),
             Self::Bound(d, n) => ([u32::MAX, 4, d, n], 4),
+            Self::ConstructorLife(n) => ([u32::MAX - 1, 0, n, 0], 3),
         }
     }
 }
@@ -139,7 +141,11 @@ impl Solver<'_, '_> {
             }
             for site in sites {
                 b.spend(1, WORK)?;
-                if site.id == link.site && matches!(site.kind, SemanticSiteRecipeKind::OriginalCall)
+                let genuine = match role {
+                    Role::ConstructorLife(_) => matches!(site.kind, SemanticSiteRecipeKind::Construct { .. }),
+                    _ => matches!(site.kind, SemanticSiteRecipeKind::OriginalCall),
+                };
+                if site.id == link.site && genuine
                 {
                     if selected.replace(site).is_some() {
                         return Err(fail("call region has competing original Call sites"));
@@ -500,7 +506,8 @@ impl Checked {
             for recipe in sites {
                 b.spend(1, WORK)?;
                 if recipe.id == site && matches!(recipe.kind,
-                    SemanticSiteRecipeKind::OriginalCall | SemanticSiteRecipeKind::Call { .. } | SemanticSiteRecipeKind::CallableCall { .. }) {
+                    SemanticSiteRecipeKind::OriginalCall | SemanticSiteRecipeKind::Call { .. } | SemanticSiteRecipeKind::CallableCall { .. }
+                    | SemanticSiteRecipeKind::Construct { .. }) {
                     if call.replace(node).is_some() { return Err(fail("call adapter has competing original call nodes")); }
                 }
             }

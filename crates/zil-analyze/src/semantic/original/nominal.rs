@@ -276,6 +276,408 @@ impl Solver<'_, '_> {
         }
     }
 
+    fn record_constructor_template(
+        &mut self,
+        caller: &Frame,
+        node: NodeId,
+        definition: SemanticDefinitionId,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        self.step(depth, b)?;
+        b.lookup(self.constructor_templates.len(), WORK)?;
+        if let Some(term) = self.constructor_templates.get(&(caller.definition, node)) {
+            if !matches!(self.state.arena[self.root(*term, b)?], Kind::Nominal { definition: actual, .. } if actual == definition)
+            {
+                return Err(fail(
+                    "original constructor node changes its exact nominal declaration",
+                ));
+            }
+            return Ok(*term);
+        }
+        let declaration = self.inventory.definition(definition, b)?;
+        if !matches!(
+            declaration.body,
+            SemanticDefinitionBody::Nominal {
+                body: SemanticNominalBody::Product { .. },
+                ..
+            }
+        ) {
+            return Err(fail(
+                "original record constructor selects a non-product declaration",
+            ));
+        }
+        let mut actuals = Vec::new();
+        for formal in &declaration.parameters {
+            let actual =
+                match formal {
+                    SemanticFormal::Lifetime => self.call_variable(
+                        call_regions::Role::ConstructorLife(u32::try_from(actuals.len()).map_err(
+                            |_| resource("original constructor mixed ordinal overflows"),
+                        )?),
+                        b,
+                    )?,
+                    SemanticFormal::Type { .. } | SemanticFormal::Const { .. } => self.var(b)?,
+                };
+            Self::push(&mut actuals, actual, b)?;
+        }
+        b.spend(actuals.len(), WORK)?;
+        let context = frame(definition, actuals.clone());
+        for (formal, actual) in declaration.parameters.iter().zip(&actuals) {
+            if let SemanticFormal::Const { carrier } = formal {
+                let carrier = self.recipe(&context, carrier, b, depth + 1)?;
+                b.lookup(self.constructor_constants.len(), WORK)?;
+                if self
+                    .constructor_constants
+                    .insert(*actual, carrier)
+                    .is_some()
+                {
+                    return Err(fail(
+                        "original constructor repeats a Const inference coordinate",
+                    ));
+                }
+            }
+        }
+        // The ordinary application checks the full declaration, all field
+        // recipes and where/WF obligations. Variables are solved only from
+        // genuine wanted/field constraints; they grant no nominal premise.
+        let term = self.application(definition, actuals, b, depth + 1)?;
+        b.lookup(self.constructor_templates.len(), WORK)?;
+        self.constructor_templates
+            .insert((caller.definition, node), term);
+        Ok(term)
+    }
+
+    fn constructor_field_indices(
+        &self,
+        term: Term,
+        values: &[(String, SemanticOriginalExpr)],
+        b: &mut Budget,
+    ) -> CompileResult<Vec<usize>> {
+        let Kind::Nominal {
+            definition, fields, ..
+        } = &self.state.arena[self.root(term, b)?]
+        else {
+            return Err(fail(
+                "original constructor has no complete nominal field domain",
+            ));
+        };
+        let SemanticDefinitionBody::Nominal {
+            body: SemanticNominalBody::Product { fields: recipes },
+            ..
+        } = &self.inventory.definition(*definition, b)?.body
+        else {
+            return Err(fail(
+                "original record constructor selects a non-product declaration",
+            ));
+        };
+        if recipes.len() != values.len() || fields.len() != recipes.len() {
+            return Err(fail("original record construction omits a field"));
+        }
+        let mut seen = BTreeSet::new();
+        let mut indices = Vec::new();
+        for (name, _) in values {
+            b.spend(name.len().saturating_add(1), WORK)?;
+            b.lookup(seen.len(), WORK)?;
+            if !seen.insert(name) {
+                return Err(fail("original record construction repeats a field"));
+            }
+            let mut found = None;
+            for (ordinal, field) in recipes.iter().enumerate() {
+                b.spend(field.name.len().saturating_add(name.len() + 1), WORK)?;
+                if field.name == *name && found.replace(ordinal).is_some() {
+                    return Err(fail("original nominal repeats a field name"));
+                }
+            }
+            Self::push(
+                &mut indices,
+                found.ok_or_else(|| {
+                    fail("original record field is absent from its nominal declaration")
+                })?,
+                b,
+            )?;
+        }
+        Ok(indices)
+    }
+
+    pub(super) fn record_constructor_hint(
+        &mut self,
+        caller: &Frame,
+        node: NodeId,
+        definition: Option<SemanticDefinitionId>,
+        values: &[(String, SemanticOriginalExpr)],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Term>> {
+        self.step(depth, b)?;
+        let Some(definition) = definition else {
+            return Ok(None);
+        };
+        let term = self.record_constructor_template(caller, node, definition, b, depth + 1)?;
+        let indices = self.constructor_field_indices(term, values, b)?;
+        let Kind::Nominal { fields, .. } = &self.state.arena[self.root(term, b)?] else {
+            unreachable!()
+        };
+        b.spend(fields.len(), WORK)?;
+        let fields = fields.clone();
+        // Pure Type hints never evaluate, borrow or consume a field. Lifetime
+        // and Const equations remain for the full ordered original values.
+        for ((_, value), index) in values.iter().zip(indices) {
+            if let Some(actual) = self.lexical_input_hint(caller, value, b, depth + 1)? {
+                self.input_hint(fields[index], actual, b, depth + 1)?;
+            }
+        }
+        if self.resource_payload(term, b)? {
+            Ok(Some(self.term(Kind::Wrapped(Wrapper::Managed, term), b)?))
+        } else {
+            Ok(Some(term))
+        }
+    }
+
+    pub(super) fn record_constructor(
+        &mut self,
+        caller: &mut Frame,
+        node: NodeId,
+        definition: Option<SemanticDefinitionId>,
+        values: &[(String, SemanticOriginalExpr)],
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        self.step(depth, b)?;
+        let wanted = self.receiving_for(caller, node, b)?;
+        let term = if let Some(definition) = definition {
+            self.record_constructor_template(caller, node, definition, b, depth + 1)?
+        } else {
+            let wanted = wanted.ok_or_else(|| {
+                fail("anonymous original record constructor has no complete wanted nominal type")
+            })?;
+            match self.state.arena[self.type_root(wanted, b)?] {
+                Kind::Wrapped(Wrapper::Managed, inner) => inner,
+                _ => wanted,
+            }
+        };
+        let output = if self.resource_payload(term, b)? {
+            self.term(Kind::Wrapped(Wrapper::Managed, term), b)?
+        } else {
+            term
+        };
+        if let Some(wanted) = wanted {
+            self.unify(output, wanted, depth + 1, b)?;
+        }
+        let indices = self.constructor_field_indices(term, values, b)?;
+        let Kind::Nominal { fields, .. } = &self.state.arena[self.root(term, b)?] else {
+            unreachable!()
+        };
+        b.spend(fields.len(), WORK)?;
+        let fields = fields.clone();
+        let Kind::Nominal {
+            definition: declaration,
+            arguments,
+            ..
+        } = &self.state.arena[self.root(term, b)?]
+        else {
+            unreachable!()
+        };
+        let declaration = *declaration;
+        b.spend(arguments.len(), WORK)?;
+        let arguments = arguments.clone();
+        let original = self.inventory.definition(declaration, b)?;
+        let SemanticDefinitionBody::Nominal {
+            body: SemanticNominalBody::Product { fields: recipes },
+            ..
+        } = &self.inventory.definition(declaration, b)?.body
+        else {
+            unreachable!()
+        };
+        for index in &indices {
+            self.mark_call_parameter(fields[*index], &recipes[*index].ty, b)?;
+        }
+        let mut actuals = Vec::new();
+        for ((_, expression), index) in values.iter().zip(&indices) {
+            // Outer sigma is evaluated once and remains unchanged. Complete
+            // inner nominal/Type/Const equations are enforced by collection;
+            // unresolved outer roles are settled only after every real field.
+            let actual = self.call_input_value(caller, expression, fields[*index], b, depth + 1)?;
+            Self::push(&mut actuals, actual, b)?;
+        }
+        let mut inputs = Vec::new();
+        for (((_, expression), actual), index) in values.iter().zip(actuals).zip(indices) {
+            if let Some(mut input) = self.collect_call_input(
+                caller,
+                expression,
+                actual,
+                fields[index],
+                index,
+                b,
+                depth + 1,
+            )? {
+                for (ordinal, (formal, argument)) in
+                    original.parameters.iter().zip(&arguments).enumerate()
+                {
+                    b.spend(1, WORK)?;
+                    if matches!(formal, SemanticFormal::Lifetime)
+                        && self.root(*argument, b)? == self.root(input.life, b)?
+                    {
+                        input.role = Some(call_regions::Role::ConstructorLife(
+                            u32::try_from(ordinal).map_err(|_| {
+                                resource("original constructor mixed ordinal overflows")
+                            })?,
+                        ));
+                        break;
+                    }
+                }
+                Self::push(&mut inputs, input, b)?;
+            }
+        }
+        self.settle_call_inputs(caller, node, Some(declaration), &inputs, b, depth + 1)?;
+        Ok(output)
+    }
+
+    fn constructor_complete(
+        &self,
+        term: Term,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<bool> {
+        self.step(depth, b)?;
+        let term = self.root(term, b)?;
+        let children: Vec<Term> = match &self.state.arena[term] {
+            Kind::Infer(None) | Kind::LifeVariable(None) => return Ok(false),
+            Kind::Tuple(fields) => {
+                b.spend(fields.len(), WORK)?;
+                fields.clone()
+            }
+            Kind::Nominal {
+                arguments, fields, ..
+            } => {
+                b.spend(arguments.len().saturating_add(fields.len()), WORK)?;
+                arguments.iter().chain(fields).copied().collect()
+            }
+            Kind::Array { element, length } => vec![*element, *length],
+            Kind::ErrorUnion { error, result } => vec![*error, *result],
+            Kind::Address { life, inner, .. }
+            | Kind::Desc { life, inner }
+            | Kind::MutexGuard {
+                life,
+                payload: inner,
+            } => vec![*life, *inner],
+            Kind::Wrapped(_, inner)
+            | Kind::Slice(inner)
+            | Kind::CallResult { hidden: inner, .. }
+            | Kind::ConstRigid { carrier: inner, .. } => vec![*inner],
+            Kind::Code {
+                parameters, result, ..
+            } => {
+                b.spend(parameters.len().saturating_add(1), WORK)?;
+                parameters
+                    .iter()
+                    .chain(std::iter::once(result))
+                    .copied()
+                    .collect()
+            }
+            Kind::Closure {
+                parameters,
+                result,
+                environment,
+                ..
+            } => {
+                b.spend(parameters.len().saturating_add(environment.len() + 1), WORK)?;
+                parameters
+                    .iter()
+                    .chain(std::iter::once(result))
+                    .chain(environment)
+                    .copied()
+                    .collect()
+            }
+            Kind::Associated {
+                receiver,
+                arguments,
+                ..
+            } => {
+                b.spend(arguments.len().saturating_add(1), WORK)?;
+                std::iter::once(*receiver)
+                    .chain(arguments.iter().copied())
+                    .collect()
+            }
+            Kind::Task(task) => {
+                b.spend(task.work(), WORK)?;
+                task.terms().collect()
+            }
+            Kind::Dyn(ty) => {
+                b.spend(ty.work(), WORK)?;
+                ty.terms().collect()
+            }
+            Kind::Atom(_)
+            | Kind::Rigid(_, _)
+            | Kind::SelfType(_)
+            | Kind::Life(_)
+            | Kind::ConstValue(_) => return Ok(true),
+            Kind::Infer(Some(_)) | Kind::LifeVariable(Some(_)) => unreachable!(),
+        };
+        b.spend(children.len(), WORK)?;
+        for child in children {
+            if !self.constructor_complete(child, b, depth + 1)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    pub(super) fn check_record_constructor_actuals(&mut self, b: &mut Budget) -> CompileResult<()> {
+        b.spend(self.constructor_templates.len(), WORK)?;
+        let constructors: Vec<Term> = self.constructor_templates.values().copied().collect();
+        for term in constructors {
+            let Kind::Nominal {
+                definition,
+                arguments,
+                ..
+            } = &self.state.arena[self.root(term, b)?]
+            else {
+                return Err(fail(
+                    "original constructor loses its full nominal application",
+                ));
+            };
+            let declaration = self.inventory.definition(*definition, b)?;
+            b.spend(arguments.len().saturating_mul(2), WORK)?;
+            let arguments = arguments.clone();
+            let context = frame(*definition, arguments.clone());
+            for (formal, actual) in declaration.parameters.iter().zip(arguments) {
+                let root = self.root(actual, b)?;
+                let valid = match formal {
+                    SemanticFormal::Lifetime => matches!(self.state.arena[root], Kind::Life(_)),
+                    SemanticFormal::Type { .. } => !matches!(
+                        self.state.arena[root],
+                        Kind::Life(_)
+                            | Kind::LifeVariable(_)
+                            | Kind::ConstRigid { .. }
+                            | Kind::ConstValue(_)
+                            | Kind::Infer(_)
+                    ),
+                    SemanticFormal::Const { carrier } => {
+                        let carrier = self.recipe(&context, carrier, b, 0)?;
+                        let actual_carrier = match self.state.arena[root] {
+                            Kind::ConstRigid { carrier, .. } => carrier,
+                            Kind::ConstValue(ref value) => self.atom(value.ty(), b)?,
+                            _ => {
+                                return Err(fail(
+                                    "original constructor Const actual remains unresolved or changes kind",
+                                ));
+                            }
+                        };
+                        self.unify(carrier, actual_carrier, 0, b)?;
+                        true
+                    }
+                };
+                if !valid || !self.constructor_complete(actual, b, 0)? {
+                    return Err(fail(
+                        "original constructor has an unresolved or wrong-kind full mixed actual",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn record_fields(
         &mut self,
         context: &mut Frame,
