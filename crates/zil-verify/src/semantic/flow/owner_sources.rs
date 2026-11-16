@@ -29,8 +29,8 @@ impl CheckedContext{
         if read_value {loop{
             b.spend(1)?;
             let(_,_,instruction)=producer(f,value,b)?;
-            let InstructionKind::ReadAddress{address}=instruction.kind else{break;};
-            if !seen.insert(value){return Err(bad("observed original root has a cyclic actual read chain"));}
+            let address=match instruction.kind{InstructionKind::ReadAddress{address}|InstructionKind::DescribeAddress{address}=>address,_=>break};
+            if !seen.insert(value){return Err(bad("observed original root has a cyclic actual read/description chain"));}
             crate::check_instruction(module,f,instruction,b)?;value=address;
         }}
         for(ordinal,projection)in projections.iter().enumerate(){

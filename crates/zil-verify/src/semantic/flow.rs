@@ -21,6 +21,7 @@ mod callbacks;
 mod scoped_threads;
 mod closure_calls;
 mod code_calls;
+mod type_uses;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
@@ -382,9 +383,9 @@ impl CheckedContext {
                         let environment=&site_environment;
                         let required=self.site_expected(module,instance,site,environment,external,active,b)?;
                         self.claim(module,expected,&required,&environment,b)?;
-                        let value=match subject {SemanticOperand::Value(value)=>value_at(&values,*value)?,SemanticOperand::Local(local)=>state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual type use reads an uninitialized local"))?,_=>return Err(unsupported("semantic TypeUse requires its exact actual operand ledger",None))};
-                        self.bind_implicit_use(module,instance,site,subject,value,&required,&environment,b)?;
-                        if !self.compatible(&environment,value,&required,b)? {return Err(bad(&format!("actual TypeUse violates its original rigid class requirement [instance {:?}, site {:?}, subject {:?}, actual domain {}, required domain {}]",instance.id,site.recipe,subject,value.life.binder_count,required.life.binder_count)));}
+                        let value=self.type_use_operand(module,instance,f,subject,&state,&values,signature,environment,b)?;
+                        self.bind_implicit_use(module,instance,site,subject,&value,&required,&environment,b)?;
+                        if !self.compatible(&environment,&value,&required,b)? {return Err(bad(&format!("actual TypeUse violates its original rigid class requirement [instance {:?}, site {:?}, subject {:?}, actual domain {}, required domain {}]",instance.id,site.recipe,subject,value.life.binder_count,required.life.binder_count)));}
                     }
                 }
             }
@@ -739,7 +740,7 @@ impl CheckedContext {
         let source_recipe=if let SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:original_source}=source_recipe{
             let original=self.original.borrow();let original=original.as_ref().ok_or_else(||bad("original implicit address lacks its complete body proof"))?;
             source=original.original_address_source(module,instance.definition,original_source,b)?;
-            if source.is_none(){source=original.original_description_source(instance.definition,original_source,b)?;}
+            if source.is_none(){source=original.original_description_source(module,instance.definition,original_source,b)?;}
             expanded=original.type_recipe(module,instance.definition,original_source,environment,b)?;&expanded
         }else{source_recipe};
         let (ordinal,description)=match source_recipe{

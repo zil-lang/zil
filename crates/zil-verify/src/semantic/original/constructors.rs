@@ -162,13 +162,22 @@ impl CheckedOriginal {
 impl CheckedOriginal {
     /// An implicit description's head belongs to the exact adapted argument
     /// occurrence. Its underlying manager still comes from the original Place.
-    pub(in crate::semantic) fn original_description_source(&self,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<intrinsics::BufferSource>> {
+    pub(in crate::semantic) fn original_description_source(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<intrinsics::BufferSource>> {
         let SemanticOriginalTypeSource::Expression(node)=source else{return Ok(None);};
         let ty=self.original_type(definition,source,b)?;
-        let Ty::Desc{life,..}=ty else{return Ok(None);};
+        let Ty::Desc{life,inner}=ty else{return Ok(None);};
         if self.resolved_life(&life,b)?!=Life::Local(definition,*node){return Ok(None);}
-        if !self.value_places.contains_key(&(definition,*node)){return Err(unsupported("original implicit description requires its complete checked manager Place",None));}
-        Ok(Some(intrinsics::BufferSource::Place{definition,node:*node}))
+        if self.value_places.contains_key(&(definition,*node)){
+            return Ok(Some(intrinsics::BufferSource::Place{definition,node:*node}));
+        }
+        // A managed field observed through a borrowed product has no owned
+        // local Place. Keep the independently checked pre-adaptation category
+        // and follow its exact original address projection instead.
+        let manager=self.place_types.get(&(definition,*node)).ok_or_else(||bad("implicit description has no checked original manager category"))?;
+        let Ty::Managed(payload)=self.resolved(manager,b)? else{return Err(bad("implicit description original projection is not a complete Managed value"));};
+        if !self.same(&payload,&inner,b)?{return Err(bad("implicit description changes its original complete manager payload"));}
+        self.address_place(module,definition,*node,b)?;
+        Ok(Some(intrinsics::BufferSource::Address{definition,node:*node}))
     }
 }
 
