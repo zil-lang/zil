@@ -1306,6 +1306,41 @@ impl Solver<'_, '_> {
             CoreExprKind::RecordUpdate { base, .. } => {
                 self.lexical_input_hint(frame, base, b, depth + 1)
             }
+            CoreExprKind::Member { object, member, owner } => {
+                let Some(object) = self.lexical_input_hint(frame, object, b, depth + 1)? else {
+                    return Ok(None);
+                };
+                if let Some(owner) = owner {
+                    let expected = self.recipe(frame, owner, b, depth + 1)?;
+                    self.input_hint(expected, object, b, depth + 1)?;
+                }
+                Ok(Some(self.field(object, member, b, depth + 1)?.1))
+            }
+            CoreExprKind::Unary { op: UnaryOp::Dereference, operand } => {
+                let Some(address) = self.lexical_input_hint(frame, operand, b, depth + 1)? else {
+                    return Ok(None);
+                };
+                Ok(match self.state.arena[self.type_root(address, b)?] {
+                    Kind::Address { inner, .. } => Some(inner),
+                    _ => None,
+                })
+            }
+            CoreExprKind::Unary { op, operand }
+                if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut) =>
+            {
+                // This reads the original place's Type only. No expression,
+                // occurrence, loan, read or consuming event is formed here.
+                // The temporary outer life is only an inference variable;
+                // the genuine source borrow is checked once with its exact
+                // receiving role and must independently solve it.
+                let Some(inner) = self.lexical_input_hint(frame, operand, b, depth + 1)? else {
+                    return Ok(None);
+                };
+                let life = self.term(Kind::LifeVariable(None), b)?;
+                Ok(Some(self.term(Kind::Address {
+                    mutable: *op == UnaryOp::BorrowMut, life, inner,
+                }, b)?))
+            }
             _ => Ok(None),
         }
     }

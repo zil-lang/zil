@@ -34,6 +34,9 @@ struct Inventory<'a> {
     original_indexes: BTreeMap<SemanticDefinitionId, std::sync::Arc<original_index::Index<'a>>>,
     instances: BTreeMap<SemanticInstanceId, &'a SemanticInstance>,
     functions: BTreeMap<FunctionId, &'a TypedFunction>,
+    // Pure original declarations, indexed only for missing-Names shadow
+    // rejection. A name never selects a provider, value or builtin permission.
+    top_level_names: BTreeMap<zil_base::ModuleId, Vec<(&'a str, bool)>>,
     // Successful immutable source-directory queries only. A frozen source
     // view is part of each key; none of these rows carries N/kappa or access.
     dyn_definitions: std::cell::RefCell<BTreeMap<(usize, LifeDeclarationId), DynDefinitionLocation>>,
@@ -66,6 +69,7 @@ impl<'a> Inventory<'a> {
             original_indexes: BTreeMap::new(),
             instances: BTreeMap::new(),
             functions: BTreeMap::new(),
+            top_level_names: BTreeMap::new(),
             dyn_definitions: std::cell::RefCell::new(BTreeMap::new()),
             declaration_scopes: std::cell::RefCell::new(BTreeMap::new()),
             drop_methods: std::cell::RefCell::new(BTreeMap::new()),
@@ -75,10 +79,9 @@ impl<'a> Inventory<'a> {
             emitted_sites: std::cell::RefCell::new(BTreeMap::new()),
             function_worlds: std::cell::RefCell::new(BTreeMap::new()),
         };
-        let mut identities = BTreeSet::new();
+        let mut identities: Vec<(&zil_ir::LifeDeclarationIdentity, usize)> = Vec::new();
         for definition in &program.definitions {
             b.lookup(inventory.definitions.len(), WORK)?;
-            b.spend(identities.len().saturating_add(1), WORK)?;
             let identity = &definition.identity;
             b.spend(
                 identity
@@ -101,17 +104,28 @@ impl<'a> Inventory<'a> {
                         .saturating_add(1),
                     |size, part| size.saturating_add(part.len()),
                 );
-            // Comparing qualified strings is not an integer-key lookup. Pay a
-            // complete candidate-key upper before any BTree comparison.
-            b.spend(identities.len().saturating_mul(width), WORK)?;
-            if inventory
-                .definitions
-                .insert(definition.id, definition)
-                .is_some()
-                || !identities.insert(&definition.identity)
-            {
+            // Each actual full Ord comparison is prepaid. Keeping sorted
+            // borrowed identities avoids a black-box tree comparison charged
+            // as a scan of every prior complete string key.
+            let (mut low, mut high) = (0usize, identities.len());
+            while low < high {
+                let middle = low + (high - low) / 2;
+                let (candidate, candidate_width) = identities[middle];
+                b.spend(width.saturating_add(candidate_width).saturating_add(1), WORK)?;
+                match identity.cmp(candidate) {
+                    std::cmp::Ordering::Less => high = middle,
+                    std::cmp::Ordering::Greater => low = middle + 1,
+                    std::cmp::Ordering::Equal => return Err(fail("original definition identity is ambiguous")),
+                }
+            }
+            if inventory.definitions.insert(definition.id, definition).is_some() {
                 return Err(fail("original definition identity is ambiguous"));
             }
+            let relocation = if identities.len() == identities.capacity() { identities.len() } else { 0 };
+            b.spend(identities.len().saturating_sub(low).saturating_add(relocation).saturating_mul(2).saturating_add(1), WORK)?;
+            identities.try_reserve(1).map_err(|_| fail("original identity directory allocation failed"))?;
+            identities.insert(low, (identity, width));
+            inventory.index_top_level_name(definition, b)?;
         }
         for instance in &program.instances {
             b.lookup(inventory.instances.len(), WORK)?;
@@ -133,6 +147,46 @@ impl<'a> Inventory<'a> {
             }
         }
         Ok(inventory)
+    }
+    fn index_top_level_name(&mut self, definition: &'a SemanticDefinition, b: &mut Budget) -> CompileResult<()> {
+        if definition.parent.is_some() { return Ok(()); }
+        let Some(name) = definition.identity.declaration_path.last() else { return Ok(()); };
+        b.lookup(self.top_level_names.len(), WORK)?;
+        let rows = self.top_level_names.entry(definition.id.module).or_default();
+        let (mut low, mut high) = (0usize, rows.len());
+        while low < high {
+            let middle = low + (high - low) / 2;
+            b.spend(name.len().saturating_add(rows[middle].0.len()).saturating_add(1), WORK)?;
+            match name.as_str().cmp(rows[middle].0) {
+                std::cmp::Ordering::Less => high = middle,
+                std::cmp::Ordering::Greater => low = middle + 1,
+                std::cmp::Ordering::Equal => {
+                    rows[middle].1 |= definition.kind == SemanticDefinitionKind::Function;
+                    return Ok(());
+                }
+            }
+        }
+        let relocation = if rows.len() == rows.capacity() { rows.len() } else { 0 };
+        b.spend(rows.len().saturating_sub(low).saturating_add(relocation).saturating_mul(2).saturating_add(1), WORK)?;
+        rows.try_reserve(1).map_err(|_| fail("original name directory allocation failed"))?;
+        rows.insert(low, (name, definition.kind == SemanticDefinitionKind::Function));
+        Ok(())
+    }
+    fn hidden_top_level(&self, module: zil_base::ModuleId, name: &str, numeric: bool,
+        b: &mut Budget) -> CompileResult<bool> {
+        b.lookup(self.top_level_names.len(), WORK)?;
+        let Some(rows) = self.top_level_names.get(&module) else { return Ok(false); };
+        let (mut low, mut high) = (0usize, rows.len());
+        while low < high {
+            let middle = low + (high - low) / 2;
+            b.spend(name.len().saturating_add(rows[middle].0.len()).saturating_add(1), WORK)?;
+            match name.cmp(rows[middle].0) {
+                std::cmp::Ordering::Less => high = middle,
+                std::cmp::Ordering::Greater => low = middle + 1,
+                std::cmp::Ordering::Equal => return Ok(numeric || rows[middle].1),
+            }
+        }
+        Ok(false)
     }
     fn original_index(
         &self,
@@ -532,32 +586,21 @@ impl<'a> Inventory<'a> {
             let definition = self.definition(instance.definition, b)?;
             let (
                 SemanticInstanceTarget::Function(target),
-                SemanticDefinitionBody::FunctionWithBody { sites, .. },
+                SemanticDefinitionBody::FunctionWithBody { .. },
             ) = (&instance.target, &definition.body)
             else {
                 return Err(fail("emission site does not belong to an actual function"));
             };
             let function = self.function(target, b)?;
-            b.spend(
-                sites
-                    .len()
-                    .saturating_add(emitted.len())
-                    .saturating_add(consumed.len())
-                    .saturating_add(1),
-                WORK,
-            )?;
+            b.lookup(consumed.len(), WORK)?;
+            b.lookup(emitted.len(), WORK)?;
             if !consumed.insert((site.instance, site.recipe)) {
                 return Err(fail(
                     "one original semantic event is claimed by multiple actual emissions",
                 ));
             }
-            let mut recipes = sites.iter().filter(|recipe| recipe.id == site.recipe);
-            let recipe = recipes
-                .next()
-                .ok_or_else(|| fail("actual emission site has no original recipe"))?;
-            if recipes.next().is_some() {
-                return Err(fail("original emission recipe is ambiguous"));
-            }
+            let directory = self.original_index(definition.id, b)?;
+            let recipe = directory.recipe(site.recipe, b)?;
             let SemanticSiteAddress::Typed {
                 block,
                 instruction,

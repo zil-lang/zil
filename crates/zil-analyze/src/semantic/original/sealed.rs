@@ -227,31 +227,8 @@ pub(super) fn resolve(
     // A same-module declaration cannot disappear from Names to uncover a core
     // operation. Imports must likewise have their real explicit name binding;
     // there is no scan for a convenient same-shaped function or first caller.
-    for candidate in inventory.definitions.values() {
-        b.spend(
-            candidate
-                .identity
-                .declaration_path
-                .iter()
-                .map(String::len)
-                .sum::<usize>()
-                .saturating_add(1),
-            WORK,
-        )?;
-        if candidate.id.module == owner.module
-            && candidate.parent.is_none()
-            && (candidate.kind == SemanticDefinitionKind::Function
-                || matches!(intrinsic, Intrinsic::NumericConvert(_)))
-            && candidate
-                .identity
-                .declaration_path
-                .last()
-                .is_some_and(|name| name == path[0])
-        {
-            return Err(fail(
-                "core operation name hides an unbound real source declaration",
-            ));
-        }
+    if inventory.hidden_top_level(owner.module, path[0], matches!(intrinsic, Intrinsic::NumericConvert(_)), b)? {
+        return Err(fail("core operation name hides an unbound real source declaration"));
     }
     Ok(Resolution::Intrinsic(intrinsic))
 }

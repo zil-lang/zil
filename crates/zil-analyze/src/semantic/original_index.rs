@@ -16,8 +16,14 @@ pub(super) struct Index<'a> {
     erased: BTreeSet<NodeId>,
     navigation: BTreeSet<NodeId>,
     declarations: BTreeMap<NodeId, SemanticSiteId>,
+    recipes: BTreeMap<u32, &'a SemanticSiteRecipe>,
 }
 impl<'a> Index<'a> {
+    pub(super) fn recipe(&self, id: SemanticSiteId, b: &mut Budget) -> CompileResult<&'a SemanticSiteRecipe> {
+        b.lookup(self.recipes.len(), WORK)?;
+        self.recipes.get(&id.0).copied()
+            .ok_or_else(|| bad("actual emission site has no exact original recipe"))
+    }
     pub(super) fn declaration_site(
         &self,
         node: NodeId,
@@ -376,6 +382,7 @@ fn walk<'a>(body: &'a SemanticOriginalBlock, b: &mut Budget) -> CompileResult<In
         erased,
         navigation,
         declarations: BTreeMap::new(),
+        recipes: BTreeMap::new(),
     })
 }
 
@@ -782,6 +789,7 @@ pub(super) fn index<'a>(
                 erased: BTreeSet::new(),
                 navigation: BTreeSet::new(),
                 declarations: BTreeMap::new(),
+                recipes: BTreeMap::new(),
             }
         }
     };
@@ -822,5 +830,6 @@ pub(super) fn index<'a>(
     if bound.len() != recipes.len() {
         return Err(bad("original recipe is missing its unique node binding"));
     }
+    output.recipes = recipes;
     Ok(output)
 }

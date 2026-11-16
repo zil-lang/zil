@@ -482,7 +482,7 @@ impl Budget {
                 let caller = std::panic::Location::caller();
                 let key = (caller.file(), caller.line());
                 let key = if self.semantic_cost_sites.contains_key(&key)
-                    || self.semantic_cost_sites.len() < 511
+                    || self.semantic_cost_sites.len() < 4095
                 {
                     key
                 } else {
@@ -566,7 +566,7 @@ impl Budget {
             return;
         }
         let key = (kind, caller.file(), caller.line());
-        let key = if self.metadata_costs.contains_key(&key) || self.metadata_costs.len() < 511 {
+        let key = if self.metadata_costs.contains_key(&key) || self.metadata_costs.len() < 4095 {
             key
         } else {
             ("other", "", 0)
