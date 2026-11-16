@@ -213,8 +213,7 @@ impl CheckedContext {
             for (ordinal,instruction) in block.instructions.iter().enumerate() {
                 let mut environment=environment.clone();
                 environment.at=Some(SitePoint{function,block:block.id,instruction:ordinal as u32,after:false});
-                let sites=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?.sites.iter().filter(|site|site.instance==instance.id&&matches!(site.at,SemanticSiteAddress::Typed{block:id,instruction:index,..} if id==block.id&&index==ordinal as u32)).collect::<Vec<_>>();
-                b.spend(module.semantic.as_ref().unwrap().sites.len())?;
+                let sites=self.actual_sites(module,instance.id,block.id,ordinal as u32,b)?;
                 for site in &sites {
                     if let SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(local),expected}=&site.action {
                         let value=self.site_expected(module,instance,site,&environment,external,active,b)?;

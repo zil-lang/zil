@@ -15,6 +15,7 @@ struct Ports {
     direct: bool,
     environment: bool,
     task_ports: Vec<(Vec<zil_ir::ContractProjection>, usize)>,
+    physical_slots:Vec<(Vec<ContractProjection>,usize)>,
     // Per-ordinal address upper variables, distinct from nominal classes.
     array_elements: Vec<usize>,
 }
@@ -388,6 +389,14 @@ impl Equations {
             };
             pure_class_keys(ty, &mut path, &mut keys, b)?;
         }
+        let mut physical_slots=Vec::new();
+        if outer.is_none()&&let Type::BorrowedStorage{life,..}=ty{
+            b.spend(life.slots.len())?;
+            for slot in &life.slots{
+                b.spend(slot.path.len().saturating_add(1))?;
+                physical_slots.push((slot.path.iter().copied().map(ContractProjection::Place).collect(),slot.binder as usize));
+            }
+        }
         let mut task_ports = Vec::new();
         if b.task_sources() {
             fn walk(
@@ -478,6 +487,7 @@ impl Equations {
             direct,
             environment,
             task_ports,
+            physical_slots,
             array_elements,
         })
     }
@@ -662,6 +672,13 @@ fn select(v: &(Vec<usize>, Vec<usize>), binder: StorageBinder) -> Check<usize> {
         .copied()
         .ok_or_else(|| bad("class binder outside invocation domain"))
 }
+fn physical_binding(p:&Ports,path:&[ContractProjection],b:&mut Budget)->Check<Option<usize>>{
+    b.spend(p.physical_slots.iter().fold(1usize,|work,(actual,_)|work.saturating_add(actual.len().saturating_add(path.len()).saturating_add(1))))?;
+    let mut rows=p.physical_slots.iter().filter(|(actual,_)|actual==path);
+    let Some((_,class))=rows.next()else{return Ok(None);};
+    if rows.next().is_some(){return Err(bad("physical signature binding selects duplicate actual borrowed slots"));}
+    Ok(Some(*p.classes.get(*class).ok_or_else(||bad("physical signature binding escapes its complete intrinsic class domain"))?))
+}
 fn bind(
     c: &StorageLifeContract,
     base: StorageBase,
@@ -694,6 +711,9 @@ fn bind(
                     e.equal(p.classes[*index], select(v, row.binder)?, b)?;
                     continue;
                 }
+            }
+            if !row.position.path.is_empty()&&let Some(actual)=physical_binding(p,&row.position.path,b)?{
+                e.equal(actual,select(v,row.binder)?,b)?;continue;
             }
             if !row.position.path.is_empty() {
                 return Err(bad(
@@ -777,6 +797,9 @@ fn bind_with_outer(
                     array_outer::binding(e, p.classes[*index], select(v, row.binder)?, flow, b)?;
                     continue;
                 }
+            }
+            if !row.position.path.is_empty()&&let Some(actual)=physical_binding(p,&row.position.path,b)?{
+                array_outer::binding(e,actual,select(v,row.binder)?,flow,b)?;continue;
             }
             if !row.position.path.is_empty() {
                 return Err(bad(

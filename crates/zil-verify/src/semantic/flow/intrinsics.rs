@@ -306,30 +306,11 @@ impl CheckedContext {
                     self.range_local_root(module,caller,f,local.id,&range,b)?;
                     return Ok(local.id);
                 }
-                let definition = self.definition(module, definition, b)?;
-                let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body
-                else {
-                    return Err(bad("intrinsic local has no original body"));
-                };
-                let program = module
-                    .semantic
-                    .as_ref()
-                    .ok_or_else(|| bad("intrinsic local has no semantic ledger"))?;
-                b.spend(
-                    site_nodes
-                        .len()
-                        .saturating_mul(program.sites.len().saturating_add(1)),
-                )?;
+                if !matches!(caller.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==f.id){return Err(bad("intrinsic local selects another actual caller function"));}
+                let recipes=self.original.borrow().as_ref().ok_or_else(||bad("intrinsic local has no complete original proof"))?.original_declaration_sites(definition,node,b)?;
                 let mut local = None;
-                for node in site_nodes
-                    .iter()
-                    .filter(|row| row.node == SemanticOriginalNode::Statement(node))
-                {
-                    for site in program
-                        .sites
-                        .iter()
-                        .filter(|site| site.instance == caller.id && site.recipe == node.site)
-                    {
+                for recipe in recipes {
+                    for site in self.actual_declarations(module,caller.id,recipe,b)? {
                         if let SemanticSiteAction::DeclareLocal {
                             local: SemanticLocalTarget::Typed(id),
                             ..

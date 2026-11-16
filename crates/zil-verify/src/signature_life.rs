@@ -981,6 +981,7 @@ fn relation_inputs<P:InputType>(
                 {
                     return Err(invalid());
                 }
+                let first_class=class;
                 for local in 0..life.binder_count {
                     let row = &c.classes[class];
                     let path = if pointee {
@@ -997,6 +998,25 @@ fn relation_inputs<P:InputType>(
                         if captures.is_some() { capture } else { !output },
                         output && pending.contains(&row.position),
                     )?;
+                }
+                // A by-value carrier transfers each real physical borrowed
+                // slot in addition to its complete intrinsic class domain.
+                // Borrowing the carrier instead transfers only the outer
+                // address; its referent slots are not new input loans.
+                if !pointee{
+                    for slot in &life.slots{
+                        if slot.binder>=life.binder_count{return Err(invalid());}
+                        let position=StoragePosition{base,path:slot.path.iter().copied().map(ContractProjection::Place).collect()};
+                        let class_row=c.classes.get(first_class+slot.binder as usize).ok_or_else(invalid)?;
+                        if c.static_bindings.get(constant)==Some(&position){
+                            if slot.mode!=StoredBorrowMode::SharedAddress||c.bindings.get(borrow).is_some_and(|row|row.position==position){return Err(invalid());}
+                            constant+=1;continue;
+                        }
+                        let row=c.bindings.get(borrow).ok_or_else(invalid)?;
+                        if row.position!=position||row.binder!=class_row.binder{return Err(invalid());}
+                        borrow+=1;
+                        visit(row.binder,capture,output&&pending.contains(&class_row.position))?;
+                    }
                 }
             }
             Type::Array { .. } | Type::ErrorUnion { .. } | Type::Tuple(_)
@@ -1270,6 +1290,23 @@ mod tests {
 #[cfg(test)]
 mod input_view_tests{
     use super::*;
+    #[test]
+    fn complete_by_value_carrier_keeps_physical_slots_and_intrinsic_classes_separate(){
+        let(module,_)=crate::tests::baseline();let address=Type::Address{mutable:false,inner:Box::new(Type::I32)};
+        let carrier=Type::BorrowedStorage{storage:Box::new(Type::Record{name:"Borrowed".into(),fields:vec![("left".into(),address.clone()),("right".into(),address.clone())]}),life:StorageLifeShape{binder_count:2,slots:(0..2).map(|index|StorageLifeSlot{path:vec![PlaceProjection::Field(index)],binder:index,mode:StoredBorrowMode::SharedAddress}).collect(),retained:vec![],nominal_arguments:vec![]}};
+        let mut bindings=(0..2).map(|index|StorageLifeBinding{position:StoragePosition{base:StorageBase::Parameter(index),path:vec![]},binder:StorageBinder::Invocation(index)}).collect::<Vec<_>>();
+        bindings.extend((0..2).map(|index|StorageLifeBinding{position:StoragePosition{base:StorageBase::Result,path:vec![ContractProjection::Place(PlaceProjection::Field(index))]},binder:StorageBinder::Invocation(index)}));
+        let contract=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:2,bindings,static_bindings:vec![],classes:(0..2).map(|index|SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Result,path:vec![],class:index},binder:StorageBinder::Invocation(index)}).collect()};
+        let parameters=[address.clone(),address];
+        function_relation(&module,&parameters,&carrier,&contract,None,false).unwrap();
+        for attack in 0..5{let mut c=contract.clone();match attack{
+            0=>{c.bindings.pop();},
+            1=>c.bindings[2].binder=StorageBinder::Invocation(1),
+            2=>c.bindings[2].position.path=vec![ContractProjection::Place(PlaceProjection::Field(99))],
+            3=>c.bindings.push(c.bindings[2].clone()),
+            _=>{c.classes.pop();},
+        }assert!(function_relation(&module,&parameters,&carrier,&c,None,false).is_err(),"malformed physical/class relation {attack}");}
+    }
     #[test]
     fn local_callable_result_role_needs_its_exact_independent_export_position(){
         let(mut module,_)=crate::tests::baseline();

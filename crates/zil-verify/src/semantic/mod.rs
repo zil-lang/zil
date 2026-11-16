@@ -27,6 +27,7 @@ pub(crate) mod local_roles;
 pub(crate) mod callable_obligations;
 pub(crate) mod task_domains;
 mod catalogue;
+mod sites;
 mod instances;
 mod flow;
 mod capture_heads;
@@ -57,6 +58,7 @@ pub(crate) struct CheckedContext {
     pub(super) domain_only:Cell<bool>,
     definitions: BTreeMap<SemanticDefinitionId, usize>,
     instances: BTreeMap<SemanticInstanceId, usize>,
+    site_index:sites::Index,
     premises: RefCell<BTreeMap<ScopeKey, Premises>>,
     premises_epoch:Cell<u64>,
     static_identity:std::rc::Rc<()>,

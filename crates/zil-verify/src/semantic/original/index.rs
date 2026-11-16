@@ -111,6 +111,7 @@ pub(super) struct SourceIndex {
     // returned expression to the grammar checked by this original Γ.
     program:std::sync::Arc<SemanticModule>,
     directory:Directory,
+    limits:Limits,
 }
 struct Directory {
     definitions:BTreeMap<SemanticDefinitionId,DefinitionCursor>,
@@ -119,6 +120,28 @@ struct DefinitionCursor {
     ordinal:usize,
     nodes:BTreeMap<SemanticSiteId,SemanticOriginalNode>,
     closures:BTreeMap<NodeId,SemanticDefinitionId>,
+    recipes:BTreeMap<(bool,NodeId,Role),Vec<(usize,SemanticSiteId)>>,
+}
+#[derive(Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
+pub(super) enum Role{Construct,Call,CallableCall,OriginalCall,TypeUse,DeclareLocal,Closure}
+impl Role{fn of(recipe:&SemanticSiteRecipeKind)->Self{match recipe{
+    SemanticSiteRecipeKind::Construct{..}=>Self::Construct,SemanticSiteRecipeKind::Call{..}=>Self::Call,
+    SemanticSiteRecipeKind::CallableCall{..}=>Self::CallableCall,SemanticSiteRecipeKind::OriginalCall=>Self::OriginalCall,
+    SemanticSiteRecipeKind::TypeUse{..}=>Self::TypeUse,SemanticSiteRecipeKind::DeclareLocal{..}=>Self::DeclareLocal,
+    SemanticSiteRecipeKind::Closure{..}=>Self::Closure,
+}}}
+impl SourceIndex{
+    fn bounds(&self,b:&mut Budget)->Check<()>{b.spend(12)?;if self.limits!=b.limits{dynamic_metadata::recipe(self.program.as_ref(),b)?;}Ok(())}
+    pub(super) fn recipes(&self,definition:SemanticDefinitionId,node:SemanticOriginalNode,roles:&[Role],b:&mut Budget)->Check<Vec<(usize,SemanticSiteId)>>{
+        self.bounds(b)?;
+        b.spend(self.directory.definitions.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+        let cursor=self.directory.definitions.get(&definition).ok_or_else(||bad("original reverse site owner has no fully checked body"))?;
+        let(statement,node)=match node{SemanticOriginalNode::Expression(node)=>(false,node),SemanticOriginalNode::Statement(node)=>(true,node)};
+        let mut result=Vec::new();
+        for role in roles{b.spend(cursor.recipes.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+            if let Some(rows)=cursor.recipes.get(&(statement,node,*role)){b.spend(rows.len().saturating_add(if result.capacity().saturating_sub(result.len())<rows.len(){result.len()}else{0}))?;result.extend_from_slice(rows);}
+        }Ok(result)
+    }
 }
 pub(super) fn snapshot(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Check<SourceIndex>{
     let program=module.semantic.as_ref().ok_or_else(||bad("original index directory has no complete programme"))?;
@@ -132,15 +155,27 @@ pub(super) fn snapshot(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Chec
             Node::Expression(expression)=>SemanticOriginalNode::Expression(expression.id),
             Node::Statement(statement)=>SemanticOriginalNode::Statement(statement.id),
         })).collect();
-        definitions.insert(definition.id,DefinitionCursor{ordinal,nodes,closures:function.closures.clone()});
+        let mut recipes=BTreeMap::<_,Vec<_>>::new();
+        for(position,recipe)in function.sites.iter().enumerate(){
+            b.spend(function.nodes.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+            let node=function.nodes.get(&recipe.id).ok_or_else(||bad("reverse original site has no checked node correspondence"))?;
+            let(statement,node)=match node{Node::Expression(node)=>(false,node.id),Node::Statement(node)=>(true,node.id)};
+            b.spend(recipes.len().checked_ilog2().map_or(1,|n|n as usize+3))?;
+            let rows=recipes.entry((statement,node,Role::of(&recipe.kind))).or_default();
+            b.spend(1usize.saturating_add(if rows.len()==rows.capacity(){rows.len()}else{0}))?;
+            rows.push((position,recipe.id));
+        }
+        definitions.insert(definition.id,DefinitionCursor{ordinal,nodes,closures:function.closures.clone(),recipes});
     }
     // Prepay the complete immutable snapshot copy, including all unused
     // definitions, annotations and quote payloads. No address/digest/ID key
     // can claim another transient module's grammar receipt.
     dynamic_metadata::recipe(program,b)?;
-    Ok(SourceIndex{program:std::sync::Arc::new(program.clone()),directory:Directory{definitions}})
+    b.spend(12)?;
+    Ok(SourceIndex{program:std::sync::Arc::new(program.clone()),directory:Directory{definitions},limits:b.limits.clone()})
 }
 pub(super) fn select<'a>(source:&'a SourceIndex,requested:&[SemanticDefinitionId],b:&mut Budget)->Check<Index<'a>>{
+    source.bounds(b)?;
     let program=source.program.as_ref();
     let directory=&source.directory;
     let mut definitions=BTreeMap::new();
@@ -372,5 +407,24 @@ fn compatible(recipe: &SemanticSiteRecipeKind, node: Node<'_>) -> bool {
         (SemanticSiteRecipeKind::Call { .. } | SemanticSiteRecipeKind::CallableCall { .. } | SemanticSiteRecipeKind::OriginalCall, Node::Expression(expression)) => matches!(expression.kind, SemanticOriginalExprKind::Call { .. } | SemanticOriginalExprKind::CallDynSlot { .. } | SemanticOriginalExprKind::Pipeline { .. }),
         (SemanticSiteRecipeKind::Construct { .. }, Node::Expression(expression)) => matches!(expression.kind, SemanticOriginalExprKind::Tuple(_) | SemanticOriginalExprKind::Array(_) | SemanticOriginalExprKind::Record { .. } | SemanticOriginalExprKind::RecordUpdate { .. } | SemanticOriginalExprKind::RecordConstructor { .. } | SemanticOriginalExprKind::MakeDynOwned { .. } | SemanticOriginalExprKind::Call { .. } | SemanticOriginalExprKind::Member { owner: None, .. } | SemanticOriginalExprKind::Literal(_)),
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod reverse_tests{
+    use super::*;
+    #[test]
+    fn reverse_source_directory_preserves_all_roles_ambiguity_and_owned_grammar(){
+        let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
+        let definition=SemanticDefinitionId{module:module.module_id,index:0};let node=NodeId(1);
+        let call=CoreExpr{id:node,span,kind:CoreExprKind::Call{callee:Box::new(CoreExpr{id:NodeId(2),span,kind:CoreExprKind::Name("target".into())}),arguments:vec![]}};
+        let sites=(0..3).map(|index|SemanticSiteRecipe{id:SemanticSiteId(index),occurrence_path:vec![index],kind:if index==1{SemanticSiteRecipeKind::TypeUse{expected:SemanticTypeRecipe::Atom(Type::I32)}}else{SemanticSiteRecipeKind::OriginalCall}}).collect();
+        module.semantic=Some(SemanticModule{definitions:vec![SemanticDefinition{id:definition,identity:LifeDeclarationIdentity{package:"test".into(),module_path:vec![],declaration_path:vec!["caller".into()],generation_path:vec![]},parent:None,kind:SemanticDefinitionKind::Function,parameters:vec![],implicit_lifetimes:vec![],requirements:vec![],environment:vec![],body:SemanticDefinitionBody::FunctionWithBody{signature:SemanticSignatureRecipe{bound_lifetimes:0,invocation_lifetimes:0,parameters:vec![],result:SemanticTypeRecipe::Atom(Type::I32),result_mode:PassingMode::Move,call_kind:CallKind::Direct},protocol_contracts:vec![],foreign:None,resume_bound:TaskResumeBound::Local,sites,parameters:vec![],receiver_parameter:None,names:vec![],site_nodes:(0..3).map(|index|SemanticOriginalSiteNode{site:SemanticSiteId(index),node:SemanticOriginalNode::Expression(node)}).collect(),body:SemanticOriginalFunctionBody::Defined(CoreBlock{span,statements:vec![CoreStatement{id:NodeId(0),span,kind:CoreStatementKind::Expression(call)}]})}}],instances:vec![],sites:vec![],dyn_scopes:vec![]});
+        let mut b=Budget::new(&Limits::default());let index=build(&module,&mut b).unwrap();let source=snapshot(&module,&index,&mut b).unwrap();drop(index);drop(module);
+        assert_eq!(source.recipes(definition,SemanticOriginalNode::Expression(node),&[Role::Call,Role::CallableCall,Role::OriginalCall],&mut b).unwrap(),vec![(0,SemanticSiteId(0)),(2,SemanticSiteId(2))]);
+        assert_eq!(source.recipes(definition,SemanticOriginalNode::Expression(node),&[Role::TypeUse],&mut b).unwrap(),vec![(1,SemanticSiteId(1))]);
+        assert!(source.recipes(definition,SemanticOriginalNode::Statement(node),&[Role::OriginalCall],&mut b).unwrap().is_empty());
+        assert!(source.recipes(SemanticDefinitionId{index:1,..definition},SemanticOriginalNode::Expression(node),&[Role::OriginalCall],&mut b).is_err());
+        b.limits.max_nodes=1;assert!(source.recipes(definition,SemanticOriginalNode::Expression(node),&[Role::OriginalCall],&mut b).is_err());
     }
 }

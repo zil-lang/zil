@@ -22,15 +22,14 @@ impl CheckedOriginal {
         };
         let family=self.binding_families.get(&(env.current()?,call.id)).map(|ty|self.resolved(ty,b)).transpose()?;
         let caller=context.definition(module,env.current()?,b)?;
-        let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&caller.body else{return Err(bad("original call has no complete creator body"));};
-        let candidates=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).filter(|site|matches!(site.kind,SemanticSiteRecipeKind::Call{..}|SemanticSiteRecipeKind::CallableCall{..}|SemanticSiteRecipeKind::OriginalCall)).count();
-        b.spend(site_nodes.len().saturating_mul(sites.len().saturating_add(1)))?;
-        if candidates!=1{return Err(bad("original Call has no unique exact operation site"));}
+        let SemanticDefinitionBody::FunctionWithBody{sites,..}=&caller.body else{return Err(bad("original call has no complete creator body"));};
+        let(position,identity)=self.original_call_site(env.current()?,call.id,b)?;
+        let site=sites.get(position).filter(|site|site.id==identity).ok_or_else(||bad("original call reverse directory selects another immutable site identity"))?;
         if let Some(intrinsic)=self.intrinsic_name(module,context,base,env,bindings,b)? {
             let mut written=Vec::new();
             if let Some(types)=written_types{for ty in types{written.push(Arg::Type(self.ty(module,context,ty,env,active,b)?));}}
             if let Some(mixed)=written_mixed{for arg in mixed{match arg{CoreGenericArgument::Type(ty)=>written.push(Arg::Type(self.ty(module,context,ty,env,active,b)?)),_=>return Err(unsupported("registered mixed Const/Life arguments need their exact closed scheme",None))}}}
-            let site=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).find(|site|matches!(site.kind,SemanticSiteRecipeKind::OriginalCall)).ok_or_else(||bad("registered intrinsic has another original call role"))?;
+            if !matches!(site.kind,SemanticSiteRecipeKind::OriginalCall){return Err(bad("registered intrinsic has another original call role"));}
             let result=self.intrinsic_call(module,context,intrinsic,site.id,&written,expected.or(family.as_ref()),arguments,env,bindings,active,b)?;
             if matches!(intrinsic,intrinsics::Intrinsic::BytesNew|intrinsics::Intrinsic::StoreNew|intrinsics::Intrinsic::AsyncStart|intrinsics::Intrinsic::MutexCreate|intrinsics::Intrinsic::TaskCreate|intrinsics::Intrinsic::TaskCreateOwned){b.spend(1)?;self.created.insert((env.current()?,call.id));}
             if let Some(expected)=expected{self.unify(&result,expected,b)?;}
@@ -48,11 +47,7 @@ impl CheckedOriginal {
                 let definition=context.definition(module,target,b)?;
                 let SemanticDefinitionBody::FunctionWithBody{signature,body,..}=&definition.body else{return Err(bad("original Call target omits its complete body"));};
                 if matches!(body,SemanticOriginalFunctionBody::External)&&self.unsafe_depth.get(&env.current()?).copied().unwrap_or(0)==0{return Err(bad("original foreign execution is outside its actual unsafe lexical scope"));}
-                let caller=context.definition(module,env.current()?,b)?;
-                let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&caller.body else{return Err(bad("original Call creator has no complete body"));};
-                let rows=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).filter(|site|matches!(site.kind,SemanticSiteRecipeKind::Call{..}|SemanticSiteRecipeKind::OriginalCall)).collect::<Vec<_>>();
-                if rows.len()!=1{return Err(bad("original static Call lacks a unique exact call site"));}
-                let site=rows[0];
+                if !matches!(site.kind,SemanticSiteRecipeKind::Call{..}|SemanticSiteRecipeKind::OriginalCall){return Err(bad("original static Call lacks a unique exact call site"));}
                 let proposed=match &site.kind{SemanticSiteRecipeKind::Call{target:claim,actuals}=>{if *claim!=target{return Err(bad("original Call recipe resolves another lexical declaration"));}Some(actuals.as_slice())},SemanticSiteRecipeKind::OriginalCall=>None,_=>unreachable!()};
                 if proposed.is_some_and(|actuals|actuals.len()!=definition.parameters.len()){return Err(bad("original Call omits full-ordinal actual obligations"));}
                 let written_len=written_types.map_or_else(||written_mixed.map_or(0,<[CoreGenericArgument<SemanticTypeRecipe>]>::len),<[SemanticTypeRecipe]>::len);

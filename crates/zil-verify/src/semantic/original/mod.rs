@@ -167,6 +167,15 @@ impl CheckedOriginal {
         let source=self.source_grammar.as_ref().ok_or_else(||bad("original source query has no owned complete grammar"))?;
         index::select(source,definitions,b)
     }
+    fn original_call_site(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(usize,SemanticSiteId)>{
+        let source=self.source_grammar.as_ref().ok_or_else(||bad("original call has no owned complete grammar"))?;
+        let rows=source.recipes(definition,SemanticOriginalNode::Expression(node),&[index::Role::Call,index::Role::CallableCall,index::Role::OriginalCall],b)?;
+        let [row]=rows.as_slice()else{return Err(bad("original Call has no unique exact operation site"));};Ok(*row)
+    }
+    pub(in crate::semantic) fn original_declaration_sites(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<Vec<SemanticSiteId>>{
+        let source=self.source_grammar.as_ref().ok_or_else(||bad("original local has no owned complete grammar"))?;
+        Ok(source.recipes(definition,SemanticOriginalNode::Statement(node),&[index::Role::DeclareLocal],b)?.into_iter().map(|(_,site)|site).collect())
+    }
 
     fn fresh(&mut self,b:&mut Budget)->Check<Ty>{b.spend(1)?;let id=self.next_inference;self.next_inference=id.checked_add(1).ok_or_else(||limit("original body inference identity exhausted"))?;Ok(Ty::Infer(id))}
     fn resolved(&self,ty:&Ty,b:&mut Budget)->Check<Ty>{self.resolve_at(ty,0,b)}
