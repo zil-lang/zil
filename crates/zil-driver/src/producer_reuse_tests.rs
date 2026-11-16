@@ -190,7 +190,7 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
         assert_eq!(work.retained_restored_modules, 0);
         let materialization = cold.materialization_work.expect("current scalar admission");
         assert_eq!(materialization.executed_modules, 3);
-        assert_eq!(materialization.cloned_modules, 3);
+        assert_eq!(materialization.cloned_modules, 0);
         assert_eq!(materialization.reused_modules, 0);
         let mut previous_left = LEFT.to_owned();
         let mut previous_io = IO.to_owned();
@@ -245,10 +245,7 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
                 materialization.executed_modules as u64, changed_modules,
                 "{label}"
             );
-            assert_eq!(
-                materialization.cloned_modules as u64, changed_modules,
-                "{label}"
-            );
+            assert_eq!(materialization.cloned_modules, 0, "{label}");
             assert_eq!(
                 materialization.reused_modules as u64,
                 3 - changed_modules,
@@ -375,7 +372,7 @@ fn producer_revisited_parse_allocation_keeps_materialization_sparse() {
             .materialization_work
             .expect("current sealed materialization");
         assert_eq!(work.executed_modules, 2);
-        assert_eq!(work.cloned_modules, 2);
+        assert_eq!(work.cloned_modules, 0);
         assert_eq!(work.reused_modules, 1);
     }
 }
