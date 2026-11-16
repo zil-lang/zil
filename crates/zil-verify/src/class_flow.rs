@@ -1234,13 +1234,17 @@ fn check_with(
     let local_roles=crate::dynamic_witness::semantic_patterns::local_role_transfers(module,f,b)?;
     for role in &local_roles{
         let actual=locals.get(role.local.0 as usize).and_then(|ports|ports.outer).ok_or_else(||bad("checked shared local role has no actual outer class"))?;
+        let creator=locals.get(role.creator.0 as usize).and_then(|ports|ports.outer).ok_or_else(||bad("checked shared local role has no actual creating outer class"))?;
+        // Copies share the proven declaration's lifetime window, while their
+        // data targets and loan parents remain separate stored-flow facts.
+        e.equal(actual,creator,b)?;
         let mut target=None;
         for output in &role.outputs{
             let vars=header.as_ref().ok_or_else(||bad("checked shared local export has no complete actual header"))?;
             let expected=select(vars,output.binder)?;
             e.equal(actual,expected,b)?;target=Some(expected);
         }
-        if target.is_none(){let own=e.fresh(true,b)?;e.equal(actual,own,b)?;}
+        if target.is_none()&&role.local==role.creator{let own=e.fresh(true,b)?;e.equal(actual,own,b)?;}
     }
     // Source structure first; capture-fixed substitution second; calls last.
     // A first call cannot pick an unconstrained capture's semantic class.

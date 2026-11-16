@@ -11,6 +11,7 @@ pub(super) struct Writes {
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Transfer {
     pub(crate) local: LocalId,
+    pub(crate) creator: LocalId,
     pub(crate) outputs: Vec<SignatureLifeClassBinding>,
     pub(crate) stores: Vec<(BlockId, u32, ValueId)>,
     pub(crate) calls: Vec<(BlockId,u32,u32)>,
@@ -139,6 +140,20 @@ impl CheckedContext {
         Ok(())
     }
 
+    fn local_role_creator(&self,module:&TypedModule,instance:&SemanticInstance,ordinal:u32,b:&mut Budget)->Check<LocalId>{
+        let recipes=self.original.borrow().as_ref().ok_or_else(||bad("shared local role lacks its original body"))?.local_role_declaration_sites(instance.definition,ordinal,b)?;
+        let mut creator=None;
+        for recipe in recipes {
+            for site in self.site_index.recipe(module,instance.id,recipe,sites::Action::DeclareLocal,b)? {
+                b.spend(1)?;
+                let SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(local),..}=&site.action else{return Err(bad("shared local role declaration is not an actual local"));};
+                if creator.is_some_and(|previous|previous!=*local){return Err(bad("shared local role has different actual creating declarations"));}
+                creator=Some(*local);
+            }
+        }
+        creator.ok_or_else(||bad("shared local role has no actual creating declaration"))
+    }
+
     /// The whole original/actual call has proved this root view. Keep the
     /// exact opcode and parameter with the already checked Store transition;
     /// neither row is an equality of the local window and its source.
@@ -153,10 +168,10 @@ impl CheckedContext {
         if slots.next().is_some(){return Err(bad("shared local call view repeats its root"));}
         let Some(ClassKey::Implicit{scope,ordinal})=expected.classes.get(slot.binder as usize)else{return Err(bad("shared local call view has no original local role"));};
         if *scope!=frame.key{return Err(bad("shared local call view belongs to another frame"));}
-        let mut writes=self.local_role_writes.borrow_mut();b.spend(writes.len())?;
-        let mut selected=writes.iter_mut().filter(|((owner,_),write)|*owner==instance.id&&write.ordinal==*ordinal);
-        let(_,write)=selected.next().ok_or_else(||bad("shared local call view lacks its real Store transition"))?;
-        if selected.next().is_some(){return Err(bad("shared local call view selects more than one real local"));}
+        let creator=self.local_role_creator(module,instance,*ordinal,b)?;
+        let mut writes=self.local_role_writes.borrow_mut();b.spend(writes.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+        let write=writes.get_mut(&(instance.id,creator)).ok_or_else(||bad("shared local call view lacks its creating Store transition"))?;
+        if write.ordinal!=*ordinal||write.sites.is_empty(){return Err(bad("shared local call view changes its exact declaration role"));}
         b.spend(write.calls.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
         if write.calls.len()>=b.limits.max_nodes&&!write.calls.contains(&(at.block,at.instruction,parameter)){return Err(limit("shared local call view directory exceeded"));}
         write.calls.insert((at.block,at.instruction,parameter));Ok(())
@@ -351,8 +366,13 @@ impl CheckedContext {
                     }
                 }
                 b.spend(actual_stores.len().saturating_add(write.calls.len()).saturating_add(1))?;
+                let creator=self.local_role_creator(module,instance,write.ordinal,b)?;
+                if !writes.get(&(instance.id,creator)).is_some_and(|row|row.ordinal==write.ordinal&&!row.sites.is_empty()) {
+                    return Err(bad("shared local transport lacks its exact creating Store"));
+                }
                 transfers.push(Transfer {
                     local: *local,
+                    creator,
                     outputs,
                     stores: actual_stores.into_iter().collect(),
                     calls: write.calls.iter().copied().collect(),

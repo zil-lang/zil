@@ -563,18 +563,42 @@ impl Walk<'_> {
             }
         }
         if let Some(physical) = physical {
-            let ports=crate::semantic::task_domains::raw_input_ports(self.module,ty,&life,b)?;
-            for (_,_,class,source) in ports {
-                b.spend(physical.len().saturating_add(source.len()).saturating_add(header.bindings.len()))?;
-                let mut path=physical.iter().copied().map(ContractProjection::Place).collect::<Vec<_>>();path.extend(source);
-                let mut rows=header.bindings.iter().filter(|row|row.position.base==base&&row.position.path==path);
-                let row=rows.next().ok_or_else(||bad("Self capture port has no exact complete header occurrence"))?;
-                if rows.next().is_some(){return Err(bad("Self capture port repeats its complete header occurrence"));}
-                let StorageBinder::Fixed(index)=row.binder else{return Err(bad("Self capture port cannot retain a fresh invocation class"));};
-                Self::capture_term(&mut terms,class,owner.term(index,b)?,b)?;
+            // Only the current boundary's physical slots belong to this
+            // header. A nested closure's capture bindings belong to its own
+            // header and are checked when value() enters that child.
+            for slot in &life.slots {
+                b.spend(physical.len().saturating_add(slot.path.len()).saturating_add(header.bindings.len()))?;
+                let mut path=physical.iter().copied().map(ContractProjection::Place).collect::<Vec<_>>();
+                path.extend(slot.path.iter().copied().map(ContractProjection::Place));
+                let term=self.capture_binding_term(owner,header,base,&path,b)?;
+                Self::capture_term(&mut terms,slot.binder,term,b)?;
+            }
+            let mut endpoint=ty;
+            while let Type::Managed(inner)|Type::Address{inner,..}|Type::Desc(inner)=endpoint { b.spend(1)?;endpoint=inner; }
+            if matches!(endpoint,Type::Task{..}|Type::MutexGuard{..}|Type::Dyn{..}|Type::OwnedDyn{..}) {
+                let ports=crate::semantic::task_domains::raw_input_ports(self.module,ty,&life,b)?;
+                for (_,_,class,source) in ports {
+                    b.spend(physical.len().saturating_add(source.len()))?;
+                    let mut path=physical.iter().copied().map(ContractProjection::Place).collect::<Vec<_>>();path.extend(source);
+                    let term=self.capture_binding_term(owner,header,base,&path,b)?;
+                    Self::capture_term(&mut terms,class,term,b)?;
+                }
             }
         }
         for row in &life.retained {
+            // Whole-child occurrences remain visible through ordinary
+            // wrappers. Descendants below an opaque N-class boundary do not
+            // become duplicate rows in its parent's header.
+            let mut cursor=ty;let mut visible=true;
+            for step in &row.path {
+                b.spend(1)?;
+                if matches!(cursor,Type::BorrowedStorage{..}|Type::Closure(_)|Type::Task{..}|Type::MutexGuard{..}|Type::Dyn{..}|Type::OwnedDyn{..}){visible=false;break;}
+                match (cursor,step) {
+                    (Type::Managed(inner)|Type::Address{inner,..}|Type::Desc(inner),LifeTypeProjection::Pointee)=>cursor=inner,
+                    _=>break,
+                }
+            }
+            if !visible {continue;}
             b.spend(semantic.len().saturating_add(row.path.len()).saturating_add(1))?;
             let mut path=semantic.to_vec();path.extend_from_slice(&row.path);
             let term=self.capture_header_term(owner,header,base,&path,row.class,b)?;
@@ -590,6 +614,14 @@ impl Walk<'_> {
             result.push(term);
         }
         Ok((life,result))
+    }
+    fn capture_binding_term(&self,owner:&terms::Value,header:&StorageLifeContract,base:StorageBase,path:&[ContractProjection],b:&mut Budget)->Check<terms::LifeTerm>{
+        b.spend(header.bindings.len().saturating_add(path.len()))?;
+        let mut rows=header.bindings.iter().filter(|row|row.position.base==base&&row.position.path==path);
+        let row=rows.next().ok_or_else(||bad("Self capture port has no exact complete header occurrence").with_note(format!("capture {base:?}, path {path:?}; header bindings {:?}",header.bindings)))?;
+        if rows.next().is_some(){return Err(bad("Self capture port repeats its complete header occurrence"));}
+        let StorageBinder::Fixed(index)=row.binder else{return Err(bad("Self capture port cannot retain a fresh invocation class"));};
+        owner.term(index,b)
     }
     fn capture_header_term(&self,owner:&terms::Value,header:&StorageLifeContract,base:StorageBase,path:&[LifeTypeProjection],class:u32,b:&mut Budget)->Check<terms::LifeTerm>{
         b.spend(header.classes.len().saturating_add(path.len()))?;
@@ -893,6 +925,44 @@ mod tests {
         assert_eq!(leaves.len(), 1);
         assert!(matches!(leaves[0].kind, requests::LeafKind::OwningHead));
         assert_eq!(leaves[0].ty, value.raw.ty);
+    }
+    #[test]
+    fn nested_capture_enters_the_child_header_without_repeating_its_private_rows() {
+        let (mut module, _) = super::super::callables::tests::fixture(1, 0);
+        module.closures[0].result=Type::I32;
+        module.closures[0].storage_life.as_mut().unwrap().bindings.retain(|row|row.position.base!=StorageBase::Result);
+        module.functions[0].return_type=Type::I32;
+        module.functions[0].storage_life=module.closures[0].storage_life.clone();
+        let parent_header=StorageLifeContract{fixed_binder_count:1,invocation_binder_count:0,
+            bindings:vec![],static_bindings:vec![],classes:vec![SignatureLifeClassBinding{
+                position:SignatureLifeClass{base:StorageBase::Capture(0),path:vec![],class:0},binder:StorageBinder::Fixed(0),
+            }],
+        };
+        let mut parent=module.closures[0].clone();parent.id=ClosureId(1);parent.function=FunctionId(1);
+        parent.captures=vec![Type::Closure(ClosureId(0))];parent.storage_life=Some(parent_header.clone());
+        let mut body=module.functions[0].clone();body.id=FunctionId(1);body.environment=Some(ClosureId(1));body.storage_life=Some(parent_header);
+        module.functions.push(body);module.closures.push(parent);
+        let limits=Limits::default();
+        let value=terms::Value::anchored(&DynTypeValue{ty:Type::Closure(ClosureId(1)),life:StorageLifeShape{binder_count:1,..zero()},classes:vec![StorageBinder::Fixed(0)]},terms::Owner::Function(FunctionId(99)),terms::Root::Receiver,&mut Budget::new(&limits)).unwrap();
+        for wrapped in [false,true] {
+            let mut actual=module.clone();
+            if wrapped {
+                actual.closures[1].captures[0]=Type::BorrowedStorage{storage:Box::new(Type::Tuple(vec![Type::Closure(ClosureId(0))])),life:StorageLifeShape{binder_count:1,slots:vec![],retained:vec![StorageRetainedBinding{path:vec![LifeTypeProjection::Place(PlaceProjection::Field(0))],class:0,binder:0}],nominal_arguments:vec![]}};
+            }
+            let leaves=check_inventory(&actual,&value).unwrap();
+            let leaf=leaves.iter().find(|leaf|matches!(leaf.kind,requests::LeafKind::Physical{..})).unwrap();
+            let mut path=vec![ContractProjection::Capture(0)];
+            if wrapped {path.push(ContractProjection::Place(PlaceProjection::Field(0)));}
+            path.push(ContractProjection::Capture(0));
+            assert_eq!(leaf.source.path,path);
+            // The parent's whole-N row does not supply the child's borrow.
+            let mut forged=actual.clone();forged.closures[0].storage_life.as_mut().unwrap().bindings.clear();
+            forged.functions[0].storage_life=forged.closures[0].storage_life.clone();
+            assert!(check_inventory(&forged,&value).is_err());
+            let mut forged=actual;forged.closures[1].storage_life.as_mut().unwrap().classes.clear();
+            forged.functions[1].storage_life=forged.closures[1].storage_life.clone();
+            assert!(check_inventory(&forged,&value).is_err());
+        }
     }
     #[test]
     fn captured_task_owner_retains_every_port_origin_through_its_exact_child_scope() {

@@ -56,6 +56,17 @@ impl CheckedOriginal{
             rows.push(LocalRoleRecipe{ordinal:role.ordinal,sources});
         }Ok(rows)
     }
+    pub(in crate::semantic) fn local_role_declaration_sites(&self,definition:SemanticDefinitionId,ordinal:u32,b:&mut Budget)->Check<Vec<SemanticSiteId>>{
+        let mut node=None;
+        for ((owner,statement),role) in &self.local_roles {
+            b.spend(1)?;
+            if *owner==definition && role.ordinal==ordinal {
+                if node.replace(*statement).is_some(){return Err(bad("shared local role repeats its original declaration"));}
+            }
+        }
+        let node=node.ok_or_else(||bad("shared local role has no exact original declaration"))?;
+        self.original_declaration_sites(definition,node,b)
+    }
     pub(in crate::semantic) fn has_local_role(&self,definition:SemanticDefinitionId,ordinal:u32,b:&mut Budget)->Check<bool>{
         for((owner,_),role)in &self.local_roles{b.spend(1)?;if *owner==definition&&role.ordinal==ordinal{return Ok(true);}}Ok(false)
     }
