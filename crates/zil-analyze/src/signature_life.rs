@@ -200,6 +200,7 @@ pub(super) fn relation(
         None,
         &[],
         &[],
+        &[],
     )
 }
 pub(super) fn function_relation(
@@ -324,6 +325,7 @@ fn function_relation_scopes_inner(
         None,
         zero_resources,
         &[],
+        &[],
     )
 }
 
@@ -346,6 +348,7 @@ pub(super) fn closure_relation(
         false,
         interfaces,
         Some(kind),
+        &[],
         &[],
         &[],
     )
@@ -389,6 +392,7 @@ pub(super) fn closure_relation_resource_scopes(
         &module.dyn_interfaces,
         Some(kind),
         &roots,
+        &[],
         &[],
     )
 }
@@ -541,6 +545,45 @@ pub(super) fn function_relation_resource_scopes(
             "opaque resource header requires its complete static occurrence consumer",
         ));
     }
+    let nested = |ty: &Type| matches!(ty, Type::Address { inner, .. }
+        if matches!(inner.as_ref(), Type::Address { .. } | Type::Desc(_)));
+    let mut raw_shapes = Vec::new();
+    if module.semantic.is_some() && (parameters.iter().any(nested) || nested(result)) {
+        for function in &module.functions {
+            b.spend(1, "nested reference actual signature owner")?;
+            if !function.storage_life.as_ref().is_some_and(|actual| std::ptr::eq(actual, c)) { continue; }
+            if function.parameters.len() != parameters.len() || function.return_type != *result {
+                return Err(bad("nested reference signature changes its actual whole function"));
+            }
+            for (ordinal, (local, ty)) in function.parameters.iter().zip(parameters).enumerate() {
+                if !nested(ty) { continue; }
+                if function.locals.get(local.0 as usize).map(|row| &row.ty) != Some(ty) {
+                    return Err(bad("nested reference signature changes its actual parameter Type"));
+                }
+                let life = crate::class_flow::raw_reference_shape(module, function, SemanticOperand::Local(*local), ty, b)?
+                    .ok_or_else(|| bad("nested reference parameter omits its complete actual geometry"))?;
+                b.spend(life.binder_count as usize, "nested reference complete signature coordinates")?;
+                raw_shapes.push((StorageBase::Parameter(u32::try_from(ordinal).map_err(|_| bad("nested reference input ordinal overflow"))?), life));
+            }
+            if nested(result) {
+                let initialized = crate::shared_initialization(function, b)?;
+                let mut selected = None;
+                for (block, live) in function.blocks.iter().zip(&initialized.reachable) {
+                    if !*live { continue; }
+                    let Terminator::Return(Some(value)) = block.terminator else { continue; };
+                    let life = crate::class_flow::raw_reference_shape(module, function, SemanticOperand::Value(value), result, b)?
+                        .ok_or_else(|| bad("nested reference result omits its complete actual geometry"))?;
+                    crate::dyn_metadata::shape(&life, b)?;
+                    if selected.as_ref().is_some_and(|old| old != &life) {
+                        return Err(bad("nested reference Return alternatives change the complete local domain"));
+                    }
+                    selected = Some(life);
+                }
+                raw_shapes.push((StorageBase::Result, selected.ok_or_else(|| bad("nested reference signature has no complete actual Return geometry"))?));
+            }
+            break;
+        }
+    }
     let mut result_roles = Vec::new();
     if matches!(result, Type::Closure(_))
         && !b.semantic_reference_results.is_empty()
@@ -590,7 +633,7 @@ pub(super) fn function_relation_resource_scopes(
             break;
         }
     }
-    if !result_roles.is_empty() {
+    if !result_roles.is_empty() || !raw_shapes.is_empty() {
         b.spend(
             result_roles.len().saturating_add(c.classes.len()),
             "original result-role directory",
@@ -607,6 +650,7 @@ pub(super) fn function_relation_resource_scopes(
             None,
             &roots,
             &result_roles,
+            &raw_shapes,
         );
     }
     if roots.is_empty() {
@@ -643,6 +687,7 @@ fn relation_inner(
     receiver_kind: Option<CallableKind>,
     zero_resources: &[ZeroResourceRoot<'_>],
     result_roles: &[(u32, StorageBinder)],
+    raw_shapes: &[(StorageBase, StorageLifeShape)],
 ) -> CompileResult<()> {
     if c.classes
         .iter()
@@ -687,6 +732,7 @@ fn relation_inner(
         interfaces: &'a [DynInterface],
         zero_resources: &'a [ZeroResourceRoot<'a>],
         result_roles: &'a [(u32, StorageBinder)],
+        raw_shapes: &'a [(StorageBase, StorageLifeShape)],
     }
     impl Cursor<'_> {
         fn binder(&mut self, b: StorageBinder, retained: bool) -> CompileResult<()> {
@@ -882,6 +928,42 @@ fn relation_inner(
             } else {
                 (ty, false)
             };
+            if pointed && matches!(target, Type::Address { .. } | Type::Desc(_)) {
+                let shape = self.raw_shapes.iter().find(|(owner, _)| *owner == base)
+                    .map(|(_, shape)| shape)
+                    .ok_or_else(|| bad("nested signature requires its complete actual whole-reference geometry"))?;
+                let [head] = shape.slots.as_slice() else { return Err(bad("nested signature changes its unique physical outer slot")); };
+                if !head.path.is_empty() || head.binder >= shape.binder_count {
+                    return Err(bad("nested signature outer slot leaves its complete domain"));
+                }
+                let outer = self.c.bindings.get(self.borrow.saturating_sub(1))
+                    .filter(|row| row.position.base == base && row.position.path.is_empty())
+                    .ok_or_else(|| bad("nested signature has no independently consumed outer borrow"))?;
+                let mut images = vec![None; shape.binder_count as usize];
+                images[head.binder as usize] = Some(outer.binder);
+                for child in &shape.retained {
+                    if child.path.first() != Some(&LifeTypeProjection::Pointee) || child.binder >= shape.binder_count {
+                        return Err(bad("nested signature child leaves its complete Pointee domain"));
+                    }
+                    let row = self.c.classes.get(self.class)
+                        .ok_or_else(|| bad("nested signature omits a complete intrinsic child class"))?;
+                    if row.position.base != base || row.position.path != child.path || row.position.class != child.class {
+                        return Err(bad("nested signature changes an exact child path or local class ordinal"));
+                    }
+                    if let Some(previous) = images[child.binder as usize]
+                        && previous != row.binder {
+                        return Err(bad("nested signature changes one original child's whole-class embedding"));
+                    }
+                    images[child.binder as usize] = Some(row.binder);
+                    if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                        return Err(bad("captured nested reference child is not Fixed"));
+                    }
+                    self.class += 1;
+                    self.binder(row.binder, capture || !self.captured && self.inputs.is_none())?;
+                }
+                if images.iter().any(Option::is_none) { return Err(bad("nested signature omits an intrinsic or phantom coordinate")); }
+                return Ok(());
+            }
             if super::stored_flow::shared_array_value(target) {
                 if capture {
                     return Err(bad("array captures require their own retained consumer"));
@@ -1256,6 +1338,7 @@ fn relation_inner(
         interfaces,
         zero_resources,
         result_roles,
+        raw_shapes,
     };
     for (i, p) in parameters.iter().enumerate() {
         let i = u32::try_from(i).map_err(|_| bad("signature parameter ordinal overflow"))?;
@@ -1604,6 +1687,7 @@ mod tests {
                     None,
                     &[],
                     roles,
+                    &[],
                 )
             };
         assert!(check(&header, &Type::Closure(ClosureId(0)), &[]).is_err());

@@ -1719,7 +1719,8 @@ impl Check<'_, '_> {
                                     Some(role) => role,
                                     None => self.ssa_value(instance, function, value, b, 0)?,
                                 };
-                            if !actual.equal_paid(expected, b)? {
+                            if !actual.equal_paid(expected, b)?
+                                && !self.outer_role(instance, function, &actual, expected, b, 0)? {
                                 return Err(fail(
                                     "actual Store changes its complete original local class constraint",
                                 ));
