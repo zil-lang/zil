@@ -1,121 +1,191 @@
 {
   "schema": "zil.compiler-pain-continuation.v6",
   "construction_branch": "research/full-push-native",
-  "compiled_source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
-  "compiled_tree": "6b844a4824681663e9420bde3334c8620467f3dd",
-  "binary_sha256": "3d8eed704d54453477b052da61f3208bc87054b6db2f99784e0f9f413ca6d4e8",
-  "binary": "out/binaries/480e7d6fe425ad9cce4d0e69b1cf3ca869572198/zil",
+  "compiled_source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
+  "compiled_tree": "ae7cdd4c11b17adb25ad0eef1e3264173d312edf",
+  "binary_sha256": "1965c26f73a3a0bb2d42b3a43929c8207bd516a20e0dc9bb5a050fe7453f5936",
+  "binary": "/workspace/zil-push-main/out/binaries/8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639/zil",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "Rust-directed full restart cache/decoded-owner/layout chain implemented, gates passed, finalnative36/12/5 measured; comprehensiveRustgoal remains open. Concise receipts only, no new archives.",
+  "status": "8f whole chain measured; direct restart edit still loses; followup implementation active",
   "SDK18_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
   "LLVM_rebuilt": false,
   "research_defaults_enabled": false,
   "main_merge": false,
   "current_acceptance": {
-    "source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
-    "driver": 228,
-    "native_publication": 2,
-    "strict": true,
-    "fmt": true,
-    "release": true,
-    "reused_IR89_Types115_source": "64e1fbcadea066ac755bb3426e5eda26a24d468b",
-    "reused_backend325_source": "249cfb7a88e8efc15012198f71f98e2f06e5b4e1",
-    "gate_receipts": "out/runs/cache-restart-chain-gates-{02,04,07}-*",
-    "note": "Affected final gates fresh; unchanged subtrees and equivalent lint cleanup reuse original source-bound receipts. Failures preserved."
+    "expand": {
+      "source": "9c839b2d8b2f3a6bd71151dc76b46683b3892dcf",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-expand",
+        "--lib"
+      ],
+      "counts": [
+        [
+          "ok",
+          "125",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-09-9c839b2d8b2f/expand.json"
+    },
+    "backend": {
+      "source": "439edfec42b9ffc2d5109504235ac2fb32e9f509",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--include-ignored"
+      ],
+      "counts": [
+        [
+          "ok",
+          "329",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-10-439edfec42b9/backend.json"
+    },
+    "driver": {
+      "source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib"
+      ],
+      "counts": [
+        [
+          "ok",
+          "230",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-11-8f06a9ebb635/driver.json"
+    },
+    "publication": {
+      "source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--test",
+        "retained_native_publication",
+        "--",
+        "--ignored"
+      ],
+      "counts": [
+        [
+          "ok",
+          "2",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-11-8f06a9ebb635/publication.json"
+    },
+    "strict": {
+      "source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-cli",
+        "-p",
+        "zil-expand",
+        "-p",
+        "zil-types",
+        "-p",
+        "zil-driver",
+        "-p",
+        "zil-llvm-api",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "zil-cli/native-products,zil-driver/native-products,zil-llvm-api/text-reference",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "counts": [],
+      "receipt": "out/runs/cache-restart-chain-gates-11-8f06a9ebb635/strict.json"
+    },
+    "fmt": {
+      "source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "counts": [],
+      "receipt": "out/runs/cache-restart-chain-gates-11-8f06a9ebb635/fmt.json"
+    },
+    "release": {
+      "source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "-p",
+        "zil-cli",
+        "--features",
+        "native-products"
+      ],
+      "counts": [],
+      "receipt": "out/runs/cache-restart-chain-gates-11-8f06a9ebb635/release.json"
+    }
   },
   "current_recovery": "evidence/stable-class-performance-core-20261116/RESTORE.json",
   "recovery_scope": "Source and concise result inGit. SDK18/stock/native-link dependencies fixede85/V32. No new full raw evidence archive or SDK copies.",
   "last_measured": {
-    "native_source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
-    "binary_sha256": "3d8eed704d54453477b052da61f3208bc87054b6db2f99784e0f9f413ca6d4e8",
-    "summary": "cache-restart-chain-20261116/summary.md",
-    "native_original_requests": 36,
-    "native_functional_cells": 12,
-    "native_runtime_cases": 5,
-    "native_restart_firstedit_ms": {
-      "candidate": 4640.7901435,
-      "rust": 1333.6165925
+    "source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
+    "binary_sha256": "1965c26f73a3a0bb2d42b3a43929c8207bd516a20e0dc9bb5a050fe7453f5936",
+    "summary": "restart-bootstrap-chain-20261116/summary.json",
+    "counts": {
+      "original_requests": 138,
+      "functional_cells": 46,
+      "runtime_cases": 5
     },
-    "native_requests_ms": {
-      "cold": {
-        "candidate": 5186.129134500001,
-        "rust": 6723.5545995
-      },
-      "unchanged": {
-        "candidate": 73.6591705,
-        "rust": 28.3271225
-      },
-      "warm-restart": {
-        "candidate": 3490.6389755,
-        "rust": 38.49144
-      },
-      "private-001": {
-        "candidate": 1150.151168,
-        "rust": 1295.1251525
-      },
-      "error": {
-        "candidate": 1857.5538065,
-        "rust": 1958.795429
-      },
-      "recovery": {
-        "candidate": 2452.7101445,
-        "rust": 5926.9394465
-      }
+    "native_restart_pair_ms": {
+      "candidate": 3568.0612880000003,
+      "rust": 1287.3474190000002
     },
-    "native_user_disk": {
-      "candidate": {
-        "boundary_peak_MiB": 32.681640625,
-        "peak_bytes_by_block": [
-          34279424,
-          34258944
-        ],
-        "eight_private_growth_MiB": null
-      },
-      "rust": {
-        "boundary_peak_MiB": 58.69140625,
-        "peak_bytes_by_block": [
-          61542400,
-          61542400
-        ],
-        "eight_private_growth_MiB": null
-      }
-    },
-    "check_source": "bee7ee218df3c673bc7660e1af8aea709505272d",
-    "check_original_requests": 102,
-    "check_functional_cells": 34,
     "check_flow_ms": {
-      "baseline": 7119.669645,
-      "candidate": 5563.538215,
-      "rust": 8210.709403
+      "baseline": 6788.566467500001,
+      "candidate": 6832.098746,
+      "rust": 6832.386532500001
     },
-    "check_user_disk": {
-      "baseline": {
-        "boundary_peak_MiB": 45.3125,
-        "peak_bytes_by_block": [
-          47513600,
-          47513600
-        ],
-        "eight_private_growth_MiB": 29.40625
-      },
-      "candidate": {
-        "boundary_peak_MiB": 13.63671875,
-        "peak_bytes_by_block": [
-          14360576,
-          14237696
-        ],
-        "eight_private_growth_MiB": 1.0703125
-      },
-      "rust": {
-        "boundary_peak_MiB": 58.34765625,
-        "peak_bytes_by_block": [
-          61181952,
-          61181952
-        ],
-        "eight_private_growth_MiB": 15.140625
-      }
-    },
-    "all_candidate_Rust_quality_passed": true,
-    "global_accepted": false
+    "direct_restart_edit_diagnostic_seconds": 3.714868462
   },
   "previous_f19": {
     "source": "f19fc847c5774a2472bd3af85019b5c937546010",
@@ -132,11 +202,7 @@
     "b197 Types109/1: N-1 inference failure unwrapped by new test; preserve ordinary pre-Types error",
     "4c82 driver219/5: actual self.clear fallback destroyed successful producer/push/Verify epochs; fixed by disk-origin selection and isolated retry, original five assertions preserved"
   ],
-  "next_priority": [
-    "Restart+firstedit still behindRust: use actual current whole-request phase and absolute time to target upstream bootstrap and machine/transform/partition, not more object hits.",
-    "Real private edit can add/split class definitions; retained layout currently requires compatible grouping/current closure. Do not claim every private edit replays the layout.",
-    "Keep current files/namespace/limits/fees and independentVerify/fullO2/default budget; no persistentSourceMachineauthority. Industrial multictate/minutes/GB coverage remains open."
-  ],
+  "next_priority": "Direct restart-edit: Analyze product admission all5105 functions despite5initchecks; disk class layout proposal unavailable with empty previous Materialization. Fix complete chain before next unified acceptance. Checkcold1.484/R.804 and checkflow near tie are current negatives.",
   "limits": [
     "Finite scalar102file one-crate coverage is not industrial workspace/generic/macro/async/debug/test/minute-scale coverage.",
     "10105/25105 default token and whole-project10000function capacity remain rejected; do not raise or replenish numeric budgets.",
@@ -221,10 +287,9 @@
     "read_rule": "Read manifest/parts/receipt from the same immutable containing delivery commit. Exact archive hash is external to payload to avoid self-reference."
   },
   "active_implementation": {
-    "source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
-    "status": "complete whole chain; scoped measurement passed quality; broad performance goal open",
-    "scope": "batched metadata packs/selective compaction/shared raw decoder owner/current layout and graph/resident closed frontier preserving current syntax",
-    "archive_policy": "No full packing/upload; skill persisted, only concise identities/results/necessary failure logs."
+    "base": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
+    "scope": "direct restart edit Analyze product queries and disk class-layout proposal",
+    "record_policy": "concise only, no SDK/raw archives/upload/fresh-restore"
   },
   "previous_4a23": {
     "source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
@@ -391,5 +456,101 @@
       "rust": 8210.709403
     },
     "raw": "out/runs/cache-restart-performance-*-01"
+  },
+  "previous_480e": {
+    "compiled_source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
+    "binary_sha256": "3d8eed704d54453477b052da61f3208bc87054b6db2f99784e0f9f413ca6d4e8",
+    "last_measured": {
+      "native_source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
+      "binary_sha256": "3d8eed704d54453477b052da61f3208bc87054b6db2f99784e0f9f413ca6d4e8",
+      "summary": "cache-restart-chain-20261116/summary.md",
+      "native_original_requests": 36,
+      "native_functional_cells": 12,
+      "native_runtime_cases": 5,
+      "native_restart_firstedit_ms": {
+        "candidate": 4640.7901435,
+        "rust": 1333.6165925
+      },
+      "native_requests_ms": {
+        "cold": {
+          "candidate": 5186.129134500001,
+          "rust": 6723.5545995
+        },
+        "unchanged": {
+          "candidate": 73.6591705,
+          "rust": 28.3271225
+        },
+        "warm-restart": {
+          "candidate": 3490.6389755,
+          "rust": 38.49144
+        },
+        "private-001": {
+          "candidate": 1150.151168,
+          "rust": 1295.1251525
+        },
+        "error": {
+          "candidate": 1857.5538065,
+          "rust": 1958.795429
+        },
+        "recovery": {
+          "candidate": 2452.7101445,
+          "rust": 5926.9394465
+        }
+      },
+      "native_user_disk": {
+        "candidate": {
+          "boundary_peak_MiB": 32.681640625,
+          "peak_bytes_by_block": [
+            34279424,
+            34258944
+          ],
+          "eight_private_growth_MiB": null
+        },
+        "rust": {
+          "boundary_peak_MiB": 58.69140625,
+          "peak_bytes_by_block": [
+            61542400,
+            61542400
+          ],
+          "eight_private_growth_MiB": null
+        }
+      },
+      "check_source": "bee7ee218df3c673bc7660e1af8aea709505272d",
+      "check_original_requests": 102,
+      "check_functional_cells": 34,
+      "check_flow_ms": {
+        "baseline": 7119.669645,
+        "candidate": 5563.538215,
+        "rust": 8210.709403
+      },
+      "check_user_disk": {
+        "baseline": {
+          "boundary_peak_MiB": 45.3125,
+          "peak_bytes_by_block": [
+            47513600,
+            47513600
+          ],
+          "eight_private_growth_MiB": 29.40625
+        },
+        "candidate": {
+          "boundary_peak_MiB": 13.63671875,
+          "peak_bytes_by_block": [
+            14360576,
+            14237696
+          ],
+          "eight_private_growth_MiB": 1.0703125
+        },
+        "rust": {
+          "boundary_peak_MiB": 58.34765625,
+          "peak_bytes_by_block": [
+            61181952,
+            61181952
+          ],
+          "eight_private_growth_MiB": 15.140625
+        }
+      },
+      "all_candidate_Rust_quality_passed": true,
+      "global_accepted": false
+    }
   }
 }
