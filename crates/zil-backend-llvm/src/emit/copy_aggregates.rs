@@ -22,29 +22,6 @@ pub(super) struct Slot {
 }
 pub(super) type Plan = BTreeMap<ValueId, Slot>;
 
-fn task_port_pointee(ty: &Type) -> bool {
-    match ty {
-        Type::Unit
-        | Type::Bool
-        | Type::U8
-        | Type::U16
-        | Type::U32
-        | Type::I32
-        | Type::I8
-        | Type::I16
-        | Type::Isize
-        | Type::I64
-        | Type::U64
-        | Type::Usize
-        | Type::F32
-        | Type::F64 => true,
-        Type::Record { fields, .. } => fields.iter().all(|(_, t)| task_port_pointee(t)),
-        Type::Tuple(fields) => fields.iter().all(task_port_pointee),
-        Type::Array { element, .. } | Type::Slice { element } => task_port_pointee(element),
-        _ => false,
-    }
-}
-
 pub(super) fn plan(
     lir: &LirView<'_>,
     limits: &Limits,
@@ -286,64 +263,34 @@ pub(super) fn reserve_enum_metadata(
             result,
             retained_life,
         } => {
-            // Reserve complete leaf walks before selecting possible result ports.
+            // Task lifetime positions are metadata, never offsets into its
+            // concrete worker frame. The actual constructor installs that
+            // frame's poll/cancel/close/destroy entries in its actual header;
+            // moves, returns, and captures retain that same opaque pointer.
+            // Receiver dispatch therefore follows the actual head, including
+            // Parameter/Capture retained positions, without selecting a worker
+            // from the carrier type or interpreting a life path as an address.
+            *work = work
+                .checked_sub(
+                    retained_life
+                        .ports
+                        .len()
+                        .saturating_add(retained_life.retained.len())
+                        .saturating_add(retained_life.nominal_arguments.len())
+                        .saturating_mul(16)
+                        .saturating_add(1),
+                )
+                .ok_or_else(exhausted)?;
+            for row in &retained_life.retained {
+                *work = work.checked_sub(row.path.len()).ok_or_else(exhausted)?;
+            }
+            for row in &retained_life.nominal_arguments {
+                *work = work.checked_sub(row.path.len()).ok_or_else(exhausted)?;
+            }
             for row in &retained_life.ports {
                 reserve_enum_metadata(&row.leaf, work, depth + 1, limits)?;
             }
             reserve_enum_metadata(result, work, depth + 1, limits)?;
-            let closed = retained_life.binder_count == 0
-                && retained_life.ports.is_empty()
-                && retained_life.retained.is_empty()
-                && retained_life.nominal_arguments.is_empty();
-            let borrowed_result = if retained_life.retained.is_empty() {
-                false
-            } else {
-                *work = work
-                    .checked_sub(retained_life.retained.len())
-                    .ok_or_else(exhausted)?;
-                *work = work
-                    .checked_sub(retained_life.ports.len().saturating_mul(2))
-                    .ok_or_else(exhausted)?;
-                for row in &retained_life.retained {
-                    *work = work.checked_sub(row.path.len()).ok_or_else(exhausted)?;
-                }
-                matches!(result.as_ref(), Type::Address { mutable: false, inner } if task_port_pointee(inner))
-                    && retained_life.binder_count > 0
-                    && matches!(retained_life.retained.as_slice(), [row]
-                        if row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0
-                        && row.binder < retained_life.binder_count
-                        && retained_life.ports.iter().any(|port| port.binder == row.binder && port.leaf == **result)
-                        && retained_life.ports.iter().filter(|port| port.binder == row.binder).all(|port|
-                            port.mode == zil_ir::StoredBorrowMode::SharedAddress))
-            };
-            let mut next = 0;
-            let mapped = retained_life.binder_count > 0
-                && (retained_life.retained.is_empty() || borrowed_result)
-                && retained_life.nominal_arguments.is_empty()
-                && !retained_life.ports.is_empty()
-                && retained_life.ports.iter().all(|row| {
-                    let dense = if row.binder == next {
-                        next += 1;
-                        true
-                    } else {
-                        row.binder < next
-                    };
-                    dense
-                        && matches!(&row.leaf, Type::Address { mutable, inner }
-                        if task_port_pointee(inner)
-                        && row.mode == if *mutable {
-                            zil_ir::StoredBorrowMode::ExclusiveAddress
-                        } else {
-                            zil_ir::StoredBorrowMode::SharedAddress
-                        })
-                })
-                && next == retained_life.binder_count;
-            if !closed && !mapped {
-                return unsupported(
-                    "borrowed Task native frame mapping is not implemented",
-                    None,
-                );
-            }
         }
         Type::Array { element, .. }
         | Type::Slice { element }
