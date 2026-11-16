@@ -2254,9 +2254,13 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     };
     crate::signature_life::charge(c, b)?;
     b.spend(f.parameters.len())?;
-    if f.reference_return_bound.is_some()
-        || f.foreign.is_some() && !foreign_calls::declaration(module, f, b)?
-    {
+    // The direct root upper and the complete class relation are independent
+    // constraints. Authenticate both headers; final actual returns below must
+    // satisfy both, without replacing this canonical relation at a call site.
+    if f.reference_return_bound.is_some() {
+        super::check_reference_return_bound(f, b)?;
+    }
+    if f.foreign.is_some() && !foreign_calls::declaration(module, f, b)? {
         return Err(err("stored signature contradicts another active profile"));
     }
     let mut parameters = Vec::with_capacity(f.parameters.len());
@@ -7894,6 +7898,73 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
+    }
+
+    #[test]
+    fn direct_root_upper_and_complete_class_relation_both_constrain_actual_returns() {
+        let mut base = fixture::module();
+        let mut f = base.functions[4].clone();
+        f.id = FunctionId(0);
+        let mut second = f.locals[0].clone();
+        second.id = LocalId(1);
+        second.name = "second".into();
+        f.locals.push(second);
+        f.parameters.push(LocalId(1));
+        f.reference_return_bound = Some(vec![0, 1]);
+        f.storage_life = Some(StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 1,
+            bindings: [StorageBase::Parameter(0), StorageBase::Parameter(1), StorageBase::Result]
+                .into_iter()
+                .map(|base| StorageLifeBinding {
+                    position: StoragePosition { base, path: vec![] },
+                    binder: StorageBinder::Invocation(0),
+                })
+                .collect(),
+            static_bindings: vec![],
+            classes: vec![],
+        });
+        base.functions = vec![f];
+        base.life_declarations.clear();
+        base.life_instances.clear();
+        for attack in 0..4 {
+            let mut m = base.clone();
+            match attack {
+                0 => {}
+                // Same full class, but the declared root upper omits the
+                // independently reconstructed actual return Parameter(0).
+                1 => m.functions[0].reference_return_bound = Some(vec![1]),
+                // The root upper contains Parameter(0), but the complete
+                // header requires the unrelated second input class instead.
+                2 => {
+                    let life = m.functions[0].storage_life.as_mut().unwrap();
+                    life.invocation_binder_count = 2;
+                    life.bindings[1].binder = StorageBinder::Invocation(1);
+                    life.bindings[2].binder = StorageBinder::Invocation(1);
+                }
+                _ => m.functions[0].reference_return_bound = Some(vec![1, 0]),
+            }
+            let candidate = fixture::class_candidate(&m);
+            let limits = Limits::default();
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &candidate, &limits).unwrap();
+            for result in [
+                super::super::verify_module(m.clone(), candidate, &m.target, &limits),
+                super::super::verify_module_bytes(&bytes, &m.target, &limits),
+            ] {
+                if attack == 0 {
+                    result.unwrap();
+                    continue;
+                }
+                let errors = result.unwrap_err();
+                let (code, message) = match attack {
+                    1 => ("E-VERIFY-STORED", "actual returned target exceeds the existing direct reference upper"),
+                    2 => ("E-VERIFY-CLASS-EQUATION", "actual retained class equality is not universally valid"),
+                    _ => ("E-VERIFY-LIFE", "invalid address direct return-life upper bound"),
+                };
+                assert!(errors.iter().any(|d| d.category == zil_base::ResultCategory::SafeReject
+                    && d.code == code && d.message.ends_with(message)), "attack {attack}: {errors:?}");
+            }
+        }
     }
 
     #[test]
