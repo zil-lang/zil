@@ -13,7 +13,7 @@ impl CheckedContext {
         let f=module.functions.get(function.0 as usize).filter(|row|row.id==function).ok_or_else(||bad("original Call input actual caller is absent"))?;
         b.spend(arguments.len())?;
         let mut checked=Vec::with_capacity(arguments.len());b.spend(arguments.len())?;let mut exact_sources=vec![false;arguments.len()];
-        let original_regions=self.original.borrow().as_ref().ok_or_else(||bad("Call inputs have no original region proof"))?.has_call_regions(caller.definition,site.recipe,b)?;
+        let original_regions=self.original.borrow().as_ref().ok_or_else(||bad("Call inputs have no original region proof"))?.call_region_parameter_recipes(module,caller.definition,site.recipe,environment,b)?;
         let mut adapted=Vec::new();
         for(index,argument)in arguments.iter().enumerate(){
             let actual=value_at(values,*argument)?;
@@ -25,7 +25,7 @@ impl CheckedContext {
             // proves its original source instead of borrowing another SSA's
             // same-shaped type. Neither path changes a child intrinsic class.
             if !matches!(actual.ty,Type::Address{..}){continue;}
-            if original_regions{b.spend(1)?;adapted.push(index);continue;}
+            b.spend(original_regions.len())?;if original_regions.iter().any(|(ordinal,_)|*ordinal as usize==index){b.spend(1)?;adapted.push(index);continue;}
             let exported=returned_input_head(signature,key,index,b)?;
             let shared=matches!(actual.ty,Type::Address{mutable:false,..})&&matches!(signature.parameters[index].0.ty,Type::Address{mutable:false,..});
             if !exported&&!(shared&&shared_reborrow_adapter(module,f,*argument,b)?){continue;}
@@ -37,7 +37,7 @@ impl CheckedContext {
         let recipes=self.original.borrow().as_ref().ok_or_else(||bad("Call inputs have no universal original body proof"))?.call_input_recipes(module,caller.definition,site.recipe,b)?;
         if recipes.len()!=arguments.len(){return Err(bad("actual Call inputs change the exact original argument arity"));}
         for index in adapted{
-            let(node,recipe,origin)=&recipes[index];let argument=arguments[index];
+            let Some((node,recipe,origin))=&recipes[index]else{continue;};let argument=arguments[index];
             let source=self.evaluate_type(module,recipe,environment,external,active,b)?;
             let source=if matches!(source.ty,Type::Address{mutable:true,..})&&matches!(signature.parameters[index].0.ty,Type::Address{mutable:false,..}){
                 if !shared_reborrow_adapter(module,f,argument,b)?{return Err(bad("Call shared view lacks its exact exclusive-to-shared ReborrowAddress adapter"));}

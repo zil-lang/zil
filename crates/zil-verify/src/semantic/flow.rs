@@ -223,6 +223,15 @@ impl CheckedContext {
                         constraints[local.0 as usize]=Some(value);
                     }
                 }
+                // An existing operand's Before observation belongs to the
+                // input boundary. Calls may consume its independently bound
+                // source occurrence; their own results remain unavailable.
+                let mut input_uses=std::collections::BTreeSet::new();
+                for site in &sites{
+                    if matches!(site.at,SemanticSiteAddress::Typed{edge:SemanticSiteEdge::Before,..})&&matches!(&site.action,SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),..}if Some(*value)!=instruction.result&&values.get(value.0 as usize).and_then(Option::as_ref).is_some()){
+                        b.spend(1)?;self.check_type_use(module,instance,f,site,&state,&values,signature,&environment,external,active,b)?;input_uses.insert(site.recipe);
+                    }
+                }
                 let produced=match &instruction.kind {
                     InstructionKind::StaticUtf8{..}=>Some(self.static_utf8(module,instance,f,instruction,b)?),
                     InstructionKind::Constant(constant)=>{
@@ -390,15 +399,10 @@ impl CheckedContext {
                     values[id.0 as usize]=Some(value.clone());self.record(scope,OperandKey::Value(id),&value,b)?;
                 }
                 for site in &sites {
-                    if let SemanticSiteAction::TypeUse{subject,expected}=&site.action {
+                    if matches!(site.action,SemanticSiteAction::TypeUse{..})&&!input_uses.contains(&site.recipe) {
                         let mut site_environment=environment.clone();
                         if let Some(at)=&mut site_environment.at{at.after=matches!(instruction.kind,InstructionKind::MakeClosure{..})&&matches!(site.at,SemanticSiteAddress::Typed{edge:SemanticSiteEdge::After,..});}
-                        let environment=&site_environment;
-                        let required=self.site_expected(module,instance,site,environment,external,active,b)?;
-                        let value=self.type_use_operand(module,instance,f,subject,&state,&values,signature,environment,b)?;
-                        self.bind_implicit_use(module,instance,site,subject,&value,&required,&environment,b)?;
-                        self.claim_type_use(module,expected,&required,environment,b)?;
-                        if !self.compatible(&environment,&value,&required,b)? {return Err(bad(&format!("actual TypeUse violates its original rigid class requirement [instance {:?}, site {:?}, subject {:?}, actual domain {}, required domain {}]",instance.id,site.recipe,subject,value.life.binder_count,required.life.binder_count)));}
+                        self.check_type_use(module,instance,f,site,&state,&values,signature,&site_environment,external,active,b)?;
                     }
                 }
             }
@@ -753,6 +757,15 @@ impl CheckedContext {
         }
         if actual_function.return_type!=signature.result.ty {return Err(bad("actual Call specialization result whole type differs"));}
         Ok(if signature.result.ty==Type::Unit {None}else{Some(signature.result)})
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn check_type_use(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,site:&SemanticSite,state:&State,values:&[Option<CheckedType>],signature:&CheckedSignature,environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{
+        let SemanticSiteAction::TypeUse{subject,expected}=&site.action else{return Err(bad("TypeUse consumer selects another semantic action"));};
+        let required=self.site_expected(module,instance,site,environment,external,active,b)?;
+        let value=self.type_use_operand(module,instance,f,subject,state,values,signature,environment,b)?;
+        self.bind_implicit_use(module,instance,site,subject,&value,&required,environment,b)?;
+        self.claim_type_use(module,expected,&required,environment,b)?;
+        if !self.compatible(environment,&value,&required,b)?{return Err(bad(&format!("actual TypeUse violates its original rigid class requirement [instance {:?}, site {:?}, subject {:?}, actual domain {}, required domain {}]",instance.id,site.recipe,subject,value.life.binder_count,required.life.binder_count)));}Ok(())
     }
     fn bind_implicit_use(&self,module:&TypedModule,instance:&SemanticInstance,site:&SemanticSite,subject:&SemanticOperand,actual:&CheckedType,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
         let definition=self.definition(module,instance.definition,b)?;
