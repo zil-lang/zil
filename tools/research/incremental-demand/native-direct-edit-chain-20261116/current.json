@@ -1,0 +1,273 @@
+{
+  "schema": "zil.native-direct-edit-current-chain.v1",
+  "source": "1be7f77757fe32c22acdb1b3975981828cc3b131",
+  "production_source": "5a2220f51e85233840c86ea8545464dcc1f4d3d5",
+  "binary_sha256": "2a20b22543cb2143834a24b11f751f3b49a218583dd9f5e8a2bfe1400779c659",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "scope": "Original5105functions/102files/843875sourcebytes, two balanced blocks; native O2/CGU16/compilerjobs1, explicit bounded-class-imports128-v3 defaultoff. Closeprocess/edit/newprocess first request; resident request clock, startup separate. Not CLI exit or OS-cold.",
+  "result": "Direct firstedit STILL SLOWER than Rust; comprehensive/main merge gates OPEN.",
+  "execution_complete": true,
+  "counts": {
+    "compiler_requests": 30,
+    "functional_cells": 10,
+    "sustained_runtime_cases": 4
+  },
+  "functional_quality_valid": true,
+  "runtime_candidate_rust_accepted": true,
+  "accepted": false,
+  "main": "ResourceLimit at original defaults, excluded from ratios; no main performance or merge acceptance",
+  "compile_ms": {
+    "cold": {
+      "wall_ms_by_block": {
+        "candidate": [
+          5064.559198,
+          4103.95622
+        ],
+        "rust": [
+          7667.272464,
+          8479.166519
+        ]
+      },
+      "median_ms": {
+        "candidate": 4584.2577089999995,
+        "rust": 8073.2194915
+      },
+      "candidate_over_rust_paired_GM": 0.5654251931467129
+    },
+    "unchanged": {
+      "wall_ms_by_block": {
+        "candidate": [
+          34.712282,
+          27.209568
+        ],
+        "rust": [
+          35.011796,
+          79.721999
+        ]
+      },
+      "median_ms": {
+        "candidate": 30.960925000000003,
+        "rust": 57.36689749999999
+      },
+      "candidate_over_rust_paired_GM": 0.58170945304083
+    },
+    "private-001": {
+      "wall_ms_by_block": {
+        "candidate": [
+          2701.956009,
+          2408.617922
+        ],
+        "rust": [
+          1455.919434,
+          1470.005563
+        ]
+      },
+      "median_ms": {
+        "candidate": 2555.2869655,
+        "rust": 1462.9624985
+      },
+      "candidate_over_rust_paired_GM": 1.7437930122092056
+    },
+    "recovery": {
+      "wall_ms_by_block": {
+        "candidate": [
+          2301.720741,
+          2216.19092
+        ],
+        "rust": [
+          5700.137706,
+          6765.21608
+        ]
+      },
+      "median_ms": {
+        "candidate": 2258.9558305,
+        "rust": 6232.676893
+      },
+      "candidate_over_rust_paired_GM": 0.36370258780356657
+    },
+    "error": {
+      "wall_ms_by_block": {
+        "candidate": [
+          1880.148647,
+          2090.62031
+        ],
+        "rust": [
+          2360.39713,
+          2090.942482
+        ]
+      },
+      "median_ms": {
+        "candidate": 1985.3844785,
+        "rust": 2225.669806
+      },
+      "candidate_over_rust_paired_GM": 0.8924216419175488
+    }
+  },
+  "runtime_ms": {
+    "5105/cold": {
+      "candidate": 31.798848,
+      "rust": 202.421302
+    },
+    "5105/unchanged": {
+      "candidate": 32.1128175,
+      "rust": 194.633443
+    },
+    "5105/private-001": {
+      "candidate": 35.2596195,
+      "rust": 199.8767295
+    },
+    "5105/recovery": {
+      "candidate": 30.693998,
+      "rust": 204.493137
+    }
+  },
+  "user_disk_boundary_peak_physical_bytes": [
+    {
+      "block": 0,
+      "candidate": 30371840,
+      "rust": 62361600
+    },
+    {
+      "block": 1,
+      "candidate": 30359552,
+      "rust": 62365696
+    }
+  ],
+  "direct_firstedit_costs": [
+    {
+      "block": 0,
+      "wall_ms": 2701.956009,
+      "phases_ms": {
+        "analyze": 123.902699,
+        "codegen": 707.58688,
+        "ct": 114.184482,
+        "expand": 1107.847506,
+        "lower": 4.179234,
+        "parse": 0.132213,
+        "types": 124.28654,
+        "verify": 76.276063
+      },
+      "backend_ms": {
+        "diagnostic": 21.063287,
+        "link_execution": 30.203329,
+        "link_key": 28.901438,
+        "machine_emit": 135.325946,
+        "machine": 365.380912,
+        "machine_preflight": 34.536976,
+        "machine_transform": 226.164899,
+        "object": 195.687004,
+        "other": 1.327709,
+        "partition": 64.471327,
+        "total": 707.035006
+      },
+      "analyze": {
+        "candidate_inputs_built": 244,
+        "candidate_input_projection_reuses": 4857,
+        "candidate_output_projection_reuses": 4857
+      },
+      "verify": {
+        "function_proofs_checked": 2167,
+        "function_proofs_reused": 2936
+      }
+    },
+    {
+      "block": 1,
+      "wall_ms": 2408.617922,
+      "phases_ms": {
+        "analyze": 111.878559,
+        "codegen": 765.149328,
+        "ct": 469.820199,
+        "expand": 322.530159,
+        "lower": 3.325483,
+        "parse": 0.130319,
+        "types": 131.446462,
+        "verify": 69.247908
+      },
+      "backend_ms": {
+        "diagnostic": 25.424691,
+        "link_execution": 57.275041,
+        "link_key": 31.707901,
+        "machine_emit": 151.209768,
+        "machine": 387.379944,
+        "machine_preflight": 35.774807,
+        "machine_transform": 230.897877,
+        "object": 183.120855,
+        "other": 2.051817,
+        "partition": 77.630635,
+        "total": 764.590884
+      },
+      "analyze": {
+        "candidate_inputs_built": 244,
+        "candidate_input_projection_reuses": 4857,
+        "candidate_output_projection_reuses": 4857
+      },
+      "verify": {
+        "function_proofs_checked": 2167,
+        "function_proofs_reused": 2936
+      }
+    },
+    {
+      "block": 0,
+      "wall_ms": 2543.856487,
+      "phases_ms": {
+        "analyze": 127.909216,
+        "codegen": 1415.462138,
+        "ct": 83.412731,
+        "expand": 286.285133,
+        "lower": 4.621321,
+        "parse": 0.126981,
+        "types": 135.372197,
+        "verify": 68.077241
+      },
+      "backend_ms": {
+        "diagnostic": 37.003627,
+        "link_execution": 25.948477,
+        "link_key": 31.98163,
+        "machine_emit": 147.777156,
+        "machine": 1074.592951,
+        "machine_preflight": 663.935625,
+        "machine_transform": 923.059209,
+        "object": 164.256329,
+        "other": 11.643814,
+        "partition": 69.590245,
+        "total": 1415.017073
+      },
+      "analyze": {
+        "candidate_inputs_built": 244,
+        "candidate_input_projection_reuses": 4857,
+        "candidate_output_projection_reuses": 4857
+      },
+      "verify": {
+        "function_proofs_checked": 2167,
+        "function_proofs_reused": 2936
+      }
+    }
+  ],
+  "changes": [
+    "Analyze exact current scalar-leaf projection sharing; fresh function IDs/names bind every result",
+    "Independently implemented Verify current-invocation success templates; exact body/plan/current world and valid relative diagnostic spans; original fee replay, ordinary failure fallback",
+    "Current CGU fused definition/class-declaration pruning, immutable body-owner reference sharing; one complete ORIGINAL validation before any deletion, actual-unit preflight/Builder/fullO2 retained"
+  ],
+  "checks": {
+    "gates36_source": "5a2220f51e85233840c86ea8545464dcc1f4d3d5",
+    "gates36_pass": {
+      "analyze": 310,
+      "verify": 657,
+      "backend": 359,
+      "driver": 233,
+      "native_publication": 2,
+      "fmt": true
+    },
+    "gates36_failure": "Clippy type_complexity in candidate_projection return type; private alias only fixed in source1be, negative receipt retained",
+    "gates37_pass": [
+      "strict alltargets includingVerify -Dwarnings",
+      "fmt",
+      "release CARGO_INCREMENTAL0"
+    ],
+    "unchanged_subtree_reuse": "gates35 source8ad: IR93/Types118/API105/toolsquality27/recording2; Expand130 earlier unchanged receipt",
+    "reviews": "Analyze nonauthor Ptolemy PASS; Verify and fused prune nonauthor root PASS, independent A/V implementations; source1be differs only private alias from functional test source5a"
+  },
+  "remaining_bottlenecks": "Source/Core restart reconstruction persists: all5105 lower, full CT work; firstedit Expand322.5/1107.8ms and CT114.2/469.8ms vary across blocks, do not assign causal speedup from crosswindow changes. Backend707.6/765.1ms remains. New reuse counters are not goal acceptance.",
+  "raw": "out/runs/direct-firstedit-performance-direct-15",
+  "limitations": "Generated large executable only; industrial multi-crate/proc-macro/build.rs/minute/GB scenarios unmeasured. Disk request-boundary peaks exclude SDK/host/evidence; no transient peak or universal claim. SDK18 reused, LLVM not rebuilt, no full evidence pack. Prior13/12/10/09/08 and check54a/native7e/98fa/021997 remain source-bound."
+}
