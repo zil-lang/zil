@@ -1,20 +1,20 @@
 {
-  "schema": "zil.compiler-pain-continuation.v11",
+  "schema": "zil.compiler-pain-continuation.v12",
   "construction_branch": "research/full-push-native",
   "compiled_source": "1be7f77757fe32c22acdb1b3975981828cc3b131",
   "production_source": "5a2220f51e85233840c86ea8545464dcc1f4d3d5",
   "binary_sha256": "2a20b22543cb2143834a24b11f751f3b49a218583dd9f5e8a2bfe1400779c659",
   "binary": "/workspace/zil-push-main/out/binaries/1be7f77757fe32c22acdb1b3975981828cc3b131/zil",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "Formal native window15 complete30/10/4 runtimequalityPASS, firstedit2.555/Rust1.463s STILLLOSES; cold4.584/R8.073. Gates36functional passes310/657/359/233/2; Clippy alias fix1be gates37strict/fmt/releasePASS. No main merge; remaining fullSource/Core and machine reconstruction targeted.",
+  "status": "Last measured native1be window15 complete30/10/4 runtimePASS firstedit2.555/R1.463s STILLLOSES. This commit adds current immutable source-site transport accounting, UNMEASURED: read gates38; if missing run affecteddriver/nativepub/strict/fmt/release then formal16. Never attribute1be numbers to newsource.",
   "current_result": "tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
   "previous_native_result": "tools/research/incremental-demand/native-direct-edit-chain-20261116/closed-range-cfg-decode.json",
   "previous_check_source": "54a0258ab9e081085254084e4b081309dc06eda9",
   "previous_check_result": "tools/research/incremental-demand/check-restart-scope-chain-20261116/summary.json",
   "work_in_this_commit": [
-    "current-request Analyze equal scalar input/output projection sharing, current function IDs/names rebound and original fees unchanged",
-    "independent Verify fresh successful scalar leaf checking templates, exact body/plan/context with valid diagnostic-relative spans, original fees and ordinary failing-budget fallback",
-    "fused current physical unit dead-definition/class-declaration pruning, complete original validation before deletion; current actual-unit preflight/O2 retained"
+    "Original current scalar SourceSite binding retained; bound per-item accounting replaces same-address take/count/restore ASTtraversals and mapping churn",
+    "Logical restored-prefix membership/currentdeletions retain original map cardinality; original work/temppeak/releases replay after fulltransportprobe, tightallowance ordinary exactfailure path",
+    "Only current immutable scalar executor; actualclone/rewrite transport unchanged, no persisted/source-execution authority; originalcompleteinput/Verify/budgets/fullO2 retained"
   ],
   "invariants": "Default research off; current full Source/LIR bindings, original budgets, independent Verify, full default<O2>; main/goal/archive separate; no LLVM rebuild or evidence packing.",
   "sdk": "Installed SDK18/native-link reused, V32 pins unchanged; no assumption of historical local caches. Completed old user caches retired only after raw/results preserved; not product disk improvement.",

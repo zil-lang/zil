@@ -917,6 +917,79 @@ mod tests {
     }
 
     #[test]
+    fn readonly_current_site_accounting_matches_clone_across_empty_and_nested_items() {
+        let limits = Limits::default();
+        let fixture = Fixture::new("return left.emit(1)+right.emit(2);");
+        let mut inputs = fixture.inputs;
+        let mut source = inputs[1].source().clone();
+        source.text.push_str(
+            "\nfn empty(){}\nfn typed(x:(i32))->(i32){return x;}\n\
+             fn nested(x:i32)->i32{let y=x;if y<0{while y<0{if y<1{break;}else{continue;}}}else{let z=y+1;}return y;}\n",
+        );
+        inputs[1] = ParsedSource::parse(Arc::new(source), &limits, &Default::default());
+        assert!(inputs[1].parsed().is_ok());
+        let fixture = Fixture::from_inputs(inputs);
+        let snapshot = fixture
+            .parsed
+            .iter()
+            .map(|p| p.module.clone())
+            .collect::<Vec<_>>();
+        let original = || ScalarMaterializationSession {
+            cloned_walk: true,
+            ..Default::default()
+        };
+        let expected = fixture.run(&mut original(), &limits).unwrap().unwrap();
+        let mut optimized = ScalarMaterializationSession::default();
+        let actual = fixture.run(&mut optimized, &limits).unwrap().unwrap();
+        same_current(&actual, &expected);
+        assert_eq!(optimized.last_stats().executed_modules, 3);
+        let required = actual.usage().analysis_work as usize;
+        for work in [0, 1, required / 4, required / 2, required - 1] {
+            let allowance = Limits {
+                max_analysis_steps: work,
+                ..limits.clone()
+            };
+            assert_eq!(
+                fixture.failure(&mut ScalarMaterializationSession::default(), &allowance),
+                fixture.failure(&mut original(), &allowance),
+                "work {work}"
+            );
+        }
+        let peak = actual.usage().peak_temporary_bytes as usize;
+        for bytes in [0, 1, peak / 4, peak / 2, peak - 1] {
+            let allowance = Limits {
+                max_source_bytes: bytes,
+                ..limits.clone()
+            };
+            assert_eq!(
+                fixture.failure(&mut ScalarMaterializationSession::default(), &allowance),
+                fixture.failure(&mut original(), &allowance),
+                "temporary bytes {bytes}"
+            );
+        }
+        assert!(
+            fixture
+                .parsed
+                .iter()
+                .zip(&snapshot)
+                .all(|(p, old)| p.module == *old)
+        );
+        // A distinct parser construction must independently bind current sites.
+        let recreated = Fixture::from_inputs(
+            fixture
+                .sources
+                .iter()
+                .cloned()
+                .map(|source| ParsedSource::parse(Arc::new(source), &limits, &Default::default()))
+                .collect(),
+        );
+        let current = recreated.run(&mut optimized, &limits).unwrap().unwrap();
+        same_current(&current, &expected);
+        assert_eq!(optimized.last_stats().executed_modules, 3);
+        assert_eq!(optimized.last_stats().reused_modules, 0);
+    }
+
+    #[test]
     fn rewriting_self_constants_cannot_enter_the_borrowed_scalar_executor() {
         let limits = Limits::default();
         let mut fixture = Fixture::new("return left.emit(1)+right.emit(2);");

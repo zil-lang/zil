@@ -3,16 +3,20 @@
 use super::*;
 use compiler::source_sites::{SiteEvent, SourceNode, SourceSite, SourceTreeId};
 
+#[path = "readonly_site_transport.rs"]
+mod readonly;
+
 #[derive(Default)]
 pub(super) struct BoundSites {
     nodes: BTreeMap<(bool, usize), SourceSite>,
     bytes: u64,
+    readonly: Option<readonly::Transport>,
 }
 fn key(node: SourceNode<'_>) -> (bool, usize) {
     (matches!(node, SourceNode::Type(_)), node.address())
 }
 struct Clear<'a> {
-    nodes: &'a mut BTreeMap<(bool, usize), SourceSite>,
+    bound: &'a mut BoundSites,
     budget: &'a mut zil_ct::CtExecutionBudget,
     max_depth: usize,
 }
@@ -22,17 +26,17 @@ impl zil_expand::ct_selection::Visitor for Clear<'_> {
             return Err(category("clone source invalidation depth exhausted", span));
         }
         self.budget
-            .reserve_analysis_work(1 + self.nodes.len().checked_ilog2().unwrap_or(0) as u64)
+            .reserve_analysis_work(1 + self.bound.logical_len().checked_ilog2().unwrap_or(0) as u64)
     }
     fn text(&mut self, _: &str, _: Span) -> CompileResult<()> {
         Ok(())
     }
     fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
-        self.nodes.remove(&key(SourceNode::Expr(expression)));
+        self.bound.remove(key(SourceNode::Expr(expression)));
         zil_expand::ct_selection::walk_expression(self, expression, depth)
     }
     fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
-        self.nodes.remove(&key(SourceNode::Type(ty)));
+        self.bound.remove(key(SourceNode::Type(ty)));
         zil_expand::ct_selection::walk_type(self, ty, depth)
     }
 }
@@ -43,6 +47,15 @@ impl Materializer<'_, '_> {
         source: &s::Module,
         items: &[s::Item],
         tree: SourceTreeId,
+    ) -> CompileResult<()> {
+        self.bind_source_items_inner(source, items, tree, None)
+    }
+    fn bind_source_items_inner(
+        &mut self,
+        source: &s::Module,
+        items: &[s::Item],
+        tree: SourceTreeId,
+        mut transport: Option<&mut readonly::Transport>,
     ) -> CompileResult<()> {
         let budget = &mut self.environment.budget;
         let mut count = 0usize;
@@ -66,9 +79,16 @@ impl Materializer<'_, '_> {
         let mut ordinal = 0;
         let bound = &mut self.bound_source_sites;
         for item in items {
+            let start = ordinal;
+            let mut work = Some(0u64);
             compiler::source_sites::observe_item(item, source.id, tree, self.max_depth, |event| {
                 match event {
-                    SiteEvent::Work(work) => budget.reserve_analysis_work(work as u64)?,
+                    SiteEvent::Work(amount) => {
+                        budget.reserve_analysis_work(amount as u64)?;
+                        if transport.is_some() {
+                            work = work.and_then(|work| work.checked_add(amount as u64));
+                        }
+                    }
                     SiteEvent::Node(node) => {
                         let Some((tag, site)) = canonical.get(ordinal) else {
                             return Err(category("clone has extra source nodes", item.span));
@@ -92,6 +112,9 @@ impl Materializer<'_, '_> {
                 }
                 Ok(())
             })?;
+            if let Some(transport) = transport.as_deref_mut() {
+                transport.capture(item, start, ordinal - start, work);
+            }
         }
         let complete = ordinal == canonical.len();
         drop(canonical);
@@ -200,7 +223,7 @@ impl Materializer<'_, '_> {
     pub(super) fn discard_item_sites(&mut self, item: &s::Item) -> CompileResult<()> {
         use zil_expand::ct_selection::Visitor;
         Clear {
-            nodes: &mut self.bound_source_sites.nodes,
+            bound: &mut self.bound_source_sites,
             budget: &mut self.environment.budget,
             max_depth: self.max_depth,
         }
@@ -212,9 +235,7 @@ impl Materializer<'_, '_> {
     ) -> CompileResult<Option<SourceSite>> {
         let site = self
             .bound_source_sites
-            .nodes
-            .get(&key(SourceNode::Expr(expression)))
-            .copied();
+            .get(key(SourceNode::Expr(expression)));
         self.clear_expression_source_sites(expression)?;
         Ok(site)
     }
@@ -230,7 +251,7 @@ impl Materializer<'_, '_> {
     ) -> CompileResult<()> {
         use zil_expand::ct_selection::Visitor;
         Clear {
-            nodes: &mut self.bound_source_sites.nodes,
+            bound: &mut self.bound_source_sites,
             budget: &mut self.environment.budget,
             max_depth: self.max_depth,
         }
@@ -242,7 +263,7 @@ impl Materializer<'_, '_> {
     ) -> CompileResult<()> {
         use zil_expand::ct_selection::Visitor;
         Clear {
-            nodes: &mut self.bound_source_sites.nodes,
+            bound: &mut self.bound_source_sites,
             budget: &mut self.environment.budget,
             max_depth: self.max_depth,
         }

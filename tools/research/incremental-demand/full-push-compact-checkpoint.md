@@ -2,6 +2,8 @@
 
 唯一施工分支 `research/full-push-native`。最后正式源码 **1be7f77757fe32c22acdb1b3975981828cc3b131**，二进制SHA256 `2a20b22543cb2143834a24b11f751f3b49a218583dd9f5e8a2bfe1400779c659`。window15原30请求/10功能格/4运行格完整且运行质量过；直接首改 **2.555s / Rust1.463s仍输**、冷4.584/R8.073s，用户缓存/产物边界峰约29/R59.47MiB。[当前精简结果](native-direct-edit-chain-20261116/current.md)。不把13/12/10/09/08或check54a、原生7e、98fa/021997数字转记本源。
 
+本提交新增只读标量来源表运输优化，**未测**：保留当前完整绑定，复用本次每项费用信息，省去同地址搬出/搬回；逻辑前缀/原费用和空间峰保持，额度不足走原顺序。先读gates38收据，缺失才集中补driver/native发布/strict/fmt/release，再正式native窗口16。1be/window15数字不转记此新源。
+
 已实现闭合实参范围→实际CFG压缩→跨CGU纯调用事实、原始解码共享、本请求Analyze投影共享/独立Verify叶函数检查复用及物理CGU合并剪枝。gates36功能Analyze310/Verify657/backend359/driver233/native发布2全部过；Clippy局部别名修正后gates37 strict/fmt/release过。先读实际收据，不重排全套旧测试。
 
 目标仍未达到：重启仍全5105Source/Core重建与完整CT，Expand/CT分块耗时波动，后端约0.7–0.8s；优先按Rust按需生成顺序定位并改实际消费者，不能只增对象命中或复用计数。本轮Astra在只读核此断点，先核代理/工作树和现存结果再接续。

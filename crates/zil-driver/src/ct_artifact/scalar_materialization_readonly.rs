@@ -7,11 +7,7 @@ pub(super) fn execute(
     materializer: &mut Materializer<'_, '_>,
     module: &s::Module,
 ) -> CompileResult<()> {
-    materializer.bind_source_items(
-        module,
-        &module.items,
-        compiler::source_sites::SourceTreeId::Original,
-    )?;
+    materializer.bind_readonly_source_items(module)?;
     if materializer.self_constants_needed(module)? {
         return Err(category(
             "scalar materialization requires a rewriting self constant",
@@ -31,20 +27,34 @@ fn items(m: &mut Materializer<'_, '_>, module: &s::Module) -> CompileResult<()> 
             .first()
             .map_or(Span::default(), |item| item.span),
     )?;
-    // Preserve the real source-site transport and allocation lifetime, even
-    // though receiving addresses now remain the original immutable addresses.
+    // Keep the original row allocation charge even when current bind accounting
+    // can replace same-address transport. Insufficient evidence keeps the walk.
     m.environment.budget.reserve_temporary_bytes(
         module.items.len() as u64
             * std::mem::size_of::<Vec<Option<compiler::source_sites::SourceSite>>>() as u64,
     )?;
-    let mut source_rows = Vec::with_capacity(module.items.len());
-    for item in &module.items {
-        source_rows.push(m.take_item_sites(item)?);
+    let readonly = m.take_readonly_source_sites(module)?;
+    let mut source_rows = Vec::new();
+    if !readonly {
+        source_rows = Vec::with_capacity(module.items.len());
+        for item in &module.items {
+            source_rows.push(m.take_item_sites(item)?);
+        }
     }
-    let row_bytes = source_rows.capacity() as u64
+    let row_capacity = if readonly {
+        module.items.len()
+    } else {
+        source_rows.capacity()
+    };
+    let row_bytes = row_capacity as u64
         * std::mem::size_of::<Vec<Option<compiler::source_sites::SourceSite>>>() as u64;
-    for (ordinal, (item, sites)) in module.items.iter().zip(source_rows).enumerate() {
-        m.restore_item_sites(item, sites)?;
+    let mut source_rows = source_rows.into_iter();
+    for (ordinal, item) in module.items.iter().enumerate() {
+        if readonly {
+            m.restore_readonly_source_sites(item, ordinal)?;
+        } else {
+            m.restore_item_sites(item, source_rows.next().expect("one source row per item"))?;
+        }
         let path_len = m.item_path.len();
         m.environment.budget.reserve_analysis_work(1)?;
         if path_len == m.item_path.capacity() {
