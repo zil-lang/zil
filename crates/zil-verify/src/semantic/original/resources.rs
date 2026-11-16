@@ -68,7 +68,13 @@ impl CheckedOriginal {
                 let mut source=expression;loop{b.spend(1)?;match &source.kind{CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::Unary{op:UnaryOp::Give,operand:inner}=>source=inner,CoreExprKind::Name(_)=>{if let Some(binding)=self.value_bindings.get(&(env.current()?,source.id)){self.creation_returns.push(binding.clone());}break;},_=>break,}}
                 Ok(())
             },
-            PassingMode::Give=>if self.transfer_operand(env.current()?,expression,b)?{Ok(())}else{Err(bad("original give result omits explicit ownership transfer"))},
+            // An explicit whole Managed<T> result is already an owning
+            // value contract. Bare resource Infer results were rejected by
+            // mode_type; neither spelling creates incoming ownership here.
+            PassingMode::Give|PassingMode::Infer|PassingMode::Move=>{
+                if !matches!(self.resolved(&prototype.result,b)?,Ty::Managed(_)){return Err(bad("original resource Return changes its complete owning result type"));}
+                if self.transfer_operand(env.current()?,expression,b)?{Ok(())}else{Err(bad("original give result omits explicit ownership transfer"))}
+            },
             _=>Err(bad("original resource Return lacks its owning result mode")),
         }
     }
@@ -103,5 +109,33 @@ impl CheckedOriginal {
     }
     pub(super) fn constructed_resource(&mut self,module:&TypedModule,context:&CheckedContext,ty:Ty,expression:&SemanticOriginalExpr,env:&Env,b:&mut Budget)->Check<Ty>{
         if self.resource_payload(module,context,&ty,b)?{b.spend(1)?;self.created.insert((env.current()?,expression.id));Ok(Ty::Managed(Box::new(ty)))}else{Ok(ty)}
+    }
+}
+
+#[cfg(test)]
+mod return_mode_tests{
+    use super::*;
+    #[test]
+    fn explicit_managed_result_keeps_transfer_and_creation_obligations(){
+        let owner=SemanticDefinitionId{module:zil_base::ModuleId(0),index:0};
+        let env=Env{lexical:vec![Frame{definition:owner,actuals:vec![],environment:vec![]}],bounds:vec![],invocation:vec![],self_type:None};
+        let result=Ty::Managed(Box::new(Ty::Atom(Type::ByteBuffer)));
+        let mut checked=CheckedOriginal::default();
+        checked.prototypes.insert(owner,Prototype{parameters:vec![],result:result.clone(),environment:env.clone(),modes:vec![],result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound_lifetimes:0,invocation_lifetimes:0,premise_bounds:vec![],callable_kind:None});
+        let mut b=Budget::new(&Limits::default());
+        let name=SemanticOriginalExpr{id:NodeId(0),span:Default::default(),kind:CoreExprKind::Name("incoming".into())};
+        let give=SemanticOriginalExpr{id:NodeId(1),span:Default::default(),kind:CoreExprKind::Unary{op:UnaryOp::Give,operand:Box::new(name.clone())}};
+        for mode in [PassingMode::Infer,PassingMode::Move,PassingMode::Give]{
+            checked.prototypes.get_mut(&owner).unwrap().result_mode=mode;
+            assert!(checked.return_resource(Some(&give),&result,&env,&mut b).is_ok());
+            assert!(checked.return_resource(Some(&name),&result,&env,&mut b).is_err(),"a known owning result never silently moves an incoming Place");
+        }
+        for mode in [PassingMode::Copy,PassingMode::Borrow,PassingMode::Describe,PassingMode::Create]{
+            checked.prototypes.get_mut(&owner).unwrap().result_mode=mode;
+            assert!(checked.return_resource(Some(&give),&result,&env,&mut b).is_err(),"an incoming transfer cannot grant another result role or fresh creation");
+        }
+        checked.prototypes.get_mut(&owner).unwrap().result_mode=PassingMode::Infer;
+        checked.prototypes.get_mut(&owner).unwrap().result=Ty::Atom(Type::ByteBuffer);
+        assert!(checked.return_resource(Some(&give),&result,&env,&mut b).is_err(),"a bare resource Infer result does not acquire an owning result contract");
     }
 }

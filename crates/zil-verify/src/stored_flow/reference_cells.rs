@@ -958,10 +958,8 @@ pub(super) fn prepare_call(
             weak: false,
         });
     }
-    if let InstructionKind::Call {
-        function,
-        arguments,
-    } = &instruction.kind
+    if let InstructionKind::Call { function, arguments }
+    | InstructionKind::SuspendCall { function, arguments } = &instruction.kind
     {
         return prepare(
             module,

@@ -34,7 +34,7 @@ fn indirect_arguments(kind: &InstructionKind) -> Option<&[ValueId]> {
 }
 
 fn actual_callee<'a>(module:&'a TypedModule,f:&TypedFunction,kind:&'a InstructionKind)->Option<(FunctionId,&'a [ValueId],Option<&'a ClosureDefinition>)>{
-    if let InstructionKind::Call{function,arguments}=kind{return Some((*function,arguments,None));}
+    if let InstructionKind::Call{function,arguments}|InstructionKind::SuspendCall{function,arguments}=kind{return Some((*function,arguments,None));}
     crate::stored_callables::called(module,f,kind).map(|(definition,arguments)|(definition.function,arguments,Some(definition)))
 }
 fn checked_environment(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->Check<()> {
@@ -195,7 +195,7 @@ pub(super) fn inventory(
                     if let Some((target,_,Some(_)))=actual_callee(module,function,&instruction.kind)
                         && queries[target.0 as usize] && covered(caller)!=covered(target.0 as usize)
                     {return Err(outside());}
-                    if let InstructionKind::Call { function, .. } = instruction.kind
+                    if let InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. } = instruction.kind
                         && queries[function.0 as usize]
                         && covered(caller) != covered(function.0 as usize)
                     {
@@ -235,7 +235,7 @@ pub(super) fn inventory(
         if queries[index]
             && covered(index)
             && (function.foreign.is_some()
-                || function.call_kind != CallKind::Direct)
+                || function.call_kind != CallKind::Direct&&function.call_kind!=CallKind::Suspend)
         {
             return Err(outside());
         }
@@ -494,10 +494,8 @@ fn advance(
                 | InstructionKind::AddressSlice { address, .. } => {
                     produced = retarget(point.at(address.0 as usize, b)?, sources, b)?
                 }
-                InstructionKind::Call {
-                    function,
-                    arguments,
-                } => {
+                InstructionKind::Call { function, arguments }
+                | InstructionKind::SuspendCall { function, arguments } => {
                     let summary = &summaries[function.0 as usize];
                     if summary.complete {
                         b.spend(summary.result.len())?;

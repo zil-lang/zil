@@ -196,10 +196,8 @@ pub(super) fn observe(
             let permission=&values.get(store.0 as usize).ok_or_else(||bad("actual Store access description is absent"))?.store_description;
             record(rows,permission,matches!(i.kind,InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrowMut{..}),b)?;
         },
-        InstructionKind::Call {
-            function,
-            arguments,
-        } => {
+        InstructionKind::Call { function, arguments }
+        | InstructionKind::SuspendCall { function, arguments } => {
             let actual = summaries
                 .get(function.0 as usize)
                 .ok_or_else(|| bad("provider helper summary is absent"))?;
@@ -277,7 +275,7 @@ fn cleanup_bound()->DynCleanupContract{DynCleanupContract{environment:true,posit
 pub(in crate::stored_flow) fn dependencies(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->Check<Vec<FunctionId>>{
     let mut targets=Vec::new();
     for block in &f.blocks{b.spend(block.instructions.len().saturating_add(1))?;for i in &block.instructions{
-        let direct=match i.kind{InstructionKind::Call{function,..}|InstructionKind::ForeignCall{function,..}|InstructionKind::FunctionRef{function}|InstructionKind::ForeignFunctionRef{function}=>Some(function),_=>stored_callables::called(module,f,&i.kind).map(|(definition,_)|definition.function)};
+        let direct=match i.kind{InstructionKind::Call{function,..}|InstructionKind::SuspendCall{function,..}|InstructionKind::ForeignCall{function,..}|InstructionKind::FunctionRef{function}|InstructionKind::ForeignFunctionRef{function}=>Some(function),_=>stored_callables::called(module,f,&i.kind).map(|(definition,_)|definition.function)};
         if let Some(id)=direct{b.spend(targets.len().saturating_add(1))?;if !targets.contains(&id){targets.push(id);}}
         if let Some(root)=cleanup_root(f,&i.kind,b)?{for id in cleanup(module,root,&cleanup_bound(),b)?.targets{b.spend(targets.len().saturating_add(1))?;if !targets.contains(&id){targets.push(id);}}}
     }}Ok(targets)
@@ -351,6 +349,7 @@ pub(super) fn effects(
         for i in &block.instructions {
             match &i.kind {
                 InstructionKind::Call { function, .. }
+                | InstructionKind::SuspendCall { function, .. }
                 | InstructionKind::ForeignCall { function, .. } => {
                     let actual = summaries
                         .get(function.0 as usize)

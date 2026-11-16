@@ -1708,6 +1708,15 @@ pub(super) fn qualifications(
                 b.spend(1)?;
                 // Type/mode authentication is independent of dispatch flags.
                 anonymous_tuple::operation(f, i, b)?;
+                if let InstructionKind::SuspendCall{function,..}=i.kind{
+                    let target=module.functions.get(function.0 as usize).ok_or_else(||err("stored SuspendCall target is absent"))?;
+                    if f.call_kind!=CallKind::Suspend||target.call_kind!=CallKind::Suspend||target.foreign.is_some()||target.environment.is_some(){
+                        return Err(err("stored SuspendCall changes its actual suspending caller/callee ABI"));
+                    }
+                    // This checks the real operands and the complete finite
+                    // child-frame graph, not just a public call-mode flag.
+                    crate::check_instruction(module,f,i,b)?;
+                }
                 if matches!(i.kind, InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. }) {
                     let (local, mutable) = match i.kind {
                         InstructionKind::BorrowLocal { local } => (local, false),
@@ -1840,6 +1849,7 @@ pub(super) fn qualifications(
                             | InstructionKind::TakeLocal { .. }
                             | InstructionKind::ExtractField { .. }
                             | InstructionKind::Call { .. }
+                            | InstructionKind::SuspendCall { .. }
                             | InstructionKind::ForeignCall { .. }
                             | InstructionKind::UnsafeEnter { .. }
                             | InstructionKind::UnsafeExit { .. }
@@ -3354,7 +3364,7 @@ fn write_sites(
                     matches!(vt(f, *value)?, Type::Address { mutable: true, .. }),
                     b,
                 )?,
-                InstructionKind::Call { function, .. } => {
+                InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. } => {
                     let callee = module
                         .functions
                         .get(function.0 as usize)
@@ -4262,21 +4272,18 @@ static_dependency: StaticProvenance::NotStatic,
             foreign_calls::operation(module, f, i, b)?;
         }
         InstructionKind::UnsafeEnter { .. } | InstructionKind::UnsafeExit { .. } => {}
-        InstructionKind::Call {
-            function,
-            arguments,
-        } => {
+        InstructionKind::Call { function, arguments }
+        | InstructionKind::SuspendCall { function, arguments } => {
             let callee = module
                 .functions
                 .get(function.0 as usize)
                 .ok_or_else(|| err("call target absent"))?;
-            if callee.foreign.is_some()
-                || callee.environment.is_some()
-                || callee.call_kind != CallKind::Direct
+            let suspend=matches!(i.kind,InstructionKind::SuspendCall{..});
+            if callee.foreign.is_some()||callee.environment.is_some()
+                || callee.call_kind!=if suspend{CallKind::Suspend}else{CallKind::Direct}
+                || suspend&&f.call_kind!=CallKind::Suspend
             {
-                return Err(err(
-                    "stored call requires an independently checked ordinary direct body",
-                ));
+                return Err(err("stored static call changes its independently checked actual ABI"));
             }
             dyn_ports::call(
                 module,
@@ -4612,7 +4619,7 @@ static_dependency: StaticProvenance::NotStatic,
     }
     if let Some(id) = i.result
         && b.store_descriptions()
-        && matches!(i.kind, InstructionKind::Call { .. })
+        && matches!(i.kind, InstructionKind::Call { .. }|InstructionKind::SuspendCall { .. })
         && option_address::shape(vt(f, id)?, &b.limits.clone(), b)?
     {
         // A returned Some is a new shared window at this actual call site,
@@ -4662,6 +4669,7 @@ static_dependency: StaticProvenance::NotStatic,
                     | InstructionKind::AddressIndex { .. }
                     | InstructionKind::AddressSlice { .. }
                     | InstructionKind::Call { .. }
+                    | InstructionKind::SuspendCall { .. }
                     | InstructionKind::BorrowCapture { .. }
                     | InstructionKind::CallClosureBorrowed { .. }
                     | InstructionKind::CallClosureShared { .. }
@@ -4699,7 +4707,7 @@ static_dependency: StaticProvenance::NotStatic,
         out.address.loans = vec![id.0 as usize];
     }
     if let Some(id) = i.result
-        && matches!(i.kind, InstructionKind::Call { .. })
+        && matches!(i.kind, InstructionKind::Call { .. }|InstructionKind::SuspendCall { .. })
         && qualified(vt(f, id)?).is_some()
     {
         let mut loan_id = f.values.len();
@@ -4734,7 +4742,7 @@ static_dependency: StaticProvenance::NotStatic,
         && let Some(value) = i.result
         && matches!(
             i.kind,
-            InstructionKind::MakeClosure { .. } | InstructionKind::Call { .. }
+            InstructionKind::MakeClosure { .. } | InstructionKind::Call { .. } | InstructionKind::SuspendCall { .. }
         )
     {
         returned_environment::retain(module, f, value, &mut out, loans, b)?;
@@ -6486,10 +6494,8 @@ fn windows(
                             }
                         }
                     }
-                    InstructionKind::Call {
-                        function,
-                        arguments,
-                    } => check_call(
+                    InstructionKind::Call { function, arguments }
+                    | InstructionKind::SuspendCall { function, arguments } => check_call(
                         module,
                         f,
                         *function,
@@ -7395,7 +7401,7 @@ fn solve_check(
                     b.spend(block.instructions.len())?;
                     for instruction in &block.instructions {
                         let function = match &instruction.kind {
-                            InstructionKind::Call { function, .. } => *function,
+                            InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. } => *function,
                             kind => {
                                 let Some((definition, _)) =
                                     super::stored_callables::called(module, f, kind)
@@ -7964,6 +7970,25 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
+    }
+
+    #[test]
+    fn suspending_stored_call_keeps_its_actual_abi_operands_and_finite_frame_obligations(){
+        let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
+        let target=&mut module.functions[0];target.call_kind=CallKind::Suspend;target.parameters=vec![LocalId(0)];target.values=vec![Type::I32];
+        target.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::Load(LocalId(0)),span}];
+        target.blocks[0].terminator=Terminator::Return(Some(ValueId(0)));
+        let mut caller=target.clone();caller.id=FunctionId(1);caller.parameters.clear();caller.values=vec![Type::I32;2];
+        caller.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::Constant(Constant::I32(4)),span},Instruction{result:Some(ValueId(1)),kind:InstructionKind::SuspendCall{function:FunctionId(0),arguments:vec![ValueId(0)]},span}];
+        caller.blocks[0].terminator=Terminator::Return(Some(ValueId(1)));module.functions.push(caller);
+        let check=|module:&TypedModule|qualifications(module,&Limits::default(),None,&mut Budget::new(&Limits::default()));
+        assert!(check(&module).is_ok());
+        let mut forged=module.clone();forged.functions[1].call_kind=CallKind::Direct;assert!(check(&forged).is_err());
+        forged=module.clone();forged.functions[0].call_kind=CallKind::Direct;assert!(check(&forged).is_err());
+        forged=module.clone();forged.functions[1].values[0]=Type::Bool;assert!(check(&forged).is_err());
+        forged=module.clone();forged.functions[0].values.push(Type::I32);
+        forged.functions[0].blocks[0].instructions.push(Instruction{result:Some(ValueId(1)),kind:InstructionKind::SuspendCall{function:FunctionId(0),arguments:vec![ValueId(0)]},span});
+        assert!(check(&forged).is_err(),"a recursive child frame is not closed finite storage");
     }
 
     #[test]

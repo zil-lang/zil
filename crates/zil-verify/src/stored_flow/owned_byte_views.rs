@@ -549,7 +549,7 @@ impl Sites {
                 if definition.captures.len()!=captures.len(){return Err(err("byte view creation boundary omits an actual capture"));}
                 true
             }
-            InstructionKind::Call{function,..}=>{
+            InstructionKind::Call{function,..}|InstructionKind::SuspendCall{function,..}=>{
                 let target=module.functions.get(function.0 as usize).filter(|row|row.id==*function).ok_or_else(||err("byte view call boundary has no exact actual function"))?;
                 target.foreign.is_none()&&target.environment.is_none()
             }
@@ -646,6 +646,7 @@ impl Sites {
         if matches!(
             i.kind,
             InstructionKind::Call { .. }
+                | InstructionKind::SuspendCall { .. }
                 | InstructionKind::ForeignCall { .. }
                 | InstructionKind::CallIndirect { .. }
                 | InstructionKind::CallDynSlot { .. }
