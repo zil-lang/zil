@@ -1,7 +1,7 @@
 //! Original lexical values are bound at each real environment construction.
 //! Navigation need not fabricate an executable whole-name read in the child.
 use super::*;
-use crate::semantic::value::{Class, Value};
+use crate::semantic::value::{Argument, Class, Value};
 pub(super) struct CreatorBinding {
     pub(super) capture: u32,
     pub(super) lexical: Value,
@@ -35,6 +35,30 @@ impl Check<'_, '_> {
         let left = self.capture_class_value(left.copy(b)?, b)?;
         let right = self.capture_class_value(right.copy(b)?, b)?;
         left.equal_paid(&right, b)
+    }
+    /// A call's complete ordered actuals stay in its original caller domain.
+    /// Only the same independently checked creator equations may transport
+    /// their class images; no actual kind, carrier or Type field is erased.
+    pub(super) fn capture_arguments_equal(
+        &self,
+        left: &Argument,
+        right: &Argument,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        b.spend(1, WORK)?;
+        match (left, right) {
+            (Argument::Type(left), Argument::Type(right)) => {
+                self.capture_values_equal(left, right, b)
+            }
+            (Argument::Life(left), Argument::Life(right)) => Ok(self
+                .capture_class_image(left.clone(), b)?
+                == self.capture_class_image(right.clone(), b)?),
+            _ => super::traits::arguments_equal(
+                std::slice::from_ref(left),
+                std::slice::from_ref(right),
+                b,
+            ),
+        }
     }
     pub(super) fn capture_class_image(
         &self,

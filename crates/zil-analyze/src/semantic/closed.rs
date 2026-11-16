@@ -600,7 +600,11 @@ impl Check<'_, '_> {
                     ));
                 }
             };
-            if self.actual_value(context, actual, b, depth + 1)? != expected {
+            if !self.capture_arguments_equal(
+                &self.actual_value(context, actual, b, depth + 1)?,
+                &expected,
+                b,
+            )? {
                 return Ok(false);
             }
         }

@@ -344,6 +344,56 @@ impl Check<'_, '_> {
         Ok(())
     }
 
+    fn body_call_actual(
+        &self,
+        target: &SemanticInstance,
+        ordinal: usize,
+        formal: &SemanticFormal,
+        expected: &crate::semantic::value::Argument,
+        actual: &crate::semantic::value::Argument,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        use crate::semantic::value::{Argument, Class};
+        b.spend(1, WORK)?;
+        let ordinal =
+            u32::try_from(ordinal).map_err(|_| fail("original call mixed ordinal overflows"))?;
+        Ok(match (formal, expected, actual) {
+            (
+                SemanticFormal::Lifetime,
+                Argument::Life(_),
+                Argument::Life(Class::Formal(owner, index)),
+            ) => *owner == target.id && *index == ordinal,
+            (SemanticFormal::Type { .. }, Argument::Type(expected), Argument::Type(actual)) => {
+                // The target is checked in its own rigid declaration frame.
+                // Reconstruct every intrinsic coordinate, including phantom
+                // classes; caller images never become target premises.
+                b.spend(
+                    expected.classes.len().saturating_add(actual.classes.len()),
+                    WORK,
+                )?;
+                if expected.classes.len() != expected.life.binder_count as usize
+                    || actual.classes.len() != expected.classes.len()
+                {
+                    return Ok(false);
+                }
+                let mut classes = Vec::new();
+                for child in 0..expected.life.binder_count {
+                    self.push_value(
+                        &mut classes,
+                        Class::TypeArgument(target.id, ordinal, child),
+                        b,
+                    )?;
+                }
+                let rigid = expected.with_classes(classes, b)?;
+                actual.equal_paid(&rigid, b)?
+            }
+            (SemanticFormal::Const { .. }, Argument::Const { .. }, Argument::Const { .. }) => {
+                self.capture_arguments_equal(expected, actual, b)?
+            }
+            _ => false,
+        })
+    }
+
     fn original_claim(
         &self,
         instance: &SemanticInstance,
@@ -352,7 +402,7 @@ impl Check<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<()> {
         let actual = self.resolved(instance, claim, b, 0)?;
-        if actual == *original {
+        if self.capture_values_equal(&actual, original, b)? {
             return Ok(());
         }
         crate::dyn_metadata::recipe(claim, b)?;
@@ -443,7 +493,9 @@ impl Check<'_, '_> {
                     };
                     if is_error != error
                         || actual_operand != whole.ty
-                        || self.resolved(instance, expected, b, 0)? != whole
+                        || !self.capture_values_equal(
+                            &self.resolved(instance, expected, b, 0)?, &whole, b,
+                        )?
                         || point.function.values.get(value.0 as usize) != Some(&original_value.ty)
                     {
                         return Err(fail(
@@ -457,7 +509,10 @@ impl Check<'_, '_> {
                         b,
                     )?;
                     if self.uses_full_value(&original_value.ty, b)?
-                        && self.ssa_value(instance, point.function, value, b, 0)? != original_value
+                        && !self.capture_values_equal(
+                            &self.ssa_value(instance, point.function, value, b, 0)?,
+                            &original_value, b,
+                        )?
                     {
                         return Err(fail(
                             "implicit return injection changes its original payload classes",
@@ -702,7 +757,7 @@ impl Check<'_, '_> {
                         }
                         if self.uses_full_value(&expected.ty, b)? {
                             let value = self.ssa_value(instance, point.function, *actual, b, 0)?;
-                            if value != *expected {
+                            if !self.capture_values_equal(&value, expected, b)? {
                                 return Err(fail(
                                     "actual enum payload changes its original intrinsic class occurrence",
                                 ));
@@ -710,7 +765,9 @@ impl Check<'_, '_> {
                         }
                     }
                     for (actual, expected) in actuals.iter().zip(&constructor.arguments) {
-                        if self.actual_value(instance, actual, b, 0)? != *expected {
+                        if !self.capture_arguments_equal(
+                            &self.actual_value(instance, actual, b, 0)?, expected, b,
+                        )? {
                             return Err(fail(
                                 "actual enum construction changes its ordered original mixed arguments",
                             ));
@@ -1193,6 +1250,7 @@ impl Check<'_, '_> {
                 // invocation worlds. Check this boundary against every one;
                 // no global representative identifies their local classes.
                 let worlds = self.function_worlds(callee, b)?;
+                let formals = &self.inventory.definition(original, b)?.parameters;
                 if worlds.is_empty() {
                     return Err(fail(
                         "actual BodyCall has no complete original target world",
@@ -1202,47 +1260,28 @@ impl Check<'_, '_> {
                     if target.definition != original
                         || actuals.len() != expected_actuals.len()
                         || target.actuals.len() != expected_actuals.len()
+                        || formals.len() != expected_actuals.len()
                     {
                         return Err(fail(
                             "actual BodyCall changes its independently inferred original target or mixed arity",
                         ));
                     }
-                    for (ordinal, ((proposed, callee), expected)) in actuals
+                    for (ordinal, (((proposed, callee), expected), formal)) in actuals
                         .iter()
                         .zip(&target.actuals)
                         .zip(&expected_actuals)
+                        .zip(formals)
                         .enumerate()
                     {
                         let proposed = self.actual_value(instance, proposed, b, 0)?;
-                        if proposed != *expected {
+                        if !self.capture_arguments_equal(&proposed, expected, b)? {
                             return Err(fail(
                                 "actual BodyCall differs from original caller-domain mixed inference",
                             ));
                         }
                         let callee = self.actual_value(target, callee, b, 0)?;
-                        let valid = match (expected, callee) {
-                            (
-                                crate::semantic::value::Argument::Life(_),
-                                crate::semantic::value::Argument::Life(
-                                    crate::semantic::value::Class::Formal(owner, index),
-                                ),
-                            ) => owner == target.id && index as usize == ordinal,
-                            (
-                                crate::semantic::value::Argument::Type(expected),
-                                crate::semantic::value::Argument::Type(actual),
-                            ) => actual.ty == expected.ty && actual.life == expected.life,
-                            (
-                                crate::semantic::value::Argument::Const {
-                                    carrier: expected,
-                                    value,
-                                },
-                                crate::semantic::value::Argument::Const {
-                                    carrier: actual,
-                                    value: actual_value,
-                                },
-                            ) => *expected == actual && *value == actual_value,
-                            _ => false,
-                        };
+                        let valid =
+                            self.body_call_actual(target, ordinal, formal, expected, &callee, b)?;
                         if !valid {
                             return Err(fail(
                                 "actual BodyCall target changes its independent original rigid mixed context",
@@ -1270,7 +1309,7 @@ impl Check<'_, '_> {
                         let valid = if matches!(expected.ty, Type::Address { .. }) {
                             self.outer_role(instance, point.function, &actual, expected, b, 0)?
                         } else {
-                            actual == *expected
+                            self.capture_values_equal(&actual, expected, b)?
                         };
                         if !valid {
                             return Err(fail(
@@ -1762,7 +1801,7 @@ impl Check<'_, '_> {
                             return Err(fail("class-bearing actual Return omits its result SSA"));
                         };
                         let actual = self.ssa_value(instance, function, value, b, 0)?;
-                        if actual != expected {
+                        if !self.capture_values_equal(&actual, &expected, b)? {
                             return Err(fail(
                                 "actual Return changes its complete original result class/source role",
                             ));

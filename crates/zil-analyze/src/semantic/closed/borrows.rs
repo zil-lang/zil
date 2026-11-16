@@ -270,7 +270,7 @@ impl Check<'_, '_> {
             actual.classes.len().saturating_add(expected.classes.len()),
             WORK,
         )?;
-        if actual == expected {
+        if self.capture_values_equal(actual, expected, b)? {
             return Ok(true);
         }
         if !matches!(actual.ty, Type::Address { .. }) {
@@ -286,9 +286,11 @@ impl Check<'_, '_> {
         {
             return Ok(true);
         }
-        if value::pointee(actual, self.inventory, b)?
-            != value::pointee(expected, self.inventory, b)?
-        {
+        if !self.capture_values_equal(
+            &value::pointee(actual, self.inventory, b)?,
+            &value::pointee(expected, self.inventory, b)?,
+            b,
+        )? {
             return Ok(false);
         }
         if actual.life.slots.len() != 1
@@ -307,10 +309,12 @@ impl Check<'_, '_> {
             .classes
             .get(expected.life.slots[0].binder as usize)
             .ok_or_else(|| fail("required outer role has no whole class"))?;
+        let actual_class = self.capture_class_image(actual_class.clone(), b)?;
+        let expected_class = self.capture_class_image(expected_class.clone(), b)?;
         if actual_class == expected_class {
             return Ok(true);
         }
-        let value::Class::Reborrow(owner, value) = actual_class else {
+        let value::Class::Reborrow(owner, value) = &actual_class else {
             return Ok(false);
         };
         if *owner != function.id {
