@@ -371,7 +371,8 @@ def executable_abi(args, row):
     require(all(s['kind'] == 2 and s['bind'] == 1 and s['visibility'] == 0 for s in image['symbols'] if s['name'] in model['foreign']), 'final ELF foreign function ABI binding')
     require(model['foreign'] <= {r['symbol']['name'] for r in image['relocations'] if r['kind'] in (6, 7)}, 'final foreign imports need actual dynamic relocations')
     return {'scope': 'scalar C main/i32 foreign/protected cross-unit bindings; relocation/unwind envelopes only; callbacks/globals/cleanup ABI not claimed',
-            'entry': funcs['_start']['address'], 'foreign_imports': sorted(model['foreign']), 'cross_unit_exports': sorted(cross)}
+            'entry': funcs['_start']['address'], 'foreign_imports': sorted(model['foreign']), 'cross_unit_exports': sorted(cross),
+            'class_sources': model['class_sources']}
 
 
 def source_metadata(files):
@@ -601,7 +602,13 @@ def quality(rows, args, oracle, allow_main_limit=False):
             missing = set(exports['baseline'])-set(exports['candidate'])
             extra = set(exports['candidate'])-set(exports['baseline'])
             inv = arms['candidate']['inventory']
-            require(not extra and missing == set(inv.get('removed_functions', [])),
+            classes = set(arms['candidate']['scalar_abi'].get('class_sources', {}))
+            # Class implementations were not definitions in main. Account for
+            # their actual physical survivors and removals separately; original
+            # source symbol removals still have to match exactly, not a subset.
+            removed = set(inv.get('removed_functions', []))
+            require(extra <= classes and missing == removed-classes
+                    and not (removed & classes & set(exports['candidate'])),
                     'aggregate export change must exactly equal declared physical closed removals')
     return {'schema': schema(args), 'policy_identity': policy_identity(args), 'valid': True, 'functional_quality_valid': True,
             'runtime_acceptance_pending': args.mode == 'o2', 'main_resource_limit': bool(baseline_limit),
@@ -609,6 +616,7 @@ def quality(rows, args, oracle, allow_main_limit=False):
             'main_success': not baseline_limit, 'complete_ELF_equal': elf_equal,
             'aggregate_exports_equal_observed': aggregate_equal, 'aggregate_exports': exports,
             'candidate_removed_functions': arms['candidate'].get('inventory', {}).get('removed_functions', []),
+            'candidate_class_sources': arms['candidate'].get('scalar_abi', {}).get('class_sources', {}),
             'private_import_functions': arms['candidate'].get('inventory', {}).get('private_import_functions', []),
             'full_ELF_equality_is_acceptance_prerequisite': False,
             'scope': 'source/current Verify/full-domain oracle/physical CGU and declared closed exports; sustained runtime gate is separate'}

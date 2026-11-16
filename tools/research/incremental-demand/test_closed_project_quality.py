@@ -343,6 +343,29 @@ class ClosedProjectTests(unittest.TestCase):
                 quality.quality(rows, self.args(out), oracle)
             self.assertIn('identical complete ELF', matrix.matched.QUALITY_POLICY['machine'])
 
+    def test_aggregate_accounts_for_only_full_body_validated_new_classes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            rows, oracle = self.triplet(out)
+            live, dead = 'zil.class.'+'a'*64, 'zil.class.'+'b'*64
+            rows[1]['inventory']['objects'][0]['defined_functions'].append(live)
+            rows[1]['inventory']['removed_functions'].append(dead)
+            def abi(args, row):
+                return {'class_sources': {live: ['zil.fn.0'], dead: ['zil.fn.0']}
+                        if row['arm'] == 'candidate' else {}}
+            with patch.object(quality, 'executable_abi', side_effect=abi):
+                self.assertTrue(quality.quality(rows, self.args(out), oracle)['valid'])
+                for mutate in ('unvalidated_extra', 'missing_source_removal', 'live_claimed_removed'):
+                    bad = copy.deepcopy(rows)
+                    if mutate == 'unvalidated_extra':
+                        bad[1]['inventory']['objects'][0]['defined_functions'].append('zil.class.'+'c'*64)
+                    elif mutate == 'missing_source_removal':
+                        bad[1]['inventory']['removed_functions'].remove('zil.fn.0')
+                    else:
+                        bad[1]['inventory']['removed_functions'].append(live)
+                    with self.subTest(mutate=mutate), self.assertRaises(ValueError):
+                        quality.quality(bad, self.args(out), oracle)
+
     def test_main_resource_failure_is_explicit_and_never_a_ratio(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
