@@ -65,12 +65,27 @@ pub(crate) fn check(
     b.spend(signature.parameters.len())?;
     let mut parameters=Vec::new();for(value,_)in &signature.parameters{parameters.push(domain.symbols.incoming(value,b)?);}
     let result=domain.symbols.incoming(&signature.result,b)?;
-    let(_,header)=headers::rebased_function(module,function,&parameters,&result,b)?;
+    let sources=result_sources(module,context,environment,function,signature,&mut domain,&result,b)?;
+    let(_,header)=headers::rebased_function_with_sources(module,function,&parameters,&result,&sources,b)?;
     // Match all original mixed actuals and every header embedding jointly.
     // This also requires every lexical (including phantom) class to be
     // anchored; no single same-shaped header can select the provider/body.
     signatures::specialization(module,function,receipt.definition,&receiver,&declaration_actuals,&method_actuals,&header,b)?;
     Ok(())
+}
+
+/// Preserve result κ and derive only a separate outside-source row. The body
+/// and every Return are still pending until static-member completion.
+fn result_sources(module:&TypedModule,context:&semantic::CheckedContext,environment:&EvalEnv,
+    function:&TypedFunction,signature:&semantic::CheckedSignature,domain:&mut Domain<'_>,
+    result:&terms::Value,b:&mut Budget)->Check<Vec<(terms::LifeTerm,terms::LifeTerm)>>{
+    let Some((descriptor,fresh))=context.nominal_result_sources(environment,signature,b)?else{return Ok(vec![]);};
+    if context.nominal_result_constructors(module,function,b)?.is_none(){return Ok(vec![]);}
+    domain.value(&descriptor,b)?;
+    let outside=domain.symbols.incoming(&descriptor,b)?;
+    b.spend(fresh.len())?;
+    if result.terms.len()!=fresh.len()||outside.terms.len()!=fresh.len(){return Err(bad("nominal result outside directory changes its full intrinsic cardinality"));}
+    Ok(result.terms.iter().zip(&outside.terms).zip(fresh).filter_map(|((term,source),fresh)|fresh.then_some((*term,*source))).collect())
 }
 
 fn original_recipe<'a>(module:&'a TypedModule,owner:&SemanticDynOwner,b:&mut Budget)->Check<&'a DynSignatureRecipe>{
@@ -118,6 +133,7 @@ pub(crate) fn build_requests(
         let mut parameter_modes=Vec::with_capacity(signature.parameters.len());
         for(value,mode)in &signature.parameters{parameters.push(domain.symbols.incoming(value,b)?);parameter_modes.push(*mode);}
         let result=domain.symbols.incoming(&signature.result,b)?;
+        let sources=result_sources(module,context,environment,function,signature,&mut domain,&result,b)?;
         let(contract,operands)=contracts::materialize(recipe,|pattern,b|{
             let recipe=associated::scoped_type_recipe(module,owner,pattern,b,0)?;
             let value=context.evaluate_type(module,&recipe,environment,proofs,active,b)?;
@@ -134,7 +150,7 @@ pub(crate) fn build_requests(
         dynamic_metadata::recipe(original,b)?;dynamic_metadata::recipe(recipe,b)?;
         if original.contract!=*recipe{return Err(bad("definition contract differs from its exact original signature"));}
         contracts::defaults::instantiate_definition(module,owner,original,&mut resolved,&receiver,domain.scope,b)?;
-        let(expected_header,embedding)=resolved.function(module,function,b)?;
+        let(expected_header,embedding)=resolved.function(module,function,&sources,b)?;
         let leaves=inventory::self_leaves(module,&receiver,domain.scope,b)?;
         out.push(resolved.request(requests::Origin::Definition{owner:receipt.body_owner,
             member:receipt.body_member,definition:receipt.definition},function,domain.scope,

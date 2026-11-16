@@ -86,3 +86,63 @@ impl CheckedContext {
         Ok(())
     }
 }
+
+/// A result's outside sources are a separate descriptor. This is never used as
+/// a value, a replacement intrinsic domain, or an equality premise.
+impl CheckedContext {
+    pub(crate) fn nominal_result_sources(&self,environment:&EvalEnv,signature:&CheckedSignature,b:&mut Budget)->Check<Option<(CheckedType,Vec<bool>)>>{
+        let result=&signature.result;
+        if !matches!(result.ty,Type::BorrowedStorage{..}){return Ok(None);}
+        result.charge_clone(b)?;
+        let mut sources=result.clone();let mut fresh=vec![false;result.origins.len()];
+        for(index,origin)in result.origins.iter().enumerate(){
+            let IntrinsicOrigin::Nominal{source,class}=origin else{continue;};
+            let mut input=false;
+            for(parameter,_)in &signature.parameters{for known in &parameter.origins{if self.same_origin(environment,origin,known,b)?{input=true;}}}
+            if input{continue;}
+            if source.domain!=result.life||*class as usize!=index||source.class_sources.len()!=result.origins.len(){return Err(bad("fresh result nominal omits its complete original class source domain"));}
+            let outside=source.class_sources.get(*class as usize).ok_or_else(||bad("fresh result nominal outside source is absent"))?;
+            nominal_origins::charge_origin(outside,b)?;
+            sources.origins[index]=outside.clone();fresh[index]=true;
+        }
+        if fresh.iter().any(|row|*row){Ok(Some((sources,fresh)))}else{Ok(None)}
+    }
+
+    /// Enumerate all real Return operations, including nullary/phantom arms.
+    /// Only constructors independently proved by the original body may use the
+    /// pending result-source correspondence. Existing values keep exact κ.
+    pub(crate) fn nominal_result_constructors(&self,module:&TypedModule,function:&TypedFunction,b:&mut Budget)->Check<Option<Vec<Key>>>{
+        let programme=module.semantic.as_ref().ok_or_else(||bad("nominal result has no original programme"))?;
+        let mut returns=Vec::new();
+        for(block_index,block)in function.blocks.iter().enumerate(){
+            b.spend(block.instructions.len().saturating_add(1))?;
+            let Terminator::Return(Some(value))=&block.terminator else{continue;};
+            let mut instructions=block.instructions.iter().enumerate().filter(|(_,row)|row.result==Some(*value));
+            let Some((index,instruction))=instructions.next() else{return Ok(None);};
+            if instructions.next().is_some(){return Err(bad("nominal result constructor repeats its actual SSA producer"));}
+            let variant=match instruction.kind{InstructionKind::MakeVariant{variant,..}=>Some(variant),InstructionKind::MakeAggregate{..}|InstructionKind::MakeOwnedTuple{..}=>None,_=>return Ok(None)};
+            let key=Key{function:function.id,block:BlockId(block_index as u32),instruction:index as u32,result:*value};
+            let mut worlds=0usize;
+            for world in &programme.instances{
+                b.spend(1)?;
+                if world.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){continue;}
+                worlds+=1;
+                b.spend(programme.sites.len())?;
+                let mut sites=programme.sites.iter().filter(|site|site.instance==world.id
+                    &&matches!(site.at,SemanticSiteAddress::Typed{block,instruction,..}if block==key.block&&instruction==key.instruction)
+                    &&matches!(site.action,SemanticSiteAction::BodyCall{..}|SemanticSiteAction::Construct{..}));
+                let mut matched=false;
+                for site in &mut sites{
+                    if let SemanticSiteAction::Construct{result,..}=&site.action{if *result!=SemanticOperand::Value(key.result){continue;}}
+                    let original=self.original.borrow();let original=original.as_ref().ok_or_else(||bad("nominal result constructor lacks its complete original operation proof"))?;
+                    if original.checked_result_constructor(module,world.definition,site.recipe,variant,b)?{if matched{return Err(bad("nominal result constructor has ambiguous original operations"));}matched=true;}
+                }
+                if !matched{return Ok(None);}
+            }
+            if worlds==0{return Ok(None);}
+            returns.push(key);
+        }
+        if returns.is_empty(){Ok(None)}else{Ok(Some(returns))}
+    }
+
+}

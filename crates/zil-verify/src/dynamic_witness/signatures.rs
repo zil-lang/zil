@@ -55,17 +55,15 @@ impl Resolved {
     /// Header comparisons preserve the actual complete contract (including
     /// Static occurrences). Its implementation still needs an actual CFG proof.
     pub(super) fn function(
-        &self,
-        module: &TypedModule,
-        actual: &TypedFunction,
-        b: &mut Budget,
-    ) -> Check<(requests::Header, Vec<DynLifeEmbedding>)> {
+        &self, module:&TypedModule, actual:&TypedFunction,
+        sources:&[(terms::LifeTerm,terms::LifeTerm)], b:&mut Budget,
+    )->Check<(requests::Header,Vec<DynLifeEmbedding>)>{
         if self.result_mode != actual.result_mode || self.call_kind != actual.call_kind {
             return Err(bad(
                 "actual entry changes original result responsibility or call kind",
             ));
         }
-        headers::rebased_function(module, actual, &self.parameters, &self.result, b)
+        headers::rebased_function_with_sources(module, actual, &self.parameters, &self.result, sources, b)
     }
     pub(super) fn same_signature(&self, other: &Self, b: &mut Budget) -> Check<()> {
         if self.parameter_modes != other.parameter_modes

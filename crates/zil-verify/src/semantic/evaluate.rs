@@ -50,7 +50,7 @@ impl CheckedContext {
                             return Ok(value.clone());
                         }
                     }
-                    if let Some(value)=self.original_call_result(module,definition,source,frame.key,environment,b)?{
+                    if let Some(value)=self.original_call_result(module,definition,source,frame.key,environment,active,b)?{
                         return Ok(value);
                     }
                     if let Some(value) = self.original_closure_value(

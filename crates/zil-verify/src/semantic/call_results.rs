@@ -2,13 +2,13 @@
 //! type use must not reconstruct it as a fresh nominal from outside images.
 use super::*;
 impl CheckedContext{
-    pub(super) fn original_call_result(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,scope:ScopeKey,environment:&EvalEnv,b:&mut Budget)->Check<Option<CheckedType>>{
+    pub(super) fn original_call_result(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,scope:ScopeKey,environment:&EvalEnv,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
         let Some(at)=environment.at else{return Ok(None);};
         let ScopeKey::Instance(instance)=scope else{return Ok(None);};
         let owner=self.instance(module,instance,b)?;
         if owner.definition!=definition||!matches!(owner.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==at.function){return Ok(None);}
-        let site=self.original.borrow().as_ref().ok_or_else(||bad("original Call result has no complete symbolic body"))?.call_result_source(module,definition,source,b)?;
-        let Some((site,dynamic))=site else{return Ok(None);};
+        let site=self.original.borrow().as_ref().ok_or_else(||bad("original Call result has no complete symbolic body"))?.call_result_source(module,definition,source,environment,b)?;
+        let Some((site,dynamic,outer))=site else{return Ok(None);};
         let program=module.semantic.as_ref().ok_or_else(||bad("original Call result has no actual site directory"))?;
         let function=module.functions.get(at.function.0 as usize).filter(|function|function.id==at.function).ok_or_else(||bad("Call result caller is absent"))?;
         b.spend(program.sites.len())?;let mut selected=None;
@@ -31,6 +31,23 @@ impl CheckedContext{
             value.charge_clone(b)?;
             if selected.replace(value.clone()).is_some(){return Err(unsupported("original Call result has several unresolved actual source occurrences",None));}
         }
-        Ok(selected)
+        let Some(value)=selected else{return Ok(None);};
+        if !matches!(value.ty,Type::Address{..}|Type::Desc(_)){return Ok(Some(value));}
+        // A completed call preserves its whole child domain, while its root
+        // borrow may be viewed at the independently inferred caller role. The
+        // two occurrences are not equal, and the source SSA remains unchanged.
+        let Some((mode,SemanticOuterLifeRecipe::Class(life)))=outer else{return Ok(Some(value));};
+        if !matches!((&value.ty,mode),(Type::Address{mutable:true,..},StoredBorrowMode::ExclusiveAddress)|(Type::Address{mutable:false,..},StoredBorrowMode::SharedAddress)|(Type::Desc(_),StoredBorrowMode::WritableDescription)){return Err(bad("completed Call result changes its original root borrow kind or mode"));}
+        let target=self.life(module,&life,environment,b)?;
+        let mut heads=value.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==mode);
+        let Some(head)=heads.next()else{return Ok(Some(value));};
+        if heads.next().is_some(){return Err(bad("completed Call result has ambiguous actual outer borrow occurrences"));}
+        let actual=value.classes.get(head.binder as usize).ok_or_else(||bad("completed Call result outer class is absent"))?;
+        if self.same(environment,actual,&target,b)?{return Ok(Some(value));}
+        if !self.outlives(environment,actual,&target,b)?{return Err(bad("completed Call result has no proved directed relation to its original caller borrow role"));}
+        let child=self.child_value(module,&value,&[LifeTypeProjection::Pointee],b)?;
+        let view=dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(target)},&[child],active,b)?;
+        if !self.compatible(environment,&value,&view,b)?{return Err(bad("completed Call result view changes its complete original child domain"));}
+        Ok(Some(view))
     }
 }

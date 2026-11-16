@@ -101,7 +101,7 @@ impl CheckedContext{
             records.push(StaticMember{origin:StaticOrigin::Definition{world:*id},function:function.id,specialization:specialization.clone(),source,worlds:vec![*id]});
         }Ok(())
     }
-    pub(super) fn complete_static_members(&self,module:&TypedModule,checked:&std::collections::BTreeSet<SemanticInstanceId>,b:&mut Budget)->Check<()>{
+    pub(super) fn complete_static_members(&self,module:&TypedModule,checked:&std::collections::BTreeSet<SemanticInstanceId>,worlds:&[(SemanticInstanceId,EvalEnv)],b:&mut Budget)->Check<()>{
         for record in self.static_members.borrow().iter(){
             b.spend(record.worlds.len().saturating_add(1))?;
             if record.worlds.iter().any(|id|!checked.contains(id)){return Err(bad("static member execution has an unchecked actual body world"));}
@@ -120,6 +120,8 @@ impl CheckedContext{
                 },
             }
             if record.source.definition!=record.specialization.definition{return Err(bad("static member execution changes its full original specialization identity"));}
+            let function=module.functions.get(record.function.0 as usize).filter(|row|row.id==record.function).ok_or_else(||bad("static member result actual entry is absent"))?;
+            self.complete_nominal_result(module,function,&record.source,worlds,&record.worlds,b)?;
         }Ok(())
     }
     pub(crate) fn checked_static_specialization(&self,module:&TypedModule,function:&TypedFunction,b:&mut Budget)->Check<bool>{
