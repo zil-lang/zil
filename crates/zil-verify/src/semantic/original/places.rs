@@ -10,6 +10,25 @@ pub(in crate::semantic) struct Assignment {
 }
 fn nonnegative_index(value:&Constant)->Option<u64>{match value{Constant::I8(value)=>u64::try_from(*value).ok(),Constant::I16(value)=>u64::try_from(*value).ok(),Constant::I32(value)=>u64::try_from(*value).ok(),Constant::I64(value)|Constant::Isize(value)=>u64::try_from(*value).ok(),Constant::U8(value)=>Some(u64::from(*value)),Constant::U16(value)=>Some(u64::from(*value)),Constant::U32(value)=>Some(u64::from(*value)),Constant::U64(value)|Constant::Usize(value)=>Some(*value),_=>None}}
 impl CheckedOriginal {
+    /// These source wrappers emit no value operation. Their full types and
+    /// ownership effects have already passed the complete original body check;
+    /// actual transport must still prove the selected operand's real origin.
+    pub(in crate::semantic) fn assignment_value_source(&self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(NodeId,bool)>{
+        if !self.checked.contains(&definition){return Err(bad("assignment value source has no complete original body proof"));}
+        let index=self.source_index(module,&[definition],b)?;
+        let function=index.definitions.get(&definition).ok_or_else(||bad("assignment value owner has no original body"))?;
+        let mut expression=*function.expressions.get(&node).ok_or_else(||bad("assignment value original expression is absent"))?;
+        loop{
+            b.spend(1)?;
+            self.original_type(definition,&SemanticOriginalTypeSource::Expression(expression.id),b)?;
+            match &expression.kind{
+                CoreExprKind::Group(value)|CoreExprKind::Ascribed{value,..}|CoreExprKind::Unary{op:UnaryOp::Give,operand:value}=>expression=value,
+                _=>break,
+            }
+        }
+        b.spend(self.value_places.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+        Ok((expression.id,self.value_places.contains_key(&(definition,expression.id))))
+    }
     pub(in crate::semantic) fn bound_value_name(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<bool>{
         b.spend(self.value_bindings.len().checked_ilog2().map_or(1,|depth|depth as usize+1))?;
         Ok(self.value_bindings.contains_key(&(definition,node)))

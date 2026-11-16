@@ -110,6 +110,15 @@ impl CheckedContext{
             },
         }
     }
+    pub(in crate::semantic::flow) fn assignment_value_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
+        let(operand,place)=self.original.borrow().as_ref().ok_or_else(||bad("assignment RHS lacks its complete original occurrence proof"))?.assignment_value_source(module,caller.definition,node,b)?;
+        let result=if place{
+            self.original_projection_source(module,caller,f,value,caller.definition,operand,true,b)
+        }else{
+            self.exact_expression_value(module,caller,f,value,operand,b)
+        };
+        result.map_err(|error|error.with_note(format!("original assignment RHS {:?} expression {:?}, transparent operand {:?}, actual {:?}",caller.definition,node,operand,value)))
+    }
     pub(in crate::semantic::flow) fn exact_expression_value(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
         let definition=self.definition(module,caller.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&definition.body else{return Err(bad("address source occurrence has no complete original body"));};

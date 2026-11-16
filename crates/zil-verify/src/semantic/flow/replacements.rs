@@ -84,15 +84,7 @@ impl CheckedContext {
             if !self.same_type(environment, actual, &expected, b)? {
                 return Err(bad("replacement RHS changes the complete original child type or classes"));
             }
-            let named = self.original.borrow().as_ref()
-                .ok_or_else(|| bad("replacement RHS lacks its original occurrence proof"))?
-                .bound_value_name(caller.definition, original.value, b)?;
-            if named {
-                self.original_projection_source(module, caller, f, value,
-                    caller.definition, original.value, true, b)?;
-            } else {
-                self.exact_expression_value(module, caller, f, value, original.value, b)?;
-            }
+            self.assignment_value_source(module, caller, f, value, original.value, b)?;
             // A whole-local commit installs a new initialized occupant. A
             // field/address commit preserves its fixed declared ghost domain;
             // the ordinary ledger publishes the actual new sources and debt.
