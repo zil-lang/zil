@@ -18,6 +18,11 @@ pub(super) fn shape(
     if !nested(ty) {
         return Ok(None);
     }
+    complete_shape(module, function, operand, ty, b)
+}
+
+pub(super) fn complete_shape(module: &TypedModule, function: &TypedFunction,
+    operand: SemanticOperand, ty: &Type, b: &mut Budget) -> CompileResult<Option<StorageLifeShape>> {
     let mut values = BTreeSet::new();
     let mut locals = BTreeSet::new();
     match operand {
@@ -226,4 +231,39 @@ pub(super) fn whole(ports: &Ports, b: &mut Budget) -> CompileResult<Vec<usize>> 
     }
     b.spend(1, "raw reference scalar pointee whole coordinate")?;
     Ok(vec![outer])
+}
+
+/// Recover the whole coordinate map of an actual reference without changing
+/// the port representation of ordinary scalar/compound references.
+pub(super) fn whole_at(module: &TypedModule, function: &TypedFunction,
+    value: ValueId, ports: &Ports, equations: &mut Equations,
+    b: &mut Budget) -> CompileResult<Vec<usize>> {
+    if !ports.raw_whole.is_empty() { return whole(ports, b); }
+    let ty = function.values.get(value.0 as usize).ok_or_else(|| bad("raw write omits its actual source Type"))?;
+    let life = complete_shape(module, function, SemanticOperand::Value(value), ty, b)?
+        .ok_or_else(|| bad("raw write source has no complete original geometry"))?;
+    let mut map = vec![None; life.binder_count as usize];
+    b.spend(map.len(), "raw write full coordinate map")?;
+    for slot in &life.slots {
+        if !slot.path.is_empty() { return Err(bad("raw write source has a non-root reference slot")); }
+        let variable = ports.outer.ok_or_else(|| bad("raw write source omits its actual outer role"))?;
+        put(&mut map, slot.binder, variable, equations, b)?;
+    }
+    for row in &life.retained {
+        let mut found = None;
+        for ((path, class), variable) in ports.keys.iter().zip(&ports.classes) {
+            b.spend(path.len().saturating_add(row.path.len()).saturating_add(1), "raw write complete child lookup")?;
+            if path == &row.path && *class == row.class && found.replace(*variable).is_some() {
+                return Err(bad("raw write source repeats its complete intrinsic coordinate"));
+            }
+        }
+        put(&mut map, row.binder, found.ok_or_else(|| bad("raw write source drops a complete child coordinate"))?, equations, b)?;
+    }
+    map.into_iter().map(|slot| slot.ok_or_else(|| bad("raw write source omits a phantom or retained class"))).collect()
+}
+fn put(map: &mut [Option<usize>], binder: u32, variable: usize,
+    equations: &mut Equations, b: &mut Budget) -> CompileResult<()> {
+    let slot = map.get_mut(binder as usize).ok_or_else(|| bad("raw write class exceeds its complete domain"))?;
+    if let Some(old) = *slot { equations.equal(old, variable, b)?; } else { *slot = Some(variable); }
+    Ok(())
 }

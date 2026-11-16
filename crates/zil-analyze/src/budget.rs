@@ -109,6 +109,7 @@ pub(super) struct Budget {
     // Complete original field sigma and actual SSA source, with invariant
     // child checked at the real constructor. Outer use is directional only.
     pub(super) semantic_constructor_views: BTreeSet<(FunctionId, ValueId, u32)>,
+    pub(super) semantic_raw_writes: BTreeSet<(FunctionId, zil_ir::BlockId, usize)>,
     // Exact constructor occurrences whose complete original class value and
     // actual header embedding have both been proved. No target/loan facts.
     pub(super) semantic_aggregate_classes:
@@ -297,6 +298,7 @@ impl Budget {
             semantic_reborrow_regions: BTreeSet::new(),
             semantic_receiving_returns: BTreeSet::new(),
             semantic_constructor_views: BTreeSet::new(),
+            semantic_raw_writes: BTreeSet::new(),
             semantic_aggregate_classes: BTreeMap::new(),
             stored_synchronous_abis: BTreeSet::new(),
             partial_depth: limits.max_call_depth,

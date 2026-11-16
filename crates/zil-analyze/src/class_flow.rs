@@ -2426,6 +2426,32 @@ fn check_with(
                         }
                     }
                 }
+                InstructionKind::WriteAddress { address, value }
+                    if raw_references::nested(&f.values[address.0 as usize]) => {
+                    b.lookup(b.semantic_raw_writes.len(), "completed original raw replacement")?;
+                    let directed = b.initialization.as_ref().is_some_and(|init| init.module == module as *const TypedModule as usize)
+                        && b.semantic_raw_writes.contains(&(f.id, block.id, instruction_index));
+                    if module.semantic.is_some() && !directed {
+                        return Err(bad("raw pointer replacement lacks its complete original receiving proof"));
+                    }
+                    let incoming = raw_references::whole_at(module, f, *value,
+                        &values[value.0 as usize], &mut e, b)?;
+                    let destination = &values[address.0 as usize];
+                    for (class, source) in incoming.iter().enumerate() {
+                        let mut selected = None;
+                        for ((path, child), variable) in destination.keys.iter().zip(&destination.classes) {
+                            b.spend(path.len().saturating_add(1), "raw replacement whole child coordinate")?;
+                            if path.as_slice() == [LifeTypeProjection::Pointee] && *child as usize == class
+                                && selected.replace(*variable).is_some() {
+                                return Err(bad("raw replacement repeats a destination child class"));
+                            }
+                        }
+                        let target = selected.ok_or_else(|| bad("raw replacement loses a complete pointee class"))?;
+                        if class == 0 && directed {
+                            reference_grounding.store(target, *source, b)?;
+                        } else { e.equal(target, *source, b)?; }
+                    }
+                }
                 InstructionKind::ReadAddress { address } => {
                     if raw_references::nested(&f.values[address.0 as usize]) {
                         let output = out.ok_or_else(|| bad("nested raw reference read has no complete output"))?;

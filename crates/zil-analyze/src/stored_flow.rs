@@ -669,6 +669,7 @@ struct SlotLoanIds {
     physical: BTreeMap<PhysicalLoanKey, (usize, bool)>,
     // Opaque dynamic port paths never masquerade as physical field paths.
     dynamic: BTreeMap<DynamicLoanKey, (usize, bool)>,
+    raw: BTreeMap<raw_references::WriteSite, (usize, bool)>,
     // Actual head-producing SSA sites, separate from data retained by a port.
     retained_heads: BTreeSet<usize>,
 }
@@ -680,6 +681,7 @@ impl SlotLoanIds {
         self.physical
             .len()
             .saturating_add(self.dynamic.len())
+            .saturating_add(self.raw.len())
             .saturating_add(self.retained_heads.len())
     }
     fn get(&self, key: &PhysicalLoanKey) -> Option<&(usize, bool)> {
@@ -831,6 +833,7 @@ pub(super) struct Facts {
     // Every reachable return preserves the exact seeded targets AND loans.
     // This is derived from actual terminal states, never a type/life claim.
     external_stable: BTreeSet<(u32, Path)>,
+    raw_after: BTreeMap<Target, raw_references::After>,
     capture_after: BTreeMap<Path, Vec<Target>>,
     capture_stable: BTreeSet<Path>,
     /// Actual entry-head ancestry of every reachable returned permission.
@@ -1113,6 +1116,7 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
     fee(b, f.source_upper_values.len())?;
     for upper in f.source_upper_values.values() { target_work(upper, b)?; }
     mutex::work(&f.mutex_returns, b)?;
+    raw_references::facts_work(&f.raw_after, b)?;
     if !f.byte_view_values.is_empty() {
         fee(b, f.byte_view_values.len())?;
     }
@@ -4166,6 +4170,7 @@ fn slot_loan_ids(
                 }
                 _ => {}
             }
+            raw_references::sites(module, f, instruction, &mut ids, loans, b)?;
             dyn_return::sites(module, instruction, &mut ids.dynamic, loans, b)?;
             dyn_environment::sites(module, instruction, &mut ids, loans, b)?;
         }
@@ -4960,6 +4965,9 @@ fn transfer(
                     },strong));
                 }
             }
+            // All raw substitutions observe the same pre-call cell contents,
+            // before publishing any external carrier updates below.
+            raw_references::after_call(callee, summary, arguments, values, state, i, slot_ids, loans, b)?;
             let mut environments = BTreeMap::new();
             for (base, path, permission, environment,strong) in updates {
                 if let Some(id) = environment {
@@ -5522,13 +5530,14 @@ fn transfer(
             // type carries its nominal/retained classes, without rooting them
             // in the storage bytes or inventing a loan from a phantom class.
         }
-        InstructionKind::WriteAddress { address, .. } => {
+        InstructionKind::WriteAddress { address, value } => {
             let Type::Address { inner, .. } = value_type(f, *address)? else {
                 return Err(failure("write base is not an actual Address"));
             };
             if matches!(inner.as_ref(), Type::Address { .. }) {
-                return Err(vec![Diagnostic::unsupported(Phase::Analyze,
-                    "raw pointer-cell replacement requires its complete actual Store protocol", Some(i.span))]);
+                raw_references::write(state, &get(*address)?.pointer, &get(*value)?.pointer,
+                    &get(*value)?.source_upper, i, slot_ids, loans, b)?;
+                return Ok(out);
             }
             b.type_work(inner, true, "stored profile actual ordinary write payload")?;
             if !inner.is_copy_value() {
@@ -6045,6 +6054,9 @@ fn active(
             }
         }
     }
+    for permission in state.raw_cells.values() {
+        active_loans_union(&mut direct, permission, b)?;
+    }
     ancestry(&direct, loans, b)
 }
 #[cfg(test)]
@@ -6141,6 +6153,7 @@ fn active_by_permission(
             }
         }
     }
+    for permission in state.raw_cells.values() { union(&mut direct, permission, b)?; }
     ancestry(&direct.loans, loans, b)
 }
 fn reverse(
@@ -7028,8 +7041,15 @@ fn windows(
                         }
                         access.check(pointer(*value)?, exclusive, apart, b)?;
                     }
-                    InstructionKind::WriteAddress { address, .. }
-                    | InstructionKind::ReborrowAddress {
+                    InstructionKind::WriteAddress { address, value } => {
+                        access.check(pointer(*address)?, true, apart, b)?;
+                        record_head_access(head_accesses, pointer(*address)?, true, b)?;
+                        if matches!(value_type(f, *value)?, Type::Address { .. }) {
+                            raw_references::read(&state, pointer(*address)?, true, b)?;
+                            access.check(pointer(*value)?, matches!(value_type(f, *value)?, Type::Address { mutable: true, .. }), apart, b)?;
+                        }
+                    }
+                    InstructionKind::ReborrowAddress {
                         address,
                         mutable: true,
                     } => access.check(pointer(*address)?, true, apart, b)?,
@@ -7490,6 +7510,7 @@ fn derive_cfg(
                 byte_covered: false,
                 external_after: BTreeMap::new(),
                 external_stable: BTreeSet::new(),
+                raw_after: BTreeMap::new(),
                 capture_after: BTreeMap::new(),
                 capture_stable: BTreeSet::new(),
                 receiver_return: f.environment.is_some()
@@ -7625,6 +7646,9 @@ fn derive_cfg(
             }
             for (bi, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
                 fee(b, 1)?;
+                if *live && matches!(block.terminator, Terminator::Return(_)) {
+                    raw_references::summarize(module, f, &entry, &outputs[bi], &loans, &mut actual, b)?;
+                }
                 if *live
                     && matches!(block.terminator, Terminator::Return(_))
                     && let Some(d) = f
@@ -7907,7 +7931,7 @@ fn derive_cfg(
                     }
                 }
             }
-            let mut grounded = true;
+            let mut grounded = actual.raw_after.values().all(|after| after.complete);
             for (bi, block) in f.blocks.iter().enumerate() {
                 if reachable[bi] && matches!(block.terminator, Terminator::Return(_)) {
                     fee(b, outputs[bi].vacant.len())?;
@@ -8349,6 +8373,7 @@ pub(super) fn infer(
                 false
             };
             if !(byte_value
+                || raw_references::admitted(ty, b)?
                 || mutex::admitted(module, ty, b)?
                 || dyn_address::admitted_value(module, ty, b)?
                 || super::stored_callables::value(module, ty)
@@ -9282,7 +9307,8 @@ fn actual_instructions(
                         return Err(failure("write lacks exclusive actual Address"));
                     };
                     b.type_work(inner, true, "stored actual ordinary write payload")?;
-                    if !inner.is_copy_value() || value_type(f, *value)? != inner.as_ref() {
+                    if (!inner.is_copy_value() && !matches!(inner.as_ref(), Type::Address { .. }))
+                        || value_type(f, *value)? != inner.as_ref() {
                         return Err(failure(
                             "ordinary write changes actual slot state/type outside protocol",
                         ));
