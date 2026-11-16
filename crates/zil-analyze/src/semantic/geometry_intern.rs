@@ -24,6 +24,12 @@ pub(crate) struct TypeRecord {
     node: Node,
     id: usize,
     raw_work: usize,
+    construction: Option<Arc<Construction>>,
+}
+#[derive(PartialEq, Eq, Hash)]
+struct Construction {
+    kind: Constructor,
+    children: Vec<usize>,
 }
 #[derive(Clone)]
 pub(crate) struct GeometryRecord {
@@ -164,6 +170,9 @@ fn type_candidates(
     raw_work: usize,
     b: &mut Budget,
 ) -> CompileResult<(u64, Option<usize>)> {
+    if let Some((id, _)) = registered_type(ty, b)? {
+        return Ok((0, Some(id)));
+    }
     let digest = hash(ty, b)?;
     let key = (b.geometry_module, limits(b), digest);
     b.lookup(
@@ -253,6 +262,7 @@ fn add_type(
         node: selector,
         id,
         raw_work,
+        construction: None,
     });
     Ok(id)
 }
@@ -317,12 +327,187 @@ fn register(owner: &Arc<Geometry>, receipt: &Receipt, b: &mut Budget) -> Compile
     Ok(())
 }
 fn bounds(ty: &Type, life: &StorageLifeShape, b: &mut Budget) -> CompileResult<(usize, usize)> {
-    let before = b.remaining();
-    crate::dyn_metadata::ty(ty, b)?;
-    let raw = before - b.remaining();
+    let raw = if let Some((_, raw)) = registered_type(ty, b)? {
+        raw
+    } else {
+        let before = b.remaining();
+        crate::dyn_metadata::ty(ty, b)?;
+        before - b.remaining()
+    };
     let before = b.remaining();
     crate::dyn_metadata::shape(life, b)?;
     Ok((raw, before - b.remaining()))
+}
+pub(super) fn construct(
+    kind: Constructor,
+    children: &[&Arc<Geometry>],
+    life: StorageLifeShape,
+    b: &mut Budget,
+) -> CompileResult<Arc<Geometry>> {
+    let valid = match kind {
+        Constructor::Unary(_) => children.len() == 1,
+        Constructor::Tuple => true,
+        Constructor::ErrorUnion => children.len() == 2,
+    };
+    if !valid {
+        return Err(fail(
+            "pure geometry constructor changes its exact operand inventory",
+        ));
+    }
+    if children.len() > b.helper_nodes {
+        return Err(quota("geometry constructor operand count exceeded"));
+    }
+    b.spend(
+        children.len().saturating_add(1),
+        "semantic geometry constructor operands",
+    )?;
+    let mut ids = Vec::new();
+    ids.try_reserve_exact(children.len())
+        .map_err(|_| quota("geometry constructor allocation failed"))?;
+    let mut copy_work = 0usize;
+    for child in children {
+        let receipt = owned(child, b)?;
+        ids.push(receipt.type_id);
+        copy_work = copy_work
+            .checked_add(receipt.raw_work)
+            .ok_or_else(|| quota("geometry constructor copy work overflow"))?;
+    }
+    let construction = Construction {
+        kind,
+        children: ids,
+    };
+    let digest = hash(&(b"geometry-constructor-v1", &construction), b)?;
+    let key = (b.geometry_module, limits(b), digest);
+    b.lookup(
+        b.geometry_type_catalog.len(),
+        "semantic geometry constructor query",
+    )?;
+    let width = b.geometry_type_catalog.get(&key).map_or(0, Vec::len);
+    b.spend(
+        width.saturating_add(1),
+        "semantic geometry constructor candidates",
+    )?;
+    let candidates = b
+        .geometry_type_catalog
+        .get(&key)
+        .cloned()
+        .unwrap_or_default();
+    for candidate in candidates {
+        b.spend(
+            children.len().saturating_add(1),
+            "semantic geometry constructor identity",
+        )?;
+        if candidate.construction.as_deref() == Some(&construction) {
+            // The alias was published only after the complete cold Type and
+            // domain check. It contains no current semantic class images.
+            if !matches!(candidate.node, Node::Root) {
+                return Err(fail(
+                    "geometry constructor alias has another owned Type coordinate",
+                ));
+            }
+            return with_life(&candidate.owner, &life, b);
+        }
+    }
+    // A miss really constructs this Type. Charge every actual child clone;
+    // cold bounds, hashing and full equality still follow below.
+    b.spend(
+        copy_work.saturating_add(children.len()).saturating_add(1),
+        "semantic geometry constructor owned copy",
+    )?;
+    let ty = match kind {
+        Constructor::Unary(op) => {
+            let inner = Box::new(children[0].ty.clone());
+            match op {
+                Unary::Address(mutable) => Type::Address { mutable, inner },
+                Unary::Managed => Type::Managed(inner),
+                Unary::Desc => Type::Desc(inner),
+                Unary::OwnedStore => Type::OwnedStore { element: inner },
+                Unary::Mutex => Type::Mutex { payload: inner },
+                Unary::Registration => Type::Registration { environment: inner },
+                Unary::AsyncRegistration => Type::AsyncRegistration { environment: inner },
+                Unary::Slice => Type::Slice { element: inner },
+                Unary::Array(length) => Type::Array {
+                    element: inner,
+                    length,
+                },
+            }
+        }
+        Constructor::Tuple => {
+            let mut fields = Vec::new();
+            fields
+                .try_reserve_exact(children.len())
+                .map_err(|_| quota("geometry tuple allocation failed"))?;
+            for child in children {
+                fields.push(child.ty.clone());
+            }
+            Type::Tuple(fields)
+        }
+        Constructor::ErrorUnion => Type::ErrorUnion {
+            error: Box::new(children[0].ty.clone()),
+            result: Box::new(children[1].ty.clone()),
+        },
+    };
+    let owner = Arc::new(Geometry::new(ty, life));
+    let receipt = owned(&owner, b)?;
+    b.lookup(
+        b.geometry_type_catalog.len(),
+        "semantic geometry constructor publication",
+    )?;
+    let moved = b.geometry_type_catalog.get(&key).map_or(0, |rows| {
+        if rows.len() == rows.capacity() {
+            rows.len()
+        } else {
+            0
+        }
+    });
+    b.spend(
+        moved.saturating_add(1),
+        "semantic geometry constructor record allocation",
+    )?;
+    let rows = b.geometry_type_catalog.entry(key).or_default();
+    rows.try_reserve(1)
+        .map_err(|_| quota("geometry constructor record allocation failed"))?;
+    rows.push(TypeRecord {
+        owner: Arc::clone(&owner),
+        node: Node::Root,
+        id: receipt.type_id,
+        raw_work: receipt.raw_work,
+        construction: Some(Arc::new(construction)),
+    });
+    Ok(owner)
+}
+fn with_life(
+    source: &Arc<Geometry>,
+    life: &StorageLifeShape,
+    b: &mut Budget,
+) -> CompileResult<Arc<Geometry>> {
+    let source_receipt = owned(source, b)?;
+    let before = b.remaining();
+    crate::dyn_metadata::shape(life, b)?;
+    let shape_work = before - b.remaining();
+    let (digest, existing) = geometry_candidate(source_receipt.type_id, life, shape_work, b)?;
+    if let Some(existing) = existing {
+        b.spend(1, "semantic geometry shared result")?;
+        return Ok(existing.owner);
+    }
+    b.spend(
+        source_receipt
+            .raw_work
+            .saturating_add(shape_work)
+            .saturating_add(1),
+        "semantic geometry owned copy",
+    )?;
+    let owner = Arc::new(Geometry::new(source.ty.clone(), life.clone()));
+    let receipt = add_geometry(
+        &owner,
+        digest,
+        source_receipt.type_id,
+        source_receipt.raw_work,
+        shape_work,
+        b,
+    )?;
+    register(&owner, &receipt, b)?;
+    Ok(owner)
 }
 pub(super) fn borrowed(
     ty: &Type,

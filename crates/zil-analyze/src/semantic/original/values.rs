@@ -540,31 +540,26 @@ impl Checked {
             Kind::Wrapped(wrapper, inner) => {
                 let inner = self.value(*inner, context, program, inventory, b, depth + 1)?;
                 if *wrapper == Wrapper::Managed && matches!(inner.ty, Type::Task { .. }) {
-                    let (ty, life, classes) = inner.into_parts(b)?;
-                    return Ok(Value::new(Type::Managed(Box::new(ty)), life, classes));
+                    return value::unary(geometry::Unary::Managed, inner, b);
                 }
                 if !inner.classes.is_empty() {
                     return Err(unknown(
                         "original opaque resource constructor needs its complete retained and phantom child occurrence transport",
                     ));
                 }
-                Ok(value::scalar(wrapper.ty(inner.into_type(b)?)))
+                let kind = match wrapper {
+                    Wrapper::Managed => geometry::Unary::Managed,
+                    Wrapper::Store => geometry::Unary::OwnedStore,
+                    Wrapper::Mutex => geometry::Unary::Mutex,
+                    Wrapper::Registration => geometry::Unary::Registration,
+                    Wrapper::AsyncRegistration => geometry::Unary::AsyncRegistration,
+                };
+                value::unary(kind, inner, b)
             }
             Kind::Desc { life, inner } => {
                 let inner = self.value(*inner, context, program, inventory, b, depth + 1)?;
                 let class = self.life_value(*life, context, inventory, b)?;
-                let mut value = value::address(false, class, inner, b)?;
-                let geometry = value.geometry_mut(b)?;
-                let Type::Address { inner, .. } = std::mem::replace(&mut geometry.ty, Type::Unit) else {
-                    return Err(fail("original description loses its complete payload"));
-                };
-                geometry.ty = Type::Desc(inner);
-                let slot =
-                    geometry.life.slots.get_mut(0).ok_or_else(|| {
-                        fail("original description omits its outer weak occurrence")
-                    })?;
-                slot.mode = StoredBorrowMode::WritableDescription;
-                Ok(value)
+                value::description(class, inner, b)
             }
             Kind::ErrorUnion { error, result } => {
                 let error = self.value(*error, context, program, inventory, b, depth + 1)?;
@@ -630,10 +625,7 @@ impl Checked {
                 let length = u32::try_from(length).map_err(|_| {
                     fail("original Array length exceeds its represented finite domain")
                 })?;
-                Ok(value::scalar(Type::Array {
-                    element: Box::new(element.into_type(b)?),
-                    length,
-                }))
+                value::unary(geometry::Unary::Array(length), element, b)
             }
             Kind::Slice(element) => {
                 let element = self.value(*element, context, program, inventory, b, depth + 1)?;
@@ -642,9 +634,7 @@ impl Checked {
                         "original Slice requires its complete element occurrence embedding",
                     ));
                 }
-                Ok(value::scalar(Type::Slice {
-                    element: Box::new(element.into_type(b)?),
-                }))
+                value::unary(geometry::Unary::Slice, element, b)
             }
             Kind::Tuple(fields) => {
                 let mut types = Vec::new();
@@ -655,9 +645,9 @@ impl Checked {
                             "original tuple needs its complete child class embedding",
                         ));
                     }
-                    Solver::push(&mut types, field.into_type(b)?, b)?;
+                    Solver::push(&mut types, field, b)?;
                 }
-                Ok(value::scalar(Type::Tuple(types)))
+                value::tuple(types, b)
             }
             Kind::Closure {
                 definition,

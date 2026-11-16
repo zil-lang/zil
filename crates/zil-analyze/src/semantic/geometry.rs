@@ -43,6 +43,33 @@ impl PartialEq for Geometry {
 impl Eq for Geometry {}
 pub(crate) use intern::{GeometryRecord, TypeRecord};
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) enum Unary {
+    Address(bool),
+    Managed,
+    Desc,
+    OwnedStore,
+    Mutex,
+    Registration,
+    AsyncRegistration,
+    Slice,
+    Array(u32),
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) enum Constructor {
+    Unary(Unary),
+    Tuple,
+    ErrorUnion,
+}
+pub(super) fn construct(
+    kind: Constructor,
+    children: &[&Arc<Geometry>],
+    life: StorageLifeShape,
+    budget: &mut Budget,
+) -> CompileResult<Arc<Geometry>> {
+    intern::construct(kind, children, life, budget)
+}
+
 pub(crate) struct TypeEntry {
     // Retaining the owner makes every registered address request-stable.
     pub owner: Arc<Geometry>,
@@ -608,5 +635,27 @@ mod tests {
         budget.partial_depth = 0;
         assert!(bounded_work(&geometry.ty, &mut budget).unwrap().is_none());
         assert!(crate::dyn_metadata::ty(&geometry.ty, &mut budget).is_err());
+
+        // A constructor alias built at the old profile does not authenticate
+        // its deeper parent under a newly reduced depth limit either.
+        budget.partial_depth = zil_base::Limits::default().max_call_depth;
+        let child = copy_geometry(&Type::I32, &value::empty(), &mut budget).unwrap();
+        construct(
+            Constructor::Unary(Unary::Address(false)),
+            &[&child],
+            value::empty(),
+            &mut budget,
+        )
+        .unwrap();
+        budget.partial_depth = 0;
+        assert!(
+            construct(
+                Constructor::Unary(Unary::Address(false)),
+                &[&child],
+                value::empty(),
+                &mut budget
+            )
+            .is_err()
+        );
     }
 }

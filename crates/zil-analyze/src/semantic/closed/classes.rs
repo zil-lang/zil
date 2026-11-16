@@ -141,7 +141,7 @@ impl Check<'_, '_> {
             SemanticTypeRecipe::Atom(ty)
                 if ty.is_b0_scalar() || matches!(ty, Type::ForeignHandle | Type::ByteBuffer) =>
             {
-                Ok(value::scalar(ty.clone()))
+                value::borrowed_scalar(ty, self.inventory, b)
             }
             SemanticTypeRecipe::Exact(exact)
                 if (exact.ty == crate::generic_mutex::error_type()
@@ -149,8 +149,7 @@ impl Check<'_, '_> {
                     && empty(&exact.life)
                     && exact.classes.is_empty() =>
             {
-                crate::dyn_metadata::ty(&exact.ty, b)?;
-                Ok(value::scalar(exact.ty.clone()))
+                value::borrowed_scalar(&exact.ty, self.inventory, b)
             }
             SemanticTypeRecipe::Slice(element) => {
                 let element = self.recipe_value(instance, element, b, depth + 1)?;
@@ -159,9 +158,7 @@ impl Check<'_, '_> {
                         "original Slice needs its complete element occurrence embedding",
                     ));
                 }
-                Ok(value::scalar(Type::Slice {
-                    element: Box::new(element.into_type(b)?),
-                }))
+                value::unary(geometry::Unary::Slice, element, b)
             }
             SemanticTypeRecipe::Formal(reference) => {
                 let context = self.ancestor(instance, reference.scope, b)?;
@@ -261,27 +258,19 @@ impl Check<'_, '_> {
                         "semantic resource constructor needs complete child retained and phantom class transport",
                     ));
                 }
-                let ty = match recipe {
-                    SemanticTypeRecipe::Managed(_) => Type::Managed(Box::new(child.into_type(b)?)),
-                    SemanticTypeRecipe::OwnedStore(_) => Type::OwnedStore {
-                        element: Box::new(child.into_type(b)?),
-                    },
-                    SemanticTypeRecipe::Mutex(_) => Type::Mutex {
-                        payload: Box::new(child.into_type(b)?),
-                    },
-                    SemanticTypeRecipe::Registration(_) => Type::Registration {
-                        environment: Box::new(child.into_type(b)?),
-                    },
-                    SemanticTypeRecipe::AsyncRegistration(_) => Type::AsyncRegistration {
-                        environment: Box::new(child.into_type(b)?),
-                    },
+                let kind = match recipe {
+                    SemanticTypeRecipe::Managed(_) => geometry::Unary::Managed,
+                    SemanticTypeRecipe::OwnedStore(_) => geometry::Unary::OwnedStore,
+                    SemanticTypeRecipe::Mutex(_) => geometry::Unary::Mutex,
+                    SemanticTypeRecipe::Registration(_) => geometry::Unary::Registration,
+                    SemanticTypeRecipe::AsyncRegistration(_) => geometry::Unary::AsyncRegistration,
                     _ => {
                         return Err(fail(
                             "semantic resource constructor changed its original family",
                         ));
                     }
                 };
-                Ok(value::scalar(ty))
+                value::unary(kind, child, b)
             }
             SemanticTypeRecipe::Desc {
                 lifetime: SemanticOuterLifeRecipe::Class(life),
@@ -289,19 +278,7 @@ impl Check<'_, '_> {
             } => {
                 let child = self.recipe_value(instance, inner, b, depth + 1)?;
                 let class = self.life(instance, life, b, depth + 1)?;
-                let mut result = value::address(false, class, child, b)?;
-                let geometry = result.geometry_mut(b)?;
-                let Type::Address { inner, .. } = std::mem::replace(&mut geometry.ty, Type::Unit) else {
-                    return Err(fail("semantic description loses its exact payload"));
-                };
-                geometry.ty = Type::Desc(inner);
-                geometry
-                    .life
-                    .slots
-                    .get_mut(0)
-                    .ok_or_else(|| fail("semantic description loses its weak outer occurrence"))?
-                    .mode = StoredBorrowMode::WritableDescription;
-                Ok(result)
+                value::description(class, child, b)
             }
             SemanticTypeRecipe::ErrorUnion { error, result } => {
                 let error = self.recipe_value(instance, error, b, depth + 1)?;
@@ -372,10 +349,7 @@ impl Check<'_, '_> {
                 let length = u32::try_from(length).map_err(|_| {
                     original::resource("original array length exceeds its physical representation")
                 })?;
-                Ok(value::scalar(Type::Array {
-                    element: Box::new(element.into_type(b)?),
-                    length,
-                }))
+                value::unary(geometry::Unary::Array(length), element, b)
             }
             SemanticTypeRecipe::Tuple(fields) => {
                 if fields.is_empty() {
@@ -389,9 +363,9 @@ impl Check<'_, '_> {
                             "original tuple requires its complete retained class embedding",
                         ));
                     }
-                    self.push_value(&mut types, field.into_type(b)?, b)?;
+                    self.push_value(&mut types, field, b)?;
                 }
-                Ok(value::scalar(Type::Tuple(types)))
+                value::tuple(types, b)
             }
             SemanticTypeRecipe::Opaque {
                 definition,

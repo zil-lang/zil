@@ -172,6 +172,42 @@ pub(super) fn empty() -> StorageLifeShape {
 pub(super) fn scalar(ty: Type) -> Value {
     Value::new(ty, empty(), Vec::new())
 }
+pub(super) fn borrowed_scalar(
+    ty: &Type,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+) -> CompileResult<Value> {
+    Ok(Value::from_geometry(
+        inventory.geometry.type_value(ty, None, b)?,
+        Vec::new(),
+    ))
+}
+pub(super) fn unary(kind: geometry::Unary, inner: Value, b: &mut Budget) -> CompileResult<Value> {
+    crate::dyn_metadata::shape(&inner.life, b)?;
+    let life = inner.life.clone();
+    let geometry = geometry::construct(
+        geometry::Constructor::Unary(kind),
+        &[&inner.geometry],
+        life,
+        b,
+    )?;
+    Ok(Value::from_geometry(geometry, inner.classes))
+}
+pub(super) fn tuple(fields: Vec<Value>, b: &mut Budget) -> CompileResult<Value> {
+    b.spend(fields.len().saturating_add(1), WORK)?;
+    let mut children = Vec::new();
+    children
+        .try_reserve_exact(fields.len())
+        .map_err(|_| fail("semantic tuple geometry allocation failed"))?;
+    for field in &fields {
+        if !empty_shape(&field.life) || !field.classes.is_empty() {
+            return Err(fail("plain tuple geometry loses a complete child domain"));
+        }
+        children.push(&field.geometry);
+    }
+    let geometry = geometry::construct(geometry::Constructor::Tuple, &children, empty(), b)?;
+    Ok(Value::from_geometry(geometry, Vec::new()))
+}
 /// A sum retains the entire success domain even while its error arm is
 /// active. This whole-child directory is a type map, never an active-tag proof.
 pub(super) fn error_union(error: Value, result: Value, b: &mut Budget) -> CompileResult<Value> {
@@ -195,23 +231,19 @@ pub(super) fn error_union(error: Value, result: Value, b: &mut Budget) -> Compil
             b,
         )?;
     }
-    let error = error.into_type(b)?;
-    let (result, _, classes) = result.into_parts(b)?;
-    b.spend(3, WORK)?;
-    Ok(Value::new(
-        Type::ErrorUnion {
-            error: Box::new(error),
-            result: Box::new(result),
-        },
+    let geometry = geometry::construct(
+        geometry::Constructor::ErrorUnion,
+        &[&error.geometry, &result.geometry],
         StorageLifeShape {
-            binder_count: u32::try_from(classes.len())
+            binder_count: u32::try_from(result.classes.len())
                 .map_err(|_| fail("ErrorUnion complete domain overflows"))?,
             slots: Vec::new(),
             retained,
             nominal_arguments: Vec::new(),
         },
-        classes,
-    ))
+        b,
+    )?;
+    Ok(Value::from_geometry(geometry, result.classes))
 }
 pub(super) fn intern(rows: &mut Vec<Class>, class: Class, b: &mut Budget) -> CompileResult<u32> {
     b.spend(rows.len().saturating_add(1), WORK)?;
@@ -228,15 +260,42 @@ pub(super) fn address(
     inner: Value,
     b: &mut Budget,
 ) -> CompileResult<Value> {
+    reference(
+        geometry::Unary::Address(mutable),
+        if mutable {
+            StoredBorrowMode::ExclusiveAddress
+        } else {
+            StoredBorrowMode::SharedAddress
+        },
+        class,
+        inner,
+        b,
+    )
+}
+pub(super) fn description(class: Class, inner: Value, b: &mut Budget) -> CompileResult<Value> {
+    reference(
+        geometry::Unary::Desc,
+        StoredBorrowMode::WritableDescription,
+        class,
+        inner,
+        b,
+    )
+}
+fn reference(
+    kind: geometry::Unary,
+    mode: StoredBorrowMode,
+    class: Class,
+    inner: Value,
+    b: &mut Budget,
+) -> CompileResult<Value> {
     if inner.life.binder_count as usize != inner.classes.len() {
         return Err(fail("address child omits its complete intrinsic domain"));
     }
-    let (inner_ty, _, inner_classes) = inner.into_parts(b)?;
     let mut classes = Vec::new();
     let outer = intern(&mut classes, class, b)?;
     let mut retained = Vec::new();
-    for (index, class) in inner_classes.into_iter().enumerate() {
-        let binder = intern(&mut classes, class, b)?;
+    for (index, class) in inner.classes.iter().enumerate() {
+        let binder = intern(&mut classes, class.clone(), b)?;
         put(
             &mut retained,
             StorageRetainedBinding {
@@ -250,29 +309,24 @@ pub(super) fn address(
     }
     let binder_count =
         u32::try_from(classes.len()).map_err(|_| fail("address complete domain overflow"))?;
-    b.spend(3, WORK)?;
-    Ok(Value::new(
-        Type::Address {
-            mutable,
-            inner: Box::new(inner_ty),
-        },
+    b.spend(1, WORK)?; // The fresh outer occurrence row is still allocated.
+    let geometry = geometry::construct(
+        geometry::Constructor::Unary(kind),
+        &[&inner.geometry],
         StorageLifeShape {
             binder_count,
             slots: vec![StorageLifeSlot {
                 path: Vec::new(),
                 binder: outer,
-                mode: if mutable {
-                    StoredBorrowMode::ExclusiveAddress
-                } else {
-                    StoredBorrowMode::SharedAddress
-                },
+                mode,
             }],
 
             retained,
             nominal_arguments: Vec::new(),
         },
-        classes,
-    ))
+        b,
+    )?;
+    Ok(Value::from_geometry(geometry, classes))
 }
 
 pub(super) fn dyn_domain(
@@ -1580,6 +1634,34 @@ mod geometry_tests {
         assert!(std::sync::Arc::ptr_eq(&first.geometry, &other.geometry));
         assert_ne!(first, other);
         assert_eq!(first, first.copy(&mut budget).unwrap());
+
+        // The same physical child Type can carry a different whole intrinsic
+        // domain and current image. Constructor reuse must rebuild the full
+        // outer/child partition rather than returning the old geometry.
+        let child = |class| {
+            Value::new(
+                Type::Closure(ClosureId(0)),
+                StorageLifeShape {
+                    binder_count: 1,
+                    slots: Vec::new(),
+                    retained: Vec::new(),
+                    nominal_arguments: Vec::new(),
+                },
+                vec![class],
+            )
+        };
+        let merged = address(false, Class::Local(0), child(Class::Local(0)), &mut budget).unwrap();
+        let separate =
+            address(false, Class::Local(0), child(Class::Local(1)), &mut budget).unwrap();
+        assert_eq!(merged.ty, separate.ty);
+        assert_eq!(merged.life.binder_count, 1);
+        assert_eq!(separate.life.binder_count, 2);
+        assert_eq!(merged.classes, vec![Class::Local(0)]);
+        assert_eq!(separate.classes, vec![Class::Local(0), Class::Local(1)]);
+        assert!(!std::sync::Arc::ptr_eq(
+            &merged.geometry,
+            &separate.geometry
+        ));
     }
 
     #[test]

@@ -242,13 +242,11 @@ impl Check<'_, '_> {
             SemanticTypeRecipe::Atom(ty)
                 if ty.is_b0_scalar() || matches!(ty, Type::ByteBuffer | Type::ForeignHandle) =>
             {
-                crate::dyn_metadata::ty(ty, b)?;
-                Ok(value::scalar(ty.clone()))
+                value::borrowed_scalar(ty, self.inventory, b)
             }
             SemanticTypeRecipe::Exact(exact) if empty(&exact.life) && exact.classes.is_empty() => {
                 self.zero_data(&exact.ty, b, depth + 1)?;
-                crate::dyn_metadata::ty(&exact.ty, b)?;
-                Ok(value::scalar(exact.ty.clone()))
+                value::borrowed_scalar(&exact.ty, self.inventory, b)
             }
             SemanticTypeRecipe::Formal(SemanticFormalRef {
                 scope: SemanticScopeRef::Ancestor(0),
@@ -308,16 +306,11 @@ impl Check<'_, '_> {
                     SemanticTypeRecipe::Address { mutable, .. } => *mutable,
                     _ => false,
                 };
-                let mut result = value::address(mutable, class, child, b)?;
                 if matches!(recipe, SemanticTypeRecipe::Desc { .. }) {
-                    let geometry = result.geometry_mut(b)?;
-                let Type::Address { inner, .. } = std::mem::replace(&mut geometry.ty, Type::Unit) else {
-                        return Err(fail("nominal description loses its child"));
-                    };
-                    geometry.ty = Type::Desc(inner);
-                    geometry.life.slots[0].mode = StoredBorrowMode::WritableDescription;
+                    value::description(class, child, b)
+                } else {
+                    value::address(mutable, class, child, b)
                 }
-                Ok(result)
             }
             SemanticTypeRecipe::Managed(inner)
             | SemanticTypeRecipe::OwnedStore(inner)
@@ -331,26 +324,16 @@ impl Check<'_, '_> {
                         "nominal opaque field needs its complete child scope transport",
                     ));
                 }
-                let ty = match recipe {
-                    SemanticTypeRecipe::Managed(_) => Type::Managed(Box::new(child.into_type(b)?)),
-                    SemanticTypeRecipe::OwnedStore(_) => Type::OwnedStore {
-                        element: Box::new(child.into_type(b)?),
-                    },
-                    SemanticTypeRecipe::Mutex(_) => Type::Mutex {
-                        payload: Box::new(child.into_type(b)?),
-                    },
-                    SemanticTypeRecipe::Registration(_) => Type::Registration {
-                        environment: Box::new(child.into_type(b)?),
-                    },
-                    SemanticTypeRecipe::AsyncRegistration(_) => Type::AsyncRegistration {
-                        environment: Box::new(child.into_type(b)?),
-                    },
-                    SemanticTypeRecipe::Slice(_) => Type::Slice {
-                        element: Box::new(child.into_type(b)?),
-                    },
+                let kind = match recipe {
+                    SemanticTypeRecipe::Managed(_) => geometry::Unary::Managed,
+                    SemanticTypeRecipe::OwnedStore(_) => geometry::Unary::OwnedStore,
+                    SemanticTypeRecipe::Mutex(_) => geometry::Unary::Mutex,
+                    SemanticTypeRecipe::Registration(_) => geometry::Unary::Registration,
+                    SemanticTypeRecipe::AsyncRegistration(_) => geometry::Unary::AsyncRegistration,
+                    SemanticTypeRecipe::Slice(_) => geometry::Unary::Slice,
                     _ => return Err(fail("nominal field constructor changed family")),
                 };
-                Ok(value::scalar(ty))
+                value::unary(kind, child, b)
             }
             SemanticTypeRecipe::Tuple(fields) => {
                 let mut types = Vec::new();
@@ -361,13 +344,13 @@ impl Check<'_, '_> {
                             "nominal tuple field needs complete nested child class embedding",
                         ));
                     }
-                    self.push_value(&mut types, child.into_type(b)?, b)?;
+                    self.push_value(&mut types, child, b)?;
                 }
-                Ok(value::scalar(if types.is_empty() {
-                    Type::Unit
+                if types.is_empty() {
+                    Ok(value::scalar(Type::Unit))
                 } else {
-                    Type::Tuple(types)
-                }))
+                    value::tuple(types, b)
+                }
             }
             SemanticTypeRecipe::ErrorUnion { error, result } => {
                 let error = self.nominal_field_value(owner, args, error, b, depth + 1)?;
@@ -389,10 +372,7 @@ impl Check<'_, '_> {
                 let length = u32::try_from(length).map_err(|_| {
                     original::resource("nominal array extent exceeds its physical representation")
                 })?;
-                Ok(value::scalar(Type::Array {
-                    element: Box::new(element.into_type(b)?),
-                    length,
-                }))
+                value::unary(geometry::Unary::Array(length), element, b)
             }
             _ => Err(unknown(
                 "original nominal field needs complete scoped constructor substitution",
