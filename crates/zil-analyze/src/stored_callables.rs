@@ -925,69 +925,80 @@ pub(super) fn role<'a>(
     let Some(contract) = &f.callable_contract else {
         return Ok(None);
     };
-    let local = match kind {
-        InstructionKind::CallClosureShared { callee, .. }
-        | InstructionKind::CallClosureMut { callee, .. } => *callee,
-        InstructionKind::CallClosureBorrowed { callee, .. }
-        | InstructionKind::CallClosure { callee, .. }
-        | InstructionKind::CallClosureOnce { callee, .. } => {
-            let mut current = *callee;
-            let mut answer = None;
-            b.spend(f.values.len(), "callback receiver chain bound")?;
-            for _ in 0..f.values.len() {
-                let mut found = None;
-                b.spend(f.blocks.len(), "callback receiver block inventory")?;
-                for block in &f.blocks {
-                    b.spend(
-                        block.instructions.len(),
-                        "actual callback receiver definition scan",
-                    )?;
-                    for i in &block.instructions {
-                        if i.result == Some(current) && found.replace(&i.kind).is_some() {
-                            return Err(bad("callback receiver has duplicate definition"));
+    // The helper CFG proof also follows actual Parameter-return calls. Such
+    // a receiver is an SSA result rather than a Load/TakeLocal chain. Its
+    // proved site relation belongs to this exact instruction, not a closure
+    // type or an untrusted return-source tag.
+    b.lookup(
+        b.callable_receiver_roles.len(),
+        "proved callback receiver role site",
+    )?;
+    let proved = b
+        .callable_receiver_roles
+        .get(&(f.id, kind as *const InstructionKind as usize))
+        .copied();
+    let position = if let Some(position) = proved {
+        position as usize
+    } else {
+        let local = match kind {
+            InstructionKind::CallClosureShared { callee, .. }
+            | InstructionKind::CallClosureMut { callee, .. } => *callee,
+            InstructionKind::CallClosureBorrowed { callee, .. }
+            | InstructionKind::CallClosure { callee, .. }
+            | InstructionKind::CallClosureOnce { callee, .. } => {
+                let mut current = *callee;
+                let mut answer = None;
+                b.spend(f.values.len(), "callback receiver chain bound")?;
+                for _ in 0..f.values.len() {
+                    let mut found = None;
+                    b.spend(f.blocks.len(), "callback receiver block inventory")?;
+                    for block in &f.blocks {
+                        b.spend(
+                            block.instructions.len(),
+                            "actual callback receiver definition scan",
+                        )?;
+                        for i in &block.instructions {
+                            if i.result == Some(current) && found.replace(&i.kind).is_some() {
+                                return Err(bad("callback receiver has duplicate definition"));
+                            }
                         }
                     }
-                }
-                match found {
-                    Some(InstructionKind::Load(local))
-                    | Some(InstructionKind::TakeLocal { local }) => {
-                        answer = Some(*local);
-                        break;
+                    match found {
+                        Some(InstructionKind::Load(local))
+                        | Some(InstructionKind::TakeLocal { local }) => {
+                            answer = Some(*local);
+                            break;
+                        }
+                        Some(InstructionKind::ReborrowAddress { address, .. }) => {
+                            current = *address
+                        }
+                        _ => break,
                     }
-                    Some(InstructionKind::ReborrowAddress { address, .. }) => current = *address,
-                    _ => break,
                 }
+                answer.ok_or_else(|| {
+                    bad("callback receiver role has no exact actual parameter origin")
+                })?
             }
-            answer
-                .ok_or_else(|| bad("callback receiver role has no exact actual parameter origin"))?
-        }
-        _ => return Ok(None),
-    };
-    b.spend(
-        f.parameters.len().saturating_add(contract.roles.len()),
-        "callback role actual parameter position",
-    )?;
-    let position = match f.parameters.iter().position(|p| *p == local) {
-        Some(position) => position,
-        None => {
-            b.lookup(
-                b.callable_receiver_roles.len(),
-                "proved callback receiver role site",
-            )?;
-            if let Some(position) = b
-                .callable_receiver_roles
-                .get(&(f.id, kind as *const InstructionKind as usize))
-            {
-                *position as usize
-            } else if matches!(
-                kind,
-                InstructionKind::CallClosureShared { .. } | InstructionKind::CallClosureMut { .. }
-            ) || (matches!(kind, InstructionKind::CallClosureOnce { .. })
-                && f.call_kind == CallKind::Suspend)
-            {
-                super::helpers::moved_receiver_parameter(module, f, local, b)?
-            } else {
-                staged::parameter(module, f, kind, b)?
+            _ => return Ok(None),
+        };
+        b.spend(
+            f.parameters.len().saturating_add(contract.roles.len()),
+            "callback role actual parameter position",
+        )?;
+        match f.parameters.iter().position(|p| *p == local) {
+            Some(position) => position,
+            None => {
+                if matches!(
+                    kind,
+                    InstructionKind::CallClosureShared { .. }
+                        | InstructionKind::CallClosureMut { .. }
+                ) || (matches!(kind, InstructionKind::CallClosureOnce { .. })
+                    && f.call_kind == CallKind::Suspend)
+                {
+                    super::helpers::moved_receiver_parameter(module, f, local, b)?
+                } else {
+                    staged::parameter(module, f, kind, b)?
+                }
             }
         }
     };
