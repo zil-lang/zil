@@ -288,6 +288,15 @@ impl CheckedContext {
                         "intrinsic description uses another original local scope",
                     ));
                 }
+                let range=self.original.borrow().as_ref().ok_or_else(||bad("range local lacks its complete original proof"))?.range_statement(module,definition,node,b)?;
+                if let Some(range)=range {
+                    b.spend(f.locals.len())?;
+                    let mut locals=f.locals.iter().filter(|local|local.name==range.name&&local.span==range.span&&!local.mutable&&local.ty.is_integer());
+                    let local=locals.next().ok_or_else(||bad("range binder has no actual iteration storage"))?;
+                    if locals.next().is_some(){return Err(bad("range binder has several actual iteration storages"));}
+                    self.range_local_root(module,caller,f,local.id,&range,b)?;
+                    return Ok(local.id);
+                }
                 let definition = self.definition(module, definition, b)?;
                 let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body
                 else {

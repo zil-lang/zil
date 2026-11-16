@@ -3,23 +3,30 @@
 //! same active storage epoch, and the storage must never acquire an alias.
 use super::*;
 
-pub(super) fn source(module:&TypedModule,f:&TypedFunction,block:BlockId,at:u32,local:LocalId,b:&mut Budget)->Check<Option<ValueId>> {
-    let declaration=f.locals.get(local.0 as usize).ok_or_else(||bad("scalar preparation local is absent"))?;
+pub(super) struct Slot {
+    pub(super) live:(BlockId,usize),
+    pub(super) stores:Vec<(BlockId,usize,ValueId)>,
+    pub(super) loads:Vec<(BlockId,usize,Option<ValueId>)>,
+    pub(super) dead:Vec<(BlockId,usize)>,
+}
+
+pub(super) fn slot(f:&TypedFunction,local:LocalId,readonly:bool,b:&mut Budget)->Check<Option<Slot>> {
+    let declaration=f.locals.get(local.0 as usize).ok_or_else(||bad("scalar source local is absent"))?;
     b.spend(f.parameters.len().saturating_add(1))?;
-    if declaration.mutable||f.parameters.contains(&local){return Ok(None);}
+    if readonly&&declaration.mutable||f.parameters.contains(&local){return Ok(None);}
     let ty=&declaration.ty;
     if !ty.is_integer()&&!ty.is_float()&&!matches!(ty,Type::Unit|Type::Bool){return Ok(None);}
     crate::stored_flow::type_work(ty,&b.limits.clone(),b)?;
-    let mut live=None;let mut store=None;
+    let mut live=None;let mut stores=Vec::new();let mut loads=Vec::new();let mut dead=Vec::new();
     for body in &f.blocks {
         b.spend(body.instructions.len().saturating_add(1))?;
         for(index,instruction)in body.instructions.iter().enumerate(){
             match &instruction.kind {
                 InstructionKind::StorageLive(actual)if *actual==local=>{
-                    if live.replace((body.id,index,instruction)).is_some(){return Ok(None);}
+                    if live.replace((body.id,index)).is_some(){return Ok(None);}
                 },
                 InstructionKind::Store{local:actual,value}if *actual==local=>{
-                    if store.replace((body.id,index,*value,instruction)).is_some(){return Ok(None);}
+                    if stores.len()==stores.capacity(){b.spend(stores.len().saturating_add(1))?;}b.spend(1)?;stores.push((body.id,index,*value));
                 },
                 InstructionKind::BorrowDynOwned{local:actual,..}|InstructionKind::DropDynOwned{local:actual}
                 |InstructionKind::RegisterDefer{local:actual,..}|InstructionKind::DropErrorUnion{local:actual}
@@ -45,24 +52,34 @@ pub(super) fn source(module:&TypedModule,f:&TypedFunction,block:BlockId,at:u32,l
                     b.spend(fields.len())?;
                     if *source==local||fields.contains(&local){return Ok(None);}
                 },
+                InstructionKind::Load(actual)if *actual==local=>{if loads.len()==loads.capacity(){b.spend(loads.len().saturating_add(1))?;}b.spend(1)?;loads.push((body.id,index,instruction.result));},
+                InstructionKind::StorageDead(actual)if *actual==local=>{if dead.len()==dead.capacity(){b.spend(dead.len().saturating_add(1))?;}b.spend(1)?;dead.push((body.id,index));},
                 _=>{},
             }
         }
     }
-    let(Some((live_block,live_at,activation)),Some((store_block,store_at,value,assignment)))=(live,store)else{return Ok(None);};
-    if live_block!=block||store_block!=block||live_at.checked_add(1)!=Some(store_at)||store_at>=at as usize
-        ||activation.span!=declaration.span||assignment.span!=declaration.span{return Ok(None);}
+    Ok(live.map(|live|Slot{live,stores,loads,dead}))
+}
+
+pub(super) fn source(module:&TypedModule,f:&TypedFunction,block:BlockId,at:u32,local:LocalId,b:&mut Budget)->Check<Option<ValueId>> {
+    let Some(slot)=slot(f,local,true,b)? else{return Ok(None);};
+    let [(store_block,store_at,value)]=slot.stores.as_slice()else{return Ok(None);};
+    let(live_block,live_at)=slot.live;
+    let declaration=&f.locals[local.0 as usize];
+    if live_block!=block||*store_block!=block||live_at.checked_add(1)!=Some(*store_at)||*store_at>=at as usize{return Ok(None);}
     let body=f.blocks.get(block.0 as usize).filter(|body|body.id==block).ok_or_else(||bad("scalar preparation block is absent"))?;
+    let activation=&body.instructions[live_at];let assignment=&body.instructions[*store_at];
+    if activation.span!=declaration.span||assignment.span!=declaration.span{return Ok(None);}
     let Some(load)=body.instructions.get(at as usize)else{return Err(bad("scalar preparation Load point is absent"));};
     if load.kind!=InstructionKind::Load(local){return Err(bad("scalar preparation consumer is another actual operation"));}
-    let Some(interval)=body.instructions.get(store_at+1..at as usize)else{return Err(bad("scalar preparation storage interval is reversed"));};
+    let Some(interval)=body.instructions.get(*store_at+1..at as usize)else{return Err(bad("scalar preparation storage interval is reversed"));};
     b.spend(interval.len())?;
     if interval.iter().any(|instruction|instruction.kind==InstructionKind::StorageDead(local)
         ||matches!(instruction.kind,InstructionKind::ScopeExit{..})){return Ok(None);}
     crate::check_instruction(module,f,activation,b)?;
     crate::check_instruction(module,f,assignment,b)?;
     crate::check_instruction(module,f,load,b)?;
-    Ok(Some(value))
+    Ok(Some(*value))
 }
 
 #[cfg(test)]

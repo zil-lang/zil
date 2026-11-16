@@ -12,6 +12,8 @@ mod calls;
 mod callbacks;
 mod code_sources;
 mod patterns;
+mod range_bindings;
+pub(in crate::semantic) use range_bindings::RangeBinding;
 mod materialize;
 mod usage;
 mod places;
