@@ -1308,14 +1308,46 @@ pub(super) fn return_view(
                 .frames
                 .get(&function.id)
                 .ok_or_else(|| bad("result view has no exact actual emission owner"))?;
-            world.pay(index::search(frame.expressions.len()))?;
-            let expression = frame
-                .expressions
-                .get(&node)
-                .ok_or_else(|| bad("result view loses its original expression emission"))?;
-            if expression.value != Some(operand) {
+            // Original nodes are local to their immutable definition; the
+            // emitter keys are actual Core mints. The existing relocated
+            // TypeUse is the bridge between them, at the real end boundary
+            // selected by lower::site, not by numeric NodeId equality.
+            let SemanticSiteAddress::Typed {
+                block,
+                instruction,
+                edge: SemanticSiteEdge::Before,
+            } = site.at
+            else {
                 return Err(bad(
-                    "result view changes its emitted original expression SSA",
+                    "result view has no relocated actual expression boundary",
+                ));
+            };
+            world.pay(index::search(world.index.expressions.len()))?;
+            let emitted = world
+                .index
+                .expressions
+                .get(&(function.id, operand))
+                .ok_or_else(|| bad("result view loses its actual expression emission"))?;
+            index::pay(world.left, emitted.len())?;
+            let emitted = emitted.clone();
+            let mut reaches_boundary = false;
+            for mint in &emitted {
+                world.pay(index::search(frame.expressions.len()).saturating_add(1))?;
+                let expression = frame
+                    .expressions
+                    .get(mint)
+                    .ok_or_else(|| bad("result view changes its actual emitter index"))?;
+                if expression.value == Some(operand)
+                    && expression.end.is_some_and(|end| {
+                        end.block == block && end.instruction == instruction as usize
+                    })
+                {
+                    reaches_boundary = true;
+                }
+            }
+            if !reaches_boundary {
+                return Err(bad(
+                    "result view changes its relocated expression boundary or actual SSA",
                 ));
             }
             if selected.replace((node, role)).is_some() {
