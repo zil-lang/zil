@@ -466,7 +466,7 @@ pub(super) fn captured_profile(
             || matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}) && matches!(d.kind,CallableKind::FnOnce | CallableKind::FnMut))
             || super::stored_owned::owner(ty)
             || super::stored_owned::ordinary_byte_value(ty,b)?
-            || super::stored_owned::ordinary_store_value(ty,b)?
+            || super::stored_owned::ordinary_store_value(module,ty,b)?
             || packages::capture_owner(ty)
             || described_mutex_capture(module,ty,b)?
             || closed_owner

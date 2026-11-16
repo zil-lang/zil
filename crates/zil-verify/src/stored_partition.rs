@@ -27,7 +27,7 @@ fn stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bo
                 pending.push(storage);
             }
             Type::ByteBuffer=>{found=true;},
-            Type::OwnedStore{element}=>{found|=super::stored_owned::ordinary_store_value(ty,budget)?;pending.push(element);},
+            Type::OwnedStore{element}=>{found|=super::stored_owned::ordinary_store_value(module,ty,budget)?;pending.push(element);},
             Type::Registration {
                 environment: element,
             }
@@ -159,6 +159,21 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
     // instead proves every actual body with the ordinary borrow/resource lane.
     if !mask.iter().any(|v| *v){return Ok(Some(mask));}
     if mask.iter().all(|v| *v) { return Ok(None); }
+    // The small mixed lane only transports ordinary scalar boundaries. Rich
+    // owner/description/heap graphs instead require the existing complete
+    // stored solver for every actual function, including the ordinary peers.
+    // This is more verification work, not an exemption for a resource table,
+    // a cross-domain call, a capture source or an owner cleanup obligation.
+    for resource in &module.resources{
+        budget.spend(1)?;
+        if stored_type(module,&resource.payload,budget)?{return Ok(None);}
+    }
+    for(index,function)in module.functions.iter().enumerate(){
+        if !mask[index]{continue;}
+        for ty in std::iter::once(&function.return_type).chain(function.locals.iter().map(|row|&row.ty)).chain(&function.values){
+            if forbidden_stored_type(module,ty,budget)?{return Ok(None);}
+        }
+    }
     for definition in &module.closures {
         budget.spend(1)?;
         let Some(stored) = mask.get(definition.function.0 as usize) else {

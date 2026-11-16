@@ -144,6 +144,17 @@ pub(super) fn types(
                 ));
             }
             let ty = capture(module, f, *index, i.span)?;
+            if matches!(ty,Type::Closure(_)){
+                // This opcode consumes an owned environment, not a Managed
+                // scalar Record. The real closure kernel checks the exact
+                // index/kind/typed result; its responsibility ledger still
+                // proves the capture is live and transferred exactly once.
+                let actual=super::closures::check_resource_instruction(module,f,i,b)?;
+                if actual.as_ref()!=Some(ty){return Err(bad(i.span,"captured closure transfer changes its exact actual environment type"));}
+                let(count,_pending_sources)=super::dynamic_witness::intrinsic_domain(module,ty,b)?;
+                if count!=0&&!b.returned_environment_sources{return Err(unsupported("captured closure transfer needs its complete returned-environment source consumer",Some(i.span)));}
+                return same_result(f,i,ty,b);
+            }
             if matches!(ty, Type::Address { mutable: true, .. }) {
                 stored_flow::type_work(ty, &b.limits.clone(), b)?;
                 // Transfer the exact borrowed capability, not owned pointee
@@ -237,7 +248,7 @@ pub(super) fn module(module: &TypedModule, b: &mut Budget) -> Check<()> {
         stored_flow::type_work(&resource.payload, &b.limits.clone(), b)?;
         // Canonical builtin heap definitions keep their own complete resource
         // proof. They are not required to be scalar Record Fixed captures.
-        if ordinary_store_value(&resource.payload,b)?||resource.payload==Type::ByteBuffer{continue;}
+        if ordinary_store_value(module,&resource.payload,b)?||resource.payload==Type::ByteBuffer{continue;}
         if payload(&resource.payload){
             let owner=Type::Managed(Box::new(resource.payload.clone()));
             // The complete actual definition has already passed resource
@@ -337,7 +348,7 @@ pub(super) fn value_type(ty: &Type, b: &mut Budget) -> Check<()> {
 // A separate ordinary Store lane. The scalar Record capture premise above is
 // intentionally unchanged: these facts describe only a complete target-free
 // Store element domain, never an owner, allocation interval or live window.
-pub(super) fn ordinary_store_value(ty:&Type,b:&mut Budget)->Check<bool>{
+pub(super) fn ordinary_store_value<'a>(module:&'a TypedModule,ty:&'a Type,b:&mut Budget)->Check<bool>{
     stored_flow::type_work(ty,&b.limits.clone(),b)?;
     let head=match ty{Type::Address{inner,..}=>match inner.as_ref(){head @ (Type::Managed(_)|Type::OwnedStore{..})=>head,_=>return Ok(false)},ty=>ty};
     let payload=match head{Type::Managed(inner)|Type::Desc(inner)=>inner.as_ref(),ty=>ty};
@@ -353,6 +364,17 @@ pub(super) fn ordinary_store_value(ty:&Type,b:&mut Budget)->Check<bool>{
             Type::Managed(inner)|Type::Array{element:inner,..}|Type::OwnedStore{element:inner}=>pending.push((inner,depth+1)),
             Type::ErrorUnion{error,result}=>{pending.push((error,depth+1));pending.push((result,depth+1));},
             Type::ByteBuffer=>{},
+            Type::Closure(id)=>{
+                // A real complete closure directory determines its persistent
+                // κ domain. Invocation parameter borrows are not stored data;
+                // captured pointers, including Static ones, still disqualify
+                // this target-free lane when traversed below.
+                let(count,_pending_sources)=super::dynamic_witness::intrinsic_domain(module,ty,b)?;
+                if count!=0{return Ok(false);}
+                let definition=super::closures::definition(module,*id,None)?;
+                b.spend(definition.captures.len())?;
+                pending.extend(definition.captures.iter().map(|capture|(capture,depth+1)));
+            },
             ty if stored_callables::scalar(ty)=>{},
             _=>return Ok(false),
         }
@@ -376,9 +398,37 @@ pub(super) fn ordinary_store_instruction(module:&TypedModule,f:&TypedFunction,i:
         InstructionKind::DescribeAddress{..}|InstructionKind::DescribePackageField{..}=>result(f,i)?,
         _=>return Ok(false),
     };
-    if !ordinary_store_value(candidate,b)?{return Ok(false);}
+    if !ordinary_store_value(module,candidate,b)?{return Ok(false);}
     crate::check_instruction(module,f,i,b)?;
     Ok(true)
+}
+
+#[cfg(test)]
+mod closure_store_tests{
+    use super::*;
+    #[test]
+    fn store_closure_lane_requires_known_zero_and_target_free_captures_raw_wire(){
+        let limits=Limits::default();
+        for variant in 0..4{
+            let(mut module,plan)=crate::tests::baseline();
+            let count=u32::from(variant==1);
+            let borrowed=matches!(variant,1|2);
+            let position=StoragePosition{base:StorageBase::Capture(0),path:vec![]};
+            let relation=StorageLifeContract{fixed_binder_count:count,invocation_binder_count:0,bindings:if count==1{vec![StorageLifeBinding{position:position.clone(),binder:StorageBinder::Fixed(0)}]}else{vec![]},classes:vec![],static_bindings:if variant==2{vec![position]}else{vec![]}};
+            let header=(variant!=3).then_some(relation);
+            module.functions[0].environment=Some(ClosureId(0));module.functions[0].storage_life=header.clone();
+            module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![if borrowed{Type::Address{mutable:false,inner:Box::new(Type::I32)}}else{Type::I32}],parameters:vec![],result:Type::I32,kind:CallableKind::Fn,storage_life:header,lending_captures:vec![]});
+            let ty=Type::Managed(Box::new(Type::OwnedStore{element:Box::new(Type::Package{name:"store_subject".into(),fields:vec![("callback".into(),Type::Closure(ClosureId(0)))]})}));
+            for wire in [false,true]{
+                let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();
+                let(candidate,_)=if wire{zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap()}else{(module.clone(),plan.clone())};
+                let result=ordinary_store_value(&candidate,&ty,&mut Budget::new(&limits));
+                if variant==0{assert!(result.unwrap());}
+                else if variant==3{assert!(result.is_err(),"Unknown relation cannot become Known0");}
+                else{assert!(!result.unwrap(),"variable and Static borrowed captures retain their actual target obligations");}
+            }
+        }
+    }
 }
 
 // Canonical ByteBuffer has no stored child domain. This routes its existing

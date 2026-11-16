@@ -2300,7 +2300,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
                 && !super::stored_callables::complete_value_input(module,ty,b)?
                 && !super::stored_owned::owner(ty)
                 && !super::stored_owned::ordinary_byte_value(ty,b)?
-                && !super::stored_owned::ordinary_store_value(ty,b)?
+                && !super::stored_owned::ordinary_store_value(module,ty,b)?
             {
                 return Err(unsupported(
                     "captured Fixed helper requires complete supported input domains",
@@ -2741,7 +2741,7 @@ fn seed_payload(
                 heap_element: None,
             });
         }
-        if (replacements::heads(b)||super::stored_owned::ordinary_store_value(ty,b)?||super::stored_owned::ordinary_byte_value(ty,b)?)
+        if (replacements::heads(b)||super::stored_owned::ordinary_store_value(module,ty,b)?||super::stored_owned::ordinary_byte_value(ty,b)?)
             && matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))
         {
             b.spend(1)?;
@@ -3627,7 +3627,7 @@ static_dependency: StaticProvenance::NotStatic,
                     heap_element: None,
                 });
             }
-            if (replacements::heads(b)||super::stored_owned::ordinary_store_value(&f.locals[local.0 as usize].ty,b)?||super::stored_owned::ordinary_byte_value(&f.locals[local.0 as usize].ty,b)?)
+            if (replacements::heads(b)||super::stored_owned::ordinary_store_value(module,&f.locals[local.0 as usize].ty,b)?||super::stored_owned::ordinary_byte_value(&f.locals[local.0 as usize].ty,b)?)
                 && f.locals.get(local.0 as usize).is_some_and(|local| matches!(&local.ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. })))
             {
                 b.spend(1)?;
@@ -3643,7 +3643,7 @@ static_dependency: StaticProvenance::NotStatic,
             }
         }
         InstructionKind::DescribePackageField { local, index }
-            if (replacements::heads(b)||super::stored_owned::ordinary_store_value(vt(f,i.result.ok_or_else(||err("ordinary Store field description has no result"))?)?,b)?||super::stored_owned::ordinary_byte_value(vt(f,i.result.ok_or_else(||err("ordinary byte field description has no result"))?)?,b)?) && i.result.is_some_and(|id|
+            if (replacements::heads(b)||super::stored_owned::ordinary_store_value(module,vt(f,i.result.ok_or_else(||err("ordinary Store field description has no result"))?)?,b)?||super::stored_owned::ordinary_byte_value(vt(f,i.result.ok_or_else(||err("ordinary byte field description has no result"))?)?,b)?) && i.result.is_some_and(|id|
                 matches!(&f.values[id.0 as usize], Type::Desc(payload)
                     if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))) => {
             b.spend(2)?;
@@ -3658,7 +3658,7 @@ static_dependency: StaticProvenance::NotStatic,
             });
         }
         InstructionKind::DescribeCapture { index } => {
-            if super::stored_owned::ordinary_store_value(vt(f,i.result.ok_or_else(||err("ordinary Store capture description has no result"))?)?,b)?||super::stored_owned::ordinary_byte_value(vt(f,i.result.ok_or_else(||err("ordinary byte capture description has no result"))?)?,b)?{
+            if super::stored_owned::ordinary_store_value(module,vt(f,i.result.ok_or_else(||err("ordinary Store capture description has no result"))?)?,b)?||super::stored_owned::ordinary_byte_value(vt(f,i.result.ok_or_else(||err("ordinary byte capture description has no result"))?)?,b)?{
                 b.spend(1)?;out.store_description.sources.push(Source{static_dependency:StaticProvenance::NotStatic,retained_port:None,base:HoldRoot::Capture(*index),leaf:vec![],inline:vec![],heap_parents:vec![],heap_element:None});
             }
             b.spend(1)?;
@@ -3698,11 +3698,11 @@ static_dependency: StaticProvenance::NotStatic,
             clear_local_holes(state, *local, b)?;
         }
         InstructionKind::DescribeAddress { address }
-            if b.masked_stored_tasks() || b.replacements || super::stored_owned::ordinary_store_value(vt(f,i.result.ok_or_else(||err("ordinary Store address description has no result"))?)?,b)? || super::stored_owned::ordinary_byte_value(vt(f,i.result.ok_or_else(||err("ordinary byte address description has no result"))?)?,b)? || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
+            if b.masked_stored_tasks() || b.replacements || super::stored_owned::ordinary_store_value(module,vt(f,i.result.ok_or_else(||err("ordinary Store address description has no result"))?)?,b)? || super::stored_owned::ordinary_byte_value(vt(f,i.result.ok_or_else(||err("ordinary byte address description has no result"))?)?,b)? || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
             join_permission(&mut out.store_description, &val(*address)?.address, b)?;
         }
         InstructionKind::OwnedStoreBorrow { store, .. } | InstructionKind::OwnedStoreBorrowMut { store, .. }
-            if super::stored_owned::ordinary_store_value(vt(f,*store)?,b)? || b.masked_stored_tasks() && (b.store_descriptions() || matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })) => {
+            if super::stored_owned::ordinary_store_value(module,vt(f,*store)?,b)? || b.masked_stored_tasks() && (b.store_descriptions() || matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })) => {
             let description = &val(*store)?.store_description;
             // The reverse-batch solver may see bottom before a predecessor's
             // description arrives. Its final grounded-value check rejects a
@@ -4590,7 +4590,7 @@ static_dependency: StaticProvenance::NotStatic,
                     | InstructionKind::MakeDynBorrow { .. }
                     | InstructionKind::CallDynSlot { .. }
             )
-            || match &i.kind{InstructionKind::OwnedStoreBorrow{store,..}|InstructionKind::OwnedStoreBorrowMut{store,..}=>b.store_descriptions()||super::stored_owned::ordinary_store_value(vt(f,*store)?,b)?,_=>false}
+            || match &i.kind{InstructionKind::OwnedStoreBorrow{store,..}|InstructionKind::OwnedStoreBorrowMut{store,..}=>b.store_descriptions()||super::stored_owned::ordinary_store_value(module,vt(f,*store)?,b)?,_=>false}
             || ordinary_error_borrow(f, i, b)?
             || pure_copy::ordinary_copy_field_borrow(f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
@@ -7126,7 +7126,7 @@ fn check_with_mask(
             .chain(std::iter::once(&f.return_type))
         {
             type_work(ty, &b.limits.clone(), b)?;
-            let ordinary_value = super::stored_owned::ordinary_store_value(ty, b)?
+            let ordinary_value = super::stored_owned::ordinary_store_value(module,ty, b)?
                 || super::stored_owned::ordinary_byte_value(ty, b)?
                 || pure_copy::ordinary_owned_value(ty, b)?
                 || ordinary_owner_address(module, ty, b)?;
