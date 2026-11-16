@@ -286,6 +286,7 @@ pub(crate) struct TransformProduct {
     pub(crate) call_classes: Option<crate::machine_call_classes::Stats>,
     pub(crate) class_symbols: std::collections::BTreeSet<String>,
     pub(crate) class_cache: Option<Arc<crate::machine_call_classes::Cache>>,
+    pub(crate) class_import_fallback: Option<&'static str>,
     pub(crate) checked_add_cache: crate::machine_checked_add_chain::Cache,
     pub(crate) machine: crate::machine_output::MachineOutput,
 }
@@ -297,6 +298,7 @@ pub(crate) struct TransformPolicy {
     backend: crate::NativeBackend,
     optimization: crate::Optimization,
     incremental_o2: bool,
+    bounded_class_imports: bool,
     closed_executable: bool,
     function_merging: crate::FunctionMerging,
     emit: crate::EmitOptions,
@@ -311,6 +313,7 @@ impl TransformPolicy {
             backend: options.backend,
             optimization: options.optimization,
             incremental_o2: options.incremental_o2,
+            bounded_class_imports: options.bounded_class_imports,
             closed_executable: options.closed_executable,
             function_merging: options.function_merging,
             emit: options.emit,

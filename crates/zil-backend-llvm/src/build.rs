@@ -492,6 +492,7 @@ pub fn build_view_with_cancellation_and_session(
     let mut call_classes = None;
     let mut class_symbols = std::collections::BTreeSet::new();
     let mut class_cache = None;
+    let mut class_import_fallback = None;
     let mut class_work = None;
     let mut checked_add_cache = session
         .as_ref()
@@ -517,6 +518,7 @@ pub fn build_view_with_cancellation_and_session(
     if let Some(cached) = reused_transform {
         call_classes = cached.call_classes;
         class_symbols = cached.class_symbols.clone();
+        class_import_fallback = cached.class_import_fallback;
         checked_add_cache = cached.checked_add_cache.clone();
         let fingerprint = machine.fingerprint.clone();
         machine = cached.machine.clone();
@@ -589,6 +591,7 @@ pub fn build_view_with_cancellation_and_session(
                 call_classes,
                 class_symbols: class_symbols.clone(),
                 class_cache: class_cache.clone(),
+                class_import_fallback,
                 checked_add_cache: checked_add_cache.clone(),
                 machine: machine.clone(),
             }));
@@ -659,7 +662,6 @@ pub fn build_view_with_cancellation_and_session(
         })
         .cloned();
     let mut closed_prune = None;
-    let mut class_import_fallback = None;
     let partitioned = if let Some(cached) = cached_partition {
         if let Some(removed) = cached.closed_prune_removed {
             closed_prune = Some((0, cached.units.len(), 0, removed));
@@ -791,6 +793,7 @@ pub fn build_view_with_cancellation_and_session(
                             call_classes,
                             class_symbols: class_symbols.clone(),
                             class_cache: class_cache.clone(),
+                            class_import_fallback,
                             checked_add_cache: checked_add_cache.clone(),
                             machine: machine.clone(),
                         }));
