@@ -427,3 +427,47 @@ fn task_give_preserves_owner_transfer_and_rejects_descriptors_or_repeated_moves(
         );
     }
 }
+
+#[test]
+fn callback_task_values_transfer_through_names_and_nested_tuple_patterns() {
+    for body in [
+        "let answer=callback();let moved=answer;return give moved;",
+        "let (answer,(marker,))=(callback(),(17,));let moved=give answer;return give moved;",
+        "let values=(callback(),17);let (answer,marker)=values;return give answer;",
+        "let answer=callback();let values=(give answer,17);let (moved,marker)=values;return give moved;",
+    ] {
+        let text = format!(
+            "fn relay<F:FnOnce()->Managed<Task<i32>> + ClosedEnvironment>(callback:F)->Task<i32> contract{{result(give)}}{{{body}}}fn main(){{}}"
+        );
+        let core = expand(&text).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+        assert!(core.semantic.is_some());
+        assert!(core.unsupported.is_empty(), "{:?}", core.unsupported);
+    }
+}
+
+#[test]
+fn callback_task_values_do_not_duplicate_or_change_the_complete_payload() {
+    let prefix = "fn relay<F:FnOnce()->Managed<Task<i32>> + ClosedEnvironment>(callback:F)->Task<i32> contract{result(give)}{";
+    for body in [
+        "let answer=callback();let moved=answer;return give answer;",
+        "let (answer,marker)=(callback(),17);let moved=give answer;return give answer;",
+        "let values=(callback(),17);let (answer,marker)=values;let again=values;return give answer;",
+        "let answer=callback();let (moved,marker)=(give answer,17);return give answer;",
+        "let answer:Managed<Task<i64>>=callback();return give answer;",
+    ] {
+        let text = format!("{prefix}{body}}}fn main(){{}}");
+        let errors =
+            expand(&text).expect_err("owning Task results keep affine identity and full type");
+        assert!(
+            errors.iter().any(|error| error.phase == Phase::Expand
+                && error.category == zil_base::ResultCategory::SafeReject),
+            "{text}: {errors:?}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|error| error.category == zil_base::ResultCategory::Unsupported),
+            "{text}: {errors:?}"
+        );
+    }
+}

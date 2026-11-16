@@ -443,7 +443,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
                         id,
                         ty: p.ty.clone(),
                         mutable: false,
-                        owned_resource: false,
+                        owned_resource: stores::owned_task_payload(&p.ty).is_some(),
                         declaration_resource: false,
                         description_roots: None,
                         description_reference_depth: None,
@@ -1072,8 +1072,9 @@ struct Local {
     id: usize,
     ty: TypeRef,
     mutable: bool,
-    // Actual managed Enum fields and the established State/factory producers
-    // record ownership. A description never inherits it from a nominal type.
+    // Explicit Managed<Task> Values, actual managed Enum fields and the
+    // established State/factory producers record ownership. A bare resource
+    // description never inherits ownership from its nominal payload type.
     owned_resource: bool,
     // The type came from a concrete declaration field, outside this helper's
     // binder scope, including through bare descriptions and actual give results.
@@ -1857,7 +1858,8 @@ impl Check<'_, '_, '_> {
         })
     }
     // Recognize a real Task transfer before expression checking consumes its
-    // source. A bare Name is a description and never establishes ownership.
+    // source. A bare Task Name is a description; Managed<Task> is already
+    // an affine Value and ordinary Name evaluation consumes it independently.
     fn task_transfer_expression(&mut self, expression: &Expr, state: &State) -> R<bool> {
         self.tick(expression.span)?;
         match &expression.kind {
@@ -1875,7 +1877,8 @@ impl Check<'_, '_, '_> {
                 }
                 Ok(matches!(&operand.kind, ExprKind::Name(name)
                     if state.locals.get(name).is_some_and(|local|
-                        local.owned_resource && stores::explicit_task_result(&local.ty))))
+                        local.owned_resource && (stores::explicit_task_result(&local.ty)
+                            || stores::owned_task_payload(&local.ty).is_some()))))
             }
             ExprKind::If {
                 then_value,
@@ -2039,13 +2042,14 @@ impl Check<'_, '_, '_> {
         }
         let id = self.next_local;
         self.next_local += 1;
+        let owned_resource = stores::owned_task_payload(&ty).is_some();
         state.locals.insert(
             name,
             Local {
                 id,
                 ty,
                 mutable: false,
-                owned_resource: false,
+                owned_resource,
                 declaration_resource: false,
                 description_roots: None,
                 description_reference_depth: None,
@@ -2053,6 +2057,29 @@ impl Check<'_, '_, '_> {
         );
         Ok(())
     }
+    // Tuple destructuring transfers each owning Task Value exactly once.
+    // Other leaves retain the existing Copy obligation; this is not a generic
+    // permission to discard affine values or to upgrade Task descriptions.
+    fn tuple_binding_value(&mut self, ty: &TypeRef, depth: usize) -> R<()> {
+        self.budget.node(ty.span, depth)?;
+        if let TypeKind::Tuple(fields) = &group(ty).kind {
+            for field in fields {
+                self.tuple_binding_value(field, depth + 1)?;
+            }
+            return Ok(());
+        }
+        if stores::owned_task_payload(ty).is_some() {
+            return self.traits.value_bound(
+                ty,
+                &trait_bounds::Bound::Value,
+                &self.bounds,
+                &self.variables,
+                self.budget,
+            );
+        }
+        copy::require(ty, self.nominals, &self.bounds, &self.variables, self.budget)
+    }
+
     fn tuple_binding_pattern(
         &mut self,
         pattern: &Pattern,
@@ -2517,7 +2544,8 @@ impl Check<'_, '_, '_> {
             && let Some(local) = state.locals.get(name)
             && (local.declaration_resource
                 || self.concrete_helper_resource(&local.ty)
-                || stores::explicit_task_result(&local.ty))
+                || stores::explicit_task_result(&local.ty)
+                || stores::owned_task_payload(&local.ty).is_some())
             && (local.owned_resource
                 || stores::explicit_task_result(&local.ty)
                 || self.two_input_state_constructor()
@@ -2533,7 +2561,12 @@ impl Check<'_, '_, '_> {
                 ));
             }
             self.budget.ty(&local.ty)?;
-            let (id, ty, roots) = (local.id, local.ty.clone(), local.description_roots.clone());
+            // Give accepts the resource payload at an owning formal. The
+            // original expression still consumes this exact Managed Value;
+            // an explicitly Managed result context is restored by the unary
+            // consumer after checking the complete payload relation.
+            let payload = stores::owned_task_payload(&local.ty).unwrap_or(&local.ty);
+            let (id, ty, roots) = (local.id, payload.clone(), local.description_roots.clone());
             if roots.is_some() {
                 self.defer_use(id, true, operand.span)?;
                 self.defer_held(state, id, true, operand.span)?;
@@ -4173,7 +4206,24 @@ impl Check<'_, '_, '_> {
                 });
                 let mut fields = vec![];
                 for (i, v) in values.iter().enumerate() {
-                    fields.push(self.expr(v, state, hints.and_then(|ts| ts.get(i)), borrowing)?);
+                    // A product field is a Value position, not a resource
+                    // parameter. Preserve an actual give as an owning field
+                    // even when no written product type supplies Managed.
+                    let owns_task = self.task_transfer_expression(v, state)?;
+                    let actual = self.expr(v, state, hints.and_then(|ts| ts.get(i)), borrowing)?;
+                    if owns_task && stores::explicit_task_result(&actual) {
+                        self.budget.ty(&actual)?;
+                        self.budget.node(v.span, 0)?;
+                        fields.push(TypeRef {
+                            kind: TypeKind::Named {
+                                path: vec!["Managed".into()],
+                                args: vec![GenericArg::Type(actual)],
+                            },
+                            span: v.span,
+                        });
+                    } else {
+                        fields.push(actual);
+                    }
                 }
                 Ok(TypeRef {
                     span: e.span,
@@ -6464,11 +6514,12 @@ impl Check<'_, '_, '_> {
                     local.declaration_resource = declaration_resource;
                     local.description_roots = roots;
                     local.description_reference_depth = resource_flow.reference_depth;
-                    local.owned_resource = owns_resource
-                        && (declaration_resource
-                            || registration_created
-                            || stores::explicit_task_result(&local.ty)
-                            || self.concrete_helper_resource(&local.ty));
+                    local.owned_resource = stores::owned_task_payload(&local.ty).is_some()
+                        || (owns_resource
+                            && (declaration_resource
+                                || registration_created
+                                || stores::explicit_task_result(&local.ty)
+                                || self.concrete_helper_resource(&local.ty)));
                     if stores::element(&local.ty).is_some() {
                         if owns_store {
                             state.store_owners.insert(local.id);
@@ -6513,9 +6564,10 @@ impl Check<'_, '_, '_> {
                     PatternKind::Tuple(_) | PatternKind::RecordConstructor { .. }
                 ) =>
                 {
-                    // Infer against the written complete type before adding
-                    // any names. Copy is proved from symbolic bounds across
-                    // every field, including those discarded by the pattern.
+                    // Check the complete value before introducing any names.
+                    // Task owners move with their fields; other fields keep
+                    // their independent Copy obligation. Discards are checked
+                    // for cleanup by tuple_binding_pattern, not by Copy.
                     let actual = self.expr(value, state, ty.as_ref(), false)?;
                     if let Some(expected) = ty {
                         role_check::same(
@@ -6526,13 +6578,7 @@ impl Check<'_, '_, '_> {
                             self.budget,
                         )?;
                     }
-                    copy::require(
-                        &actual,
-                        self.nominals,
-                        &self.bounds,
-                        &self.variables,
-                        self.budget,
-                    )?;
+                    self.tuple_binding_value(&actual, 0)?;
                     self.tuple_binding_pattern(
                         pattern,
                         &actual,

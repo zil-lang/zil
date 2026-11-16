@@ -148,6 +148,19 @@ pub(super) fn explicit_task_result(ty: &TypeRef) -> bool {
                     [GenericArg::Type(_)]
                     | [GenericArg::Type(_), GenericArg::Type(_)]))
 }
+/// An explicit owning Task Value is distinct from a bare Task description.
+/// This projection preserves the complete result and retained Context; it
+/// supplies no Copy, synchronous cleanup, Closed, or execution-root evidence.
+pub(super) fn owned_task_payload(ty: &TypeRef) -> Option<&TypeRef> {
+    let TypeKind::Named { path, args } = &grouped(ty).kind else {
+        return None;
+    };
+    let [GenericArg::Type(payload)] = args.as_slice() else {
+        return None;
+    };
+    (path.as_slice() == ["Managed"] && explicit_task_result(payload)).then_some(payload)
+}
+
 pub(super) fn result_mode(function: &Function) -> R<zil_ir::PassingMode> {
     use zil_ir::PassingMode;
     let mut mode = PassingMode::Infer;
