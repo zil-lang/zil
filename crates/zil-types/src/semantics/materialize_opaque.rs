@@ -33,7 +33,8 @@ impl Eval<'_, '_, '_> {
         };
         self.fee(self.input.instances.len())?;
         let mut result: Option<(SemanticTypeValue, ClosedContext)> = None;
-        for instance in &self.input.instances {
+        for original in &self.input.instances {
+            let instance = self.instance(original.id)?;
             if instance.definition != definition {
                 continue;
             }
@@ -562,8 +563,10 @@ impl Eval<'_, '_, '_> {
             .iter()
             .find(|row| row.id == *id)
             .ok_or_else(|| bad("closed result has no actual closure definition"))?;
-        let mut children = self.input.instances.iter().filter(|row| {
-            row.parent == Some(creator)
+        let mut child = None;
+        for original in &self.input.instances {
+            let row = self.instance(original.id)?;
+            if row.parent == Some(creator)
                 && row.definition == *definition
                 && row.target
                     == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(
@@ -572,13 +575,14 @@ impl Eval<'_, '_, '_> {
                 && matches!(&row.environment, Some(SemanticEnvironmentInstance {
                     closure: SemanticClosureTarget::Typed(actual), ..
                 }) if actual == id)
-        });
-        let child = children
-            .next()
-            .ok_or_else(|| bad("closed result lacks its actual creator environment"))?;
-        if children.next().is_some() {
-            return Err(bad("closed result has ambiguous creator environments"));
+            {
+                if child.replace(row).is_some() {
+                    return Err(bad("closed result has ambiguous creator environments"));
+                }
+            }
         }
+        let child = child
+            .ok_or_else(|| bad("closed result lacks its actual creator environment"))?;
         let actual_environment = &child
             .environment
             .as_ref()
@@ -728,6 +732,55 @@ impl Eval<'_, '_, '_> {
             .map(|(value, _)| Some(value))
     }
 
+    /// During actual Task preparation, an inner call can already be emitted
+    /// while the original semantic directory still uses Core addresses. Use
+    /// that completed occurrence's ledger receipt; publication independently
+    /// relocates and checks the same call again.
+    pub(super) fn actual_call_point(
+        &mut self,
+        caller: SemanticInstanceId,
+        site: &SemanticSite,
+        depth: usize,
+    ) -> R<(BlockId, u32)> {
+        self.node(depth)?;
+        if site.instance != caller {
+            return Err(bad("result call boundary changes its actual caller instance"));
+        }
+        let expression = match site.at {
+            SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After } =>
+                return Ok((block, instruction)),
+            SemanticSiteAddress::Core { expression, occurrence: 0, role: SemanticEmissionRole::Call }
+                if matches!(site.action, SemanticSiteAction::Call { .. }
+                    | SemanticSiteAction::CoreBodyCall | SemanticSiteAction::CallableCall { .. }) => expression,
+            _ => return Err(bad("result call is not its actual post-call occurrence")),
+        };
+        let function = self.function(caller)?;
+        let ledger = self.ledger;
+        let row = ledger.completed_expression(function.id, expression, self.left, function.span)?;
+        if row.callee.is_none() {
+            return Err(bad("result occurrence is not a completed actual call expression"));
+        }
+        self.fee(row.instructions.len())?;
+        let mut found = None;
+        for point in &row.instructions {
+            self.fee(function.blocks.len())?;
+            let instruction = function.blocks.iter().find(|block| block.id == point.block)
+                .and_then(|block| block.instructions.get(point.instruction))
+                .ok_or_else(|| bad("completed result receipt leaves its actual emitted CFG"))?;
+            if instruction.result != row.value || !matches!(instruction.kind,
+                InstructionKind::Call { .. } | InstructionKind::SuspendCall { .. }
+                    | InstructionKind::ForeignCall { .. }) {
+                continue;
+            }
+            let index = u32::try_from(point.instruction)
+                .map_err(|_| bad("completed call instruction ordinal overflows"))?;
+            if found.replace((point.block, index)).is_some() {
+                return Err(bad("completed result occurrence has multiple actual call producers"));
+            }
+        }
+        found.ok_or_else(|| bad("completed result occurrence has no exact direct-call producer"))
+    }
+
     fn actual_result_boundary(
         &mut self,
         caller: SemanticInstanceId,
@@ -753,16 +806,7 @@ impl Eval<'_, '_, '_> {
         if sites.next().is_some() {
             return Err(bad("original result call has multiple actual sites"));
         }
-        let SemanticSiteAddress::Typed {
-            block,
-            instruction,
-            edge: SemanticSiteEdge::After,
-        } = site.at
-        else {
-            return Err(bad(
-                "opaque result call is not its actual post-call boundary",
-            ));
-        };
+        let (block, instruction) = self.actual_call_point(caller, site, depth + 1)?;
         self.fee(function.blocks.len())?;
         let op = function
             .blocks
@@ -814,7 +858,8 @@ impl Eval<'_, '_, '_> {
         }
         self.fee(self.input.instances.len())?;
         let mut result: Option<(SemanticTypeValue, Option<ClosedContext>)> = None;
-        for candidate in &self.input.instances {
+        for original in &self.input.instances {
+            let candidate = self.instance(original.id)?;
             if candidate.definition != boundary.callee
                 || candidate.target
                     != SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(*target))

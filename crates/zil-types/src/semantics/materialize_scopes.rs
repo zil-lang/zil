@@ -367,16 +367,7 @@ impl<'a> Eval<'a, '_, '_> {
         if sites.next().is_some() {
             return Err(bad("parent inference has multiple actual call sites"));
         }
-        let SemanticSiteAddress::Typed {
-            block,
-            instruction,
-            edge: SemanticSiteEdge::After,
-        } = site.at
-        else {
-            return Err(unknown(
-                "parent inference awaits its exact emitted call boundary",
-            ));
-        };
+        let (block, instruction) = self.actual_call_point(caller, site, depth + 1)?;
         self.fee(function.blocks.len())?;
         let op = function
             .blocks

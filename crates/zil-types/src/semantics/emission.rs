@@ -94,6 +94,28 @@ fn lookup_cost(n: usize) -> usize {
     n.saturating_add(1).ilog2() as usize + 1
 }
 impl Ledger {
+    /// A finished inner expression can be used while its enclosing Task call
+    /// is still being prepared. The active outer expression is never evidence
+    /// for its not-yet-emitted result.
+    pub(crate) fn completed_expression(
+        &self,
+        function: FunctionId,
+        expression: NodeId,
+        left: &mut usize,
+        span: Span,
+    ) -> R<&Expression> {
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        let frame = self.frames.get(&function)
+            .ok_or_else(|| invalid(span, "completed result has no actual emission frame"))?;
+        pay(left, lookup_cost(frame.expressions.len()), span)?;
+        let row = frame.expressions.get(&expression)
+            .ok_or_else(|| invalid(span, "completed result has no actual expression receipt"))?;
+        if !row.complete || row.end.is_none() || row.value.is_none() {
+            return Err(invalid(span, "result context precedes completion of its real expression"));
+        }
+        Ok(row)
+    }
+
     pub(crate) fn has_original_context(&self) -> bool {
         self.original.context().is_some()
     }

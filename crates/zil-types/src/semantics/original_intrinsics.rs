@@ -964,10 +964,41 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> R<bool> {
         self.pay(1, depth)?;
-        Ok(match ty {
+        let ty = self.observation_type(owner, ty, depth + 1)?;
+        Ok(match &ty {
             SemanticTypeRecipe::Managed(_)
             | SemanticTypeRecipe::Closure { .. }
             | SemanticTypeRecipe::Dyn { owned: true, .. } => true,
+            SemanticTypeRecipe::Opaque { definition, arguments, hidden } => {
+                if !self.proof.complete.contains(definition) {
+                    return Err(pending("Task failure opaque input lacks its original all-return proof"));
+                }
+                let original = self.proof.types.get(&(*definition, Query::Result))
+                    .ok_or_else(|| bad("Task failure opaque input omits its original complete result"))?;
+                let original = copy_recipe(original, self.limits, self.left)?;
+                // The hidden equation belongs to the defining scope. Never
+                // interpret its local/capture ordinals in this Task creator.
+                self.contexts.push(*definition);
+                let checked = (|| {
+                    let hidden = self.resolve(*definition, hidden, depth + 1)?;
+                    self.same(&original, &hidden)
+                })();
+                self.contexts.pop();
+                checked?;
+                let declaration = self.definition(*definition)?;
+                self.call_requirements(owner, declaration, arguments, depth + 1)?;
+                let actual = super::super::instantiate::ty(
+                    self.program, &self.proof, &original,
+                    super::super::instantiate::DomainMapping {
+                        source: *definition, use_definition: owner,
+                        arguments, parent_call: None,
+                    }, self.limits, self.left,
+                )?;
+                self.task_input_owns(owner, &actual, depth + 1)?
+            }
+            SemanticTypeRecipe::Qualified { storage, .. } =>
+                self.task_input_owns(owner, storage, depth + 1)?,
+            SemanticTypeRecipe::Code { .. } => false,
             SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() => false,
             SemanticTypeRecipe::Address { .. }
             | SemanticTypeRecipe::Desc { .. }
