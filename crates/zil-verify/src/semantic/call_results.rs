@@ -10,12 +10,13 @@ impl CheckedContext{
         let site=self.original.borrow().as_ref().ok_or_else(||bad("original Call result has no complete symbolic body"))?.call_result_source(module,definition,source,b)?;
         let Some(site)=site else{return Ok(None);};
         let program=module.semantic.as_ref().ok_or_else(||bad("original Call result has no actual site directory"))?;
+        let function=module.functions.get(at.function.0 as usize).filter(|function|function.id==at.function).ok_or_else(||bad("Call result caller is absent"))?;
         b.spend(program.sites.len())?;let mut selected=None;
         for row in program.sites.iter().filter(|row|row.instance==instance&&row.recipe==site){
             let SemanticSiteAddress::Typed{block,instruction,..}=row.at else{return Err(bad("Call result retains a Core occurrence"));};
-            if block!=at.block||instruction>at.instruction{continue;}
+            if block==at.block{if instruction>at.instruction{continue;}}
+            else if !closure_boundaries::creation_dominates(function,SitePoint{function:at.function,block,instruction,after:true},at,b)?{continue;}
             if !matches!(row.action,SemanticSiteAction::Call{..}|SemanticSiteAction::BodyCall{..}|SemanticSiteAction::CallableCall{..}){return Err(bad("Call result is linked to another actual emission role"));}
-            let function=module.functions.get(at.function.0 as usize).ok_or_else(||bad("Call result caller is absent"))?;
             let operation=function.blocks.get(block.0 as usize).and_then(|block|block.instructions.get(instruction as usize)).ok_or_else(||bad("Call result actual operation is absent"))?;
             if !matches!(operation.kind,InstructionKind::Call{..}|InstructionKind::SuspendCall{..}|InstructionKind::ForeignCall{..}|InstructionKind::CallIndirect{..}|InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}){return Err(bad("Call result site names another actual opcode"));}
             let Some(value)=operation.result else{return Ok(None);};

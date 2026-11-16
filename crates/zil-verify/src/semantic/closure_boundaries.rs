@@ -91,7 +91,7 @@ impl CheckedContext {
 
 // Every actual path to a later use must pass this exact creator. Class or
 // Type equality never selects an initializer from another branch or loop.
-fn creation_dominates(f:&TypedFunction,creation:SitePoint,use_:SitePoint,b:&mut Budget)->Check<bool>{
+pub(super) fn creation_dominates(f:&TypedFunction,creation:SitePoint,use_:SitePoint,b:&mut Budget)->Check<bool>{
     if creation.block==use_.block{return Ok(creation.instruction<use_.instruction||(creation.instruction==use_.instruction&&use_.after));}
     let mut pending=vec![f.entry];let mut seen=BTreeSet::new();
     while let Some(id)=pending.pop(){

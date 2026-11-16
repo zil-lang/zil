@@ -157,7 +157,7 @@ impl CheckedOriginal {
                 self.require_copy(module,context,&actual,env,active,b)?;
                 if let Some(place)=place{self.read_original(module,context,&place,&source,env,false,active,b)?;}self.relate_value(&actual,expected,b)?;Ok(actual)
             },
-            PassingMode::Give=>{if !matches!(expression.kind,CoreExprKind::Unary{op:UnaryOp::Give,..}){return Err(bad("original owning resource argument omits explicit give"));}self.expression(module,context,expression,env,bindings,Some(expected),active,b)},
+            PassingMode::Give=>{let actual=self.expression(module,context,expression,env,bindings,Some(expected),active,b)?;if !self.transfer_operand(env.current()?,expression,b)?{return Err(bad("original owning resource argument omits explicit give"));}Ok(actual)},
             _=>self.expression(module,context,expression,env,bindings,Some(expected),active,b),
         }
     }
