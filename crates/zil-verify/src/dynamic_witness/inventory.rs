@@ -509,35 +509,12 @@ impl Walk<'_> {
                 });
             }
             _ => {
-                let domain = values::intrinsic(self.module, ty, b)?;
-                let classes = self.capture_classes(owner, ty, header, base, semantic, b)?;
-                let life = match ty {
-                    Type::BorrowedStorage { life, .. } => life.clone(),
-                    Type::Dyn { .. } | Type::OwnedDyn { .. } =>
-                        crate::tasks::frame_shape::declared_life(self.module,ty,b)?,
-                    Type::Closure(_)
-                    | Type::Task { .. } => StorageLifeShape {
-                        binder_count: domain.count,
-                        ..zero()
-                    },
-                    _ if domain.count == 0 => zero(),
-                    _ => {
-                        return Err(bad(
-                            "Self capture ordinary wrapper needs its full actual compound shape",
-                        ));
-                    }
-                };
-                let terms = classes.iter().map(|c| {
-                    let row = header.classes.iter().find(|r| r.position.base == base && r.position.path == *semantic && r.position.class == c.class)
-                        .ok_or_else(|| bad("Self capture child loses its original complete class occurrence"))?;
-                    let StorageBinder::Fixed(index) = row.binder else { return Err(bad("Self capture child contains an invocation class")); };
-                    owner.term(index, b)
-                }).collect::<Check<Vec<_>>>()?;
+                let (life, terms) = self.capture_scope(owner, ty, header, base, Some(physical), semantic, b)?;
                 let child = terms::Value {
                     raw: DynTypeValue {
                         ty: ty.clone(),
                         life,
-                        classes: classes.iter().map(|c| c.binder).collect(),
+                        classes: terms.iter().map(|term| term.image).collect(),
                     },
                     terms,
                 };
@@ -555,32 +532,78 @@ impl Walk<'_> {
         path: &[LifeTypeProjection],
         b: &mut Budget,
     ) -> Check<Vec<requests::LeafClass>> {
-        let count = values::intrinsic(self.module, ty, b)?.count;
-        b.spend(count as usize)?;
-        let mut classes = vec![];
-        for class in 0..count {
-            b.spend(header.classes.len().saturating_add(path.len()))?;
-            let mut rows = header.classes.iter().filter(|r| {
-                r.position.base == base && r.position.path == path && r.position.class == class
-            });
-            let row = rows
-                .next()
-                .ok_or_else(|| bad("Self capture lacks a complete child class occurrence"))?;
-            if rows.next().is_some() {
-                return Err(bad("Self capture duplicates a child class occurrence"));
+        let (_, terms) = self.capture_scope(owner, ty, header, base, None, path, b)?;
+        Ok(terms.into_iter().enumerate().map(|(class, term)| requests::LeafClass {
+            path: path.to_vec(), class: class as u32, binder: term.image, origin: headers::symbol(term),
+        }).collect())
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn capture_scope(
+        &self,
+        owner: &terms::Value,
+        ty: &Type,
+        header: &StorageLifeContract,
+        base: StorageBase,
+        physical: Option<&[PlaceProjection]>,
+        semantic: &[LifeTypeProjection],
+        b: &mut Budget,
+    ) -> Check<(StorageLifeShape, Vec<terms::LifeTerm>)> {
+        let life = crate::tasks::frame_shape::declared_life(self.module, ty, b)?;
+        b.spend(life.binder_count as usize)?;
+        let mut terms = vec![None; life.binder_count as usize];
+        // An opaque root has actual root class rows. An ordinary wrapper is
+        // reconstructed from its real slots and complete child occurrences;
+        // it cannot demand or borrow another scope's same-numbered root row.
+        let opaque = matches!(ty, Type::BorrowedStorage{..}|Type::Closure(_)|Type::Task{..}|Type::MutexGuard{..}|Type::Dyn{..}|Type::OwnedDyn{..});
+        for class in 0..life.binder_count {
+            b.spend(header.classes.len().saturating_add(semantic.len()))?;
+            if opaque || header.classes.iter().any(|row| row.position.base==base&&row.position.path==semantic&&row.position.class==class) {
+                let term = self.capture_header_term(owner,header,base,semantic,class,b)?;
+                Self::capture_term(&mut terms,class,term,b)?;
             }
-            let StorageBinder::Fixed(index) = row.binder else {
-                return Err(bad("Self capture class cannot be invocation-local"));
-            };
-            let term = owner.term(index, b)?;
-            classes.push(requests::LeafClass {
-                path: path.to_vec(),
-                class,
-                binder: term.image,
-                origin: headers::symbol(term),
-            });
         }
-        Ok(classes)
+        if let Some(physical) = physical {
+            let ports=crate::semantic::task_domains::raw_input_ports(self.module,ty,&life,b)?;
+            for (_,_,class,source) in ports {
+                b.spend(physical.len().saturating_add(source.len()).saturating_add(header.bindings.len()))?;
+                let mut path=physical.iter().copied().map(ContractProjection::Place).collect::<Vec<_>>();path.extend(source);
+                let mut rows=header.bindings.iter().filter(|row|row.position.base==base&&row.position.path==path);
+                let row=rows.next().ok_or_else(||bad("Self capture port has no exact complete header occurrence"))?;
+                if rows.next().is_some(){return Err(bad("Self capture port repeats its complete header occurrence"));}
+                let StorageBinder::Fixed(index)=row.binder else{return Err(bad("Self capture port cannot retain a fresh invocation class"));};
+                Self::capture_term(&mut terms,class,owner.term(index,b)?,b)?;
+            }
+        }
+        for row in &life.retained {
+            b.spend(semantic.len().saturating_add(row.path.len()).saturating_add(1))?;
+            let mut path=semantic.to_vec();path.extend_from_slice(&row.path);
+            let term=self.capture_header_term(owner,header,base,&path,row.class,b)?;
+            Self::capture_term(&mut terms,row.binder,term,b)?;
+        }
+        let mut result=Vec::with_capacity(terms.len());
+        for term in terms {
+            let term=term.ok_or_else(||bad("Self capture omits a complete original class source"))?;
+            b.spend(result.len().saturating_add(1))?;
+            if result.iter().any(|other:&terms::LifeTerm|other.origin==term.origin){
+                return Err(bad("Self capture coalesces independent complete child origins"));
+            }
+            result.push(term);
+        }
+        Ok((life,result))
+    }
+    fn capture_header_term(&self,owner:&terms::Value,header:&StorageLifeContract,base:StorageBase,path:&[LifeTypeProjection],class:u32,b:&mut Budget)->Check<terms::LifeTerm>{
+        b.spend(header.classes.len().saturating_add(path.len()))?;
+        let mut rows=header.classes.iter().filter(|row|row.position.base==base&&row.position.path==path&&row.position.class==class);
+        let row=rows.next().ok_or_else(||bad("Self capture lacks a complete child class occurrence").with_note(format!("capture {base:?}, complete child path {path:?}, intrinsic class {class}; header class rows {:?}",header.classes)))?;
+        if rows.next().is_some(){return Err(bad("Self capture duplicates a complete child class occurrence"));}
+        let StorageBinder::Fixed(index)=row.binder else{return Err(bad("Self capture class cannot be invocation-local"));};
+        owner.term(index,b)
+    }
+    fn capture_term(terms:&mut [Option<terms::LifeTerm>],class:u32,term:terms::LifeTerm,b:&mut Budget)->Check<()>{
+        b.spend(1)?;
+        let slot=terms.get_mut(class as usize).ok_or_else(||bad("Self capture class escapes its complete local domain"))?;
+        if slot.is_some_and(|other|other!=term){return Err(bad("Self capture occurrences disagree on an exact original class source").with_note(format!("local class {class}, previous {slot:?}, current {term:?}")));}
+        *slot=Some(term);Ok(())
     }
     fn ports(
         &mut self,
@@ -870,5 +893,45 @@ mod tests {
         assert_eq!(leaves.len(), 1);
         assert!(matches!(leaves[0].kind, requests::LeafKind::OwningHead));
         assert_eq!(leaves[0].ty, value.raw.ty);
+    }
+    #[test]
+    fn captured_task_owner_retains_every_port_origin_through_its_exact_child_scope() {
+        let (mut module, _) = super::super::callables::tests::fixture(2, 0);
+        let leaf=Type::Address{mutable:false,inner:Box::new(Type::I32)};
+        let task=Type::Task{result:Box::new(Type::I32),retained_life:RetainedLifeShape{
+            binder_count:2,ports:(0..2).map(|binder|RetainedBorrowPort{leaf:leaf.clone(),mode:StoredBorrowMode::SharedAddress,binder}).collect(),
+            retained:(0..2).map(|class|StorageRetainedBinding{path:vec![LifeTypeProjection::Parameter(0)],class,binder:class}).collect(),nominal_arguments:vec![],
+        }};
+        let header=StorageLifeContract{fixed_binder_count:2,invocation_binder_count:0,
+            bindings:(0..2).map(|port|StorageLifeBinding{position:StoragePosition{base:StorageBase::Capture(0),path:vec![ContractProjection::RetainedPort(port)]},binder:StorageBinder::Fixed(port)}).collect(),
+            classes:(0..2).map(|class|SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Capture(0),path:vec![LifeTypeProjection::Pointee],class},binder:StorageBinder::Fixed(class)}).collect(),static_bindings:vec![],
+        };
+        module.closures[0].captures=vec![Type::Managed(Box::new(task))];
+        module.closures[0].result=Type::I32;module.closures[0].storage_life=Some(header.clone());
+        module.functions[0].return_type=Type::I32;module.functions[0].storage_life=Some(header);
+        let limits=Limits::default();
+        let value=terms::Value::anchored(&DynTypeValue{ty:Type::Closure(ClosureId(0)),life:StorageLifeShape{binder_count:2,..zero()},classes:vec![StorageBinder::Fixed(0);2]},terms::Owner::Function(FunctionId(99)),terms::Root::Receiver,&mut Budget::new(&limits)).unwrap();
+        // This is the metadata obligation only. A real MakeClosure, Task
+        // worker, capture source, loan and cleanup still need their CFG proofs.
+        let leaves=check_inventory(&module,&value).unwrap();
+        assert_eq!(leaves.len(),4);
+        assert_eq!(leaves[1].source.path,vec![ContractProjection::Capture(0)]);
+        assert!(matches!(leaves[1].kind,requests::LeafKind::OwningHead));
+        let ports=leaves.iter().filter_map(|leaf|match &leaf.kind{
+            requests::LeafKind::RetainedPort{outer:requests::Borrow::Variable{origin,..},port,..}=>Some((*port,origin.class,leaf.source.path.clone())),_=>None,
+        }).collect::<Vec<_>>();
+        assert_eq!(ports,vec![(0,0,vec![ContractProjection::Capture(0),ContractProjection::RetainedPort(0)]),(1,1,vec![ContractProjection::Capture(0),ContractProjection::RetainedPort(1)])]);
+        for attack in 0..4 {
+            let mut forged=module.clone();let header=forged.closures[0].storage_life.as_mut().unwrap();
+            match attack {
+                0=>{header.classes.pop();},
+                1=>{header.classes[1].binder=StorageBinder::Fixed(0);},
+                2=>{header.bindings[1].binder=StorageBinder::Fixed(0);},
+                3=>{header.classes[1].position.path.clear();},
+                _=>unreachable!(),
+            }
+            forged.functions[0].storage_life=forged.closures[0].storage_life.clone();
+            assert!(check_inventory(&forged,&value).is_err(),"capture attack {attack} cannot borrow another port's equal image");
+        }
     }
 }
