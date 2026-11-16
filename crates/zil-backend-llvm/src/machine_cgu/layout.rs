@@ -533,6 +533,9 @@ pub(crate) struct Pending {
     bytes: Vec<u8>,
 }
 impl Pending {
+    pub(crate) fn key(&self) -> Fingerprint {
+        self.key
+    }
     /// Pin the real root only after PreparedCache has created/validated it.
     /// Driver publication guards register this exact optional destination.
     pub(crate) fn pin(mut self) -> Option<Self> {

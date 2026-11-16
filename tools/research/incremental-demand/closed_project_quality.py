@@ -105,6 +105,54 @@ def import_names(units, items):
     return [{f'zil.import.{u["owner"]}.{items[i][1]}' for i in u['imports']} for u in units]
 
 
+def report_layout_key(report, model):
+    cg = report.get('native_codegen') or {}
+    key = cg.get('partition_layout_key')
+    require(key is None or (isinstance(key, str) and re.fullmatch('[0-9a-f]{64}', key)),
+            'current report partition_layout_key must be null or hex64')
+    require(key is not None or not model.get('classes'),
+            'current class strategy requires the actual reported partition_layout_key')
+    return key
+
+
+def layout_frame(data, key):
+    require(len(data) >= 76 and data[:8] == b'ZILCGU01' and data[8:40].hex() == key
+            and matched.rc.sha(data[72:]) == data[40:72].hex(), 'complete physical layout binding')
+    return matched.layout_units(data)
+
+
+def current_inventory_layout(args, report, inv, llvm, model=None):
+    """Rebind archived actual layout bytes to THIS report, never a metadata hint."""
+    model = scalar_model(llvm) if model is None else model
+    key = report_layout_key(report, model)
+    layouts = inv.get('partition_layouts', [])
+    matches = inv.get('current_layout_matches', [])
+    if key is not None:
+        require((inv.get('compiler_summary') or {}).get('partition_layout_key') == key
+                and inv.get('partition_layout_key', key) == key,
+                'inventory summary differs from current report partition layout key')
+        selected = [layout for layout in layouts if layout.get('key') == key]
+        require(len(selected) == 1, 'current reported partition layout lacks unique archived bytes')
+    else:
+        # Frozen no-class/main inventories used either layout keys or blob SHAs.
+        selected = [layout for layout in layouts
+                    if layout.get('key') in matches or layout.get('sha256') in matches]
+        require(selected, 'current inventory lacks an archived matching layout')
+    layout = selected[0]
+    actual = matched.recheck_archived(args.out, layout)
+    actual_key = actual[8:40].hex()
+    units = layout_frame(actual, key if key is not None else layout.get('key'))
+    require(layout.get('key') == actual_key and layout.get('units') == units
+            and layout.get('payload_sha256') == matched.rc.sha(actual[72:]),
+            'archived layout envelope/units differ from inventory metadata')
+    if key is not None:
+        require(len(matches) == 1 and matches[0] in (actual_key, layout['sha256']),
+                'current layout matches differ from actual reported layout')
+    items = [(m[1].decode(), m[2].decode()) for m in re.finditer(rb'(?m)^(declare|define) [^\n]*?@([^ (]+)\(', llvm)]
+    layout_roles(units, items, model, getattr(args, 'complete_imports', False))
+    return layout, units
+
+
 def hit_preflight(receipt):
     access = receipt.get('cache') or {}
     require(receipt.get('input_kind') == 'object-cache'
@@ -330,23 +378,21 @@ def executable_abi(args, row):
     inv = row['inventory']
     llvm = matched.recheck_archived(args.out, row['llvm'])
     model = scalar_model(llvm)
+    layout, units = current_inventory_layout(args, row['resident']['report'], inv, llvm, model)
     image = elf_table(matched.recheck_archived(args.out, row['executable']), executable=True)
     funcs = defined_functions(image)
     require(all(n in funcs and funcs[n]['bind'] == 1 and funcs[n]['visibility'] == 0 and funcs[n]['size'] > 0 for n in ('main', '_start'))
             and image['header'][4] == funcs['_start']['address'], 'actual ELF C main/start entry binding')
     items = [(m[1].decode(), m[2].decode()) for m in re.finditer(rb'(?m)^(declare|define) [^\n]*?@([^ (]+)\(', llvm)]
-    private = [set() for _ in range(16)]
-    for layout in inv.get('partition_layouts', []):
-        if layout.get('key') in inv['current_layout_matches'] or layout.get('sha256') in inv['current_layout_matches']:
-            units = matched.layout_units(matched.recheck_archived(args.out, layout))
-            layout_roles(units, items, model, getattr(args, 'complete_imports', False))
-            private = import_names(units, items)
-            break
+    expected, cross, has_imports = layout_roles(units, items, model, getattr(args, 'complete_imports', False))
+    private = import_names(units, items)
     seen, imports, owners = {}, set(), {}
-    for obj in inv['objects']:
+    require(len(inv['objects']) == 16, 'actual ABI requires sixteen physical CGUs')
+    for index, obj in enumerate(inv['objects']):
+        require(obj.get('unit_index') == index, 'actual ABI needs current ordered CGU owner indices')
         data = matched.recheck_archived(args.out, obj['object'])
-        table = elf_table(data)
-        physical = defined_functions(table)
+        receipt = object_abi(data, expected[index], cross & expected[index], model, private[index])
+        physical = receipt['functions']
         require(set(physical) == set(obj['defined_functions']) and not (set(physical) & seen.keys()), 'actual unique CGU function ownership')
         for name in physical:
             if name.startswith('zil.import.'):
@@ -358,12 +404,20 @@ def executable_abi(args, row):
                     'final ELF lost/rebound a physical CGU function')
             seen[name] = original
             owners[name] = obj['unit_index']
-        imports.update(s['name'] for s in table['symbols'] if s['name'] and not s['section'])
+        imports.update(receipt['undefined'])
     require({n for n in funcs if n == 'main' or n.startswith('zil.')} == set(seen), 'final ELF generated definitions differ from CGU union')
-    cross = set(inv['required_cross_unit_exports']) if 'required_cross_unit_exports' in inv else {
-        ref for caller, refs in model['calls'].items() for ref in refs
-        if caller in owners and ref in owners and owners[caller] != owners[ref]}
+    if not has_imports:
+        require(cross <= imports, 'required cross-unit calls lack physical object imports')
     cross |= imports & model['definitions']
+    actual_private = set(seen) & set.union(*private)
+    removed = set.union(*expected) - (set(seen) - actual_private)
+    allowed = {name for name in model['definitions'] if re.fullmatch(r'zil\.fn\.\d+(?:\.lc1)?', name)
+               or name in model['classes']} - cross
+    require(removed <= allowed
+            and set(inv.get('removed_functions', removed)) == removed
+            and set(inv.get('private_import_functions', actual_private)) == actual_private
+            and set(inv.get('required_cross_unit_exports', cross)) == cross,
+            'inventory removal/import/export metadata differs from actual current layout and objects')
     require(cross <= seen.keys() and all(funcs[n]['bind'] == 1 and funcs[n]['visibility'] == 0 for n in cross), 'final ELF cross-unit binding')
     crt = {'__libc_start_main', '__cxa_finalize', '_ITM_deregisterTMCloneTable', '_ITM_registerTMCloneTable', '__gmon_start__'}
     undefined = {s['name'] for s in image['symbols'] if s['name'] and not s['section']}
@@ -372,7 +426,7 @@ def executable_abi(args, row):
     require(model['foreign'] <= {r['symbol']['name'] for r in image['relocations'] if r['kind'] in (6, 7)}, 'final foreign imports need actual dynamic relocations')
     return {'scope': 'scalar C main/i32 foreign/protected cross-unit bindings; relocation/unwind envelopes only; callbacks/globals/cleanup ABI not claimed',
             'entry': funcs['_start']['address'], 'foreign_imports': sorted(model['foreign']), 'cross_unit_exports': sorted(cross),
-            'class_sources': model['class_sources']}
+            'class_sources': model['class_sources'], 'partition_layout_key': layout['key']}
 
 
 def source_metadata(files):
@@ -419,9 +473,13 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
     actual cache observations and current O2 receipts are still checked here.
     """
     policy(args)
+    model = scalar_model(llvm)
+    current_key = report_layout_key(report, model)
     candidate = str(cache.parent.name) == 'candidate'
     if not candidate:
-        return matched.zil_inventory(args, report, cache, llvm, executable_sha256, request_directory)
+        result = matched.zil_inventory(args, report, cache, llvm, executable_sha256, request_directory)
+        current_inventory_layout(args, report, result, llvm, model)
+        return result
     cg = report.get('native_codegen') or {}
     require(cg.get('backend') == 'llvm-api' and cg.get('requested_units') == cg.get('actual_units') == 16
             and cg.get('jobs') == 1 and cg.get('fallback') is None,
@@ -431,7 +489,17 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
         # The frozen helper rehashes every archived physical producer object,
         # envelope, symbol receipt and layout. This does not fabricate fresh
         # per-unit native work; current full preflight is checked by scope().
-        result = matched.retained_inventory(args, report, cache, llvm, executable_sha256, artifact)
+        retained_args = args
+        if current_key is not None:
+            identity = (str(cache.resolve()), matched.pc.llvm_comparison_sha256(llvm), executable_sha256)
+            prior = getattr(args, '_zil_producer_inventories', {}).get((*identity, current_key))
+            require(prior is not None, 'terminal reuse lacks the actual current layout-key producer')
+            # The frozen retained helper still rechecks every physical object,
+            # symbol receipt and full layout, scoped to the real keyed producer.
+            retained_args = copy.copy(args)
+            retained_args._zil_producer_inventories = {identity: prior}
+        result = matched.retained_inventory(retained_args, report, cache, llvm, executable_sha256, artifact)
+        current_inventory_layout(args, report, result, llvm, model)
         for item in result['objects']:
             producer_receipt(args, item)
         cache_summary = cg.get('object_cache') or {}
@@ -439,7 +507,6 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
                     ('current_preflight_ns', 'object_hit_preflight_checked_units', 'object_hit_preflight_reused_units')),
                 'retained artifact cannot fabricate current object-cache preflights')
         return result
-    model = scalar_model(llvm)
     reports = [json.loads(r) if isinstance(r, str) else r for r in cg.get('object_reports', [])]
     require(len(reports) == 16, 'sixteen current closed unit receipts')
     schema = cache/'objects-v1'
@@ -486,12 +553,14 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
     items = [(m[1].decode(), m[2].decode()) for m in re.finditer(rb'(?m)^(declare|define) [^\n]*?@([^ (]+)\(', llvm)]
     definitions = {i for i, (kind, _) in enumerate(items) if kind == 'define'}
     layouts = []
-    for path in sorted((cache/'partition-layout-v1').glob('*.layout')):
-        require(not path.is_symlink(), 'layout symlink')
+    layout_root = cache/'partition-layout-v1'
+    require(layout_root.is_dir() and not layout_root.is_symlink(), 'physical partition layout directory')
+    paths = [layout_root/(current_key+'.layout')] if current_key is not None else sorted(layout_root.glob('*.layout'))
+    for path in paths:
+        require(not path.is_symlink() and path.is_file() and path.resolve().parent == layout_root.resolve(),
+                'missing/unsafe current physical layout')
         data = path.read_bytes()
-        require(len(data) >= 76 and data[:8] == b'ZILCGU01' and data[8:40].hex() == path.stem
-                and matched.rc.sha(data[72:]) == data[40:72].hex(), 'complete physical layout binding')
-        units = matched.layout_units(data)
+        units = layout_frame(data, path.stem)
         if len(units) != 16:
             continue
         indices = [i for u in units for group in ('prelude', 'declarations', 'imports', 'definitions') for i in u[group]]
@@ -551,15 +620,20 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
             and aggregate['current_preflight_ns'] == sum(r['cache']['current_preflight_ns'] for r in reports),
             'aggregate current machine-preflight counts/durations disagree with actual hits')
     result = {'object_count': 16, 'objects': objects, 'partition_layouts': layouts,
-              'current_layout_matches': [l['sha256'] for l in layouts], 'compiler_summary': cg,
+              'current_layout_matches': [l['key'] if current_key is not None else l['sha256'] for l in layouts],
+              'partition_layout_key': current_key, 'compiler_summary': cg,
               'current_object_report_count': 16, 'removed_functions': layouts[0]['removed_functions'],
               'required_cross_unit_exports': layouts[0]['required_cross_unit_exports'],
               'policy_identity': policy_identity(args),
               'actual_import_count': layouts[0]['actual_import_count'],
               'private_import_functions': layouts[0]['private_import_functions'],
               'provenance_kind': 'current-closed-object-reports'}
+    current_inventory_layout(args, report, result, llvm, model)
     histories = getattr(args, '_zil_producer_inventories', {})
-    histories[(str(cache.resolve()), matched.pc.llvm_comparison_sha256(llvm), executable_sha256)] = copy.deepcopy(result)
+    identity = (str(cache.resolve()), matched.pc.llvm_comparison_sha256(llvm), executable_sha256)
+    histories[identity] = copy.deepcopy(result)
+    if current_key is not None:
+        histories[(*identity, current_key)] = histories[identity]
     args._zil_producer_inventories = histories
     return result
 
@@ -590,9 +664,15 @@ def quality(rows, args, oracle, allow_main_limit=False):
                 inv = row['inventory']
                 require(inv['object_count'] == len(inv['objects']) == inv['compiler_summary']['actual_units'] == 16
                         and inv['current_layout_matches'], 'physical sixteen-unit quality required')
+                llvm = matched.recheck_archived(args.out, row['llvm'])
+                model = scalar_model(llvm)
+                layout, _ = current_inventory_layout(args, row['resident']['report'], inv, llvm, model)
                 exports[row['arm']] = sorted({n for o in inv['objects'] for n in o['defined_functions']}
                                              - set(inv.get('private_import_functions', [])))
                 row['scalar_abi'] = executable_abi(args, row)
+                require(row['scalar_abi'].get('class_sources', {}) == model['class_sources']
+                        and row['scalar_abi'].get('partition_layout_key') == layout['key'],
+                        'ABI/classes must bind the actual current report and archived layout/model')
             else:
                 require(row['inventory'].get('objects'), 'Rust physical incremental objects required')
         if not baseline_limit:

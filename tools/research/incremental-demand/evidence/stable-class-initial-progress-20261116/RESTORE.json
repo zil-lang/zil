@@ -1,0 +1,20 @@
+{
+  "schema": "zil.stable-class-initial-progress-recovery.v1",
+  "scope": "Initial da06/404a progress and all first failures, not acceptance for the subsequent actual-layout-key compiler. Retain03 andcheck02 completed on404a;native03stopped at private005 with two plausible historical layouts. All original raw preserved.",
+  "payload_paths": "Repository-relative, restore to a new empty root. Original workspace paths in logs are historical; deliberately rebind for new execution.",
+  "archive_manifest": "evidence-manifest.json",
+  "archive_sha256": "f6cf071515064c4c46e4818e154b7c59519ba753f25e6224784d5e2fa793afdf",
+  "parts": 48,
+  "raw_bytes": 4411100174,
+  "files": 85083,
+  "fresh_full_verification": "fresh-recovery-receipt.json",
+  "compiler_sources": [
+    "da06f87194b7e21c2ae2f77bebf600e878e0aa1a",
+    "404aafdc7844ff3d85a08edb3fd0da0f2046816a"
+  ],
+  "tools_source": "ea5349ed069f91f8baaeeb811a421ca8c805bb6c",
+  "native_runtime_dependencies": "https://github.com/zil-lang/zil/blob/df06acabf33a76a723d1e92b1d7da71b41d4b7da/tools/research/incremental-demand/evidence/restart-performance-core-20261116/RESTORE.json",
+  "full_SDK18_rebuild_dependency": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
+  "LLVM_rebuilt": false,
+  "recovery": "Read all archive parts and this manifest from the SAME immutable containing Git commit; run archive_evidence.py verify --archive-dir PATH --restore-dir NEW_NONEXISTING_PATH. All85,083file hashes and modes must verify; restore exact SDK18/stock DSO/native-link dependencies above before any independent new run. Do not recompute original product disk measurements from restored regular files."
+}

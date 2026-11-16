@@ -124,11 +124,14 @@ pub struct CodegenSummary {
     /// Fresh original-unit checks, exact-input cached units, fresh removals,
     /// retained producer removals. These are separate from current API preflight.
     pub closed_prune: Option<(usize, usize, usize, usize)>,
+    /// Actual producer layout receipt, retained with its complete partition.
+    /// This identifies raw provenance; it never authorizes replay or validation.
+    pub partition_layout_key: Option<String>,
 }
 impl CodegenSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"backend\":{},\"object_reports\":[{}],\"final_artifact\":{},\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{},\"link_tool_identities\":{},\"call_classes\":{},\"closed_prune\":{}}}",
+            "{{\"backend\":{},\"object_reports\":[{}],\"final_artifact\":{},\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{},\"link_tool_identities\":{},\"call_classes\":{},\"closed_prune\":{},\"partition_layout_key\":{}}}",
             zil_base::json_string(self.backend.name()),
             self.object_reports.join(","),
             self.final_artifact
@@ -153,7 +156,8 @@ impl CodegenSummary {
             )),
             self.closed_prune.map_or_else(|| "null".into(), |(checked, reused, removed, retained)| format!(
                 "{{\"fresh_original_units_checked\":{checked},\"full_input_cached_units\":{reused},\"fresh_removed_definitions\":{removed},\"retained_removed_definitions\":{retained},\"scope\":\"post-internalization local pruning; current API preflight remains separate\"}}"
-            ))
+            )),
+            self.partition_layout_key.as_ref().map_or_else(|| "null".into(), |key| zil_base::json_string(key))
         )
     }
 }
@@ -610,9 +614,7 @@ pub fn build_view_with_cancellation_and_session(
         })
         .cloned();
     let mut closed_prune = None;
-    let (plan, llvm, pending_layout, stable_diagnostic, private_closures) = if let Some(cached) =
-        cached_partition
-    {
+    let partitioned = if let Some(cached) = cached_partition {
         if let Some(removed) = cached.closed_prune_removed {
             closed_prune = Some((0, cached.units.len(), 0, removed));
         }
@@ -637,6 +639,7 @@ pub fn build_view_with_cancellation_and_session(
             None,
             None,
             cached.private_closures,
+            cached.layout_key.clone(),
         )
     } else {
         // The current complete scalar domain has no implementation imports or
@@ -1013,6 +1016,9 @@ pub fn build_view_with_cancellation_and_session(
                 removed: removals,
             });
         }
+        let layout_key = pending_layout
+            .as_ref()
+            .map(|pending| pending.key().to_hex());
         if let (Some(session), Some(input)) = (session.as_deref_mut(), partition_input) {
             session.partition = Some(std::sync::Arc::new(crate::incremental::PartitionProduct {
                 input,
@@ -1025,6 +1031,7 @@ pub fn build_view_with_cancellation_and_session(
                 recipe,
                 materialization,
                 prune,
+                layout_key: layout_key.clone(),
             }));
         }
         (
@@ -1033,8 +1040,11 @@ pub fn build_view_with_cancellation_and_session(
             pending_layout,
             stable_diagnostic,
             private_closures,
+            layout_key,
         )
     };
+    let (plan, llvm, pending_layout, stable_diagnostic, private_closures, partition_layout_key) =
+        partitioned;
     if let Some(session) = session.as_deref_mut() {
         session.summary.checked_add_functions_checked = checked_add_work.0;
         session.summary.checked_add_functions_reused = checked_add_work.1;
@@ -1105,6 +1115,7 @@ pub fn build_view_with_cancellation_and_session(
             )
         }),
         closed_prune,
+        partition_layout_key,
     };
     timings.object_ns += crate::object_cache::elapsed_ns(object_setup_started);
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";

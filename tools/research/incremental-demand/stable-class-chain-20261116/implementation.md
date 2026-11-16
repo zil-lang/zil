@@ -26,3 +26,9 @@ Astra按当前源码复核完整imports、碰撞、call-free、模型扩张和�
 原62d第一次统一收据机械检查与backend305通过，Types108过/3失败已保留。三失败来自短体缓存覆盖变化后的旧调度计数，以及life域主动不入缓存后旧fixture强制unwrap；所有fresh结果、原始六费合计、预算错误、成功epoch保留断言不减。Life反例现在额外断言无CFG候选可编码，并继续精确高/低工作边界。尚未启动任何新性能矩阵。完整新增逻辑收齐后再统一验收，而非逐改测试。
 
 类域也显式绑定到PartitionInput；每unit裁剪只绑定该unit实际类声明位置，而非用全局类集变化否决所有单位，当前真实声明角色变化不能借旧prune产物跨域复用。
+
+404a已补齐真实class layout的成功发布及全值helper/纯DAG/ABI/imports/DCE/物理符号核算，backend314、publication1、strict/fmt/release和22tool tests通过。retain03在404a完成72请求/24功能格/10运行质量门，check02完成102请求；native03在1k第五私改发现两份历史layout物理不可区分，仍拒绝，不当全面成功。首改实际15objects hit/1miss，但5.1k真实重启+首改5.023/Rust1.385s仍落后，数值只属于404a该窗口。
+
+现一次贯通真正planner receipt key→PartitionProduct/四槽历史→CodegenSummary→native inventory/retained inventory/ELF/汇总；不再从缓存目录猜layout。实际class域缺key/缺真实producer保守拒绝，原完整layout/closure/ABI/O2/运行门保持。真实Source回归含多次私改、分区及最终文件命中、删除产物后的恢复；本新整链尚待统一验收及新性能窗口。
+
+初始8窗与所有首败、旧编译器和已过门的完整raw已fresh验证85,083files、4,411,100,174raw bytes、1,204,793,250archive bytes，位于evidence/stable-class-initial-progress-20261116；这不是新key源码的性能验收。SDK18/native-link沿原恢复入口，不重建LLVM。

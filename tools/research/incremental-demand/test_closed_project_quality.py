@@ -320,20 +320,54 @@ class ClosedProjectTests(unittest.TestCase):
                   'input_fingerprint': 'same', 'source_files': {'0': '/src/main.zil'}, 'scalar_interfaces': []}
         rows = []
         for arm in matrix.matched.ARMS:
+            current = copy.deepcopy(report)
+            key = ('a' if arm == 'baseline' else 'b')*64
+            current['native_codegen'] = {'actual_units': 16, 'partition_layout_key': None if arm == 'baseline' else key}
+            llvm = ('declare i32 @getchar() nonlazybind\ndeclare i32 @putchar(i32) nonlazybind\n'
+                    'define i32 @main() {\n ret i32 0\n}\n'
+                    'define i32 @zil.fn.0() {\n ret i32 23\n}\n').encode()
+            units = [dict(owner=i, prelude=[], declarations=[], imports=[],
+                          definitions=[2, 3] if i == 0 else []) for i in range(16)]
+            layout = self.archived_layout(out, units, key)
             functions = ['main', 'zil.fn.0'] if arm == 'baseline' else ['main']
             objects = [{'defined_functions': functions}]+[{'defined_functions': []} for _ in range(15)]
-            inv = {'objects': objects, 'object_count': 16, 'current_layout_matches': ['x'],
-                   'compiler_summary': {'actual_units': 16}, 'removed_functions': ['zil.fn.0']}
-            rows.append({'arm': arm, 'request': 'cold', 'valid': True, 'resident': {'report': copy.deepcopy(report)},
+            inv = {'objects': objects, 'object_count': 16, 'current_layout_matches': [key],
+                   'partition_layouts': [layout], 'compiler_summary': current['native_codegen'],
+                   'removed_functions': [] if arm == 'baseline' else ['zil.fn.0']}
+            rows.append({'arm': arm, 'request': 'cold', 'valid': True, 'resident': {'report': current},
+                         'llvm': matrix.matched.blob(out, llvm, '.ll'),
                          'executable': matrix.matched.blob(out, b'\x7fELF'+arm.encode(), '.elf'),
                          'inventory': inv, 'native': self.outcomes(oracle)})
         return rows, oracle
+
+    def layout_bytes(self, units, key):
+        payload = len(units).to_bytes(4, 'little')
+        for unit in units:
+            payload += unit['owner'].to_bytes(4, 'little')
+            for group in ('prelude', 'declarations', 'imports', 'definitions'):
+                payload += len(unit[group]).to_bytes(4, 'little')
+                payload += b''.join(i.to_bytes(4, 'little') for i in unit[group])
+        return b'ZILCGU01'+bytes.fromhex(key)+bytes.fromhex(matrix.rc.sha(payload))+payload
+
+    def archived_layout(self, out, units, key):
+        data = self.layout_bytes(units, key)
+        return dict(key=key, units=copy.deepcopy(units), payload_sha256=matrix.rc.sha(data[72:]),
+                    **matrix.matched.blob(out, data, '.layout'))
+
+    def aggregate_abi_stub(self, args, row):
+        # Physical executable ABI is tested separately; keep the actual archived
+        # model/layout binding live in these aggregate-only fixtures.
+        llvm = matrix.matched.recheck_archived(args.out, row['llvm'])
+        model = quality.scalar_model(llvm)
+        layout, _ = quality.current_inventory_layout(args, row['resident']['report'], row['inventory'], llvm, model)
+        return {'scope': 'mock physical executable ABI; actual layout/model rechecked',
+                'class_sources': model['class_sources'], 'partition_layout_key': layout['key']}
 
     def test_new_protocol_records_unequal_elf_and_requires_current_verify(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             rows, oracle = self.triplet(out)
-            with patch.object(quality, 'executable_abi', return_value={'scope': 'mock ABI; tested separately'}):
+            with patch.object(quality, 'executable_abi', side_effect=self.aggregate_abi_stub):
                 result = quality.quality(rows, self.args(out), oracle)
             self.assertTrue(result['valid'])
             self.assertFalse(result['complete_ELF_equal'])
@@ -350,10 +384,13 @@ class ClosedProjectTests(unittest.TestCase):
             live, dead = 'zil.class.'+'a'*64, 'zil.class.'+'b'*64
             rows[1]['inventory']['objects'][0]['defined_functions'].append(live)
             rows[1]['inventory']['removed_functions'].append(dead)
-            def abi(args, row):
-                return {'class_sources': {live: ['zil.fn.0'], dead: ['zil.fn.0']}
-                        if row['arm'] == 'candidate' else {}}
-            with patch.object(quality, 'executable_abi', side_effect=abi):
+            llvm = matrix.matched.recheck_archived(out, rows[1]['llvm'])
+            llvm += ''.join(f'define i32 @{name}() {{\n ret i32 23\n}}\n' for name in (live, dead)).encode()
+            rows[1]['llvm'] = matrix.matched.blob(out, llvm, '.ll')
+            units = copy.deepcopy(rows[1]['inventory']['partition_layouts'][0]['units'])
+            units[0]['definitions'].extend([4, 5])
+            rows[1]['inventory']['partition_layouts'] = [self.archived_layout(out, units, 'b'*64)]
+            with patch.object(quality, 'executable_abi', side_effect=self.aggregate_abi_stub):
                 self.assertTrue(quality.quality(rows, self.args(out), oracle)['valid'])
                 for mutate in ('unvalidated_extra', 'missing_source_removal', 'live_claimed_removed'):
                     bad = copy.deepcopy(rows)
@@ -365,6 +402,19 @@ class ClosedProjectTests(unittest.TestCase):
                         bad[1]['inventory']['removed_functions'].append(live)
                     with self.subTest(mutate=mutate), self.assertRaises(ValueError):
                         quality.quality(bad, self.args(out), oracle)
+                for key in (None, 'not-a-key', 'c'*64):
+                    bad = copy.deepcopy(rows)
+                    bad[1]['resident']['report']['native_codegen']['partition_layout_key'] = key
+                    with self.subTest(key=key), self.assertRaises(ValueError):
+                        quality.quality(bad, self.args(out), oracle)
+                bad = copy.deepcopy(rows)
+                actual = self.archived_layout(out, units, 'c'*64)
+                # All prefilled metadata claims the report key, but the actual
+                # content-addressed archive still contains a different key.
+                actual['key'] = 'b'*64
+                bad[1]['inventory']['partition_layouts'] = [actual]
+                with self.assertRaises(ValueError):
+                    quality.quality(bad, self.args(out), oracle)
 
     def test_main_resource_failure_is_explicit_and_never_a_ratio(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -375,7 +425,7 @@ class ClosedProjectTests(unittest.TestCase):
                     'diagnostics': [{'category': 'ResourceLimit'}]}},
                 'publication_before': {'program': {'exists': False}},
                 'publication_after': {'program': {'exists': False}}}
-            with patch.object(quality, 'executable_abi', return_value={'scope': 'mock ABI; tested separately'}):
+            with patch.object(quality, 'executable_abi', side_effect=self.aggregate_abi_stub):
                 result = quality.quality(rows, self.args(out), oracle, allow_main_limit=True)
             self.assertTrue(result['main_resource_limit'])
             self.assertFalse(result['main_success'])
@@ -530,6 +580,8 @@ class ClosedProjectTests(unittest.TestCase):
             (layouts/('b'*64+'.layout')).write_bytes(b'ZILCGU01'+bytes.fromhex('b'*64)+bytes.fromhex(matrix.rc.sha(payload))+payload)
             report = {'native_codegen': {'backend': 'llvm-api', 'requested_units': 16, 'actual_units': 16,
                 'jobs': 1, 'fallback': None, 'object_reports': reports,
+                # Completed graph statistics alone do not define a class domain.
+                'call_classes': {'equivalence_classes': 0},
                 'object_cache': {'hits': 0, 'misses': 16, 'corrupt': 0, 'write_failures': 0,
                                  'current_preflight_ns': 0, 'object_hit_preflight_checked_units': 0, 'object_hit_preflight_reused_units': 0}}}
             llvm = ('; ZIL verified LLVM module\n; verified-fingerprint: '+'0'*64+'\n'
@@ -563,9 +615,94 @@ class ClosedProjectTests(unittest.TestCase):
                 inv = quality.inventory(self.args(out), report, cache, llvm, 'c'*64)
                 self.assertEqual(inv['object_count'], 16)
                 self.assertEqual(inv['removed_functions'], [])
+                # Two different layouts can both satisfy current IR/ELF after
+                # O2 removes a pure class. Only the real report key selects one.
+                class_name = 'zil.class.'+'d'*64
+                class_llvm = llvm.replace(b'define void @zil.fn.1() {\n ret void\n}',
+                                         b'define i32 @zil.fn.1() {\n ret i32 7\n}')
+                class_llvm += f'define i32 @{class_name}() {{\n ret i32 7\n}}\n'.encode()
+                current_units = matrix.matched.layout_units(saved)
+                current_units[0]['definitions'].append(18)
+                prior_units = copy.deepcopy(current_units)
+                prior_units[0]['definitions'].remove(18)
+                prior_units[1]['definitions'].append(18)
+                good.write_bytes(self.layout_bytes(current_units, 'b'*64))
+                (layouts/('a'*64+'.layout')).write_bytes(self.layout_bytes(prior_units, 'a'*64))
+                report['native_codegen']['partition_layout_key'] = 'b'*64
+                current = quality.inventory(imports_args, report, cache, class_llvm, 'c'*64)
+                self.assertEqual(current['current_layout_matches'], ['b'*64])
+                self.assertEqual([layout['key'] for layout in current['partition_layouts']], ['b'*64])
+                self.assertEqual(current['partition_layouts'][0]['units'], current_units)
+                self.assertEqual(current['removed_functions'], [class_name])
+                report['native_codegen']['partition_layout_key'] = 'a'*64
+                prior = quality.inventory(imports_args, report, cache, class_llvm, 'c'*64)
+                self.assertEqual(prior['partition_layouts'][0]['units'], prior_units)
+                self.assertNotEqual(prior_units, current_units)
+                # The latest unkeyed IR+ELF history is now A; terminal reuse of
+                # B must restore B's actual archived producer, not relabel A.
+                retained_report = copy.deepcopy(report)
+                retained_report.update(commands=[], backend_work={'reused_link': True})
+                retained_cg = retained_report['native_codegen']
+                retained_cg['partition_layout_key'] = 'b'*64
+                retained_cg['object_reports'] = []
+                retained_cg['object_cache'].update(hits=0, misses=0, stored=0)
+                retained_cg['final_artifact'] = dict(reused_program=True, retained_files=True,
+                    before_codegen=True, profile_id=imports_args.native_link_profile_sha256,
+                    current_preflight_checked_units=0, current_preflight_reused_units=16,
+                    llvm_verification_scope='retained-producer', current_llvm_verifier_executed=False)
+                retained = quality.inventory(imports_args, retained_report, cache, class_llvm, 'c'*64)
+                self.assertEqual(retained['partition_layouts'][0]['key'], 'b'*64)
+                self.assertEqual(retained['partition_layouts'][0]['units'], current_units)
+                self.assertEqual(retained['current_object_report_count'], 0)
+                # A new dead-class diagnostic/pre-prune layout can coexist with
+                # unchanged pruned native units. Without an exact real producer
+                # inventory, this harness must reject, not borrow the latest key
+                # or treat an ELF/hash match as a new native producer receipt.
+                new_llvm = class_llvm.replace(class_name.encode(), ('zil.class.'+'e'*64).encode())
+                new_report = copy.deepcopy(retained_report)
+                new_report['native_codegen']['partition_layout_key'] = 'e'*64
+                (layouts/('e'*64+'.layout')).write_bytes(self.layout_bytes(current_units, 'e'*64))
+                model = quality.scalar_model(new_llvm)
+                items = [(m[1].decode(), m[2].decode()) for m in quality.re.finditer(
+                    rb'(?m)^(declare|define) [^\n]*?@([^ (]+)\(', new_llvm)]
+                quality.layout_roles(current_units, items, model, True)
+                with self.assertRaisesRegex(ValueError, 'actual current layout-key producer'):
+                    quality.inventory(imports_args, new_report, cache, new_llvm, 'c'*64)
+                for key in (None, 'not-a-key', '../bad', 7, 'f'*64):
+                    for before_codegen in (False, True):
+                        bad = copy.deepcopy(retained_report if before_codegen else report)
+                        bad['native_codegen']['partition_layout_key'] = key
+                        with self.subTest(key=key, retained=before_codegen), self.assertRaises(ValueError):
+                            quality.inventory(imports_args, bad, cache, class_llvm, 'c'*64)
+                forged = copy.deepcopy(prior)
+                forged.update(compiler_summary=copy.deepcopy(retained_cg),
+                              partition_layout_key='b'*64, current_layout_matches=['b'*64])
+                forged['partition_layouts'][0]['key'] = 'b'*64
+                forged_row = dict(resident={'report': retained_report}, inventory=forged,
+                                  llvm=matrix.matched.blob(out, class_llvm, '.ll'))
+                with self.assertRaises(ValueError):
+                    quality.executable_abi(imports_args, forged_row)
+                history_key = (str(cache.resolve()), matrix.matched.pc.llvm_comparison_sha256(class_llvm), 'c'*64, 'b'*64)
+                sealed = imports_args._zil_producer_inventories[history_key]
+                imports_args._zil_producer_inventories[history_key] = forged
+                with self.assertRaises(ValueError):
+                    quality.inventory(imports_args, retained_report, cache, class_llvm, 'c'*64)
+                imports_args._zil_producer_inventories[history_key] = sealed
+                # Key selection still runs the unchanged whole layout/closure
+                # and object ABI checks, rather than granting trust to a name.
+                report['native_codegen']['partition_layout_key'] = 'b'*64
+                good.write_bytes(b'corrupt selected layout')
+                with self.assertRaises(ValueError):
+                    quality.inventory(imports_args, report, cache, class_llvm, 'c'*64)
+                wrong_closure = copy.deepcopy(current_units)
+                wrong_closure[0]['imports'] = [3]
+                good.write_bytes(self.layout_bytes(wrong_closure, 'b'*64))
+                with self.assertRaises(ValueError):
+                    quality.inventory(imports_args, report, cache, class_llvm, 'c'*64)
+                good.write_bytes(self.layout_bytes(current_units, 'b'*64))
                 reports[0]['cache']['action_key'], reports[1]['cache']['action_key'] = reports[1]['cache']['action_key'], reports[0]['cache']['action_key']
                 with self.assertRaises(ValueError):
-                    quality.inventory(self.args(out), report, cache, llvm, 'c'*64)
+                    quality.inventory(imports_args, report, cache, class_llvm, 'c'*64)
 
 
 if __name__ == '__main__':

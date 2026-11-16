@@ -483,6 +483,7 @@ pub(crate) struct PartitionProduct {
     pub(crate) recipe: Option<crate::machine_cgu::Recipe>,
     pub(crate) materialization: Option<crate::machine_cgu::Materialization>,
     pub(crate) prune: Option<PruneProduct>,
+    pub(crate) layout_key: Option<String>,
 }
 /// Original complete unit values and their checked transformation result are
 /// kept together in one process-owned epoch. Never serialized as permission.

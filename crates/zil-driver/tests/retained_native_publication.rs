@@ -383,3 +383,85 @@ fn resident_final_values_retain_restore_and_reject_current_invalid_source() {
     assert_eq!((stamp(&executable), stamp(&llvm)), before_error);
     same_owned_files(&case, &edited_program, &edited_diagnostic, executable_mode);
 }
+
+#[test]
+#[ignore = "requires an explicitly installed native link profile; run with ZIL_TEST_NATIVE_LINK_PROFILE"]
+fn stable_class_layout_receipt_survives_edits_partition_and_final_artifact_reuse() {
+    let profile = PathBuf::from(std::env::var_os("ZIL_TEST_NATIVE_LINK_PROFILE").unwrap());
+    let case = Case::new();
+    fs::write(
+        case.0.join("main.zil"),
+        "import left\nimport right\nfn main()->i32{return left.value(1)+right.value();}",
+    )
+    .unwrap();
+    let mut right = RIGHT.to_owned();
+    for value in 0..8 {
+        right.push_str(&format!(
+            "\nfn extra{value}(x:i32)->i32{{return x%251+{value};}}"
+        ));
+    }
+    fs::write(case.0.join("right.zil"), right).unwrap();
+    let mut options = case.options(profile);
+    options.closed_executable = true;
+    options.incremental_o2 = true;
+    let mut session = CompilationSession::default();
+    let mut keys = std::collections::BTreeSet::new();
+    let mut first = None;
+    for (index, value) in [19, 19, 19, 20, 21, 22, 23, 24, 25, 19]
+        .into_iter()
+        .enumerate()
+    {
+        fs::write(case.0.join("left.zil"), format!("fn hidden(x:i32)->i32{{return x+{value};}}\npub fn value(x:i32)->i32{{return hidden(x);}}")).unwrap();
+        let report = case.compile(&mut session, &options, "actual-class-layout");
+        successful(&report, value + 24);
+        let native = report.native_codegen.as_ref().unwrap();
+        assert!(
+            fs::read_to_string(&report.artifacts["llvm"])
+                .unwrap()
+                .contains("@zil.class.")
+        );
+        let key = native
+            .partition_layout_key
+            .as_ref()
+            .expect("actual class producer layout");
+        assert_eq!(key.len(), 64);
+        let bytes = fs::read(
+            case.0
+                .join("objects/partition-layout-v1")
+                .join(format!("{key}.layout")),
+        )
+        .unwrap();
+        assert_eq!(&bytes[..8], b"ZILCGU01");
+        assert_eq!(
+            bytes[8..40]
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>(),
+            *key
+        );
+        assert_eq!(zil_base::Fingerprint::of(&bytes[72..]).0, bytes[40..72]);
+        assert!(
+            report
+                .to_json()
+                .contains(&format!("\"partition_layout_key\":\"{key}\""))
+        );
+        keys.insert(key.clone());
+        if index == 0 {
+            first = Some(key.clone());
+        }
+        if matches!(index, 1 | 2) {
+            assert_eq!(Some(key), first.as_ref());
+            assert!(report.backend_work.as_ref().unwrap().reused_partition);
+            assert!(native.final_artifact.as_ref().unwrap().before_codegen);
+        }
+        if index == 1 {
+            let (program, diagnostic) = case.paths();
+            fs::remove_file(program).unwrap();
+            fs::remove_file(diagnostic).unwrap();
+        }
+    }
+    assert!(
+        keys.len() >= 6,
+        "distinct actual machine inputs keep their own receipt keys"
+    );
+}
