@@ -1815,6 +1815,9 @@ impl Check<'_, '_> {
             .filter(|item| item.id == local)
             .ok_or_else(|| fail("semantic class query selects no actual local type"))?
             .ty;
+        if let Some(value) = self.reference_local_value(instance, function, local, at, b, depth + 1)? {
+            return Ok(value);
+        }
         if let Type::Closure(id) = ty {
             let closure = self
                 .module

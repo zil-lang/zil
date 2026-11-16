@@ -626,6 +626,7 @@ impl Check<'_, '_> {
                         "actual local declaration changes its complete original constraint",
                     ));
                 }
+                self.check_reference_declaration(instance, point.function, *local, b)?;
             }
             (SemanticSiteRecipeKind::OriginalCall, SemanticSiteAction::BodyCall { actuals }) => {
                 if self
@@ -1610,8 +1611,12 @@ impl Check<'_, '_> {
                         }
                         b.lookup(declared_values.len(), WORK)?;
                         if let Some(expected) = declared_values.get(&local) {
-                            let actual = self.ssa_value(instance, function, value, b, 0)?;
-                            if actual != *expected {
+                            let actual =
+                                match self.reference_store_value(instance, function, local, b)? {
+                                    Some(role) => role,
+                                    None => self.ssa_value(instance, function, value, b, 0)?,
+                                };
+                            if !actual.equal_paid(expected, b)? {
                                 return Err(fail(
                                     "actual Store changes its complete original local class constraint",
                                 ));

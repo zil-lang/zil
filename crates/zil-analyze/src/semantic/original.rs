@@ -22,6 +22,7 @@ mod frozen_calls;
 mod intrinsic_actuals;
 mod invocations;
 mod loops;
+pub(super) mod local_reference_roles;
 pub(super) mod mixed;
 mod mutex;
 pub(super) mod nominal;
@@ -262,6 +263,7 @@ pub(super) struct Checked {
     return_injections: BTreeMap<(SemanticDefinitionId, NodeId), (Term, bool)>,
     dyn_creations: BTreeMap<(SemanticDefinitionId, NodeId), dyn_owned::Creation>,
     view_uppers: BTreeMap<(SemanticDefinitionId, u32), Vec<Term>>,
+    reference_roles: BTreeMap<(SemanticDefinitionId, NodeId), local_reference_roles::Role>,
 }
 struct Solver<'a, 'i> {
     inventory: &'i Inventory<'a>,
@@ -2792,6 +2794,7 @@ impl Solver<'_, '_> {
                         }
                     }
                     if let Some(value) = initializer {
+                        let initializer_node = value.id;
                         let value = self.expression_expected(
                             frame,
                             value,
@@ -2811,6 +2814,18 @@ impl Solver<'_, '_> {
                             };
                             self.unify(family, payload, depth + 1, b)?;
                         }
+                        let value = self
+                            .reference_binding(
+                                frame,
+                                statement.id,
+                                initializer_node,
+                                value,
+                                *mutable,
+                                ty.is_some(),
+                                b,
+                                depth + 1,
+                            )?
+                            .unwrap_or(value);
                         self.unify(local, value, depth + 1, b)?;
                     } else if family.is_some() {
                         return Err(unknown(
@@ -3192,8 +3207,22 @@ impl Solver<'_, '_> {
                         self.mutating_closures.insert(frame.definition);
                     }
                     let expected = frame.locals[index].ty;
-                    let value = self.expression_expected(frame, value, expected, b, depth + 1)?;
-                    self.unify(value, expected, depth + 1, b)?;
+                    if let Some(binding) = self.reference_assignment_target(frame, index, b)? {
+                        let actual = self.expression(frame, value, b, depth + 1)?;
+                        self.reference_assignment(
+                            frame,
+                            binding,
+                            statement.id,
+                            value.id,
+                            actual,
+                            b,
+                            depth + 1,
+                        )?;
+                    } else {
+                        let actual =
+                            self.expression_expected(frame, value, expected, b, depth + 1)?;
+                        self.unify(actual, expected, depth + 1, b)?;
+                    }
                     b.lookup(frame.expressions.len(), WORK)?;
                     if frame.expressions.insert(target.id, expected).is_some() {
                         return Err(fail("original assignment destination node is reused"));
@@ -3900,6 +3929,7 @@ pub(super) fn check(
             return_injections: BTreeMap::new(),
             dyn_creations: BTreeMap::new(),
             view_uppers: BTreeMap::new(),
+            reference_roles: BTreeMap::new(),
         },
         active: BTreeSet::new(),
         creators: BTreeMap::new(),
@@ -4132,6 +4162,7 @@ pub(super) fn check(
             solver.sized_original(*value, b, 0)?;
         }
     }
+    solver.reference_role_escapes(b)?;
     effects.finish(&solver.state, inventory, b)?;
     protocol::check(&solver.state, inventory, b)?;
     solver.check_resume_capabilities(b)?;

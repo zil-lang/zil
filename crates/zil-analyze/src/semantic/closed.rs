@@ -18,6 +18,7 @@ mod descriptions;
 mod dyn_owners;
 mod dyn_tables;
 mod function_values;
+mod local_reference_roles;
 mod mutex;
 mod nominal_fields;
 mod operations;
