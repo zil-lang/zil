@@ -49,6 +49,68 @@ impl CheckedContext {
         if !found{return Err(bad("pending closure cursor has no complete actual constructor boundary"));}
         Ok(())
     }
+    /// A Callable P/R occurrence belongs to the original entry signature,
+    /// not to the opaque receiver's independent intrinsic partition. This
+    /// cursor stays pending until finish_closure_cursor checks every creator.
+    pub(crate) fn callable_source_signature(&self,module:&TypedModule,receiver:&CheckedType,environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedSignature>>{
+        let Type::Closure(id)=receiver.ty else{return Ok(None);};
+        let mut selected:Option<CheckedSignature>=None;
+        // Evaluating a source can append further cursors; never hold the
+        // RefCell borrow across that evaluation or choose its first match.
+        let count=self.pending_closures.borrow().len();b.spend(count)?;
+        for ordinal in 0..count{
+            let candidate={
+                let cursors=self.pending_closures.borrow();let cursor=&cursors[ordinal];
+                if cursor.expected.ty!=Type::Closure(id)||!self.same_type(environment,&cursor.expected,receiver,b)?{continue;}
+                let instance=self.instance(module,cursor.instance,b)?;
+                let definition=self.definition(module,instance.definition,b)?;
+                if definition.kind!=SemanticDefinitionKind::Closure{ return Err(bad("Callable source cursor is not an original closure")); }
+                let SemanticDefinitionBody::FunctionWithBody{signature:recipe,..}=&definition.body else{return Err(bad("Callable source cursor omits its original entry signature"));};
+                // Quantified paths retain their existing rigid rules. This
+                // bridge never introduces another private quantifier frame.
+                if recipe.bound_lifetimes!=0||recipe.invocation_lifetimes!=0{continue;}
+                let creator=if let Some(parent)=definition.parent{
+                    let Some(at)=cursor.environment.lexical.iter().position(|row|row.definition==parent)else{continue;};
+                    &cursor.environment.lexical[at..]
+                }else{&[]};
+                let request=if let Some(parent)=definition.parent{
+                    let Some(at)=environment.lexical.iter().position(|row|row.definition==parent)else{continue;};
+                    &environment.lexical[at..]
+                }else{&[]};
+                b.spend(creator.len().saturating_add(request.len()))?;
+                if creator!=request{continue;}
+                cursor_environment_work(&cursor.environment,b)?;
+                for actual in cursor.arguments.iter().chain(&cursor.sealed){cursor_actual_work(actual,b)?;}
+                let mut world=cursor.environment.clone();world.lexical=creator.to_vec();
+                world.lexical.insert(0,LexicalFrame{definition:definition.id,key:ScopeKey::Instance(instance.id),actuals:cursor.arguments.clone(),environment:cursor.sealed.clone(),self_type:None});
+                (instance.id,recipe,world)
+            };
+            let(instance,recipe,world)=candidate;
+            let value=self.evaluate_signature(module,recipe,&world,external,active,b)?;
+            // Bind every original Fixed embedding to this exact receiver's
+            // outside class; this does not replace its own Existing origins.
+            let original=self.instance(module,instance,b)?;
+            let mut boundary=trait_members::Boundary::default();
+            for(class,key)in receiver.classes.iter().enumerate(){
+                b.spend(original.header_embedding.len())?;
+                let mut rows=original.header_embedding.iter().filter(|row|row.header==StorageBinder::Fixed(class as u32));
+                let row=rows.next().ok_or_else(||bad("Callable source omits its exact fixed header embedding"))?;
+                if rows.next().is_some(){return Err(bad("Callable source repeats its exact fixed header embedding"));}
+                let actual=self.class(module,&row.actual,&world,b)?;
+                if !self.same(environment,&actual,key,b)?{return Err(bad("Callable source changes its receiver outside class embedding"));}
+                boundary.class(self,environment,&actual,key,b)?;
+            }
+            let mut value=value;
+            for(parameter,_)in &mut value.parameters{*parameter=boundary.project_type(self,environment,parameter,b)?;}
+            value.result=boundary.project_type(self,environment,&value.result,b)?;
+            if let Some(previous)=&selected{
+                if previous.parameters.len()!=value.parameters.len()||previous.result_mode!=value.result_mode||previous.call_kind!=value.call_kind||previous.bound!=value.bound||previous.invocation!=value.invocation{return Err(bad("Callable exact source cursors disagree on their full original signature"));}
+                for((a,am),(z,zm))in previous.parameters.iter().zip(&value.parameters){if am!=zm||!self.same_type(environment,a,z,b)?{return Err(bad("Callable exact source cursors disagree on their complete parameter domain"));}}
+                if !self.same_type(environment,&previous.result,&value.result,b)?{return Err(bad("Callable exact source cursors disagree on their complete result domain"));}
+            }else{selected=Some(value);}
+        }
+        Ok(selected)
+    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn closure_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,id:ClosureId,receiver:&CheckedType,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
         let closure=crate::closures::definition(module,id,None)?;

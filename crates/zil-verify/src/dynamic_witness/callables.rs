@@ -146,6 +146,16 @@ pub(super) fn check_shape(
     fixed_relations_allowed: bool,
     b: &mut Budget,
 ) -> Check<ShapeObligation> {
+    check_shape_with_source(module,receiver,kind,signature,None,scope,fixed_relations_allowed,b)
+}
+
+/// Only semantic callers with an exact pending creator cursor can supply this
+/// original P/R directory. Raw callers keep the invariant receiver rule.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn check_shape_with_source(
+    module:&TypedModule,receiver:&terms::Value,kind:CallableKind,signature:&Shape,
+    source:Option<&Shape>,scope:DynInstantiationScope,fixed_relations_allowed:bool,b:&mut Budget,
+)->Check<ShapeObligation>{
     let Type::Closure(id) = receiver.raw.ty else {
         return Err(bad(
             "callable premise requires a complete actual closure definition",
@@ -199,6 +209,14 @@ pub(super) fn check_shape(
         ));
     }
     let expected = headers::expected(module, &signature.parameters, &signature.result, b)?;
+    let source_header=if let Some(source)=source{
+        if source.parameters.len()!=signature.parameters.len()||source.parameter_modes!=signature.parameter_modes||source.result_mode!=signature.result_mode||source.call_kind!=signature.call_kind{return Err(bad("Callable original source changes its complete ABI or modes"));}
+        for(a,z)in source.parameters.iter().chain(std::iter::once(&source.result)).zip(signature.parameters.iter().chain(std::iter::once(&signature.result))){
+            dynamic_metadata::recipe(&a.raw,b)?;dynamic_metadata::recipe(&z.raw,b)?;
+            if a.raw.ty!=z.raw.ty||a.raw.life!=z.raw.life{return Err(bad("Callable original source changes its whole type or intrinsic geometry"));}
+        }
+        Some(headers::expected(module,&source.parameters,&source.result,b)?)
+    }else{None};
     for parameter in signature
         .parameters
         .iter()
@@ -254,6 +272,10 @@ pub(super) fn check_shape(
                     _ => None,
                 })
                 .ok_or_else(|| bad("callable class lacks its original intrinsic origin"))?;
+            if let (StorageBinder::Fixed(class),Some(source))=(actual.binder,&source_header){
+                source_relation(receiver,class,&requests::Occurrence::Class{position:row.position.clone(),binder:row.binder,origin},source,b)?;
+                continue;
+            }
             relation(
                 receiver,
                 actual.binder,
@@ -305,6 +327,10 @@ pub(super) fn check_shape(
                     _ => None,
                 })
                 .ok_or_else(|| bad("callable borrow lacks its original scoped relation"))?;
+            if let (StorageBinder::Fixed(class),Some(source))=(actual.binder,&source_header){
+                source_relation(receiver,class,&requests::Occurrence::Borrow{position:row.position.clone(),binder:row.binder,origin:required},source,b)?;
+                continue;
+            }
             if let StorageBinder::Fixed(class) = actual.binder {
                 let term = receiver.term(class, b)?;
                 if fixed_relations_allowed
@@ -360,6 +386,23 @@ pub(super) fn check_shape(
         ));
     }
     Ok(proof)
+}
+/// Keep the receiver partition independent. Both the actual header's outside
+/// image and the exact original source occurrence must agree; equal images
+/// alone cannot establish the P/R intrinsic origin.
+fn source_relation(receiver:&terms::Value,class:u32,required:&requests::Occurrence,source:&requests::Header,b:&mut Budget)->Check<()>{
+    b.spend(source.origins.len())?;
+    let matches=|row:&requests::Occurrence|match(row,required){
+        (requests::Occurrence::Class{position:a,..},requests::Occurrence::Class{position:z,..})=>a==z,
+        (requests::Occurrence::Borrow{position:a,..},requests::Occurrence::Borrow{position:z,..})=>a==z,
+        _=>false,
+    };
+    let mut rows=source.origins.iter().filter(|row|matches(row));
+    let row=rows.next().ok_or_else(||bad("Callable source omits the exact complete P/R occurrence"))?;
+    if rows.next().is_some(){return Err(bad("Callable source repeats a complete P/R occurrence"));}
+    let image=match row{requests::Occurrence::Class{binder,..}|requests::Occurrence::Borrow{binder,..}=>*binder};
+    if row!=required||receiver.term(class,b)?.image!=image{return Err(bad("Callable source changes a complete intrinsic origin or its exact header image"));}
+    Ok(())
 }
 fn relation(
     receiver: &terms::Value,
@@ -440,6 +483,33 @@ pub(super) mod tests {
             },
             image,
         }
+    }
+    #[test]
+    fn original_occurrence_bridge_preserves_independent_receiver_and_child_origins(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);
+        let mut receiver=blank(Type::Closure(ClosureId(0)));
+        receiver.raw.life.binder_count=2;
+        receiver.raw.classes=vec![StorageBinder::Fixed(0),StorageBinder::Fixed(1)];
+        receiver.terms=vec![term(7,StorageBinder::Fixed(0),true),term(8,StorageBinder::Fixed(1),true)];
+        let source_term=term(3,StorageBinder::Fixed(0),false);
+        assert_ne!(source_term.origin,receiver.terms[0].origin);
+        let position=SignatureLifeClass{base:StorageBase::Result,path:vec![LifeTypeProjection::Pointee],class:0};
+        let required=requests::Occurrence::Class{position:position.clone(),binder:source_term.image,origin:headers::symbol(source_term)};
+        let mut source=requests::Header{bindings:vec![],static_bindings:vec![],classes:vec![],origins:vec![required.clone()]};
+        source_relation(&receiver,0,&required,&source,&mut b).unwrap();
+        // A different source origin with exactly the same lexical image is
+        // not the required complete child occurrence.
+        let mut other=source_term;other.origin.class=1;
+        source.origins[0]=requests::Occurrence::Class{position:position.clone(),binder:other.image,origin:headers::symbol(other)};
+        assert!(source_relation(&receiver,0,&required,&source,&mut b).is_err());
+        source.origins[0]=required.clone();
+        assert!(source_relation(&receiver,1,&required,&source,&mut b).is_err());
+        source.origins.push(required.clone());
+        assert!(source_relation(&receiver,0,&required,&source,&mut b).is_err());
+        source.origins.clear();
+        assert!(source_relation(&receiver,0,&required,&source,&mut b).is_err());
+        source.origins.push(requests::Occurrence::Class{position:SignatureLifeClass{class:1,..position},binder:source_term.image,origin:headers::symbol(source_term)});
+        assert!(source_relation(&receiver,0,&required,&source,&mut b).is_err());
     }
     fn signature(result: terms::Value) -> signatures::Resolved {
         signatures::Resolved {

@@ -526,6 +526,7 @@ impl ExternalProofs for Proofs {
                 kind,
                 signature,
             } => {
+                let source=context.callable_source_signature(module,receiver,environment,self,active,b)?;
                 let mut domain = Domain::new(context, environment, active, b)?;
                 // Quantifier keys enter first. A caller Fixed which happens to
                 // share an integer/image can never become one of these keys.
@@ -537,6 +538,15 @@ impl ExternalProofs for Proofs {
                     domain.value(parameter, b)?;
                 }
                 domain.value(&signature.result, b)?;
+                if let Some(source)=&source{
+                    for(value,_)in &source.parameters{domain.value(value,b)?;}
+                    domain.value(&source.result,b)?;
+                }
+                let source=if let Some(source)=source{
+                    let mut parameters=Vec::new();let mut parameter_modes=Vec::new();
+                    for(value,mode)in &source.parameters{parameters.push(domain.symbols.incoming_pending(value,b)?.0);parameter_modes.push(*mode);}
+                    Some(callables::Shape{parameters,parameter_modes,result:domain.symbols.incoming_pending(&source.result,b)?.0,result_mode:source.result_mode,call_kind:source.call_kind})
+                }else{None};
                 let (receiver, statics) = domain.symbols.incoming_pending(receiver, b)?;
                 let mut pending_statics = statics
                     .into_iter()
@@ -566,11 +576,12 @@ impl ExternalProofs for Proofs {
                     result_mode: signature.result_mode,
                     call_kind: signature.call_kind,
                 };
-                let proof = callables::check_shape(
+                let proof = callables::check_shape_with_source(
                     module,
                     &receiver,
                     *kind,
                     &shape,
+                    source.as_ref(),
                     domain.scope,
                     true,
                     b,
