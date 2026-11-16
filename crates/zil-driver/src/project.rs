@@ -1522,18 +1522,24 @@ impl CompilationSession {
             || {
                 if options.push_reuse {
                     return push_types
-                        .apply_with_output_anchor(
+                        .apply_with_function_cache(
                             &prepared,
                             &options.target,
                             &options.limits,
                             output_anchor.as_ref(),
+                            &mut function_types,
                         )
                         .map(|update| {
+                            if update.stats.context_rebuilds != 0 {
+                                function_work =
+                                    Some(super::session::function_work(&function_types));
+                            }
                             types_push_work = Some(Box::new(update.stats));
                             RawSnapshot::ProjectTyped(super::session::ProjectTypedOwner::product(
                                 update.program,
                                 key(Phase::Types, true),
                                 &push_types,
+                                &function_types,
                             ))
                         });
                 }
@@ -1648,7 +1654,12 @@ impl CompilationSession {
             && let Some(store) = &semantic
             && let Some(candidate) = self.analysis_candidate(&typed_snapshot)
         {
-            if !options.push_reuse {
+            if !options.push_reuse
+                || report
+                    .types_push_work
+                    .as_ref()
+                    .is_some_and(|work| work.context_rebuilds != 0)
+            {
                 self.semantic_publication
                     .bind_products(self.function_types.last_products());
             }
@@ -1667,6 +1678,13 @@ impl CompilationSession {
         let persistence_start = cost_start(options.profile_compilation);
         if result.is_ok()
             && let Some(store) = &function_store
+            // Sparse push updates leave this cache's successful rebuild epoch
+            // unchanged. Do not republish its complete manifest on every edit.
+            && (!options.push_reuse
+                || report
+                    .types_push_work
+                    .as_ref()
+                    .is_some_and(|work| work.context_rebuilds != 0))
         {
             let publication = store.save(
                 &self.function_types,

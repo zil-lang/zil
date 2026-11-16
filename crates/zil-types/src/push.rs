@@ -93,6 +93,31 @@ impl TypesPushSession {
         limits: &Limits,
         anchor: Option<&Arc<TypedProgram>>,
     ) -> CompileResult<TypedUpdate> {
+        self.apply_inner(prepared, target, limits, anchor, None)
+    }
+
+    /// Rebuild through the ordinary function cache, recording actual current
+    /// checks, signature reads and replayed fees for a new push context. Sparse
+    /// updates leave the last real function-cache epoch and its stats intact.
+    pub fn apply_with_function_cache(
+        &mut self,
+        prepared: &PreparedProgram,
+        target: &TargetProfile,
+        limits: &Limits,
+        anchor: Option<&Arc<TypedProgram>>,
+        functions: &mut FunctionSession,
+    ) -> CompileResult<TypedUpdate> {
+        self.apply_inner(prepared, target, limits, anchor, Some(functions))
+    }
+
+    fn apply_inner(
+        &mut self,
+        prepared: &PreparedProgram,
+        target: &TargetProfile,
+        limits: &Limits,
+        anchor: Option<&Arc<TypedProgram>>,
+        functions: Option<&mut FunctionSession>,
+    ) -> CompileResult<TypedUpdate> {
         if let Some(update) = self.try_sparse(prepared, target, limits) {
             let (mut context, mut update) = update;
             update.program = adopt_output_anchor(update.program, anchor);
@@ -100,7 +125,7 @@ impl TypesPushSession {
             self.current = Some(Arc::new(context));
             return Ok(update);
         }
-        self.rebuild(prepared, target, limits, anchor)
+        self.rebuild(prepared, target, limits, anchor, functions)
     }
     fn rebuild(
         &mut self,
@@ -108,9 +133,12 @@ impl TypesPushSession {
         target: &TargetProfile,
         limits: &Limits,
         anchor: Option<&Arc<TypedProgram>>,
+        mut functions: Option<&mut FunctionSession>,
     ) -> CompileResult<TypedUpdate> {
         let mut recording = Recording::default();
-        let result = if prepared.identity_inference(limits) && prepared.produced().is_some() {
+        let result = if let Some(functions) = functions.as_deref_mut() {
+            functions.check_prepared_program_recording(prepared, target, limits, &mut recording)?
+        } else if prepared.identity_inference(limits) && prepared.produced().is_some() {
             let resolved = aggregates::resolve_prepared_program_recording(
                 prepared.program(),
                 limits,
@@ -127,6 +155,9 @@ impl TypesPushSession {
         } else {
             check_prepared_program(prepared, target, limits)?
         };
+        // Read these counters only after a real successful cache rebuild;
+        // try_sparse never reinterprets the prior FunctionSession's stats.
+        let function_work = functions.as_ref().map(|functions| functions.last_stats());
         let program = adopt_output_anchor(Arc::new(result), anchor);
         let context = prepared
             .produced()
@@ -161,7 +192,10 @@ impl TypesPushSession {
         let update = TypedUpdate {
             stats: TypesPushStats {
                 context_rebuilds: 1,
-                body_checks: program.module.functions.len(),
+                body_checks: function_work.map_or(program.module.functions.len(), |work| {
+                    work.executed_functions
+                }),
+                retained_functions: function_work.map_or(0, |work| work.reused_functions),
                 ..TypesPushStats::default()
             },
             program,
@@ -1154,6 +1188,228 @@ mod tests {
     }
     fn scalar_module() -> &'static str {
         "fn first(x:i32)->i32 {let a=x+1;let b=a*2;return b+3;} fn second(x:i32)->i32 {let a=x+2;let b=a*3;return b+4;} fn third(x:i32)->i32 {let a=x+3;let b=a*4;return b+5;}"
+    }
+
+    fn cache_module() -> &'static str {
+        "fn leaf(x:i32)->i32 {let a=x+1;let b=a*2;let c=b+3;return c;} fn reader()->i32 {let a=leaf(1);let b=a*2;let c=b+3;return c;} fn keep(x:i32)->i32 {let a=x+2;let b=a*3;let c=b+4;return c;} fn tiny()->i32=>4; extern \"C\" fn foreign_value(x:i32)->i32;"
+    }
+
+    #[test]
+    fn function_cache_restore_records_real_push_fees_readers_and_following_edits() {
+        let limits = Limits::default();
+        let target = TargetProfile::default();
+        let text = cache_module();
+        let mut expand = ExpandSession::default();
+        let initial = produced(&mut expand, &[parse(0, text, &limits)], &limits);
+        let input = prepared(&initial, &limits);
+        let mut writer = FunctionSession::default();
+        let mut cold_push = TypesPushSession::default();
+        let cold = cold_push
+            .apply_with_function_cache(&input, &target, &limits, None, &mut writer)
+            .unwrap();
+        assert_eq!(
+            (cold.stats.body_checks, cold.stats.retained_functions),
+            (5, 0)
+        );
+        assert_eq!(writer.last_stats().executed_functions, 5);
+        let bytes = writer.encode_work_products(&target, &limits).unwrap();
+        let ordinary_bytes = {
+            let mut ordinary = FunctionSession::default();
+            assert_eq!(
+                ordinary
+                    .check_prepared_program(&input, &target, &limits)
+                    .unwrap(),
+                *cold.program
+            );
+            ordinary.encode_work_products(&target, &limits).unwrap()
+        };
+        assert_eq!(
+            bytes, ordinary_bytes,
+            "recording must preserve historical keys/fees"
+        );
+        let mut cache = FunctionSession::default();
+        assert!(cache.restore_work_products(&bytes, &target, &limits));
+        let mut session = TypesPushSession::default();
+        let restored = session
+            .apply_with_function_cache(&input, &target, &limits, Some(&cold.program), &mut cache)
+            .unwrap();
+        assert!(Arc::ptr_eq(&restored.program, &cold.program));
+        assert_eq!(
+            (
+                restored.stats.body_checks,
+                restored.stats.retained_functions
+            ),
+            (2, 3)
+        );
+        assert_eq!(
+            cache.last_stats().executed_functions,
+            2,
+            "tiny and extern still execute"
+        );
+        assert_eq!(cache.last_stats().reused_functions, 3);
+        assert!(session.checkpoint_for(&restored.program).is_some());
+        let context = session.current.as_ref().unwrap();
+        let expected = cold_push.current.as_ref().unwrap();
+        assert_eq!(context.context_cost, expected.context_cost);
+        assert_eq!(context.fixed_tail, expected.fixed_tail);
+        assert_eq!(
+            context.rows.total().unwrap().cfg,
+            expected.rows.total().unwrap().cfg
+        );
+        for index in 0..5 {
+            let row = context.rows.get(index).unwrap();
+            let old = expected.rows.get(index).unwrap();
+            assert_eq!(
+                (row.names, row.shape, row.cfg),
+                (old.names, old.shape, old.cfg)
+            );
+            assert_eq!(row.observed, old.observed);
+        }
+        assert_eq!(context.readers[0], BTreeSet::from([FunctionId(1)]));
+        let cache_epoch = cache.epoch_checkpoint();
+        let cache_work = cache.last_stats();
+        let edited_text = text.replacen("x+1", "x+7", 1);
+        let edited = produced(&mut expand, &[parse(0, &edited_text, &limits)], &limits);
+        let edited = prepared(&edited, &limits);
+        let update = session
+            .apply_with_function_cache(&edited, &target, &limits, None, &mut cache)
+            .unwrap();
+        assert_eq!(
+            (update.stats.context_rebuilds, update.stats.body_checks),
+            (0, 1)
+        );
+        assert_eq!(update.program.as_ref(), &fresh(&edited, &limits).unwrap());
+        assert!(cache.shares_raw_epoch(&cache_epoch));
+        assert_eq!(
+            cache.last_stats(),
+            cache_work,
+            "sparse work is not a cache rebuild"
+        );
+        for index in 1..5 {
+            assert!(Arc::ptr_eq(
+                restored.program.module.functions.owner(index).unwrap(),
+                update.program.module.functions.owner(index).unwrap()
+            ));
+        }
+        // Losing only push state must still consume the last genuine cache
+        // epoch, recomputing the changed leaf and recording all current reads.
+        session.clear();
+        let rebuilt = session
+            .apply_with_function_cache(&edited, &target, &limits, None, &mut cache)
+            .unwrap();
+        assert_eq!(
+            (rebuilt.stats.body_checks, rebuilt.stats.retained_functions),
+            (3, 2)
+        );
+        assert_eq!(rebuilt.program.as_ref(), &fresh(&edited, &limits).unwrap());
+        assert_eq!(
+            session.current.as_ref().unwrap().readers[0],
+            BTreeSet::from([FunctionId(1)])
+        );
+
+        // A reader restored from disk must observe a changed callee signature;
+        // retaining its old i32 result would hide this current Types failure.
+        let successful = session.current.clone().unwrap();
+        let previous_bytes = cache.encode_work_products(&target, &limits).unwrap();
+        let bad_text = edited_text.replacen("leaf(x:i32)->i32", "leaf(x:i64)->i64", 1);
+        let bad = produced(&mut expand, &[parse(0, &bad_text, &limits)], &limits);
+        let bad = prepared(&bad, &limits);
+        assert_eq!(
+            session
+                .apply_with_function_cache(&bad, &target, &limits, None, &mut cache)
+                .unwrap_err(),
+            fresh(&bad, &limits).unwrap_err()
+        );
+        assert!(Arc::ptr_eq(session.current.as_ref().unwrap(), &successful));
+        assert_eq!(
+            cache.encode_work_products(&target, &limits).unwrap(),
+            previous_bytes
+        );
+        let recovered = produced(&mut expand, &[parse(0, &edited_text, &limits)], &limits);
+        let recovered = prepared(&recovered, &limits);
+        let update = session
+            .apply_with_function_cache(&recovered, &target, &limits, None, &mut cache)
+            .unwrap();
+        assert_eq!(
+            update.program.as_ref(),
+            &fresh(&recovered, &limits).unwrap()
+        );
+        assert!(session.checkpoint_for(&update.program).is_some());
+    }
+
+    #[test]
+    fn restored_function_fees_compose_under_original_global_push_budget() {
+        let defaults = Limits::default();
+        let target = TargetProfile::default();
+        let text = format!(
+            "{} fn pad0()->i32=>0; fn pad1()->i32=>1; fn pad2()->i32=>2; fn pad3()->i32=>3;",
+            cache_module()
+        );
+        let text = text.as_str();
+        let mut sizing = ExpandSession::default();
+        let sized = produced(&mut sizing, &[parse(0, text, &defaults)], &defaults);
+        let sized = fresh(&prepared(&sized, &defaults), &defaults).unwrap();
+        let blocks = sized
+            .module
+            .functions
+            .iter()
+            .map(|f| f.blocks.len())
+            .sum::<usize>();
+        let limits = Limits {
+            max_blocks: blocks,
+            ..defaults
+        };
+        let mut expand = ExpandSession::default();
+        let initial = produced(&mut expand, &[parse(0, text, &limits)], &limits);
+        let input = prepared(&initial, &limits);
+        let mut writer = FunctionSession::default();
+        let mut session = TypesPushSession::default();
+        session
+            .apply_with_function_cache(&input, &target, &limits, None, &mut writer)
+            .unwrap();
+        let bytes = writer.encode_work_products(&target, &limits).unwrap();
+        let mut cache = FunctionSession::default();
+        assert!(cache.restore_work_products(&bytes, &target, &limits));
+        // Change only an uncached body; all three cached CFGs fit individually.
+        // The request must still pay their actual summed fees before this body.
+        let changed = text.replace(
+            "fn tiny()->i32=>4;",
+            "fn tiny()->i32 {if true {return 4;}else{return 5;}}",
+        );
+        let next = produced(&mut expand, &[parse(0, &changed, &limits)], &limits);
+        let next = prepared(&next, &limits);
+        let unrestricted = fresh(&next, &Limits::default()).unwrap();
+        assert!(unrestricted.module.functions[3].blocks.len() < blocks);
+        assert!(
+            unrestricted
+                .module
+                .functions
+                .iter()
+                .map(|f| f.blocks.len())
+                .sum::<usize>()
+                > blocks
+        );
+        session.clear(); // Force the composed rebuild/replay path.
+        assert_eq!(
+            session
+                .apply_with_function_cache(&next, &target, &limits, None, &mut cache)
+                .unwrap_err(),
+            fresh(&next, &limits).unwrap_err()
+        );
+        assert_eq!(cache.last_stats().reused_functions, 3);
+        assert!(session.current.is_none());
+        assert_eq!(cache.encode_work_products(&target, &limits).unwrap(), bytes);
+        let recovery = produced(&mut expand, &[parse(0, text, &limits)], &limits);
+        let recovery = prepared(&recovery, &limits);
+        let update = session
+            .apply_with_function_cache(&recovery, &target, &limits, None, &mut cache)
+            .unwrap();
+        assert_eq!(
+            (update.stats.body_checks, update.stats.retained_functions),
+            (6, 3)
+        );
+        assert_eq!(update.program.as_ref(), &fresh(&recovery, &limits).unwrap());
+        assert!(session.checkpoint_for(&update.program).is_some());
     }
 
     #[test]

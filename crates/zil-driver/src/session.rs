@@ -177,12 +177,13 @@ impl ProjectTypedOwner {
         program: Arc<TypedProgram>,
         key: QueryKey,
         push: &zil_types::TypesPushSession,
+        functions: &zil_types::FunctionSession,
     ) -> Self {
         let epoch = push.checkpoint_for(&program).map(|push| {
             Arc::new(TypesEpoch {
                 key,
                 program: Arc::downgrade(&program),
-                functions: None,
+                functions: Some(Box::new(functions.epoch_checkpoint())),
                 push: Some(push),
                 analysis: OnceLock::new(),
                 publication: OnceLock::new(),

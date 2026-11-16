@@ -214,6 +214,7 @@ mod items;
 pub use items::{FunctionItem, FunctionItemProducts};
 
 type FunctionFingerprints = BTreeMap<(ModuleId, String), Fingerprint>;
+type SignatureReads = BTreeMap<(ModuleId, String), BTreeSet<FunctionId>>;
 type SignatureObserver<'a> = Option<&'a mut dyn FnMut(ModuleId, &str) -> Option<()>>;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -481,7 +482,19 @@ impl FunctionSession {
         target: &TargetProfile,
         limits: &Limits,
     ) -> CompileResult<TypedProgram> {
-        self.check_prepared_program_inner(prepared, target, limits, None, false)
+        self.check_prepared_program_inner(prepared, target, limits, None, false, None)
+    }
+
+    /// Record the same current shape checks, CFG work/replayed fees and
+    /// signature observations while publishing ordinary function products.
+    pub(super) fn check_prepared_program_recording(
+        &mut self,
+        prepared: &PreparedProgram,
+        target: &TargetProfile,
+        limits: &Limits,
+        recording: &mut push::Recording,
+    ) -> CompileResult<TypedProgram> {
+        self.check_prepared_program_inner(prepared, target, limits, None, false, Some(recording))
     }
 
     /// Opt-in semantic owners. These strings only identify nodes: the current
@@ -494,7 +507,7 @@ impl FunctionSession {
         limits: &Limits,
         owners: &BTreeMap<ModuleId, (String, String)>,
     ) -> CompileResult<TypedProgram> {
-        self.check_prepared_program_inner(prepared, target, limits, Some(owners), true)
+        self.check_prepared_program_inner(prepared, target, limits, Some(owners), true, None)
     }
 
     /// Simple owner/version memoization uses the same producer evidence and
@@ -506,7 +519,7 @@ impl FunctionSession {
         limits: &Limits,
         owners: &BTreeMap<ModuleId, (String, String)>,
     ) -> CompileResult<TypedProgram> {
-        self.check_prepared_program_inner(prepared, target, limits, Some(owners), false)
+        self.check_prepared_program_inner(prepared, target, limits, Some(owners), false, None)
     }
 
     fn check_prepared_program_inner(
@@ -516,6 +529,7 @@ impl FunctionSession {
         limits: &Limits,
         owners: Option<&BTreeMap<ModuleId, (String, String)>>,
         graph: bool,
+        mut recording: Option<&mut push::Recording>,
     ) -> CompileResult<TypedProgram> {
         self.stats = FunctionStats {
             cost_profiled: self.cost_profiling,
@@ -528,7 +542,13 @@ impl FunctionSession {
         let resolved;
         let graph_eligible;
         let program = if prepared.identity_inference(limits) {
-            resolved = match aggregates::resolve_prepared_program(prepared.program(), limits) {
+            resolved = match aggregates::resolve_prepared_program_recording(
+                prepared.program(),
+                limits,
+                recording
+                    .as_deref_mut()
+                    .map(|recording| &mut recording.shapes),
+            ) {
                 Ok(resolved) => resolved,
                 Err(error) => {
                     self.projections = Projections::default();
@@ -574,6 +594,7 @@ impl FunctionSession {
             next: &mut next,
             stats: &mut stats,
             keys: None,
+            signature_reads: (recording.is_some() && graph_eligible).then(BTreeMap::new),
             bindings: &mut bindings,
             reused_ids: BTreeSet::new(),
             reactive: owners.filter(|_| graph).map(|owners| ReactiveRequest {
@@ -587,8 +608,13 @@ impl FunctionSession {
                 prepared,
             }),
         };
-        let result =
-            program::check_resolved_program_with_reuse(program, target, limits, Some(&mut reuse));
+        let result = program::check_resolved_program_recording(
+            program,
+            target,
+            limits,
+            Some(&mut reuse),
+            recording.filter(|_| graph_eligible),
+        );
         if let Ok(program) = &result {
             self.publish_products(program, &next, &bindings);
             self.entries = Arc::new(next);
@@ -856,6 +882,9 @@ pub(super) struct Reuse<'a> {
     next: &'a mut BTreeMap<Fingerprint, Arc<Entry>>,
     stats: &'a mut FunctionStats,
     keys: Option<FunctionFingerprints>,
+    // Current Core/key observations, independent of cached Typed CFGs. This
+    // request-local map is absent unless a push rebuild records its reader graph.
+    signature_reads: Option<SignatureReads>,
     bindings: &'a mut BTreeMap<FunctionId, ProductBinding>,
     reused_ids: BTreeSet<FunctionId>,
     reactive: Option<ReactiveRequest<'a>>,
@@ -878,6 +907,10 @@ impl Reuse<'_> {
         target: &TargetProfile,
         limits: &Limits,
     ) {
+        if let Some(reads) = &mut self.signature_reads {
+            self.keys = keys_recording(program, tables, target, limits, self.stats, Some(reads));
+            return;
+        }
         if let Some(request) = &mut self.producer {
             self.keys = request.keys(program, tables, target, limits, self.stats);
             return;
@@ -886,6 +919,15 @@ impl Reuse<'_> {
             Some(request) => request.keys(program, tables, target, limits, self.stats),
             None => keys(program, tables, target, limits, self.stats),
         };
+    }
+    pub(super) fn signature_reads(
+        &self,
+        module: ModuleId,
+        name: &str,
+    ) -> Option<&BTreeSet<FunctionId>> {
+        self.signature_reads
+            .as_ref()?
+            .get(&(module, name.to_owned()))
     }
     pub(super) fn observe(
         &mut self,
@@ -1530,6 +1572,17 @@ fn keys(
     limits: &Limits,
     stats: &mut FunctionStats,
 ) -> Option<FunctionFingerprints> {
+    keys_recording(program, tables, target, limits, stats, None)
+}
+
+fn keys_recording(
+    program: &CoreProgram,
+    tables: &BTreeMap<ModuleId, BTreeMap<String, Signature>>,
+    target: &TargetProfile,
+    limits: &Limits,
+    stats: &mut FunctionStats,
+    mut reads: Option<&mut SignatureReads>,
+) -> Option<FunctionFingerprints> {
     let context = key_context(program, tables, target, limits, stats)?;
     let started = start_cost(stats.cost_profiled);
     let body_key_before = stats.body_key_ns;
@@ -1537,8 +1590,21 @@ fn keys(
     for module in &program.modules {
         for function in &module.core.functions {
             stats.inventory_functions_visited += 1;
-            if let Some(key) = function_key(module, function, tables, &context, limits, stats, None)
-            {
+            let mut observed = BTreeSet::new();
+            let mut observe = |module, name: &str| {
+                observed.insert(tables.get(&module)?.get(name)?.id?);
+                Some(())
+            };
+            let observe: SignatureObserver<'_> = if reads.is_some() {
+                Some(&mut observe)
+            } else {
+                None
+            };
+            let key = function_key(module, function, tables, &context, limits, stats, observe);
+            if let Some(key) = key {
+                if let Some(reads) = &mut reads {
+                    reads.insert((module.core.module_id, function.name.clone()), observed);
+                }
                 keys.insert((module.core.module_id, function.name.clone()), key);
             }
         }

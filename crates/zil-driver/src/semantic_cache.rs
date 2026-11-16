@@ -752,9 +752,6 @@ impl FunctionStore {
         identity: &QueryKey,
         root: &SourceUnit,
     ) -> Option<Self> {
-        if options.push_reuse {
-            return None;
-        }
         let mut stable = identity.clone();
         let mut input = b"ZIL-FUNCTION-EPOCH-1\0".to_vec();
         input.extend_from_slice(&root.module_id.0.to_le_bytes());
@@ -762,7 +759,12 @@ impl FunctionStore {
         input.extend_from_slice(root.path.as_bytes());
         stable.input = Fingerprint::of(&input);
         let mut store = Store::new(options, &stable)?;
-        store.root = store.root.parent()?.join(if options.reuse_producers() {
+        store.root = store.root.parent()?.join(if options.push_reuse {
+            // Push contexts are reconstructed from the real current providers.
+            // Only the existing bounded raw CFGs and their original fees cross
+            // a process boundary; no process-local producer seal is persisted.
+            "function-types-v3-push"
+        } else if options.reuse_producers() {
             "function-types-v2"
         } else {
             "function-types-v1"

@@ -265,6 +265,60 @@ fn disk_restart_at_default_capacity_hydrates_then_pushes_one_private_edit() {
 }
 
 #[test]
+fn restart_replays_checked_function_fees_then_keeps_sparse_edits() {
+    let dir = TempDir::new();
+    let (path, options) = dir.fixture(100);
+    // These bodies qualify for the existing raw function cache. Tiny scalar
+    // leaves deliberately keep their ordinary builder scheduling policy.
+    let body = "let a=x+1; let b=a+2; let c=b+3; let d=c+4; return d;";
+    let source = format!(
+        "fn private(x:i32)->i32{{{body}}} fn other(x:i32)->i32{{{body}}} pub fn f(x:i32)->i32{{{body}}}"
+    );
+    for name in std::iter::once("unrelated".to_owned()).chain((0..100).map(|i| format!("m{i}"))) {
+        fs::write(dir.0.join(format!("{name}.zil")), &source).unwrap();
+    }
+    let mut writer = CompilationSession::default();
+    success(&writer.compile_path(&path, &options));
+    assert!(!writer.function_types.is_empty());
+    drop(writer);
+
+    let mut session = CompilationSession::default();
+    let restart = session.compile_path(&path, &options);
+    success(&restart);
+    assert_eq!(restart.disk_cache, DiskCacheStatus::Hydrated);
+    let stats = session.function_types.last_stats();
+    assert_eq!(stats.reused_functions, 303);
+    assert_eq!(stats.executed_functions, 3);
+    epochs(&session, &restart, 102);
+    compare(&session, &restart, &path, &options);
+
+    let changed = source.replacen("x+1", "x+7", 1);
+    fs::write(dir.0.join("m0.zil"), &changed).unwrap();
+    let edited = session.compile_path(&path, &options);
+    success(&edited);
+    let work = edited.types_push_work.as_ref().unwrap();
+    assert_eq!((work.context_rebuilds, work.body_checks), (0, 1));
+    assert_eq!(work.retained_functions, 305);
+    epochs(&session, &edited, 102);
+    compare(&session, &edited, &path, &options);
+
+    // A fresh process editing before its first request has no whole-project
+    // disk candidate. The stable function cache still rechecks keys and can
+    // reuse the other bodies while building genuine current push context.
+    drop(session);
+    fs::write(dir.0.join("m0.zil"), changed.replacen("x+7", "x+8", 1)).unwrap();
+    let mut next = CompilationSession::default();
+    let first_edit = next.compile_path(&path, &options);
+    success(&first_edit);
+    assert_eq!(first_edit.disk_cache, DiskCacheStatus::Missing);
+    let stats = next.function_types.last_stats();
+    assert_eq!(stats.reused_functions, 302);
+    assert_eq!(stats.executed_functions, 4);
+    epochs(&next, &first_edit, 102);
+    compare(&next, &first_edit, &path, &options);
+}
+
+#[test]
 fn restart_revalidates_namespace_signature_positions_flags_and_limits() {
     for mutation in ["namespace", "signature", "positions", "flags", "limits"] {
         let dir = TempDir::new();

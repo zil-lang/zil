@@ -54,7 +54,7 @@ pub(super) fn check_resolved_program_recording(
 ) -> CompileResult<TypedProgram> {
     let context_started = reuse.as_ref().and_then(|reuse| reuse.start_cost());
     if let Some(recording) = &mut recording {
-        recording.observed_complete = reuse.is_none();
+        recording.observed_complete = true;
     }
 
     let reject = |code: &str, text: &str| vec![Diagnostic::error(Phase::Types, code, None, text)];
@@ -396,6 +396,18 @@ pub(super) fn check_resolved_program_recording(
                     .map_err(|e| vec![e])?,
                 None => None,
             } {
+                if let Some(recording) = &mut recording {
+                    if let Some(reads) = reuse
+                        .as_ref()
+                        .and_then(|reuse| reuse.signature_reads(core.module_id, &f.name))
+                    {
+                        observed.borrow_mut().extend(reads.iter().copied());
+                    } else {
+                        // A cache result without complete current key reads
+                        // cannot mint a sparse push reader graph.
+                        recording.observed_complete = false;
+                    }
+                }
                 visibility.check(
                     &typed,
                     core.module_id,
