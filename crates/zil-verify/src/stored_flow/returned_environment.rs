@@ -27,9 +27,10 @@ pub(super) fn leaves<'a>(
         let StorageBase::Capture(index) = leaf.position.base else {
             return Err(err("actual environment leaf lacks a capture"));
         };
-        if super::logical_dyn_capture_leaf(module, id, &leaf.position, leaf.ty, b)? {
-            // The independent Dyn kernel owns this exact registered logical
-            // leaf. A RetainedPort never becomes a physical pointer-slot GEP.
+        if task_address::environment_task_leaf(module, id, &leaf.position, leaf.ty, b)?
+            || super::logical_dyn_capture_leaf(module, id, &leaf.position, leaf.ty, b)? {
+            // Each actual endpoint selects its existing independent ledger.
+            // A Task port is not a Dyn port or a physical pointer-slot GEP.
             continue;
         }
         let mut path = Vec::with_capacity(leaf.position.path.len().saturating_add(1));

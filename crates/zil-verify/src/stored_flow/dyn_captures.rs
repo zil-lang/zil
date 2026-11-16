@@ -418,6 +418,9 @@ pub(super) fn substitute(
         .captures
         .get(index as usize)
         .ok_or_else(|| bad("actual entry refers to an absent captured port"))?;
+    if let Some(actual)=task_address::substitute_capture(module,f,i,source,d,values,state,b)? {
+        return Ok(actual);
+    }
     if let Some(PortOrigin::Dyn { carrier, port }) = &source.retained_port {
         if !source.leaf.is_empty()
             || source.heap_element.is_some()

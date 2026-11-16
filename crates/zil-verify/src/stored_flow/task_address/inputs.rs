@@ -211,7 +211,7 @@ pub(super) fn permission(
                         let _ = retained_life.ports.get(*port as usize).ok_or_else(|| {
                             err("Task input selects a missing actual retained port")
                         })?;
-                        select_carrier(payload, &[], &logical, *port, b)
+                        select_actual(module,f,value,payload,state,&logical,*port,b)
                     }
                     Type::Dyn { .. } | Type::OwnedDyn { .. } => dyn_ports::select_actual(
                         module, f, value, payload, state, &logical, *port, b,
