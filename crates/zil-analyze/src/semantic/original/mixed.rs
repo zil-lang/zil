@@ -9,6 +9,9 @@ pub(super) enum Life {
     Invocation(SemanticDefinitionId, u32),
     Role(SemanticDefinitionId, u32, u32),
     Receiver(SemanticDefinitionId, NodeId),
+    // A returned local region is fresh at this original call, with all of its
+    // sources proved separately. It is not an inferred input life equation.
+    CallResult(SemanticDefinitionId, NodeId, SemanticDefinitionId, u32),
 }
 
 /// Written call arguments and full declaration ordinals are separate domains.
@@ -460,7 +463,9 @@ impl Solver<'_, '_> {
             Kind::Life(Life::Implicit(target, ordinal)) if target == owner => {
                 for role in self.role_frames.iter().rev() {
                     b.lookup(role.implicits.len(), WORK)?;
-                    if role.owner == owner && let Some(actual) = role.implicits.get(&ordinal) {
+                    if role.owner == owner
+                        && let Some(actual) = role.implicits.get(&ordinal)
+                    {
                         return Ok(*actual);
                     }
                 }

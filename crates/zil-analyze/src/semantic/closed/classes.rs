@@ -1324,6 +1324,8 @@ impl Check<'_, '_> {
             return Ok(value);
         }
         match &instruction.kind {
+            InstructionKind::CallDynSlot { .. } => self.trait_result(instance, function, block, index, b)?
+                .ok_or_else(|| fail("dynamic result has no exact original member call receipt")),
             InstructionKind::MakeDynOwned { .. } => self.dyn_owned_result(instance, function, block, index, b),
             InstructionKind::BorrowDynOwned { local, mutable } => self.dyn_owned_borrow(
                 instance, function, id, *local, *mutable, (block, index), b, depth + 1),
@@ -1360,6 +1362,17 @@ impl Check<'_, '_> {
             | InstructionKind::MutexValue { .. }
             | InstructionKind::WithScopedThread { .. } => {
                 self.synchronization_result(instance, function, block, index, b)
+            }
+            InstructionKind::CallClosure { callee, .. }
+            | InstructionKind::CallClosureOnce { callee, .. } => {
+                let receiver = self.ssa_value(instance, function, *callee, b, depth + 1)?;
+                self.static_closure_result(instance, block, index, &receiver.ty, ty, b)
+            }
+            InstructionKind::CallClosureShared { callee, .. }
+            | InstructionKind::CallClosureMut { callee, .. } => {
+                let receiver = self.local_value(instance, function, *callee,
+                    (block, index), b, depth + 1)?;
+                self.static_closure_result(instance, block, index, &receiver.ty, ty, b)
             }
             InstructionKind::CallClosureBorrowed { .. } => self
                 .abstract_operation(instance, function, block, index, b)?
@@ -2096,6 +2109,49 @@ impl Check<'_, '_> {
 }
 
 impl Check<'_, '_> {
+    fn static_closure_result(&self, instance: &SemanticInstance,
+        block: BlockId, index: usize, receiver: &Type, ty: &Type,
+        b: &mut Budget) -> CompileResult<Value> {
+        let Type::Closure(id) = receiver else {
+            return Err(fail("concrete closure result has another actual receiver type"));
+        };
+        let closure = self.module.closures.get(id.0 as usize).filter(|row| row.id == *id)
+            .ok_or_else(|| fail("concrete closure result has no actual closure definition"))?;
+        let output = self.static_call_result(instance, block, index, b)?;
+        if !original::strings::is_byte_type(&output.ty) || !empty(&output.life)
+            || !output.classes.is_empty() || !geometry::same_type(&output.ty, ty, b)?
+            || !geometry::same_type(&closure.result, ty, b)?
+        {
+            return Err(unknown("concrete closure result needs its complete non-Static class boundary"));
+        }
+        let target = self.inventory.function(&SemanticFunctionTarget::Typed(closure.function), b)?;
+        let position = StoragePosition { base: StorageBase::Result, path: Vec::new() };
+        let life = target.storage_life.as_ref()
+            .ok_or_else(|| fail("Static closure result has no complete actual header"))?;
+        crate::signature_life::charge(life, b)?;
+        if !life.static_bindings.contains(&position) {
+            return Err(fail("Static closure result loses its exact actual header occurrence"));
+        }
+        let sources = target.retained_return_sources.as_ref()
+            .ok_or_else(|| fail("Static closure result omits its actual source upper"))?;
+        let mut found = false;
+        for row in sources {
+            crate::dyn_metadata::recipe(row, b)?;
+            if row.position == position {
+                if found || !matches!(row.sources.as_slice(), [StorageSource::Static { leaf, mode: StoredBorrowMode::SharedAddress }]
+                    if leaf == ty) {
+                    return Err(fail("Static closure result changes its complete actual source upper"));
+                }
+                found = true;
+            }
+        }
+        if !found { return Err(fail("Static closure result lacks its exact actual source upper")); }
+        // The exact BodyCall consumer checks every target world, input and ABI;
+        // the retained flow checks each real return path against this source.
+        crate::retained::check_sources(self.module, target, b)?;
+        Ok(output)
+    }
+
     pub(super) fn header_relation(
         &self,
         instance: &SemanticInstance,
@@ -2128,10 +2184,31 @@ impl Check<'_, '_> {
             return Ok(());
         };
         crate::signature_life::charge(contract, b)?;
-        if !contract.static_bindings.is_empty() {
-            return Err(unknown(
-                "original header static occurrences need their complete actual constant-source proof",
-            ));
+        // A class-free byte view is reconstructed here only from an
+        // independently checked Static original type/body, never from N = 0
+        // on the proposed executable header. Actual literal/return provenance
+        // is checked separately by the instruction and retained-source flows.
+        let mut static_positions = BTreeSet::new();
+        for (base, value) in parameters.iter().enumerate()
+            .map(|(index, value)| (StorageBase::Parameter(index as u32), value))
+            .chain(std::iter::once((StorageBase::Result, &result)))
+        {
+            if original::strings::is_byte_type(&value.ty) && empty(&value.life)
+                && value.classes.is_empty()
+            {
+                b.lookup(static_positions.len(), WORK)?;
+                static_positions.insert(StoragePosition { base, path: Vec::new() });
+            }
+        }
+        if contract.static_bindings.len() != static_positions.len() {
+            return Err(fail("actual header changes its complete original Static occurrences"));
+        }
+        for position in &contract.static_bindings {
+            b.spend(position.path.len().saturating_add(1), WORK)?;
+            b.lookup(static_positions.len(), WORK)?;
+            if !static_positions.remove(position) {
+                return Err(fail("actual header repeats or invents an original Static occurrence"));
+            }
         }
         let total = (contract.fixed_binder_count as usize)
             .checked_add(contract.invocation_binder_count as usize)

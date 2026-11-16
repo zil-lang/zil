@@ -134,9 +134,7 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<()> {
-        if !self.static_plain_result(result, b, depth + 1)? {
-            return Ok(());
-        }
+        let plain_result = self.static_plain_result(result, b, depth + 1)?;
         b.lookup(self.state.calls.len(), WORK)?;
         let Some(call) = self.state.calls.get(&(frame.definition, node)) else {
             return Ok(());
@@ -159,7 +157,22 @@ impl Solver<'_, '_> {
                 self.state.arena[self.root(life, b)?],
                 Kind::LifeVariable(None)
             ) {
-                Self::push(&mut replacements, (index, actual), b)?;
+                // A static input can inhabit a shorter region, but that
+                // region belongs to its exact original input occurrence.
+                // Neither a result local nor a callee image chooses this life.
+                b.lookup(self.state.string_literals.len(), WORK)?;
+                if self
+                    .state
+                    .string_literals
+                    .contains_key(&(frame.definition, argument.id))
+                {
+                    let ordinal = self.borrow_occurrence(frame.definition, argument.id, b)?;
+                    let role =
+                        self.term(Kind::Life(Life::Implicit(frame.definition, ordinal)), b)?;
+                    self.unify(life, role, depth + 1, b)?;
+                } else if plain_result {
+                    Self::push(&mut replacements, (index, actual), b)?;
+                }
             }
         }
         if let Some(call) = self.state.calls.get_mut(&(frame.definition, node)) {

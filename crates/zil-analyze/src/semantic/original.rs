@@ -1413,6 +1413,7 @@ impl Solver<'_, '_> {
     fn scheme(
         &mut self,
         caller: &Frame,
+        call_node: Option<NodeId>,
         target: SemanticDefinitionId,
         written: &[CoreGenericArgument<SemanticTypeRecipe>],
         input_hints: Option<&[Option<Term>]>,
@@ -1503,7 +1504,10 @@ impl Solver<'_, '_> {
         let mut implicits = BTreeMap::new();
         for row in &definition.implicit_lifetimes {
             b.spend(row.occurrence_path.len().saturating_add(1), WORK)?;
-            let life = self.term(Kind::LifeVariable(None), b)?;
+            let life = if let Some(node) = call_node
+                && self.reference_result_role(target, row.ordinal, b)? {
+                self.term(Kind::Life(Life::CallResult(caller.definition, node, target, row.ordinal)), b)?
+            } else { self.term(Kind::LifeVariable(None), b)? };
             b.lookup(implicits.len(), WORK)?;
             if implicits.insert(row.ordinal, life).is_some() {
                 return Err(fail(
@@ -2402,6 +2406,7 @@ impl Solver<'_, '_> {
                                 }
                                 let (actuals, parameters, result) = self.scheme(
                                     frame,
+                                    Some(value.id),
                                     target,
                                     written,
                                     Some(&hints),

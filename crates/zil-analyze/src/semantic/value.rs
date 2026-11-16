@@ -18,6 +18,14 @@ pub(super) enum Class {
     // Every actual borrow/reborrow producer has its own outer occurrence. Its
     // source is read only from that exact instruction at a real consumer.
     Reborrow(FunctionId, ValueId),
+    // Exact caller/original-call/callee-declaration role. Actual SSA selection
+    // must separately match that immutable call receipt.
+    CallResult(
+        SemanticInstanceId,
+        zil_base::NodeId,
+        SemanticDefinitionId,
+        u32,
+    ),
 }
 #[derive(Clone, Debug)]
 pub(super) struct Value {

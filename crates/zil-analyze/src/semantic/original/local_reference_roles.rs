@@ -27,6 +27,31 @@ pub(in crate::semantic) struct ActualWrite {
     pub value: crate::semantic::value::Value,
 }
 impl Solver<'_, '_> {
+    pub(super) fn reference_result_role(
+        &self,
+        owner: SemanticDefinitionId,
+        ordinal: u32,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        b.lookup(self.state.reference_roles.len(), WORK)?;
+        let mut found = false;
+        for (_, role) in self
+            .state
+            .reference_roles
+            .range((owner, NodeId(0))..=(owner, NodeId(u32::MAX)))
+        {
+            b.spend(1, WORK)?;
+            if role.ordinal == ordinal {
+                if found {
+                    return Err(fail(
+                        "original returned region repeats its exact declaration identity",
+                    ));
+                }
+                found = true;
+            }
+        }
+        Ok(found)
+    }
     fn reference_binding_occurrence(
         &self,
         owner: SemanticDefinitionId,

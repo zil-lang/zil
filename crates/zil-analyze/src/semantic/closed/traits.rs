@@ -89,8 +89,7 @@ impl Check<'_, '_> {
                     "original dynamic receiver lost its complete interface application",
                 ));
             };
-            if !boundary.result.classes.is_empty()
-                || !actuals.is_empty()
+            if !actuals.is_empty()
                 || !boundary.method_actuals.is_empty()
                 || boundary.call_kind != CallKind::Direct
             {
@@ -257,6 +256,59 @@ impl Check<'_, '_> {
                     return Err(fail(
                         "actual dynamic argument changes its original full class relation",
                     ));
+                }
+            }
+            if !boundary.result.classes.is_empty() {
+                // A persistent result role is interpreted from the original
+                // trait actual in this complete Context. Actual port sources,
+                // loans and static alternatives are checked by dyn dispatch.
+                let Type::Address { mutable: false, .. } = &boundary.result.ty else {
+                    return Err(unknown(
+                        "dynamic result requires its complete non-address intrinsic domain",
+                    ));
+                };
+                let [head] = boundary.result.life.slots.as_slice() else {
+                    return Err(fail(
+                        "dynamic result omits its exact original outer occurrence",
+                    ));
+                };
+                if !head.path.is_empty()
+                    || !boundary.result.life.retained.is_empty()
+                    || !boundary.result.life.nominal_arguments.is_empty()
+                    || boundary.result.classes.len() != 1
+                    || head.binder != 0
+                {
+                    return Err(unknown(
+                        "dynamic result needs its complete nested class projection",
+                    ));
+                }
+                let life = slot.storage_life.as_ref().ok_or_else(|| {
+                    unknown("dynamic result has no complete slot lifetime contract")
+                })?;
+                let mut result_role = None;
+                for row in &life.bindings {
+                    b.spend(row.position.path.len().saturating_add(1), WORK)?;
+                    if row.position.base == StorageBase::Result
+                        && row.position.path.is_empty()
+                        && result_role.replace(row.binder).is_some()
+                    {
+                        return Err(fail("dynamic result repeats its original outer role"));
+                    }
+                }
+                let Some(StorageBinder::Fixed(class)) = result_role else {
+                    return Err(unknown(
+                        "dynamic receiver-shortened result needs its original invocation occurrence",
+                    ));
+                };
+                if boundary.receiver.classes.get(class as usize) != boundary.result.classes.first()
+                {
+                    return Err(fail(
+                        "dynamic result changes the exact original persistent trait class",
+                    ));
+                }
+                let child = self.pointee(&boundary.result, b)?;
+                if !child.classes.is_empty() || !empty(&child.life) {
+                    return Err(fail("dynamic result drops a full pointee class"));
                 }
             }
             if let Some(result) = instruction.result {

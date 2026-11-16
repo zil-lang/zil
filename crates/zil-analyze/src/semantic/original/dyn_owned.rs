@@ -124,7 +124,32 @@ impl Solver<'_, '_> {
                 "original owned Dyn construction consumes exactly one complete Self",
             ));
         };
-        let interface = self.recipe(frame, interface, b, depth + 1)?;
+        // The builtin's two written Types form one interface application.
+        // Forming the first fragment alone would incorrectly demand Closed
+        // before its explicit Context has been supplied.
+        let interface = if let Some(context) = context {
+            let SemanticTypeRecipe::Dyn {
+                owned: false,
+                interface,
+            } = interface
+            else {
+                return Err(fail(
+                    "owned Dyn Context requires its exact written borrowed trait recipe",
+                ));
+            };
+            if !matches!(interface.context, SemanticDynContextRecipe::Closed) {
+                return Err(fail(
+                    "owned Dyn construction repeats its dependency Context",
+                ));
+            }
+            crate::dyn_metadata::recipe(interface, b)?;
+            crate::dyn_metadata::recipe(context, b)?;
+            let mut full = interface.clone();
+            full.context = SemanticDynContextRecipe::Type(Box::new(context.clone()));
+            self.dyn_type(frame, false, &full, b, depth + 1)?
+        } else {
+            self.recipe(frame, interface, b, depth + 1)?
+        };
         let root = self.type_root(interface, b)?;
         let Kind::Dyn(ty) = &self.state.arena[root] else {
             return Err(fail(
@@ -137,14 +162,6 @@ impl Solver<'_, '_> {
             return Err(fail(
                 "original owned Dyn construction expects the borrowed trait type recipe",
             ));
-        }
-        if let Some(context) = context {
-            if !matches!(ty.context, dyn_types::Context::Closed) {
-                return Err(fail(
-                    "owned Dyn construction repeats its dependency Context",
-                ));
-            }
-            ty.context = dyn_types::Context::Type(self.recipe(frame, context, b, depth + 1)?);
         }
         ty.owned = true;
         self.dyn_domain_covered(&ty, b, depth + 1)?;

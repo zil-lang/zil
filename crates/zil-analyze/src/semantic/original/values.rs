@@ -130,6 +130,95 @@ impl Checked {
                     0,
                 )
             }
+            Kind::Life(Life::CallResult(owner, node, target, ordinal)) => {
+                let scope = self.context(*owner, context, inventory, b)?;
+                b.lookup(self.calls.len(), WORK)?;
+                let call = self
+                    .calls
+                    .get(&(*owner, *node))
+                    .ok_or_else(|| fail("returned region has no checked original call"))?;
+                if call.target != *target {
+                    return Err(fail("returned region changes its exact original callee"));
+                }
+                let mut declared = false;
+                for (_, role) in self
+                    .reference_roles
+                    .range((*target, NodeId(0))..=(*target, NodeId(u32::MAX)))
+                {
+                    b.spend(1, WORK)?;
+                    if role.ordinal == *ordinal {
+                        if declared {
+                            return Err(fail("returned region repeats its original declaration"));
+                        }
+                        declared = true;
+                    }
+                }
+                if !declared {
+                    return Err(fail(
+                        "returned region has no independently checked original local role",
+                    ));
+                }
+                if inventory.source.is_none() {
+                    let program = inventory.module.semantic.as_ref().ok_or_else(|| {
+                        fail("returned region has no executable semantic program")
+                    })?;
+                    let recipe = inventory.call_anchor(*owner, *node, b)?;
+                    let site = inventory.emitted_site(program, scope.id, recipe, b)?;
+                    let SemanticSiteAddress::Typed {
+                        block,
+                        instruction,
+                        edge: SemanticSiteEdge::After,
+                    } = site.at
+                    else {
+                        return Err(fail("returned region has another actual call boundary"));
+                    };
+                    let SemanticInstanceTarget::Function(function) = &scope.target else {
+                        return Err(fail("returned region is not in its actual function world"));
+                    };
+                    let function = inventory.function(function, b)?;
+                    let actual = function
+                        .blocks
+                        .get(block.0 as usize)
+                        .filter(|row| row.id == block)
+                        .and_then(|row| row.instructions.get(instruction as usize))
+                        .ok_or_else(|| fail("returned region has no actual call instruction"))?;
+                    let declaration = inventory.definition(*target, b)?;
+                    let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
+                        &declaration.body
+                    else {
+                        return Err(fail("returned region lacks the original callee signature"));
+                    };
+                    let callee = match &actual.kind {
+                        InstructionKind::Call { function, .. }
+                            if signature.call_kind == CallKind::Direct =>
+                        {
+                            *function
+                        }
+                        InstructionKind::SuspendCall {
+                            function: callee, ..
+                        } if signature.call_kind == CallKind::Suspend
+                            && function.call_kind == CallKind::Suspend =>
+                        {
+                            *callee
+                        }
+                        _ => {
+                            return Err(fail("returned region changes its exact original call ABI"));
+                        }
+                    };
+                    if actual.result.is_none() {
+                        return Err(fail("returned region has no actual result SSA"));
+                    }
+                    let worlds = inventory.worlds(program, callee, b)?;
+                    if worlds.is_empty() || worlds.iter().any(|world| world.definition != *target) {
+                        return Err(fail(
+                            "returned region selects another actual callee definition",
+                        ));
+                    }
+                }
+                // This names only the region. The closed result consumer still
+                // proves every world's complete Store and escaping-source graph.
+                Ok(Class::CallResult(scope.id, *node, *target, *ordinal))
+            }
             Kind::Life(Life::Receiver(owner, node)) => {
                 let scope = self.context(*owner, context, inventory, b)?;
                 // The source-only universe has a distinct call-local symbol.

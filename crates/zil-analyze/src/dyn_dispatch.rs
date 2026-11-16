@@ -339,6 +339,35 @@ fn contextual_contract(
             mutable: false,
         });
     }
+    // Static is an allowed immutable byte source, never a class equation or
+    // an input/receiver root. Keep it only when declared with the exact leaf;
+    // every entry's return flow independently proves which sources occur.
+    if let (
+        Some(DynResultSource::Borrow {
+            sources: proposed,
+            mutable: false,
+        }),
+        Some(DynResultSource::Borrow { sources, .. }),
+    ) = (&slot.contract.result, &mut expected.result)
+    {
+        if proposed
+            .iter()
+            .any(|source| matches!(source, StorageSource::Static { .. }))
+        {
+            if !matches!(&slot.result, Type::Address { mutable: false, inner }
+                if matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8))
+            {
+                return Ok(false);
+            }
+            sources.insert(
+                0,
+                StorageSource::Static {
+                    leaf: slot.result.clone(),
+                    mode: StoredBorrowMode::SharedAddress,
+                },
+            );
+        }
+    }
     for (i, port) in interface.retained_life.ports.iter().enumerate() {
         let p = StoragePosition {
             base: StorageBase::Parameter(0),

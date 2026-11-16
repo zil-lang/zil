@@ -202,10 +202,42 @@ impl Check<'_, '_> {
         &self,
         method: SemanticDefinitionId,
         life: &SemanticLifeRecipe,
+        fixed: Option<(u32, &[DynGenericActual])>,
         roles: &mut Vec<Role>,
         b: &mut Budget,
     ) -> CompileResult<StorageBinder> {
         let definition = self.inventory.definition(method, b)?;
+        if let SemanticLifeRecipe::Formal(SemanticFormalRef {
+            scope: SemanticScopeRef::Ancestor(1),
+            ordinal,
+        }) = life
+        {
+            let parent = self.inventory.definition(
+                definition.parent.ok_or_else(|| {
+                    fail("dynamic persistent role has no original declaration owner")
+                })?,
+                b,
+            )?;
+            if !matches!(
+                parent.parameters.get(*ordinal as usize),
+                Some(SemanticFormal::Lifetime)
+            ) {
+                return Err(fail(
+                    "dynamic persistent role changes its full original formal kind",
+                ));
+            }
+            let (count, actuals) = fixed.ok_or_else(|| {
+                unknown("dynamic persistent role lacks its complete enclosing actual scope")
+            })?;
+            return match actuals.get(*ordinal as usize) {
+                Some(DynGenericActual::Life(StorageBinder::Fixed(index))) if *index < count => {
+                    Ok(StorageBinder::Fixed(*index))
+                }
+                _ => Err(fail(
+                    "dynamic persistent role changes its exact enclosing actual",
+                )),
+            };
+        }
         let role = match life {
             SemanticLifeRecipe::Implicit {
                 scope: SemanticScopeRef::Ancestor(0),
@@ -259,6 +291,7 @@ impl Check<'_, '_> {
         recipe: &SemanticTypeRecipe,
         method: SemanticDefinitionId,
         self_type: Option<&Type>,
+        fixed: Option<(u32, &[DynGenericActual])>,
         position: StoragePosition,
         roles: &mut Vec<Role>,
         life: &mut StorageLifeContract,
@@ -270,7 +303,7 @@ impl Check<'_, '_> {
             inner,
         } = recipe
         {
-            let binder = self.dyn_role(method, class, roles, b)?;
+            let binder = self.dyn_role(method, class, fixed, roles, b)?;
             let inner = self.dyn_zero_recipe(inner, method, self_type, b, 0)?;
             self.push_value(
                 &mut life.bindings,
@@ -289,6 +322,7 @@ impl Check<'_, '_> {
         method: SemanticDefinitionId,
         signature: &SemanticSignatureRecipe,
         self_type: Option<&Type>,
+        fixed: Option<(u32, &[DynGenericActual])>,
         b: &mut Budget,
     ) -> CompileResult<Signature> {
         crate::dyn_metadata::recipe(signature, b)?;
@@ -349,7 +383,7 @@ impl Check<'_, '_> {
             static_bindings: Vec::new(),
             classes: Vec::new(),
         };
-        let binder = self.dyn_role(method, class, &mut roles, b)?;
+        let binder = self.dyn_role(method, class, fixed, &mut roles, b)?;
         self.push_value(
             &mut life.bindings,
             StorageLifeBinding {
@@ -388,6 +422,7 @@ impl Check<'_, '_> {
                 &parameter.ty,
                 method,
                 self_type,
+                fixed,
                 StoragePosition {
                     base: StorageBase::Parameter(ordinal),
                     path: Vec::new(),
@@ -403,6 +438,7 @@ impl Check<'_, '_> {
             &signature.result,
             method,
             self_type,
+            fixed,
             StoragePosition {
                 base: StorageBase::Result,
                 path: Vec::new(),
@@ -411,6 +447,7 @@ impl Check<'_, '_> {
             &mut life,
             b,
         )?;
+        life.fixed_binder_count = fixed.map_or(0, |(count, _)| count);
         life.invocation_binder_count = u32::try_from(roles.len())
             .map_err(|_| fail("dynamic full signature domain overflow"))?;
         crate::signature_life::charge(&life, b)?;
@@ -505,7 +542,15 @@ impl Check<'_, '_> {
         self.dyn_step(b, depth)?;
         match recipe {
             DynTypePattern::Semantic { scope, ty } if *scope == method => {
-                self.dyn_zero_recipe(ty, method, self_type, b, depth + 1)
+                if let SemanticTypeRecipe::Address { mutable, inner, .. } = ty.as_ref() {
+                    let inner = self.dyn_zero_recipe(inner, method, self_type, b, depth + 1)?;
+                    Ok(Type::Address {
+                        mutable: *mutable,
+                        inner: Box::new(inner),
+                    })
+                } else {
+                    self.dyn_zero_recipe(ty, method, self_type, b, depth + 1)
+                }
             }
             DynTypePattern::SelfType => {
                 let ty = self_type
@@ -740,7 +785,16 @@ impl Check<'_, '_> {
             slot.member.ordinal,
             b,
         )?;
-        let mut expected = self.dyn_signature(method, original, None, b)?;
+        let mut expected = self.dyn_signature(
+            method,
+            original,
+            None,
+            Some((
+                interface.retained_life.binder_count,
+                &interface.application.actuals,
+            )),
+            b,
+        )?;
         // Context contributes a complete persistent receiver domain. It does
         // not rename the original invocation region or add a lifetime premise.
         expected.life.fixed_binder_count = interface.retained_life.binder_count;
@@ -810,6 +864,26 @@ impl Check<'_, '_> {
                 .as_mut()
                 .ok_or_else(|| unknown("original dynamic call access is unknown"))?;
             self.push_value(&mut call.reads, position.clone(), b)?;
+            if let Some(DynResultSource::Borrow {
+                sources,
+                mutable: false,
+            }) = &mut contract.result
+            {
+                let result_binder = expected
+                    .life
+                    .bindings
+                    .iter()
+                    .find(|row| {
+                        row.position.base == StorageBase::Result && row.position.path.is_empty()
+                    })
+                    .map(|row| row.binder);
+                if result_binder == Some(StorageBinder::Fixed(port.binder))
+                    && port.mode == StoredBorrowMode::SharedAddress
+                    && port.leaf == expected.result
+                {
+                    self.push_value(sources, StorageSource::Exact(position.clone()), b)?;
+                }
+            }
             if *mutable && port.mode == StoredBorrowMode::ExclusiveAddress {
                 self.push_value(
                     contract
@@ -1170,13 +1244,15 @@ impl Check<'_, '_> {
             ));
         }
         self.dyn_signature_bridge(expected_definition, signature, &definition.signature, b)?;
-        let expected = self.dyn_signature(expected_definition, signature, Some(&receiver.ty), b)?;
+        let expected =
+            self.dyn_signature(expected_definition, signature, Some(&receiver.ty), None, b)?;
         let (public_method, public_signature, public_raw) = self.dyn_original_signature(
             slot.member.application.declaration,
             slot.member.ordinal,
             b,
         )?;
-        let public = self.dyn_signature(public_method, public_signature, Some(&receiver.ty), b)?;
+        let public =
+            self.dyn_signature(public_method, public_signature, Some(&receiver.ty), None, b)?;
         if expected.parameters != public.parameters
             || expected.modes != public.modes
             || expected.result != public.result
@@ -1793,6 +1869,55 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
+    fn dyn_context_arguments(
+        &self,
+        actuals: &[DynGenericActual],
+        classes: &BTreeMap<StorageBinder, value::Class>,
+        b: &mut Budget,
+    ) -> CompileResult<Vec<value::Argument>> {
+        let mut result = Vec::new();
+        for actual in actuals {
+            crate::dyn_metadata::recipe(actual, b)?;
+            let actual = match actual {
+                DynGenericActual::Life(binder) => {
+                    b.lookup(classes.len(), WORK)?;
+                    value::Argument::Life(classes.get(binder)
+                        .ok_or_else(|| unknown("dynamic trait actual has no complete original lexical class image"))?.clone())
+                }
+                DynGenericActual::Type(ty) => {
+                    self.zero_data(ty, b, 0)?;
+                    value::Argument::Type(value::scalar(ty.clone()))
+                }
+                DynGenericActual::QualifiedType(ty) => {
+                    self.actual_type(&ty.ty, b)?;
+                    if ty.classes.len() != ty.life.binder_count as usize {
+                        return Err(fail("dynamic trait Type loses a full class"));
+                    }
+                    let mut images = Vec::new();
+                    for class in &ty.classes {
+                        b.lookup(classes.len(), WORK)?;
+                        self.push_value(
+                            &mut images,
+                            classes
+                                .get(class)
+                                .ok_or_else(|| {
+                                    unknown("dynamic trait Type class has no original image")
+                                })?
+                                .clone(),
+                            b,
+                        )?;
+                    }
+                    value::Argument::Type(Value::new(ty.ty.clone(), ty.life.clone(), images))
+                }
+                DynGenericActual::Const(value) => value::Argument::Const {
+                    carrier: value.ty(),
+                    value: value.clone(),
+                },
+            };
+            self.push_value(&mut result, actual, b)?;
+        }
+        Ok(result)
+    }
     fn dyn_context_table(
         &self,
         table: &DynVtable,
@@ -1800,10 +1925,9 @@ impl Check<'_, '_> {
         functions: &mut BTreeSet<FunctionId>,
         b: &mut Budget,
     ) -> CompileResult<()> {
-        // This cold provider check runs before any semantic table marker is
-        // published. It reconstructs nominal Self, mixed ordinals, all opaque
-        // source ports (including empty ports), and the original trait recipe.
-        crate::dyn_provider::prove(self.module, table, interface, b)?;
+        // The original Semantic Self recipe is interpreted below in every
+        // real provider world. The raw legacy nominal-pattern interpreter
+        // cannot stand in for that complete source scope relation.
         if table.cleanup.is_some() {
             return Err(unknown(
                 "dynamic Context table needs its original explicit cleanup definition bridge",
@@ -1837,7 +1961,7 @@ impl Check<'_, '_> {
             ));
         };
         crate::dyn_metadata::recipe(witness, b)?;
-        if witness.application != interface.application
+        if witness.application.declaration != interface.application.declaration
             || witness.implementation != table.implementation
             || !witness.associated.is_empty()
         {
@@ -1872,8 +1996,31 @@ impl Check<'_, '_> {
                     .as_ref()
                     .ok_or_else(|| fail("dynamic Context entry world omits its original Self"))?;
                 let receiver = self.resolved(world, self_type, b, 0)?;
-                let provider =
-                    self.actual_provider(&receiver, interface.application.declaration, &[], b, 0)?;
+                let mut context = BTreeMap::new();
+                self.standalone_value(context_scope, &raw_receiver, &receiver, &mut context, b)?;
+                if let Some(parent) = world.parent {
+                    let parent = self.inventory.instance(parent, b)?;
+                    let declaration = self.inventory.definition(parent.definition, b)?;
+                    if matches!(&declaration.body, SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl { declaration, .. }) if *declaration == table.implementation)
+                    {
+                        self.standalone_actuals(
+                            context_scope,
+                            &table.actuals,
+                            parent,
+                            &mut context,
+                            b,
+                        )?;
+                    }
+                }
+                let arguments =
+                    self.dyn_context_arguments(&interface.application.actuals, &context, b)?;
+                let provider = self.actual_provider(
+                    &receiver,
+                    interface.application.declaration,
+                    &arguments,
+                    b,
+                    0,
+                )?;
                 let declaration = self.inventory.definition(provider.definition, b)?;
                 if !matches!(&declaration.body,
                     SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl { declaration, .. })
@@ -1881,6 +2028,29 @@ impl Check<'_, '_> {
                 {
                     return Err(fail(
                         "dynamic Context entry selects another original provider scope",
+                    ));
+                }
+                let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {
+                    self_type,
+                    trait_application,
+                    ..
+                }) = &declaration.body
+                else {
+                    unreachable!()
+                };
+                let raw = self.inventory.original_dyn(table.implementation, b)?;
+                crate::dyn_metadata::recipe(self_type, b)?;
+                let pattern = raw
+                    .self_pattern
+                    .as_ref()
+                    .ok_or_else(|| unknown("dynamic provider original Self recipe is unknown"))?;
+                crate::dyn_metadata::recipe(pattern, b)?;
+                if !matches!(pattern, DynTypePattern::Semantic { scope, ty }
+                    if *scope == provider.definition && ty.as_ref() == self_type)
+                    || trait_application.declaration != interface.application.declaration
+                {
+                    return Err(fail(
+                        "dynamic provider changes its exact original scoped Self or trait recipe",
                     ));
                 }
                 self.scope_arguments(provider, b)?;
@@ -1910,8 +2080,23 @@ impl Check<'_, '_> {
                 // Compare original signatures before erasure. The shared Self
                 // position is interpreted separately as the complete receiver
                 // above; all remaining types and invocation roles stay exact.
-                let implementation = self.dyn_signature(method, signature, None, b)?;
-                let public = self.dyn_signature(public_method, public_signature, None, b)?;
+                let implementation = self.dyn_signature(
+                    method,
+                    signature,
+                    None,
+                    Some((interface.retained_life.binder_count, &table.actuals)),
+                    b,
+                )?;
+                let public = self.dyn_signature(
+                    public_method,
+                    public_signature,
+                    None,
+                    Some((
+                        interface.retained_life.binder_count,
+                        &interface.application.actuals,
+                    )),
+                    b,
+                )?;
                 if implementation.parameters != public.parameters
                     || implementation.modes != public.modes
                     || implementation.result != public.result
@@ -1925,8 +2110,6 @@ impl Check<'_, '_> {
                         "dynamic Context implementation changes its original public signature or contract",
                     ));
                 }
-                let mut context = BTreeMap::new();
-                self.standalone_value(context_scope, &raw_receiver, &receiver, &mut context, b)?;
                 self.standalone_actuals(context_scope, &table.actuals, provider, &mut context, b)?;
                 let mut private = BTreeMap::new();
                 self.standalone_value(
@@ -1943,6 +2126,40 @@ impl Check<'_, '_> {
                     &mut private,
                     b,
                 )?;
+                let witnessed =
+                    self.dyn_context_arguments(&witness.application.actuals, &private, b)?;
+                if witnessed.len() != arguments.len() {
+                    return Err(fail(
+                        "dynamic witness changes its complete original trait arity",
+                    ));
+                }
+                for (left, right) in witnessed.iter().zip(&arguments) {
+                    b.spend(1, WORK)?;
+                    let same = match (left, right) {
+                        (value::Argument::Type(left), value::Argument::Type(right)) => {
+                            left.equal_paid(right, b)?
+                        }
+                        (value::Argument::Life(left), value::Argument::Life(right)) => {
+                            left == right
+                        }
+                        (
+                            value::Argument::Const {
+                                carrier: left,
+                                value: a,
+                            },
+                            value::Argument::Const {
+                                carrier: right,
+                                value: z,
+                            },
+                        ) => geometry::same_type(left, right, b)? && a == z,
+                        _ => false,
+                    };
+                    if !same {
+                        return Err(fail(
+                            "dynamic witness changes its original private trait actual",
+                        ));
+                    }
+                }
                 let private_count = (witness.scope.fixed_binder_count as usize)
                     .checked_add(witness.scope.invocation_binder_count as usize)
                     .ok_or_else(|| fail("dynamic witness lexical domain overflows"))?;
@@ -1975,11 +2192,14 @@ impl Check<'_, '_> {
             b.lookup(functions.len(), WORK)?;
             functions.insert(entry.function);
         }
-        if slots.len() != interface.slots.len() {
+        if slots.len() != interface.slots.len() || slots.is_empty() {
             return Err(fail(
-                "dynamic Context table omits an original public method entry",
+                "dynamic Context table omits its original provider or public method entry",
             ));
         }
+        // Complete physical leaves, class selectors and every explicit empty
+        // Context port are checked without publishing a semantic success flag.
+        crate::dyn_provider::ports(self.module, table, interface, b)?;
         Ok(())
     }
     pub(super) fn dyn_tables(&self, b: &mut Budget) -> CompileResult<()> {
@@ -1991,8 +2211,8 @@ impl Check<'_, '_> {
                 return Err(fail("dynamic interface identity is repeated"));
             }
             crate::dyn_context::validate(self.module, interface, b)?;
-            if !interface.application.actuals.is_empty()
-                || !interface.inherited.is_empty()
+            crate::dyn_provider::application(self.module, interface, b)?;
+            if !interface.inherited.is_empty()
                 || !interface.associated_types.is_empty()
                 || !interface.associated_constants.is_empty()
             {
@@ -2008,7 +2228,7 @@ impl Check<'_, '_> {
                     "dynamic interface selects an implementation rather than an original trait declaration",
                 ));
             }
-            if !declaration.parameters.is_empty()
+            if declaration.parameters.len() != interface.application.actuals.len()
                 || !declaration
                     .direct_supertraits
                     .as_ref()
