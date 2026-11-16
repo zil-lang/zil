@@ -177,9 +177,15 @@
   "recovery_archive": {
     "repository": "zil-lang/zil",
     "branch": "archive/source-history",
-    "path": "language/20261116T133636Z-alpha-client-handoff/source-and-handoff.tar.gz.base64",
-    "encoding": "base64 of gzip tar",
+    "ref": "d38859864eb2dd8ebb0df1d9fc0a053156043457",
+    "parts": [
+      "language/20261116T133636Z-alpha-client-handoff/source-and-handoff.tar.gz.base64.part-01",
+      "language/20261116T133636Z-alpha-client-handoff/source-and-handoff.tar.gz.base64.part-02",
+      "language/20261116T133636Z-alpha-client-handoff/source-and-handoff.tar.gz.base64.part-03"
+    ],
+    "encoding": "Concatenate parts in numeric order, base64-decode once, extract gzip tar",
     "sha256": "bb1e92e7e9347d55a208dc916c51a72d5034a6f79adc4a37e8dc1c057e2d5ded",
-    "bytes": 164510
+    "bytes": 164510,
+    "readback_verified": true
   }
 }
