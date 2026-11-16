@@ -73,7 +73,12 @@ def main(argv=None):
             require(args.sizes == ['5105'] and args.blocks == 2 and args.epochs == 8,
                     'frozen 5105 history(8) source recipes, two blocks required')
             require(args.complete_imports and args.candidate_policy == 'closed'
-                    and args.function_merging == 'off', 'original closed import policy required')
+                    and args.function_merging == 'off', 'explicit closed incremental O2 import policy required')
+            if args.bounded_class_imports:
+                policy['schema'] = 'closed-bounded-class-direct-restart-edit-runtime-v1'
+                policy['class_import_policy'] = 'bounded-classes-128-v1'
+            else:
+                policy['class_import_policy'] = 'complete'
             return args
 
     def history(epochs):
