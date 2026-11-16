@@ -6728,6 +6728,32 @@ fn windows(
                             b,
                         )?;
                     }
+                    InstructionKind::TakeCapture { index }
+                    | InstructionKind::WriteCapture { index, .. }
+                        if f.environment
+                            .and_then(|id| module.closures.get(id.0 as usize))
+                            .and_then(|definition| definition.captures.get(*index as usize))
+                            .is_some_and(|ty| matches!(ty, Type::Closure(_))) =>
+                    {
+                        // Moving or replacing a child changes this physical
+                        // capture slot. A previously borrowed child frame may
+                        // still be live even when no caller invokes this entry.
+                        // Its payload transfer never carries a loan of the old
+                        // slot to the new position.
+                        let actual = Permission {
+                            targets: BTreeSet::from([Target {
+                                retained_port: None,
+                                base: HoldRoot::Capture(*index),
+                                stored: vec![],
+                                place: vec![],
+                                heap_parents: Vec::new(),
+                                heap_element: None,
+                            }]),
+                            loans: Loans::new(),
+                        };
+                        fee(b, 1)?;
+                        access.check(&actual, true, apart, b)?;
+                    }
                     InstructionKind::BorrowCapture { index, mutable } => {
                         let actual = Permission {
                             targets: BTreeSet::from([Target {

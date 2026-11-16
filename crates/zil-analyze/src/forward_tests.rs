@@ -1037,7 +1037,15 @@ fn reviewed_capture_bodies_are_window_roots_with_and_without_consumer_edges() {
         if valid {
             accepted(&module);
         } else {
-            rejected(&module);
+            let errors = analyze(&module, &Limits::default()).unwrap_err();
+            assert!(
+                errors.iter().any(|error| {
+                    error.code == "E-BORROW-CONFLICT"
+                        && error.category == zil_base::ResultCategory::SafeReject
+                        && error.message.contains("live access overlaps")
+                }),
+                "{errors:?}"
+            );
         }
     }
 }
