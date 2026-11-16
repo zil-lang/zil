@@ -82,8 +82,8 @@ impl Solver<'_, '_> {
     ) -> CompileResult<Vec<Term>> {
         b.spend(count as usize, WORK)?;
         let mut actuals = Vec::new();
-        for _ in 0..count {
-            let life = self.term(Kind::LifeVariable(None), b)?;
+        for ordinal in 0..count {
+            let life = self.call_variable(call_regions::Role::Invocation(ordinal), b)?;
             Self::push(&mut actuals, life, b)?;
         }
         Ok(actuals)
@@ -506,6 +506,14 @@ impl Solver<'_, '_> {
             return Ok(term);
         }
         self.expression(frame, value, b, depth + 1)
+    }
+    pub(super) fn call_input_value(&mut self, frame: &mut Frame, value: &SemanticOriginalExpr,
+        expected: Term, b: &mut Budget, depth: usize) -> CompileResult<Term> {
+        let deferred = self.deferred_call_type(expected, b)?;
+        self.call_argument(frame, value, deferred, b, depth + 1)?;
+        b.lookup(frame.expressions.len(), WORK)?;
+        frame.expressions.get(&value.id).copied()
+            .ok_or_else(|| fail("original call argument has no checked expression occurrence"))
     }
     pub(super) fn call_argument(
         &mut self,

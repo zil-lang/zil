@@ -557,6 +557,7 @@ impl Solver<'_, '_> {
         &mut self,
         frame: &Frame,
         expression: &SemanticOriginalExpr,
+        call: NodeId,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<(
@@ -635,7 +636,7 @@ impl Solver<'_, '_> {
         match resume_bound {
             TaskResumeBound::Local | TaskResumeBound::Transfer => {}
         }
-        let (_, parameters, result) = self.scheme(frame, None, target, written, None, b, depth + 1)?;
+        let (_, parameters, result) = self.scheme(frame, Some(call), target, written, None, b, depth + 1)?;
         Ok((target, parameters, result, modes, result_mode, call_kind))
     }
 
@@ -809,7 +810,7 @@ impl Solver<'_, '_> {
                 .split_first()
                 .ok_or_else(|| fail("Task creation omits its static worker"))?;
             let (target, parameters, result, modes, result_mode, call_kind) =
-                self.task_worker(frame, worker, b, depth + 1)?;
+                self.task_worker(frame, worker, node, b, depth + 1)?;
             if parameters.len() != arguments.len() || modes.len() != arguments.len() {
                 return Err(fail(
                     "Task creation changes its worker's ordered input arity",
@@ -820,9 +821,12 @@ impl Solver<'_, '_> {
                 retained: Retained::default(),
                 leaves: Vec::new(),
             };
-            for ((argument, parameter), mode) in arguments.iter().zip(&parameters).zip(&modes) {
-                let actual = self.expression(frame, argument, b, depth + 1)?;
-                self.unify(actual, *parameter, depth + 1, b)?;
+            let mut outer_inputs = Vec::new();
+            for (ordinal, ((argument, parameter), mode)) in arguments.iter().zip(&parameters).zip(&modes).enumerate() {
+                let actual = self.call_input_value(frame, argument, *parameter, b, depth + 1)?;
+                if let Some(input) = self.collect_call_input(frame, argument, actual, *parameter, ordinal, b, depth + 1)? {
+                    Self::push(&mut outer_inputs, input, b)?;
+                }
                 // Ordinary task_create consumes its inputs on both outcomes.
                 // Allocation failure synchronously destroys owning inputs and
                 // releases borrowed ports; task_create_owned has a different
@@ -843,9 +847,10 @@ impl Solver<'_, '_> {
                         b,
                     )?;
                 }
-                self.task_input_shape(*parameter, &mut task, b, depth + 1)?;
                 Self::push(&mut inputs, *parameter, b)?;
             }
+            self.settle_call_inputs(frame, node, &outer_inputs, b, depth + 1)?;
+            for parameter in &parameters { self.task_input_shape(*parameter, &mut task, b, depth + 1)?; }
             // Each real ordered input contributes its complete original
             // whole domain and P_i mapping, including opaque/phantom children.
             // task_input_shape above still proves this input family's source

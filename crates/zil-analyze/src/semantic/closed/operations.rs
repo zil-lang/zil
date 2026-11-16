@@ -1303,11 +1303,12 @@ impl Check<'_, '_> {
                         "actual call loses its independently inferred original input roles",
                     ));
                 }
-                for (actual, expected) in arguments.iter().zip(&expected_inputs) {
+                for (ordinal, (actual, expected)) in arguments.iter().zip(&expected_inputs).enumerate() {
                     if self.uses_full_value(&expected.ty, b)? {
-                        let actual = self.ssa_value(instance, point.function, *actual, b, 0)?;
-                        let valid = if matches!(expected.ty, Type::Address { .. }) {
-                            self.outer_role(instance, point.function, &actual, expected, b, 0)?
+                        let operand = *actual;
+                        let actual = self.ssa_value(instance, point.function, operand, b, 0)?;
+                        let valid = if matches!(expected.ty, Type::Address { .. } | Type::Desc(_)) {
+                            self.outer_call_role(instance, point.function, (point.block.id, point.instruction), ordinal, operand, &actual, expected, b, 0)?
                         } else {
                             self.capture_values_equal(&actual, expected, b)?
                         };

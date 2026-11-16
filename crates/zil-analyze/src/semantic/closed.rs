@@ -2,6 +2,7 @@
 //! Empty metadata never selects a proof: the complete type, original signature,
 //! creator, occurrence and operation inventories must independently agree.
 use super::*;
+mod call_regions;
 mod abstract_calls;
 mod borrow_places;
 mod borrows;

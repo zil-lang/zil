@@ -494,8 +494,8 @@ impl Check<'_, '_> {
                 // The ordinary memory checker independently proves the loan.
             } else if self.uses_full_value(actual, b)? {
                 let actual = self.ssa_value(instance, function, *argument, b, 0)?;
-                let valid = if matches!(expected.ty, Type::Address { .. }) {
-                    self.outer_role(instance, function, &actual, expected, b, 0)?
+                let valid = if matches!(expected.ty, Type::Address { .. } | Type::Desc(_)) {
+                    self.outer_call_role(instance, function, (block, index), ordinal, *argument, &actual, expected, b, 0)?
                 } else {
                     actual == *expected
                 };

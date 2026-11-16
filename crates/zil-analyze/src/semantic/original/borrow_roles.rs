@@ -76,7 +76,7 @@ impl Solver<'_, '_> {
         }
         Ok(wanted)
     }
-    fn view_upper_allows(
+    pub(super) fn view_upper_allows(
         &mut self,
         frame: &Frame,
         upper: Term,
@@ -89,6 +89,24 @@ impl Solver<'_, '_> {
         let upper = self.root(upper, b)?;
         if self.same_original(upper, wanted, b, depth + 1)? {
             return Ok(true);
+        }
+        if let Kind::Life(Life::Implicit(owner, ordinal)) = self.state.arena[upper] {
+            b.lookup(self.state.call_regions.len(), WORK)?;
+            if let Some(region) = self.state.call_regions.get(&(owner, ordinal)) {
+                b.spend(region.sources.len(), WORK)?;
+                let sources = region.sources.clone();
+                if sources.is_empty() { return Err(fail("original call region has no complete incoming sources")); }
+                b.lookup(active.len(), WORK)?;
+                if !active.insert((owner, ordinal)) { return Err(fail("original call region has a cyclic source bound")); }
+                let mut allowed = true;
+                for source in sources {
+                    if let Some(life) = source.life {
+                        allowed &= self.view_upper_allows(frame, life, wanted, active, b, depth + 1)?;
+                    }
+                }
+                active.remove(&(owner, ordinal));
+                return Ok(allowed);
+            }
         }
         if let Kind::Life(Life::Implicit(owner, ordinal)) = self.state.arena[upper] {
             b.lookup(self.state.view_uppers.len(), WORK)?;

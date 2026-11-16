@@ -293,7 +293,7 @@ impl Solver<'_, '_> {
                 (SemanticFormal::Lifetime, Some(CoreGenericArgument::Lifetime(name))) => {
                     self.named_life(caller, name, b, depth + 1)?
                 }
-                (SemanticFormal::Lifetime, None) => self.term(Kind::LifeVariable(None), b)?,
+                (SemanticFormal::Lifetime, None) => self.call_variable(call_regions::Role::Life(ordinal as u32), b)?,
                 _ => {
                     return Err(unknown(
                         "original generic method Const actual needs its exact substituted carrier proof",
@@ -321,7 +321,7 @@ impl Solver<'_, '_> {
         Self::push(&mut self.trait_state.selves, (scope, receiver), b)?;
         let mut implicits = BTreeMap::new();
         for row in &original.implicit_lifetimes {
-            let life = self.term(Kind::LifeVariable(None), b)?;
+            let life = self.call_variable(call_regions::Role::Implicit(row.ordinal), b)?;
             b.lookup(implicits.len(), WORK)?;
             if implicits.insert(row.ordinal, life).is_some() {
                 return Err(fail(
@@ -330,6 +330,9 @@ impl Solver<'_, '_> {
             }
         }
         let lifetimes = self.invocation_actuals(signature.invocation_lifetimes, b)?;
+        for (index, life) in lifetimes.iter().enumerate() {
+            self.mark_call_variable(*life, call_regions::Role::Invocation(index as u32), b)?;
+        }
         Self::push(
             &mut self.role_frames,
             roles::RoleFrame {
@@ -354,6 +357,7 @@ impl Solver<'_, '_> {
                     ));
                 }
                 let term = self.recipe(&context, &parameter.ty, b, depth + 1)?;
+                self.mark_call_parameter(term, &parameter.ty, b)?;
                 Self::push(&mut parameters, term, b)?;
             }
             for formal in &original.parameters {
@@ -501,6 +505,7 @@ impl Solver<'_, '_> {
                 "original method argument count differs from its complete signature",
             ));
         }
+        let mut receiver_input = actual_receiver;
         if let Some(place) = &receiver_place {
             let Kind::Address {
                 mutable,
@@ -530,7 +535,8 @@ impl Solver<'_, '_> {
             } else {
                 self.term(Kind::Life(Life::Receiver(frame.definition, node)), b)?
             };
-            self.unify(life, head, depth + 1, b)?;
+            let _ = life;
+            receiver_input = Some(self.term(Kind::Address { mutable, life: head, inner: place.inner }, b)?);
         }
         if dynamic.is_some() {
             let Kind::Address {
@@ -547,41 +553,29 @@ impl Solver<'_, '_> {
                 return Err(fail("original dynamic method changes its erased Self type"));
             }
         }
-        // Only the fresh call-local outer life is solved by this boundary.
-        // Pointee identities are ordinary full type equations and stay rigid.
-        if let Some(actual_receiver) = actual_receiver {
-            let adapted = match (
-                &self.state.arena[self.type_root(parameters[0], b)?],
-                &self.state.arena[actual_receiver],
-            ) {
-                (
-                    Kind::Address { mutable: false, .. },
-                    Kind::Address {
-                        mutable: true,
-                        life,
-                        inner,
-                    },
-                ) => {
-                    let (life, inner) = (*life, *inner);
-                    self.term(
-                        Kind::Address {
-                            mutable: false,
-                            life,
-                            inner,
-                        },
-                        b,
-                    )?
-                }
-                _ => actual_receiver,
+        let mut outer_inputs = Vec::new();
+        if anchor.is_some() {
+            let actual = if let Some(actual) = receiver_input {
+                actual
+            } else {
+                let Kind::Address { mutable, inner, .. } = self.state.arena[self.type_root(parameters[0], b)?] else {
+                    return Err(fail("original call receiver has no complete borrowed carrier"));
+                };
+                let life = self.term(Kind::Life(Life::Receiver(frame.definition, node)), b)?;
+                self.term(Kind::Address { mutable, life, inner }, b)?
             };
-            self.unify(parameters[0], adapted, depth + 1, b)?;
+            if let Some(input) = self.collect_call_input(frame, object, actual, parameters[0], 0, b, depth + 1)? {
+                Self::push(&mut outer_inputs, input, b)?;
+            }
         }
-        for (argument, expected) in arguments
-            .iter()
-            .zip(parameters.iter().skip(usize::from(anchor.is_some())))
-        {
-            self.call_argument(frame, argument, *expected, b, depth + 1)?;
+        let offset = usize::from(anchor.is_some());
+        for (ordinal, (argument, expected)) in arguments.iter().zip(parameters.iter().skip(offset)).enumerate() {
+            let actual = self.call_input_value(frame, argument, *expected, b, depth + 1)?;
+            if let Some(input) = self.collect_call_input(frame, argument, actual, *expected, ordinal + offset, b, depth + 1)? {
+                Self::push(&mut outer_inputs, input, b)?;
+            }
         }
+        self.settle_call_inputs(frame, node, &outer_inputs, b, depth + 1)?;
         b.spend(
             trait_actuals
                 .len()

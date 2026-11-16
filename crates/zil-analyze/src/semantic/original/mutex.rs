@@ -26,7 +26,7 @@ impl Solver<'_, '_> {
                 ));
             };
             let (target, parameters, output, modes, result_mode, call_kind) =
-                self.task_worker(frame, worker, b, depth + 1)?;
+                self.task_worker(frame, worker, node, b, depth + 1)?;
             if parameters.len() != 1
                 || modes.len() != 1
                 || call_kind != CallKind::Direct
@@ -39,8 +39,12 @@ impl Solver<'_, '_> {
                     "structured thread worker changes its original Direct scalar signature",
                 ));
             }
-            let actual = self.expression(frame, argument, b, depth + 1)?;
-            self.unify(actual, parameters[0], depth + 1, b)?;
+            let actual = self.call_input_value(frame, argument, parameters[0], b, depth + 1)?;
+            let mut outer_inputs = Vec::new();
+            if let Some(input) = self.collect_call_input(frame, argument, actual, parameters[0], 0, b, depth + 1)? {
+                Self::push(&mut outer_inputs, input, b)?;
+            }
+            self.settle_call_inputs(frame, node, &outer_inputs, b, depth + 1)?;
             if !self.thread_boundary(parameters[0], b, depth + 1)? {
                 return Err(fail(
                     "structured thread input lacks its scoped synchronization or transfer scheme",
@@ -110,7 +114,12 @@ impl Solver<'_, '_> {
             let [argument] = arguments else {
                 return Err(fail("mutex operation changes its complete ordered arity"));
             };
-            let input = self.expression(frame, argument, b, depth + 1)?;
+            let mut input = self.expression(frame, argument, b, depth + 1)?;
+            if intrinsic == sealed::Intrinsic::MutexLock {
+                input = self.intrinsic_call_input(frame, node, argument, input, call_regions::Role::Head(0), None, b, depth + 1)?;
+            } else if intrinsic == sealed::Intrinsic::MutexValue {
+                input = self.intrinsic_call_input(frame, node, argument, input, call_regions::Role::Implicit(0), None, b, depth + 1)?;
+            }
             Self::push(&mut inputs, input, b)?;
             match intrinsic {
                 sealed::Intrinsic::MutexCreate => {

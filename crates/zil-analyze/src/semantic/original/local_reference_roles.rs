@@ -311,6 +311,18 @@ impl Solver<'_, '_> {
                 "escaping reference roles have a cyclic source equation",
             ));
         }
+        b.lookup(self.state.call_regions.len(), WORK)?;
+        if let Some(region) = self.state.call_regions.get(&(scope, ordinal)) {
+            if region.sources.is_empty() { return Err(fail("escaping call region has no original sources")); }
+            for source in &region.sources {
+                b.spend(1, WORK)?;
+                if let Some(life) = source.life {
+                    self.reference_escape_life(scope, life, active, b, depth + 1)?;
+                }
+            }
+            active.remove(&(scope, ordinal));
+            return Ok(());
+        }
         let mut found = false;
         b.lookup(self.state.reference_roles.len(), WORK)?;
         for ((role_owner, _), role) in self
@@ -379,6 +391,10 @@ impl Solver<'_, '_> {
             b.lookup(owners.len(), WORK)?;
             owners.insert(*owner);
         }
+        for (owner, _) in self.state.call_regions.keys() {
+            b.lookup(owners.len(), WORK)?;
+            owners.insert(*owner);
+        }
         for owner in owners {
             b.lookup(self.state.frames.len(), WORK)?;
             let frame = self
@@ -399,6 +415,11 @@ impl Solver<'_, '_> {
                 let mut child = |value| Self::push(&mut pending, (value, depth + 1), b);
                 match &self.state.arena[term] {
                     Kind::Life(Life::Implicit(scope, ordinal)) if *scope == owner => {
+                        b.lookup(self.state.call_regions.len(), WORK)?;
+                        if self.state.call_regions.contains_key(&(*scope, *ordinal)) {
+                            self.reference_escape_life(owner, term, &mut BTreeSet::new(), b, 0)?;
+                            continue;
+                        }
                         b.lookup(self.state.reference_roles.len(), WORK)?;
                         for ((_, _), role) in self
                             .state

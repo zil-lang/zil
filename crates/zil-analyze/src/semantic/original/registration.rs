@@ -138,7 +138,11 @@ impl Solver<'_, '_> {
                 intrinsic,
                 sealed::Intrinsic::AsyncRequest | sealed::Intrinsic::AsyncPoll
             );
-        let input = self.state_argument(frame, &arguments[0], borrowed, b, depth + 1)?;
+        let mut input = self.state_argument(frame, &arguments[0], borrowed, b, depth + 1)?;
+        if borrowed && !observing {
+            input = self.intrinsic_call_input(frame, node, &arguments[0], input,
+                call_regions::Role::Implicit(0), None, b, depth + 1)?;
+        }
         let payload = if observing {
             match self.state.arena[self.type_root(input, b)?] {
                 Kind::Desc { inner, .. } | Kind::Wrapped(Wrapper::Managed, inner) => inner,
@@ -205,8 +209,14 @@ impl Solver<'_, '_> {
                     .ok_or_else(|| {
                         unknown("registration observation requires its exact original owning place")
                     })?;
-                self.describe_argument(frame, &arguments[0], &place, source, b, depth + 1)?;
+                let described = self.describe_argument(frame, &arguments[0], &place, source, b, depth + 1)?;
+                self.intrinsic_call_input(frame, node, &arguments[0], described,
+                    call_regions::Role::Head(0), None, b, depth + 1)?;
             }
+        }
+        if observing && matches!(self.state.arena[self.type_root(input, b)?], Kind::Desc { .. }) {
+            input = self.intrinsic_call_input(frame, node, &arguments[0], input,
+                call_regions::Role::Head(0), None, b, depth + 1)?;
         }
         let result = if intrinsic == sealed::Intrinsic::AsyncPoll {
             let mut definition = None;

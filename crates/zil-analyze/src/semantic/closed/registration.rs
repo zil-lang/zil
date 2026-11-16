@@ -100,7 +100,7 @@ impl Check<'_, '_> {
         }
         if matches!(expected.ty, Type::Address { .. }) {
             let actual = self.ssa_value(instance, function, input, b, 0)?;
-            if !self.outer_role(instance, function, &actual, expected, b, 0)? {
+            if !self.outer_call_role(instance, function, (block, index), 0, input, &actual, expected, b, 0)? {
                 return Err(fail(
                     "actual registration operation changes its complete original input class role",
                 ));

@@ -1853,9 +1853,12 @@ impl Check<'_, '_> {
                         if !matches!(expected.ty, Type::Address { .. } | Type::Desc(_))
                             || expected.life.slots.len() != 1
                             || !expected.life.slots[0].path.is_empty()
-                            || !self.outer_role(
+                            || !self.outer_call_role(
                                 instance,
                                 function,
+                                (block, index),
+                                parameter as usize,
+                                actual,
                                 &value,
                                 expected,
                                 b,
@@ -1900,7 +1903,7 @@ impl Check<'_, '_> {
                             let expected = if row.position.path.is_empty() {
                                 expected
                             } else if row.position.path.as_slice() == [LifeTypeProjection::Pointee] {
-                                if !self.outer_role(instance, function, &input, expected, b, depth + 1)? {
+                                if !self.outer_call_role(instance, function, (block, index), parameter as usize, actual, &input, expected, b, depth + 1)? {
                                     return Err(fail("callee child class input changes its independently proved outer call role"));
                                 }
                                 input = self.pointee(&input, b)?;

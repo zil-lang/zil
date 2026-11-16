@@ -219,10 +219,10 @@ impl Check<'_, '_> {
                     "abstract actual invocation changes its complete argument arity",
                 ));
             }
-            for ((argument, expected), actual_type) in arguments
+            for (ordinal, ((argument, expected), actual_type)) in arguments
                 .iter()
                 .zip(&boundary.parameters)
-                .zip(&definition.parameters)
+                .zip(&definition.parameters).enumerate()
             {
                 operations::available_before(
                     function,
@@ -239,8 +239,8 @@ impl Check<'_, '_> {
                 }
                 if self.uses_full_value(&expected.ty, b)? {
                     let actual = self.ssa_value(instance, function, *argument, b, 0)?;
-                    let valid = if matches!(expected.ty, Type::Address { .. }) {
-                        self.outer_role(instance, function, &actual, expected, b, 0)?
+                    let valid = if matches!(expected.ty, Type::Address { .. } | Type::Desc(_)) {
+                        self.outer_call_role(instance, function, (block, index), ordinal, *argument, &actual, expected, b, 0)?
                     } else {
                         actual == *expected
                     };

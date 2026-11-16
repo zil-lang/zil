@@ -9,6 +9,7 @@ mod borrow_roles;
 pub(super) mod borrow_places;
 mod buffers;
 mod capabilities;
+mod call_regions;
 mod captures;
 mod constructors;
 mod descriptions;
@@ -264,6 +265,8 @@ pub(super) struct Checked {
     dyn_creations: BTreeMap<(SemanticDefinitionId, NodeId), dyn_owned::Creation>,
     view_uppers: BTreeMap<(SemanticDefinitionId, u32), Vec<Term>>,
     reference_roles: BTreeMap<(SemanticDefinitionId, NodeId), local_reference_roles::Role>,
+    call_regions: BTreeMap<(SemanticDefinitionId, u32), call_regions::Region>,
+    call_uses: BTreeMap<(SemanticDefinitionId, NodeId), Vec<call_regions::Use>>,
 }
 struct Solver<'a, 'i> {
     inventory: &'i Inventory<'a>,
@@ -288,6 +291,8 @@ struct Solver<'a, 'i> {
     receiving: Vec<(SemanticDefinitionId, NodeId, Term)>,
     field_needs: Vec<(Term, SemanticDefinitionId, u32)>,
     nominal_declaration: Option<SemanticDefinitionId>,
+    call_variables: BTreeMap<Term, call_regions::Role>,
+    call_parameters: BTreeSet<Term>,
 }
 pub(super) fn resource(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::limit(
@@ -1451,7 +1456,7 @@ impl Solver<'_, '_> {
                 (SemanticFormal::Lifetime, Some(CoreGenericArgument::Lifetime(name))) => {
                     self.named_life(caller, name, b, depth + 1)?
                 }
-                (SemanticFormal::Lifetime, None) => self.term(Kind::LifeVariable(None), b)?,
+                (SemanticFormal::Lifetime, None) => self.call_variable(call_regions::Role::Life(index as u32), b)?,
                 (SemanticFormal::Const { .. }, _) => {
                     return Err(unknown(
                         "original call constant inference needs its complete carrier and expression proof",
@@ -1507,7 +1512,7 @@ impl Solver<'_, '_> {
             let life = if let Some(node) = call_node
                 && self.reference_result_role(target, row.ordinal, b)? {
                 self.term(Kind::Life(Life::CallResult(caller.definition, node, target, row.ordinal)), b)?
-            } else { self.term(Kind::LifeVariable(None), b)? };
+            } else { self.call_variable(call_regions::Role::Implicit(row.ordinal), b)? };
             b.lookup(implicits.len(), WORK)?;
             if implicits.insert(row.ordinal, life).is_some() {
                 return Err(fail(
@@ -1516,6 +1521,9 @@ impl Solver<'_, '_> {
             }
         }
         let lifetimes = self.invocation_actuals(signature.invocation_lifetimes, b)?;
+        for (index, life) in lifetimes.iter().enumerate() {
+            self.mark_call_variable(*life, call_regions::Role::Invocation(index as u32), b)?;
+        }
         Self::push(
             &mut self.role_frames,
             roles::RoleFrame {
@@ -1537,6 +1545,7 @@ impl Solver<'_, '_> {
                 if let Some(Some(actual)) = input_hints.and_then(|hints| hints.get(ordinal)) {
                     self.input_hint(term, *actual, b, depth + 1)?;
                 }
+                self.mark_call_parameter(term, &parameter.ty, b)?;
                 Self::push(&mut frame.parameters, term, b)?;
             }
             for formal in &definition.parameters {
@@ -2453,16 +2462,20 @@ impl Solver<'_, '_> {
                     if let Some(expected) = self.receiving_for(frame, value.id, b)? {
                         self.call_result_context(result, expected, b, depth + 1)?;
                     }
-                    for (argument, parameter) in arguments.iter().zip(parameters) {
+                    let mut outer_inputs = Vec::new();
+                    for (ordinal, (argument, parameter)) in arguments.iter().zip(parameters).enumerate() {
                         b.lookup(prepared_arguments.len(), WORK)?;
-                        if let Some(actual) = prepared_arguments.remove(&argument.id) {
-                            self.call_argument_value(actual, parameter, b, depth + 1)?;
+                        let actual = if let Some(actual) = prepared_arguments.remove(&argument.id) {
+                            actual
                         } else {
-                            self.call_argument(frame, argument, parameter, b, depth + 1)?;
+                            self.call_input_value(frame, argument, parameter, b, depth + 1)?
+                        };
+                        if let Some(input) = self.collect_call_input(frame, argument, actual, parameter, ordinal, b, depth + 1)? {
+                            Self::push(&mut outer_inputs, input, b)?;
                         }
                     }
+                    self.settle_call_inputs(frame, value.id, &outer_inputs, b, depth + 1)?;
                     if !prepared_arguments.is_empty() { return Err(fail("original staged call leaves an unchecked argument")); }
-                    self.static_call_roles(frame, value.id, arguments, result, b, depth + 1)?;
                     self.finish_abstract_call(frame.definition, value.id, b)?;
                     b.lookup(self.state.intrinsics.len(), WORK)?;
                     if self
@@ -4020,6 +4033,8 @@ pub(super) fn check(
             dyn_creations: BTreeMap::new(),
             view_uppers: BTreeMap::new(),
             reference_roles: BTreeMap::new(),
+            call_regions: BTreeMap::new(),
+            call_uses: BTreeMap::new(),
         },
         active: BTreeSet::new(),
         creators: BTreeMap::new(),
@@ -4039,6 +4054,8 @@ pub(super) fn check(
         receiving: Vec::new(),
         field_needs: Vec::new(),
         nominal_declaration: None,
+        call_variables: BTreeMap::new(),
+        call_parameters: BTreeSet::new(),
     };
     solver.trait_catalog(b)?;
     for definition in &program.definitions {

@@ -92,6 +92,8 @@ impl Solver<'_, '_> {
                 } else {
                     owner
                 };
+            let descriptor = self.intrinsic_call_input(frame, node, &arguments[0], descriptor,
+                call_regions::Role::Head(0), None, b, depth + 1)?;
             let descriptor = self.type_root(descriptor, b)?;
             let Kind::Desc { life, .. } = self.state.arena[descriptor] else {
                 return Err(fail(
