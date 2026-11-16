@@ -27,3 +27,10 @@
 2026-11-16 新验证的完整借入返回链：候选640cf3879，nested-borrowed与wrapped-borrowed原Source均经独立Verify，再分别运行clang/LLVM API的O0/O2，8构建/8执行exit0且无fallback。前者原callee是Closure全域，而借入捕获的实际调用头是Address<Closure>：只有精确原Call/捕获/有序投影和loan核齐后才能分开外地址与完整pointee。后者σ一致但原κ被原opaque/closure cursor标成Receiver来源，actual claim曾仅按Implicit外部image造Derived来源；修复以完整私有cursor和实际seal的joint单射Boundary运输canonical原κ，保全mixed/sealed/source且最终必须discharge，未以同image合并。另旧Store资格将Known N0且pending sources误看作Unknown域；现在仅元数据路由辨明两者，构造、loan、cleanup证明仍原消费者逐项完成。
 
 执行改进：默认预算屏障不能替代对后续功能的调查。新外部诊断runner通过公开Driver API、同候选确切rlib/CLI/SHA，显式选择20M，仅用定位默认10M后还有无功能错误。它揭出两个规模工程末端错误Direct/Suspend推断的真实producer根因；正式13/12及费用边界仍按默认10M，不将诊断Success算交付。
+
+
+## 整合回退与恢复
+
+调用前的原表达式 σ、实际调用参数视图 r、结果角色是不同证据。σ 与 pointee 内完整 κ 不因适配改写；每次真实调用按原节点、参数和实际 SSA 证明有向适配。普通原函数、方法、Callable、真实 worker 共用这个规则；Store/Bytes 等封闭操作没有相应原 forall 原型，不能套人工 scheme 鲜化或要求 MAX 目录。
+
+接完整消费者前把新语义快照视为工作候选；10/13→4/13→3/13 是实际可用性回退，不能用组件通过或旧收据掩盖。恢复后5ef的11/13是同版真实结果，仍不能关闭 Alpha。Astra复核也需用具体反例校正额外强条件：调用方可从真实接收者保守追加 head loan，不必为此改91处 Permission 构造点。

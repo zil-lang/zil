@@ -1,0 +1,167 @@
+{
+  "updated_at_utc": "2026-11-16T11:09:28.807689+00:00",
+  "user_request": "Explain 4/13 regression, obtain Astra path review, apply shortest complete recovery while continuing Alpha",
+  "reviews": {
+    "verify_only": "astra_alpha_exit_review; public Source/Types contracts and Verify; no Analyze algorithm read",
+    "analyze_only": "iteration_complete_original_domains; Analyze and public contracts; no Verify algorithm read"
+  },
+  "observed_candidates": [
+    {
+      "candidate": "de36bfba24a46f1bf117970ff8fba350138a4782",
+      "positive": [
+        10,
+        13
+      ],
+      "failures": "ownership/iteration Verify10M, collections Analyze10M"
+    },
+    {
+      "candidate": "c0bba1ece",
+      "positive": [
+        4,
+        13
+      ],
+      "failures": "Five Types loan consumers missing; four Analyze source expression versus adapter claim mismatches"
+    },
+    {
+      "candidate": "8db67c938625b884e9e76c78bd9cd34dfdddf934",
+      "positive": [
+        3,
+        13
+      ],
+      "failures": "Nine Analyze missing Source occurrence rejections caused by artificial sealed-builtin schemes; one Types capture failure"
+    },
+    {
+      "candidate": "5efb8ea85c3b350bffb4dc89fe8d78fee3957483",
+      "positive": [
+        11,
+        13
+      ],
+      "negative": [
+        4,
+        4
+      ],
+      "failures": "collections Analyze actual trait argument role; iteration Verify resource CFG default work limit",
+      "source_receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-capture-reaching-and-original-context-index/core-coverage/receipt.json",
+      "native_small_chains": [
+        16,
+        0
+      ],
+      "native_receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-capture-reaching-and-original-context-index/chains/receipt.json"
+    }
+  ],
+  "cause": "Public call-region semantics were integrated before all consumers agreed. Types rewrote original argument sigma into call-adapter r; Analyze then incorrectly applied original-prototype fresh roles to sealed operations. Availability regressed despite retained earlier implementations. This is an integration error, not grounds to discard required region semantics.",
+  "path_decision": [
+    "Keep source sigma immutable and complete, including nominal identity, child kappa, N and phantom occurrences. Prove actual root-view adapters separately.",
+    "Only a real original prototype call instantiates call regions. Sealed Store/Bytes intrinsic operations retain their own checked operation semantics; no synthetic SourceMAX padding.",
+    "Receiver/unique-input result elision must agree between original signature, classic header and callable signature. Source occurrence audit rows do not create extra quantifiers.",
+    "Preserve all actual target and parent obligations. A receiver head can conservatively add a real caller loan without pretending it is a data target or requiring needless new Permission state.",
+    "Integrate complete changed consumers, then verify exact same SHA/CLI/source bytes. Stable previous receipts are regression anchors, never summed into Alpha acceptance."
+  ],
+  "applied": [
+    "49a2f0f5a preserves original argument sigma and exact actual call adapters",
+    "af4c410dc removes artificial intrinsic call regions; 9aca40051 mechanical private-field fix",
+    "fc62641f2 complete retained and nominal child forests",
+    "5efb8ea85 exact reaching capture activation and immutable original environment index",
+    "55726391a original receiver/unique-input elision; saved but not yet validated"
+  ],
+  "latest_components": {
+    "candidate": "5efb8ea85c3b350bffb4dc89fe8d78fee3957483",
+    "rows": [
+      {
+        "library": "zil_ir",
+        "exit": 0,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/deps/zil_ir-12256bce93f5caac",
+          "--test-threads=2",
+          "--show-output"
+        ],
+        "executable_sha256": "e21126b8198936b3c7c66c462ddb898cb1d4d95dda0403a1bd9cdb2ba4599555",
+        "seconds": 0.2542288303375244,
+        "passed": 103,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "library": "zil_expand",
+        "exit": 101,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/deps/zil_expand-76413a37baf3401c",
+          "--test-threads=2",
+          "--show-output"
+        ],
+        "executable_sha256": "9fe99900a94af64dc37b5cd4fd21769ea56c717442353d7e8c7ca76c99926ed3",
+        "seconds": 0.6500279903411865,
+        "passed": 170,
+        "failed": 1,
+        "ignored": 0
+      },
+      {
+        "library": "zil_analyze",
+        "exit": 0,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/deps/zil_analyze-5128daaa4e21a95d",
+          "--test-threads=2",
+          "--show-output"
+        ],
+        "executable_sha256": "0f9ec4c156d794e883d750aaa39d69feab3dc1483406a8c20d2a988ea9d48c7a",
+        "seconds": 6.311692953109741,
+        "passed": 304,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "library": "zil_types",
+        "exit": 0,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/deps/zil_types-0b59acc52379c858",
+          "--test-threads=2",
+          "--show-output"
+        ],
+        "executable_sha256": "22b88750ffe829c16dd4014a3525e57ed81f95aaf6abe2ed241f577b89576a23",
+        "seconds": 6.504626035690308,
+        "passed": 96,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "library": "zil_verify",
+        "exit": 101,
+        "command": [
+          "/workspace/.zil-env/target-language-alpha/debug/deps/zil_verify-ee12d5bcead6e00c",
+          "--test-threads=2",
+          "--show-output"
+        ],
+        "executable_sha256": "5035fce1c056808a417c6baff86ed94d74b3e240708316f57a7c840636f7d491",
+        "seconds": 4.4509947299957275,
+        "passed": 801,
+        "failed": 22,
+        "ignored": 0
+      }
+    ]
+  },
+  "iteration_diagnostic": {
+    "path": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-capture-reaching-and-original-context-index/diagnostic-iteration-exact-v-work/receipt.json",
+    "minimum_work_probed": 10003915,
+    "boundary_replay": "One ResourceLimit and one Success at same N; do not claim stable exact boundary. Investigate pointer-index allocation dependence and raw/Wire fresh budget invariant.",
+    "explicit_20m": "Success Verify1; diagnostic only"
+  },
+  "backup": {
+    "path": "language/20261116T101150Z-approved-source-recovery/recovery.tar.gz",
+    "local_archive": "/workspace/.zil-env/approved-crates-recovery-20261116T101150Z/recovery.tar.gz",
+    "source_head": "8db67c938625b884e9e76c78bd9cd34dfdddf934",
+    "size": 1148632,
+    "sha256": "cfe9fa4570a02bc2a7a0b9f61db2a23c4370afcb21d90e51b15fdb315f16c330",
+    "remote_commit": "a1478015f30188be1ebe38e625409539fe19d77e",
+    "remote_paths": [
+      "language/20261116T101150Z-approved-source-recovery/recovery.tar.gz.base64.part-01",
+      "language/20261116T101150Z-approved-source-recovery/recovery.tar.gz.base64.part-02a",
+      "language/20261116T101150Z-approved-source-recovery/recovery.tar.gz.base64.part-02b",
+      "language/20261116T101150Z-approved-source-recovery/recovery.tar.gz.base64.part-02c",
+      "language/20261116T101150Z-approved-source-recovery/recovery.tar.gz.base64.part-02d"
+    ],
+    "readback_verified": true,
+    "restore": "Concatenate part-01, part-02a, part-02b, part-02c, part-02d, base64-decode once, then extract gzip"
+  },
+  "source_head": "55726391a9c48f69f889f5af64a161441877c904",
+  "acceptance": "ALPHA NOT ACCEPTED; remaining core and extra source, raw/Wire, complete native and strict checks remain open"
+}
