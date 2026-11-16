@@ -1127,9 +1127,12 @@ impl Check<'_, '_> {
             else {
                 return Err(bad("original Task worker omits its actual language body"));
             };
-            if signature.call_kind != CallKind::Suspend {
+            // Task creation supplies its own continuation adapter. A real
+            // Direct language worker keeps its ordinary ABI; its full input,
+            // result and cleanup obligations remain independently checked.
+            if name == "task_await" && signature.call_kind != CallKind::Suspend {
                 return Err(bad(
-                    "original Task worker does not declare a checked Suspend ABI",
+                    "Task await requires the original worker's checked Suspend ABI",
                 ));
             }
             let operands = arguments[1..].iter().collect::<Vec<_>>();

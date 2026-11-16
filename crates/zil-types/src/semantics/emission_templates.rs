@@ -97,6 +97,8 @@ pub(super) fn activate(
                 InstructionKind::Call { function, .. }
                 | InstructionKind::SuspendCall { function, .. }
                 | InstructionKind::ForeignCall { function, .. } => function,
+                InstructionKind::TaskCreate { worker, .. }
+                | InstructionKind::TaskCreateOwned { worker, .. } => worker,
                 _ => continue,
             };
             let origin = lower.frame(callee)?.origin;

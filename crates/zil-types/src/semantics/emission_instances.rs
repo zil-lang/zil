@@ -79,6 +79,8 @@ fn called(
             InstructionKind::Call { function, .. }
             | InstructionKind::SuspendCall { function, .. }
             | InstructionKind::ForeignCall { function, .. } => function,
+            InstructionKind::TaskCreate { worker, .. }
+            | InstructionKind::TaskCreateOwned { worker, .. } => worker,
             _ => continue,
         };
         if lower.frame(target)?.origin == origin && found.replace(target).is_some() {

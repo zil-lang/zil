@@ -760,7 +760,8 @@ fn zero_original_domain_inner(
             environment,
         } => {
             let child = original_definition(program, proof, *definition, limits, left)?;
-            if child.parent != Some(owner)
+            if child.kind != SemanticDefinitionKind::Closure
+                || child.parent.is_none()
                 || !arguments.is_empty()
                 || !child.parameters.is_empty()
                 || child.environment.len() != environment.len()
@@ -770,9 +771,14 @@ fn zero_original_domain_inner(
                 false
             } else {
                 let mut all = true;
-                for value in environment {
-                    all &= match value {
-                        SemanticActualRecipe::Type(ty) => recurse(owner, ty, left, active)?,
+                // The use may have crossed a real factory boundary. The
+                // declaration retains its original parent; all actual whole
+                // environment Types are interpreted in this use's scope.
+                for (formal, value) in child.environment.iter().zip(environment) {
+                    all &= match (&formal.kind, value) {
+                        (SemanticFormal::Type { .. }, SemanticActualRecipe::Type(ty)) => {
+                            recurse(owner, ty, left, active)?
+                        }
                         _ => false,
                     };
                 }

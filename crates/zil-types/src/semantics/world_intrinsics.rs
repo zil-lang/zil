@@ -103,7 +103,7 @@ pub(super) fn evaluate(
         return Ok(None);
     };
     world.pay(call.parameters.len())?;
-    identity(world, instance, &call, instruction, ty, implicit)?;
+    identity(world, instance, site, &call, instruction, ty, implicit)?;
     let actual_effect = if let IntrinsicKind::DynCall { call_kind, .. } = &call.kind {
         *call_kind
     } else if matches!(
@@ -164,7 +164,11 @@ pub(super) fn evaluate(
                 ));
             }
         };
-        let callee = function_instance(world, function, definition)?;
+        let callee = if matches!(call.kind, IntrinsicKind::TaskCreate { .. }) {
+            task_worker_instance(world, instance, site, function, definition)?
+        } else {
+            function_instance(world, function, definition)?
+        };
         let function = world.function(function)?;
         methods::sealed_worker(
             world, instance, callee, function, signature, actuals, implicit,
@@ -404,9 +408,54 @@ fn function_instance<'a>(
     }
     Ok(instance)
 }
+/// Code sharing does not share a Task's original caller world. Generated
+/// workers are selected by the actual creation request; a nonrequested
+/// ordinary worker retains the existing unique declaration instance.
+fn task_worker_instance<'a>(
+    world: &mut World<'a, '_>,
+    caller: &SemanticInstance,
+    site: &SemanticSite,
+    function: FunctionId,
+    definition: SemanticDefinitionId,
+) -> R<&'a SemanticInstance> {
+    let ledger = world.ledger;
+    world.pay(world.program.instances.len())?;
+    let mut requested = None;
+    let mut ordinary = None;
+    let mut ordinary_count = 0usize;
+    for instance in &world.program.instances {
+        if !matches!(instance.target,
+            SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(actual)) if actual == function)
+        {
+            continue;
+        }
+        world.pay(index::search(ledger.instance_requests.borrow().len()))?;
+        let request = ledger.instance_requests.borrow().get(&instance.id).copied();
+        if request == Some((caller.id, site.recipe, function)) {
+            if instance.definition != definition || requested.replace(instance).is_some() {
+                return Err(bad(
+                    "Task worker request has conflicting complete original instances",
+                ));
+            }
+        } else if request.is_none() && instance.definition == definition {
+            ordinary = Some(instance);
+            ordinary_count = ordinary_count.saturating_add(1);
+        }
+    }
+    if let Some(instance) = requested {
+        return Ok(instance);
+    }
+    if ordinary_count == 1 {
+        return Ok(ordinary.expect("one nonrequested original worker counted"));
+    }
+    Err(bad(
+        "Task worker lacks its exact actual caller request or unique ordinary declaration",
+    ))
+}
 fn identity(
     world: &mut World<'_, '_>,
     instance: &SemanticInstance,
+    site: &SemanticSite,
     call: &IntrinsicCall,
     instruction: &InstructionKind,
     ty: Option<&Type>,
@@ -567,10 +616,13 @@ fn identity(
                 ..
             },
         ) => {
-            function_instance(world, *worker, *expected)?;
+            let callee = task_worker_instance(world, instance, site, *worker, *expected)?;
             let function = world.function(*worker)?;
-            if function.call_kind != CallKind::Suspend || *await_result {
-                return Err(bad("Task creation changes its actual worker Suspend ABI"));
+            let (signature, _) = call.worker_scheme.as_ref().ok_or_else(|| {
+                bad("Task creation lacks its complete original worker ABI scheme")
+            })?;
+            if function.call_kind != signature.call_kind || *await_result {
+                return Err(bad("Task creation changes its actual original worker ABI"));
             }
             let Some(Type::ErrorUnion { result, .. }) = ty else {
                 return Err(bad(
@@ -587,17 +639,49 @@ fn identity(
                 ));
             }
             world.pay(function.parameters.len())?;
-            let mut parameters = Vec::new();
-            for parameter in &function.parameters {
-                let ty = &function
+            let mut bindings = Vec::new();
+            for ordinal in 0..function.parameters.len() {
+                let parameter = u32::try_from(ordinal)
+                    .map_err(|_| bad("Task worker parameter ordinal overflows"))?;
+                let actual = &function
                     .locals
-                    .get(parameter.0 as usize)
+                    .get(function.parameters[ordinal].0 as usize)
                     .ok_or_else(|| bad("Task worker input local is absent"))?
                     .ty;
-                inference::charge_type_snapshot(ty, Span::default(), world.limits, world.left, 1)?;
-                parameters.push(ty.clone());
+                let value = world.parameter_value(callee.id, ordinal, actual)?;
+                let SemanticTypeValue::Resolved { ty, life, .. } = value.as_ref() else {
+                    return Err(bad(
+                        "Task worker port retains an unresolved full parameter domain",
+                    ));
+                };
+                let projected = crate::tasks::context_ports::from_type(
+                    &world.view,
+                    ty,
+                    life,
+                    world.limits,
+                    world.left,
+                )?;
+                world.pay(projected.len())?;
+                for projected in projected {
+                    if bindings.len() >= world.limits.max_nodes {
+                        return Err(Diagnostic::limit(
+                            Phase::Types,
+                            "Task complete worker port occurrence limit exceeded",
+                            None,
+                        ));
+                    }
+                    let port = u32::try_from(bindings.len())
+                        .map_err(|_| bad("Task worker port ordinal overflows"))?;
+                    bindings.push(RetainedPortBinding {
+                        port,
+                        source: StoragePosition {
+                            base: StorageBase::Parameter(parameter),
+                            path: projected.path,
+                        },
+                    });
+                }
             }
-            if crate::tasks::retained_bindings(&parameters) != *port_bindings {
+            if bindings != *port_bindings {
                 return Err(bad(
                     "Task opcode changes complete actual worker port/input bindings",
                 ));
@@ -611,7 +695,7 @@ fn identity(
             },
             InstructionKind::SuspendCall { function, .. },
         ) => {
-            function_instance(world, *function, *expected)?;
+            task_worker_instance(world, instance, site, *function, *expected)?;
             let function = world.function(*function)?;
             if function.call_kind != CallKind::Suspend || ty != Some(&function.return_type) {
                 return Err(bad("Task await changes its real worker ABI or result"));

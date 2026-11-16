@@ -100,11 +100,36 @@ impl Check<'_, '_> {
         right: &SemanticRetainedShapeRecipe,
         depth: usize,
     ) -> R<()> {
+        if self.contexts.last().copied() != Some(owner) {
+            return Err(bad(
+                "original Task comparison leaves its exact lexical Gamma",
+            ));
+        }
         let left = self.normalized_task_shape(owner, left, depth + 1)?;
         let right = self.normalized_task_shape(owner, right, depth + 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(&left, self.limits, self.left, 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(&right, self.limits, self.left, 1)?;
         if left != right {
+            // Exact original types/lifetimes can have distinct sealed recipe
+            // spellings. Reuse the complete table traversal in rigid mode:
+            // no target-private variable is solved and no class is merged.
+            let answer = self.compare_task_shape(
+                &left,
+                &right,
+                &[],
+                &mut [],
+                &mut BTreeMap::new(),
+                &mut BTreeMap::new(),
+                true,
+                depth + 1,
+            );
+            match answer {
+                Ok(()) => return Ok(()),
+                Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
+                    return Err(error);
+                }
+                Err(_) => {}
+            }
             self.pay(384, depth)?;
             let mut error =
                 bad("original Task changes its complete input Context identity or projection");

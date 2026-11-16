@@ -11,8 +11,18 @@ impl Check<'_, '_> {
         solutions: &mut [Option<SemanticActualRecipe>],
         implicit: &mut BTreeMap<u32, SemanticOuterLifeRecipe>,
         invocation: &mut BTreeMap<u32, SemanticOuterLifeRecipe>,
+        rigid: bool,
         depth: usize,
     ) -> R<()> {
+        if rigid {
+            return if self.same_life(a, b)? {
+                Ok(())
+            } else {
+                Err(bad(
+                    "original Task changes a rigid complete-domain lifetime",
+                ))
+            };
+        }
         crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
         self.unify_outer(
@@ -25,6 +35,24 @@ impl Check<'_, '_> {
             depth + 1,
         )
     }
+    #[allow(clippy::too_many_arguments)]
+    fn compare_task_type(
+        &mut self,
+        a: &SemanticTypeRecipe,
+        b: &SemanticTypeRecipe,
+        formals: &[SemanticFormal],
+        solutions: &mut [Option<SemanticActualRecipe>],
+        implicit: &mut BTreeMap<u32, SemanticOuterLifeRecipe>,
+        invocation: &mut BTreeMap<u32, SemanticOuterLifeRecipe>,
+        rigid: bool,
+        depth: usize,
+    ) -> R<()> {
+        if rigid {
+            self.same(a, b)
+        } else {
+            self.unify(a, b, formals, solutions, implicit, invocation, depth)
+        }
+    }
     fn unify_task_sequence(
         &mut self,
         a: &SemanticClassSequenceRecipe,
@@ -33,6 +61,7 @@ impl Check<'_, '_> {
         solutions: &mut [Option<SemanticActualRecipe>],
         implicit: &mut BTreeMap<u32, SemanticOuterLifeRecipe>,
         invocation: &mut BTreeMap<u32, SemanticOuterLifeRecipe>,
+        rigid: bool,
         depth: usize,
     ) -> R<()> {
         self.pay(a.parts.len().saturating_add(b.parts.len()), depth)?;
@@ -43,9 +72,17 @@ impl Check<'_, '_> {
         }
         for (a, b) in a.parts.iter().zip(&b.parts) {
             match (a, b) {
-                (SemanticClassSequencePart::One(a), SemanticClassSequencePart::One(b)) => {
-                    self.unify_task_life(a, b, formals, solutions, implicit, invocation, depth + 1)?
-                }
+                (SemanticClassSequencePart::One(a), SemanticClassSequencePart::One(b)) => self
+                    .unify_task_life(
+                        a,
+                        b,
+                        formals,
+                        solutions,
+                        implicit,
+                        invocation,
+                        rigid,
+                        depth + 1,
+                    )?,
                 (
                     SemanticClassSequencePart::AllClasses { ty: a, path: ap },
                     SemanticClassSequencePart::AllClasses { ty: b, path: bp },
@@ -56,7 +93,16 @@ impl Check<'_, '_> {
                             "original Task call changes a complete-domain projection",
                         ));
                     }
-                    self.unify(a, b, formals, solutions, implicit, invocation, depth + 1)?;
+                    self.compare_task_type(
+                        a,
+                        b,
+                        formals,
+                        solutions,
+                        implicit,
+                        invocation,
+                        rigid,
+                        depth + 1,
+                    )?;
                 }
                 _ => {
                     return Err(bad(
@@ -77,6 +123,20 @@ impl Check<'_, '_> {
         invocation: &mut BTreeMap<u32, SemanticOuterLifeRecipe>,
         depth: usize,
     ) -> R<()> {
+        self.compare_task_shape(a, b, formals, solutions, implicit, invocation, false, depth)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn compare_task_shape(
+        &mut self,
+        a: &SemanticRetainedShapeRecipe,
+        b: &SemanticRetainedShapeRecipe,
+        formals: &[SemanticFormal],
+        solutions: &mut [Option<SemanticActualRecipe>],
+        implicit: &mut BTreeMap<u32, SemanticOuterLifeRecipe>,
+        invocation: &mut BTreeMap<u32, SemanticOuterLifeRecipe>,
+        rigid: bool,
+        depth: usize,
+    ) -> R<()> {
         let owner = self
             .contexts
             .last()
@@ -91,6 +151,7 @@ impl Check<'_, '_> {
             solutions,
             implicit,
             invocation,
+            rigid,
             depth + 1,
         )?;
         self.pay(
@@ -125,7 +186,16 @@ impl Check<'_, '_> {
                         class: bc,
                     },
                 ) if am == bm => {
-                    self.unify(a, b, formals, solutions, implicit, invocation, depth + 1)?;
+                    self.compare_task_type(
+                        a,
+                        b,
+                        formals,
+                        solutions,
+                        implicit,
+                        invocation,
+                        rigid,
+                        depth + 1,
+                    )?;
                     self.unify_task_life(
                         ac,
                         bc,
@@ -133,6 +203,7 @@ impl Check<'_, '_> {
                         solutions,
                         implicit,
                         invocation,
+                        rigid,
                         depth + 1,
                     )?;
                 }
@@ -140,7 +211,16 @@ impl Check<'_, '_> {
                     SemanticPortPart::FromType { ty: a, classes: ac },
                     SemanticPortPart::FromType { ty: b, classes: bc },
                 ) => {
-                    self.unify(a, b, formals, solutions, implicit, invocation, depth + 1)?;
+                    self.compare_task_type(
+                        a,
+                        b,
+                        formals,
+                        solutions,
+                        implicit,
+                        invocation,
+                        rigid,
+                        depth + 1,
+                    )?;
                     self.unify_task_sequence(
                         ac,
                         bc,
@@ -148,6 +228,7 @@ impl Check<'_, '_> {
                         solutions,
                         implicit,
                         invocation,
+                        rigid,
                         depth + 1,
                     )?;
                 }
@@ -185,6 +266,7 @@ impl Check<'_, '_> {
                         solutions,
                         implicit,
                         invocation,
+                        rigid,
                         depth + 1,
                     )?;
                 }
@@ -211,6 +293,7 @@ impl Check<'_, '_> {
                         solutions,
                         implicit,
                         invocation,
+                        rigid,
                         depth + 1,
                     )?;
                 }
@@ -250,6 +333,7 @@ impl Check<'_, '_> {
                         solutions,
                         implicit,
                         invocation,
+                        rigid,
                         depth + 1,
                     )?;
                 }
@@ -269,7 +353,16 @@ impl Check<'_, '_> {
                     if ap != bp {
                         return Err(bad("original Task call changes a nominal projection"));
                     }
-                    self.unify(a, b, formals, solutions, implicit, invocation, depth + 1)?;
+                    self.compare_task_type(
+                        a,
+                        b,
+                        formals,
+                        solutions,
+                        implicit,
+                        invocation,
+                        rigid,
+                        depth + 1,
+                    )?;
                     self.unify_task_sequence(
                         ac,
                         bc,
@@ -277,6 +370,7 @@ impl Check<'_, '_> {
                         solutions,
                         implicit,
                         invocation,
+                        rigid,
                         depth + 1,
                     )?;
                 }
