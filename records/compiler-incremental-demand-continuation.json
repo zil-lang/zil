@@ -1,142 +1,116 @@
 {
-  "task": "G10.5.1/G10.5.1.15",
-  "status": "Rust定向整链已实施验收，全面超Rust门开放",
-  "updated_Asia_Shanghai": "2026-11-16T18:45:15.673888+08:00",
-  "read_goal": "d31282cb0dc481a9495cb1ebd099f614bf383510",
-  "source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
-  "tree": "6b844a4824681663e9420bde3334c8620467f3dd",
-  "binary_sha256": "3d8eed704d54453477b052da61f3208bc87054b6db2f99784e0f9f413ca6d4e8",
-  "delivery": "e66c354be2cf16ea599275d8c45219693aefc45f",
+  "schema": "zil.compiler-current-native-continuation.v2",
   "branch": "research/full-push-native",
+  "source": "0d59085766dd8f8601d1cc399e2ed7f1e2050608",
+  "production_source": "0d59085766dd8f8601d1cc399e2ed7f1e2050608",
+  "result_commit": "061ca0628c6695d368ee9e047e67f6353e40e672",
+  "binary_sha256": "780f92f7505dbff58ed734acc6edcbfdd3e72ce11760fba83d99e97f061359d0",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "summary": "https://github.com/zil-lang/zil/blob/e66c354be2cf16ea599275d8c45219693aefc45f/tools/research/incremental-demand/cache-restart-chain-20261116/summary.md",
-  "skill": "https://github.com/zil-lang/zil/blob/e66c354be2cf16ea599275d8c45219693aefc45f/.agents/skills/compiler-performance/SKILL.md",
-  "implementation": [
-    "Rust OnDiskCache-style shared metadata packs/offsets, CDC dedup/selective compaction under original aggregate bound",
-    "one actual wire decoded owner shared across semantic/function restore, current context/complete bytes/limits/sixfees remain",
-    "current graph/layout/materialization reuse; rejected recipe cannot lend old slots",
-    "resident closed frontier avoids redundant diskIR; current closed native spelling still from current parser owners"
-  ],
-  "current_gates": {
-    "IR89_Types115": "64e1fbcadea066ac755bb3426e5eda26a24d468b, followed only equivalent opref lint",
-    "backend325": "249cfb7a88e8efc15012198f71f98e2f06e5b4e1, production unchanged since; test-if lint only",
-    "driver228_native2_strict_fmt_release": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
-    "first_failures": "Retained local IRsegmentationfixture, real32editdiskgrowth, rejectedlayoutslotreuse, strictlints. No relaxed assertions/limits."
-  },
-  "native_current": {
-    "source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
-    "original_requests": 36,
-    "functional_cells": 12,
-    "runtime_cases": 5,
-    "quality_passed": true,
-    "global_accepted": false,
-    "requests_ms": {
+  "goal_read_sha": "f04f2bb90c9edf8b1a2947bc34b72eebd9313b2f",
+  "status": "Ongoing; native direct firstedit2.877/Rust1.409s stillNoGo, no fullchain speedup established; comprehensive/main gates OPEN",
+  "latest_native": {
+    "scope": "Original5105functions/102files/843875sourcebytes, two balanced blocks; native O2/CGU16/compilerjobs1, explicit bounded-class-imports128-v3 defaultoff. Closeprocess/edit/newprocess first request; resident request clock, startup separate. Not CLI exit or OS-cold.",
+    "completion": "window16 original30 workflow requests/10 functional cells +12 separate runtimeprofile build requests/4 sustained runtime cases complete; full257domain andruntime gates PASS",
+    "compile_median_ms": {
       "cold": {
-        "candidate": 5186.129134500001,
-        "rust": 6723.5545995
+        "candidate": 4413.220131,
+        "rust": 7911.1294530000005
       },
       "unchanged": {
-        "candidate": 73.6591705,
-        "rust": 28.3271225
-      },
-      "warm-restart": {
-        "candidate": 3490.6389755,
-        "rust": 38.49144
+        "candidate": 47.889354999999995,
+        "rust": 37.800613
       },
       "private-001": {
-        "candidate": 1150.151168,
-        "rust": 1295.1251525
-      },
-      "error": {
-        "candidate": 1857.5538065,
-        "rust": 1958.795429
+        "candidate": 2877.2478920000003,
+        "rust": 1408.9668905
       },
       "recovery": {
-        "candidate": 2452.7101445,
-        "rust": 5926.9394465
-      }
-    },
-    "restart_plus_firstedit_ms": {
-      "candidate": 4640.7901435,
-      "rust": 1333.6165925
-    },
-    "disk": {
-      "candidate": {
-        "boundary_peak_MiB": 32.681640625,
-        "peak_bytes_by_block": [
-          34279424,
-          34258944
-        ],
-        "eight_private_growth_MiB": null
+        "candidate": 2016.4212444999998,
+        "rust": 6386.1084615
       },
-      "rust": {
-        "boundary_peak_MiB": 58.69140625,
-        "peak_bytes_by_block": [
-          61542400,
-          61542400
-        ],
-        "eight_private_growth_MiB": null
+      "error": {
+        "candidate": 1688.8904745,
+        "rust": 1905.9822985
       }
+    },
+    "user_disk_boundary_peak_physical_bytes": [
+      {
+        "block": 0,
+        "candidate": 30359552,
+        "rust": 76734464
+      },
+      {
+        "block": 1,
+        "candidate": 30371840,
+        "rust": 61546496
+      }
+    ],
+    "raw": "out/runs/direct-firstedit-performance-direct-16",
+    "result": "https://github.com/zil-lang/zil/blob/061ca0628c6695d368ee9e047e67f6353e40e672/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
+    "main": "Actualmain defaultResourceLimit; no ratio and no acceptance",
+    "stage_costs": "Formal firstedit: block0 Types775.5ms and backend858.7ms; block1 backend1001.1ms (machine568.0/partition122.8/object192.7). Current Source/Core, CT and machine planning/partition reconstruction remain. Source-site transport removal did not establish end-to-end speed improvement: window16 still2.877/Rust1.409s; no causal attribution from crosswindow/block variation. Industrial/defaultmain/fullCLI gates remain open.",
+    "changes": [
+      "Analyze exact current scalar-leaf projection sharing; fresh function IDs/names bind every result",
+      "Independently implemented Verify current-invocation success templates; exact body/plan/current world and valid relative diagnostic spans; original fee replay, ordinary failure fallback",
+      "Current CGU fused definition/class-declaration pruning, immutable body-owner reference sharing; one complete ORIGINAL validation before any deletion, actual-unit preflight/Builder/fullO2 retained",
+      "Immutable scalar source-site transport retains original binding and current ordinal prefix; replaces three same-address AST transport traversals and map reinsertion. Original work/temppeak/releases replay only on full transport fit; low-budget ordinary interleaving and mutable clone/rewrite paths retained. Optional rows bounded64KiB/current temporary headroom."
+    ]
+  },
+  "checks": {
+    "gates38_source": "0d59085766dd8f8601d1cc399e2ed7f1e2050608",
+    "gates38_pass": {
+      "strict_alltargets_Dwarnings": true,
+      "driver": 234,
+      "native_publication": 2,
+      "fmt": true,
+      "release_incremental0": true
+    },
+    "reused": "Unchanged Analyze310/Verify657/backend359 gates36 source5a; IR93/Types118/API105/tools27+2 gates35 source8ad; Expand130 earlier unchanged subtree. No repeat whole old matrix.",
+    "source_site_checks": "Original clone executor equals optimized current parser-owned walk across all six fees/remaining budget and N/N-1 work/nodes/temporary/depth, empty-site and nested/grouped-type cases, independent parser restart, corrupt cache/current Source checks.",
+    "reviews": "Astra implemented source-site chain; nonauthor root reviewed exact current-owner/ordinal-prefix/ledger/fallback and ordinaryclone boundaries before source0d freeze. Prior A/V independent reviews retained in window15 result."
+  },
+  "previous_check": {
+    "source": "54a0258ab9e081085254084e4b081309dc06eda9",
+    "result_commit": "a7f499e8",
+    "scope": "108request/36cell check +12request/4cell ordinaryCLI. Checkdevopt0; CLI allprocess Fresh1.745/R.026s Rustnotstarted; samebytesmtimeforcesrustc1.051/R.432s. Separate residentrestart .657/R.043, forced1.152/R.326s. Not currentnative and not remeasured on1be.",
+    "historical_goal_record": "https://github.com/zil-lang/zil/blob/fb6f393bab3bb73c7028ec2f8dfedb0c266c87e1/records/compiler-incremental-demand-continuation.json"
+  },
+  "invariants": "IndependentVerify/currentcompleteSource/LIR binding/originaldefaultbudgets/fullO2 unchanged. Explicitboundedresearchdefaultoff. SDK18/native-link reused; noLLVMrebuild/fullpack. Uniqueconstructionbranch. goal/archive nevermain.",
+  "unmeasured": "Industrialmulti-crate/proc-macro/build.rs/minute/GB and currentnative ordinaryCLI end-to-end; resident request/startup not merged into CLI metric. Fullgoalnotachieved.",
+  "next": "Actual remaining Source/Core/Types and machine planning/partition reconstruction; currentworld bindings/independentVerify unchanged. Astra source-site chain implemented+root reviewed; no pending helper, no wait. Original mutableclone/rewrite intact. Newlocalremoval does not establish net speed or comprehensive coverage.",
+  "disk_accounting": "Maximum of simultaneous per-arm totals at observed request boundaries, globally inode-deduplicated st_blocks*512. Only original30 workflow rows; quality wrappers separate. Never sum category maxima from different instants. SDK/evidence/host excluded; not transient peak.",
+  "prior_disk_aggregation_corrections": [
+    {
+      "window": "13",
+      "source": "8ad2bfb5c9604dfdd761dd9fd48ebab7a94fe547",
+      "corrected_same_snapshot_peaks": [
+        {
+          "block": 0,
+          "candidate": 30367744,
+          "rust": 61546496
+        },
+        {
+          "block": 1,
+          "candidate": 30339072,
+          "rust": 61546496
+        }
+      ]
+    },
+    {
+      "window": "15",
+      "source": "1be7f77757fe32c22acdb1b3975981828cc3b131",
+      "corrected_same_snapshot_peaks": [
+        {
+          "block": 0,
+          "candidate": 30367744,
+          "rust": 61546496
+        },
+        {
+          "block": 1,
+          "candidate": 30355456,
+          "rust": 61550592
+        }
+      ]
     }
-  },
-  "check_previous_scoped": {
-    "source": "bee7ee218df3c673bc7660e1af8aea709505272d",
-    "original_requests": 102,
-    "functional_cells": 34,
-    "flow_ms": {
-      "baseline": 7119.669645,
-      "candidate": 5563.538215,
-      "rust": 8210.709403
-    },
-    "cold_ms": {
-      "baseline": 420.7092725,
-      "candidate": 1177.0604265,
-      "rust": 1198.31992
-    },
-    "disk": {
-      "baseline": {
-        "boundary_peak_MiB": 45.3125,
-        "peak_bytes_by_block": [
-          47513600,
-          47513600
-        ],
-        "eight_private_growth_MiB": 29.40625
-      },
-      "candidate": {
-        "boundary_peak_MiB": 13.63671875,
-        "peak_bytes_by_block": [
-          14360576,
-          14237696
-        ],
-        "eight_private_growth_MiB": 1.0703125
-      },
-      "rust": {
-        "boundary_peak_MiB": 58.34765625,
-        "peak_bytes_by_block": [
-          61181952,
-          61181952
-        ],
-        "eight_private_growth_MiB": 15.140625
-      }
-    },
-    "not_reassigned_to_final_source": true
-  },
-  "diagnostic": "bee7 profile restart5101decoded-owner reuses/0seconddecoder; no-op355ms redundant semantic read found and then fixed. Private class split may still require planning. Do not attribute allremainingtime toI/O.",
-  "largest_remaining_cost": "Final native restart+firstedit4.641/R1.334s; restart3.491/R.038s is decisive. Preserve negative results; optimize real upstream bootstrap/machine pipeline by absolute waiting.",
-  "record_policy": "User2026-11-16: concise conclusion/version/commands/necessary failures only, no default full evidence packing/copy/upload. Localgeneratedarchive retired; raw remains. Source/skill/summary pushed.",
-  "runtime_recovery": "SDK18/stock/native-link fixede85 core; fullSDK dependency fixedV32, no LLVM rebuild",
-  "previous_record": "https://github.com/zil-lang/zil/blob/d31282cb0dc481a9495cb1ebd099f614bf383510/records/compiler-incremental-demand-continuation.json",
-  "previous_305_delivery": "e85f819f0c23d4fdbaf52748a7a97dd0ab345f61",
-  "negative_scope": [
-    "native restart and no-op still slower thanRust",
-    "checkcold narrow previous-source window lead, no broad or industrial claim",
-    "industrialmulticrate/proc_macro/build.rs/minutes/GB workloads unmeasured in currentcandidate"
-  ],
-  "main_merge": false,
-  "research_defaults_enabled": false,
-  "independent_Verify_preserved": true,
-  "default_budgets_changed": false,
-  "full_O2_preserved": true,
-  "LLVM_rebuilt": false,
-  "goal_archive_never_merge_main": true
+  ]
 }
