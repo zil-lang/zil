@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-15T23:14:27.164859+00:00",
+  "updated_at_utc": "2026-11-16T01:25:36.355741+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -14,8 +14,8 @@
     "acceptance": "Partial exact-scope successes; Task and ordinary application fail; NOT ACCEPTED"
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "beebdca12fc5fb648ba3ac86116d88e23334d0c7",
-  "current_candidate_under_validation": "beebdca12fc5fb648ba3ac86116d88e23334d0c7",
+  "latest_ready_source": "873fa15d0e72baa8bad62d1775d15859cfd69602",
+  "current_candidate_under_validation": "873fa15d0e72baa8bad62d1775d15859cfd69602",
   "wip_backup": {
     "archive_commit": "ef484badb5b7df79aa414e7a5d24267755df5cb4",
     "previous_archive": "2cd99f4b2d88a9df818a742bd464d2a61a115f88",
@@ -227,36 +227,33 @@
     ]
   },
   "latest_actual_checkpoint": {
-    "source_positive_passed": 8,
+    "candidate": "04ca91feefe902cc21f16008c34ed32f33a7e8be",
+    "source_positive_passed": 10,
     "source_positive_total": 13,
     "expected_negatives_passed": 4,
-    "candidate": "3ed9f88017f293474213484104d326a226886fce",
-    "regression": "Closure ordinary/stored scheduling in e747; complete proposed fix in beeb pending actual validation.",
-    "source_application": "Original ordinary application Source complete under default budget; now Types default work barrier.",
-    "actual_borrowed_iterator": "Types original universal Callable obligation unsupported; Types owner implementing independently.",
-    "workspace_alltargets": {
-      "candidate": "28b58780b6ecdc64b2762fe32546045c88541cc4",
-      "exit": 0
+    "buffered_io_native": "Pass; original short_io.zil/C, both backends O0/O2, default Rust thread stack and failure/close assertions retained",
+    "source_application": "Complete original Source and all 62 Types worlds finished within defaults; now Analyze receiver/provider ordering failure",
+    "actual_borrowed_iterator": "Types complete; Analyze original implicit/formal role correspondence failure",
+    "remaining_foundation": [
+      "ownership: Analyze Enum resource query budget",
+      "owning-collections: Analyze complete actual shared-result transport",
+      "iteration: Verify default work budget"
+    ],
+    "extra_original_sources": {
+      "candidate": "517c6e74fa204b1df30121223dc9a2c152f1c125",
+      "generated": 2,
+      "total": 12,
+      "scope": "Untrusted Source/Types/Analyze and current Wire round trip only; independent verification and native acceptance separate"
     },
-    "source_probe": {
-      "candidate": "28b58780b6ecdc64b2762fe32546045c88541cc4",
-      "passed": 2,
-      "failed": 0
-    },
-    "wide_original_source_fixtures": {
-      "candidate": "7ec17b12bac10a5cce19be396f84712d7d1db382",
-      "passed": 0,
-      "total": 11,
-      "source_scope_fix": "28b58780b; rerun pending",
-      "types_remaining": "Seven legal returned callable/source combinations, full current source preserved."
-    },
+    "core_units": "80cdc507e: IR103/0 Expand168/0 Types93/0 Analyze290/9 Verify737/41; later two unit-only coordinate/import compile errors fixed; latest units pending",
     "github_crates_recovery": {
-      "commit": "1db78dd968dfd954dd58ed253bf48629e64e57bc",
-      "source_head": "4cbfd16947f40eb79b4b97c1215ec47c40206f03",
-      "path": "language/20261115T230209Z-approved-source-recovery/recovery.tar.gz",
-      "sha256": "ba84094d5a120273989e87529c6dbbce17c3b65bbdd6848c3184428d7a158e73",
+      "commit": "8499073b22c02d1f0ada75ee69aa108a2341f675",
+      "source_head": "a2ada45b41b602081ad1028b8a81bd8a5258cc33",
+      "path": "language/20261116T011440Z-approved-source-recovery/recovery.tar.gz",
+      "sha256": "dd23309b0ea50bd20102a1d7c803982656fee49696d9b5b28d377ccc50246b8f",
       "readback_equal": true
     },
-    "publication_limitation": "Expanded tests/tools/Cargo.lock archive and goal update rejected by automatic approval review. Goal changes retained locally; scoped archive authorization pending. Do not claim formal source branch current."
-  }
+    "publication_limitation": "Expanded tests/tools/Cargo.lock archive and goal publication rejected by automatic approval review; retained locally. Formal task/language-alpha remote ref is not current."
+  },
+  "chain_lessons": "records/language-alpha-chain-lessons-20261116.md"
 }
