@@ -14,6 +14,17 @@ impl Solver<'_, '_> {
         let term = self.borrowed_argument(frame, object, b, depth + 1)?;
         let root = self.type_root(term, b)?;
         match self.state.arena[root] {
+            // A literal keeps its complete shared byte-view type as an atom.
+            // Reading its element does not manufacture a new reference role
+            // or assert that an arbitrary address has a literal source.
+            Kind::Atom(ref ty) if strings::is_byte_type(ty) => {
+                if write {
+                    return Err(fail(
+                        "original sequence write requires an exclusive address",
+                    ));
+                }
+                self.atom(Type::U8, b)
+            }
             Kind::Address { mutable, inner, .. } => {
                 if write && !mutable {
                     return Err(fail(
@@ -163,10 +174,15 @@ impl Solver<'_, '_> {
         let Some(term) = self.local(frame, name, b)? else {
             return Ok(None);
         };
-        let Kind::Address { inner, .. } = self.state.arena[self.type_root(term, b)?] else {
-            return Ok(None);
+        let slice = match self.state.arena[self.type_root(term, b)?] {
+            Kind::Address { inner, .. } => matches!(
+                self.state.arena[self.type_root(inner, b)?],
+                Kind::Slice(_)
+            ),
+            Kind::Atom(ref ty) => strings::is_byte_type(ty),
+            _ => false,
         };
-        if !matches!(self.state.arena[self.type_root(inner, b)?], Kind::Slice(_)) {
+        if !slice {
             return Ok(None);
         }
         if !arguments.is_empty() {

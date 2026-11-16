@@ -678,6 +678,30 @@ fn static_task_callback_requires_every_actual_constructor_even_outside_main_raw_
         }
     }
     let (block, instruction) = changed.unwrap();
+    let actual_block = f.blocks[block].id;
+    // The extra Load is part of the accepted control as well as the attack.
+    // Transport every original emission boundary across that insertion; the
+    // hostile replacement below still occupies the original maker Call site.
+    let semantic = raw.semantic.as_mut().expect("complete original Source seed");
+    let instances: Vec<_> = semantic.instances.iter().filter_map(|instance| {
+        matches!(instance.target,
+            zil_ir::SemanticInstanceTarget::Function(zil_ir::SemanticFunctionTarget::Typed(id))
+            if id == function).then_some(instance.id)
+    }).collect();
+    assert!(!instances.is_empty());
+    let mut transported = 0;
+    for site in &mut semantic.sites {
+        if !instances.contains(&site.instance) {
+            continue;
+        }
+        if let zil_ir::SemanticSiteAddress::Typed { block: at_block, instruction: at, .. } = &mut site.at
+            && *at_block == actual_block && *at as usize >= instruction - 1
+        {
+            *at = at.checked_add(1).unwrap();
+            transported += 1;
+        }
+    }
+    assert!(transported > 0);
     // Keep the hostile module's value arena and block shape identical to a
     // genuinely accepted control, so Wire cannot reject on a stale plan size.
     let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
