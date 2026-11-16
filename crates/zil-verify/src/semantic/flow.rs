@@ -791,7 +791,12 @@ impl CheckedContext {
         let value=self.type_use_operand(module,instance,f,subject,state,values,signature,environment,b)?;
         self.bind_implicit_use(module,instance,site,subject,&value,&required,environment,b)?;
         self.claim_type_use(module,expected,&required,environment,b)?;
-        if !self.compatible(environment,&value,&required,b)?{return Err(bad(&format!("actual TypeUse violates its original rigid class requirement [instance {:?}, site {:?}, subject {:?}, actual domain {}, required domain {}]",instance.id,site.recipe,subject,value.life.binder_count,required.life.binder_count)));}Ok(())
+        if !self.compatible(environment,&value,&required,b)?{
+            b.spend(value.classes.len().saturating_add(required.classes.len()).saturating_add(value.life.retained.len()).saturating_add(required.life.retained.len()))?;
+            return Err(bad(&format!("actual TypeUse violates its original rigid class requirement [instance {:?}, site {:?}, subject {:?}, actual domain {}, required domain {}]",instance.id,site.recipe,subject,value.life.binder_count,required.life.binder_count))
+                .with_note(format!("actual complete shape {:?}; required complete shape {:?}",value.life,required.life))
+                .with_note(format!("actual classes {:?}, origins {:?}; required classes {:?}, origins {:?}",value.classes,value.origins,required.classes,required.origins)));
+        }Ok(())
     }
     fn bind_implicit_use(&self,module:&TypedModule,instance:&SemanticInstance,site:&SemanticSite,subject:&SemanticOperand,actual:&CheckedType,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
         let definition=self.definition(module,instance.definition,b)?;
@@ -817,10 +822,12 @@ impl CheckedContext {
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target else{return Err(bad("implicit occurrence belongs to a nonexecutable scope"));};
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("implicit occurrence actual function is absent"))?;
         if let Some(source)=source{self.intrinsic_buffer_source(module,instance,f,value,source,b)?;}
-        // A description may be stored in a real local environment view and
-        // loaded repeatedly. The complete original Place/source check above
-        // follows every actual alias/store to its creator; a second direct-SSA
-        // Describe-only whitelist would lose this independently proved root.
+        // A view can be stored in a real local environment and loaded before
+        // its exact expression borrow. The complete original Place/source
+        // proof above checks every actual alias/store and its sealed creator.
+        // A real reborrow with that proof is already the actual occurrence;
+        // do not lose it by demanding a second direct-SSA route to the root.
+        // A bare Load still grants no fresh address occurrence identity.
         if !description {
         let mut seen=std::collections::BTreeSet::new();
         loop {
@@ -829,6 +836,7 @@ impl CheckedContext {
             for block in &f.blocks {b.spend(block.instructions.len())?;for instruction in &block.instructions {if instruction.result==Some(value) {if producer.is_some(){return Err(bad("implicit address has several actual SSA definitions"));}producer=Some(instruction);}}}
             let instruction=producer.ok_or_else(||bad("implicit address actual SSA definition is absent"))?;
             match &instruction.kind {
+                InstructionKind::ReborrowAddress{..}|InstructionKind::AddressSlice{..}if source.is_some()=>break,
                 InstructionKind::ReborrowAddress{address,..}|InstructionKind::AddressSlice{address,..}=>value=*address,
                 InstructionKind::BorrowLocal{..}|InstructionKind::BorrowLocalMut{..}if !description=>break,
                 InstructionKind::AddressField{..}|InstructionKind::AddressIndex{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::BorrowCapture{..}if !description&&source.is_some()=>break,
