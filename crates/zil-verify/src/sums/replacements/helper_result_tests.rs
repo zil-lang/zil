@@ -18,8 +18,14 @@ fn qualified_replacement_helpers_consume_the_whole_header_and_keep_affine_exit_d
         assert!(package_helper(&wrong,&wrong.functions[0],&endpoint,Some(0),&mut Budget::new(&limits)).is_err(),"header attack {attack}");
     }
     let mut lending=module.clone();let f=&mut lending.functions[0];
-    f.return_type=f.locals[0].ty.clone();
+    // Borrow the actual scalar companion field. An owning Package is an
+    // admitted input endpoint, not an ordinary output address-pointee type.
+    f.return_type=Type::Address{mutable:true,inner:Box::new(Type::I32)};
     f.storage_life.as_mut().unwrap().bindings.push(StorageLifeBinding{position:StoragePosition{base:StorageBase::Result,path:vec![]},binder:StorageBinder::Invocation(0)});
+    let result=ValueId(f.values.len() as u32);f.values.push(f.return_type.clone());
+    f.blocks[0].instructions.push(crate::place_replacements::fixture::instruction(Some(result),InstructionKind::AddressField{address:ValueId(0),index:1}));
+    f.blocks[0].terminator=Terminator::Return(Some(result));
+    helper_class_relation(&lending,&lending.functions[0],&mut Budget::new(&limits)).unwrap();
     assert!(!package_helper(&lending,&lending.functions[0],&endpoint,Some(0),&mut Budget::new(&limits)).unwrap(),"a valid borrowing header grants no owning-result admission");
     for abort in [false,true]{
         let mut request=module.clone();
