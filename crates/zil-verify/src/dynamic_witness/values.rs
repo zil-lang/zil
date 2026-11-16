@@ -303,6 +303,11 @@ impl<'a> Inventory<'a> {
                     pending_sources: true,
                 })
             }
+            // A bare type query has no outside lifetime images. Rebuild the
+            // same complete raw boundary used for qualified values: one outer
+            // borrow class, the whole pointee N, and every deeper occurrence.
+            // This proves metadata only; no source, loan or static grounding.
+            Type::Address { .. } | Type::Desc(_) => self.raw_scope(ty, b).map(|(_, domain)| domain),
             Type::Managed(inner) => self.domain(inner, b),
             Type::Registration { environment } | Type::AsyncRegistration { environment } => {
                 if !matches!(environment.as_ref(), Type::Closure(_)) {
@@ -1074,6 +1079,60 @@ mod tests {
         }
     }
 
+    #[test]
+    fn intrinsic_task_reference_queries_preserve_the_complete_borrowed_owner_domain() {
+        let task=Type::Task{result:Box::new(Type::I32),retained_life:RetainedLifeShape{
+            binder_count:2,
+            ports:vec![
+                RetainedBorrowPort{leaf:Type::Address{mutable:true,inner:Box::new(Type::I32)},mode:StoredBorrowMode::ExclusiveAddress,binder:0},
+                RetainedBorrowPort{leaf:Type::Address{mutable:false,inner:Box::new(Type::I32)},mode:StoredBorrowMode::SharedAddress,binder:1},
+            ],
+            retained:(0..2).map(|class|StorageRetainedBinding{path:vec![LifeTypeProjection::Parameter(0)],class,binder:class}).collect(),
+            nominal_arguments:vec![],
+        }};
+        for mode in 0..3 {
+            for depth in 1..=3 {
+                let (mut module,_)=crate::tests::baseline();
+                let mut ty=Type::Managed(Box::new(task.clone()));
+                for _ in 0..depth {
+                    ty=match mode {
+                        0=>Type::Address{mutable:false,inner:Box::new(ty)},
+                        1=>Type::Address{mutable:true,inner:Box::new(ty)},
+                        _=>Type::Desc(Box::new(ty)),
+                    };
+                }
+                // Serialize the actual queried constructor, not only an
+                // unrelated module, to cover the complete raw/Wire boundary.
+                module.functions[0].return_type=ty;
+                let limits=Limits::default();
+                let bytes=zil_ir::wire::encode_module_candidate(&module,&CandidatePlan::empty_for(&module),&limits).unwrap();
+                let (wire,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+                let mut measured=None;
+                for actual in [&module,&wire] {
+                    let ty=&actual.functions[0].return_type;
+                    let mut b=Budget::new(&limits);
+                    let domain=intrinsic(actual,ty,&mut b).unwrap();
+                    assert_eq!(domain.count,2+depth);assert!(domain.pending_sources);
+                    let cost=limits.max_analysis_steps-b.remaining;
+                    if let Some(previous)=measured {assert_eq!(previous,cost);}else{measured=Some(cost);}
+                    let life=crate::tasks::frame_shape::declared_life(actual,ty,&mut Budget::new(&limits)).unwrap();
+                    let value=DynTypeValue{ty:ty.clone(),classes:vec![StorageBinder::Fixed(0);life.binder_count as usize],life};
+                    assert_eq!(run(actual,&value).unwrap().count,2+depth);
+                    let mut forged=value.clone();forged.life.retained.pop();assert!(run(actual,&forged).is_err());
+                    let mut forged=value;forged.life.slots[0].mode=if mode==1{StoredBorrowMode::SharedAddress}else{StoredBorrowMode::ExclusiveAddress};assert!(run(actual,&forged).is_err());
+                    let mut short=limits.clone();short.max_analysis_steps=cost-1;
+                    assert_eq!(intrinsic(actual,ty,&mut Budget::new(&short)).unwrap_err().category,zil_base::ResultCategory::ResourceLimit);
+                }
+            }
+        }
+        let (module,_)=crate::tests::baseline();
+        let mut malformed=task;
+        let Type::Task{retained_life,..}=&mut malformed else{unreachable!()};
+        retained_life.retained[1].binder=0;
+        for ty in [Type::Address{mutable:true,inner:Box::new(Type::Managed(Box::new(malformed.clone())))},Type::Desc(Box::new(Type::Managed(Box::new(malformed))))] {
+            assert!(intrinsic(&module,&ty,&mut Budget::new(&Limits::default())).is_err(),"an outer wrapper cannot hide a coalesced Task child domain");
+        }
+    }
     #[test]
     fn raw_reference_layers_keep_each_local_scope_and_never_flatten_inner_slots() {
         let (module, _) = crate::tests::baseline();
