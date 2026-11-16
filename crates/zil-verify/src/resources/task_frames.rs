@@ -319,6 +319,40 @@ pub(super) fn capture(
     Ok(())
 }
 
+// The transfer still checks all sources, loans, epochs and live owners. These
+// cases only prove that its LIVE owner bits cannot change, so there is no
+// before/after action row to derive. Unknown operations keep the full scan.
+fn preserves_owner_bits(instruction:&Instruction,slots:&Slots,state:&State,b:&mut Budget)->Check<bool>{
+    b.spend(2)?;
+    if instruction.result.is_some_and(|value|slots.managed_value[value.0 as usize].is_some()){return Ok(false);}
+    for value in instruction_operands(&instruction.kind){b.spend(1)?;if slots.managed_value[value.0 as usize].is_some(){return Ok(false);}}
+    Ok(match &instruction.kind{
+        InstructionKind::StorageLive(local)|InstructionKind::StorageDead(local)=>{
+            // Resetting EMPTY/MOVED/DONE cannot link or unlink an owner.
+            // A live shell/field keeps the old snapshot and is rejected by
+            // the ordinary storage check, which still always executes.
+            b.spend(slots.fields(*local).len().saturating_add(1))?;
+            !slots.managed_local[local.0 as usize].is_some_and(|debt|state.debt[debt]&LIVE!=0)
+                &&slots.fields(*local).iter().flatten().all(|debt|state.debt[*debt]&LIVE==0)
+        }
+        InstructionKind::Constant(_)|InstructionKind::Binary{..}|InstructionKind::Unary{..}
+        |InstructionKind::ConvertInteger{..}|InstructionKind::ConvertNumber{..}
+        |InstructionKind::ScopeEnter{..}|InstructionKind::ScopeExit{..}
+        |InstructionKind::Load(_)|InstructionKind::BorrowLocal{..}|InstructionKind::BorrowLocalMut{..}
+        |InstructionKind::BorrowFieldLocal{..}|InstructionKind::BorrowPlaceLocal{..}|InstructionKind::BorrowVariantLocal{..}
+        |InstructionKind::DescribeLocal{..}|InstructionKind::DescribeCapture{..}|InstructionKind::DescribeAddress{..}|InstructionKind::DescribePackageField{..}
+        |InstructionKind::AddressField{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}
+        |InstructionKind::ReborrowAddress{..}|InstructionKind::ReadAddress{..}|InstructionKind::ReadDesc{..}
+        |InstructionKind::LoadStoredBorrow{..}|InstructionKind::ByteBufferLen{..}|InstructionKind::ByteBufferCapacity{..}
+        |InstructionKind::ByteBufferBorrow{..}=>true,
+        _=>false,
+    })
+}
+pub(super) fn begin_instruction(f:&TypedFunction,instruction:&Instruction,slots:&Slots,state:&State,budget:&mut Budget)->Check<Option<Vec<u8>>>{
+    if budget.task_ownership.is_empty(){return Ok(None);}
+    if preserves_owner_bits(instruction,slots,state,budget)?{return Ok(None);}
+    begin(f,state,budget)
+}
 pub(super) fn begin(
     f: &TypedFunction,
     state: &State,
@@ -498,4 +532,27 @@ pub(super) fn finish(
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod snapshot_tests{
+    use super::*;
+    #[test]
+    fn debt_preserving_footprint_keeps_live_resets_owned_results_calls_and_exit_obligations(){
+        let(mut module,_)=crate::tests::baseline();let f=&mut module.functions[0];
+        let owned=Type::Managed(Box::new(Type::ByteBuffer));f.locals[0].ty=owned.clone();f.values=vec![Type::I32,owned.clone()];
+        let f=&module.functions[0];let mut b=Budget::new(&Limits::default());
+        let slots=Slots::new(&module,f,&packages::CaptureViews::default(),&mut b).unwrap();let mut state=slots.empty(&mut b).unwrap();
+        let local=slots.managed_local[0].unwrap();let value=slots.managed_value[1].unwrap();
+        b.task_ownership.insert(f.id,TaskOwnership{owners:vec![TaskOwner{slot:TaskOwnerSlot::Local(LocalId(0)),ty:owned.clone(),debt:local,cleanup_anchor:None},TaskOwner{slot:TaskOwnerSlot::Value(ValueId(1)),ty:owned,debt:value,cleanup_anchor:None}],entry:vec![],boundaries:vec![],actions:BTreeMap::new(),result_type:None});
+        let instruction=|result,kind|Instruction{result,kind,span:f.span};
+        let constant=instruction(Some(ValueId(0)),InstructionKind::Constant(Constant::I32(1)));
+        assert!(begin_instruction(f,&constant,&slots,&state,&mut b).unwrap().is_none());
+        let reset=instruction(None,InstructionKind::StorageDead(LocalId(0)));
+        state.debt[local]=LIVE;assert!(begin_instruction(f,&reset,&slots,&state,&mut b).unwrap().is_some(),"a live shell cannot hide its actual storage/owner obligation");
+        state.debt[local]=DONE;assert!(begin_instruction(f,&reset,&slots,&state,&mut b).unwrap().is_none());
+        let result=instruction(Some(ValueId(1)),InstructionKind::Constant(Constant::I32(1)));assert!(begin_instruction(f,&result,&slots,&state,&mut b).unwrap().is_some(),"an owning result never takes the no-change route");
+        for kind in [InstructionKind::TaskYield,InstructionKind::CallClosureOnce{callee:ValueId(0),arguments:vec![]},InstructionKind::DropManaged{local:LocalId(0)}]{assert!(begin_instruction(f,&instruction(None,kind),&slots,&state,&mut b).unwrap().is_some());}
+        let before=begin(f,&state,&mut b).unwrap();finish(f,0,0,before,&state,false,&mut b).unwrap();assert_eq!(b.task_ownership[&f.id].action_count(),0,"the ordinary comparison creates no action for an unchanged instruction");
+    }
 }

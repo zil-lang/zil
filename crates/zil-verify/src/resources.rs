@@ -1287,7 +1287,7 @@ impl Transfer<'_> {
             )?;
             let span = instruction.span;
             let task_before = if validate {
-                task_frames::begin(f, state, budget)?
+                task_frames::begin_instruction(f,instruction,slots,state,budget)?
             } else {
                 None
             };

@@ -17,6 +17,45 @@ fn cacheable(ty:&Type)->bool{!matches!(ty,
     Type::ByteBuffer|Type::ForeignHandle|Type::SyncCell(_)|Type::TaskI32|Type::CWideString|Type::Closure(_)|Type::Dyn{..}|Type::OwnedDyn{..}
 )&&!ty.is_b0_scalar()}
 
+type TypeFact=(usize,usize,Profile);
+// This is the existing exact success set, partitioned by pointer identity.
+// A collision still searches a complete ordered key (depth and profile too),
+// so no approximate key can prove a fact. Growth and every real key copy are
+// paid before insertion; the old set remains intact if growth runs out of work.
+#[derive(Default)]
+struct TypeFacts{buckets:Vec<BTreeSet<TypeFact>>,len:usize}
+impl TypeFacts{
+    #[cfg(test)]
+    fn len(&self)->usize{self.len}
+    fn bucket(ptr:usize,count:usize)->usize{
+        let hash=ptr.wrapping_mul(0x9e3779b97f4a7c15u64 as usize);
+        hash>>(usize::BITS-count.ilog2())
+    }
+    fn contains(&self,key:&TypeFact,b:&mut Budget)->Check<bool>{
+        b.spend(1)?;if self.buckets.is_empty(){return Ok(false);}
+        b.spend(3)?;let bucket=&self.buckets[Self::bucket(key.0,self.buckets.len())];
+        b.spend(lookup(bucket.len()))?;Ok(bucket.contains(key))
+    }
+    fn grow(&mut self,count:usize,b:&mut Budget)->Check<()>{
+        let words=std::mem::size_of::<BTreeSet<TypeFact>>().div_ceil(std::mem::size_of::<usize>());
+        b.spend(count.saturating_mul(words).saturating_add(self.buckets.len()).saturating_add(2))?;
+        let mut buckets:Vec<BTreeSet<TypeFact>>=(0..count).map(|_|BTreeSet::new()).collect();
+        for old in &self.buckets{for key in old{
+            b.spend(3)?;let to=Self::bucket(key.0,count);
+            b.spend(lookup(buckets[to].len()).saturating_add(6))?;
+            buckets[to].insert(*key);
+        }}
+        self.buckets=buckets;Ok(())
+    }
+    fn insert(&mut self,key:TypeFact,b:&mut Budget)->Check<()>{
+        if self.buckets.is_empty(){self.grow(8,b)?;}
+        else if self.len.saturating_add(1)>self.buckets.len()/2&&self.buckets.len()<4096{self.grow(self.buckets.len()*2,b)?;}
+        b.spend(3)?;let to=Self::bucket(key.0,self.buckets.len());
+        b.spend(lookup(self.buckets[to].len()).saturating_add(6))?;
+        if self.buckets[to].insert(key){self.len+=1;}Ok(())
+    }
+}
+
 pub(crate) struct Structure{
     module:usize,
     program:Option<usize>,
@@ -24,7 +63,7 @@ pub(crate) struct Structure{
     types:BTreeSet<usize>,
     recipes:BTreeSet<RecipeKey>,
     declaration_nodes:BTreeSet<usize>,
-    type_success:BTreeSet<(usize,usize,Profile)>,
+    type_success:TypeFacts,
     recipe_success:BTreeSet<(RecipeKey,Profile)>,
     declaration_success:BTreeSet<(usize,Option<SemanticDefinitionId>,Profile)>,
     resource_success:BTreeMap<(usize,Profile),usize>,
@@ -44,7 +83,7 @@ impl Structure{
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:BTreeSet::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),
+            type_success:TypeFacts::default(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -154,22 +193,20 @@ impl DynRecipeVisitor for Register<'_>{
 
 pub(super) fn type_known(ty:&Type,depth:usize,b:&mut Budget)->Check<bool>{
     if !cacheable(ty){return Ok(false);}
-    let Some(state)=&b.structural else{return Ok(false);};
+    let Some(_)=&b.structural else{return Ok(false);};
     // Only a registered, still-live immutable node can enter type_success.
     // A second tree search for its membership repeats that established fact.
-    let fee=lookup(state.type_success.len());
-    b.spend(fee)?;
-    let state=b.structural.as_ref().unwrap();let ptr=ty as *const Type as usize;
-    Ok(state.type_success.contains(&(ptr,depth,profile(b))))
+    let key=(ty as *const Type as usize,depth,profile(b));
+    let state=b.structural.take().unwrap();
+    let result=state.type_success.contains(&key,b);b.structural=Some(state);result
 }
 pub(super) fn type_success(ty:&Type,depth:usize,b:&mut Budget)->Check<()>{
     if !cacheable(ty){return Ok(());}
     let Some(state)=&b.structural else{return Ok(());};let ptr=ty as *const Type as usize;
     let membership=lookup(state.types.len());b.spend(membership)?;
     if !b.structural.as_ref().unwrap().types.contains(&ptr){return Ok(());}
-    let state=b.structural.as_ref().unwrap();
-    let key=(ptr,depth,profile(b));let fee=lookup(state.type_success.len()).saturating_add(2);
-    b.spend(fee)?;b.structural.as_mut().unwrap().type_success.insert(key);Ok(())
+    let key=(ptr,depth,profile(b));let mut state=b.structural.take().unwrap();
+    let result=state.type_success.insert(key,b);b.structural=Some(state);result
 }
 pub(super) fn recipe_known<T:'static>(value:&T,b:&mut Budget)->Check<bool>{
     let Some(state)=&b.structural else{return Ok(false);};let fee=lookup(state.recipes.len()).saturating_add(lookup(state.recipe_success.len()));
@@ -337,6 +374,20 @@ pub(crate) fn shared_type(ty:&Type,b:&mut Budget)->Check<Option<std::rc::Rc<crat
 #[cfg(test)]
 mod tests{
     use super::*;
+    #[test]
+    fn bucketed_type_facts_preserve_exact_depth_profiles_and_failed_growth(){
+        let mut b=Budget::new(&Limits::default());let mut facts=TypeFacts::default();let mut expected=BTreeSet::new();
+        for index in 0..1024usize{let key=(0x1000+index*256,index%7,(1_000_000,128));facts.insert(key,&mut b).unwrap();expected.insert(key);}
+        assert_eq!(facts.len(),expected.len());
+        for key in &expected{assert!(facts.contains(key,&mut b).unwrap());assert!(!facts.contains(&(key.0,key.1+13,key.2),&mut b).unwrap());assert!(!facts.contains(&(key.0,key.1,(key.2.0-1,key.2.1)),&mut b).unwrap());}
+        let count=facts.buckets.len()*2;let words=std::mem::size_of::<BTreeSet<TypeFact>>().div_ceil(std::mem::size_of::<usize>());
+        let mut short=Budget::new(&Limits{max_analysis_steps:count*words+facts.buckets.len()+5,..Limits::default()});
+        assert!(facts.grow(count,&mut short).is_err());assert_eq!(facts.len(),expected.len());
+        for key in &expected{assert!(facts.contains(key,&mut b).unwrap(),"failed reindex cannot lose or invent prior exact facts");}
+        // Multiple complete keys at the same pointer are never first-match
+        // aliases: all exact depth/profile coordinates remain independent.
+        let key=*expected.iter().next().unwrap();facts.insert((key.0,key.1+13,key.2),&mut b).unwrap();assert!(facts.contains(&(key.0,key.1+13,key.2),&mut b).unwrap());assert_eq!(facts.len(),expected.len()+1);
+    }
     fn record()->Type{Type::Record{name:"registered_complete_payload_".repeat(16),fields:vec![("whole_field".repeat(8),Type::Tuple(vec![Type::I32,Type::Array{element:Box::new(Type::U8),length:4}]))]}}
     fn fixture()->TypedModule{
         let(mut module,_)=crate::tests::baseline();let payload=record();
