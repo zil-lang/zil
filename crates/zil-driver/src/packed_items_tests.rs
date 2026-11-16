@@ -435,7 +435,9 @@ fn namespace_replacement_after_pack_sync_cannot_commit_a_manifest() {
     assert_eq!(fs::read_dir(&fixture.packs).unwrap().count(), 0);
 }
 
-fn shared_fixture() -> (Fixture, Vec<(Fingerprint, Arc<[u8]>)>, Vec<u8>) {
+type SharedFixture = (Fixture, Vec<(Fingerprint, Arc<[u8]>)>, Vec<u8>);
+
+fn shared_fixture() -> SharedFixture {
     let mut fixture = Fixture::new(128 * 1024);
     fixture.bounds.max_items = 1024;
     let items = (0u32..1024).map(|id| item(id.to_le_bytes())).collect();

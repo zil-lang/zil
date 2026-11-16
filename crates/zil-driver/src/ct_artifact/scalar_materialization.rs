@@ -597,7 +597,7 @@ mod tests {
                 } else {
                     generous.max_analysis_steps
                 },
-                &allowance,
+                allowance,
             );
             let exact = allowance(n);
             let success = fixture.run(&mut session, &exact).unwrap().unwrap();
