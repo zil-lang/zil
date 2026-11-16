@@ -22,20 +22,28 @@ impl CheckedOriginal {
             if arguments.is_empty() {
                 return Err(bad("Task creation omits its original worker"));
             }
+            let outer_floor = self.next_inference;
             let (worker, worker_environment, worker_actuals, mut prototype) =
                 self.task_worker(module, context, &arguments[0], env, bindings, active, b)?;
             self.operation_arity(&arguments[1..], prototype.parameters.len())?;
             if !matches!(prototype.call_kind, CallKind::Direct | CallKind::Suspend) {
                 return Err(bad("Task worker has another complete call convention"));
             }
-            let mut retained = Retained::default();
+            let outer_heads = self.defer_call_heads(&prototype, &worker_actuals, outer_floor, b)?;
+            let index = self.source_index(module, &[env.current()?], b)?;
+            let function = index.definitions.get(&env.current()?)
+                .ok_or_else(|| bad("Task constructor has no original caller body"))?;
+            let Some(index::Node::Expression(call)) = function.nodes.get(&site) else {
+                return Err(bad("Task constructor has no exact original Call occurrence"));
+            };
+            let call_node = call.id;
+            self.original_call_site(env.current()?, call_node, b)?;
             let mut inputs = Vec::new();
             b.spend(prototype.parameters.len())?;
-            for (ordinal, ((argument, parameter), mode)) in arguments[1..]
+            for ((argument, parameter), mode) in arguments[1..]
                 .iter()
                 .zip(&prototype.parameters)
                 .zip(&prototype.modes)
-                .enumerate()
             {
                 let parameter =
                     self.normalize_original_type(module, context, parameter, env, active, b)?;
@@ -69,16 +77,24 @@ impl CheckedOriginal {
                     )?;
                 }
 
-                // All(T) is kept even if this particular sample happens to be
-                // zero. The actual interpreter expands its full κ directory.
-                if !self.task_zero_domain(module, context, &actual, env, active, b, 0)? {
+                // The worker receives this exact call's root borrow adapter.
+                // The source expression keeps sigma and its invariant child.
+                inputs.push(self.task_input_view(&actual, &parameter, b)?);
+            }
+            self.finish_call_heads(&outer_heads, call_node, b)?;
+            self.remember_call_region_parameters(&prototype.parameters, call_node, env, b)?;
+            let mut retained = Retained::default();
+            for (ordinal, input) in inputs.iter().enumerate() {
+                // Expand every complete adapted input domain, including all
+                // phantom classes, independently of the worker result.
+                if !self.task_zero_domain(module, context, input, env, active, b, 0)? {
                     let classes = vec![ClassPart::All {
-                        ty: actual.clone(),
+                        ty: input.clone(),
                         path: vec![],
                     }];
                     retained.domain.extend(classes.clone());
                     retained.ports.push(PortPart::FromType {
-                        ty: actual.clone(),
+                        ty: input.clone(),
                         classes: classes.clone(),
                     });
                     retained.retained.push(RetainedPart::All {
@@ -87,11 +103,10 @@ impl CheckedOriginal {
                     });
                     retained.nominal.push(NominalPart::FromType {
                         path: vec![LifeTypeProjection::Parameter(ordinal as u32)],
-                        ty: actual.clone(),
+                        ty: input.clone(),
                         classes,
                     });
                 }
-                inputs.push(actual);
             }
             prototype.result =
                 self.normalize_original_type(module, context, &prototype.result, env, active, b)?;
@@ -236,6 +251,23 @@ impl CheckedOriginal {
             Intrinsic::TaskRequest | Intrinsic::TaskFinish => Ty::Atom(Type::Unit),
             _ => return Err(bad("Task scheme received another intrinsic role")),
         })
+    }
+
+    fn task_input_view(&mut self, actual: &Ty, parameter: &Ty, b: &mut Budget) -> Check<Ty> {
+        let actual = self.resolved(actual, b)?;
+        let parameter = self.resolved(parameter, b)?;
+        match (actual, parameter) {
+            (Ty::Address{mutable,inner,..}, Ty::Address{mutable:target,life,inner:expected})
+                if mutable == target || mutable && !target => {
+                    self.unify(&inner, &expected, b)?;
+                    Ok(Ty::Address{mutable:target,life,inner})
+                },
+            (Ty::Desc{inner,..}, Ty::Desc{life,inner:expected}) => {
+                self.unify(&inner, &expected, b)?;
+                Ok(Ty::Desc{life,inner})
+            },
+            (actual, _) => Ok(actual),
+        }
     }
 
     /// A worker is instantiated as a value; its body is not executed in the
@@ -712,5 +744,39 @@ impl CheckedOriginal {
             Ty::Dyn(value)=>{let mut types=Vec::new();value.types(&mut types,b)?;if value.explicit_life(b)?{return Ok(false);}for ty in types{if !self.task_zero_domain(module,context,ty,env,active,b,depth+1)?{return Ok(false);}}true},
             Ty::Closure(..) => false,
         })
+    }
+}
+
+#[cfg(test)]
+mod task_input_role_tests {
+    use super::*;
+    fn address(life: Life, child: Ty) -> Ty {
+        Ty::Address { mutable: true, life, inner: Box::new(child) }
+    }
+    #[test]
+    fn a_task_retains_its_worker_adapter_and_every_original_source_without_retagging_children() {
+        let owner=SemanticDefinitionId{module:zil_base::ModuleId(0),index:0};
+        let mut original=CheckedOriginal::default();original.current=Some(owner);
+        let mut b=Budget::new(&Limits::default());
+        let fresh=original.fresh_life(&mut b).unwrap();let Life::Infer(id)=fresh else{unreachable!()};
+        original.outer_inferences.insert(id,vec![]);
+        let rigid=Life::Formal(owner,0);
+        let child=Ty::Nominal(owner,vec![Arg::Life(rigid.clone())]);
+        let first=address(Life::Local(owner,NodeId(10)),child.clone());
+        let second=address(Life::Local(owner,NodeId(11)),child.clone());
+        let parameter=address(fresh.clone(),child.clone());
+        original.relate_value(&first,&parameter,&mut b).unwrap();
+        original.relate_value(&second,&parameter,&mut b).unwrap();
+        let input=original.task_input_view(&first,&parameter,&mut b).unwrap();
+        original.finish_call_heads(&[(id,vec![1,0],false)],NodeId(12),&mut b).unwrap();
+        assert_eq!(original.resolved(&input,&mut b).unwrap(),address(Life::CallRegion(id),child.clone()));
+        assert_eq!(original.call_regions[&id].3,vec![Life::Local(owner,NodeId(10)),Life::Local(owner,NodeId(11))]);
+        assert_eq!(original.resolved(&first,&mut b).unwrap(),first,"the original expression keeps sigma");
+        assert!(!original.same_life(&Life::CallRegion(id),&rigid,&mut b).unwrap());
+        let changed=address(fresh,Ty::Nominal(owner,vec![Arg::Life(Life::Formal(owner,1))]));
+        assert!(original.task_input_view(&first,&changed,&mut b).is_err(),"a root adapter cannot rename a nominal child lifetime");
+        let shared=Ty::Address{mutable:false,life:rigid.clone(),inner:Box::new(Ty::Atom(Type::I32))};
+        assert!(original.relate_value(&shared,&address(rigid,Ty::Atom(Type::I32)),&mut b).is_err(),"shared source cannot supply an exclusive worker input");
+        assert!(original.relate_outer(&Life::CallRegion(id),&Life::Formal(owner,1),&mut b).is_err(),"a frame cannot export an unsupported rigid lifetime");
     }
 }

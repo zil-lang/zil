@@ -7,6 +7,11 @@ impl CheckedOriginal {
         let function=index.definitions.get(&definition).ok_or_else(||bad("Call inputs have no checked original function"))?;
         let Some(index::Node::Expression(call))=function.nodes.get(&site).copied()else{return Err(bad("Call inputs have no exact original expression occurrence"));};
         let CoreExprKind::Call{arguments,..}=&call.kind else{return Err(bad("Call input recipe selects another original operation"));};
+        // TaskCreate's first source argument selects the independently checked
+        // static worker. It is not an actual frame input or an SSA operand.
+        b.spend(self.intrinsic_calls.len().checked_ilog2().map_or(1,|depth|depth as usize+1))?;
+        let offset=usize::from(self.intrinsic_calls.get(&(definition,site)).is_some_and(|use_|matches!(use_.kind,intrinsics::Intrinsic::TaskCreate|intrinsics::Intrinsic::TaskCreateOwned)));
+        let arguments=arguments.get(offset..).ok_or_else(||bad("Task Call input omits its original worker selector"))?;
         let member=self.trait_calls.get(&(definition,site));
         if !self.call_targets.contains_key(&(definition,site))&&!self.callable_nodes.contains_key(&(definition,call.id))&&member.is_none(){
             return Err(bad("Call input occurrence has no independently resolved original callee"));

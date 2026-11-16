@@ -120,15 +120,22 @@ impl CheckedContext {
             else {
                 return Err(bad("Task worker loses its complete original signature"));
             };
-            let signature =
+            let mut signature =
                 self.evaluate_signature(module, signature, &expected, external, active, b)?;
             if signature.parameters.len() != arguments.len() {
                 return Err(bad(
                     "Task worker full source signature changes its operand count",
                 ));
             }
+            let key=expected.lexical.first().ok_or_else(||bad("Task worker has no exact original invocation frame"))?.key;
+            let (source_inputs,source_checks)=self.original_call_inputs(module,caller,site,&signature,key,arguments,values,environment,external,active,b)?;
+            let inputs=source_inputs.iter().collect::<Vec<_>>();
+            self.instantiate_original_call_heads(module,caller,site,&mut signature,&inputs,key,environment,b)?;
             let mut boundary = trait_members::Boundary::default();
-            for ((parameter, _), argument) in signature.parameters.iter().zip(arguments) {
+            for (index,((parameter, _), argument)) in signature.parameters.iter().zip(arguments).enumerate() {
+                if !self.call_argument(module,caller,*argument,values,parameter,environment,source_checks[index],b)? {
+                    return Err(bad("Task frame input changes its original complete operand or exact worker reborrow role"));
+                }
                 boundary.value(
                     self,
                     environment,
@@ -137,6 +144,7 @@ impl CheckedContext {
                     b,
                 )?;
             }
+            self.check_call_input_wf(module,&signature,arguments,values,environment,b)?;
 
             for frame in task_domains::metadata_candidates(worker, b)? {
                 if frame.definition != Some(source) {
