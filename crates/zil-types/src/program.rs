@@ -201,7 +201,7 @@ fn check_resolved_program_in_context(
             .install_frozen(source)
             .map_err(|error| vec![error])?;
     }
-    if program
+    let input_lease = if program
         .modules
         .iter()
         .any(|module| module.core.semantic.is_some())
@@ -212,7 +212,7 @@ fn check_resolved_program_in_context(
             .checked_sub(program.modules.len().saturating_add(1))
             .ok_or_else(limit)?;
         let cores: Vec<_> = program.modules.iter().map(|module| &module.core).collect();
-        semantics::abi::prepare(
+        let lease = semantics::abi::prepare(
             &mut closure_state.semantic_emission,
             &cores,
             limits,
@@ -222,7 +222,10 @@ fn check_resolved_program_in_context(
         closure_state
             .snapshot(before - remaining, Span::default())
             .map_err(|error| vec![error])?;
-    }
+        lease
+    } else {
+        None
+    };
     mark_cost(
         "program: original ABI and universal source",
         closure_state.remaining_work(),
@@ -738,6 +741,7 @@ fn check_resolved_program_in_context(
             &cores,
             &mut module,
             &semantic_emission,
+            input_lease.as_ref(),
             limits,
             &mut remaining,
         )

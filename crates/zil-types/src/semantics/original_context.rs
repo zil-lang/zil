@@ -160,11 +160,66 @@ struct Part {
     declarations: Range<usize>,
 }
 pub(super) struct Input {
+    source: Rc<()>,
     pub(super) semantic: SemanticModule,
     pub(super) declarations: Rc<Vec<Declaration>>,
     parts: Vec<Part>,
 }
+// The pending lease is formed only by the complete snapshot constructor. Its
+// token cannot be paired with a separately collected or replaced Input.
+pub(super) struct PendingInputs<'a> {
+    source: Rc<()>,
+    cores: Vec<&'a CoreModule>,
+    limits: Limits,
+}
+/// A request-local immutable borrow, not a semantic or executable certificate.
+/// Both allocation owners stay alive until publication; no integer address or
+/// caller-supplied identity is accepted as an input correspondence.
+pub(crate) struct InputLease<'a> {
+    context: Rc<OriginalContext>,
+    cores: Vec<&'a CoreModule>,
+    limits: Limits,
+}
+impl InputLease<'_> {
+    fn matches(
+        &self,
+        context: &Rc<OriginalContext>,
+        cores: &[&CoreModule],
+        frozen: Option<&Rc<super::frozen_context::FrozenSource>>,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<bool> {
+        pay(left, cores.len().saturating_add(16))?;
+        Ok(Rc::ptr_eq(&self.context, context)
+            && &self.limits == limits
+            && self.cores.len() == cores.len()
+            && self
+                .cores
+                .iter()
+                .zip(cores)
+                .all(|(old, current)| std::ptr::eq(*old, *current))
+            && match (&context.frozen, frozen) {
+                (None, None) => true,
+                (Some(old), Some(current)) => Rc::ptr_eq(old, current),
+                _ => false,
+            })
+    }
+}
 impl Input {
+    pub(super) fn collect_leased<'a>(
+        cores: &[&'a CoreModule],
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<(Self, PendingInputs<'a>)> {
+        let input = Self::collect(cores, limits, left)?;
+        pay(left, cores.len().saturating_add(16))?;
+        let pending = PendingInputs {
+            source: input.source.clone(),
+            cores: cores.to_vec(),
+            limits: limits.clone(),
+        };
+        Ok((input, pending))
+    }
     pub(super) fn collect(cores: &[&CoreModule], limits: &Limits, left: &mut usize) -> R<Self> {
         pay(left, cores.len().saturating_add(1))?;
         let mut semantic = SemanticModule {
@@ -266,7 +321,9 @@ impl Input {
                 declarations: start.4..declarations.len(),
             });
         }
+        pay(left, 1)?;
         Ok(Self {
+            source: Rc::new(()),
             semantic,
             declarations: Rc::new(declarations),
             parts,
@@ -352,6 +409,40 @@ pub(crate) struct OriginalContext {
     frozen: Option<Rc<super::frozen_context::FrozenSource>>,
 }
 impl OriginalContext {
+    pub(super) fn checked_leased<'a>(
+        input: Input,
+        proof: super::original::Proof,
+        frozen: Option<Rc<super::frozen_context::FrozenSource>>,
+        pending: PendingInputs<'a>,
+        left: &mut usize,
+    ) -> R<(Rc<Self>, InputLease<'a>)> {
+        pay(left, 2)?;
+        if !Rc::ptr_eq(&input.source, &pending.source) {
+            return Err(bad("original input lease names another complete snapshot"));
+        }
+        let context = Self::checked(input, proof, frozen, left)?;
+        let lease = InputLease {
+            context: context.clone(),
+            cores: pending.cores,
+            limits: pending.limits,
+        };
+        Ok((context, lease))
+    }
+    pub(super) fn verify_leased_inputs(
+        self: &Rc<Self>,
+        cores: &[&CoreModule],
+        frozen: Option<&Rc<super::frozen_context::FrozenSource>>,
+        lease: Option<&InputLease<'_>>,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<()> {
+        if let Some(lease) = lease {
+            if lease.matches(self, cores, frozen, limits, left)? {
+                return Ok(());
+            }
+        }
+        self.verify_inputs(cores, frozen, limits, left)
+    }
     pub(super) fn checked(
         input: Input,
         proof: super::original::Proof,
@@ -540,3 +631,7 @@ impl Slot {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "original_context_tests.rs"]
+mod tests;

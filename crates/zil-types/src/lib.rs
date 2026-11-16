@@ -603,10 +603,10 @@ pub fn check(
             .record_pass(tag, cost_checkpoint, remaining);
         cost_checkpoint = remaining;
     };
-    if core.semantic.is_some() {
+    let input_lease = if core.semantic.is_some() {
         let mut remaining = closure_state.remaining_work();
         let before = remaining;
-        semantics::abi::prepare(
+        let lease = semantics::abi::prepare(
             &mut closure_state.semantic_emission,
             &[core],
             limits,
@@ -616,7 +616,10 @@ pub fn check(
         closure_state
             .snapshot(before - remaining, Span::default())
             .map_err(|error| vec![error])?;
-    }
+        lease
+    } else {
+        None
+    };
     mark_cost(
         "single: original ABI and universal source",
         closure_state.remaining_work(),
@@ -839,6 +842,7 @@ pub fn check(
         &[core],
         &mut module,
         &semantic_emission,
+        input_lease.as_ref(),
         limits,
         &mut remaining,
     )

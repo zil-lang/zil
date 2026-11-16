@@ -7,6 +7,7 @@ pub(crate) fn program(
     cores: &[&CoreModule],
     module: &mut TypedModule,
     ledger: &super::emission::Ledger,
+    input_lease: Option<&super::original_context::InputLease<'_>>,
     limits: &Limits,
     left: &mut usize,
 ) -> R<Option<SemanticModule>> {
@@ -37,7 +38,9 @@ pub(crate) fn program(
         &ledger.ordinary_stats,
         "finish: verify original inputs",
         left,
-        |left| context.verify_inputs(cores, ledger.frozen.as_ref(), limits, left),
+        |left| {
+            context.verify_leased_inputs(cores, ledger.frozen.as_ref(), input_lease, limits, left)
+        },
     )?;
     let mut result = stored::OrdinaryStats::step(
         &ledger.ordinary_stats,
