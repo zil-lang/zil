@@ -3,6 +3,51 @@
 use super::*;
 use zil_ir::ContractProjection;
 
+pub(super) fn upper_union(to: &mut Targets, from: &Targets, b: &mut Budget) -> CompileResult<bool> {
+    let mut changed = false;
+    for source in from {
+        ordered(b, to.len(), target_width(source))?;
+        fee(b, target_width(source).saturating_add(1))?;
+        changed |= to.insert(source.clone());
+    }
+    Ok(changed)
+}
+pub(super) fn upper_snapshot(upper: &Targets, b: &mut Budget) -> CompileResult<Targets> {
+    target_work(upper, b)?;
+    Ok(upper.clone())
+}
+pub(super) fn upper_substitute(
+    upper: &Targets,
+    arguments: &[ValueId],
+    values: &[Value],
+    state: &State,
+    b: &mut Budget,
+) -> CompileResult<Targets> {
+    let mut out = Targets::new();
+    for source in upper {
+        let selected = substitute(source, arguments, values, state, b)?;
+        upper_union(&mut out, &selected.targets, b)?;
+        let raw = super::raw_references::substitute_upper(source, arguments, values, state, b)?;
+        upper_union(&mut out, &raw, b)?;
+        if source.stored.is_empty() && source.retained_port.is_none()
+            && let HoldRoot::Parameter(index) = source.base {
+            let argument = arguments.get(index as usize)
+                .and_then(|id| values.get(id.0 as usize))
+                .ok_or_else(|| failure("opaque source category argument absent"))?;
+            upper_union(&mut out, &argument.source_upper, b)?;
+        }
+    }
+    Ok(out)
+}
+pub(super) fn publish_upper(upper: &Targets, roots: &mut BTreeSet<HoldRoot>, b: &mut Budget) -> CompileResult<()> {
+    for source in upper {
+        fee(b, target_width(source).saturating_add(1))?;
+        ordered(b, roots.len(), 0)?;
+        roots.insert(source.base);
+    }
+    Ok(())
+}
+
 fn static_result_upper(
     leaf: &Type,
     mode: StoredBorrowMode,
@@ -18,7 +63,7 @@ fn static_result_upper(
     }
     // A public category supplies no actual target or loan. In particular it
     // cannot ground an output-only class or erase a receiver parent.
-    out.static_upper = true;
+    upper_union(&mut out.source_upper, &Targets::from([target.clone()]), b)?;
     Ok(target)
 }
 
@@ -26,6 +71,7 @@ pub(super) fn work(value: &Value, b: &mut Budget) -> CompileResult<()> {
     if !b.dyn_contexts {
         return Ok(());
     }
+    target_work(&value.source_upper, b)?;
     fee(b, value.dyn_ports.len())?;
     for (path, permission) in &value.dyn_ports {
         fee(b, path.len().saturating_add(permission.loans.len()))?;
@@ -614,7 +660,13 @@ pub(super) fn transfer(
                         if *mutable || *mode != StoredBorrowMode::SharedAddress || leaf != &selected.result {
                             return Err(failure("dynamic owned result changes its complete leaf or mode"));
                         }
-                        match dyn_return::slot_owned_view(module, *interface, *slot, head, leaf, *mode, b)? {
+                        let actual_view = dyn_return::slot_owned_view(module, *interface, *slot, head, leaf, *mode, b)?;
+                        // The complete opaque source envelope keeps the real
+                        // receiver category even when no current provider
+                        // returns an inline child. This grants no data access.
+                        upper_union(&mut out.source_upper, &actual.pointer.targets, b)?;
+                        upper_union(&mut out.source_upper, &actual.source_upper, b)?;
+                        match actual_view {
                             Some(true) => {
                                 complete &= !actual.pointer.targets.is_empty();
                                 union(&mut out.pointer, &actual.pointer, b)?;
@@ -666,6 +718,7 @@ pub(super) fn transfer(
                             // The data target remains the retained source. The
                             // short receiver head contributes parent loans only.
                             let permission = select(actual, &[], *port, b)?;
+                            upper_union(&mut out.source_upper, &permission.targets, b)?;
                             union(&mut out.pointer, &permission, b)?;
                         } else {
                             complete = false;
@@ -678,10 +731,13 @@ pub(super) fn transfer(
                         return Err(failure("dyn result source is outside its actual receiver"));
                     }
                     if source.path.is_empty() {
+                        upper_union(&mut out.source_upper, &actual.pointer.targets, b)?;
+                        upper_union(&mut out.source_upper, &actual.source_upper, b)?;
                         union(&mut out.pointer, &actual.pointer, b)?;
                     } else {
                         ordered(b, actual.dyn_ports.len(), source.path.len())?;
                         if let Some(port) = actual.dyn_ports.get(&source.path) {
+                            upper_union(&mut out.source_upper, &port.targets, b)?;
                             union(&mut out.pointer, port, b)?;
                         } else {
                             complete = false;
@@ -778,16 +834,17 @@ pub(super) fn propagate(
             }
         }
         InstructionKind::ReborrowAddress { address, .. } => {
+            upper_union(&mut out.source_upper, &get(*address)?.source_upper, b)?;
             merge(out, get(*address)?, b)?;
         }
         InstructionKind::AddressField { address, index } => {
-            out.static_upper |= get(*address)?.static_upper;
+            upper_union(&mut out.source_upper, &get(*address)?.source_upper, b)?;
             projection(out, get(*address)?,
                 &[ContractProjection::Place(PlaceProjection::Field(*index))], b)?;
         }
         InstructionKind::AddressIndex { address, .. }
         | InstructionKind::AddressSlice { address, .. } => {
-            out.static_upper |= get(*address)?.static_upper;
+            upper_union(&mut out.source_upper, &get(*address)?.source_upper, b)?;
         }
         InstructionKind::MakeAggregate { fields }
         | InstructionKind::MakePackage { fields }
@@ -854,7 +911,7 @@ pub(super) fn propagate(
 mod tests {
     use super::*;
     #[test]
-    fn unused_static_category_survives_local_transport_without_actual_static_authority() {
+    fn complete_source_categories_survive_transport_without_actual_authority() {
         let mut b = Budget::new(&Limits::default());
         b.dyn_contexts = true;
         let leaf = Type::Address { mutable: false, inner: Box::new(Type::I32) };
@@ -862,11 +919,12 @@ mod tests {
         let owner = Target { base: HoldRoot::Local(LocalId(4)), stored: vec![], place: vec![],
             retained_port: None, heap_element: None, heap_parents: vec![] };
         let external = Target { base: HoldRoot::Parameter(0), ..owner.clone() };
-        call.pointer = Permission { targets: Targets::from([owner.clone(), external.clone()]),
+        call.pointer = Permission { targets: Targets::from([external.clone()]),
             loans: Loans::from([7, 9]) };
         let before = call.pointer.clone();
         static_result_upper(&leaf, StoredBorrowMode::SharedAddress, &leaf, false, &mut call, &mut b).unwrap();
-        assert!(call.static_upper);
+        upper_union(&mut call.source_upper, &Targets::from([owner.clone(), external.clone()]), &mut b).unwrap();
+        assert_eq!(call.source_upper.len(), 3);
         assert_eq!(call.pointer, before, "category cannot change data targets or parents");
         // These are the same snapshots used by Store and Load. Reborrows and
         // CFG joins use merge; neither may convert the category into a target.
@@ -874,11 +932,33 @@ mod tests {
         let loaded = snapshot(&local, &mut b).unwrap();
         let mut joined = Value::default();
         assert!(super::super::merge(&mut joined, &loaded, &mut b).unwrap());
-        assert!(joined.static_upper);
+        assert_eq!(joined.source_upper, call.source_upper);
         assert_eq!(joined.pointer, before);
-        assert_eq!(roots(&joined, &mut b).unwrap(), Targets::from([owner, external]));
-        assert!(roots(&Value { static_upper: true, ..Value::default() }, &mut b).unwrap().is_empty(),
+        assert_eq!(roots(&joined, &mut b).unwrap(), Targets::from([external]));
+        let mut public = joined.pointer.targets.iter().map(|t| t.base).collect();
+        publish_upper(&joined.source_upper, &mut public, &mut b).unwrap();
+        assert_eq!(public, BTreeSet::from([HoldRoot::Local(LocalId(4)), HoldRoot::Parameter(0), HoldRoot::Static]));
+        assert!(roots(&Value { source_upper: Targets::from([owner]), ..Value::default() }, &mut b).unwrap().is_empty(),
             "an UpperOnly row cannot bootstrap an actual target");
+    }
+
+    #[test]
+    fn source_categories_substitute_the_caller_namespace_and_keep_argument_uppers() {
+        let mut b = Budget::new(&Limits::default());
+        b.dyn_contexts = true;
+        let target = |base| Target { base, stored: vec![], place: vec![], retained_port: None,
+            heap_element: None, heap_parents: vec![] };
+        let mut argument = Value::default();
+        argument.pointer.targets.insert(target(HoldRoot::Local(LocalId(8))));
+        argument.pointer.loans.insert(17);
+        argument.source_upper = Targets::from([target(HoldRoot::Static), target(HoldRoot::Local(LocalId(9)))]);
+        let before = argument.clone();
+        let summary = Targets::from([target(HoldRoot::Parameter(0)), target(HoldRoot::Static)]);
+        let result = upper_substitute(&summary, &[ValueId(0)], &[argument.clone()], &State::default(), &mut b).unwrap();
+        assert_eq!(result, Targets::from([target(HoldRoot::Local(LocalId(8))),
+            target(HoldRoot::Local(LocalId(9))), target(HoldRoot::Static)]));
+        assert_eq!(argument, before);
+        assert_eq!(argument.pointer.loans, Loans::from([17]));
     }
 
     #[test]
@@ -892,7 +972,7 @@ mod tests {
         ] {
             let mut out = Value::default();
             assert!(static_result_upper(&leaf, mode, &actual, mutable, &mut out, &mut b).is_err());
-            assert!(!out.static_upper);
+            assert!(out.source_upper.is_empty());
             assert!(out.pointer.targets.is_empty());
         }
     }

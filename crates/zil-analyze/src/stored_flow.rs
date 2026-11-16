@@ -713,9 +713,9 @@ struct Value {
     enum_variants: enum_address::Variants,
     option_variants: option_address::Variants,
     pointer: Permission,
-    /// A conservative opaque address-result category, never an actual target
-    /// or loan. Only the final public Hold projection consumes this bit.
-    static_upper: bool,
+    /// Conservative opaque address-result origins, never actual permissions
+    /// or loans. Only the final public Hold projection consumes these rows.
+    source_upper: Targets,
     /// DescribeAddress transports an actual weak manager origin. It does not
     /// itself grant an element address or public Hold.
     store_description: Permission,
@@ -803,8 +803,8 @@ fn pointer_anchors(
 pub(super) struct Facts {
     mutex_returns: mutex::Returns,
     pub values: Vec<Vec<Target>>,
-    static_upper_values: BTreeSet<ValueId>,
-    returned_static_upper: bool,
+    source_upper_values: BTreeMap<ValueId, Targets>,
+    returned_source_upper: Targets,
     byte_view_values: BTreeSet<ValueId>,
     pointer_values: Vec<Vec<HoldRoot>>,
     task_port_values: Vec<crate::budget::TaskRetainedRoots>,
@@ -920,8 +920,7 @@ fn environment_merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileRes
 }
 fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = union(&mut to.pointer, &from.pointer, b)?;
-    changed |= from.static_upper && !to.static_upper;
-    to.static_upper |= from.static_upper;
+    changed |= dyn_address::upper_union(&mut to.source_upper, &from.source_upper, b)?;
     changed |= union(&mut to.store_description, &from.store_description, b)?;
     changed |= task_address::merge(to, from, b)?;
     changed |= dyn_address::merge(to, from, b)?;
@@ -974,7 +973,7 @@ fn snapshot(value: &Value, b: &mut Budget) -> CompileResult<Value> {
         enum_variants,
         option_variants,
         pointer: copy_permission(&value.pointer, b)?,
-        static_upper: value.static_upper,
+        source_upper: dyn_address::upper_snapshot(&value.source_upper, b)?,
         store_description: copy_permission(&value.store_description, b)?,
         task_ports: if b.task_sources() {
             copy_permission_rows(&value.task_ports, b)?
@@ -1098,7 +1097,9 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
 }
 
 fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
-    fee(b, f.static_upper_values.len().saturating_add(usize::from(f.returned_static_upper)))?;
+    target_work(&f.returned_source_upper, b)?;
+    fee(b, f.source_upper_values.len())?;
+    for upper in f.source_upper_values.values() { target_work(upper, b)?; }
     mutex::work(&f.mutex_returns, b)?;
     if !f.byte_view_values.is_empty() {
         fee(b, f.byte_view_values.len())?;
@@ -4747,14 +4748,14 @@ fn transfer(
                 .get(function.0 as usize)
                 .ok_or_else(|| failure("callee stored summary absent"))?;
             if matches!(callee.return_type, Type::Address { .. }) {
-                out.static_upper = summary.returned_static_upper;
+                out.source_upper = dyn_address::upper_substitute(&summary.returned_source_upper, arguments, values, state, b)?;
                 if let Some(sources) = summary.returned.get(&Vec::new()) {
                     for source in sources {
                         if source.stored.is_empty() && source.retained_port.is_none()
                             && let HoldRoot::Parameter(index) = source.base {
                             let argument = *arguments.get(index as usize)
                                 .ok_or_else(|| failure("opaque address category argument absent"))?;
-                            out.static_upper |= get(argument)?.static_upper;
+                            dyn_address::upper_union(&mut out.source_upper, &get(argument)?.source_upper, b)?;
                         }
                     }
                 }
@@ -7426,8 +7427,8 @@ fn derive_cfg(
             let mut actual = Facts {
                 mutex_returns: mutex::Returns::default(),
                 values: Vec::with_capacity(values.len()),
-                static_upper_values: BTreeSet::new(),
-                returned_static_upper: false,
+                source_upper_values: BTreeMap::new(),
+                returned_source_upper: Targets::new(),
                 byte_view_values: BTreeSet::new(),
                 pointer_values: Vec::new(),
                 task_port_values: Vec::new(),
@@ -7469,9 +7470,9 @@ fn derive_cfg(
                 none_values: BTreeSet::new(),
             };
             for (id, value) in values.iter().enumerate() {
-                if value.static_upper {
-                    fee(b, 1)?;
-                    actual.static_upper_values.insert(ValueId(id as u32));
+                if !value.source_upper.is_empty() {
+                    ordered(b, actual.source_upper_values.len(), 0)?;
+                    actual.source_upper_values.insert(ValueId(id as u32), dyn_address::upper_snapshot(&value.source_upper, b)?);
                 }
                 if value.enum_variants.present() {
                     value.enum_variants.work(b)?;
@@ -7793,7 +7794,7 @@ fn derive_cfg(
                     };
                     if matches!(f.return_type, Type::Address { .. }) {
                         add(&Vec::new(), &value.pointer)?;
-                        actual.returned_static_upper |= value.static_upper;
+                        dyn_address::upper_union(&mut actual.returned_source_upper, &value.source_upper, b)?;
                     }
                     for (path, permission) in &value.slots {
                         add(path, permission)?;
@@ -8516,9 +8517,9 @@ pub(super) fn infer(
                     roots.insert(target.base);
                 }
             }
-            if !weak_description && function.static_upper_values.contains(&ValueId(id as u32)) {
-                ordered(b, function.static_upper_values.len(), 0)?;
-                roots.insert(HoldRoot::Static);
+            ordered(b, function.source_upper_values.len(), 0)?;
+            if !weak_description && let Some(upper) = function.source_upper_values.get(&ValueId(id as u32)) {
+                dyn_address::publish_upper(upper, &mut roots, b)?;
             }
             rows.push(ValueHold {
                 value: ValueId(id as u32),
