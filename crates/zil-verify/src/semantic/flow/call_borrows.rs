@@ -3,26 +3,45 @@
 //! caller's original lifetime actual/result image.
 use super::*;
 impl CheckedContext {
-    /// Invocation images come from the exact checked original operands. An
-    /// extra compiler argument reborrow is an input role, not the lifetime of
+    /// Only exported fresh borrow heads use the checked original operand
+    /// image. An extra compiler reborrow is an input role, not the lifetime of
     /// an opaque/nominal result that retains the original caller occurrence.
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn original_call_inputs(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<CheckedType>>{
-        let recipes=self.original.borrow().as_ref().ok_or_else(||bad("Call inputs have no universal original body proof"))?.call_input_recipes(module,caller.definition,site.recipe,b)?;
-        if recipes.len()!=arguments.len(){return Err(bad("actual Call inputs change the exact original argument arity"));}
+    pub(super) fn original_call_inputs(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,signature:&CheckedSignature,key:ScopeKey,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<CheckedType>>{
+        if signature.parameters.len()!=arguments.len(){return Err(bad("actual Call inputs change the complete callee signature arity"));}
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=caller.target else{return Err(bad("original Call inputs have no actual caller function"));};
         let f=module.functions.get(function.0 as usize).filter(|row|row.id==function).ok_or_else(||bad("original Call input actual caller is absent"))?;
         b.spend(arguments.len())?;
         let mut checked=Vec::with_capacity(arguments.len());
-        for((node,recipe,origin),argument)in recipes.iter().zip(arguments){
+        let mut adapted=Vec::new();
+        for(index,argument)in arguments.iter().enumerate(){
+            let actual=value_at(values,*argument)?;
+            actual.charge_clone(b)?;checked.push(actual.clone());
+            // Ordinary ownership, manager/Desc category adaptation and whole
+            // Type arguments keep their already reconstructed actual domain.
+            // The later invariant callee P/R check is their authority. Only a
+            // fresh outer invocation head exported by R needs an original
+            // caller image instead of an extra compiler argument-reborrow head.
+            if !returned_input_head(signature,key,index,b)?||!matches!(actual.ty,Type::Address{..}){continue;}
+            let mut producer=None;
+            for block in &f.blocks{b.spend(block.instructions.len())?;for operation in &block.instructions{
+                if operation.result==Some(*argument)&&producer.replace(operation).is_some(){return Err(bad("Call argument adapter has several actual SSA definitions"));}
+            }}
+            let producer=producer.ok_or_else(||bad("Call argument adapter has no actual SSA definition"))?;
+            crate::check_instruction(module,f,producer,b)?;
+            if matches!(producer.kind,InstructionKind::ReborrowAddress{..}){b.spend(1)?;adapted.push(index);}
+        }
+        if adapted.is_empty(){return Ok(checked);}
+        let recipes=self.original.borrow().as_ref().ok_or_else(||bad("Call inputs have no universal original body proof"))?.call_input_recipes(module,caller.definition,site.recipe,b)?;
+        if recipes.len()!=arguments.len(){return Err(bad("actual Call inputs change the exact original argument arity"));}
+        for index in adapted{
+            let(node,recipe,origin)=&recipes[index];let argument=arguments[index];
             let source=self.evaluate_type(module,recipe,environment,external,active,b)?;
-            if matches!(source.ty,Type::Address{..}|Type::Desc(_))&&source.life.binder_count!=0{
-                self.call_input_source(module,caller,f,*argument,*node,*origin,b)?;
+            self.call_input_source(module,caller,f,argument,*node,*origin,b)?;
+            if !self.call_argument(module,caller,argument,values,&source,environment,b)?{
+                return Err(bad("actual Call input changes its original whole operand or exact argument reborrow role").with_note(format!("original {:?}, call {:?}, operand {index} expression {:?}, actual SSA {:?}, point {:?}; source domain {}, actual domain {}",caller.definition,site.recipe,node,argument,environment.at,source.life.binder_count,checked[index].life.binder_count)));
             }
-            if !self.call_argument(module,caller,*argument,values,&source,environment,b)?{
-                return Err(bad("actual Call input changes its original whole operand or exact argument reborrow role"));
-            }
-            checked.push(source);
+            checked[index]=source;
         }
         Ok(checked)
     }
@@ -111,6 +130,24 @@ impl CheckedContext {
     }
 }
 
+// Select an existing, complete signature occurrence. This is not a shape or
+// same-sigma test: no class is substituted unless this exact fresh parameter
+// head is also one of R's original external images.
+fn returned_input_head(signature:&CheckedSignature,key:ScopeKey,index:usize,b:&mut Budget)->Check<bool>{
+    let expected=&signature.parameters.get(index).ok_or_else(||bad("Call input head selects an absent parameter"))?.0;
+    if !matches!(expected.ty,Type::Address{..}){return Ok(false);}
+    b.spend(expected.life.slots.len())?;
+    let mut outer=expected.life.slots.iter().filter(|row|row.path.is_empty());
+    let Some(slot)=outer.next()else{return Ok(false);};
+    if outer.next().is_some(){return Err(bad("Call input has several original outer head occurrences"));}
+    let source=expected.classes.get(slot.binder as usize).ok_or_else(||bad("Call parameter head class is absent"))?;
+    b.spend(signature.invocation.len().saturating_add(signature.bound.len()).saturating_add(signature.result.classes.len()))?;
+    let fresh=signature.invocation.contains(source)||signature.bound.contains(source)
+        ||matches!(source,ClassKey::Implicit{scope,..}if *scope==key)
+        ||matches!(source,ClassKey::Outer{scope,operand:OperandKey::Parameter(ordinal),path,mode}if *scope==key&&*ordinal==index as u32&&path.is_empty()&&*mode==slot.mode);
+    Ok(fresh&&signature.result.classes.contains(source))
+}
+
 fn loaded_parameter(f:&TypedFunction,value:ValueId,b:&mut Budget)->Check<bool>{
     let mut selected=None;
     for block in &f.blocks{b.spend(block.instructions.len())?;for operation in &block.instructions{if operation.result==Some(value)&&selected.replace(operation).is_some(){return Err(bad("Call parameter head has several actual SSA definitions"));}}}
@@ -151,12 +188,28 @@ mod input_image_tests{
         let mut b=Budget::new(&Limits::default());
         let context=CheckedContext::catalogue(&module,&mut b).unwrap();
         let owner=SemanticDefinitionId{module:module.module_id,index:0};
-        let call=ScopeKey::Witness{definition:owner,frame:0};
+        let call=ScopeKey::Witness{definition:owner,frame:crate::semantic::api::FrameToken(0)};
         let caller=ScopeKey::Instance(SemanticInstanceId{module:module.module_id,index:0});
         let env=EvalEnv{lexical:vec![],assumptions:vec![],images:vec![],bounds:vec![],invocations:vec![],at:None};
         let fresh=[ClassKey::Implicit{scope:call,ordinal:0},ClassKey::Implicit{scope:call,ordinal:1}];
         let origins=(0..2).map(|class|IntrinsicOrigin::Existing{scope:caller,operand:OperandKey::Receiver,path:vec![],class}).collect::<Vec<_>>();
         let template=CheckedSignature{parameters:fresh.iter().cloned().map(|key|(address(key),PassingMode::Borrow)).collect(),result:CheckedType{type_cell:crate::semantic::CheckedTypeData::new(Type::Closure(ClosureId(0))),life:StorageLifeShape{binder_count:2,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:fresh.to_vec(),origins:origins.clone(),statics:vec![]},result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound:vec![],invocation:vec![]};
+        assert!(returned_input_head(&template,call,0,&mut b).unwrap());
+        assert!(returned_input_head(&template,call,1,&mut b).unwrap());
+        // Unit/scalar calls, manager descriptions and already fixed caller
+        // classes do not export a fresh compiler-address role. Their actual
+        // whole domains stay under the existing callee P/R proof.
+        let mut ordinary=template.clone();
+        ordinary.result=CheckedType{type_cell:crate::semantic::CheckedTypeData::new(Type::Unit),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
+        assert!(!returned_input_head(&ordinary,call,0,&mut b).unwrap());
+        ordinary=template.clone();ordinary.parameters[0].0.type_cell=crate::semantic::CheckedTypeData::new(Type::Desc(Box::new(Type::I32)));
+        ordinary.parameters[0].0.life.slots[0].mode=StoredBorrowMode::WritableDescription;
+        assert!(!returned_input_head(&ordinary,call,0,&mut b).unwrap());
+        ordinary=template.clone();ordinary.parameters[0].0=address(ClassKey::Implicit{scope:caller,ordinal:0});
+        ordinary.result.classes[0]=ordinary.parameters[0].0.classes[0].clone();
+        assert!(!returned_input_head(&ordinary,call,0,&mut b).unwrap());
+        ordinary=template.clone();ordinary.result.classes=vec![fresh[1].clone();2];
+        assert!(!returned_input_head(&ordinary,call,0,&mut b).unwrap(),"another same-shaped parameter cannot donate a returning head");
         for equal_image in [false,true]{
             let a=ClassKey::Implicit{scope:caller,ordinal:0};
             let z=ClassKey::Implicit{scope:caller,ordinal:if equal_image{0}else{1}};

@@ -706,7 +706,7 @@ impl CheckedContext {
         let mut signature=self.world_signature(module,signature,worlds,environment,external,active,b)?;
         if signature.parameters.len()!=arguments.len() {return Err(bad("actual Call operand count differs from its original signature"));}
         b.spend(arguments.len())?;
-        let source_inputs=self.original_call_inputs(module,caller,site,arguments,values,environment,external,active,b)?;
+        let source_inputs=self.original_call_inputs(module,caller,site,&signature,key,arguments,values,environment,external,active,b)?;
         let inputs=source_inputs.iter().collect::<Vec<_>>();
         self.instantiate_call_heads(&mut signature,&inputs,key,environment,b)?;
         let actual_function=module.functions.get(callee.0 as usize).ok_or_else(||bad("actual Call function is absent"))?;
