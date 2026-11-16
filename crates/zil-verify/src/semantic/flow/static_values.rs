@@ -10,13 +10,21 @@ impl CheckedContext {
         let mut matched=false;
         for site in &programme.sites{
             b.spend(1)?;if site.instance!=instance.id{continue;}
-            let SemanticSiteAddress::Typed{block,instruction:at,..}=site.at else{return Err(bad("static source retains a Core operation"));};
-            let operation=f.blocks.get(block.0 as usize).and_then(|block|block.instructions.get(at as usize)).ok_or_else(||bad("static literal source has no actual site operation"))?;
+            let SemanticSiteAddress::Typed{block,instruction:at,edge}=site.at else{return Err(bad("static source retains a Core operation"));};
+            let block=f.blocks.get(block.0 as usize).ok_or_else(||bad("static literal source has no actual site block"))?;
+            if at as usize>block.instructions.len()||at as usize==block.instructions.len()&&edge!=SemanticSiteEdge::Before{return Err(bad("static literal source is outside its actual instruction/terminator boundary"));}
+            // A TypeUse may observe an SSA value before a terminator. Only
+            // Store/Call source roles require an instruction at this address.
+            let operation=block.instructions.get(at as usize);
             let mut candidates=Vec::new();
             match &site.action{
                 SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),..}=>{candidates.push((*value,None));},
-                SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(local),..}=>if let InstructionKind::Store{local:actual,value}=operation.kind{if actual==*local{candidates.push((value,None));}},
+                SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(local),..}=>{
+                    let operation=operation.ok_or_else(||bad("static local source selects a terminator instead of its actual Store"))?;
+                    if let InstructionKind::Store{local:actual,value}=operation.kind{if actual==*local{candidates.push((value,None));}}
+                },
                 SemanticSiteAction::BodyCall{..}|SemanticSiteAction::Call{..}|SemanticSiteAction::CallableCall{..}=>{
+                    let operation=operation.ok_or_else(||bad("static Call source selects a terminator instead of its actual Call"))?;
                     let(args,receiver_argument)=match &operation.kind{
                         InstructionKind::Call{arguments,..}|InstructionKind::ForeignCall{arguments,..}|InstructionKind::SuspendCall{arguments,..}=>(arguments,true),
                         InstructionKind::CallIndirect{arguments,..}|InstructionKind::CallDynSlot{arguments,..}|InstructionKind::CallClosure{arguments,..}|InstructionKind::CallClosureOnce{arguments,..}|InstructionKind::CallClosureBorrowed{arguments,..}|InstructionKind::CallClosureShared{arguments,..}|InstructionKind::CallClosureMut{arguments,..}=>(arguments,false),
