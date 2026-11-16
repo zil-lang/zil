@@ -9,3 +9,5 @@
 最后正式原生仅属7e08aeefa：冷3.759/R6.327s，关闭→先改→新进程首编3.385/R1.099s仍输，不转记当前源码。下一短板是重启全量Expand/Types/缓存恢复与发布、最新稀疏函数项持久化，以及对象命中前整机/分区重建。全面/main/工业门开放。
 
 按[compiler-performance skill](../../../.agents/skills/compiler-performance/SKILL.md)，只保精简结论，不全量打包或LLVM重建。SDK18/native-link复用固定e85/V32；原Verify/预算/O2及研究默认关保持。175/98fa/021997数字各归原源，goal/archive不合main。
+
+另有普通CLI全进程12请求/4格：Fresh ZIL1.745/R.026s（Rust没启动）；同字节mtime强制rustc ZIL1.051/R.432s，仍输。普通CLI默认容量32，原resident256，两种模式不混算启动差；工具c0bae7d02，编译器仍54a。skill已记录完整进程时钟与调用模式规则。

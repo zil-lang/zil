@@ -278,5 +278,25 @@
   "independent_Verify": true,
   "main_merge": false,
   "full_run_archives_created": false,
-  "goal_archive_never_merge_main": true
+  "goal_archive_never_merge_main": true,
+  "cli_restart_control": {
+    "source": "54a0258ab9e081085254084e4b081309dc06eda9",
+    "tool_source": "c0bae7d02721b660939831768e85aec90bd117e2",
+    "rows": 12,
+    "quality_cells": 4,
+    "clock": "Popen through process exit for all arms; includes startup/compile/teardown",
+    "invocation": "ordinary nonresident CLI default session32; main matrix resident capacity256; do not interpret difference as startup alone",
+    "median_ms": {
+      "fresh": {
+        "baseline": 107.9469795,
+        "candidate": 1744.65506,
+        "rust": 25.918818
+      },
+      "forced-rustc": {
+        "baseline": 66.165324,
+        "candidate": 1050.962993,
+        "rust": 432.4676685
+      }
+    }
+  }
 }
