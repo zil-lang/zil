@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-16T06:00:27.843257+00:00",
+  "updated_at_utc": "2026-11-16T09:11:06.064527+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -14,8 +14,8 @@
     "acceptance": "Partial exact-scope successes; Task and ordinary application fail; NOT ACCEPTED"
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "3f6d1bb5804a2d54a26a629180f17e1afa2a6c7f",
-  "current_candidate_under_validation": "640cf3879dca9a7ee854542191ae2068e1f9528a",
+  "latest_ready_source": "3bd735bce",
+  "current_candidate_under_validation": "694354465",
   "wip_backup": {
     "archive_commit": "ef484badb5b7df79aa414e7a5d24267755df5cb4",
     "previous_archive": "2cd99f4b2d88a9df818a742bd464d2a61a115f88",
@@ -113,8 +113,8 @@
     "public_profile": "13 positive anchors retained; full CT/C/native/failure exits remain required. No additional positive declared illegal.",
     "root_correction": "Overbroad type-occurrence cleanup ABI upper reverted in full, 3c24419bd."
   },
-  "execution_state": "RESUMED BY USER; complete functional chains under personal audit constraints",
-  "last_completed_candidate": "640cf3879dca9a7ee854542191ae2068e1f9528a",
+  "execution_state": "RESUMED BY USER; full Alpha chains active, no required user input",
+  "last_completed_candidate": "694354465",
   "personal_workflow_audit": {
     "reviewer": "root personally",
     "subagent_review_used": false,
@@ -227,52 +227,26 @@
     ]
   },
   "latest_actual_checkpoint": {
-    "candidate": "640cf3879dca9a7ee854542191ae2068e1f9528a",
+    "candidate": "694354465",
     "source_positive_passed": 10,
     "source_positive_total": 13,
     "expected_negatives_passed": 4,
-    "source_receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-local-roles-resource-ledgers-and-projection-visibility/core-coverage/receipt.json",
+    "source_receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-fair-cfg-and-stored-state-transfers/core-coverage/receipt.json",
     "remaining_foundation": {
-      "ownership": "Verify legacy pure Copy selector incorrectly sees owning ErrorUnion whole payload at ErrorTag/TakeErrorUnion; full owning/resource ledger batch ba96 already integrated",
-      "owning-collections": "Analyze default 10M work bound; full input-Type geometry and Source producer fixes saved for next candidate",
-      "iteration": "All original43 and actual15 worlds complete; Verify default10M exhausted during subsequent typed-shape preflight"
+      "ownership": "Independent Verify reaches actual resource CFG, still default10M ResourceLimit; generic DAG scheduling and snapshot removal saved694354465 reduce actual repeated work but do not yet pass",
+      "iteration": "All original43 and actual15 worlds complete; independent Verify reaches actual stored CFG Fn14, still default10M ResourceLimit",
+      "owning-collections": "Analyze default10M ResourceLimit after original semantic proof; exact c43 full Analyze minimum12,731,147; application minimum15,403,699. Real immutable child identity transport in implementation"
     },
     "extra_original_sources": {
+      "candidate": "c43c361e99304c4a0022d9b885ab863ad3106c06",
       "passed_independent_verify": 4,
       "total": 12,
-      "successes": [
-        "two-addresses",
-        "nested-borrowed",
-        "wrapped-borrowed",
-        "loan_control"
-      ],
-      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-local-roles-resource-ledgers-and-projection-visibility/complete-original-checks/receipt.json",
-      "remaining": "Holder/owned-projected old stored composition; Dyn composition/static literal sources; loop signature role relation"
-    },
-    "native_new_returned_closure_chains": {
-      "candidate": "640cf3879dca9a7ee854542191ae2068e1f9528a",
-      "cases": [
-        "nested-borrowed",
-        "wrapped-borrowed"
-      ],
-      "requested_backends": [
-        "clang",
-        "llvm-api"
-      ],
-      "optimizations": [
-        "O0",
-        "O2"
-      ],
-      "builds": 8,
-      "executions": 8,
-      "passed": 8,
-      "all_exit": 0,
-      "independent_verify_required": true,
-      "fallback": false,
-      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-local-roles-resource-ledgers-and-projection-visibility/fresh-original-native/receipt.json"
+      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-analyze-scale-and-written-generic-arguments/complete-original-checks/receipt.json",
+      "remaining": "Dedicated Source/Types call-region production still being paired; context-read needs independent canonical default Context contract instantiation; projected owned-holder class relation remains. Static sole-source and physical referent boundary fixes saved after this run"
     },
     "core_units": {
-      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-local-roles-resource-ledgers-and-projection-visibility/core-unit-regressions/receipt.json",
+      "candidate": "c43c361e99304c4a0022d9b885ab863ad3106c06",
+      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-analyze-scale-and-written-generic-arguments/core-unit-regressions/receipt.json",
       "ir": [
         103,
         0
@@ -286,46 +260,44 @@
         0
       ],
       "analyze": [
-        301,
-        3
+        304,
+        0
       ],
       "verify": [
-        779,
-        19
+        790,
+        22
       ],
-      "ignored": 0,
-      "analysis_failures": "Two raw qualified physical-slot fixture/semantic regressions assigned to A owner; one exact work pin measured12574 after full N/N-1/fresh/warm controls"
+      "ignored": 0
     },
     "explicit_budget_diagnostic": {
       "authority": "DIAGNOSTIC_ONLY_NOT_ACCEPTANCE",
-      "candidate": "f850fe52d10cc2c53c99006bd5581dab7c3ade82",
+      "candidate": "c43c361e99304c4a0022d9b885ab863ad3106c06",
       "default_budget": 10000000,
-      "diagnostic_budget": 20000000,
-      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-static-executable-audit-and-captured-root-equations/diagnostic-explicit-20m/receipt.json",
-      "iteration": "Complete original Source Success/Verify1 under explicit20M; formal10M remains failed",
-      "application_and_collections": "All original/actual semantic worlds and publication passed, then old Direct-only stored ABI guard blocked run/main. Source original KeyHash/KeyEq declarations are Direct; store_at lost scoped element return, inferred false Suspend. Complete producer fix saved83aa1204b, not yet run."
+      "diagnostic_budget": 50000000,
+      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-analyze-scale-and-written-generic-arguments/diagnostic-explicit-50m/receipt.json",
+      "app_and_collections": "Both cross the old omitted-Life written-kind error and reach Verify original borrow projected parent relation failure in owning_hash_map.get; actual map.entries observation loses parent. Full-chain owner actively implementing; no Alpha acceptance",
+      "analyze_exact_boundaries": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-analyze-scale-and-written-generic-arguments/diagnostic-analyze-boundaries/receipt.json"
     },
-    "integrated_unvalidated": [
-      "af3185f37 immutable input Type roots and full fresh shape reuse",
-      "83aa1204b complete Store/owned_dyn scoped result effect inference",
-      "3f6d1bb58 full scoped synchronous ABI/resource/returned-source consumers"
-    ],
     "github_crates_recovery": {
-      "commit": "982f1324969a00d8befac2b8a23b6e7cdcfa5870",
-      "source_head": "d638ad2a80d4fa8ca00a6e8695bef83beb4a0b6c",
-      "path": "language/20261116T052700Z-approved-source-recovery/recovery.tar.gz.base64",
-      "decoded_bytes": 830245,
-      "decoded_sha256": "13a5472da0384d9766612175e29f8d3b1e654125456f1d3476941fa2c45d47a5",
-      "readback_equal": true,
-      "method": "Exact raw public file readback; contents API omits files over1MiB"
+      "source_head": "c43c361e99304c4a0022d9b885ab863ad3106c06",
+      "remote_commit": "65bcbb1c288bd6d83ecce26a99c93b3849925a4a",
+      "size": 1002214,
+      "sha256": "77f033f0faadf8a714ea4a2e57944f57f24b680484c19577d04d3e0573afe97a",
+      "path": "language/20261116T085806Z-approved-source-recovery/recovery.tar.gz",
+      "readback_verified": true
     },
-    "full_local_recovery": {
-      "path": "/workspace/.zil-env/alpha-local-recovery-20261116T052700Z/language-alpha-recovery.tar.gz",
-      "sha256": "2665580b4bc969fb92e9b485ba40a8021301d8f9bcc97b8a52c788b5d6352407"
-    },
-    "infrastructure": "ef37 core build failed ENOSPC before unit execution; original failure retained. Reproducible incremental caches pruned, compiled artifacts/source/logs preserved; subsequent f850 and640 core executed completely.",
-    "publication_limitation": "Formal task/language-alpha remote ref remains old; expanded tests/tools/Cargo.lock and goal publication previously rejected by auto-review, retained locally. Approved crates-only recoveries verified. Ongoing implementation requires no new user input.",
-    "acceptance": "NOT ACCEPTED; no Alpha PR/merge/release"
+    "active_chains": [
+      "Analyze full immutable input/child identity through actual consumers",
+      "Source+Types complete call-region occurrence production and all-source lifetime solving",
+      "Independent Verify observed projection parent propagation and canonical default Context contracts",
+      "Independent Verify actual resource/stored CFG cost reduction"
+    ],
+    "integrated_unvalidated": [
+      "edad87d1d Static-derived call regions keep actual Static sources without variable Static binders",
+      "3bd735bce complete referent intrinsic class boundaries and physically qualified Context fixture"
+    ],
+    "workflow_correction": "Source owner was not actually running; verified old zeroWIP handoff and created active Sol owner. READY immediately committed. Do not treat send_message as resumed execution. Diagnostic stage now distinguishes actual resources/storedCFG from old stale typed-shape label.",
+    "acceptance": "NOT ACCEPTED; no Alpha PR/merge/release; no sum across candidates"
   },
   "chain_lessons": "records/language-alpha-chain-lessons-20261116.md",
   "interface_status_question": {
