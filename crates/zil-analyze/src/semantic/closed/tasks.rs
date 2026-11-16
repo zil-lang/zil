@@ -4,6 +4,25 @@ use super::*;
 use crate::semantic::value;
 
 impl Check<'_, '_> {
+    pub(super) fn task_result(&self, instance: &SemanticInstance, function: &TypedFunction,
+        block: BlockId, index: usize, b: &mut Budget) -> CompileResult<value::Value> {
+        let mut selected = None;
+        for site in self.inventory.sites_at(self.program, instance.id, block, index, SemanticSiteEdge::After, b)? {
+            let SemanticSiteAction::BodyCall { actuals } = &site.action else { continue; };
+            let intrinsic = self.original.intrinsic(instance, site.recipe, self.inventory, b)?
+                .ok_or_else(|| fail("Task result has no original intrinsic scheme"))?;
+            if intrinsic != original::sealed::Intrinsic::TaskCreate {
+                return Err(fail("Task result replaces another original intrinsic"));
+            }
+            let ty = self.task_operation(instance, site.recipe, intrinsic, function, block, index, actuals, b)?;
+            let output = self.original.intrinsic_output(instance, site.recipe, self.program, self.inventory, b)?;
+            if !geometry::same_type(&ty, &output.ty, b)? || selected.replace(output).is_some() {
+                return Err(fail("Task result has another complete original carrier or duplicate creator"));
+            }
+        }
+        selected.ok_or_else(|| fail("Task result lacks its exact original creator receipt"))
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn task_operation(
         &self,

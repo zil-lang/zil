@@ -137,6 +137,9 @@ impl Check<'_, '_> {
             }
             return Ok(selected);
         }
+        if self.task_domain(child, b)?.is_some() {
+            return self.task_projection(&parent, child, selector, b);
+        }
         let Type::Address {
             mutable: false,
             inner,

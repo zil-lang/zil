@@ -208,6 +208,78 @@ pub(super) fn unary(kind: geometry::Unary, inner: Value, b: &mut Budget) -> Comp
     )?;
     Ok(Value::from_geometry(geometry, inner.classes))
 }
+/// A resource carrier preserves every child coordinate. It has no physical
+/// borrow slots of its own; these type paths grant no loan or cleanup right.
+pub(super) fn resource(kind: geometry::Unary, inner: Value, b: &mut Budget) -> CompileResult<Value> {
+    let prefix = match kind {
+        geometry::Unary::OwnedStore => LifeTypeProjection::Element,
+        geometry::Unary::Managed | geometry::Unary::Mutex
+        | geometry::Unary::Registration | geometry::Unary::AsyncRegistration => LifeTypeProjection::Pointee,
+        _ => return Err(fail("resource domain transport changes its constructor family")),
+    };
+    let life = inherited_domain(&inner.life, prefix, b)?;
+    if inner.classes.len() != inner.life.binder_count as usize {
+        return Err(fail("resource child omits a complete intrinsic class"));
+    }
+    let geometry = geometry::construct(geometry::Constructor::Unary(kind), &[&inner.geometry], life, b)?;
+    Ok(Value::from_geometry(geometry, inner.classes))
+}
+fn inherited_domain(child: &StorageLifeShape, prefix: LifeTypeProjection, b: &mut Budget) -> CompileResult<StorageLifeShape> {
+    crate::dyn_metadata::shape(child, b)?;
+    let mut retained = Vec::new();
+    for class in 0..child.binder_count {
+        put(&mut retained, StorageRetainedBinding { path: vec![prefix.clone()], class, binder: class }, b)?;
+    }
+    for row in &child.retained {
+        if row.binder >= child.binder_count { return Err(fail("resource retained child leaves its complete domain")); }
+        let mut path = Vec::new();
+        put(&mut path, prefix.clone(), b)?;
+        for step in &row.path { put(&mut path, step.clone(), b)?; }
+        put(&mut retained, StorageRetainedBinding { path, class: row.class, binder: row.binder }, b)?;
+    }
+    let mut nominal_arguments = Vec::new();
+    for row in &child.nominal_arguments {
+        if row.binder >= child.binder_count { return Err(fail("resource phantom child leaves its complete domain")); }
+        let mut path = Vec::new();
+        put(&mut path, prefix.clone(), b)?;
+        for step in &row.path { put(&mut path, step.clone(), b)?; }
+        put(&mut nominal_arguments, NominalLifeArgument { path, declaration: row.declaration,
+            argument: row.argument, binder: row.binder }, b)?;
+    }
+    Ok(StorageLifeShape { binder_count: child.binder_count, slots: Vec::new(), retained, nominal_arguments })
+}
+/// Reconstruct the whole opaque Task domain from its complete type inventory,
+/// retaining phantom classes even when no physical port names them.
+pub(super) fn task_domain(ty: &Type, b: &mut Budget) -> CompileResult<Option<StorageLifeShape>> {
+    b.spend(1, WORK)?;
+    match ty {
+        Type::Task { retained_life, .. } => {
+            crate::dyn_metadata::retained_shape(retained_life, b)?;
+            for port in &retained_life.ports {
+                b.spend(1, WORK)?;
+                if port.binder >= retained_life.binder_count { return Err(fail("Task physical port exceeds its complete domain")); }
+            }
+            for row in &retained_life.retained {
+                b.spend(1, WORK)?;
+                if row.binder >= retained_life.binder_count { return Err(fail("Task retained row exceeds its complete domain")); }
+            }
+            for row in &retained_life.nominal_arguments {
+                b.spend(1, WORK)?;
+                if row.binder >= retained_life.binder_count { return Err(fail("Task phantom row exceeds its complete domain")); }
+            }
+            Ok(Some(StorageLifeShape { binder_count: retained_life.binder_count, ..empty() }))
+        }
+        Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { .. }) => {
+            let child = task_domain(inner, b)?.ok_or_else(|| fail("Task owner changes its child family"))?;
+            Ok(Some(inherited_domain(&child, LifeTypeProjection::Pointee, b)?))
+        }
+        Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { .. })) => {
+            let child = task_domain(result, b)?.ok_or_else(|| fail("Task result carrier changes its child family"))?;
+            Ok(Some(inherited_domain(&child, LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)), b)?))
+        }
+        _ => Ok(None),
+    }
+}
 pub(super) fn tuple(fields: Vec<Value>, b: &mut Budget) -> CompileResult<Value> {
     b.spend(fields.len().saturating_add(1), WORK)?;
     let mut children = Vec::new();
@@ -234,28 +306,12 @@ pub(super) fn error_union(error: Value, result: Value, b: &mut Budget) -> Compil
     if result.classes.len() != result.life.binder_count as usize {
         return Err(fail("ErrorUnion success omits a complete intrinsic class"));
     }
-    let mut retained = Vec::new();
-    for child in 0..result.life.binder_count {
-        put(
-            &mut retained,
-            StorageRetainedBinding {
-                path: vec![LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))],
-                class: child,
-                binder: child,
-            },
-            b,
-        )?;
-    }
+    let life = inherited_domain(&result.life,
+        LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)), b)?;
     let geometry = geometry::construct(
         geometry::Constructor::ErrorUnion,
         &[&error.geometry, &result.geometry],
-        StorageLifeShape {
-            binder_count: u32::try_from(result.classes.len())
-                .map_err(|_| fail("ErrorUnion complete domain overflows"))?,
-            slots: Vec::new(),
-            retained,
-            nominal_arguments: Vec::new(),
-        },
+        life,
         b,
     )?;
     Ok(Value::from_geometry(geometry, result.classes))
@@ -488,6 +544,8 @@ pub(super) fn pointee(
     let life = match inner.as_ref() {
         Type::Dyn { .. } | Type::OwnedDyn { .. } => dyn_domain(inner, inventory, b)?,
         Type::MutexGuard { .. } => mutex_guard_domain(inner, b)?,
+        Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) =>
+            task_domain(inner, b)?.ok_or_else(|| fail("Task pointee has no complete child domain"))?,
         Type::BorrowedStorage { life, .. } => {
             crate::dyn_metadata::shape(life, b)?;
             life.clone()
@@ -1510,6 +1568,14 @@ fn resolved_parts(
         _ => {}
     }
     match ty {
+        Type::Task { .. } | Type::Managed(_) | Type::ErrorUnion { .. }
+            if task_domain(ty, b)?.is_some() => {
+                let expected = task_domain(ty, b)?.ok_or_else(|| fail("Task domain vanished"))?;
+                if expected != *life { return Err(fail("semantic Task carrier changes its complete child-domain forest")); }
+                if let Type::ErrorUnion { error, .. } = ty {
+                    crate::stored_flow::validate_plain_nominal_zero(inventory.module, error, inventory.limits, b)?;
+                }
+            }
         Type::Address { .. }
             if super::original::strings::is_byte_type(ty)
                 && life.binder_count == 0
@@ -1624,6 +1690,8 @@ fn resolved_parts(
             let child_life = match inner.as_ref() {
                 Type::Dyn { .. } | Type::OwnedDyn { .. } => dyn_domain(inner, inventory, b)?,
                 Type::MutexGuard { .. } => mutex_guard_domain(inner, b)?,
+        Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) =>
+            task_domain(inner, b)?.ok_or_else(|| fail("Task pointee has no complete child domain"))?,
                 Type::BorrowedStorage { life, .. } => {
                     crate::dyn_metadata::shape(life, b)?;
                     life.clone()

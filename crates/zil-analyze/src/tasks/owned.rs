@@ -72,6 +72,7 @@ pub(super) fn borrowed_shape(
     let mut ports = Vec::new();
     let mut classes = std::collections::BTreeMap::new();
     let mut next_binder = 0u32;
+    let mut retained = Vec::new();
     for (position, parameter) in f.parameters.iter().enumerate() {
         budget.spend(1, "actual Task retained input inventory")?;
         let ty = local_type(f, *parameter, Some(f.span))?;
@@ -99,6 +100,13 @@ pub(super) fn borrowed_shape(
                 next_binder += 1;
                 next
             };
+            budget.spend(2, "Task complete input child occurrence")?;
+            retained.push(zil_ir::StorageRetainedBinding {
+                path: vec![zil_ir::LifeTypeProjection::Parameter(
+                    u32::try_from(position).map_err(|_| fail(f.span, "Task input ordinal overflows"))?)],
+                class: 0,
+                binder,
+            });
             ports.push(zil_ir::RetainedBorrowPort {
                 leaf: ty.clone(),
                 mode: if *mutable {
@@ -113,23 +121,18 @@ pub(super) fn borrowed_shape(
     Ok(zil_ir::RetainedLifeShape {
         binder_count: next_binder,
         ports,
-        retained: if matches!(f.return_type, Type::Address { mutable: false, .. }) {
-            f.storage_life
-                .as_ref()
-                .and_then(|life| {
-                    super::super::signature_life::outer(life, zil_ir::StorageBase::Result)
-                })
-                .and_then(|source| classes.get(&source))
-                .map(|binder| {
-                    vec![zil_ir::StorageRetainedBinding {
-                        path: vec![zil_ir::LifeTypeProjection::Result],
-                        class: 0,
-                        binder: *binder,
-                    }]
-                })
-                .unwrap_or_default()
-        } else {
-            vec![]
+        retained: {
+            if matches!(f.return_type, Type::Address { mutable: false, .. }) {
+                if let Some(binder) = f.storage_life.as_ref()
+                    .and_then(|life| super::super::signature_life::outer(life, zil_ir::StorageBase::Result))
+                    .and_then(|source| classes.get(&source)) {
+                    budget.spend(2, "Task complete result child occurrence")?;
+                    retained.push(zil_ir::StorageRetainedBinding {
+                        path: vec![zil_ir::LifeTypeProjection::Result], class: 0, binder: *binder,
+                    });
+                }
+            }
+            retained
         },
         nominal_arguments: vec![],
     })

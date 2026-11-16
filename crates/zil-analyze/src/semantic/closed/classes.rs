@@ -253,11 +253,6 @@ impl Check<'_, '_> {
             | SemanticTypeRecipe::Registration(inner)
             | SemanticTypeRecipe::AsyncRegistration(inner) => {
                 let child = self.recipe_value(instance, inner, b, depth + 1)?;
-                if !child.classes.is_empty() {
-                    return Err(unknown(
-                        "semantic resource constructor needs complete child retained and phantom class transport",
-                    ));
-                }
                 let kind = match recipe {
                     SemanticTypeRecipe::Managed(_) => geometry::Unary::Managed,
                     SemanticTypeRecipe::OwnedStore(_) => geometry::Unary::OwnedStore,
@@ -270,7 +265,7 @@ impl Check<'_, '_> {
                         ));
                     }
                 };
-                value::unary(kind, child, b)
+                self.resource_constructor(kind, child, b)
             }
             SemanticTypeRecipe::Desc {
                 lifetime: SemanticOuterLifeRecipe::Class(life),
@@ -820,7 +815,6 @@ impl Check<'_, '_> {
                     StorageBase::Parameter(_) | StorageBase::Result | StorageBase::Capture(_)
                 )
             })
-            || !contract.static_bindings.is_empty()
             || !closure.lending_captures.is_empty()
         {
             return Err(unknown(
@@ -852,6 +846,36 @@ impl Check<'_, '_> {
         let mut used_rows = BTreeSet::new();
         let mut used_slots = BTreeSet::new();
         let creator_bindings = self.capture_creator_bindings(instance, closure, b)?;
+        let mut static_captures = BTreeSet::new();
+        for position in &contract.static_bindings {
+            b.spend(position.path.len().saturating_add(1), WORK)?;
+            let StorageBase::Capture(capture) = position.base else {
+                return Err(unknown("Static closure header needs its complete noncapture original occurrence"));
+            };
+            if !position.path.is_empty() || !static_captures.insert(capture) {
+                return Err(fail("Static capture repeats or projects its whole literal occurrence"));
+            }
+            let mut stored = None;
+            for binding in creator_bindings.values() {
+                b.spend(1, WORK)?;
+                if binding.capture == capture && stored.replace(&binding.stored).is_some() {
+                    return Err(fail("Static capture has competing original creator bindings"));
+                }
+            }
+            let stored = stored.ok_or_else(|| fail("Static capture lacks its independently proved original creator"))?;
+            if !original::strings::is_byte_type(&stored.ty) || !empty(&stored.life)
+                || !stored.classes.is_empty() || closure.captures.get(capture as usize) != Some(&stored.ty) {
+                return Err(fail("Static capture changes its complete creator-proved literal view"));
+            }
+        }
+        for (index, ty) in closure.captures.iter().enumerate() {
+            if original::strings::is_byte_type(ty) {
+                b.lookup(static_captures.len(), WORK)?;
+                if !static_captures.contains(&(index as u32)) {
+                    return Err(fail("literal byte-view capture omits its whole Static header occurrence"));
+                }
+            }
+        }
         for binding in creator_bindings.values() {
             self.ghost_capture_rows(
                 instance,
@@ -1058,8 +1082,28 @@ impl Check<'_, '_> {
                     self.push_value(&mut children, (row.path.as_slice(), row.class), b)?;
                 }
             }
+        } else if self.task_domain(&value.ty, b)?.is_some() && !value.life.retained.is_empty() {
+            for row in &value.life.retained {
+                b.spend(row.path.len().saturating_add(1), WORK)?;
+                if row.binder == class {
+                    self.push_value(&mut children, (row.path.as_slice(), row.class), b)?;
+                }
+            }
         } else {
             self.push_value(&mut children, (&[][..], class), b)?;
+        }
+        for (path, binder) in self.task_ports(value, b)? {
+            if binder != class { continue; }
+            let mut selected_port = None;
+            for (index, row) in contract.bindings.iter().enumerate() {
+                b.spend(row.position.path.len().saturating_add(path.len() + 1), WORK)?;
+                if row.position.base == StorageBase::Capture(capture) && row.position.path == path
+                    && selected_port.replace((index, true, row.binder)).is_some() {
+                    return Err(fail("captured Task repeats its physical retained port"));
+                }
+            }
+            self.push_value(&mut selected, selected_port.ok_or_else(||
+                fail("captured Task omits its actual physical retained port"))?, b)?;
         }
         // Keep every explicit child-kappa selector even when several images
         // coincide. Header/domain indices are never interned by their image.
@@ -1277,7 +1321,7 @@ impl Check<'_, '_> {
                 | Type::Package { .. }
                 | Type::Enum { .. }
                 | Type::ErrorUnion { .. }
-        ) && !self.dyn_sum_type(ty, b)? {
+        ) && !self.dyn_sum_type(ty, b)? && self.task_domain(ty, b)?.is_none_or(|life| life.binder_count == 0) {
             // A complete independent zero-domain reconstruction needs no
             // predecessor SSA class equation. Actual initialization, source,
             // loans and cleanup remain obligations of each operation/kernel.
@@ -1302,6 +1346,8 @@ impl Check<'_, '_> {
             return Ok(value);
         }
         match &instruction.kind {
+            InstructionKind::TaskCreate { .. } | InstructionKind::TaskCreateOwned { .. } =>
+                self.task_result(instance, function, block, index, b),
             InstructionKind::CallDynSlot { .. } => self.trait_result(instance, function, block, index, b)?
                 .ok_or_else(|| fail("dynamic result has no exact original member call receipt")),
             InstructionKind::MakeDynOwned { .. } => self.dyn_owned_result(instance, function, block, index, b),
@@ -1344,13 +1390,13 @@ impl Check<'_, '_> {
             InstructionKind::CallClosure { callee, .. }
             | InstructionKind::CallClosureOnce { callee, .. } => {
                 let receiver = self.ssa_value(instance, function, *callee, b, depth + 1)?;
-                self.static_closure_result(instance, block, index, &receiver.ty, ty, b)
+                self.static_closure_result(instance, block, index, &receiver, ty, b)
             }
             InstructionKind::CallClosureShared { callee, .. }
             | InstructionKind::CallClosureMut { callee, .. } => {
                 let receiver = self.local_value(instance, function, *callee,
                     (block, index), b, depth + 1)?;
-                self.static_closure_result(instance, block, index, &receiver.ty, ty, b)
+                self.static_closure_result(instance, block, index, &receiver, ty, b)
             }
             InstructionKind::CallClosureBorrowed { callee, .. } => {
                 if let Some(result) = self.abstract_operation(instance, function, block, index, b)? {
@@ -1365,7 +1411,8 @@ impl Check<'_, '_> {
                 }
                 // BodyCall separately proves the exact original lexical place,
                 // requested mode, fresh borrow and whole pointee class value.
-                self.static_closure_result(instance, block, index, inner, ty, b)
+                let whole = self.pointee(&receiver, b)?;
+                self.static_closure_result(instance, block, index, &whole, ty, b)
             },
             InstructionKind::ReadAddress { address } => {
                 operations::available_before(function, (block, index, SemanticSiteEdge::Before), *address, b)?;
@@ -1845,7 +1892,7 @@ impl Check<'_, '_> {
                     | Type::ErrorUnion { .. }
                     | Type::FunctionPointer { .. }
                     | Type::ForeignCallback { .. }
-            ) && !self.dyn_sum_type(ty, b)?
+            ) && !self.dyn_sum_type(ty, b)? && self.task_domain(ty, b)?.is_none_or(|life| life.binder_count == 0)
         {
             // A zero-class fact does not depend on which loop iteration last
             // initialized the occupant. Actual initialization and resources
@@ -2001,14 +2048,48 @@ impl Check<'_, '_> {
 
 impl Check<'_, '_> {
     fn static_closure_result(&self, instance: &SemanticInstance,
-        block: BlockId, index: usize, receiver: &Type, ty: &Type,
+        block: BlockId, index: usize, receiver: &Value, ty: &Type,
         b: &mut Budget) -> CompileResult<Value> {
-        let Type::Closure(id) = receiver else {
+        let Type::Closure(id) = &receiver.ty else {
             return Err(fail("concrete closure result has another actual receiver type"));
         };
         let closure = self.module.closures.get(id.0 as usize).filter(|row| row.id == *id)
             .ok_or_else(|| fail("concrete closure result has no actual closure definition"))?;
         let output = self.static_call_result(instance, block, index, b)?;
+        if self.task_domain(ty, b)?.is_some() {
+            if !geometry::same_type(&output.ty, ty, b)? || !geometry::same_type(&closure.result, ty, b)?
+                || self.task_domain(ty, b)?.as_ref() != Some(&output.life) {
+                return Err(fail("concrete Task result changes its full original carrier or domain"));
+            }
+            let target = self.inventory.function(&SemanticFunctionTarget::Typed(closure.function), b)?;
+            let contract = target.storage_life.as_ref().ok_or_else(|| fail("Task callable result omits its complete entry header"))?;
+            if receiver.classes.len() != contract.fixed_binder_count as usize {
+                return Err(fail("Task callable receiver omits its complete Fixed capture domain"));
+            }
+            let mut mapped = BTreeSet::new();
+            for row in &output.life.retained {
+                let mut selected = None;
+                for actual in &contract.classes {
+                    b.spend(actual.position.path.len().saturating_add(row.path.len() + 1), WORK)?;
+                    if actual.position.base == StorageBase::Result && actual.position.path == row.path
+                        && actual.position.class == row.class && selected.replace(actual.binder).is_some() {
+                        return Err(fail("Task callable result repeats a complete intrinsic occurrence"));
+                    }
+                }
+                let Some(StorageBinder::Fixed(binder)) = selected else {
+                    return Err(unknown("Task callable result needs its complete input or invocation class relation"));
+                };
+                if receiver.classes.get(binder as usize) != output.classes.get(row.binder as usize) {
+                    return Err(fail("Task callable result substitutes another actual captured class source"));
+                }
+                b.lookup(mapped.len(), WORK)?;
+                mapped.insert(row.binder);
+            }
+            if mapped.len() != output.classes.len() {
+                return Err(fail("Task callable result omits a retained or phantom class"));
+            }
+            return Ok(output);
+        }
         if !original::strings::is_byte_type(&output.ty) || !empty(&output.life)
             || !output.classes.is_empty() || !geometry::same_type(&output.ty, ty, b)?
             || !geometry::same_type(&closure.result, ty, b)?
@@ -2227,11 +2308,31 @@ impl Check<'_, '_> {
                     used_classes += 1;
                 }
             }
-            if matches!(value.ty, Type::Address { .. } | Type::Desc(_)) || self.dyn_sum_type(&value.ty, b)? {
+            for (path, class) in self.task_ports(value, b)? {
+                let expected = value.classes.get(class as usize)
+                    .ok_or_else(|| fail("Task header port exceeds its complete class domain"))?;
+                let mut selected = None;
+                for row in &contract.bindings {
+                    b.spend(row.position.path.len().saturating_add(path.len() + 1), WORK)?;
+                    if row.position.base == base && row.position.path == path
+                        && selected.replace(row.binder).is_some() {
+                        return Err(fail("actual Task header repeats a retained port occurrence"));
+                    }
+                }
+                let binder = selected.ok_or_else(|| fail("actual Task header omits a retained port occurrence"))?;
+                if self.header_class(instance, binder, b)? != *expected {
+                    return Err(fail("actual Task port changes its independently checked original class"));
+                }
+                used_bindings += 1;
+            }
+            if matches!(value.ty, Type::Address { .. } | Type::Desc(_)) || self.dyn_sum_type(&value.ty, b)?
+                || self.task_domain(&value.ty, b)?.is_some() {
                 for child in &value.life.retained {
                     if child.path.first() != Some(&LifeTypeProjection::Pointee)
                         && !(self.dyn_sum_type(&value.ty, b)? && child.path.as_slice() ==
-                            [LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))]) {
+                            [LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))])
+                        && !(self.task_domain(&value.ty, b)?.is_some() && child.path.first() ==
+                            Some(&LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)))) {
                         return Err(unknown(
                             "outer header requires its complete child occurrence path",
                         ));
@@ -2360,6 +2461,8 @@ impl Check<'_, '_> {
             Type::BorrowedStorage { life, .. } => Ok(life.binder_count != 0),
             Type::Address { .. } | Type::Desc(_) => Ok(true),
             Type::MutexGuard { .. } => Ok(true),
+            Type::Managed(_) | Type::ErrorUnion { .. }
+                if self.task_domain(ty, b)?.is_some_and(|life| life.binder_count != 0) => Ok(true),
             Type::Dyn { .. } | Type::OwnedDyn { .. } => Ok(value::dyn_domain(ty, self.inventory, b)?.binder_count != 0),
             Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Dyn { .. } | Type::OwnedDyn { .. }) =>
                 Ok(value::dyn_domain(result, self.inventory, b)?.binder_count != 0),

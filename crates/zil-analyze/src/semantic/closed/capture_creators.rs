@@ -329,6 +329,13 @@ impl Check<'_, '_> {
                             b,
                         )?;
                         let value = self.ssa_value(parent, function, *operand, b, 0)?;
+                        if original::strings::is_byte_type(&value.ty) && empty(&value.life)
+                            && value.classes.is_empty() {
+                            // A Static category is not its own provenance.
+                            // Check every actual creator operand back to a
+                            // literal through the complete real source graph.
+                            crate::retained::check_dyn_static_return(self.module, function, *operand, &[], b)?;
+                        }
                         let same_lexical = value == expected
                             || !moved
                                 && matches!(&value.ty, Type::Address { inner, .. } if inner.as_ref() == &expected.ty)
