@@ -622,20 +622,18 @@ impl Layout {
                 }
                 imported[index] = stamp;
                 imports.push(index);
-                // One helper layer only. Its callees retain canonical external
-                // calls unless independently requested by this unit's owners.
-                // Small bodies must not recursively copy the reachable program.
-                if imports_policy == CallImportPolicy::Complete {
-                    enqueue_calls(
-                        &graph.reads[index].calls,
-                        &owners,
-                        owner,
-                        stamp,
-                        &mut seen,
-                        &mut pending,
-                        &mut remaining,
-                    )?;
-                }
+                // Only admitted helpers reach here under BoundedClasses. Walk
+                // their class dependencies; a source wrapper or refused class
+                // is skipped above before its calls can extend the traversal.
+                enqueue_calls(
+                    &graph.reads[index].calls,
+                    &owners,
+                    owner,
+                    stamp,
+                    &mut seen,
+                    &mut pending,
+                    &mut remaining,
+                )?;
             }
             imports.sort_unstable();
             let mut prelude = named.values().copied().collect::<Vec<_>>();
@@ -1279,17 +1277,15 @@ impl Layout {
                     return None;
                 }
                 reached += 1;
-                if imports == CallImportPolicy::Complete {
-                    enqueue_calls(
-                        &graph.reads[index].calls,
-                        &owners,
-                        owner,
-                        stamp,
-                        &mut seen,
-                        &mut pending,
-                        &mut remaining,
-                    )?;
-                }
+                enqueue_calls(
+                    &graph.reads[index].calls,
+                    &owners,
+                    owner,
+                    stamp,
+                    &mut seen,
+                    &mut pending,
+                    &mut remaining,
+                )?;
             }
             if reached != unit.imports.len() {
                 return None;
@@ -1608,6 +1604,7 @@ fn action_key(
     split.hash(&mut state);
     imports.hash(&mut state);
     if imports == CallImportPolicy::BoundedClasses {
+        super::BOUNDED_CLASS_IMPORT_ID.hash(&mut state);
         super::MAX_CLASS_IMPORT_COST.hash(&mut state);
     }
     match entry {

@@ -23,14 +23,15 @@ pub(crate) enum CallImportPolicy {
     Complete,
     ResourceHelpers,
     /// Explicit closed-class strategy: retain real cross-CGU calls and copy
-    /// one layer of small current generated helpers. Never selected by the
+    /// the transitive closure of small current generated helpers. Never selected by the
     /// default O2 policy or used as a silent fallback from complete imports.
     BoundedClasses,
 }
 
 // Instruction + block cost, using the same measure as the whole-plan copy cap.
 // A class identity alone never authorizes copying a large implementation.
-const MAX_CLASS_IMPORT_COST: usize = 128;
+const MAX_CLASS_IMPORT_COST: usize = 512;
+const BOUNDED_CLASS_IMPORT_ID: &str = "bounded-classes-512-v2";
 
 fn bounded_class_body(item: &Item, classes: &BTreeSet<String>) -> bool {
     matches!(item, Item::Function(function)
@@ -916,8 +917,9 @@ fn partition_view_once_observed(
         return fallback(module, "invalid machine declaration prelude");
     }
     // Complete copies the full direct-call closure. BoundedClasses copies only
-    // small helpers called by owned definitions, preserving all other external
-    // calls. Mere addresses retain canonical declarations without copying.
+    // admitted class-helper edges transitively, preserving all other external
+    // calls. Source wrappers and refused classes stop the bounded traversal.
+    // Mere addresses retain canonical declarations without copying.
     // Every copy becomes a real private implementation below: its exact body
     // may participate in non-inlining IPO and must be emitted if not inlined.
     // Extra copies may consume at most one source graph's instruction/block
@@ -1005,14 +1007,12 @@ fn partition_view_once_observed(
                 }
                 copied_cost = total;
                 imported.insert(id);
-                if imports_policy == CallImportPolicy::Complete {
-                    pending.extend(
-                        defs[id]
-                            .calls
-                            .iter()
-                            .filter_map(|name| names.get(name.as_str()).copied()),
-                    );
-                }
+                pending.extend(
+                    defs[id]
+                        .calls
+                        .iter()
+                        .filter_map(|name| names.get(name.as_str()).copied()),
+                );
             }
             imports.insert(owner, imported);
         }

@@ -24,6 +24,7 @@ pub(super) struct Store {
     maximum: usize,
     segmented: bool,
     loaded_publication: std::cell::RefCell<Option<items::LoadedPublication>>,
+    location_hint_key: Option<Fingerprint>,
 }
 
 impl Store {
@@ -62,12 +63,17 @@ impl Store {
         };
         bytes.extend_from_slice(&identity.fingerprint().0);
         bytes.extend_from_slice(&compiler.0);
+        let mut hint_identity = identity.clone();
+        hint_identity.input = Fingerprint::of(b"ZIL-RAW-PACK-LOCATOR-v1\0");
+        let mut hint = hint_identity.fingerprint().0.to_vec();
+        hint.extend_from_slice(&compiler.0);
         Some(Self {
             root,
             key: Fingerprint::of(&bytes),
             maximum: options.limits.max_source_bytes,
             segmented: options.reuse_producers(),
             loaded_publication: Default::default(),
+            location_hint_key: options.push_reuse.then(|| Fingerprint::of(&hint)),
         })
     }
 

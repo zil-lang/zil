@@ -1173,16 +1173,25 @@ impl Store {
         let Some(maximum) = bounds.manifest_maximum() else {
             return;
         };
-        if let Ok(CacheRead::Candidate(bytes)) =
-            ArtifactCache::with_limit(&self.root, maximum).inspect_candidate(self.key)
-            && let Some(epoch) = packed::Epoch::hint(
-                &self.root.join("packs-v1"),
-                &bytes,
-                bounds,
-                &options.cancellation,
-            )
+        // A changed source key has no exact semantic candidate. One bounded
+        // raw placement hint from the previous publication can still locate
+        // unchanged segments. It never supplies Typed/Plan values or checked
+        // file stamps: publish rehashes the complete referenced current packs.
+        for key in
+            std::iter::once(self.key).chain(self.location_hint_key.filter(|_| options.push_reuse))
         {
-            publication.semantic_packs = epoch;
+            if let Ok(CacheRead::Candidate(bytes)) =
+                ArtifactCache::with_limit(&self.root, maximum).inspect_candidate(key)
+                && let Some(epoch) = packed::Epoch::hint(
+                    &self.root.join("packs-v1"),
+                    &bytes,
+                    bounds,
+                    &options.cancellation,
+                )
+            {
+                publication.semantic_packs = epoch;
+                break;
+            }
         }
     }
     pub(super) fn load_segments(
@@ -1280,7 +1289,7 @@ impl Store {
         }
         let namespace = guarded.pin_cache_directory(&root).ok()?;
         guard_ns += publication_elapsed(pin);
-        let stats = packed::publish(
+        let mut stats = packed::publish(
             packed::PublishContext {
                 packs: &namespace,
                 manifest_root: &self.root,
@@ -1303,6 +1312,29 @@ impl Store {
         // The bounded transport publishes its manifest last and only then
         // advances its pack epoch. Install the matching raw binding epoch now.
         publication.install(prepared);
+        if let Some(key) = self.location_hint_key.filter(|_| options.push_reuse)
+            && !options.cancellation.is_cancelled()
+            && guarded.validate().is_ok()
+            && let Some(maximum) = (packed::Bounds {
+                maximum: self.maximum,
+                max_items: maximum_segments(&options.limits)?,
+            })
+            .manifest_maximum()
+            && let Ok(CacheRead::Candidate(bytes)) =
+                ArtifactCache::with_limit(&self.root, maximum).inspect_candidate(self.key)
+        {
+            // Only a completed successful publication advances this optional
+            // locator. Failure leaves ordinary semantic publication successful.
+            let io = publication_start(options.profile_compilation);
+            if ArtifactCache::with_limit(&self.root, maximum)
+                .write_candidate_cancellable(key, &bytes, &options.cancellation)
+                .is_ok()
+            {
+                stats.manifest_writes += 1;
+                stats.manifest_bytes += bytes.len();
+            }
+            stats.manifest_io_ns += publication_elapsed(io);
+        }
         let stats = SemanticPublicationStats {
             function_bindings_checked: publication.function_bindings_checked,
             function_plan_bindings_compared: publication.function_plan_bindings_compared,
@@ -1537,6 +1569,7 @@ mod tests {
             maximum: options.limits.max_source_bytes,
             segmented: true,
             loaded_publication: Default::default(),
+            location_hint_key: None,
         };
         let mut publication = SemanticPublicationSession::default();
         store
@@ -1559,6 +1592,7 @@ mod tests {
             maximum: store.maximum,
             segmented: true,
             loaded_publication: Default::default(),
+            location_hint_key: None,
         };
         // All encoding can succeed and packs can be written, but the final
         // atomic manifest rename must fail against this directory.
@@ -1687,6 +1721,7 @@ mod tests {
             maximum: options.limits.max_source_bytes,
             segmented: true,
             loaded_publication: Default::default(),
+            location_hint_key: None,
         };
         // The transport version is independent of the original logical format.
         // Old loose-item manifests remain readable before one-time migration.
@@ -1716,6 +1751,7 @@ mod tests {
             maximum: store.maximum,
             segmented: true,
             loaded_publication: Default::default(),
+            location_hint_key: None,
         };
         let mut guarded = plan.clone();
         let pack_root = guarded
@@ -1887,6 +1923,96 @@ mod tests {
     const CANONICAL_SOURCE: &str = "fn f(x:i32)->i32{if x<10{return x+1;}else{return x*2;}} fn g(x:i32)->i32{if x<10{return x+3;}else{return x*4;}} pub fn main()->i32{let a=f(2);let b=g(a);let c=f(b);return c;}";
 
     #[test]
+    fn changed_source_restart_reuses_raw_pack_locations_without_loading_old_semantics() {
+        let directory = directory();
+        let path = directory.join("main.zil");
+        let options = CompileOptions {
+            push_reuse: true,
+            ..Default::default()
+        };
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            path.display().to_string(),
+            CANONICAL_SOURCE,
+        );
+        let artifacts = artifacts::ArtifactPlan::new(&source, &options).unwrap();
+        let hint_key = Fingerprint::of(b"one-project-raw-locations");
+        let cold_store = Store {
+            root: directory.join("semantic-v7-push"),
+            key: Fingerprint::of(b"cold-key"),
+            maximum: options.limits.max_source_bytes,
+            segmented: true,
+            loaded_publication: Default::default(),
+            location_hint_key: Some(hint_key),
+        };
+        let (cold_typed, cold_plan, _) =
+            canonical_fixture(&mut CompilationSession::default(), &path, CANONICAL_SOURCE);
+        let mut cold_publication = SemanticPublicationSession::default();
+        let cold = cold_store
+            .save(
+                &cold_typed,
+                &cold_plan,
+                &options,
+                &artifacts,
+                &mut cold_publication,
+            )
+            .unwrap();
+        let old_pack = cold_publication.semantic_packs.first_pack_path().unwrap();
+        drop(cold_publication);
+        let edited = CANONICAL_SOURCE.replace("x+1", "x+17");
+        let (typed, candidate, _) =
+            canonical_fixture(&mut CompilationSession::default(), &path, &edited);
+        let current = Store {
+            key: Fingerprint::of(b"edited-key"),
+            ..cold_store
+        };
+        assert!(
+            current.load(&options).is_none(),
+            "new source has no exact candidate"
+        );
+        let mut restarted = SemanticPublicationSession::default();
+        current.remember_packed_epoch(&options, &mut restarted);
+        assert!(restarted.memory.is_none());
+        assert!(restarted.previous.is_none());
+        let published = current
+            .save(&typed, &candidate, &options, &artifacts, &mut restarted)
+            .unwrap();
+        assert!(published.existing_segments > 0);
+        assert!(published.physical_pack_bytes < cold.physical_pack_bytes);
+        assert_eq!(
+            published.manifest_writes, 2,
+            "candidate and raw locator both count"
+        );
+        assert_eq!(
+            current.load(&options).unwrap(),
+            ((*typed).clone(), candidate.clone())
+        );
+
+        // A locator never carries file stamps or an integrity authorization.
+        // Damage an old referenced pack, then force a fresh restart to repair it.
+        let mut bad = fs::read(&old_pack).unwrap();
+        let last = bad.len() - 1;
+        bad[last] ^= 1;
+        fs::write(&old_pack, bad).unwrap();
+        assert!(current.load(&options).is_none());
+        let mut restarted = SemanticPublicationSession::default();
+        current.remember_packed_epoch(&options, &mut restarted);
+        let repaired = current
+            .save(&typed, &candidate, &options, &artifacts, &mut restarted)
+            .unwrap();
+        assert!(repaired.physical_pack_writes > 0);
+        let (decoded, plan) = current.load(&options).unwrap();
+        assert_eq!(
+            (decoded.clone(), plan.clone()),
+            ((*typed).clone(), candidate)
+        );
+        zil_verify::verify_module(decoded.module, plan, &typed.module.target, &options.limits)
+            .unwrap();
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn direct_restart_edit_lends_decoded_cfg_bytes_to_first_semantic_publication() {
         let directory = directory();
         let path = directory.join("main.zil");
@@ -2028,6 +2154,7 @@ mod tests {
             maximum: options.limits.max_source_bytes,
             segmented: true,
             loaded_publication: Default::default(),
+            location_hint_key: None,
         };
         let cold = cold_store
             .save(
@@ -2063,6 +2190,7 @@ mod tests {
             maximum: cold_store.maximum,
             segmented: true,
             loaded_publication: Default::default(),
+            location_hint_key: None,
         };
         let private = private_store
             .save(&typed, &candidate, &options, &artifacts, &mut publication)
@@ -2319,6 +2447,7 @@ mod tests {
             maximum: options.limits.max_source_bytes,
             segmented: true,
             loaded_publication: Default::default(),
+            location_hint_key: None,
         };
         let (typed, candidate) = fixture(&path, SOURCE);
         let mut cold = SemanticPublicationSession::default();
@@ -2488,6 +2617,7 @@ mod tests {
             maximum: options.limits.max_source_bytes,
             segmented: true,
             loaded_publication: Default::default(),
+            location_hint_key: None,
         };
         for (source, expected) in [
             (dependency.to_owned(), 3),

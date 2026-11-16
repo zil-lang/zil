@@ -76,7 +76,7 @@ def main(argv=None):
                     and args.function_merging == 'off', 'explicit closed incremental O2 import policy required')
             if args.bounded_class_imports:
                 policy['schema'] = 'closed-bounded-class-direct-restart-edit-runtime-v1'
-                policy['class_import_policy'] = 'bounded-classes-128-v1'
+                policy['class_import_policy'] = 'bounded-classes-512-v2'
             else:
                 policy['class_import_policy'] = 'complete'
             return args

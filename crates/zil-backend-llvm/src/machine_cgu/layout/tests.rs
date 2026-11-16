@@ -2004,7 +2004,8 @@ fn bounded_policy_cannot_reuse_complete_disk_or_materialization_roles() {
 fn bounded_helpers_check_cost_headers_local_state_and_canonical_addresses() {
     use super::super::{MAX_CLASS_IMPORT_COST, partition_classes_reusing_with_policy};
     let (mut module, source) = fixture();
-    // Both helpers occupy bucket 1; the only direct user is in bucket 0.
+    // Helpers and both excluded boundaries occupy bucket 1. The only original
+    // direct user is in bucket 0, so membership here proves the traversal.
     let helper_name = |prefix: &str| {
         (0..1000)
             .map(|id| format!("zil.class.{prefix}.{id}"))
@@ -2016,12 +2017,34 @@ fn bounded_helpers_check_cost_headers_local_state_and_canonical_addresses() {
     };
     let helper = helper_name("helper");
     let tail = helper_name("tail");
+    let large = helper_name("large");
+    let beyond_large = helper_name("beyond-large");
+    let beyond_wrapper = helper_name("beyond-wrapper");
     let mut body = function(&helper, Some(&tail));
+    for (name, callee) in [
+        ("wrapper.result", "zil.fn.1"),
+        ("large.result", large.as_str()),
+    ] {
+        body.blocks.as_mut().unwrap()[0].instructions.insert(
+            0,
+            Inst::new(
+                Some(name.into()),
+                Op::Call {
+                    result: Ty::Int(32),
+                    result_attrs: vec![],
+                    callee: Val::Global(callee.into()),
+                    args: vec![],
+                    vararg: None,
+                },
+            ),
+        );
+    }
     pad_cost(&mut body, MAX_CLASS_IMPORT_COST);
+    module.items[4] = Item::Function(function("zil.fn.1", Some(&beyond_wrapper)));
     let Item::Function(source_body) = &mut module.items[4] else {
         unreachable!()
     };
-    pad_cost(source_body, MAX_CLASS_IMPORT_COST);
+    pad_cost(source_body, 2 * MAX_CLASS_IMPORT_COST);
     let mut caller = function("zil.fn.0", Some(&helper));
     caller.blocks.as_mut().unwrap()[0].instructions.insert(
         0,
@@ -2038,8 +2061,28 @@ fn bounded_helpers_check_cost_headers_local_state_and_canonical_addresses() {
     let helper_index = module.items.len();
     module.items.push(Item::Function(body));
     let tail_index = module.items.len();
-    module.items.push(Item::Function(function(&tail, None)));
-    let classes = BTreeSet::from([helper.clone(), tail.clone()]);
+    let mut leaf = function(&tail, None);
+    pad_cost(&mut leaf, 31);
+    module.items.push(Item::Function(leaf));
+    let large_index = module.items.len();
+    let mut large_body = function(&large, Some(&beyond_large));
+    pad_cost(&mut large_body, MAX_CLASS_IMPORT_COST + 1);
+    module.items.push(Item::Function(large_body));
+    let beyond_large_index = module.items.len();
+    module
+        .items
+        .push(Item::Function(function(&beyond_large, None)));
+    let beyond_wrapper_index = module.items.len();
+    module
+        .items
+        .push(Item::Function(function(&beyond_wrapper, None)));
+    let classes = BTreeSet::from([
+        helper.clone(),
+        tail.clone(),
+        large.clone(),
+        beyond_large,
+        beyond_wrapper,
+    ]);
     let build = |module| {
         partition_classes_reusing_with_policy(
             module,
@@ -2065,10 +2108,18 @@ fn bounded_helpers_check_cost_headers_local_state_and_canonical_addresses() {
     .unwrap();
     assert!(layout.units[0].imports.contains(&helper_index));
     assert!(
-        !layout.units[0].imports.contains(&tail_index),
-        "no transitive import"
+        layout.units[0].imports.contains(&tail_index),
+        "admitted class dependencies are imported transitively"
     );
-    assert!(layout.units[0].declarations.contains(&tail_index));
+    assert!(!layout.units[0].declarations.contains(&tail_index));
+    for index in [4, large_index, beyond_large_index, beyond_wrapper_index] {
+        assert!(
+            !layout.units[0].imports.contains(&index),
+            "excluded boundary or its child"
+        );
+    }
+    assert!(layout.units[0].declarations.contains(&4));
+    assert!(layout.units[0].declarations.contains(&large_index));
     let selected = build(module.clone()).unwrap();
     for unit in &selected.plan.units {
         zil_llvm_api::validate_module(unit).unwrap();
@@ -2085,6 +2136,71 @@ fn bounded_helpers_check_cost_headers_local_state_and_canonical_addresses() {
     assert!(caller.blocks.as_ref().unwrap()[0].instructions.iter().any(
         |inst| matches!(&inst.op, Op::Cast { arg, .. } if arg.value == Val::Global(helper.clone()))
     ));
+    let imported_helper = selected.plan.units[0]
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Function(f) if f.name == format!("zil.import.0.{helper}") => Some(f),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        super::super::direct_calls(imported_helper),
+        BTreeSet::from([
+            format!("zil.import.0.{tail}"),
+            "zil.fn.1".into(),
+            large.clone(),
+        ])
+    );
+    assert!(
+        layout
+            .valid_classes_observed_with_policy(
+                &module,
+                &source.as_view(),
+                EntryPoint::None,
+                2,
+                &classes,
+                &graph,
+                CallImportPolicy::BoundedClasses,
+            )
+            .is_some()
+    );
+    // A checksummed one-layer recipe is no longer a valid current graph plan.
+    let mut partial = layout.clone();
+    partial.units[0]
+        .imports
+        .retain(|&index| index != tail_index);
+    partial.units[0].declarations.push(tail_index);
+    partial.units[0].declarations.sort_unstable();
+    assert!(
+        partial
+            .valid_classes_observed_with_policy(
+                &module,
+                &source.as_view(),
+                EntryPoint::None,
+                2,
+                &classes,
+                &graph,
+                CallImportPolicy::BoundedClasses,
+            )
+            .is_none()
+    );
+    let mut recorded = None;
+    let original = super::super::partition_view_once_observed(
+        module.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        true,
+        CallImportPolicy::BoundedClasses,
+        &mut recorded,
+        None,
+        &mut 0,
+        &classes,
+        None,
+    );
+    assert!(original.fallback.is_none());
+    assert_eq!(selected.plan.units, original.units);
 
     let mut oversized = module.clone();
     let Item::Function(f) = &mut oversized.items[helper_index] else {

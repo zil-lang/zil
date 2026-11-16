@@ -20,8 +20,8 @@ imports against the current diagnostic call graph. Imports grant optimization
 visibility, not canonical ownership or new exported definitions. Existing
 closed-only results and negatives retain their original schema and policy.
 
-bounded_class_imports explicitly selects bounded-classes-128-v1 instead: only
-one layer of current class bodies costing at most 128 is imported. Current
+bounded_class_imports explicitly selects bounded-classes-512-v2 instead: only
+the current closure of class bodies costing at most 512 is imported. Current
 body references, canonical cross-unit bindings and the original source-only
 total copy budget remain mandatory. A rejected strategy is not this profile.
 """
@@ -38,8 +38,8 @@ import elf_instruction_quality as late
 SCHEMA = 'closed-project-runtime-v1'
 IMPORT_SCHEMA = 'closed-import-project-runtime-v1'
 BOUNDED_SCHEMA = 'closed-bounded-class-project-runtime-v1'
-BOUNDED_POLICY = 'bounded-classes-128-v1'
-MAX_CLASS_IMPORT_COST = 128
+BOUNDED_POLICY = 'bounded-classes-512-v2'
+MAX_CLASS_IMPORT_COST = 512
 INPUTS = (b'', *(bytes([i]) for i in range(256)))
 RUNTIME_GATES = {'candidate_over_main_max_per_case': 1.10,
                  'rust_over_candidate_min_per_case': 0.90,
@@ -111,15 +111,21 @@ def layout_roles(units, items, model, complete_imports, bounded_class_imports=Fa
                 'bounded layout must bind every current canonical definition')
         copied_cost = 0
         for index, unit in enumerate(units):
-            direct = {ref for name in expected[index] for ref in model['calls'].get(name, set())}
-            required = {name for name in direct if name in owners and owners[name] != index
-                        and name in model['classes'] and costs[name] <= MAX_CLASS_IMPORT_COST}
+            pending = [ref for name in expected[index] for ref in model['calls'].get(name, set())]
+            required = set()
+            while pending:
+                name = pending.pop()
+                if (name not in owners or owners[name] == index or name in required
+                        or name not in model['classes'] or costs[name] > MAX_CLASS_IMPORT_COST):
+                    continue
+                required.add(name)
+                pending.extend(model['calls'].get(name, set()))
             require(imported[index] == required,
-                    'bounded imports must equal one current direct layer of nonowned class bodies costing at most 128')
+                    'bounded imports must equal the current nonowned class-only closure costing at most 512 per body')
             copied_cost += sum(costs[name] for name in imported[index])
             # scalar_model refuses all addresses/globals/indirect calls, so its
             # direct calls are the complete body-reference set, including the
-            # callees of imported bodies without recursively importing them.
+            # callees of imported bodies, including refused class/source bodies.
             references = {ref for name in expected[index] | imported[index]
                           for ref in model['calls'].get(name, set())}
             prelude = {by_name[n] for n in references if n in by_name and items[by_name[n]][0] == 'declare'}

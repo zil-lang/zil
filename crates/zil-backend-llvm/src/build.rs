@@ -1206,7 +1206,7 @@ pub fn build_view_with_cancellation_and_session(
         closed_prune,
         partition_layout_key,
         class_import_requested: if options.bounded_class_imports {
-            Some("bounded-classes-128-v1")
+            Some("bounded-classes-512-v2")
         } else {
             call_classes_enabled.then_some("complete")
         },
@@ -1214,7 +1214,7 @@ pub fn build_view_with_cancellation_and_session(
             Some("complete")
         } else {
             (!class_symbols.is_empty()).then_some(if options.bounded_class_imports {
-                "bounded-classes-128-v1"
+                "bounded-classes-512-v2"
             } else {
                 "complete"
             })
