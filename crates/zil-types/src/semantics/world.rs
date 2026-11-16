@@ -72,12 +72,12 @@ fn empty() -> StorageLifeShape {
         nominal_arguments: Vec::new(),
     }
 }
-struct World<'a, 'b> {
-    program: &'a SemanticModule,
-    module: &'a TypedModule,
-    ledger: &'a Ledger,
-    limits: &'b Limits,
-    left: &'b mut usize,
+pub(super) struct World<'a, 'b> {
+    pub(super) program: &'a SemanticModule,
+    pub(super) module: &'a TypedModule,
+    pub(super) ledger: &'a Ledger,
+    pub(super) limits: &'b Limits,
+    pub(super) left: &'b mut usize,
     vacant_captures: std::collections::BTreeSet<(SemanticInstanceId, u32)>,
     stale_values: std::collections::BTreeSet<ValueId>,
     stale_locals: std::collections::BTreeSet<LocalId>,

@@ -495,17 +495,7 @@ fn identity(
                     "owned dyn opcode changes its exact actual result interface",
                 ));
             }
-            super::super::materialize::dynamic::owned_provider(
-                world.program,
-                world.module,
-                world.ledger,
-                *interface,
-                *vtable,
-                source_type,
-                *route,
-                world.limits,
-                world.left,
-            )?;
+            world.check_owned_provider(*interface, *vtable, source_type, *route)?;
         }
         (
             IntrinsicKind::NominalConstructor {

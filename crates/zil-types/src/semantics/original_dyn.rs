@@ -500,3 +500,17 @@ impl Check<'_, '_> {
         Ok(())
     }
 }
+
+impl Proof {
+    /// This relation was proved in the provider's rigid original Gamma by
+    /// provider_conformance, before any concrete contract is interpreted.
+    pub(crate) fn dyn_provider_conformance(
+        &self,
+        provider: SemanticDefinitionId,
+        declaration: SemanticDefinitionId,
+    ) -> bool {
+        self.complete.contains(&provider)
+            && self.complete.contains(&declaration)
+            && self.providers.get(&provider) == Some(&declaration)
+    }
+}
