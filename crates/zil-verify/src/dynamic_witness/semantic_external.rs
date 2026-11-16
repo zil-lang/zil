@@ -6,6 +6,9 @@ use crate::semantic::{self, api::*};
 mod associated;
 #[path = "semantic_completed.rs"]
 mod completed;
+#[path = "semantic_member_instance.rs"]
+mod member_instance;
+pub(crate) use member_instance::check as check_static_member_instance;
 
 pub(crate) fn original_scope<'a>(
     module: &'a TypedModule,

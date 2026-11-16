@@ -5,7 +5,7 @@ use dynamic_witness::semantic_external::{Proofs,select_original_member};
 
 impl CheckedContext {
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn actual_trait_member(&self,module:&TypedModule,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,original:original::TraitCallRecipes,external:&mut Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
+    pub(super) fn actual_trait_member(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,original:original::TraitCallRecipes,external:&mut Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
         let receiver=self.evaluate_type(module,&original.receiver,environment,external,active,b)?;
         let application=self.application(module,&original.application,environment,external,active,b)?;
         let mut actuals=Vec::new();for recipe in &original.actuals{actuals.push(match recipe{original::MethodActualRecipe::Recipe(recipe)=>self.evaluate_actual(module,recipe,environment,external,active,b)?,original::MethodActualRecipe::ReceiverRole(role)=>CheckedActual::Life(self.class(module,role,environment,b)?)});}
@@ -13,23 +13,23 @@ impl CheckedContext {
         if receipt.member!=original.member||receipt.application!=application||receipt.receiver!=receiver{return Err(bad("actual member selection changes its complete requested identity"));}
         let function=module.functions.get(callee.0 as usize).filter(|row|row.id==callee).ok_or_else(||bad("actual member function identity is absent"))?;
         if function.foreign.is_some()||function.environment.is_some(){return Err(bad("ordinary member Call selects foreign or hidden closure authority"));}
-        if let Some(instance)=&function.dyn_instance{
-            dynamic_metadata::recipe(instance,b)?;
-            if instance.definition!=receipt.definition{return Err(bad("actual member Dyn instance selects another original definition"));}
-            // This is redundant dynamic authority, not needed to name a
-            // static method. Its full independent dynamic proof is mandatory.
-            return Err(unsupported("static member carrying dynamic-instance authority needs its complete dynamic bridge",None));
-        }
+        dynamic_witness::semantic_external::check_static_member_instance(module,self,environment,function,&receipt,active,b)?;
         let claims=match &site.action{SemanticSiteAction::BodyCall{actuals}=>actuals,SemanticSiteAction::Call{target:SemanticFunctionTarget::Typed(id),actuals}if *id==callee=>actuals,_=>return Err(bad("actual member Call has another source emission role"))};
         if claims.len()!=actuals.len(){return Err(bad("actual member call omits its full mixed method actuals"));}
         for(expected,claim)in actuals.iter().zip(claims){self.member_actual_claim(module,expected,claim,environment,b)?;}
         self.call_worlds(module,callee,receipt.body,&receipt.environment,environment,active,b)?;
-        let signature=&receipt.actual_signature;
+        b.spend(receipt.actual_signature.parameters.len().saturating_add(receipt.actual_signature.bound.len()).saturating_add(receipt.actual_signature.invocation.len()).saturating_add(1))?;
+        for(value,_)in &receipt.actual_signature.parameters{value.charge_clone(b)?;}receipt.actual_signature.result.charge_clone(b)?;
+        for key in receipt.actual_signature.bound.iter().chain(&receipt.actual_signature.invocation){if let ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=key{b.spend(path.len())?;}}
+        let mut signature=receipt.actual_signature.clone();
+        let key=receipt.environment.lexical.first().ok_or_else(||bad("static member lacks its exact source method frame"))?.key;
+        let source_inputs=self.original_call_inputs(module,caller,site,&signature,key,arguments,values,environment,external,active,b)?;
+        let inputs=source_inputs.iter().collect::<Vec<_>>();
+        self.instantiate_call_heads(&mut signature,&inputs,key,environment,b)?;
         if signature.parameters.len()!=arguments.len()||function.parameters.len()!=arguments.len()||function.call_kind!=signature.call_kind||function.result_mode!=signature.result_mode||function.return_type!=signature.result.ty{return Err(bad("actual member whole function ABI differs from its exact source specialization"));}
         for(((expected,_mode),argument),parameter)in signature.parameters.iter().zip(arguments).zip(&function.parameters){
-            let actual=value_at(values,*argument)?;
             let local=function.locals.get(parameter.0 as usize).ok_or_else(||bad("actual member parameter local is absent"))?;
-            if local.ty!=expected.ty||!self.compatible(environment,actual,expected,b)?{return Err(bad("actual member argument violates its complete invariant type/mode/class relation"));}
+            if local.ty!=expected.ty||!self.call_argument(module,caller,*argument,values,expected,environment,b)?{return Err(bad("actual member argument violates its complete invariant type/mode/class relation"));}
         }
         // These are signatures and original identity only. All actual function
         // CFG/loans/cleanup and the pending universal relation must still pass;

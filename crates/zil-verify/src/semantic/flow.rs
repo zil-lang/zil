@@ -675,7 +675,7 @@ impl CheckedContext {
         let site_recipe=sites.iter().find(|row|row.id==site.recipe).ok_or_else(||bad("actual Call has no original recipe"))?;
         if !matches!(site_recipe.kind,SemanticSiteRecipeKind::Call{..}|SemanticSiteRecipeKind::OriginalCall){return Err(bad("actual Call has another original operation role"));}
         let member=self.original.borrow().as_ref().ok_or_else(||bad("original member Call has no independent symbolic proof"))?.trait_call_recipes(module,caller.definition,site.recipe,environment,b)?;
-        if let Some(member)=member{return self.actual_trait_member(module,site,callee,arguments,values,environment,member,external,active,b);}
+        if let Some(member)=member{return self.actual_trait_member(module,caller,site,callee,arguments,values,environment,member,external,active,b);}
         let (resolved_target,actuals)=self.original.borrow().as_ref().ok_or_else(||bad("original body Call has no independent symbolic proof"))?.call_recipes(module,caller.definition,site.recipe,environment,b)?;
         let target=&resolved_target;
         let target_definition=self.definition(module,*target,b)?;
