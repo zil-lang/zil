@@ -2711,7 +2711,7 @@ fn signature_equal(
             if !pair(context, env, a, z, a_scope, z_scope, &mut pairs, b)? {
                 return Err(bad(
                     "original method changes the joint signature lifetime partition",
-                ));
+                ).with_note(format!("original signature scopes {a_scope:?} -> {z_scope:?}; class {a:?} -> {z:?}; established joint pairs {pairs:?}; lexical exact images {:?}",env.images)));
             }
         }
         for (a, z) in a.origins.iter().zip(&z.origins) {

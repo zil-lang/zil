@@ -235,7 +235,7 @@ fn contract_parents(module:&TypedModule,request:&ContractRequest,summary:&Summar
 
 fn contract(module:&TypedModule,request:&ContractRequest,summary:&Summary,b:&mut Budget)->Check<()>{
     header(module,request,b)?;
-    if !summary.complete||!summary.dyn_effects_known{return Err(bad("original executable contract lacks a complete actual CFG memory/effect summary"));}
+    if !summary.complete||!summary.dyn_effects_known{return Err(bad("original executable contract lacks a complete actual CFG memory/effect summary").with_note(format!("exact function {:?} {}, origin {:?}; actual memory complete {}, actual effects known {}; effects {:?}",request.function,module.functions[request.function.0 as usize].name,request.origin,summary.complete,summary.dyn_effects_known,summary.dyn_effects)));}
     let c=&request.contract;let requires=c.requires.as_ref().ok_or_else(||bad("original contract requires are Unknown"))?;let guarantees=c.guarantees.as_ref().ok_or_else(||bad("original contract guarantees are Unknown"))?;let hold=c.hold.as_ref().ok_or_else(||bad("original contract hold is Unknown"))?;let access=c.call.as_ref().ok_or_else(||bad("original contract access is Unknown"))?;let effects=c.effects.as_ref().ok_or_else(||bad("original contract effects are Unknown"))?;let result=c.result.as_ref().ok_or_else(||bad("original contract result source is Unknown"))?;let cleanup=c.cleanup.as_ref().ok_or_else(||bad("original contract cleanup is Unknown"))?;
     if c.resume!=Some(DynResumeBound::Local)||c.threads.as_ref().is_none_or(|threads|threads.transfer||threads.share){return Err(bad("original contract requires a separately proved nonlocal actual execution role"));}
     for requirement in requires{match requirement{DynRequirement::Read(pos)|DynRequirement::Write(pos)|DynRequirement::Manage(pos)=>dynamic_metadata::position(pos,b)?,DynRequirement::Apart(..)|DynRequirement::State{..}=>return Err(bad("original executable precondition has no independently checked actual relational/state consumer"))}}
@@ -262,6 +262,9 @@ fn contract(module:&TypedModule,request:&ContractRequest,summary:&Summary,b:&mut
 }
 pub(super) fn validate(module:&TypedModule,summaries:&[Summary],b:&mut Budget)->Check<()>{
     let pending=std::mem::take(&mut b.pending_dyn_contracts);
+    b.spend(pending.methods.len())?;
+    let incomplete=pending.methods.iter().filter_map(|request|summaries.get(request.function.0 as usize).filter(|row|!row.complete||!row.dyn_effects_known).map(|row|format!("{:?} {} {:?}: memory complete {}, effects known {}",request.function,module.functions[request.function.0 as usize].name,request.origin,row.complete,row.dyn_effects_known))).collect::<Vec<_>>();
+    if !incomplete.is_empty(){return Err(bad("original executable contract lacks a complete actual CFG memory/effect summary").with_note(incomplete.join("\n")));}
     for request in pending.methods{let summary=summaries.get(request.function.0 as usize).ok_or_else(||bad("original method actual CFG summary is absent"))?;contract(module,&request,summary,b)?;}
     for request in pending.callables{callable(module,&request,b)?;let summary=summaries.get(request.contract.function.0 as usize).ok_or_else(||bad("original callable actual CFG summary is absent"))?;contract(module,&request.contract,summary,b)?;}
     Ok(())
