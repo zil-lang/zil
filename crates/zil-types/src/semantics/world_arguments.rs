@@ -181,6 +181,17 @@ pub(super) fn satisfy(
     let mut visited = BTreeSet::new();
     while source != target {
         world.pay(1)?;
+        if !parents.is_empty()
+            && matches!(actual_ty, Type::Address { mutable: false, .. })
+            && matches!(source, roles::Source::Static)
+        {
+            // An actual ReborrowAddress can hide the static endpoint behind
+            // one or more child occurrences. The paid reaching edges above
+            // establish that endpoint just as the direct Static case does;
+            // Static outlives this shared call region without being equal to
+            // it. Keep every actual parent in the same call/operand witness.
+            break;
+        }
         if parents.len() >= world.limits.max_call_depth {
             return Err(Diagnostic::limit(
                 Phase::Types,
