@@ -7,15 +7,31 @@ use super::*;
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Target {
     Definition(usize),
+    AppliedDefinition { owner: usize, application: usize },
     Kind(CallKind),
     TraitReceiver(LifeDeclarationId),
-    NominalReceiver(SemanticDefinitionId),
+    NominalReceiver(usize),
     FormalReceiver { owner: usize, ordinal: u32 },
     FallibleTrait(LifeDeclarationId),
-    FallibleNominal(SemanticDefinitionId),
+    FallibleNominal(usize),
     LengthReceiver,
     CodeSequence { dimensions: u32, kind: CallKind },
     Unknown,
+}
+// References retain the complete mixed actuals in their original scope. An
+// application is not a specialized type or evidence that its bounds hold.
+#[derive(Clone, Copy)]
+enum Arguments<'a> {
+    Semantic(&'a [SemanticActualRecipe]),
+    Types(&'a [SemanticTypeRecipe]),
+    Written(&'a [CoreGenericArgument<SemanticTypeRecipe>]),
+}
+#[derive(Clone, Copy)]
+struct Application<'a> {
+    declaration: usize,
+    arguments: Arguments<'a>,
+    owner: usize,
+    context: Option<usize>,
 }
 struct Vertex {
     explicit: Option<CallKind>,
@@ -27,6 +43,7 @@ struct Scan<'a, 'd, 'b, 'l> {
     owner: usize,
     locals: Vec<(&'a str, Target)>,
     captures: &'b mut Vec<(usize, Vec<(&'a str, Target)>)>,
+    applications: &'b mut Vec<Application<'a>>,
     vertex: &'b mut Vertex,
     budget: &'b mut Budget<'l>,
 }
@@ -61,7 +78,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
             | Target::FallibleNominal(_)
             | Target::LengthReceiver
             | Target::CodeSequence { .. } => self.vertex.suspend = true,
-            Target::Definition(index) => {
+            Target::Definition(index) | Target::AppliedDefinition { owner: index, .. } => {
                 self.budget.identity_work(self.vertex.edges.len(), span)?;
                 if !self.vertex.edges.contains(&index) {
                     self.budget
@@ -103,7 +120,76 @@ impl<'a> Scan<'a, '_, '_, '_> {
     fn callable_type(
         &mut self,
         owner: usize,
-        ty: &SemanticTypeRecipe,
+        ty: &'a SemanticTypeRecipe,
+        depth: usize,
+        span: Span,
+    ) -> R<Target> {
+        self.bound_type(owner, ty, None, depth, span)
+    }
+    fn application(
+        &mut self,
+        declaration: usize,
+        owner: usize,
+        arguments: Arguments<'a>,
+        context: Option<usize>,
+        span: Span,
+    ) -> R<Option<usize>> {
+        let parameters = &self.definitions[declaration].parameters;
+        let count = match arguments {
+            Arguments::Semantic(values) => values.len(),
+            Arguments::Types(values) => values.len(),
+            Arguments::Written(values) => values.len(),
+        };
+        self.budget
+            .identity_work(count.saturating_add(parameters.len()), span)?;
+        if count != parameters.len() {
+            return Ok(None);
+        }
+        for (ordinal, formal) in parameters.iter().enumerate() {
+            let correct = match (formal, arguments) {
+                (SemanticFormal::Type { .. }, Arguments::Semantic(values)) => {
+                    matches!(values[ordinal], SemanticActualRecipe::Type(_))
+                }
+                (SemanticFormal::Lifetime, Arguments::Semantic(values)) => {
+                    matches!(values[ordinal], SemanticActualRecipe::Life(_))
+                }
+                (SemanticFormal::Const { .. }, Arguments::Semantic(values)) => {
+                    matches!(values[ordinal], SemanticActualRecipe::Const { .. })
+                }
+                (SemanticFormal::Type { .. }, Arguments::Types(_)) => true,
+                (SemanticFormal::Type { .. }, Arguments::Written(values)) => {
+                    matches!(values[ordinal], CoreGenericArgument::Type(_))
+                }
+                (SemanticFormal::Lifetime, Arguments::Written(values)) => {
+                    matches!(values[ordinal], CoreGenericArgument::Lifetime(_))
+                }
+                (SemanticFormal::Const { .. }, Arguments::Written(values)) => {
+                    matches!(values[ordinal], CoreGenericArgument::Const(_))
+                }
+                _ => false,
+            };
+            if !correct {
+                return Ok(None);
+            }
+        }
+        let index = self.applications.len();
+        self.budget.lineage_push(
+            self.applications,
+            Application {
+                declaration,
+                arguments,
+                owner,
+                context,
+            },
+            span,
+        )?;
+        Ok(Some(index))
+    }
+    fn bound_type(
+        &mut self,
+        owner: usize,
+        ty: &'a SemanticTypeRecipe,
+        context: Option<usize>,
         depth: usize,
         span: Span,
     ) -> R<Target> {
@@ -115,7 +201,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
             | SemanticTypeRecipe::Desc { inner, .. }
             | SemanticTypeRecipe::Qualified { storage: inner, .. }
             | SemanticTypeRecipe::Opaque { hidden: inner, .. } => {
-                self.callable_type(owner, inner, depth + 1, span)?
+                self.bound_type(owner, inner, context, depth + 1, span)?
             }
             SemanticTypeRecipe::Closure { definition, .. } => {
                 declaration_index(self.definitions, *definition, self.budget, span)?
@@ -125,6 +211,42 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 let Some(owner) = self.scope(owner, &reference.scope, span)? else {
                     return Ok(Target::Unknown);
                 };
+                let mut frame = context;
+                let mut distance = depth;
+                while let Some(index) = frame {
+                    distance = distance.saturating_add(1);
+                    self.budget.node(span, distance)?;
+                    let application = self.applications[index];
+                    if application.declaration == owner {
+                        let actual = match application.arguments {
+                            Arguments::Semantic(values) => {
+                                match values.get(reference.ordinal as usize) {
+                                    Some(SemanticActualRecipe::Type(ty)) => Some(ty),
+                                    _ => None,
+                                }
+                            }
+                            Arguments::Types(values) => values.get(reference.ordinal as usize),
+                            Arguments::Written(values) => {
+                                match values.get(reference.ordinal as usize) {
+                                    Some(CoreGenericArgument::Type(ty)) => Some(ty),
+                                    _ => None,
+                                }
+                            }
+                        };
+                        return if let Some(actual) = actual {
+                            self.bound_type(
+                                application.owner,
+                                actual,
+                                application.context,
+                                distance + 1,
+                                span,
+                            )
+                        } else {
+                            Ok(Target::Unknown)
+                        };
+                    }
+                    frame = application.context;
+                }
                 let definition = self.definitions[owner];
                 let local_type = SemanticTypeRecipe::Formal(SemanticFormalRef {
                     scope: SemanticScopeRef::Ancestor(0),
@@ -167,9 +289,26 @@ impl<'a> Scan<'a, '_, '_, '_> {
             SemanticTypeRecipe::Dyn { interface, .. } => {
                 Target::TraitReceiver(interface.application.declaration)
             }
-            SemanticTypeRecipe::Nominal { definition, .. } => Target::NominalReceiver(*definition),
+            SemanticTypeRecipe::Nominal {
+                definition,
+                arguments,
+            } => {
+                let Some(declaration) =
+                    declaration_index(self.definitions, *definition, self.budget, span)?
+                else {
+                    return Ok(Target::Unknown);
+                };
+                self.application(
+                    declaration,
+                    owner,
+                    Arguments::Semantic(arguments),
+                    context,
+                    span,
+                )?
+                .map_or(Target::Unknown, Target::NominalReceiver)
+            }
             SemanticTypeRecipe::ErrorUnion { result, .. } => {
-                match self.callable_type(owner, result, depth + 1, span)? {
+                match self.bound_type(owner, result, context, depth + 1, span)? {
                     Target::TraitReceiver(id) => Target::FallibleTrait(id),
                     Target::NominalReceiver(id) => Target::FallibleNominal(id),
                     _ => Target::Unknown,
@@ -189,7 +328,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
                             SemanticScopeRecipe::InherentImpl { self_type, .. }
                             | SemanticScopeRecipe::TraitImpl { self_type, .. }
                             | SemanticScopeRecipe::BuiltinImpl { self_type, .. },
-                        ) => break self.callable_type(owner, self_type, depth + 1, span)?,
+                        ) => break self.bound_type(owner, self_type, context, depth + 1, span)?,
                         _ => {}
                     }
                     let Some(parent) = self.definitions[owner].parent else {
@@ -316,12 +455,10 @@ impl<'a> Scan<'a, '_, '_, '_> {
         span: Span,
     ) -> R<Target> {
         self.budget.node(span, depth)?;
-        let Target::NominalReceiver(owner) = receiver else {
+        let Target::NominalReceiver(application) = receiver else {
             return Ok(Target::Unknown);
         };
-        let Some(index) = declaration_index(self.definitions, owner, self.budget, span)? else {
-            return Ok(Target::Unknown);
-        };
+        let index = self.applications[application].declaration;
         let SemanticDefinitionBody::Nominal {
             body: SemanticNominalBody::Product { fields },
             ..
@@ -342,10 +479,30 @@ impl<'a> Scan<'a, '_, '_, '_> {
         let Some(field) = selected else {
             return Ok(Target::Unknown);
         };
-        // The field's declaration-domain bounds provide an ABI upper. They
-        // remain full independent nominal obligations; an actual field Type
-        // or an implementation's coincident concrete image cannot narrow it.
-        self.callable_type(index, &field.ty, depth + 1, span)
+        // The field is interpreted in the complete original application.
+        // Its actual Type may itself be a caller's rigid formal: that formal's
+        // original premises, rather than an environment image, supply the ABI.
+        self.bound_type(index, &field.ty, Some(application), depth + 1, span)
+    }
+    fn applied_target(
+        &mut self,
+        callee: &'a SemanticOriginalExpr,
+        arguments: Arguments<'a>,
+        depth: usize,
+        span: Span,
+    ) -> R<Target> {
+        self.budget.node(span, depth)?;
+        match self.target(callee, depth + 1)? {
+            Target::Definition(owner) => Ok(self
+                .application(owner, self.owner, arguments, None, span)?
+                .map_or(Target::Definition(owner), |application| {
+                    Target::AppliedDefinition { owner, application }
+                })),
+            Target::AppliedDefinition { .. } => Ok(Target::Unknown),
+            // Registered intrinsics retain their declared ABI; this pass
+            // does not accept or solve their mixed application premises.
+            target => Ok(target),
+        }
     }
     fn target(&mut self, expression: &'a SemanticOriginalExpr, depth: usize) -> R<Target> {
         self.budget.node(expression.span, depth)?;
@@ -375,10 +532,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Dereference,
                 operand,
             } => {
-                return Ok(match self.target(operand, depth + 1)? {
-                    target @ Target::CodeSequence { .. } => target,
-                    _ => Target::Unknown,
-                });
+                return self.target(operand, depth + 1);
             }
             CoreExprKind::Member { object, member, .. } => {
                 let receiver = self.target(object, depth + 1)?;
@@ -407,7 +561,29 @@ impl<'a> Scan<'a, '_, '_, '_> {
             CoreExprKind::RecordConstructor {
                 definition: Some(definition),
                 ..
-            } => return Ok(Target::NominalReceiver(*definition)),
+            } => {
+                let Some(declaration) =
+                    declaration_index(self.definitions, *definition, self.budget, expression.span)?
+                else {
+                    return Ok(Target::Unknown);
+                };
+                return Ok(self
+                    .application(
+                        declaration,
+                        self.owner,
+                        Arguments::Semantic(&[]),
+                        None,
+                        expression.span,
+                    )?
+                    .map_or(Target::Unknown, Target::NominalReceiver));
+            }
+            CoreExprKind::RecordUpdate { ty, base, .. } => {
+                return if let Some(ty) = ty {
+                    self.callable_type(self.owner, ty, depth + 1, expression.span)
+                } else {
+                    self.target(base, depth + 1)
+                };
+            }
             CoreExprKind::Try(value) => {
                 return Ok(match self.target(value, depth + 1)? {
                     Target::FallibleTrait(id) => Target::TraitReceiver(id),
@@ -426,12 +602,16 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 {
                     return Ok(Target::FallibleTrait(interface.application.declaration));
                 }
-                if let Target::Definition(owner) = self.target(callee, depth + 1)?
-                    && let Some(signature) = signature(self.definitions[owner])
-                {
-                    return self.callable_type(
+                let (owner, context) = match self.target(callee, depth + 1)? {
+                    Target::Definition(owner) => (owner, None),
+                    Target::AppliedDefinition { owner, application } => (owner, Some(application)),
+                    _ => return Ok(Target::Unknown),
+                };
+                if let Some(signature) = signature(self.definitions[owner]) {
+                    return self.bound_type(
                         owner,
                         &signature.result,
+                        context,
                         depth + 1,
                         expression.span,
                     );
@@ -441,9 +621,26 @@ impl<'a> Scan<'a, '_, '_, '_> {
             CoreExprKind::Ascribed { ty, .. } => {
                 return self.callable_type(self.owner, ty, depth + 1, expression.span);
             }
-            CoreExprKind::TypeApply { callee, .. }
-            | CoreExprKind::GenericApply { callee, .. }
-            | CoreExprKind::Group(callee) => return self.target(callee, depth + 1),
+            CoreExprKind::TypeApply {
+                callee,
+                type_arguments,
+            } => {
+                return self.applied_target(
+                    callee,
+                    Arguments::Types(type_arguments),
+                    depth + 1,
+                    expression.span,
+                );
+            }
+            CoreExprKind::GenericApply { callee, arguments } => {
+                return self.applied_target(
+                    callee,
+                    Arguments::Written(arguments),
+                    depth + 1,
+                    expression.span,
+                );
+            }
+            CoreExprKind::Group(callee) => return self.target(callee, depth + 1),
             CoreExprKind::Name(name) => {
                 self.budget
                     .identity_work(self.locals.len(), expression.span)?;
@@ -636,11 +833,9 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 self.budget.drop_lineage_vec(active, span)?;
                 Ok(found)
             }
-            Target::NominalReceiver(owner) => {
-                let Some(index) = declaration_index(self.definitions, owner, self.budget, span)?
-                else {
-                    return Ok(false);
-                };
+            Target::NominalReceiver(application) => {
+                let index = self.applications[application].declaration;
+                let owner = self.definitions[index].id;
                 if let SemanticDefinitionBody::Nominal {
                     body: SemanticNominalBody::Product { fields },
                     ..
@@ -648,7 +843,8 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 {
                     self.budget.identity_work(fields.len(), span)?;
                     if let Some(field) = fields.iter().find(|field| field.name == spelling) {
-                        let target = self.callable_type(index, &field.ty, depth + 1, span)?;
+                        let target =
+                            self.bound_type(index, &field.ty, Some(application), depth + 1, span)?;
                         self.edge(target, span)?;
                         return Ok(true);
                     }
@@ -1249,6 +1445,7 @@ pub(super) fn propose(
     )?;
     order.sort_unstable();
     let mut captures: Vec<(usize, Vec<(&str, Target)>)> = Vec::new();
+    let mut applications = Vec::new();
     for &(_, index) in &order {
         let definition = definitions[index];
         if let SemanticDefinitionBody::FunctionWithBody {
@@ -1270,6 +1467,7 @@ pub(super) fn propose(
                 owner: index,
                 locals,
                 captures: &mut captures,
+                applications: &mut applications,
                 vertex: &mut vertices[index],
                 budget,
             };
@@ -1297,6 +1495,7 @@ pub(super) fn propose(
         budget.drop_lineage_vec(std::mem::take(environment), Span::default())?;
     }
     budget.drop_lineage_vec(captures, Span::default())?;
+    budget.drop_lineage_vec(applications, Span::default())?;
     // Monotone propagation reaches a fixed point after at most one promotion
     // per vertex. Closed recursive SCCs without a Suspend edge remain Direct.
     loop {
