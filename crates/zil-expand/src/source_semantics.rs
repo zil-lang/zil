@@ -47,6 +47,8 @@ mod protocol;
 mod requests;
 #[path = "source_semantic_types.rs"]
 mod types;
+#[path = "source_semantic_static_results.rs"]
+mod static_results;
 
 pub struct OriginalSemanticInventory<'a> {
     /// Full original bodies/defaults remain available here, never empty CFGs.

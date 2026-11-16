@@ -90,6 +90,7 @@ impl Builder<'_, '_, '_, '_> {
         result: &s::TypeRef,
         path: &mut Vec<u32>,
         depth: usize,
+        static_result: bool,
     ) -> R<SemanticSignatureRecipe> {
         self.budget.node(result.span, depth)?;
         let mut frames = std::mem::take(&mut self.invocations);
@@ -151,7 +152,13 @@ impl Builder<'_, '_, '_, '_> {
                 .expect("actual callable frame")
                 .result = true;
             path.push(parameters.len() as u32);
-            let result = self.ty(result, path, depth + 1, false)?;
+            let result = if static_result
+                && self.invocations.last().expect("actual callable frame").input_addresses == 0
+            {
+                self.static_callable_result(result, path, depth + 1)?
+            } else {
+                self.ty(result, path, depth + 1, false)?
+            };
             path.pop();
             let invocation_lifetimes = u32::try_from(
                 self.invocations
@@ -173,6 +180,38 @@ impl Builder<'_, '_, '_, '_> {
         self.invocations.pop();
         output
     }
+    fn static_callable_result(
+        &mut self,
+        result: &s::TypeRef,
+        path: &mut Vec<u32>,
+        depth: usize,
+    ) -> R<SemanticTypeRecipe> {
+        self.budget.node(result.span, depth)?;
+        if let s::TypeKind::Group(inner) = &result.kind {
+            return self.static_callable_result(inner, path, depth + 1);
+        }
+        // The caller selected this obligation from the actual opaque return
+        // body and every original closure return, never from parameter count.
+        // Written life roles remain exact, even for a literal implementation.
+        if let s::TypeKind::Reference { mutable: false, lifetime: None, inner } = &result.kind {
+            path.push(0);
+            let referent = self.ty(inner, path, depth + 1, true);
+            path.pop();
+            let referent = referent?;
+            if matches!(&referent, SemanticTypeRecipe::Slice(element)
+                if matches!(element.as_ref(), SemanticTypeRecipe::Atom(Type::U8)))
+            {
+                self.budget.lineage_bytes(std::mem::size_of::<SemanticTypeRecipe>(), result.span)?;
+                return Ok(SemanticTypeRecipe::Address {
+                    mutable: false,
+                    lifetime: SemanticOuterLifeRecipe::Static,
+                    inner: Box::new(referent),
+                });
+            }
+        }
+        self.ty(result, path, depth + 1, false)
+    }
+
     pub(super) fn self_scope(&mut self, span: Span) -> R<SemanticScopeRef> {
         let mut row = Some(self.owner);
         let mut distance = self.lexical_offset;
@@ -870,7 +909,7 @@ impl Builder<'_, '_, '_, '_> {
             }
             s::TypeKind::Function { params, result }
             | s::TypeKind::ForeignFunction { params, result, .. } => {
-                let signature = self.callable_signature(params, result, path, depth + 1)?;
+                let signature = self.callable_signature(params, result, path, depth + 1, false)?;
                 self.budget
                     .lineage_bytes(std::mem::size_of::<SemanticSignatureRecipe>(), ty.span)?;
                 Ok(SemanticTypeRecipe::Code {
@@ -935,9 +974,19 @@ impl Builder<'_, '_, '_, '_> {
         path: &mut Vec<u32>,
         depth: usize,
     ) -> R<SemanticRequirementRecipe> {
+        self.requirement_with_result(subject, bound, path, depth, false)
+    }
+    fn requirement_with_result(
+        &mut self,
+        subject: SemanticTypeRecipe,
+        bound: &s::TypeRef,
+        path: &mut Vec<u32>,
+        depth: usize,
+        static_result: bool,
+    ) -> R<SemanticRequirementRecipe> {
         self.budget.node(bound.span, depth)?;
         if let s::TypeKind::Group(inner) = &bound.kind {
-            return self.requirement(subject, inner, path, depth + 1);
+            return self.requirement_with_result(subject, inner, path, depth + 1, static_result);
         }
         if let s::TypeKind::ForLifetime { lifetime, inner } = &bound.kind {
             let name = self.text(lifetime, bound.span)?;
@@ -948,7 +997,7 @@ impl Builder<'_, '_, '_, '_> {
             self.bound_lives = frames;
             // Restore the lexical frame even on failure; no incomplete
             // normalized requirement is published into the original program.
-            let requirement = self.requirement(subject, inner, path, depth + 1);
+            let requirement = self.requirement_with_result(subject, inner, path, depth + 1, static_result);
             self.bound_lives.pop();
             let requirement = requirement?;
             let mut requirements = Vec::new();
@@ -980,7 +1029,7 @@ impl Builder<'_, '_, '_, '_> {
                     "callable premise parameters are not the parser's actual tuple",
                 ));
             };
-            let signature = self.callable_signature(parameters, result, path, depth + 1)?;
+            let signature = self.callable_signature(parameters, result, path, depth + 1, static_result)?;
             self.budget
                 .lineage_bytes(std::mem::size_of::<SemanticSignatureRecipe>(), bound.span)?;
             return Ok(SemanticRequirementRecipe::Callable {
@@ -1154,13 +1203,20 @@ impl Builder<'_, '_, '_, '_> {
                     ..
                 }) = &function.return_type
                 {
+                    let mut static_result = None;
                     for (ordinal, bound) in bounds.iter().enumerate() {
                         let subject = SemanticTypeRecipe::OriginalType {
                             scope: SemanticScopeRef::Ancestor(0),
                             source: SemanticOriginalTypeSource::Result,
                         };
+                        let literal_result = if static_results::elided_result(bound, self.budget, 0)? {
+                            if static_result.is_none() {
+                                static_result = Some(static_results::opaque_result(function, self.budget)?);
+                            }
+                            static_result.unwrap_or(false)
+                        } else { false };
                         let requirement =
-                            self.requirement(subject, bound, &mut vec![2, ordinal as u32], 0)?;
+                            self.requirement_with_result(subject, bound, &mut vec![2, ordinal as u32], 0, literal_result)?;
                         self.push(&mut requirements, requirement, bound.span)?;
                     }
                 }
@@ -1616,6 +1672,55 @@ mod self_header_tests {
                 signature.parameters[0].ty,
                 SemanticTypeRecipe::SelfType { .. }
             ));
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod static_result_tests {
+    use super::*;
+    use crate::source_context::{self, DeclarationPlacement, SourceIdentityContext};
+    use std::collections::BTreeMap;
+    use zil_base::{FileId, SourceUnit};
+
+    fn inventory(text: &str) -> Vec<SemanticDefinition> {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "static-callable.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let (origins, _) = source_context::capture_original_required(
+            std::slice::from_ref(&source), &[&parsed], SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id, aliases: &BTreeMap::new(), declarations: DeclarationPlacement::Original,
+            }, &limits).unwrap();
+        let mut remaining = limits;
+        collect_original_semantics(&[&parsed], &origins, &[Vec::new()], &mut remaining)
+            .unwrap().modules.remove(0).1.definitions
+    }
+
+    #[test]
+    fn literal_opaque_results_keep_static_without_receiver_or_invocation_classes() {
+        for text in [
+            include_str!("../../../tests/fixtures/returned-owning-holders/fnonce-static-slice-result.zil"),
+            "fn make()->impl Fn()->&[u8]{let text=\"abc\";return move()=>text;}fn main(){}",
+            "fn make()->impl FnMut()->&[u8]{let text=\"abc\";var count=0;return move()=>{count+=1;return text;};}fn main(){}",
+            "fn make(flag:bool)->impl Fn()->&[u8]{let text=\"abc\";return move()=>{if flag{return text;}else{return \"def\";}};}fn main(){}",
+        ] {
+            let definitions = inventory(text);
+            let make = definitions.iter().find(|definition| definition.identity.declaration_path.last().is_some_and(|name| name == "make")).unwrap();
+            let mut seen = 0;
+            for requirement in &make.requirements {
+                if let SemanticRequirementRecipe::Callable { signature, .. } = requirement {
+                    assert_eq!(signature.bound_lifetimes, 0);
+                    assert_eq!(signature.invocation_lifetimes, 0);
+                    assert!(signature.parameters.is_empty());
+                    assert!(matches!(&signature.result,
+                        SemanticTypeRecipe::Address { mutable: false, lifetime: SemanticOuterLifeRecipe::Static, inner }
+                        if matches!(inner.as_ref(), SemanticTypeRecipe::Slice(element)
+                            if matches!(element.as_ref(), SemanticTypeRecipe::Atom(Type::U8)))));
+                    seen += 1;
+                }
+            }
+            assert_eq!(seen, 1, "missing original callable obligation: {text}");
         }
     }
 }
