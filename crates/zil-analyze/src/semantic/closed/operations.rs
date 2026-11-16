@@ -354,7 +354,7 @@ impl Check<'_, '_> {
         Ok(())
     }
 
-    fn body_call_actual(
+    pub(super) fn body_call_actual(
         &self,
         target: &SemanticInstance,
         ordinal: usize,

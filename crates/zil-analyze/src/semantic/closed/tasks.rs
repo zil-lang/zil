@@ -1,9 +1,59 @@
 //! Actual Task operations retain their original worker and owning-head identity.
 //! Phase, allocation failure, retained loans and cleanup remain Task-kernel facts.
+//! A construction BodyCall carries the worker's entire ordered mixed actual
+//! vector, just like an ordinary generic target reference. Poll/Close/Cancel/
+//! Finish carry their own intrinsic result-Type projection instead. These are
+//! distinct interfaces even when one worker formal happens to equal its R.
 use super::*;
 use crate::semantic::value;
 
 impl Check<'_, '_> {
+    fn task_worker_arguments(
+        &self,
+        instance: &SemanticInstance,
+        site: SemanticSiteId,
+        worker: FunctionId,
+        proposed: &[SemanticActual],
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let targets = self.original.native_targets(instance, site, self.inventory, b)?;
+        let [original] = targets.as_slice() else {
+            return Err(fail("Task creation has no unique independently checked original worker"));
+        };
+        let expected = self.original.task_worker_arguments(instance, site, self.program, self.inventory, b)?;
+        let formals = &self.inventory.definition(*original, b)?.parameters;
+        let worlds = self.function_worlds(worker, b)?;
+        if worlds.is_empty() {
+            return Err(fail("Task worker has no complete original target world"));
+        }
+        for target in worlds {
+            if target.definition != *original || proposed.len() != expected.len()
+                || target.actuals.len() != expected.len() || formals.len() != expected.len()
+            {
+                return Err(fail("Task worker changes its original definition or full mixed actual arity"));
+            }
+            for (ordinal, (((proposed, target_actual), expected), formal)) in proposed.iter()
+                .zip(&target.actuals).zip(&expected).zip(formals).enumerate()
+            {
+                let proposed = self.actual_value(instance, proposed, b, 0)?;
+                if !self.capture_arguments_equal(&proposed, expected, b)? {
+                    let mut errors = fail("Task worker actual differs from original caller-domain mixed inference");
+                    errors[0].notes.push(format!("worker function {}, full ordinal {}, original {:?}, proposed {:?}",
+                        worker.0, ordinal, expected, proposed));
+                    return Err(errors);
+                }
+                let actual = self.actual_value(target, target_actual, b, 0)?;
+                if !self.body_call_actual(target, ordinal, formal, expected, &actual, b)? {
+                    let mut errors = fail("Task worker changes its independent original rigid mixed context");
+                    errors[0].notes.push(format!("worker function {}, original world {:?}, full ordinal {}, caller {:?}, target {:?}",
+                        worker.0, target.id, ordinal, expected, actual));
+                    return Err(errors);
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn task_result(&self, instance: &SemanticInstance, function: &TypedFunction,
         block: BlockId, index: usize, b: &mut Budget) -> CompileResult<value::Value> {
         let mut selected = None;
@@ -35,27 +85,28 @@ impl Check<'_, '_> {
         actuals: &[SemanticActual],
         b: &mut Budget,
     ) -> CompileResult<Type> {
-        let expected_type =
-            self.original
-                .intrinsic_type_actual(instance, site, self.program, self.inventory, b)?;
-        match actuals {
-            [] => {
-                // No generic function actual is required by this intrinsic.
-                // Its full type is nevertheless independently reconstructed
-                // above and checked against the actual operands/result below.
-            }
-            [actual_type] => {
-                if !matches!(self.actual_value(instance, actual_type, b, 0)?, value::Argument::Type(actual) if actual == expected_type)
-                {
+        if intrinsic != original::sealed::Intrinsic::TaskCreate {
+            let expected_type =
+                self.original
+                    .intrinsic_type_actual(instance, site, self.program, self.inventory, b)?;
+            match actuals {
+                [] => {
+                    // This intrinsic has no proposed Type projection. Its
+                    // full inputs/result are reconstructed independently.
+                }
+                [actual_type] => {
+                    if !matches!(self.actual_value(instance, actual_type, b, 0)?, value::Argument::Type(actual) if actual == expected_type)
+                    {
+                        return Err(fail(
+                            "sealed resource Type actual changes its independently checked original scheme",
+                        ));
+                    }
+                }
+                _ => {
                     return Err(fail(
-                        "sealed resource Type actual changes its independently checked original scheme",
+                        "sealed resource operation changes its intrinsic Type actual arity",
                     ));
                 }
-            }
-            _ => {
-                return Err(fail(
-                    "sealed resource operation changes its intrinsic Type actual arity",
-                ));
             }
         }
         let instruction = function
@@ -74,14 +125,7 @@ impl Check<'_, '_> {
                     worker, arguments, ..
                 },
             ) => {
-                let targets = self
-                    .original
-                    .native_targets(instance, site, self.inventory, b)?;
-                if targets.as_slice() != [self.function_instance(*worker, b)?.definition] {
-                    return Err(fail(
-                        "actual Task creator substitutes another original worker",
-                    ));
-                }
+                self.task_worker_arguments(instance, site, *worker, actuals, b)?;
                 // The referenced worker's whole original declaration and its
                 // actual header are checked independently, even when unused.
                 // Referencing it here does not execute its Suspend body.

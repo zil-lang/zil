@@ -3,14 +3,13 @@
 use super::*;
 
 impl Checked {
-    pub(in crate::semantic) fn intrinsic_type_actual(
+    fn intrinsic_node(
         &self,
         context: &SemanticInstance,
         site: SemanticSiteId,
-        program: &SemanticModule,
         inventory: &Inventory<'_>,
         b: &mut Budget,
-    ) -> CompileResult<crate::semantic::value::Value> {
+    ) -> CompileResult<NodeId> {
         let definition = inventory.definition(context.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
             return Err(fail("sealed Type actual has no complete original body"));
@@ -28,7 +27,40 @@ impl Checked {
                 return Err(fail("sealed Type actual has competing original nodes"));
             }
         }
-        let node = node.ok_or_else(|| fail("sealed Type actual omits its original call"))?;
+        node.ok_or_else(|| fail("sealed Type actual omits its original call"))
+    }
+
+    // Construction carries the worker's full mixed actual vector. It is not
+    // the Task result Type projection used by Poll/Close/Cancel/Finish.
+    pub(in crate::semantic) fn task_worker_arguments(
+        &self,
+        context: &SemanticInstance,
+        site: SemanticSiteId,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<Vec<crate::semantic::value::Argument>> {
+        let node = self.intrinsic_node(context, site, inventory, b)?;
+        b.lookup(self.task_worker_actuals.len(), WORK)?;
+        let actuals = self.task_worker_actuals.get(&(context.definition, node))
+            .ok_or_else(|| fail("Task creation omits its independently inferred worker actuals"))?;
+        let mut values = Vec::new();
+        for actual in actuals {
+            let value = self.argument(*actual, context, program, inventory, b, 0)?;
+            Solver::push(&mut values, value, b)?;
+        }
+        Ok(values)
+    }
+
+    pub(in crate::semantic) fn intrinsic_type_actual(
+        &self,
+        context: &SemanticInstance,
+        site: SemanticSiteId,
+        program: &SemanticModule,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<crate::semantic::value::Value> {
+        let node = self.intrinsic_node(context, site, inventory, b)?;
         b.lookup(self.intrinsics.len(), WORK)?;
         let intrinsic = *self
             .intrinsics

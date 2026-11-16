@@ -567,6 +567,7 @@ impl Solver<'_, '_> {
         Vec<PassingMode>,
         PassingMode,
         CallKind,
+        Vec<Term>,
     )> {
         self.step(depth, b)?;
         let mut head = expression;
@@ -636,8 +637,8 @@ impl Solver<'_, '_> {
         match resume_bound {
             TaskResumeBound::Local | TaskResumeBound::Transfer => {}
         }
-        let (_, parameters, result) = self.scheme(frame, Some(call), target, written, None, b, depth + 1)?;
-        Ok((target, parameters, result, modes, result_mode, call_kind))
+        let (actuals, parameters, result) = self.scheme(frame, Some(call), target, written, None, b, depth + 1)?;
+        Ok((target, parameters, result, modes, result_mode, call_kind, actuals))
     }
 
     // Collect explicit original input occurrences. The actual kernel checks
@@ -809,7 +810,7 @@ impl Solver<'_, '_> {
             let (worker, arguments) = arguments
                 .split_first()
                 .ok_or_else(|| fail("Task creation omits its static worker"))?;
-            let (target, parameters, result, modes, result_mode, call_kind) =
+            let (target, parameters, result, modes, result_mode, call_kind, worker_actuals) =
                 self.task_worker(frame, worker, node, b, depth + 1)?;
             if parameters.len() != arguments.len() || modes.len() != arguments.len() {
                 return Err(fail(
@@ -850,6 +851,10 @@ impl Solver<'_, '_> {
                 Self::push(&mut inputs, *parameter, b)?;
             }
             self.settle_call_inputs(frame, node, Some(target), &outer_inputs, b, depth + 1)?;
+            b.lookup(self.state.task_worker_actuals.len(), WORK)?;
+            if self.state.task_worker_actuals.insert((frame.definition, node), worker_actuals).is_some() {
+                return Err(fail("Task creation has competing original worker actual vectors"));
+            }
             for parameter in &parameters { self.task_input_shape(*parameter, &mut task, b, depth + 1)?; }
             // Each real ordered input contributes its complete original
             // whole domain and P_i mapping, including opaque/phantom children.
