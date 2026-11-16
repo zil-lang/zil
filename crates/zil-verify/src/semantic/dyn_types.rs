@@ -31,7 +31,7 @@ impl CheckedContext {
         }
         let interface=selected.ok_or_else(||bad("original dynamic type has no exact complete actual interface"))?;
         let ty=if owned{Type::OwnedDyn{interface:interface.id}}else{Type::Dyn{interface:interface.id}};
-        let life=StorageLifeShape{binder_count:context.shape.binder_count,slots:vec![],retained:vec![],nominal_arguments:vec![]};
+        let life=StorageLifeShape{binder_count:context.shape.binder_count,slots:vec![],retained:context.shape.retained,nominal_arguments:context.shape.nominal_arguments};
         let mut result=self.construct_value(module,&ty,&life,context.classes,b)?;result.origins=context.origins;Ok(result)
     }
     pub(super) fn dyn_value(&self,module:&TypedModule,ty:&Type,life:&StorageLifeShape,actual:&[StorageBinder],domain:&[ClassKey],domain_origins:&[IntrinsicOrigin],b:&mut Budget)->Check<CheckedType>{

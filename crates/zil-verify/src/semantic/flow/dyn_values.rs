@@ -10,6 +10,9 @@ impl CheckedContext {
         let erased=self.evaluate_type(module,target,env,external,active,b)?;
         if erased.ty!=(Type::Dyn{interface}){return Err(bad("owning erasure selects another complete original interface"));}
         let expected=self.evaluate_type(module,original_source,env,external,active,b)?;
+        let SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(node)}=original_source else{return Err(bad("owning erasure source loses its exact original expression role"));};
+        let source_use=self.original.borrow().as_ref().ok_or_else(||bad("erasure lacks its complete original operand proof"))?.intrinsic(caller.definition,site.recipe,b)?;
+        self.call_input_source(module,caller,f,source,*node,source_use.buffer,b)?;
         let source=value_at(values,source)?;
         if !self.compatible(env,source,&expected,b)?{return Err(bad("owning erasure changes its original complete source value"));}
         b.spend(module.dyn_vtables.len())?;let mut tables=module.dyn_vtables.iter().filter(|row|row.id==vtable);let table=tables.next().ok_or_else(||bad("erasure actual provider table is absent"))?;
@@ -39,8 +42,13 @@ impl CheckedContext {
                 let shape=&module.dyn_interfaces.iter().find(|row|row.id==*interface).ok_or_else(||bad("borrowed erasure interface is absent"))?.retained_life;
                 let mut classes=vec![None;shape.binder_count as usize];let mut origins=vec![None;shape.binder_count as usize];
                 for((key,origin),binder)in source.classes.iter().zip(&source.origins).zip(&table.self_classes){let StorageBinder::Fixed(index)=binder else{return Err(bad("borrowed erasure Context includes invocation authority"));};let target=classes.get_mut(*index as usize).ok_or_else(||bad("borrowed erasure class is outside Context"))?;if let Some(previous)=target{if !self.same(env,previous,key,b)?{return Err(bad("borrowed erasure Context changes a full class image"));}}else{*target=Some(key.clone());}let target=&mut origins[*index as usize];if target.is_none(){*target=Some(origin.clone());}}
-                let classes=classes.into_iter().collect::<Option<Vec<_>>>().ok_or_else(||bad("borrowed erasure has an unanchored original Context class"))?;let origins=origins.into_iter().collect::<Option<Vec<_>>>().ok_or_else(||bad("borrowed erasure has an unanchored original Context occurrence"))?;
-                let life=StorageLifeShape{binder_count:shape.binder_count,slots:vec![],retained:vec![],nominal_arguments:vec![]};let mut child=self.construct_value(module,&Type::Dyn{interface:*interface},&life,classes,b)?;child.origins=origins;child
+                let classes=classes.into_iter().collect::<Option<Vec<_>>>().ok_or_else(||bad("borrowed erasure has an unanchored original Context class"))?;let _origins=origins.into_iter().collect::<Option<Vec<_>>>().ok_or_else(||bad("borrowed erasure has an unanchored original Context occurrence"))?;
+                dynamic_metadata::retained_shape(shape,b)?;
+                let life=StorageLifeShape{binder_count:shape.binder_count,slots:vec![],retained:shape.retained.clone(),nominal_arguments:shape.nominal_arguments.clone()};
+                // Source Self κ and the public Context κ are separate type
+                // domains. The full Self map above proves outside images;
+                // reconstruct the Context's own original nominal identities.
+                self.construct_value(module,&Type::Dyn{interface:*interface},&life,classes,b)?
             },_=>return Err(bad("erased borrowing selects another actual operation")),
         };
         dynamic_witness::semantic_external::construct(self,env,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(outer)},&[child],active,b)

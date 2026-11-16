@@ -297,11 +297,12 @@ fn type_life(
             if rows.next().is_some() {
                 return Err(bad("raw Task opaque child identity is duplicated"));
             }
+            dynamic_metadata::retained_shape(&interface.retained_life,b)?;
             StorageLifeShape {
                 binder_count: interface.retained_life.binder_count,
                 slots: vec![],
-                retained: vec![],
-                nominal_arguments: vec![],
+                retained: interface.retained_life.retained.clone(),
+                nominal_arguments: interface.retained_life.nominal_arguments.clone(),
             }
         }
         Type::Address { inner, .. } | Type::Desc(inner) | Type::Managed(inner) => {

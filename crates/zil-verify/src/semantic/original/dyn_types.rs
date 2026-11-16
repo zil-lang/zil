@@ -9,6 +9,8 @@ pub(super) struct DynApplication {pub(super) declaration:LifeDeclarationId,pub(s
 pub(super) enum DynContext {Closed,Type(Box<Ty>),Shape(Box<Retained>)}
 #[derive(Clone,Debug,PartialEq,Eq)]
 pub(super) struct DynAssociation {pub(super) application:DynApplication,pub(super) member:u32,pub(super) value:Arg}
+#[derive(Default)]
+struct Dependencies {classes:Vec<Life>,ports:Vec<Ty>,whole:Vec<(Ty,bool)>}
 impl DynType {
     pub(super) fn explicit_life(&self,b:&mut Budget)->Check<bool>{
         let mut arguments=self.application.arguments.iter().collect::<Vec<_>>();for row in &self.associated{arguments.extend(&row.application.arguments);arguments.push(&row.value);}b.spend(arguments.len())?;if arguments.iter().any(|arg|matches!(arg,Arg::Life(_))){return Ok(true);}
@@ -107,23 +109,102 @@ impl CheckedOriginal {
 impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn owned_dyn(&mut self,module:&TypedModule,context:&CheckedContext,site:SemanticSiteId,written:&[Arg],arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
-        let [Arg::Type(Ty::Dyn(interface))]=written else{return Err(bad("owned_dyn requires exactly its original erased interface Type argument"));};
+        let (target,envelope)=match written{
+            [Arg::Type(Ty::Dyn(interface))]=>(interface,None),
+            [Arg::Type(Ty::Dyn(interface)),Arg::Type(envelope)]=>(interface,Some(envelope)),
+            _=>return Err(bad("owned_dyn requires its original interface Type and optional whole Context Type")),
+        };
+        if !matches!(target.context,DynContext::Closed){return Err(bad("owned_dyn writes competing original Context operands"));}
+        let mut interface=(**target).clone();
+        if let Some(envelope)=envelope{interface.context=DynContext::Type(Box::new(self.resolved(envelope,b)?));}
         if interface.owned||arguments.len()!=1{return Err(bad("owned_dyn interface/value scheme arity differs"));}
         self.execute_effect(env,CallKind::Direct,b)?;
-        self.dyn_scheme(module,context,interface,env,active,b)?;
+        self.dyn_scheme(module,context,&interface,env,active,b)?;
         let source=self.expression(module,context,&arguments[0],env,bindings,None,active,b)?;
         if !self.value_type(module,context,&source,env,active,b)?||!self.sync_drop(module,context,&source,env,active,b)?{return Err(bad("original owned erasure source lacks complete Value and SyncDrop proofs"));}
-        for application in self.dyn_applications(module,context,interface,env,active,b)?{self.original_trait_obligation(module,context,&source,application.declaration,&application.arguments,env,active,b)?;}
+        let applications=self.dyn_applications(module,context,&interface,env,active,b)?;
+        self.dyn_context_covers(module,context,&interface,&applications,&source,env,active,b)?;
+        for application in &applications{self.original_trait_obligation(module,context,&source,application.declaration,&application.arguments,env,active,b)?;}
         for binding in &interface.associated{match &binding.value{
             Arg::Type(expected)=>{let actual=self.associated_type(module,context,&source,binding.application.declaration,&binding.application.arguments,binding.member,env,active,b)?;if !self.same(&actual,expected,b)?{return Err(bad("owned erasure changes its original associated Type equality"));}},
             Arg::Const(expected)=>{let actual=self.dyn_associated_constant(module,context,&source,&binding.application,binding.member,env,active,b)?;if !self.same(&actual.carrier,&expected.carrier,b)?||actual.value!=expected.value{return Err(bad("owned erasure changes its original associated Const equality"));}},
             Arg::Life(_)=>return Err(bad("associated binding has a Lifetime value")),
         }}
-        self.calls.insert((env.current()?,site),vec![Arg::Type(Ty::Dyn(interface.clone())),Arg::Type(source)]);
+        self.calls.insert((env.current()?,site),vec![Arg::Type(Ty::Dyn(Box::new(interface.clone()))),Arg::Type(source)]);
         self.intrinsic_type_sources.insert((env.current()?,site,1),arguments[0].id);
-        self.intrinsic_calls.insert((env.current()?,site),intrinsics::Use{kind:intrinsics::Intrinsic::OwnedDyn,buffer:None,worker:None,providers:None});
-        let mut owner=(**interface).clone();owner.owned=true;
+        let mut operand=&arguments[0];while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&operand.kind{b.spend(1)?;operand=inner;}
+        let buffer=if self.value_places.contains_key(&(env.current()?,operand.id)){Some(self.operation_source(module,operand,env,bindings,b)?)}else{None};
+        self.intrinsic_calls.insert((env.current()?,site),intrinsics::Use{kind:intrinsics::Intrinsic::OwnedDyn,buffer,worker:None,providers:None});
+        let mut owner=interface;owner.owned=true;
         Ok(Ty::ErrorUnion(Box::new(Ty::SealedError(SealedError::DynCreate)),Box::new(Ty::Dyn(Box::new(owner)))))
+    }
+
+    /// Universal envelope inclusion, before any concrete vtable exists. Full
+    /// phantom class dependencies and physical typed ports are different sets;
+    /// a phantom Type actual alone cannot cover that Type's runtime ports.
+    fn dyn_context_covers(&mut self,module:&TypedModule,context:&CheckedContext,interface:&DynType,applications:&[DynApplication],source:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{
+        let mut required=Vec::new();for application in applications{b.spend(application.arguments.len())?;required.extend(&application.arguments);}for row in &interface.associated{b.spend(row.application.arguments.len().saturating_add(1))?;required.extend(&row.application.arguments);required.push(&row.value);}
+        let DynContext::Type(envelope)=&interface.context else{
+            if !matches!(interface.context,DynContext::Closed)||!self.closed_value(module,context,source,env,active,b)?{return Err(bad("closed owned erasure lacks its original ClosedEnvironment proof"));}
+            for argument in required{match argument{Arg::Life(_)=>return Err(bad("closed erased interface omits a persistent trait/associated lifetime actual")),Arg::Type(ty)=>if !self.closed_value(module,context,ty,env,active,b)?{return Err(bad("closed erased interface omits a complete phantom Type domain"));},Arg::Const(_)=>{}}}
+            return Ok(());
+        };
+        let mut upper=Dependencies::default();let mut actual=Dependencies::default();
+        self.dyn_dependencies(module,context,envelope,true,&mut upper,&mut Vec::new(),env,active,b,0)?;
+        self.dyn_dependencies(module,context,source,true,&mut actual,&mut Vec::new(),env,active,b,0)?;
+        for argument in required{match argument{Arg::Life(life)=>actual.classes.push(self.resolved_life(life,b)?),Arg::Type(ty)=>self.dyn_dependencies(module,context,ty,false,&mut actual,&mut Vec::new(),env,active,b,0)?,Arg::Const(value)=>self.dyn_dependencies(module,context,&value.carrier,false,&mut actual,&mut Vec::new(),env,active,b,0)?,}}
+        for life in &actual.classes{let mut covered=false;for candidate in &upper.classes{if self.same_life(life,candidate,b)?{covered=true;break;}}if !covered{return Err(bad("original erased Context omits a persistent source lifetime or phantom occurrence"));}}
+        for(ty,ports)in &actual.whole{let mut covered=false;for(candidate,physical)in &upper.whole{if (!*ports||*physical)&&self.same(ty,candidate,b)?{covered=true;break;}}if !covered{return Err(bad("original erased Context omits a complete symbolic Type domain or its physical ports"));}}
+        for leaf in &actual.ports{
+            let mut covered=false;
+            for candidate in &upper.ports{
+                let same=match(leaf,candidate){
+                    (Ty::Address{mutable:a,life:x,inner:t},Ty::Address{mutable:z,life:y,inner:u})=>a==z&&self.same_life(x,y,b)?&&self.same(t,u,b)?,
+                    (Ty::Desc{life:x,inner:t},Ty::Desc{life:y,inner:u})=>self.same_life(x,y,b)?&&self.same(t,u,b)?,
+                    _=>false,
+                };
+                if same{covered=true;break;}
+            }
+            if !covered{return Err(bad("original erased Context has no complete compatible external source port"));}
+        }
+        Ok(())
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn dyn_dependencies(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,physical:bool,out:&mut Dependencies,stack:&mut Vec<SemanticDefinitionId>,env:&Env,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<()>{
+        b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original dynamic Context dependency depth exceeded"));}
+        let ty=self.resolved(ty,b)?;
+        match &ty{
+            Ty::Address{life,inner,..}|Ty::Desc{life,inner}=>{
+                out.classes.push(self.resolved_life(life,b)?);
+                if physical{out.ports.push(self.resolved(&ty,b)?);}
+                self.dyn_dependencies(module,context,inner,false,out,stack,env,active,b,depth+1)?;
+            },
+            Ty::Nominal(id,arguments)=>{
+                for argument in arguments{match argument{
+                    Arg::Life(life)=>out.classes.push(self.resolved_life(life,b)?),
+                    Arg::Type(ty)=>self.dyn_dependencies(module,context,ty,false,out,stack,env,active,b,depth+1)?,
+                    Arg::Const(value)=>self.dyn_dependencies(module,context,&value.carrier,false,out,stack,env,active,b,depth+1)?,
+                }}
+                b.spend(stack.len())?;if stack.contains(id){return Ok(());}
+                let original=context.definition(module,*id,b)?;
+                let SemanticDefinitionBody::Nominal{body,..}=&original.body else{return Err(bad("original Context dependency has no complete nominal declaration"));};
+                let mut selected=self.environment(module,context,*id,active,b)?;selected.lexical[0].actuals=self.resolve_arguments(arguments,0,b)?;
+                stack.push(*id);
+                let fields=match body{SemanticNominalBody::Product{fields}=>fields.iter().map(|field|&field.ty).collect::<Vec<_>>(),SemanticNominalBody::Enum{variants}=>variants.iter().flat_map(|variant|&variant.fields).collect::<Vec<_>>()};
+                b.spend(fields.len())?;
+                for field in fields{let field=self.ty(module,context,field,&selected,active,b)?;self.dyn_dependencies(module,context,&field,physical,out,stack,env,active,b,depth+1)?;}
+                stack.pop();
+            },
+            Ty::Tuple(fields)=>for field in fields{self.dyn_dependencies(module,context,field,physical,out,stack,env,active,b,depth+1)?;},
+            Ty::Array(inner,_)|Ty::Slice(inner)|Ty::Managed(inner)|Ty::Store(inner)=>self.dyn_dependencies(module,context,inner,physical,out,stack,env,active,b,depth+1)?,
+            Ty::ErrorUnion(error,result)=>{self.dyn_dependencies(module,context,error,physical,out,stack,env,active,b,depth+1)?;self.dyn_dependencies(module,context,result,physical,out,stack,env,active,b,depth+1)?;},
+            Ty::Atom(_)|Ty::SealedError(_)|Ty::Function(_)=>{},
+            Ty::Code{kind:SemanticCodeKind::FunctionPointer|SemanticCodeKind::ForeignCallback,..}=>{},
+            _=>{
+                if !self.closed_value(module,context,&ty,env,active,b)?{out.whole.push((ty,physical));}
+            },
+        }
+        Ok(())
     }
 }
 impl CheckedOriginal {

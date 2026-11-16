@@ -90,6 +90,38 @@ impl CheckedContext {
         while let Some((current,path))=pending.pop(){
             b.spend(path.len().saturating_add(1))?;
             let storage=match current{Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};
+            if let Type::Dyn{interface}|Type::OwnedDyn{interface}=storage{
+                b.spend(module.dyn_interfaces.len())?;
+                let mut interfaces=module.dyn_interfaces.iter().filter(|row|row.id==*interface);
+                let interface=interfaces.next().ok_or_else(||bad("erased origin has no actual interface identity"))?;
+                if interfaces.next().is_some(){return Err(bad("erased origin has ambiguous complete Context identities"));}
+                let Some(context)=&interface.context else{
+                    if interface.retained_life.binder_count!=0{return Err(bad("erased origin has an unknown nonempty original Context"));}
+                    continue;
+                };
+                let context_life=crate::tasks::frame_shape::declared_life(module,context,b)?;
+                if context_life.binder_count!=interface.retained_life.binder_count||context_life.retained!=interface.retained_life.retained||context_life.nominal_arguments!=interface.retained_life.nominal_arguments{return Err(bad("erased origin Context differs from its complete retained/nominal directory"));}
+                let mut map=Vec::new();let mut images=Vec::new();
+                for class in 0..context_life.binder_count{
+                    let binder=if path.is_empty(){class}else{
+                        b.spend(life.retained.len().saturating_mul(path.len().saturating_add(1)))?;
+                        let mut rows=life.retained.iter().filter(|row|row.path==path&&row.class==class);
+                        let row=rows.next().ok_or_else(||bad("erased child has no complete enclosing intrinsic map"))?;
+                        if rows.next().is_some(){return Err(bad("erased child repeats an enclosing intrinsic occurrence"));}row.binder
+                    };
+                    if map.contains(&binder){return Err(bad("erased child coalesces independent Context indices"));}
+                    images.push(classes.get(binder as usize).cloned().ok_or_else(||bad("erased Context class escapes its complete enclosing domain"))?);map.push(binder);
+                }
+                let child=self.typed_origins_at(module,context,&context_life,&images,active,depth+1,b)?;
+                for(binder,origin)in map.into_iter().zip(child){
+                    let binder=binder as usize;
+                    if nominal[binder]&&origins[binder]!=origin{return Err(bad("erased child changes an independently scoped nominal Context origin"));}
+                    let physical=path.iter().map(|step|if let LifeTypeProjection::Place(field)=step{Some(*field)}else{None}).collect::<Option<Vec<_>>>();
+                    if !path.is_empty()&&life.slots.iter().any(|row|row.binder as usize==binder&&physical.as_ref().is_none_or(|prefix|!row.path.starts_with(prefix))){return Err(bad("outer borrow coalesces an erased Context intrinsic class"));}
+                    nominal[binder]=true;origins[binder]=origin;
+                }
+                continue;
+            }
             if matches!(storage,Type::Record{..}|Type::Package{..}|Type::Enum{..}){
                 let child_life=match current{Type::BorrowedStorage{life,..}=>life.clone(),_=>empty_life()};
                 if child_life.binder_count==0{continue;}

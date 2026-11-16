@@ -63,6 +63,15 @@ fn active_contains(active: &[&Type], ty: &Type, b: &mut Budget) -> Check<bool> {
     Ok(false)
 }
 impl<'a> Inventory<'a> {
+    pub(super) fn dyn_context(&self,ty:&Type,b:&mut Budget)->Check<Option<&'a RetainedLifeShape>>{
+        let(Type::Dyn{interface}|Type::OwnedDyn{interface})=ty else{return Ok(None);};
+        b.spend(self.module.dyn_interfaces.len())?;
+        let mut rows=self.module.dyn_interfaces.iter().filter(|row|row.id==*interface);
+        let row=rows.next().ok_or_else(||bad("opaque dyn logical directory has no actual interface"))?;
+        if rows.next().is_some(){return Err(bad("opaque dyn logical directory has ambiguous interface identity"));}
+        dynamic_metadata::retained_shape(&row.retained_life,b)?;
+        Ok(Some(&row.retained_life))
+    }
     pub(super) fn domain(&mut self, ty: &'a Type, b: &mut Budget) -> Check<Domain> {
         dynamic_metadata::bounds_type(ty, b)?;
         b.spend(self.active.len().saturating_add(1))?;
@@ -513,6 +522,10 @@ impl<'a> Inventory<'a> {
             Type::Managed(_) | Type::Address { .. } | Type::Desc(_)
         ) {
             return super::compound::external(self, ty, life, b);
+        } else if let Some(context)=self.dyn_context(ty,b)?{
+            // These are the exact interface-owned logical Context rows, not
+            // physical fields of the two-pointer runtime erased carrier.
+            if !life.slots.is_empty()||life.binder_count!=context.binder_count||life.retained!=context.retained||life.nominal_arguments!=context.nominal_arguments{return Err(bad("opaque dyn value changes its complete interface-owned logical Context directory"));}
         } else if !life.slots.is_empty()
             || !life.retained.is_empty()
             || !life.nominal_arguments.is_empty()

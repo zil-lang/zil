@@ -36,6 +36,7 @@ impl<'a,'m> Walk<'a,'m> {
                     "compound repeats or misbinds an actual child class occurrence",
                 ));
             }
+            if map.contains(&row.binder){return Err(bad("compound child coalesces independent intrinsic class indices"));}
             b.spend(path.len().saturating_add(1))?;
             self.retained.push((path.to_vec(), class));
             map.push(row.binder);
@@ -96,7 +97,21 @@ impl<'a,'m> Walk<'a,'m> {
                     }
                 }
             }
-            Type::Closure(_) | Type::Task { .. } | Type::MutexGuard { .. } | Type::Dyn { .. } | Type::OwnedDyn { .. } => {
+            Type::Dyn{..}|Type::OwnedDyn{..}=>{
+                let domain=self.inventory.domain(ty,b)?;self.pending|=domain.pending_sources;
+                let map=self.boundary(semantic,domain.count,b)?;
+                let context=self.inventory.dyn_context(ty,b)?.ok_or_else(||bad("compound erased child loses its exact Context directory"))?;
+                // The child retains its complete internal logical directory.
+                // A parent records its whole intrinsic boundary and prefixes
+                // nominal identities, without adding any physical Context GEP.
+                for row in &context.nominal_arguments{
+                    b.spend(semantic.len().saturating_add(row.path.len()).saturating_add(1))?;
+                    let binder=*map.get(row.binder as usize).ok_or_else(||bad("opaque nominal Context row escapes its child domain"))?;
+                    let mut path=semantic.clone();path.extend_from_slice(&row.path);
+                    self.nominal.push(NominalLifeArgument{path,declaration:row.declaration,argument:row.argument,binder});
+                }
+            },
+            Type::Closure(_) | Type::Task { .. } | Type::MutexGuard { .. } => {
                 let domain = self.inventory.domain(ty, b)?;
                 self.pending |= domain.pending_sources;
                 self.boundary(semantic, domain.count, b)?;

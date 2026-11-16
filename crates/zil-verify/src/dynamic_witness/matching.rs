@@ -407,7 +407,13 @@ pub(super) fn intrinsic_child(
 ) -> Check<terms::Value> {
     match child {
         Type::BorrowedStorage { life, .. } => nested(parent, child, life, path, b),
-        Type::Closure(_) | Type::Task { .. } | Type::Dyn { .. } | Type::OwnedDyn { .. } => {
+        Type::Dyn { .. } | Type::OwnedDyn { .. } => {
+            let life=crate::tasks::frame_shape::declared_life(module,child,b)?;
+            // Retain the exact interface-owned logical Context rows. This
+            // projects a whole opaque child, without exposing Context GEPs.
+            nested(parent,child,&life,path,b)
+        }
+        Type::Closure(_) | Type::Task { .. } => {
             let domain = values::intrinsic(module, child, b)?;
             let life = StorageLifeShape {
                 binder_count: domain.count,
