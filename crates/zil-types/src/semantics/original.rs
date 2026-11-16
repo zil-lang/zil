@@ -38,6 +38,8 @@ mod nominal_where;
 mod roles;
 #[path = "original_source_cache.rs"]
 mod source_cache;
+#[path = "original_static_regions.rs"]
+mod static_regions;
 #[path = "original_store.rs"]
 mod store;
 #[path = "original_substitute.rs"]
@@ -2363,6 +2365,7 @@ impl<'a> Check<'a, '_> {
                 )?;
             }
         }
+        let mut static_inputs = Vec::new();
         for (argument, parameter) in arguments.iter().zip(&signature.parameters) {
             // Primitive context fixes unsuffixed literals without importing any
             // unsolved target inference variable into the caller's expression.
@@ -2416,9 +2419,40 @@ impl<'a> Check<'a, '_> {
                 argument,
                 depth + 1,
             )?;
+            if let Some((expected_life, actual_inner, expected_inner)) =
+                self.static_call_input(owner, &actual, &parameter.ty, depth + 1)?
+            {
+                self.unify(
+                    expected_inner,
+                    actual_inner,
+                    formals,
+                    &mut solutions,
+                    &mut implicit,
+                    &mut invocation,
+                    depth + 1,
+                )?;
+                self.pay(1, depth)?;
+                static_inputs.push((*argument, expected_life));
+                continue;
+            }
             self.unify(
                 &parameter.ty,
                 &actual,
+                formals,
+                &mut solutions,
+                &mut implicit,
+                &mut invocation,
+                depth + 1,
+            )?;
+        }
+        // A constant source imposes an outlives bound, not an equality. Solve
+        // all nonconstant inputs first; a later real input must not collide
+        // with a prematurely chosen region for an earlier static literal.
+        for (argument, expected_life) in static_inputs {
+            self.solve_static_call_region(
+                owner,
+                argument,
+                expected_life,
                 formals,
                 &mut solutions,
                 &mut implicit,
@@ -2557,8 +2591,13 @@ impl<'a> Check<'a, '_> {
                 ty,
                 kind,
                 signature,
-            } => self.callable_requirement_under(owner, ty, *kind, signature, universal, depth + 1)?,
-            SemanticRequirementRecipe::ForAll { lifetimes, requirements } => {
+            } => {
+                self.callable_requirement_under(owner, ty, *kind, signature, universal, depth + 1)?
+            }
+            SemanticRequirementRecipe::ForAll {
+                lifetimes,
+                requirements,
+            } => {
                 // Introduce this frame rigidly. In particular, do not use the
                 // invocation-instantiation operation here: each Bound role is
                 // arbitrary, and only the candidate's fresh invocation roles

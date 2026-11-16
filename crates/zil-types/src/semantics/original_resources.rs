@@ -204,7 +204,7 @@ impl Check<'_, '_> {
         }
         self.same(actual, expected)
     }
-    fn static_outer_source(
+    pub(super) fn static_outer_source(
         &mut self,
         owner: SemanticDefinitionId,
         lifetime: &SemanticOuterLifeRecipe,

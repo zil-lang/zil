@@ -138,6 +138,40 @@ pub(super) fn satisfy(
             ));
         }
     }
+    if matches!(actual_ty, Type::Address { mutable: false, .. })
+        && (matches!(source, roles::Source::Static)
+            || matches!(
+                world.value_role_sources.get(&operand),
+                Some(roles::Source::Static)
+            ))
+    {
+        // The actual SSA retains a proved program-static source, including
+        // through a checked local role. It may satisfy this call's shorter
+        // shared outer region. The whole pointee was independently compared
+        // above, and the witness audit still pins the exact call/parameter/SSA.
+        // No class identity, root, epoch or exclusive permission is invented.
+        let SemanticSiteAddress::Typed {
+            block, instruction, ..
+        } = site.at
+        else {
+            return Err(bad("static argument has no exact actual Typed call site"));
+        };
+        let parameter = u32::try_from(parameter)
+            .map_err(|_| bad("static argument parameter ordinal overflows"))?;
+        world.pay(actual_roots.len().saturating_add(1))?;
+        world.argument_witnesses.push(Witness {
+            caller: caller.id,
+            callee: callee.map(|callee| callee.id),
+            recipe: site.recipe,
+            block,
+            instruction,
+            parameter,
+            operand,
+            parents: Vec::new(),
+            roots: actual_roots,
+        });
+        return Ok(());
+    }
     if super::receiver::permits(world, caller.id, site.recipe, operand, &source, &target)? {
         // This exact source binding/field path and actual producer establish
         // only this receiver loan. Its whole pointee domain was checked above.
