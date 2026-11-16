@@ -806,6 +806,26 @@ pub(crate) fn raw_input_ports(
     ports::expand(module, ty, life, b)
 }
 
+/// Select an exact declared borrow occurrence, preserving the complete child
+/// class map. A logical selector is never converted into a physical Place.
+pub(crate) fn raw_input_port(
+    module: &TypedModule,
+    ty: &Type,
+    life: &StorageLifeShape,
+    path: &[ContractProjection],
+    b: &mut Budget,
+) -> Check<(Type, StoredBorrowMode, u32)> {
+    let ports = raw_input_ports(module, ty, life, b)?;
+    b.spend(ports.len().saturating_mul(path.len().saturating_add(1)))?;
+    let mut rows = ports.into_iter().filter(|(_, _, _, source)| source == path);
+    let (leaf, mode, class, _) = rows.next()
+        .ok_or_else(|| bad("logical borrow has no complete original port occurrence"))?;
+    if rows.next().is_some() {
+        return Err(bad("logical borrow selects duplicate complete port occurrences"));
+    }
+    Ok((leaf, mode, class))
+}
+
 /// Select only a declared logical/physical borrow occurrence. This never
 /// computes a GEP or proves that the selected actual root remains live.
 pub(crate) fn contract_leaf(

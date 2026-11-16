@@ -316,46 +316,12 @@ impl CheckedContext {
                 None,
             ));
         }
-        let mut leaves = Vec::new();
-        let opaque = match &value.ty {
-            Type::Task { retained_life, .. } | Type::MutexGuard { retained_life, .. } => {
-                Some(retained_life)
-            }
-            Type::Dyn { interface } | Type::OwnedDyn { interface } => {
-                let row = module
-                    .dyn_interfaces
-                    .iter()
-                    .find(|row| row.id == *interface)
-                    .ok_or_else(|| bad("retained dyn interface is absent"))?;
-                Some(&row.retained_life)
-            }
-            _ => None,
-        };
-        if let Some(shape) = opaque {
-            for port in &shape.ports {
-                dynamic_metadata::ty(&port.leaf, b)?;
-                leaves.push((port.leaf.clone(), port.mode, port.binder));
-            }
-            return Ok(leaves);
-        }
-        for slot in &value.life.slots {
-            b.spend(slot.path.len().saturating_add(1))?;
-            let path = slot
-                .path
-                .iter()
-                .copied()
-                .map(LifeTypeProjection::Place)
-                .collect::<Vec<_>>();
-            let leaf = lifetimes::select(&value.ty, &path, b)?;
-            dynamic_metadata::ty(leaf, b)?;
-            leaves.push((leaf.clone(), slot.mode, slot.binder));
-        }
-        if matches!(value.ty, Type::Closure(_)) && !value.classes.is_empty() {
-            return Err(unsupported(
-                "retained Closure expansion needs its complete actual logical capture directory",
-                None,
-            ));
-        }
-        Ok(leaves)
+        // The declaration-tree walker preserves physical and logical port
+        // order through all actual wrappers, Tasks, Contexts and captures.
+        // It supplies metadata only; every source/loan obligation stays in
+        // the ordinary constructor and actual body kernels.
+        task_domains::raw_input_ports(module, &value.ty, &value.life, b).map(|ports| {
+            ports.into_iter().map(|(leaf, mode, class, _)| (leaf, mode, class)).collect()
+        })
     }
 }

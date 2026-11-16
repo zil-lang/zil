@@ -554,7 +554,7 @@ impl CheckedContext {
         for (index,_) in captures.iter().enumerate() {
             if let Some(ordinal)=logical_captures.get(&(index as u32)){
                 let CheckedActual::Type(value)=&sealed[*ordinal]else{unreachable!()};
-                self.environment_capture_header(relation,child,index as u32,*ordinal,value,b)?;
+                self.environment_capture_header(module,relation,child,index as u32,*ordinal,value,b)?;
                 continue;
             }
             if value_at(values,captures[index])?.classes.is_empty(){continue;}
@@ -635,11 +635,7 @@ impl CheckedContext {
                 // Opaque Task/closure/Context ports are logical selectors, not
                 // physical Place paths. The existing complete declaration
                 // walker maps their original child ordinals injectively.
-                let ports=task_domains::raw_input_ports(module,&value.ty,&value.life,b)?;
-                b.spend(ports.len().saturating_mul(row.position.path.len().saturating_add(1)))?;
-                let mut selected=ports.iter().filter(|(_,_,_,path)|*path==row.position.path);
-                let Some((_,_,class,_))=selected.next()else{return Err(bad("header logical borrow has no complete original opaque port source"));};
-                if selected.next().is_some(){return Err(bad("header logical borrow selects duplicate original port occurrences"));}*class
+                task_domains::raw_input_port(module,&value.ty,&value.life,&row.position.path,b)?.2
             }else{
                 let path=row.position.path.iter().map(|part|match part{ContractProjection::Place(step)=>Ok(*step),_=>unreachable!()}).collect::<Check<Vec<_>>>()?;
                 let mut slots=value.life.slots.iter().filter(|slot|slot.path==path);

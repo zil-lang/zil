@@ -11,6 +11,34 @@ struct Walk<'a, 'm> {
     pending: bool,
 }
 impl<'a,'m> Walk<'a,'m> {
+    fn raw_child(&mut self, ty: &'m Type, semantic: &[LifeTypeProjection], b: &mut Budget) -> Check<()> {
+        // A raw pointee's slots are local to that pointee. Reconstruct and
+        // independently validate its complete domain before mapping any of
+        // its intrinsic indices into this parent's logical directory.
+        let (life, domain) = self.inventory.raw_scope(ty, b)?;
+        self.pending |= domain.pending_sources;
+        let map = self.boundary(semantic, domain.count, b)?;
+        for child in &life.retained {
+            b.spend(self.life.retained.len().saturating_add(semantic.len()).saturating_add(child.path.len()))?;
+            let mut path = semantic.to_vec(); path.extend_from_slice(&child.path);
+            let binder = *map.get(child.binder as usize)
+                .ok_or_else(|| bad("raw pointee descendant escapes its complete local domain"))?;
+            let mut rows = self.life.retained.iter().filter(|row| row.path == path && row.class == child.class);
+            if rows.next().map(|row| row.binder) != Some(binder) || rows.next().is_some() {
+                return Err(bad("raw pointee descendant changes its original intrinsic class map"));
+            }
+            self.retained.push((path, child.class));
+        }
+        for child in &life.nominal_arguments {
+            b.spend(semantic.len().saturating_add(child.path.len()).saturating_add(1))?;
+            let mut row = child.clone();
+            let mut path = semantic.to_vec(); path.extend_from_slice(&row.path); row.path = path;
+            row.binder = *map.get(row.binder as usize)
+                .ok_or_else(|| bad("raw pointee nominal escapes its complete local domain"))?;
+            self.nominal.push(row);
+        }
+        Ok(())
+    }
     fn boundary(
         &mut self,
         path: &[LifeTypeProjection],
@@ -118,9 +146,7 @@ impl<'a,'m> Walk<'a,'m> {
             }
             Type::Address { mutable, inner } => {
                 if !inline {
-                    return Err(bad(
-                        "semantic pointee raw Address has no independent complete child domain",
-                    ));
+                    return self.raw_child(ty, semantic, b);
                 }
                 b.spend(physical.len().saturating_add(self.life.slots.len()).saturating_add(1))?;
                 if self.life.slots.iter().any(|row|row.path==*physical){
@@ -138,9 +164,7 @@ impl<'a,'m> Walk<'a,'m> {
             }
             Type::Desc(inner) => {
                 if !inline {
-                    return Err(bad(
-                        "semantic pointee raw Desc has no independent complete child domain",
-                    ));
+                    return self.raw_child(ty, semantic, b);
                 }
                 b.spend(
                     self.life

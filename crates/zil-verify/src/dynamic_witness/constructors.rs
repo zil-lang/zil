@@ -42,7 +42,7 @@ impl Rows {
         // An owning wrapper has its own complete occurrence in its parent,
         // while retaining every descendant occurrence below that boundary.
         // This adds selectors, never a new intrinsic class or an image alias.
-        let wrapper = matches!(child.ty, Type::Managed(_));
+        let wrapper = matches!(child.ty, Type::Managed(_) | Type::Address { .. } | Type::Desc(_));
         if boundary || wrapper {
             for (class, term) in child.terms.iter().enumerate() {
                 b.spend(semantic.len().saturating_add(1))?;
@@ -76,7 +76,7 @@ impl Rows {
                 self.slots
                     .push((path, row.mode, child.term(row.binder, b)?));
             }
-        } else if !boundary && !child.life.slots.is_empty() {
+        } else if !boundary && !wrapper && !child.life.slots.is_empty() {
             return Err(bad(
                 "raw semantic pointee borrow needs an independent complete child scope",
             ));
@@ -324,6 +324,16 @@ mod wrapper_order_tests {
         assert_eq!(address.life.retained.iter().map(|row|(row.class,row.binder)).collect::<Vec<_>>(),vec![(0,1),(1,2)]);
         assert_eq!(address.life.nominal_arguments.iter().map(|row|(row.argument,row.binder)).collect::<Vec<_>>(),vec![(0,2),(1,1)]);
         let managed=managed(&child,&mut b).unwrap();assert_eq!(managed.terms,child.terms);
+        let raw=terms::Value{raw:DynTypeValue{
+            ty:Type::Address{mutable:false,inner:Box::new(Type::I32)},
+            life:StorageLifeShape{binder_count:1,slots:vec![StorageLifeSlot{path:vec![],mode:StoredBorrowMode::SharedAddress,binder:0}],retained:vec![],nominal_arguments:vec![]},
+            classes:vec![StorageBinder::Fixed(0)],
+        },terms:vec![term(0)]};
+        let twice=address(&raw,term(1),StoredBorrowMode::SharedAddress,&mut b).unwrap();
+        let thrice=address(&twice,term(2),StoredBorrowMode::SharedAddress,&mut b).unwrap();
+        assert_eq!(thrice.terms,vec![term(2),term(1),term(0)]);
+        assert_eq!(thrice.life.slots.len(),1,"pointee slots never become parent physical slots");
+        assert_eq!(thrice.life.retained.iter().map(|row|(row.path.len(),row.class,row.binder)).collect::<Vec<_>>(),vec![(1,0,1),(1,1,2),(2,0,2)]);
         let static_view=address_view(View::of(&child),None,StoredBorrowMode::SharedAddress,&mut b).unwrap();
         assert_eq!(static_view.terms,child.terms);assert!(static_view.life.slots.is_empty());
     }

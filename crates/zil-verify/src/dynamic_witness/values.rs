@@ -63,6 +63,14 @@ fn active_contains(active: &[&Type], ty: &Type, b: &mut Budget) -> Check<bool> {
     Ok(false)
 }
 impl<'a> Inventory<'a> {
+    pub(super) fn raw_scope(&mut self, ty: &'a Type, b: &mut Budget) -> Check<(StorageLifeShape, Domain)> {
+        if !matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+            return Err(bad("raw child scope selects another actual constructor"));
+        }
+        let life = crate::tasks::frame_shape::declared_life(self.module, ty, b)?;
+        let domain = super::compound::external(self, ty, &life, b)?;
+        Ok((life, domain))
+    }
     pub(super) fn dyn_context(&self,ty:&Type,b:&mut Budget)->Check<Option<&'a RetainedLifeShape>>{
         let(Type::Dyn{interface}|Type::OwnedDyn{interface})=ty else{return Ok(None);};
         b.spend(self.module.dyn_interfaces.len())?;
@@ -1063,6 +1071,31 @@ mod tests {
             assert!(run(&module, &head).is_err(), "the owner domain cannot become the outer reference head");
             let mut phantom = actual.clone(); phantom.life.binder_count += 1; phantom.classes.push(StorageBinder::Fixed(0));
             assert!(run(&module, &phantom).is_err());
+        }
+    }
+
+    #[test]
+    fn raw_reference_layers_keep_each_local_scope_and_never_flatten_inner_slots() {
+        let (module, _) = crate::tests::baseline();
+        for mutable in [false, true] {
+            let mut ty = Type::Address { mutable, inner: Box::new(Type::I32) };
+            ty = Type::Address { mutable: false, inner: Box::new(ty) };
+            ty = Type::Address { mutable: false, inner: Box::new(ty) };
+            let mut b = Budget::new(&Limits::default());
+            let mut actual = value(ty, 3);
+            actual.life = crate::tasks::frame_shape::declared_life(&module, &actual.ty, &mut b).unwrap();
+            actual.classes = vec![StorageBinder::Fixed(0); 3];
+            assert_eq!(run(&module, &actual).unwrap().count, 3);
+            assert_eq!(actual.life.slots.len(), 1);
+            let mut swap = actual.clone();
+            swap.life.retained[0].binder = 2; swap.life.retained[1].binder = 1;
+            assert!(run(&module, &swap).is_err(), "same images cannot change the innermost class occurrence");
+            let mut omitted = actual.clone(); omitted.life.retained.pop();
+            assert!(run(&module, &omitted).is_err());
+            let mut coalesced = actual.clone(); coalesced.life.retained[1].binder = 1;
+            assert!(run(&module, &coalesced).is_err());
+            let mut flattened = actual.clone(); flattened.life.slots.push(StorageLifeSlot{path:vec![PlaceProjection::Field(0)],mode:StoredBorrowMode::SharedAddress,binder:2});
+            assert!(run(&module, &flattened).is_err());
         }
     }
 }
