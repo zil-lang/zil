@@ -22,6 +22,8 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 ## 通用语言可用性并行收敛
 
+2026-11-16 客户端迁移检查点：用户报告桌面客户端解码82,785,376B超过64MiB，云端仍可查看。已将所有已知代理暂停在原子文件检查点；完整READY批提交至`74094ece4`，A shared/nested/retained与V definition/default-contract仍明确WIP，原未识别Backend增量一并原样保全但不盲合。源码增量、WIP、真实校验输入、执行助手及说明已在archive/source-history固定`d2eac4cd3`备份，并逐段读回确认；包SHA256 `bb1e92e7e9347d55a208dc916c51a72d5034a6f79adc4a37e8dc1c057e2d5ded`。Alpha仍未接受；最新受测2cf核心IR103/0、Expand175/0、Types96/0、A306/0、V838/1。CLI64M默认配置及后续READY修复已保存但未重建验收。新对话先读[精简接续记录](records/language-alpha-client-handoff-20261116.json)，不要从旧长对话重审或重复派工。
+
 2026-11-16 新实际端到端成果：`7bb14a728` 原五模块ownership工程通过Clang/LLVM API各O0/O2，两后端各140次、总280次正常及分配失败清理运行。根因包含Sum清理缺闭包/OwnedDyn叶、环境类型定义晚于GEP、task cleanup缺legacy/嵌套helper依赖；完整collector已闭合。全Alpha仍未接受，ef227显式25M完整工程仍12/13及正确负例4/4；Astra确认余collections把未调用的合法定义误要求真实callreceipt，应接既有Definition合同完整CFG消费。完整源码分支现`task/language-alpha@c30083e05`，树与本地7c709相同已下载核对；恢复包至8fd及当时WIP亦固定归档1f2471b2逐片读回。后续整合中，不能把局部Source、配额或组件改善当整体交付。
 
 2026-11-16 新候选 `d7b1f1c54` 完整Source：显式Alpha25M为12/13、正确负例4/4，标准默认10M保持10/13；两种配置分别记账。额外14完整Source为11/14，原应用越过原callable occupant错误后仍V25M超限，Alpha未接受。真实CLI配置/缓存隔离/resident测试3/0；组件IR103/0、Expand171/4、Types96/0、A305/0、V817/15。剩余真实语义/旧Wire由完整链负责人并行闭合。Astra指出不应把固定10M软件配额独占功能验收；显式Alpha配置不改安全证明，详workflow最新条款。crates限定恢复截至d7b已在`archive/source-history@12a6ba16b`逐片读回核实，11片按数字顺序连接解码；不等于正式源分支发布或Alpha验收。
