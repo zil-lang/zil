@@ -78,7 +78,7 @@ fn actual_local_workers_keep_ordinary_and_task_adapter_default_cleanup_executabl
                 let generated = report.native_codegen.as_ref().unwrap();
                 assert_eq!(generated.backend, backend);
                 assert!(generated.fallback.is_none());
-                let llvm = fs::read_to_string(dir.join("phases/llvm.ll")).unwrap();
+                let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
                 assert!(
                     !llvm.contains(".marker"),
                     "private continuation marker escaped into the executable: {llvm}"
