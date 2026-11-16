@@ -15,7 +15,7 @@ use zil_llvm_api::model::{Item, Linkage, Module};
 
 const MAGIC: &[u8; 8] = b"ZILCGU01";
 const DIRECTORY: &str = "partition-layout-v1";
-const MAX_ITEMS: usize = 262_144;
+pub(crate) const MAX_ITEMS: usize = 262_144;
 const MAX_UNITS: usize = 256;
 const MAX_REFS: usize = 1_048_576;
 const MAX_BYTES: usize = 8 * 1024 * 1024;

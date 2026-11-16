@@ -977,9 +977,9 @@ impl Reuse<'_> {
         limits: &Limits,
     ) -> R<Option<TypedFunction>> {
         // A failed speculative life-header check could spend work before the
-        // ordinary Builder retries it. Recording a new push ledger must never
-        // inherit that double charge: this domain executes its Builder once.
-        if self.signature_reads.is_some() && function.life.is_some() {
+        // ordinary Builder retries it. Both ordinary and recording requests
+        // execute this domain's Builder once, with its original fees.
+        if function.life.is_some() {
             return Ok(None);
         }
         // Array billing is request state beyond the legacy scalar cost row.
@@ -1563,20 +1563,12 @@ pub(super) fn rebase(f: &mut TypedFunction, old: Span, new: Span) -> bool {
             .all(|i| convert(&mut i.span).is_some())
 }
 
-// Hashing, rebasing and transporting a CFG can cost more than rebuilding a
-// tiny scalar leaf. This cheap source-shape gate is a scheduling choice only:
-// excluded functions retain the full original builder and budget behavior.
+// Ordinary scalar bodies share the same bounded cache protocol. The
+// complete context and function_key gates below still decide eligibility and
+// replay the original six fees. Excluding short bodies forced thousands of
+// rebuilds after restart and deprived publication of their canonical owners.
 fn worthwhile(function: &CoreFunction) -> bool {
-    function.foreign.is_none()
-        && (function.body.statements.len() >= 4
-            || function.body.statements.iter().any(|statement| {
-                matches!(
-                    statement.kind,
-                    CoreStatementKind::If { .. }
-                        | CoreStatementKind::While { .. }
-                        | CoreStatementKind::ForRange { .. }
-                )
-            }))
+    function.foreign.is_none() && function.life.is_none()
 }
 
 fn keys(
@@ -2264,6 +2256,41 @@ mod reactive_tests {
         );
         assert_eq!(actual, legacy_publication(session, limits));
         actual
+    }
+
+    #[test]
+    fn short_bodies_restore_real_cfgs_and_invalidate_the_changed_body() {
+        let mut source = program("4");
+        for module in &mut source.modules {
+            for function in &mut Arc::make_mut(&mut module.core).functions {
+                function.body.statements.drain(..3);
+            }
+        }
+        let mut cold = FunctionSession::default();
+        let expected = check(&mut cold, &source, false).unwrap();
+        assert_eq!(cold.last_stats().executed_functions, 3);
+        let bytes = cold
+            .encode_work_products(&TargetProfile::default(), &Limits::default())
+            .unwrap();
+        let mut restored = FunctionSession::default();
+        assert!(restored.restore_work_products(
+            &bytes,
+            &TargetProfile::default(),
+            &Limits::default()
+        ));
+        assert_eq!(check(&mut restored, &source, false).unwrap(), expected);
+        assert_eq!(restored.last_stats().restored_reused_functions, 3);
+        assert_eq!(restored.last_stats().executed_functions, 0);
+        let function = &mut Arc::make_mut(&mut source.modules[0].core).functions[0];
+        function.body.statements[0].kind =
+            CoreStatementKind::Return(Some(expr(CoreExprKind::Integer("5".into()))));
+        let actual = check(&mut restored, &source, false).unwrap();
+        assert_eq!(
+            actual,
+            check(&mut FunctionSession::default(), &source, false).unwrap()
+        );
+        assert_eq!(restored.last_stats().executed_functions, 1);
+        assert_eq!(restored.last_stats().reused_functions, 2);
     }
 
     #[test]

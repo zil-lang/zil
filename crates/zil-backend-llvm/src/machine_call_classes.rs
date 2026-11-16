@@ -226,11 +226,23 @@ fn dependencies(
     Some(dependencies)
 }
 
+#[cfg(test)]
 fn normalized_key(
     function: &Function,
     functions: &[&Function],
     names: &HashMap<&str, usize>,
     representatives: &[Option<usize>],
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Option<Function> {
+    normalized_key_inner(function, functions, names, representatives, None, cancelled)
+}
+
+fn normalized_key_inner(
+    function: &Function,
+    functions: &[&Function],
+    names: &HashMap<&str, usize>,
+    representatives: &[Option<usize>],
+    stable_names: Option<&[Option<String>]>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Option<Function> {
     let mut key = function.clone();
@@ -251,7 +263,11 @@ fn normalized_key(
                     stopped = true;
                     return true;
                 };
-                return representatives[target].is_some_and(|rep| rep != target);
+                return if let Some(stable) = stable_names {
+                    stable[target].as_ref().is_some_and(|stable| stable != name)
+                } else {
+                    representatives[target].is_some_and(|rep| rep != target)
+                };
             }
             false
         })
@@ -273,7 +289,11 @@ fn normalized_key(
                 } = &mut inst.op
                 {
                     let target = *names.get(name.as_str())?;
-                    if let Some(rep) = representatives[target]
+                    if let Some(stable) = stable_names {
+                        if let Some(stable) = &stable[target] {
+                            *name = stable.clone();
+                        }
+                    } else if let Some(rep) = representatives[target]
                         && rep != target
                     {
                         *name = functions[rep].name.clone();
@@ -293,23 +313,51 @@ pub(crate) fn canonicalize(
     protected: &BTreeSet<String>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Option<Stats> {
+    canonicalize_inner(module, protected, cancelled, false).map(|(stats, _)| stats)
+}
+
+/// Materialize a complete equal class under a content-derived private symbol.
+/// The hash selects only its spelling: full normalized Function equality forms
+/// classes, and a spelling collision rejects the entire staged optimization.
+/// Original definitions and every address operand survive unchanged.
+/// These actual new definitions, not a name-prefix heuristic, authorize imports.
+pub(crate) fn canonicalize_stable(
+    module: &mut Module,
+    protected: &BTreeSet<String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Option<(Stats, BTreeSet<String>)> {
+    canonicalize_inner(module, protected, cancelled, true)
+}
+
+fn canonicalize_inner(
+    module: &mut Module,
+    protected: &BTreeSet<String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    stable: bool,
+) -> Option<(Stats, BTreeSet<String>)> {
     if cancelled() {
         return None;
     }
     let mut functions = Vec::new();
     let mut names = HashMap::new();
     let mut addresses = protected.clone();
+    let mut all_symbols = BTreeSet::new();
+    if stable && module.items.len() > crate::machine_cgu::layout::MAX_ITEMS {
+        return None;
+    }
     for item in &module.items {
         if cancelled() {
             return None;
         }
         match item {
             Item::Global(global) => {
+                all_symbols.insert(global.name.as_str());
                 if let Some(value) = &global.initializer {
                     address_uses(value, &mut addresses, cancelled)?;
                 }
             }
             Item::Function(function) => {
+                all_symbols.insert(function.name.as_str());
                 if names
                     .insert(function.name.as_str(), functions.len())
                     .is_some()
@@ -364,6 +412,12 @@ pub(crate) fn canonicalize(
         }
     }
     let mut representatives = vec![None; count];
+    let mut stable_names = vec![None; count];
+    let mut implementations = std::collections::BTreeMap::new();
+    let source_cost = functions
+        .iter()
+        .try_fold(0usize, |sum, f| sum.checked_add(f.cost()))?;
+    let mut implementation_cost = 0usize;
     // Hash is only the selector: HashMap resolves collisions with full Function
     // Eq, including complete signature/attributes/linkage/blocks/SSA names.
     let mut classes: HashMap<Function, usize> = HashMap::new();
@@ -377,15 +431,55 @@ pub(crate) fn canonicalize(
             if cancelled() {
                 return None;
             }
-            let key = normalized_key(
+            let key = normalized_key_inner(
                 functions[index],
                 &functions,
                 &names,
                 &representatives,
+                stable.then_some(stable_names.as_slice()),
                 cancelled,
             )?;
-            let rep = *classes.entry(key).or_insert(index);
+            let rep = match classes.entry(key) {
+                std::collections::hash_map::Entry::Occupied(entry) => *entry.get(),
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    if stable {
+                        if entry.key().linkage != Linkage::External {
+                            return None;
+                        }
+                        use std::hash::Hash;
+                        let mut hash = crate::object_cache::BufferedHasher::new();
+                        b"ZIL-CLOSED-CALL-CLASS-v1".hash(&mut hash);
+                        entry.key().hash(&mut hash);
+                        let name = format!("zil.class.{}", hash.digest().to_hex());
+                        if all_symbols.contains(name.as_str())
+                            || implementations.contains_key(&name)
+                        {
+                            return None;
+                        }
+                        let mut implementation = entry.key().clone();
+                        implementation.name = name.clone();
+                        implementation_cost =
+                            implementation_cost.checked_add(implementation.cost())?;
+                        if implementation_cost > source_cost
+                            || module
+                                .items
+                                .len()
+                                .checked_add(implementations.len())?
+                                .checked_add(1)?
+                                > crate::machine_cgu::layout::MAX_ITEMS
+                        {
+                            return None;
+                        }
+                        implementations.insert(name.clone(), implementation);
+                        stable_names[index] = Some(name);
+                    }
+                    *entry.insert(index)
+                }
+            };
             representatives[index] = Some(rep);
+            if stable {
+                stable_names[index] = stable_names[rep].clone();
+            }
             stats.eligible_functions += 1;
             for &parent in &parents[index] {
                 let remaining = outstanding[parent].as_mut()?;
@@ -403,11 +497,18 @@ pub(crate) fn canonicalize(
         .enumerate()
         .filter_map(|(index, rep)| {
             let rep = (*rep)?;
-            (rep != index).then(|| (functions[index].name.clone(), functions[rep].name.clone()))
+            if stable {
+                Some((
+                    functions[index].name.clone(),
+                    stable_names[index].as_ref()?.clone(),
+                ))
+            } else {
+                (rep != index).then(|| (functions[index].name.clone(), functions[rep].name.clone()))
+            }
         })
         .collect();
     if replacements.is_empty() {
-        return (!cancelled()).then_some(stats);
+        return (!cancelled()).then_some((stats, BTreeSet::new()));
     }
     // Stage all changes in a COW clone: cancellation at any point cannot leave
     // an incompletely transformed original module or publish partial classes.
@@ -444,10 +545,21 @@ pub(crate) fn canonicalize(
     if cancelled() {
         return None;
     }
-    if stats.rewritten_calls != 0 {
+    // Preserve the existing call-free closed DCE route. Unreferenced class
+    // bodies would add only work, with no direct-call atom to stabilize.
+    if stable && stats.rewritten_calls == 0 {
+        return Some((stats, BTreeSet::new()));
+    }
+    let symbols = implementations.keys().cloned().collect();
+    if stable {
+        changed
+            .items
+            .extend(implementations.into_values().map(Item::Function));
+    }
+    if stats.rewritten_calls != 0 || stable {
         *module = changed;
     }
-    Some(stats)
+    Some((stats, symbols))
 }
 
 #[cfg(test)]
@@ -923,5 +1035,63 @@ mod tests {
         assert_eq!(stats.eligible_functions, 2048);
         assert_eq!(stats.equivalence_classes, 2048);
         assert_eq!(m, before);
+    }
+    #[test]
+    fn stable_classes_survive_editing_the_previous_source_order_representative() {
+        let original = module(vec![
+            leaf("zil.fn.1", 7),
+            leaf("zil.fn.2", 7),
+            call("main", "zil.fn.2"),
+        ]);
+        let mut first = original.clone();
+        let (_, symbols) = canonicalize_stable(&mut first, &BTreeSet::new(), &|| false).unwrap();
+        let stable = target(&first, "main");
+        assert!(symbols.contains(&stable));
+        let mut edited = original.clone();
+        edited.items[0] = Item::Function(leaf("zil.fn.1", 9));
+        canonicalize_stable(&mut edited, &BTreeSet::new(), &|| false).unwrap();
+        assert_eq!(target(&edited, "main"), stable);
+        for name in ["zil.fn.1", "zil.fn.2"] {
+            assert!(
+                edited
+                    .items
+                    .iter()
+                    .any(|item| matches!(item, Item::Function(f) if f.name==name))
+            );
+        }
+        // A true dependency change must still change the actual called class.
+        let mut changed = original;
+        changed.items[1] = Item::Function(leaf("zil.fn.2", 9));
+        canonicalize_stable(&mut changed, &BTreeSet::new(), &|| false).unwrap();
+        assert_ne!(target(&changed, "main"), stable);
+    }
+
+    #[test]
+    fn stable_classes_reject_global_symbol_collision_without_mutating_input() {
+        let original = module(vec![leaf("zil.fn.1", 7), call("main", "zil.fn.1")]);
+        let mut probe = original.clone();
+        canonicalize_stable(&mut probe, &BTreeSet::new(), &|| false).unwrap();
+        let mut collision = original;
+        collision.items.push(Item::Global(Global {
+            name: target(&probe, "main"),
+            linkage: Linkage::External,
+            constant: false,
+            ty: Ty::Int(32),
+            initializer: Some(Val::Int(0)),
+            unnamed_addr: false,
+            alignment: 4,
+        }));
+        let before = collision.clone();
+        assert!(canonicalize_stable(&mut collision, &BTreeSet::new(), &|| false).is_none());
+        assert_eq!(collision, before);
+    }
+
+    #[test]
+    fn call_free_program_keeps_existing_closed_dce_path() {
+        let mut actual = module(vec![leaf("zil.fn.1", 7), leaf("main", 9)]);
+        let before = actual.clone();
+        let (_, symbols) = canonicalize_stable(&mut actual, &BTreeSet::new(), &|| false).unwrap();
+        assert!(symbols.is_empty());
+        assert_eq!(actual, before);
     }
 }

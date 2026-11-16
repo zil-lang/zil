@@ -23,6 +23,7 @@ pub(super) struct Store {
     key: Fingerprint,
     maximum: usize,
     segmented: bool,
+    loaded_publication: std::cell::RefCell<Option<items::LoadedPublication>>,
 }
 
 impl Store {
@@ -66,6 +67,7 @@ impl Store {
             key: Fingerprint::of(&bytes),
             maximum: options.limits.max_source_bytes,
             segmented: options.reuse_producers(),
+            loaded_publication: Default::default(),
         })
     }
 
@@ -81,6 +83,7 @@ impl Store {
     }
 
     pub(super) fn load(&self, options: &CompileOptions) -> Option<(TypedProgram, CandidatePlan)> {
+        self.loaded_publication.borrow_mut().take();
         if !private_directory(&self.root, false) {
             return None;
         }

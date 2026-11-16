@@ -445,7 +445,9 @@ pub fn build_view_with_cancellation_and_session(
         .as_ref()
         .and_then(|session| session.lower.completed_machine_products())
         .cloned();
+    let original_machine = machine.clone();
     let mut call_classes = None;
+    let mut class_symbols = std::collections::BTreeSet::new();
     let reused_transform = session
         .as_ref()
         .and_then(|session| session.transformed.as_ref())
@@ -461,6 +463,7 @@ pub fn build_view_with_cancellation_and_session(
         .cloned();
     if let Some(cached) = reused_transform {
         call_classes = cached.call_classes;
+        class_symbols = cached.class_symbols.clone();
         let fingerprint = machine.fingerprint.clone();
         machine = cached.machine.clone();
         machine.fingerprint = fingerprint;
@@ -478,11 +481,25 @@ pub fn build_view_with_cancellation_and_session(
                 // The class pass reads and stages a complete model. A source
                 // capability or a hash is not its machine admission proof.
                 zil_llvm_api::validate_module(&flat).map_err(api_error)?;
-                call_classes = crate::machine_call_classes::canonicalize(
-                    &mut flat,
-                    &transform_policy.protected,
-                    cancelled,
-                );
+                if let Some((stats, symbols)) = (!collected_closed)
+                    .then(|| {
+                        crate::machine_call_classes::canonicalize_stable(
+                            &mut flat,
+                            &transform_policy.protected,
+                            cancelled,
+                        )
+                    })
+                    .flatten()
+                {
+                    call_classes = Some(stats);
+                    class_symbols = symbols;
+                } else {
+                    call_classes = crate::machine_call_classes::canonicalize(
+                        &mut flat,
+                        &transform_policy.protected,
+                        cancelled,
+                    );
+                }
                 check_cancelled(cancelled)?;
             }
             machine = flat.into();
@@ -493,6 +510,7 @@ pub fn build_view_with_cancellation_and_session(
                 policy: transform_policy.clone(),
                 call_classes_enabled,
                 call_classes,
+                class_symbols: class_symbols.clone(),
                 machine: machine.clone(),
             }));
         }
@@ -526,7 +544,7 @@ pub fn build_view_with_cancellation_and_session(
         )]);
     }
     let partition_started = std::time::Instant::now();
-    let partition_input = session.as_ref().map(|session| {
+    let mut partition_input = session.as_ref().map(|session| {
         crate::incremental::PartitionInput::new_output(
             options,
             stable_names,
@@ -601,7 +619,73 @@ pub fn build_view_with_cancellation_and_session(
                 old.recipe.as_ref()?.replay_output(&machine, &old.units)
             })
             .flatten();
-        let mut stable = if options.closed_executable
+        let class_plan = if class_symbols.is_empty() {
+            None
+        } else {
+            let previous = session
+                .as_ref()
+                .and_then(|s| s.partition.as_ref())
+                .filter(|old| {
+                    partition_input
+                        .as_ref()
+                        .is_some_and(|input| old.input.same_build_options(input))
+                })
+                .and_then(|old| old.materialization.as_ref());
+            crate::machine_cgu::partition_classes_reusing(
+                machine.to_module(),
+                lir,
+                options.emit.entry,
+                options.codegen.units,
+                &class_symbols,
+                previous,
+            )
+        };
+        if !class_symbols.is_empty() && class_plan.is_none() {
+            check_cancelled(cancelled)?;
+            // Stable helpers could not preserve the original complete import
+            // policy within its existing copy limit. Rebuild the old strategy
+            // from the actual current original emitter output, not a partial
+            // helper plan; this attempt remains inside the request's timing.
+            let mut flat = original_machine.to_module();
+            crate::machine_checked_add_chain::fold_checked_add_chains(&mut flat);
+            crate::machine_scalar::fold_known_leaf_calls(&mut flat, lir);
+            zil_llvm_api::validate_module(&flat).map_err(api_error)?;
+            call_classes = crate::machine_call_classes::canonicalize(
+                &mut flat,
+                &transform_policy.protected,
+                cancelled,
+            );
+            check_cancelled(cancelled)?;
+            class_symbols.clear();
+            machine = flat.into();
+            if let Some(session) = session.as_deref_mut() {
+                session.summary.reused_machine_transforms = false;
+                if let Some(input) = session.lower.identity() {
+                    session.transformed =
+                        Some(std::sync::Arc::new(crate::incremental::TransformProduct {
+                            input,
+                            policy: transform_policy.clone(),
+                            call_classes_enabled,
+                            call_classes,
+                            class_symbols: class_symbols.clone(),
+                            machine: machine.clone(),
+                        }));
+                }
+                partition_input = Some(
+                    crate::incremental::PartitionInput::new_output(
+                        options,
+                        stable_names,
+                        collected_closed,
+                        lir,
+                        &machine,
+                        session.lower.identity(),
+                    )
+                    .with_transform_policy(transform_policy.clone()),
+                );
+            }
+        }
+        let mut stable = if class_symbols.is_empty()
+            && options.closed_executable
             && options.backend == NativeBackend::LlvmApi
             && options.optimization == Optimization::O2
             && options.incremental_o2
@@ -703,6 +787,14 @@ pub fn build_view_with_cancellation_and_session(
                 }
                 pending_layout = pending;
                 (plan, None, None, recipe)
+            } else if !class_symbols.is_empty() {
+                let (plan, current) = class_plan.expect("complete current class import plan");
+                if let (Some(current), Some(session)) = (current.as_ref(), session.as_deref_mut()) {
+                    session.summary.reused_partition_items = current.reused_items;
+                    session.summary.rebuilt_partition_items = current.constructed_items;
+                }
+                materialization = current;
+                (plan, None, None, None)
             } else if call_classes_enabled {
                 let previous = previous_partition
                     .as_ref()
@@ -762,6 +854,16 @@ pub fn build_view_with_cancellation_and_session(
                     &mut plan.units,
                     &candidates,
                 );
+            } else if !class_symbols.is_empty() {
+                let mut candidates = class_symbols.clone();
+                for function in lir.functions.iter().filter(|f| f.foreign.is_none()) {
+                    candidates.insert(format!("zil.fn.{}", function.id.0));
+                    candidates.insert(format!("zil.fn.{}.lc1", function.id.0));
+                }
+                crate::machine_cgu::internalize_closed_executable_names(
+                    &mut plan.units,
+                    &candidates,
+                );
             } else {
                 crate::machine_cgu::internalize_closed_executable(&mut plan.units, lir);
             }
@@ -814,6 +916,23 @@ pub fn build_view_with_cancellation_and_session(
                         None,
                     )]);
                 };
+                let declaration_prune = crate::machine_closed_prune::prune_class_declarations(
+                    unit,
+                    &class_symbols,
+                    cancelled,
+                )
+                .map_err(api_error)?;
+                check_cancelled(cancelled)?;
+                // None is cancellation, already rejected by the shared token.
+                if declaration_prune.is_none() {
+                    return Err(vec![Diagnostic::new(
+                        Phase::Link,
+                        ResultCategory::Cancelled,
+                        "E-LLVM-API-CANCELLED",
+                        "class declaration pruning cancelled",
+                        None,
+                    )]);
+                }
                 checked += usize::from(stats.removed_count != 0);
                 removed += stats.removed_count;
                 removals.push(stats.removed_count);

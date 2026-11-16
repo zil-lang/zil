@@ -48,7 +48,7 @@ pub(crate) struct SemanticPublicationSession {
     previous: Option<Arc<TypedProgram>>,
     publication_guard: Arc<std::sync::Mutex<()>>,
     slots: zil_ir::PersistentVec<Arc<OnceLock<RawFunctionEncoding>>>,
-    canonical: zil_ir::PersistentVec<Option<(Fingerprint, Arc<zil_ir::TypedFunction>)>>,
+    canonical: zil_ir::PersistentVec<Option<Arc<zil_ir::TypedFunction>>>,
     products: BTreeMap<FunctionId, zil_types::FunctionProduct>,
     bindings: zil_ir::PersistentVec<FunctionBinding>,
     plan_slots: zil_ir::PersistentVec<Option<Arc<RawFunctionPlanEncoding>>>,
@@ -59,11 +59,12 @@ pub(crate) struct SemanticPublicationSession {
     plan_stats: FunctionPlanEncodingStats,
     semantic_packs: packed::Epoch,
     function_packs: packed::Epoch,
+    memory: Option<Arc<MemoryPublication>>,
 }
 struct PreparedPublication {
     previous: Arc<TypedProgram>,
     slots: zil_ir::PersistentVec<Arc<OnceLock<RawFunctionEncoding>>>,
-    canonical: zil_ir::PersistentVec<Option<(Fingerprint, Arc<zil_ir::TypedFunction>)>>,
+    canonical: zil_ir::PersistentVec<Option<Arc<zil_ir::TypedFunction>>>,
     bindings: zil_ir::PersistentVec<FunctionBinding>,
     plan_slots: zil_ir::PersistentVec<Option<Arc<RawFunctionPlanEncoding>>>,
     plan_inputs: zil_ir::PersistentVec<zil_ir::FunctionPlan>,
@@ -71,6 +72,30 @@ struct PreparedPublication {
     canonical_count: usize,
     function_bindings_checked: usize,
     function_plan_bindings_compared: usize,
+    memory: Option<Arc<MemoryPublication>>,
+}
+
+/// One current raw encoding epoch, owned by the existing publication/checkpoint.
+/// Disk bytes supply comparison inputs only; current complete values select reuse.
+struct MemoryPublication {
+    typed: Arc<TypedProgram>,
+    candidate: CandidatePlan,
+    limits: Limits,
+    canonical: zil_ir::PersistentVec<Option<Arc<zil_ir::TypedFunction>>>,
+    bindings: zil_ir::PersistentVec<FunctionBinding>,
+    slots: zil_ir::PersistentVec<Arc<OnceLock<RawFunctionEncoding>>>,
+    plan_slots: zil_ir::PersistentVec<Option<Arc<RawFunctionPlanEncoding>>>,
+    segments: Vec<WireSegment>,
+}
+pub(super) struct LoadedPublication {
+    envelope: Vec<u8>,
+    memory: Option<Arc<MemoryPublication>>,
+}
+#[derive(Default)]
+struct PublicationAttempts {
+    functions: usize,
+    bindings: usize,
+    plans: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -81,6 +106,13 @@ struct FunctionBinding {
 }
 
 impl SemanticPublicationSession {
+    /// Carry only raw byte hints across the filesystem probe's Store boundary.
+    /// Successful current encoding owners/checkpoints remain transactional.
+    pub(crate) fn adopt_loaded(&mut self, loaded: Self) {
+        self.memory = loaded.memory;
+        self.semantic_packs = loaded.semantic_packs;
+    }
+
     /// A Types raw owner may retain these bounded raw serialization/placement
     /// hints. No directory handle or Verified capability enters the checkpoint.
     pub(crate) fn checkpoint_for(&self, typed: &Arc<TypedProgram>) -> Option<Self> {
@@ -97,8 +129,8 @@ impl SemanticPublicationSession {
     pub(crate) fn function_packs(&mut self) -> &mut packed::Epoch {
         &mut self.function_packs
     }
-    /// Public digests are not evidence. Encoding consults only the product's
-    /// private producer handle, which must match the exact current raw value.
+    /// Public digests are not evidence. A producer handle must match the exact
+    /// current raw value; reversible transport equality is checked separately.
     pub(crate) fn bind_products(&mut self, products: &[zil_types::FunctionProduct]) {
         self.products = products
             .iter()
@@ -112,7 +144,7 @@ impl SemanticPublicationSession {
         candidate: &CandidatePlan,
         limits: &Limits,
     ) -> Option<(Vec<WireSegment>, FunctionEncodingStats)> {
-        let (segments, stats, prepared) = self.prepare(typed, candidate, limits)?;
+        let (segments, stats, prepared) = self.prepare(typed, candidate, limits, false)?;
         self.install(prepared);
         Some((segments, stats))
     }
@@ -127,12 +159,14 @@ impl SemanticPublicationSession {
         self.canonical_count = prepared.canonical_count;
         self.function_bindings_checked = prepared.function_bindings_checked;
         self.function_plan_bindings_compared = prepared.function_plan_bindings_compared;
+        self.memory = prepared.memory;
     }
     fn prepare(
         &self,
         typed: &Arc<TypedProgram>,
         candidate: &CandidatePlan,
         limits: &Limits,
+        relative_bindings: bool,
     ) -> Option<(Vec<WireSegment>, FunctionEncodingStats, PreparedPublication)> {
         // Checkpoints may share raw OnceLock slots. Serialize aggregate cache
         // admission across them; their raw hints never authorize Verify.
@@ -147,10 +181,45 @@ impl SemanticPublicationSession {
         {
             return None;
         }
-        let mut canonical = publication_prefix(&self.canonical, count);
-        let mut slots = publication_prefix(&self.slots, count);
-        let mut bindings = publication_prefix(&self.bindings, count);
-        let dirty = self.previous.as_ref().map_or_else(
+        let mut attempts = PublicationAttempts::default();
+        if let Some(prepared) = self
+            .memory
+            .as_ref()
+            .and_then(|memory| memory.prepare(typed, candidate, limits, &mut attempts))
+        {
+            return Some(prepared);
+        }
+        // A restored raw image is only a staged comparison/encoding baseline;
+        // failed publication leaves the successful owner/checkpoint unchanged.
+        let previous = self
+            .memory
+            .as_ref()
+            .map(|memory| &memory.typed)
+            .or(self.previous.as_ref());
+        let old_canonical = self
+            .memory
+            .as_ref()
+            .map_or(&self.canonical, |memory| &memory.canonical);
+        let old_slots = self
+            .memory
+            .as_ref()
+            .map_or(&self.slots, |memory| &memory.slots);
+        let old_bindings = self
+            .memory
+            .as_ref()
+            .map_or(&self.bindings, |memory| &memory.bindings);
+        let old_plans = self
+            .memory
+            .as_ref()
+            .map_or(&self.plan_inputs, |memory| &memory.candidate.functions);
+        let old_plan_slots = self
+            .memory
+            .as_ref()
+            .map_or(&self.plan_slots, |memory| &memory.plan_slots);
+        let mut canonical = publication_prefix(old_canonical, count);
+        let mut slots = publication_prefix(old_slots, count);
+        let mut bindings = publication_prefix(old_bindings, count);
+        let dirty = previous.map_or_else(
             || (0..count).collect(),
             |previous| {
                 typed
@@ -159,45 +228,48 @@ impl SemanticPublicationSession {
                     .changed_indices(&previous.module.functions)
             },
         );
-        let mut canonical_count = self.canonical_count;
-        for removed in self.canonical.iter().skip(count) {
+        let mut canonical_count = old_canonical.iter().filter(|body| body.is_some()).count();
+        for removed in old_canonical.iter().skip(count) {
             canonical_count -= usize::from(removed.is_some());
         }
-        let mut function_bindings_checked = 0;
+        let mut function_bindings_checked = attempts.bindings;
         for index in dirty.into_iter().filter(|index| *index < count) {
             function_bindings_checked += 1;
             let function = &typed.module.functions[index];
-            let prior = self.canonical.get(index).and_then(Option::as_ref);
-            let equal_raw = self
-                .previous
-                .as_ref()
+            let prior = old_canonical.get(index).and_then(Option::as_ref);
+            let equal_raw = previous
                 .and_then(|p| p.module.functions.get(index))
                 .is_some_and(|old| old == function);
-            // A previously sealed canonical association remains valid for the
-            // exact same raw value. A later public product cannot revoke or
-            // retarget it; changed raw values must consult the private handle.
+            // A canonical transport association remains valid for an exact
+            // raw value. Changed values need a real producer handle or a
+            // reversible span conversion followed by complete function Eq.
             let product = self.products.get(&function.id);
-            let identity = if equal_raw && prior.is_some() {
-                prior.map(|(identity, _)| *identity)
+            let body = if equal_raw && prior.is_some() {
+                prior.cloned()
             } else {
-                product.and_then(|product| product.canonical_identity(function))
+                product
+                    .and_then(|product| product.canonical_function(function))
+                    .or_else(|| {
+                        relative_bindings
+                            .then(|| relative_function(function))
+                            .flatten()
+                            .map(Arc::new)
+                    })
             };
-            let (body, slot) = if let Some(identity) = identity {
-                let reused = prior.filter(|(old, _)| *old == identity);
-                let body = match reused {
-                    Some((_, body)) => body.clone(),
-                    None => product?.canonical_function(function)?,
-                };
+            let (body, slot) = if let Some(body) = body {
+                // Full function equality includes every header, local, value,
+                // block and relative span. A product digest never selects bytes.
+                let reused = prior.filter(|old| old.as_ref() == body.as_ref());
                 let slot = reused
-                    .and_then(|_| self.slots.get(index))
+                    .and_then(|_| old_slots.get(index))
                     .cloned()
                     .unwrap_or_else(|| Arc::new(OnceLock::new()));
-                (Some((identity, body)), slot)
+                (Some(body), slot)
             } else {
                 // Unproven functions retain complete current raw spans. Only
                 // exact raw equality may retain their already-bound cache slot.
                 let slot = (prior.is_none() && equal_raw)
-                    .then(|| self.slots.get(index))
+                    .then(|| old_slots.get(index))
                     .flatten()
                     .cloned()
                     .unwrap_or_else(|| Arc::new(OnceLock::new()));
@@ -214,14 +286,14 @@ impl SemanticPublicationSession {
             publication_set(&mut slots, index, slot);
             publication_set(&mut bindings, index, binding);
         }
-        let mut plan_slots = publication_prefix(&self.plan_slots, plan_count);
+        let mut plan_slots = publication_prefix(old_plan_slots, plan_count);
         while plan_slots.len() < plan_count {
             plan_slots.push(None);
         }
-        let mut function_plan_bindings_compared = 0;
+        let mut function_plan_bindings_compared = attempts.plans;
         for index in candidate
             .functions
-            .changed_indices(&self.plan_inputs)
+            .changed_indices(old_plans)
             .into_iter()
             .filter(|index| *index < plan_count)
         {
@@ -247,7 +319,7 @@ impl SemanticPublicationSession {
                     .zip(&slots)
                     .map(|((raw, canonical), slot)| {
                         (
-                            canonical.as_ref().map_or(raw, |(_, body)| body.as_ref()),
+                            canonical.as_ref().map_or(raw, |body| body.as_ref()),
                             slot.as_ref(),
                         )
                     })
@@ -258,6 +330,7 @@ impl SemanticPublicationSession {
             &mut plan_stats,
         )
         .ok()?;
+        stats.serialized_functions += attempts.functions;
         function_plan_bindings_compared += plan_stats.compared_function_plans;
         let wire_length = wire.iter().try_fold(0usize, |length, segment| {
             length.checked_add(segment.bytes.len())
@@ -280,6 +353,17 @@ impl SemanticPublicationSession {
             fingerprint: Fingerprint::of(&tail),
             bytes: tail.into(),
         });
+        let memory = MemoryPublication::new(
+            typed.clone(),
+            candidate.clone(),
+            limits,
+            canonical.clone(),
+            bindings.clone(),
+            slots.clone(),
+            plan_slots.clone(),
+            segments.clone(),
+        )
+        .map(Arc::new);
         Some((
             segments,
             stats,
@@ -294,8 +378,453 @@ impl SemanticPublicationSession {
                 canonical_count,
                 function_bindings_checked,
                 function_plan_bindings_compared,
+                memory,
             },
         ))
+    }
+}
+
+// This optimization knows the v47 field boundaries, not a new wire format.
+// Unknown versions/segmentation always use the original encoder.
+const MEMORY_WIRE_VERSION: u32 = 47;
+
+fn relative_function(function: &zil_ir::TypedFunction) -> Option<zil_ir::TypedFunction> {
+    let origin = function.span;
+    let mut relative = function.clone();
+    let convert = |span: &mut zil_base::Span| -> Option<()> {
+        if span.file != origin.file
+            || span.start < origin.start
+            || span.start > span.end
+            || span.end > origin.end
+        {
+            return None;
+        }
+        *span = zil_base::Span::new(
+            FileId(0),
+            span.start - origin.start,
+            span.end - origin.start,
+        );
+        Some(())
+    };
+    convert(&mut relative.span)?;
+    for local in &mut relative.locals {
+        convert(&mut local.span)?;
+    }
+    for instruction in relative
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+    {
+        convert(&mut instruction.span)?;
+    }
+    Some(relative)
+}
+
+fn module_header(program: &TypedProgram) -> TypedModule {
+    let mut header = program.module.clone();
+    header.functions = Default::default();
+    header.source_fingerprint = Fingerprint::ZERO;
+    header
+}
+
+fn plan_byte_length(plan: &zil_ir::FunctionPlan) -> Option<usize> {
+    let zil_ir::FunctionPlan {
+        function: _,
+        blocks,
+        holds,
+    } = plan;
+    let mut bytes = 12usize; // function ID and the two vector lengths
+    for block in blocks {
+        let zil_ir::BlockPlan {
+            block: _,
+            initialized_in,
+            initialized_out,
+        } = block;
+        bytes = bytes.checked_add(12)?.checked_add(
+            initialized_in
+                .len()
+                .checked_add(initialized_out.len())?
+                .checked_mul(4)?,
+        )?;
+    }
+    for hold in holds {
+        let zil_ir::ValueHold { value: _, roots } = hold;
+        bytes = bytes.checked_add(8)?;
+        for root in roots {
+            bytes = bytes.checked_add(match root {
+                zil_ir::HoldRoot::Static => 1,
+                zil_ir::HoldRoot::Local(_)
+                | zil_ir::HoldRoot::Capture(_)
+                | zil_ir::HoldRoot::Parameter(_) => 5,
+            })?;
+        }
+    }
+    Some(bytes)
+}
+
+impl MemoryPublication {
+    fn restore(
+        logical: &[u8],
+        segments: Vec<WireSegment>,
+        bytes: &[u8],
+        limits: &Limits,
+        cancellation: &zil_db::CancellationToken,
+    ) -> Option<Self> {
+        if zil_ir::wire::WIRE_VERSION != MEMORY_WIRE_VERSION
+            || logical.get(..8)? != MANIFEST_MAGIC
+            || cancellation.is_cancelled()
+        {
+            return None;
+        }
+        let (total, count, start) = layout(logical, limits)?;
+        if segments.len() != count {
+            return None;
+        }
+        let mut checked = 0usize;
+        for (row, segment) in logical[MANIFEST_HEADER..start]
+            .as_chunks::<MANIFEST_ROW>()
+            .0
+            .iter()
+            .zip(&segments)
+        {
+            let length = usize::try_from(u64::from_le_bytes(row[32..40].try_into().ok()?)).ok()?;
+            checked = checked.checked_add(length)?;
+            if length == 0
+                || checked > total
+                || checked > limits.max_source_bytes
+                || segment.bytes.len() != length
+                || segment.fingerprint.0 != row[..32]
+            {
+                return None;
+            }
+        }
+        // Validate the complete declared/actual volume BEFORE any flat/probe
+        // allocation. The caller's assemble performs this before item I/O too.
+        if checked != total || bytes.len() != total {
+            return None;
+        }
+        let (mut raw, candidate) = decode(bytes, limits)?;
+        let count = raw.module.functions.len();
+        if count == 0
+            || segments.len()
+                != count
+                    .checked_add(candidate.functions.len())?
+                    .checked_add(6)?
+        {
+            return None;
+        }
+        let bindings: zil_ir::PersistentVec<_> = logical[start..]
+            .as_chunks::<BINDING_ROW>()
+            .0
+            .iter()
+            .map(binding)
+            .collect::<Option<Vec<_>>>()?
+            .into();
+        if bindings.len() != count {
+            return None;
+        }
+        let mut canonical = zil_ir::PersistentVec::default();
+        let mut slots = zil_ir::PersistentVec::default();
+        let mut expected = raw.clone();
+        let mut probe = Vec::with_capacity(total);
+        probe.extend_from_slice(bytes);
+        let mut offset = segments[0]
+            .bytes
+            .len()
+            .checked_add(segments[1].bytes.len())?;
+        for (index, function) in raw.module.functions.iter().enumerate() {
+            if cancellation.is_cancelled() {
+                return None;
+            }
+            let fragment = &segments[index + 2].bytes;
+            let (decoded, encoding) = zil_ir::wire::decode_raw_function_shared(
+                fragment.clone(),
+                limits,
+                limits.max_nodes,
+            )
+            .ok()?;
+            if &decoded != function {
+                return None;
+            }
+            slots.push(Arc::new(OnceLock::from(encoding)));
+            canonical.push(
+                bindings[index]
+                    .canonical
+                    .then(|| raw.module.functions.owner(index).unwrap().clone()),
+            );
+            // Validate disk-provided boundaries by changing known v47 fields
+            // and decoding ONCE, then comparing all fields. Hashes/locator
+            // tables cannot authorize replacing a different part of the stream.
+            let file = function.span.file.0 ^ u32::MAX;
+            let position = offset.checked_add(fragment.len().checked_sub(20)?)?;
+            probe
+                .get_mut(position..position.checked_add(4)?)?
+                .copy_from_slice(&file.to_le_bytes());
+            expected.module.functions[index].span.file = FileId(file);
+            offset = offset.checked_add(fragment.len())?;
+        }
+        offset = offset.checked_add(segments[count + 2].bytes.len())?;
+        let mut expected_plan = candidate.clone();
+        expected_plan.module_fingerprint.0[0] ^= 1;
+        let position = offset.checked_add(4)?;
+        probe
+            .get_mut(position..position.checked_add(32)?)?
+            .copy_from_slice(&expected_plan.module_fingerprint.0);
+        let (observed, observed_plan) = decode(&probe, limits)?;
+        if observed != expected || observed_plan != expected_plan || cancellation.is_cancelled() {
+            return None;
+        }
+        rebind(&mut raw, logical, limits)?;
+        let plans = (0..candidate.functions.len()).map(|_| None).collect();
+        Self::new(
+            Arc::new(raw),
+            candidate,
+            limits,
+            canonical,
+            bindings,
+            slots,
+            plans,
+            segments,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        typed: Arc<TypedProgram>,
+        candidate: CandidatePlan,
+        limits: &Limits,
+        canonical: zil_ir::PersistentVec<Option<Arc<zil_ir::TypedFunction>>>,
+        bindings: zil_ir::PersistentVec<FunctionBinding>,
+        slots: zil_ir::PersistentVec<Arc<OnceLock<RawFunctionEncoding>>>,
+        plan_slots: zil_ir::PersistentVec<Option<Arc<RawFunctionPlanEncoding>>>,
+        segments: Vec<WireSegment>,
+    ) -> Option<Self> {
+        let count = typed.module.functions.len();
+        let plans = candidate.functions.len();
+        if zil_ir::wire::WIRE_VERSION != MEMORY_WIRE_VERSION
+            || count == 0
+            || segments.len() != count.checked_add(plans)?.checked_add(6)?
+            || canonical.len() != count
+            || bindings.len() != count
+            || slots.len() != count
+            || plan_slots.len() != plans
+        {
+            return None;
+        }
+        let prefix = &segments[0].bytes;
+        let header = &segments[1].bytes;
+        let plan_header = &segments[count + 3].bytes;
+        let wire_length = segments[1..segments.len() - 1]
+            .iter()
+            .try_fold(0usize, |sum, segment| sum.checked_add(segment.bytes.len()))?;
+        if prefix.len() != 12
+            || prefix.get(..8)? != MAGIC
+            || usize::try_from(u32::from_le_bytes(prefix[8..12].try_into().ok()?)).ok()?
+                != wire_length
+            || header.get(..8)? != b"ZILMODP\0"
+            || u32::from_le_bytes(header.get(8..12)?.try_into().ok()?) != MEMORY_WIRE_VERSION
+            || header.get(20..52)? != typed.module.source_fingerprint.0
+            || u32::from_le_bytes(
+                header
+                    .get(header.len().checked_sub(4)?..)?
+                    .try_into()
+                    .ok()?,
+            ) as usize
+                != count
+            || plan_header.len() != 72
+            || plan_header[0..4] != candidate.schema_version.to_le_bytes()
+            || plan_header[4..36] != candidate.module_fingerprint.0
+            || plan_header[36..68] != candidate.target_fingerprint.0
+            || u32::from_le_bytes(plan_header[68..72].try_into().ok()?) as usize != plans
+        {
+            return None;
+        }
+        for (index, plan) in candidate.functions.iter().enumerate() {
+            if segments[count + 4 + index].bytes.len() != plan_byte_length(plan)? {
+                return None;
+            }
+        }
+        Some(Self {
+            typed,
+            candidate,
+            limits: limits.clone(),
+            canonical,
+            bindings,
+            slots,
+            plan_slots,
+            segments,
+        })
+    }
+
+    fn prepare(
+        &self,
+        typed: &Arc<TypedProgram>,
+        candidate: &CandidatePlan,
+        limits: &Limits,
+        attempts: &mut PublicationAttempts,
+    ) -> Option<(Vec<WireSegment>, FunctionEncodingStats, PreparedPublication)> {
+        if &self.limits != limits
+            || module_header(typed) != module_header(&self.typed)
+            || typed.module.functions.len() != self.typed.module.functions.len()
+        {
+            return None;
+        }
+        // Only the current module fingerprint may differ in an otherwise equal
+        // complete plan. This is data rebinding, never digest authorization.
+        let CandidatePlan {
+            schema_version,
+            module_fingerprint: _,
+            target_fingerprint,
+            functions,
+            origins,
+            responsibilities,
+            unsupported,
+        } = candidate;
+        if *schema_version != self.candidate.schema_version
+            || *target_fingerprint != self.candidate.target_fingerprint
+            || origins != &self.candidate.origins
+            || responsibilities != &self.candidate.responsibilities
+            || unsupported != &self.candidate.unsupported
+            || functions.len() != self.candidate.functions.len()
+        {
+            return None;
+        }
+        let plan_dirty = functions.changed_indices(&self.candidate.functions);
+        let compared_plans = plan_dirty.len();
+        let mut plan_slots = self.plan_slots.clone();
+        for &index in &plan_dirty {
+            attempts.plans += 1;
+            if let Some(raw) = plan_slots[index].as_ref() {
+                let rebound = raw.bind_owner(functions.owner(index)?)?;
+                plan_slots.replace(index, Some(rebound));
+            } else if functions[index] != self.candidate.functions[index] {
+                return None;
+            }
+        }
+        let count = typed.module.functions.len();
+        let mut segments = self.segments.clone();
+        let mut slots = self.slots.clone();
+        let mut canonical = self.canonical.clone();
+        let mut bindings = self.bindings.clone();
+        let mut stats = FunctionEncodingStats {
+            serialized_functions: 0,
+            reused_functions: count,
+        };
+        let dirty = typed
+            .module
+            .functions
+            .changed_indices(&self.typed.module.functions);
+        for &index in &dirty {
+            attempts.bindings += 1;
+            let function = &typed.module.functions[index];
+            let old = &self.typed.module.functions[index];
+            let body = if self.bindings[index].canonical {
+                Some(Arc::new(relative_function(function)?))
+            } else {
+                None
+            };
+            let equal = match (&body, &self.canonical[index]) {
+                (Some(current), Some(previous)) => current == previous,
+                (None, None) => function == old,
+                _ => false,
+            };
+            if !equal {
+                let current = body.as_deref().unwrap_or(function);
+                let old_body = self.canonical[index].as_deref().unwrap_or(old);
+                let (decoded, old_cost) =
+                    zil_ir::wire::decode_raw_function(&self.segments[index + 2].bytes, limits)
+                        .ok()?;
+                if &decoded != old_body {
+                    return None;
+                }
+                attempts.functions += 1;
+                let encoding = zil_ir::wire::encode_raw_function(current, limits).ok()?;
+                // All other wire fields/plan rows are unchanged. A non-growing
+                // actual node receipt preserves the original aggregate quota.
+                // Growth/unknown cost returns to the original ordered writer.
+                if encoding.node_cost() > old_cost {
+                    return None;
+                }
+                segments[index + 2] = WireSegment {
+                    fingerprint: encoding.content_fingerprint(),
+                    bytes: encoding.shared_bytes(),
+                };
+                slots.replace(index, Arc::new(OnceLock::from(encoding)));
+                stats.serialized_functions += 1;
+                stats.reused_functions -= 1;
+            }
+            canonical.replace(index, body);
+            bindings.replace(
+                index,
+                FunctionBinding {
+                    function: function.id,
+                    canonical: self.bindings[index].canonical,
+                    span: function.span,
+                },
+            );
+        }
+        let mut header = segments[1].bytes.to_vec();
+        header[20..52].copy_from_slice(&typed.module.source_fingerprint.0);
+        segments[1] = wire_segment(header);
+        let mut header = segments[count + 3].bytes.to_vec();
+        header[4..36].copy_from_slice(&candidate.module_fingerprint.0);
+        segments[count + 3] = wire_segment(header);
+        let last = segments.len() - 1;
+        segments[last] = wire_segment(encode_metadata(typed, limits)?);
+        let wire_length = segments[1..last]
+            .iter()
+            .try_fold(0usize, |sum, segment| sum.checked_add(segment.bytes.len()))?;
+        let total = 12usize
+            .checked_add(wire_length)?
+            .checked_add(segments[last].bytes.len())?;
+        if total > limits.max_source_bytes {
+            return None;
+        }
+        let mut prefix = MAGIC.to_vec();
+        prefix.extend_from_slice(&u32::try_from(wire_length).ok()?.to_le_bytes());
+        segments[0] = wire_segment(prefix);
+        let canonical_count = canonical.iter().filter(|body| body.is_some()).count();
+        let reused_plan_bytes = segments[count + 4..count + 4 + candidate.functions.len()]
+            .iter()
+            .try_fold(0usize, |sum, segment| sum.checked_add(segment.bytes.len()))?;
+        let memory = Self::new(
+            typed.clone(),
+            candidate.clone(),
+            limits,
+            canonical.clone(),
+            bindings.clone(),
+            slots.clone(),
+            plan_slots.clone(),
+            segments.clone(),
+        )?;
+        Some((
+            segments,
+            stats,
+            PreparedPublication {
+                previous: typed.clone(),
+                canonical,
+                bindings,
+                slots,
+                plan_slots,
+                plan_inputs: candidate.functions.clone(),
+                plan_stats: FunctionPlanEncodingStats {
+                    reused_function_plans: candidate.functions.len(),
+                    reused_function_plan_bytes: reused_plan_bytes,
+                    ..Default::default()
+                },
+                canonical_count,
+                function_bindings_checked: dirty.len(),
+                function_plan_bindings_compared: compared_plans,
+                memory: Some(Arc::new(memory)),
+            },
+        ))
+    }
+}
+
+fn wire_segment(bytes: Vec<u8>) -> WireSegment {
+    WireSegment {
+        fingerprint: Fingerprint::of(&bytes),
+        bytes: bytes.into(),
     }
 }
 
@@ -513,6 +1042,31 @@ fn assemble(
 }
 
 impl Store {
+    /// Transfer the just-loaded raw serialization hints to the request owner.
+    /// Filesystem discovery can carry this alongside its preloaded pair, rather
+    /// than asking a new Store to reread/decode the same candidate later.
+    pub(crate) fn take_loaded_publication(
+        &self,
+        options: &CompileOptions,
+    ) -> Option<SemanticPublicationSession> {
+        let loaded = self.loaded_publication.borrow_mut().take()?;
+        let epoch = packed::Epoch::hint(
+            &self.root.join("packs-v1"),
+            &loaded.envelope,
+            packed::Bounds {
+                maximum: self.maximum,
+                max_items: maximum_segments(&options.limits)?,
+            },
+            &options.cancellation,
+        )?;
+        Some(SemanticPublicationSession {
+            memory: loaded
+                .memory
+                .filter(|memory| memory.limits == options.limits),
+            semantic_packs: epoch,
+            ..Default::default()
+        })
+    }
     /// Loaded bytes are still raw. This bounded locator hint grants no trusted
     /// file stamp: publication must recheck each referenced complete pack.
     pub(crate) fn remember_packed_epoch(
@@ -520,6 +1074,11 @@ impl Store {
         options: &CompileOptions,
         publication: &mut SemanticPublicationSession,
     ) {
+        if let Some(loaded) = self.take_loaded_publication(options) {
+            publication.semantic_packs = loaded.semantic_packs;
+            publication.memory = loaded.memory;
+            return;
+        }
         let Some(max_items) = maximum_segments(&options.limits) else {
             return;
         };
@@ -547,6 +1106,7 @@ impl Store {
         manifest: &[u8],
         options: &CompileOptions,
     ) -> Option<(TypedProgram, CandidatePlan)> {
+        self.loaded_publication.borrow_mut().take();
         if packed::is_packed(manifest) {
             let bounds = packed::Bounds {
                 maximum: self.maximum,
@@ -559,10 +1119,35 @@ impl Store {
                 &options.cancellation,
             )?;
             let logical = reader.logical().to_vec();
+            let mut segments = Vec::new();
             let bytes = assemble(&logical, &options.limits, &mut |key| {
-                reader.load(key).map(|bytes| bytes.to_vec())
+                let bytes = reader.load(key)?;
+                segments.push(WireSegment {
+                    fingerprint: key,
+                    bytes: bytes.clone(),
+                });
+                Some(bytes.to_vec())
             })?;
-            return decode_bound(&bytes, &logical, &options.limits);
+            let memory = MemoryPublication::restore(
+                &logical,
+                segments,
+                &bytes,
+                &options.limits,
+                &options.cancellation,
+            )
+            .map(Arc::new);
+            let result = match &memory {
+                Some(memory) => ((*memory.typed).clone(), memory.candidate.clone()),
+                None => decode_bound(&bytes, &logical, &options.limits)?,
+            };
+            if options.cancellation.is_cancelled() {
+                return None;
+            }
+            *self.loaded_publication.borrow_mut() = Some(LoadedPublication {
+                envelope: manifest.to_vec(),
+                memory,
+            });
+            return Some(result);
         }
         let root = self.root.join("items");
         if !private_directory(&root, false) {
@@ -597,7 +1182,7 @@ impl Store {
         let mut guard_ns = publication_elapsed(batch);
         let encode = publication_start(options.profile_compilation);
         let (segments, encoding, prepared) =
-            publication.prepare(typed, candidate, &options.limits)?;
+            publication.prepare(typed, candidate, &options.limits, options.push_reuse)?;
         let manifest = manifest(&segments, &prepared.bindings, &options.limits)?;
         let encode_ns = publication_elapsed(encode);
         let pin = publication_start(options.profile_compilation);
@@ -742,7 +1327,7 @@ mod tests {
             .iter()
             .filter(|item| cold.iter().any(|old| Arc::ptr_eq(&item.bytes, &old.bytes)))
             .count();
-        assert_eq!(shared, 4);
+        assert_eq!(shared, 6);
         let (changed, next_candidate) = fixture(&path, &SOURCE.replace("x+1", "x+2"));
         let (edited, stats) = publication
             .encode(&changed, &next_candidate, &limits)
@@ -757,7 +1342,7 @@ mod tests {
             .iter()
             .filter(|item| warm.iter().any(|old| Arc::ptr_eq(&item.bytes, &old.bytes)))
             .count();
-        assert_eq!(shared, 3);
+        assert_eq!(shared, 5);
         fs::remove_dir_all(directory).unwrap();
     }
     #[test]
@@ -866,6 +1451,7 @@ mod tests {
             key: Fingerprint::of(b"old"),
             maximum: options.limits.max_source_bytes,
             segmented: true,
+            loaded_publication: Default::default(),
         };
         let mut publication = SemanticPublicationSession::default();
         store
@@ -887,6 +1473,7 @@ mod tests {
             key: Fingerprint::of(b"next"),
             maximum: store.maximum,
             segmented: true,
+            loaded_publication: Default::default(),
         };
         // All encoding can succeed and packs can be written, but the final
         // atomic manifest rename must fail against this directory.
@@ -1014,6 +1601,7 @@ mod tests {
             key: Fingerprint::of(b"request"),
             maximum: options.limits.max_source_bytes,
             segmented: true,
+            loaded_publication: Default::default(),
         };
         // The transport version is independent of the original logical format.
         // Old loose-item manifests remain readable before one-time migration.
@@ -1042,6 +1630,7 @@ mod tests {
             key: Fingerprint::of(b"historical packed request"),
             maximum: store.maximum,
             segmented: true,
+            loaded_publication: Default::default(),
         };
         let mut guarded = plan.clone();
         let pack_root = guarded
@@ -1238,6 +1827,7 @@ mod tests {
             key: Fingerprint::of(b"cold"),
             maximum: options.limits.max_source_bytes,
             segmented: true,
+            loaded_publication: Default::default(),
         };
         let cold = cold_store
             .save(
@@ -1272,6 +1862,7 @@ mod tests {
             root: cold_store.root.clone(),
             maximum: cold_store.maximum,
             segmented: true,
+            loaded_publication: Default::default(),
         };
         let private = private_store
             .save(&typed, &candidate, &options, &artifacts, &mut publication)
@@ -1454,7 +2045,7 @@ mod tests {
     }
 
     #[test]
-    fn stale_canonical_handles_fall_back_to_exact_current_functions() {
+    fn stale_products_cannot_retarget_completed_canonical_bytes_or_current_positions() {
         let directory = directory();
         let path = directory.join("main.zil");
         let mut session = CompilationSession::default();
@@ -1471,11 +2062,136 @@ mod tests {
         let (segments, stats) = publication
             .encode(&moved, &plan, &Limits::default())
             .unwrap();
-        assert_eq!(stats.serialized_functions, 3);
-        assert!(publication.bindings.iter().all(|b| !b.canonical));
+        assert_eq!(stats.serialized_functions, 0);
+        let logical = manifest(&segments, &publication.bindings, &Limits::default()).unwrap();
+        let actual = decode_bound(&flatten(&segments), &logical, &Limits::default()).unwrap();
+        assert_eq!(actual, ((*moved).clone(), (*plan).clone()));
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn restored_segments_bind_current_values_without_rereading_or_reencoding() {
+        let directory = directory();
+        let path = directory.join("main.zil");
+        let options = CompileOptions {
+            push_reuse: true,
+            ..Default::default()
+        };
+        let source = SourceUnit::new(FileId(0), ModuleId(0), path.display().to_string(), SOURCE);
+        let artifacts = artifacts::ArtifactPlan::new(&source, &options).unwrap();
+        let store = Store {
+            root: directory.join("semantic-v7-push"),
+            key: Fingerprint::of(b"memory-restart"),
+            maximum: options.limits.max_source_bytes,
+            segmented: true,
+            loaded_publication: Default::default(),
+        };
+        let (typed, candidate) = fixture(&path, SOURCE);
+        let mut cold = SemanticPublicationSession::default();
+        store
+            .save(&typed, &candidate, &options, &artifacts, &mut cold)
+            .unwrap();
+        let (decoded, claims) = store.load(&options).unwrap();
+        let pack = cold.semantic_packs.first_pack_path().unwrap();
+        let held = pack.with_extension("held");
+        fs::rename(&pack, &held).unwrap();
+        // The loaded request transfers its raw image without opening data packs
+        // again. Current publication still rechecks them after this handoff.
+        let mut publication = store.take_loaded_publication(&options).unwrap();
+        assert!(publication.memory.is_some());
+        assert!(publication.previous.is_none());
+        fs::rename(&held, &pack).unwrap();
+        drop(cold);
+        let current = Arc::new(decoded);
+        let restored = store
+            .save(&current, &claims, &options, &artifacts, &mut publication)
+            .unwrap();
         assert_eq!(
-            flatten(&segments),
-            encode(&moved, &plan, &Limits::default()).unwrap()
+            (restored.serialized_functions, restored.reused_functions),
+            (0, 2)
+        );
+        assert_eq!(
+            (
+                restored.serialized_function_plans,
+                restored.reused_function_plans
+            ),
+            (0, 2)
+        );
+        assert_eq!(restored.physical_pack_writes, 0);
+        assert!(publication.checkpoint_for(&current).is_some());
+
+        for (text, serialized) in [
+            (format!("\n\n{SOURCE}"), 0),
+            (format!("\n\n{}", SOURCE.replace("x+1", "x+2")), 1),
+        ] {
+            let (typed, plan) = fixture(&path, &text);
+            let stats = store
+                .save(&typed, &plan, &options, &artifacts, &mut publication)
+                .unwrap();
+            assert_eq!(
+                (stats.serialized_functions, stats.reused_functions),
+                (serialized, 2 - serialized)
+            );
+            assert_eq!(
+                (stats.serialized_function_plans, stats.reused_function_plans),
+                (0, 2)
+            );
+            let (roundtrip, claims) = store.load(&options).unwrap();
+            assert_eq!(roundtrip, *typed);
+            assert_eq!(claims, plan);
+            assert!(
+                zil_verify::verify_module(
+                    roundtrip.module,
+                    claims,
+                    &typed.module.target,
+                    &options.limits
+                )
+                .is_ok()
+            );
+        }
+        let checkpoint = publication.clone();
+        let before = fs::read(store.path()).unwrap();
+        let mut cancelled = options.clone();
+        cancelled.cancellation = zil_db::CancellationToken::default();
+        cancelled.cancellation.cancel();
+        let current = publication.previous.as_ref().unwrap().clone();
+        let plan = publication.memory.as_ref().unwrap().candidate.clone();
+        assert!(
+            store
+                .save(&current, &plan, &cancelled, &artifacts, &mut publication)
+                .is_none()
+        );
+        assert_eq!(fs::read(store.path()).unwrap(), before);
+        assert!(Arc::ptr_eq(
+            publication.memory.as_ref().unwrap(),
+            checkpoint.memory.as_ref().unwrap()
+        ));
+        let (segments, _, _) = publication
+            .prepare(&current, &plan, &options.limits, true)
+            .unwrap();
+        let mut logical = manifest(&segments, &publication.bindings, &options.limits).unwrap();
+        logical[8..16].copy_from_slice(&1u64.to_le_bytes());
+        let mut read_item = false;
+        assert!(
+            assemble(&logical, &options.limits, &mut |_| {
+                read_item = true;
+                None
+            })
+            .is_none()
+        );
+        assert!(
+            !read_item,
+            "aggregate declared lengths must be checked before item I/O"
+        );
+        assert!(
+            MemoryPublication::restore(
+                &logical,
+                segments,
+                &[],
+                &options.limits,
+                &options.cancellation
+            )
+            .is_none()
         );
         fs::remove_dir_all(directory).unwrap();
     }
@@ -1497,6 +2213,7 @@ mod tests {
             key: Fingerprint::of(b"canonical-roundtrip"),
             maximum: options.limits.max_source_bytes,
             segmented: true,
+            loaded_publication: Default::default(),
         };
         for (source, expected) in [
             (dependency.to_owned(), 3),

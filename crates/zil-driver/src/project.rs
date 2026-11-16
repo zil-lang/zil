@@ -150,14 +150,20 @@ struct LoadedSyntax {
 
 /// An exact import-free source may restore its already decoded raw frontend.
 /// Ordinary discovery still owns syntax; neither variant carries Verify authority.
+type LoadedSemantic = (
+    TypedProgram,
+    CandidatePlan,
+    Option<super::semantic_cache::SemanticPublicationSession>,
+);
+
 enum LoadedProject {
     Parsed(Vec<LoadedSyntax>),
     Prepared(Vec<LoadedSyntax>, Box<CompileReport>),
-    Semantic(Box<(TypedProgram, CandidatePlan)>),
+    Semantic(Box<LoadedSemantic>),
     /// A push-session disk candidate is only a result anchor. Discovery has
     /// executed the ordinary parser over the same immutable reads so the real
     /// producer/consumer epochs and canonical path hints can be established.
-    Hydrating(Vec<LoadedSyntax>, Box<(TypedProgram, CandidatePlan)>),
+    Hydrating(Vec<LoadedSyntax>, Box<LoadedSemantic>),
     /// Current source/import replay completed; only resident raw candidates may
     /// be tried before the ordinary disk/source fallbacks. No Verify authority.
     Resident,
@@ -630,7 +636,7 @@ impl CompilationSession {
         report: &mut CompileReport,
         observer: &mut dyn FnMut(&QueryEvent),
         loaded_syntax: Option<&[LoadedSyntax]>,
-        preloaded_semantic: Option<Box<(TypedProgram, CandidatePlan)>>,
+        preloaded_semantic: Option<Box<LoadedSemantic>>,
     ) -> CompileResult<()> {
         let setup_start = cost_start(options.profile_compilation);
         options
@@ -734,15 +740,23 @@ impl CompilationSession {
         let mut output_anchor = None;
         if let Some(store) = &semantic {
             let cache_start = cost_start(options.profile_compilation);
-            let restored = preloaded_semantic.or_else(|| store.load(options).map(Box::new));
+            let restored = preloaded_semantic.or_else(|| {
+                store.load(options).map(|(typed, candidate)| {
+                    Box::new((typed, candidate, store.take_loaded_publication(options)))
+                })
+            });
             report.record_driver_cost("semantic_cache_read", cache_start);
             if let Some(pair) = restored
                 && pair.0.module.source_fingerprint == fingerprint
                 && pair.0.module.module_id == project.root
                 && pair.0.module.target == options.target
             {
-                store.remember_packed_epoch(options, &mut self.semantic_publication);
-                let (typed, candidate) = *pair;
+                let (typed, candidate, publication) = *pair;
+                if let Some(publication) = publication {
+                    self.semantic_publication.adopt_loaded(publication);
+                } else {
+                    store.remember_packed_epoch(options, &mut self.semantic_publication);
+                }
                 if options.push_reuse {
                     output_anchor = Some(Arc::new(typed));
                     report.disk_cache = DiskCacheStatus::Rebuilt;
@@ -2158,7 +2172,7 @@ fn single_file_semantic_profiled(
     options: &CompileOptions,
     session: &CompilationSession,
     stats: Option<&mut SourceIngressStats>,
-) -> Option<(TypedProgram, CandidatePlan)> {
+) -> Option<LoadedSemantic> {
     if options.profile != ExecutionProfile::Native
         || options.closed_executable
         || options.semantic_cache.is_none()
@@ -2176,7 +2190,7 @@ fn exact_discovered_semantic_profiled(
     project: &ProjectSources,
     options: &CompileOptions,
     mut stats: Option<&mut SourceIngressStats>,
-) -> Option<(TypedProgram, CandidatePlan)> {
+) -> Option<LoadedSemantic> {
     // A failed optional probe cannot move a source/import error behind an
     // artifact error. The original discovery and pipeline report that error.
     let source = validate_sources(project, &options.limits).ok()?;
@@ -2203,7 +2217,7 @@ fn exact_discovered_semantic_profiled(
     (typed.module.source_fingerprint == fingerprint
         && typed.module.module_id == project.root
         && typed.module.target == options.target)
-        .then_some((typed, candidate))
+        .then(|| (typed, candidate, store.take_loaded_publication(options)))
 }
 
 fn resident_discovered_frontend(
@@ -3773,7 +3787,7 @@ mod attempt_accounting_tests {
             &project,
             &options,
             &mut |_| {},
-            Some(LoadedProject::Semantic(Box::new((typed, candidate)))),
+            Some(LoadedProject::Semantic(Box::new((typed, candidate, None)))),
         );
         assert_eq!(
             report.status,

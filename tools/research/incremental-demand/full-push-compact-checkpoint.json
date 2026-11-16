@@ -194,5 +194,15 @@
     "files": 155,
     "raw_bytes": 233517373,
     "archive_bytes": 74960152
+  },
+  "active_implementation": {
+    "baseline": "df06acabf33a76a723d1e92b1d7da71b41d4b7da",
+    "scope": "Stable class implementation symbols→complete imports→closed pruning→object keys; tiny scalar bodies through existing function cache/fees; current raw semantic encoding reuse.",
+    "status": "New source chain being frozen for one unified affected acceptance batch; not yet compiled or performance-measured. compiled_source and last_measured below remain4a23, never apply those numbers to new code.",
+    "record": "stable-class-chain-20261116/implementation.md",
+    "prior_raw_retirement": "stable-class-chain-20261116/prior-backed-blobs-retirement.json",
+    "gate_rule": "No per-edit benchmark matrices; full-chain logic then affected native/backend/Types/driver correctness,quality,strict,release,then one comparison batch.",
+    "research_defaults_enabled": false,
+    "main_merge": false
   }
 }

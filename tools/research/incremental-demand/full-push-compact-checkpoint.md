@@ -1,5 +1,7 @@
 # 当前接续：当前4a23正式测量与阶段定位
 
+新一批稳定class→完整CGU导入→原裁剪/对象键、短函数缓存与raw编码复用已开始整链施工，见[当前施工记录](stable-class-chain-20261116/implementation.md)。这批尚未构建/验收/测量；下列数字仍只属于4a23，不归给新源码。逻辑接完统一验收，研究默认关、main不合。
+
 唯一施工分支research/full-push-native；当前被测源码 **4a23edc7d06bc18cbed1fb958fdaacd886d9607a**，tree35116da8321766cf49106143bd699faada166dbc，release SHA256 `302d58db48f53cd4bc1952f2a9032ead5a6d479314d24eb2ca344f558c2c113e`。测量工具冻结8bb24b854，实际main9170bb421未合。SDK18/native-link沿固定[V32](https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json)，未重建LLVM；独立Verify、默认预算、完整O2保持，研究开关默认关。
 
 本轮按用户要求只测试和定位，没有修改编译器。六个窗口全部完成：774原始请求、258功能格、71持续运行质量用例，候选/Rust既定质量门过。另有213条持续运行构建不混入原始请求；独立profile诊断36+36也不混入正式速度比。O2/CGU16/编译jobs1、两个平衡区块；check与原生分开。ZIL请求计时不含另记worker启动，Cargo含启动；没有OS冷缓存清空。

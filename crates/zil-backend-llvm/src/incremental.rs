@@ -271,6 +271,7 @@ pub(crate) struct TransformProduct {
     /// This optional pass depends on flags beyond the raw lowering identity.
     pub(crate) call_classes_enabled: bool,
     pub(crate) call_classes: Option<crate::machine_call_classes::Stats>,
+    pub(crate) class_symbols: std::collections::BTreeSet<String>,
     pub(crate) machine: crate::machine_output::MachineOutput,
 }
 

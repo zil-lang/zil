@@ -172,6 +172,102 @@ pub(crate) fn prune(
     Ok(Some(stats))
 }
 
+/// The class producer owns these exact current implementation names. After
+/// local dead-definition pruning, an unused prototype for an imported class
+/// must not spread a changed member's class spelling to unrelated objects.
+/// Ordinary declarations are untouched. All original unit fields are validated
+/// before any deletion, including otherwise unused malformed prototypes.
+pub(crate) fn prune_class_declarations(
+    module: &mut Module,
+    classes: &std::collections::BTreeSet<String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<Option<usize>, zil_llvm_api::Error> {
+    if cancelled() {
+        return Ok(None);
+    }
+    if classes.is_empty() {
+        return Ok(Some(0));
+    }
+    let mut referenced = std::collections::BTreeSet::new();
+    let mut pending = Vec::new();
+    let mut remaining = 1_000_000usize;
+    for item in &module.items {
+        if cancelled() {
+            return Ok(None);
+        }
+        match item {
+            Item::Function(function) => {
+                for block in function.blocks.iter().flatten() {
+                    for inst in &block.instructions {
+                        pending.extend(inst.op.values());
+                    }
+                }
+            }
+            Item::Global(global) => pending.extend(global.initializer.as_ref()),
+            Item::NamedType(..) => {}
+        }
+        while let Some(value) = pending.pop() {
+            if cancelled() {
+                return Ok(None);
+            }
+            let Some(next) = remaining.checked_sub(1) else {
+                return Ok(Some(0));
+            };
+            remaining = next;
+            match value {
+                Val::Global(name) => {
+                    referenced.insert(name.clone());
+                }
+                Val::Array(args) => {
+                    if args.len() > remaining.saturating_sub(pending.len()) {
+                        return Ok(Some(0));
+                    }
+                    pending.extend(args.iter().map(|arg| &arg.value));
+                }
+                Val::Gep { ptr, indices, .. } => {
+                    if indices.len().saturating_add(1) > remaining.saturating_sub(pending.len()) {
+                        return Ok(Some(0));
+                    }
+                    pending.push(ptr);
+                    pending.extend(indices.iter().map(|arg| &arg.value));
+                }
+                Val::Invalid(_) => return Ok(Some(0)),
+                _ => {}
+            }
+            if pending.len() > remaining {
+                return Ok(Some(0));
+            }
+        }
+    }
+    let remove = module
+        .items
+        .iter()
+        .map(|item| {
+            matches!(item, Item::Function(f) if f.blocks.is_none()
+            && classes.contains(&f.name) && !referenced.contains(&f.name))
+        })
+        .collect::<Vec<_>>();
+    let count = remove.iter().filter(|&&remove| remove).count();
+    if count == 0 {
+        return Ok(Some(0));
+    }
+    zil_llvm_api::validate_module(module)?;
+    let mut retained = Vec::with_capacity(module.items.len() - count);
+    for (index, item) in module.items.iter().enumerate() {
+        if cancelled() {
+            return Ok(None);
+        }
+        if !remove[index] {
+            retained.push(item.clone());
+        }
+    }
+    if cancelled() {
+        return Ok(None);
+    }
+    module.items = retained.into();
+    Ok(Some(count))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -389,5 +485,42 @@ mod tests {
             );
             assert_eq!(m, original);
         }
+    }
+    #[test]
+    fn only_unreferenced_current_class_prototypes_are_removed() {
+        let mut class = leaf("zil.class.test", Linkage::External);
+        class.blocks = None;
+        let mut foreign = class.clone();
+        foreign.name = "ordinary.foreign".into();
+        let mut m = module(vec![
+            class.clone(),
+            foreign.clone(),
+            leaf("main", Linkage::External),
+        ]);
+        let classes = std::collections::BTreeSet::from([class.name.clone()]);
+        assert_eq!(
+            prune_class_declarations(&mut m, &classes, &|| false).unwrap(),
+            Some(1)
+        );
+        assert!(
+            m.items
+                .iter()
+                .any(|item| matches!(item,Item::Function(f)if f.name==foreign.name))
+        );
+        let mut referenced = module(vec![
+            class.clone(),
+            caller("main", Linkage::External, &class.name),
+        ]);
+        let before = referenced.clone();
+        assert_eq!(
+            prune_class_declarations(&mut referenced, &classes, &|| false).unwrap(),
+            Some(0)
+        );
+        assert_eq!(referenced, before);
+        class.signature.result = Ty::Int(0);
+        let mut malformed = module(vec![class, leaf("main", Linkage::External)]);
+        let before = malformed.clone();
+        assert!(prune_class_declarations(&mut malformed, &classes, &|| false).is_err());
+        assert_eq!(malformed, before);
     }
 }

@@ -247,6 +247,43 @@ pub(crate) fn partition_view_cached_reusing(
     );
     (plan, pending, materialization)
 }
+/// Stable class implementations are actual current staged definitions. Keep
+/// their import domain explicit; prefix matches never authorize extra bodies.
+/// The ordinary planner still decides every current edge and copy budget.
+pub(crate) fn partition_classes_reusing(
+    module: Module,
+    lir: &LirView<'_>,
+    entry: EntryPoint,
+    count: usize,
+    classes: &BTreeSet<String>,
+    previous: Option<&Materialization>,
+) -> Option<(Plan, Option<Materialization>)> {
+    let source = module.clone();
+    let mut layout = None;
+    let mut reused = 0;
+    // A rejected stable-class closure returns to the original class strategy.
+    // Never keep the new helpers by quietly disabling complete imports.
+    let plan = partition_view_once(
+        module,
+        lir,
+        entry,
+        count,
+        true,
+        true,
+        &mut layout,
+        previous,
+        &mut reused,
+        classes,
+    );
+    if plan.fallback.is_some() {
+        return None;
+    }
+    let materialization = layout
+        .as_ref()
+        .map(|layout| Materialization::new(source, layout, &plan.units, reused));
+    Some((plan, materialization))
+}
+
 struct CachedPartitionOptions<'a> {
     entry: EntryPoint,
     count: usize,
@@ -323,6 +360,7 @@ fn partition_view_cached_impl(
         &mut recorded,
         previous,
         &mut reused_items,
+        &BTreeSet::new(),
     );
     let recipe = recipe_source
         .zip(recorded.as_ref())
@@ -361,6 +399,7 @@ fn partition_view_recorded(
         recorded,
         None,
         &mut 0,
+        &BTreeSet::new(),
     )
 }
 #[allow(clippy::too_many_arguments)]
@@ -374,6 +413,7 @@ fn partition_view_recorded_reusing(
     recorded: &mut Option<layout::Layout>,
     previous: Option<&Materialization>,
     reused_items: &mut usize,
+    classes: &BTreeSet<String>,
 ) -> Plan {
     let plan = partition_view_once(
         module,
@@ -385,6 +425,7 @@ fn partition_view_recorded_reusing(
         recorded,
         previous,
         reused_items,
+        classes,
     );
     if plan.fallback != Some("complete O2 call closure exceeds total copy cost") {
         return plan;
@@ -408,6 +449,7 @@ fn partition_view_recorded_reusing(
         recorded,
         previous,
         reused_items,
+        classes,
     )
 }
 
@@ -422,6 +464,7 @@ fn partition_view_once(
     recorded: &mut Option<layout::Layout>,
     previous: Option<&Materialization>,
     reused_items: &mut usize,
+    classes: &BTreeSet<String>,
 ) -> Plan {
     let fallback = |module, reason| Plan {
         units: vec![module],
@@ -618,6 +661,17 @@ fn partition_view_once(
                 _ => None,
             })
             .sum::<usize>();
+        let mut importable = source_functions.clone();
+        importable.extend(classes.iter().cloned());
+        // Class handles must designate exactly one external current definition.
+        if classes.iter().any(|name| {
+            names.get(name.as_str()).is_none_or(|&id| {
+                !matches!(&module.items[defs[id].index], Item::Function(f)
+                    if f.blocks.is_some() && f.linkage == zil_llvm_api::model::Linkage::External)
+            })
+        }) {
+            return fallback(module, "missing current stable class definition");
+        }
         let mut copied_cost = 0usize;
         for (&owner, definitions) in &members {
             let mut pending = definitions
@@ -631,7 +685,7 @@ fn partition_view_once(
                 if owners[id] == owner || !seen.insert(id) {
                     continue;
                 }
-                if !source_functions.contains(&defs[id].name) {
+                if !importable.contains(&defs[id].name) {
                     return fallback(
                         module,
                         "complete O2 call closure includes a compiler-owned definition",
@@ -1376,6 +1430,7 @@ mod tests {
             &mut recorded,
             None,
             &mut 0,
+            &BTreeSet::new(),
         );
         assert_eq!(
             rejected.fallback,
@@ -1871,5 +1926,107 @@ mod tests {
             zil_llvm_api::validate_module(&bad)
         );
         assert!(zil_llvm_api::validate_module(&bad).is_err());
+    }
+    #[test]
+    fn stable_class_units_ignore_retired_representative_and_track_true_dependency() {
+        let ids = (0..64).collect::<Vec<_>>();
+        let mut source = candidate_lir(&ids);
+        for function in &mut source.functions {
+            function.span.file = FileId(function.id.0 % 16);
+        }
+        let mut original = m(ids
+            .iter()
+            .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
+            .collect());
+        original
+            .items
+            .push(call_function("main", Ty::Int(32), "zil.fn.2"));
+        let units = |mut input: Module| {
+            zil_llvm_api::validate_module(&input).unwrap();
+            let (_, classes) = crate::machine_call_classes::canonicalize_stable(
+                &mut input,
+                &BTreeSet::new(),
+                &|| false,
+            )
+            .unwrap();
+            let (mut plan, _) = partition_classes_reusing(
+                input,
+                &source.as_view(),
+                EntryPoint::None,
+                16,
+                &classes,
+                None,
+            )
+            .unwrap();
+            let mut candidates = classes.clone();
+            candidates.extend(ids.iter().map(|id| format!("zil.fn.{id}")));
+            internalize_closed_executable_names(&mut plan.units, &candidates);
+            for unit in &mut plan.units {
+                crate::machine_closed_prune::prune(unit, &|| false)
+                    .unwrap()
+                    .unwrap();
+                crate::machine_closed_prune::prune_class_declarations(unit, &classes, &|| false)
+                    .unwrap()
+                    .unwrap();
+                zil_llvm_api::validate_module(unit).unwrap();
+            }
+            plan.units
+        };
+        let first = units(original.clone());
+        assert_eq!(first.len(), 16);
+        let mut unrelated = original.clone();
+        unrelated.items[0] = f("zil.fn.0", Ty::Int(32), Val::Int(9));
+        assert_eq!(units(unrelated), first);
+        let mut dependent = original;
+        dependent.items[2] = f("zil.fn.2", Ty::Int(32), Val::Int(9));
+        let changed = units(dependent);
+        assert_eq!(changed.len(), first.len());
+        assert_eq!(
+            first.iter().zip(&changed).filter(|(a, b)| a != b).count(),
+            1
+        );
+    }
+
+    #[test]
+    fn stable_class_import_overflow_rejects_new_domain_instead_of_dropping_imports() {
+        let ids = (0..100).collect::<Vec<_>>();
+        let mut source = candidate_lir(&ids);
+        for function in &mut source.functions {
+            function.span.file = FileId(function.id.0 % 16);
+        }
+        let mut input = m(ids
+            .iter()
+            .map(|id| {
+                if *id == 99 {
+                    f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7))
+                } else {
+                    call_function(
+                        &format!("zil.fn.{id}"),
+                        Ty::Int(32),
+                        &format!("zil.fn.{}", id + 1),
+                    )
+                }
+            })
+            .collect());
+        input
+            .items
+            .push(call_function("main", Ty::Int(32), "zil.fn.0"));
+        zil_llvm_api::validate_module(&input).unwrap();
+        let (_, classes) =
+            crate::machine_call_classes::canonicalize_stable(&mut input, &BTreeSet::new(), &|| {
+                false
+            })
+            .unwrap();
+        assert!(
+            partition_classes_reusing(
+                input,
+                &source.as_view(),
+                EntryPoint::None,
+                16,
+                &classes,
+                None
+            )
+            .is_none()
+        );
     }
 }
