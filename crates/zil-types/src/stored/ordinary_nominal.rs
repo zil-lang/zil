@@ -931,7 +931,13 @@ impl<'a> Check<'a, '_> {
             | Type::Managed(element)
             | Type::Desc(element)
             | Type::OwnedStore { element }
-            | Type::Mutex { payload: element } => {
+            | Type::Mutex { payload: element }
+            | Type::Registration {
+                environment: element,
+            }
+            | Type::AsyncRegistration {
+                environment: element,
+            } => {
                 if matches!(ty, Type::Desc(_)) {
                     return Err(unknown(
                         "description occurrence has no complete zero-domain proof",

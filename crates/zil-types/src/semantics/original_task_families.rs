@@ -123,13 +123,13 @@ impl Check<'_, '_> {
                 true,
                 depth + 1,
             );
-            match answer {
+            let cause = match answer {
                 Ok(()) => return Ok(()),
                 Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => {
                     return Err(error);
                 }
-                Err(_) => {}
-            }
+                Err(error) => error,
+            };
             self.pay(384, depth)?;
             let mut error =
                 bad("original Task changes its complete input Context identity or projection");
@@ -137,6 +137,13 @@ impl Check<'_, '_> {
                 left.domain.parts.len(), right.domain.parts.len(), left.ports.len(), right.ports.len(),
                 left.retained.len(), right.retained.len(), left.nominal.len(), right.nominal.len(),
                 left.domain == right.domain, left.ports == right.ports, left.retained == right.retained, left.nominal == right.nominal));
+            let detail = format!(
+                "rigid Context comparison: {}; actual {left:?}; expected {right:?}",
+                cause.message
+            );
+            self.pay(detail.len(), depth)?;
+            error.notes.push(detail);
+            error.notes.extend(cause.notes);
             return Err(error);
         }
         Ok(())

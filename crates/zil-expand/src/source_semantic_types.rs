@@ -787,7 +787,9 @@ impl Builder<'_, '_, '_, '_> {
                     path.pop();
                     self.push(&mut output, value, field.span)?;
                 }
-                Ok(if matches!(ty.kind, s::TypeKind::Tuple(_)) {
+                Ok(if matches!(ty.kind, s::TypeKind::Tuple(_)) && output.is_empty() {
+                    SemanticTypeRecipe::Atom(Type::Unit)
+                } else if matches!(ty.kind, s::TypeKind::Tuple(_)) {
                     SemanticTypeRecipe::Tuple(output)
                 } else {
                     SemanticTypeRecipe::AnonymousSum(output)

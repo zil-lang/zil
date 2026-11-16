@@ -911,6 +911,13 @@ impl Check<'_, '_> {
                         Type::ByteBuffer | Type::ForeignHandle | Type::CWideString
                     ),
             ),
+            // This releases only the view. The referent's cleanup, closed
+            // environment and transfer capabilities remain independent.
+            SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
+                if kind == SemanticBuiltinTrait::SyncDrop =>
+            {
+                Some(true)
+            }
             SemanticTypeRecipe::Address {
                 lifetime: SemanticOuterLifeRecipe::Static,
                 ..

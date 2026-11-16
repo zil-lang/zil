@@ -575,6 +575,18 @@ impl Eval<'_, '_, '_> {
     ) -> R<Domain> {
         self.node(depth)?;
         self.fee(items.len())?;
+        // The language's empty tuple is Unit, as in the original solver's
+        // resolve rule. Keep that identity at whole-Type nominal boundaries
+        // too; Poll<()> and its actual Unit payload must select the same row.
+        if items.is_empty() {
+            return self.type_domain_at(
+                scope,
+                &SemanticTypeRecipe::Atom(Type::Unit),
+                Some(&Type::Unit),
+                depth + 1,
+                occurrence,
+            );
+        }
         let mut children = Vec::new();
         for (ordinal, item) in items.iter().enumerate() {
             let ordinal =
