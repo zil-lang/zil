@@ -1,0 +1,22 @@
+{
+  "schema": "zil.restart-performance-window-recovery.v1",
+  "name": "check-5000-wide",
+  "compiler_source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+  "tool_source": "8bb24b85412b4b388d3c3f266786ef36ebe05e6f",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "manifest": "evidence-manifest.json",
+  "manifest_sha256": "d6bf4f0990f413b9d687fa1568e90e15a3897ef7fb2a8ccd69a888553537fa17",
+  "archive_sha256": "470467781c44629bec34f24f5a63a94fd4e545be34cace36810d82eb116e5647",
+  "archive_bytes": 250987688,
+  "parts": 10,
+  "files": 3423,
+  "raw_bytes": 900045049,
+  "fresh_full_file_hash_verified": true,
+  "fresh_receipt": "fresh-recovery-receipt.json",
+  "payload_paths": "Window-relative beneath fresh restore root, not repository-relative. Map to original_root; modes preserved, original hardlinks expanded, never recompute product disk savings from restoration.",
+  "original_root": "out/runs/restart-performance-check-5000-wide-01",
+  "scope": "Complete immutable current4a23 check-5000-wide window, all raw reports/logs/user caches/artifacts. Diagnostic is separately labelled, never formal timings. Raw paths relative to this window root. Original main ResourceLimit and error/recovery preserved. SDK18/native-link external fixedV32.",
+  "formal_comparison": true,
+  "verify_command": "python3 tools/research/incremental-demand/archive_evidence.py verify --archive-dir ARCHIVE_DIR --restore-dir NON_EXISTENT_DESTINATION",
+  "SDK18_native_link_fixed_dependency": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json"
+}

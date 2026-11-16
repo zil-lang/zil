@@ -1,0 +1,15 @@
+{
+  "archive_bytes": 160975082,
+  "files": 2640,
+  "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+  "parts": 7,
+  "raw_bytes": 583443108,
+  "restore_dir": "/workspace/zil-recovery/restart-performance-check-2500-chain-full-fresh-01",
+  "scope": "Complete immutable current4a23 check-2500-chain window, all raw reports/logs/user caches/artifacts. Diagnostic is separately labelled, never formal timings. Raw paths relative to this window root. Original main ResourceLimit and error/recovery preserved. SDK18/native-link external fixedV32.",
+  "sha256": "63c4d32e3a32d25806609a48f0b1ce53d9d08b816527dd80f95d7cf6877b11c7",
+  "source_commits": {
+    "compiler": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+    "tools": "8bb24b85412b4b388d3c3f266786ef36ebe05e6f"
+  },
+  "status": "verified"
+}

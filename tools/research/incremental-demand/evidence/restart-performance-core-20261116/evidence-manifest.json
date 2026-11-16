@@ -1,0 +1,974 @@
+{
+  "archive": {
+    "bytes": 74960152,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 25165824,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "9eef4fbefe97e196dce686e38409d44eaf25e63ec47d483c4f7ffea4b3a00d07"
+      },
+      {
+        "bytes": 25165824,
+        "name": "evidence.tar.zst.part-00002",
+        "sha256": "f8b774d33fb13fd440aa599a483d9941e8f59b4bb9c5d504bfeaed43c6d0f425"
+      },
+      {
+        "bytes": 24628504,
+        "name": "evidence.tar.zst.part-00003",
+        "sha256": "e07d90d88a5d1bb457980ccfd9a1a12e8747869eef37080ccb1e448f9df39015"
+      }
+    ],
+    "sha256": "5cc2a77e3629036c84c3f36ceffa07fb97279e9796b9178a3a3f72f85641bf6e",
+    "tar_bytes": 233758720
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 2157,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/README.md",
+        "sha256": "18e3f956b840d5fa0c134822bc8717fba8746463c7dff80900cd6a8957e16c18"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/check-2500-chain-fresh.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 765,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/check-2500-chain-fresh.stdout",
+        "sha256": "c01ceecd068bbaad4d2987740e24705f03199dca934a8bacbf94d0bf4eb3a437"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/check-2500-chain-pack.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 330,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/check-2500-chain-pack.stdout",
+        "sha256": "2e946c2736a2fc1649d96953618506bcc951045308e8ff6f65f8bf787e9af31a"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/check-2500-diamond-fresh.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 769,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/check-2500-diamond-fresh.stdout",
+        "sha256": "fd3d003751f74aa8355e7852d8e67825ffc565cd11cba84109e2bb54a90a8613"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/check-2500-diamond-pack.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 332,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/check-2500-diamond-pack.stdout",
+        "sha256": "ed4079690b80f0a40d4387b958811d12efdad40874e273d2a3c26c0bc87df93d"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/check-5000-wide-fresh.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 764,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/check-5000-wide-fresh.stdout",
+        "sha256": "d923494c0d6819b9b996eac3de40e851e84e7cf0650b12150538b968576163ed"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/check-5000-wide-pack.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 330,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/check-5000-wide-pack.stdout",
+        "sha256": "e33164be57d83ada3abffdae2d8290de615479feace32048ab24dc35453157da"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/clear-fresh.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 746,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/clear-fresh.stdout",
+        "sha256": "32508e09af64ad63a99c9243657fea37db3d05023992157fe19f1fff711ed0a2"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/clear-pack.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 322,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/clear-pack.stdout",
+        "sha256": "85829b324c655981665563a883177e4c627d6bfb4546232c9a9a82460890396f"
+      },
+      {
+        "bytes": 12732,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/completion.json",
+        "sha256": "9d3424bdcc264919668b8707d099b9eaebf368a6c18d12fdccb5cd91cd2f099c"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/diagnostic-fresh.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 752,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/diagnostic-fresh.stdout",
+        "sha256": "c01b6a8ae4dadaa453b85b7bf25ab69e02d3afd9a85f08dbf2fb169ed0e8a919"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/diagnostic-pack.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 323,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/diagnostic-pack.stdout",
+        "sha256": "a888b3f33d69d5c1b56a2ac94fe739f3675db41997ff091511f92c8b192042ac"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/native-fresh.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 749,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/native-fresh.stdout",
+        "sha256": "5b1a0b37d32e66f2368da53b5d678cdf887d19cbf53d43cd3fdcf7a901c64aca"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/native-pack.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 324,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/native-pack.stdout",
+        "sha256": "3b8da471a637bc741c338defd5c4325bfc90f783b1d390278a8f204b087432e6"
+      },
+      {
+        "bytes": 12663,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/progress.json",
+        "sha256": "84ff65262468d227c562ec97fba79e8c77633c4dfdb3bba57e7ddd291a363035"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/retain-fresh.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 748,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/retain-fresh.stdout",
+        "sha256": "7aada8e09e3b96f646ff5e75c7d2a02e46729ab6e09afa18c4f953336ffb1634"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/retain-pack.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 323,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/archive-receipts/retain-pack.stdout",
+        "sha256": "229bf4255696570cd719e19ec3dda18cb84e0ccd797e88f648988275d46ee868"
+      },
+      {
+        "bytes": 27652872,
+        "mode": 448,
+        "path": "out/runs/restart-performance-core-01/binaries/candidate/zil",
+        "sha256": "302d58db48f53cd4bc1952f2a9032ead5a6d479314d24eb2ca344f558c2c113e"
+      },
+      {
+        "bytes": 23174408,
+        "mode": 448,
+        "path": "out/runs/restart-performance-core-01/binaries/main/zil",
+        "sha256": "08fcf4bc3b31590068585b63f4f4bc18def552234b9c57295b9a4b0fb4f199f0"
+      },
+      {
+        "bytes": 1388,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/build-receipts/main9170-host-release-control-01/release.json",
+        "sha256": "572c919248882cb3c328773a2db3604c69ac04f52d7e48c2971b09e4da834c5e"
+      },
+      {
+        "bytes": 1505,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/build-receipts/main9170-host-release-control-01/release.log",
+        "sha256": "0c4b62b15bd2d013fbe593bdee1457201d0020383fa2b16f4f8fd45dda6fb89b"
+      },
+      {
+        "bytes": 648,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/build-receipts/restart-function-chain-gates-05-4a23edc7d06b/release.json",
+        "sha256": "e0fd4f9f82f3794b9da42947d4ec658147599ac2cbf2145a0850802b534f7b5f"
+      },
+      {
+        "bytes": 8714,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/failures/diagnostic-01-before-any-compiler-request/diagnostic-manifest.json",
+        "sha256": "d0954882019b5c9f4cbfe059dcaf6ce0f775a8f86fa40ce9eb5acdd4a25a6535"
+      },
+      {
+        "bytes": 9051,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/failures/diagnostic-01-before-any-compiler-request/sdk-verification.json",
+        "sha256": "7ce0614eb38b18aad49fcc55ed807b100892043bc1e4a0735b92ad9be14a790c"
+      },
+      {
+        "bytes": 704,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/logs/restart-performance-archive-01.log",
+        "sha256": "9dc2824d6b6ed490bb7e873880e8efa6c55ada3cefb4036052e4a2bcada16cd2"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/logs/restart-performance-check-2500-chain-01.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/logs/restart-performance-check-2500-diamond-01.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/logs/restart-performance-check-5000-wide-01.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 6490,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/logs/restart-performance-clear-01.log",
+        "sha256": "c8058e8dcb2a509f2d1d1ba2798515d174a4a549727e6e0faf6fbdf7a867d82e"
+      },
+      {
+        "bytes": 1292,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/logs/restart-performance-controller-01.log",
+        "sha256": "5d2b83b9676fc7e58d115ad98de53975cb77d895144d07e934fa70dce8f56610"
+      },
+      {
+        "bytes": 1265,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/logs/restart-performance-diagnostic-01.log",
+        "sha256": "c2790b3255aec8ec23edbe71e590f65f36ac24e33c1c4d83ffa83900b2871d86"
+      },
+      {
+        "bytes": 10176,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/logs/restart-performance-diagnostic-02.log",
+        "sha256": "19b98a6e0ed9a17f9e1d78295fc5c3ef7a6e6722681419eb0d520f8222c310a9"
+      },
+      {
+        "bytes": 30488,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/logs/restart-performance-native-01.log",
+        "sha256": "cb39e70d5e08999811232644f97fe98129f2042dda43f3b211b63ae3afa3713d"
+      },
+      {
+        "bytes": 6475,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/logs/restart-performance-retain-01.log",
+        "sha256": "794c72e481109bff953203b87bf7c1ece2f305bdf81142d77320fbe87be7a49b"
+      },
+      {
+        "bytes": 3354,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/logs/restart-performance-summary-01.log",
+        "sha256": "571a8df5a7dbc7288a38754bec5abdc0320964cadaba8c12cb978a13e8867a67"
+      },
+      {
+        "bytes": 7647,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/metadata/restart-performance-controller-01.json",
+        "sha256": "ecb4d7c3475e6c4562747594e9ef8d7a7c886b844f14d5cc03f63bb3dde870bf"
+      },
+      {
+        "bytes": 693428,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/metadata/restart-performance-current-summary-01.json",
+        "sha256": "d1d1364735dc6bf60706b3a8e8d980200faeba57a38bc10bf8d2a5a0eadf1bea"
+      },
+      {
+        "bytes": 551,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/metadata/restart-performance-host-cache-reclaim-01.json",
+        "sha256": "0489bd234c038090221bdc45e44a7ff62af8564beef84c0ab3555d86c619a443"
+      },
+      {
+        "bytes": 1467,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/metadata/restart-performance-pins-01.json",
+        "sha256": "f09b66504f24f47137804a3d5a2cd0c3930824c9425500aa410875674f3ef917"
+      },
+      {
+        "bytes": 5916,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/metadata/restart-performance-plan-01.json",
+        "sha256": "a7faa0b8e567e5739f0ec6f8f1d801e0a6f8d3e3892873f76b475d63c2b366e9"
+      },
+      {
+        "bytes": 922,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/metadata/restart-performance-preparation-01.json",
+        "sha256": "a5360ecf7a79a260a188c97b9c7dd9b80b2d35d05bb7a4b080dad2a70db9d570"
+      },
+      {
+        "bytes": 2223948,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/metadata/restart-performance-stage-analysis-01.json",
+        "sha256": "1f7ff489a7fe2a44d08596cda680f002b50c954e240fcffcb8eac18f974474db"
+      },
+      {
+        "bytes": 36059,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/metadata/restart-performance-stage-analysis-01.md",
+        "sha256": "a85a8a375b97a2bc653631f7d5ac8a145f102d42d0462f284703791d323e1b6a"
+      },
+      {
+        "bytes": 1882,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/cargo/manifest.json",
+        "sha256": "a6b0d5e1e9ef9cb88b1e0d85afa30032611528aff04fde5128b3f76dea3531bb"
+      },
+      {
+        "bytes": 34385,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/cargo/src/compiler/build_runner/mod.rs",
+        "sha256": "c16822f3a09cfc769a4e1543a18a7b57712dc0c23a8a975867f85d15acccf05e"
+      },
+      {
+        "bytes": 28090,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/cargo/src/compiler/fingerprint/dep_info.rs",
+        "sha256": "c0cec5e57d00c63d7e22fc71abc719fe0e6515d9724edd1af51fe3c07bb29466"
+      },
+      {
+        "bytes": 93849,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/cargo/src/compiler/fingerprint/mod.rs",
+        "sha256": "1d38986fa39dd821ff58a9812f69c614278564079cda04fc3fa29d79b9f84979"
+      },
+      {
+        "bytes": 53836,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/cargo/src/compiler/job_queue/mod.rs",
+        "sha256": "7bfaffdc00768e7241eba6d26166a86ef414c66c8b94465f9ee37d319152d672"
+      },
+      {
+        "bytes": 17742,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/cargo/src/workspace/gc.rs",
+        "sha256": "4e41669bbb782416a9b930a2914f87d788c94967e56e3749405887b73f72988a"
+      },
+      {
+        "bytes": 9723,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "bytes": 1068,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/LICENSE-MIT",
+        "sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1"
+      },
+      {
+        "bytes": 56339,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_codegen_llvm/src/back/write.rs",
+        "sha256": "efdfc5ea70f7ad84abeacb8cf56236a3f752e1edf1cae8f9d23d6b45f59c313b"
+      },
+      {
+        "bytes": 10538,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_codegen_llvm/src/base.rs",
+        "sha256": "dab41e44a640308e5aa04602025064ccd05564b02258fab0fbc786131e1257e5"
+      },
+      {
+        "bytes": 96095,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_codegen_ssa/src/back/write.rs",
+        "sha256": "19de7ce74f7fe88267afbcc568815e8dbb924f2593cf7ddd145d92551fcf9631"
+      },
+      {
+        "bytes": 55444,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_codegen_ssa/src/base.rs",
+        "sha256": "37e5e27dfd9fea79909f4b16b8e73dfcb95bcc6e84fbfd0a848190dda1cafe18"
+      },
+      {
+        "bytes": 7421,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_incremental/src/persist/file_format.rs",
+        "sha256": "8a1b82607d27b73f42880daad329cc30fea409dff241716e028b7e68cff4c60a"
+      },
+      {
+        "bytes": 36973,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_incremental/src/persist/fs.rs",
+        "sha256": "822c49f50c06d4db005407e823e5c8ec1e1bfe0b2055fd8fe39329504982f8a4"
+      },
+      {
+        "bytes": 9677,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_incremental/src/persist/load.rs",
+        "sha256": "7ed2be6680348dcb3d9c97cda2717c36ee53aa67f9315825912fc82d7aba9dc3"
+      },
+      {
+        "bytes": 6197,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_incremental/src/persist/save.rs",
+        "sha256": "8098ae96038e448e95721bc4473229cc5f52a7a66d5a606b02d9ccfa6c3a4618"
+      },
+      {
+        "bytes": 58343,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_llvm/llvm-wrapper/PassWrapper.cpp",
+        "sha256": "7af1e74418311929571988ef9af28af5429d7012c3d6e845545b783c09916433"
+      },
+      {
+        "bytes": 4866,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_middle/src/dep_graph/edges.rs",
+        "sha256": "a71741c9c1f9c0e05112c3a4852724617d8d8442d3b0e1d257eca205fab431e4"
+      },
+      {
+        "bytes": 59687,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_middle/src/dep_graph/graph.rs",
+        "sha256": "f66eda9a9dec72aece77c0660a0672b48b30fe45dc1bdc4bca18a666a07f5495"
+      },
+      {
+        "bytes": 30830,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_middle/src/mono.rs",
+        "sha256": "21c5d10e5309f898f552b83ff920dfd84ca99692ec7e7660ce3d7544e888ec04"
+      },
+      {
+        "bytes": 38536,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_middle/src/query/on_disk_cache.rs",
+        "sha256": "1057af59ff38d53c8444c073325fb57c9b90999fb5becc53f7b94a0a2e865564"
+      },
+      {
+        "bytes": 84315,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_monomorphize/src/collector.rs",
+        "sha256": "6d3f00c995c488743415179bcd60f19aae3784b6fb1e13b389c40f12cb6f66f5"
+      },
+      {
+        "bytes": 58726,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_monomorphize/src/partitioning.rs",
+        "sha256": "e7c5bbba84fc3531c7a9cb861778a028544a56fb211318d925c05b24d1ad30e4"
+      },
+      {
+        "bytes": 22530,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_query_impl/src/execution.rs",
+        "sha256": "83f3fa077f3c92eddafb065d1e93af706810742687069c52694b58f196b0f759"
+      },
+      {
+        "bytes": 6331,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_query_impl/src/incremental.rs",
+        "sha256": "7855be59b195ee2fa0902962cd6a72f8cfe5186f54f4e9d0ff27b15d2b3e0034"
+      },
+      {
+        "bytes": 138051,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_session/src/options.rs",
+        "sha256": "53b133198f6dc23757fda2a6fa767ad63eab8450e401be7d4074cded2dc519a3"
+      },
+      {
+        "bytes": 72350,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_session/src/session.rs",
+        "sha256": "d42833798b5115626b5cf38d6be46879c4df2d6b3f14d745d22397d1f460979a"
+      },
+      {
+        "bytes": 788,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_target/src/spec/base/linux.rs",
+        "sha256": "a57b355ba7ac63be11e4698aede7ac9c9852b419e726974d44753bd222fbeb96"
+      },
+      {
+        "bytes": 663,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_target/src/spec/base/linux_gnu.rs",
+        "sha256": "307e3a042a21aaae4a359d39ce4721b8f7a28edcd46aa8bd220f692704794489"
+      },
+      {
+        "bytes": 164231,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_target/src/spec/mod.rs",
+        "sha256": "2210a435f8dfacac209082d89ef3fbdd2f61bdcdb1b62dde2c2a572827e03b85"
+      },
+      {
+        "bytes": 1287,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/compiler/rustc_target/src/spec/targets/x86_64_unknown_linux_gnu.rs",
+        "sha256": "e39a2d7a6385b70b4beda09534c8a15b3cda68f8f89e3bb4dbbe5d86159bccba"
+      },
+      {
+        "bytes": 8013,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/pinned-rust-cargo-source/rust/manifest.json",
+        "sha256": "59cee7aaf27f9741f20757de05a47d0ae27bd61736e91a7031aefa6c021295fd"
+      },
+      {
+        "bytes": 8835,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/recovery-layout.json",
+        "sha256": "5abb7b266da0df605f225161f986c8e7a8543627b019fac57babeb87b4625ea5"
+      },
+      {
+        "bytes": 12681,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/reviews/astra-causal.md",
+        "sha256": "c0d9fe96a7f0a556510bb27d12b29f4e3a0a43de8a8927117ad34d86ef0a06a1"
+      },
+      {
+        "bytes": 13445,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/reviews/astra-results.md",
+        "sha256": "fe95d715083d01dc821860a33e52dba505eeb0a6df11ab131d194971a624292b"
+      },
+      {
+        "bytes": 14103,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/reviews/astra-secondary-losses.md",
+        "sha256": "862e59fc3ae6465e9bc4367aacadb828221c4845c2fb3c51447685c1741b7f73"
+      },
+      {
+        "bytes": 72442232,
+        "mode": 448,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/SDK18/libLLVM.so.23.1",
+        "sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+      },
+      {
+        "bytes": 72146000,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/main/libLLVM.so.23.1",
+        "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+      },
+      {
+        "bytes": 14178,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/manifest",
+        "sha256": "192bd5739d2420fb3f15afe5c1672ec4934c94046259a79d642e9ffc828f65e6"
+      },
+      {
+        "bytes": 1640,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/Scrt1.o",
+        "sha256": "4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec"
+      },
+      {
+        "bytes": 1072,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/crti.o",
+        "sha256": "78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a"
+      },
+      {
+        "bytes": 648,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/crtn.o",
+        "sha256": "121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101"
+      },
+      {
+        "bytes": 1463360,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+        "sha256": "7a27acdd82e38dbddd8568d54de0df4358e71a3c387d5c1d999d369450c1bf6a"
+      },
+      {
+        "bytes": 5668466,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/libc.a",
+        "sha256": "679612af043ab6a3eb9af24136b8d0c9ba1e10114f047271386ee7fa37031326"
+      },
+      {
+        "bytes": 283,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/libc.so",
+        "sha256": "fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df"
+      },
+      {
+        "bytes": 1995216,
+        "mode": 493,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/libc.so.6",
+        "sha256": "9792e3cbb541c8f44c7acf5f14f4022ea62998ecc787d326bed4d8b6547dfd92"
+      },
+      {
+        "bytes": 47288,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/libcap.so.2",
+        "sha256": "41217b0af128444f66dee8adda52b2ceaf19da00e5b0b155e2b87b857671286b"
+      },
+      {
+        "bytes": 220288,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/libctf.so.0",
+        "sha256": "bdcd09af9314ef2a40dd137882523e7cb5944189220980257c5ebcc1fe0c9b5b"
+      },
+      {
+        "bytes": 182856,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/libgcc_s.so.1",
+        "sha256": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af"
+      },
+      {
+        "bytes": 59752,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/libjansson.so.4",
+        "sha256": "424135d01f0f2f957bd61d6a56f5f0cf7afa146a677a216173f1a20e8cd1ad8e"
+      },
+      {
+        "bytes": 711216,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/libpcre2-8.so.0",
+        "sha256": "92e9b4167f9bbc237ca8f5526d82ee99ec9f8dbd0270ef1dd0ab24e2217f48e3"
+      },
+      {
+        "bytes": 8,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/libpthread.a",
+        "sha256": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5"
+      },
+      {
+        "bytes": 202984,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/libselinux.so.1",
+        "sha256": "5cb5293b4e7590463b94f7b23152d54807a6a2ccaf8cac9e343908c6692c086c"
+      },
+      {
+        "bytes": 30976,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/libsframe.so.1",
+        "sha256": "adb0b9a33909e7264ad724e138eb97995832e535b22b192c1a898c349c918a9f"
+      },
+      {
+        "bytes": 125376,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/libz.so.1",
+        "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e"
+      },
+      {
+        "bytes": 825336,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib/x86_64-linux-gnu/libzstd.so.1",
+        "sha256": "27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21"
+      },
+      {
+        "bytes": 225672,
+        "mode": 493,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/lib64/ld-linux-x86-64.so.2",
+        "sha256": "c8438e4fde1934e61c88311633f00949ff645d5c04cdb8671fa3d78164d2f307"
+      },
+      {
+        "bytes": 80248,
+        "mode": 493,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/bin/bwrap",
+        "sha256": "573236e5328ac2ebb08f59ae3a9805b4f8d12bdef14be8af4450d5463294985f"
+      },
+      {
+        "bytes": 1861256,
+        "mode": 493,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/bin/ld",
+        "sha256": "d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b"
+      },
+      {
+        "bytes": 1861256,
+        "mode": 493,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/bin/x86_64-linux-gnu-ld.bfd",
+        "sha256": "d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b"
+      },
+      {
+        "bytes": 2736,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o",
+        "sha256": "37af2040527c75078f900a29ea4a71b22576aa5c26f1f29af7b5935cebbe571e"
+      },
+      {
+        "bytes": 1152,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o",
+        "sha256": "8981687575c10a2e2146947bce387769cbd118f5b8c5dda489f514dc7d2ed4c7"
+      },
+      {
+        "bytes": 3243220,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+        "sha256": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d"
+      },
+      {
+        "bytes": 132,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so",
+        "sha256": "69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd"
+      },
+      {
+        "bytes": 1640,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/Scrt1.o",
+        "sha256": "4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec"
+      },
+      {
+        "bytes": 1072,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/crti.o",
+        "sha256": "78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a"
+      },
+      {
+        "bytes": 648,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/crtn.o",
+        "sha256": "121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101"
+      },
+      {
+        "bytes": 225672,
+        "mode": 493,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+        "sha256": "c8438e4fde1934e61c88311633f00949ff645d5c04cdb8671fa3d78164d2f307"
+      },
+      {
+        "bytes": 1463360,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+        "sha256": "7a27acdd82e38dbddd8568d54de0df4358e71a3c387d5c1d999d369450c1bf6a"
+      },
+      {
+        "bytes": 5668466,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libc.a",
+        "sha256": "679612af043ab6a3eb9af24136b8d0c9ba1e10114f047271386ee7fa37031326"
+      },
+      {
+        "bytes": 283,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libc.so",
+        "sha256": "fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df"
+      },
+      {
+        "bytes": 1995216,
+        "mode": 493,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libc.so.6",
+        "sha256": "9792e3cbb541c8f44c7acf5f14f4022ea62998ecc787d326bed4d8b6547dfd92"
+      },
+      {
+        "bytes": 5098,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libc_nonshared.a",
+        "sha256": "22a836e3aff767b559a703d42bde40fdb0e550297dbd99dd565f6a68b3ae8dda"
+      },
+      {
+        "bytes": 47288,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libcap.so.2.75",
+        "sha256": "41217b0af128444f66dee8adda52b2ceaf19da00e5b0b155e2b87b857671286b"
+      },
+      {
+        "bytes": 220288,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libctf.so.0.0.0",
+        "sha256": "bdcd09af9314ef2a40dd137882523e7cb5944189220980257c5ebcc1fe0c9b5b"
+      },
+      {
+        "bytes": 182856,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+        "sha256": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af"
+      },
+      {
+        "bytes": 59752,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libjansson.so.4.14.0",
+        "sha256": "424135d01f0f2f957bd61d6a56f5f0cf7afa146a677a216173f1a20e8cd1ad8e"
+      },
+      {
+        "bytes": 711216,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libpcre2-8.so.0.14.0",
+        "sha256": "92e9b4167f9bbc237ca8f5526d82ee99ec9f8dbd0270ef1dd0ab24e2217f48e3"
+      },
+      {
+        "bytes": 8,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libpthread.a",
+        "sha256": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5"
+      },
+      {
+        "bytes": 202984,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libselinux.so.1",
+        "sha256": "5cb5293b4e7590463b94f7b23152d54807a6a2ccaf8cac9e343908c6692c086c"
+      },
+      {
+        "bytes": 30976,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libsframe.so.1.0.0",
+        "sha256": "adb0b9a33909e7264ad724e138eb97995832e535b22b192c1a898c349c918a9f"
+      },
+      {
+        "bytes": 125376,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+        "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e"
+      },
+      {
+        "bytes": 825336,
+        "mode": 420,
+        "path": "out/runs/restart-performance-core-01/runtime-dependencies/native-link-v1/root/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7",
+        "sha256": "27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21"
+      },
+      {
+        "bytes": 3723,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/scripts-and-state/restart-performance-STATE.json",
+        "sha256": "076585009bf8865aea46d743a5094e6f404e47e4678a49f4d970cb02fec4f7f3"
+      },
+      {
+        "bytes": 2997,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/scripts-and-state/restart-performance-archive-01.py",
+        "sha256": "d243f598fba3346a3df34013d23f75981a70d3b66e492d99e3c187467b3667d6"
+      },
+      {
+        "bytes": 4161,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/scripts-and-state/restart-performance-controller-01.py",
+        "sha256": "72337277c7506eff4232559c8b8f09ddc3211d703cdf6fb521bb21189619f92a"
+      },
+      {
+        "bytes": 5231,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/scripts-and-state/restart-performance-core-assemble-01.py",
+        "sha256": "eece0d1f65d869afac51a646c8611d534766c8173a5371761c9dc36545cc9fdb"
+      },
+      {
+        "bytes": 25103,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/scripts-and-state/restart-performance-diagnostic-replay-01.py",
+        "sha256": "50f41440f227e95f2cea6c01413518355d63b03a40c4fa6b11c41b1a6361e9ea"
+      },
+      {
+        "bytes": 15054,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/scripts-and-state/restart-performance-report-01.py",
+        "sha256": "a2f23b17f6ce43f7484e24b02120930a9895904ba1fb2236b3a05957556f31a2"
+      },
+      {
+        "bytes": 26410,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/scripts-and-state/restart-performance-stage-analysis-01.py",
+        "sha256": "97b572913726b51ecb1236605c88f4994141f666899fb9dc25c6adab21826d03"
+      },
+      {
+        "bytes": 7808,
+        "mode": 384,
+        "path": "out/runs/restart-performance-core-01/scripts-and-state/restart-performance-summary-01.py",
+        "sha256": "fac84ea74408b10e67efe09dc1e42f1184b60aa00e6dc3e10e06da6e03c76a87"
+      },
+      {
+        "bytes": 19073,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-performance-20261116/report.md",
+        "sha256": "de105ffa0c68993a1f3b03857570ab3d4e6dbae34cf24f47222afaf8ebcd8abc"
+      },
+      {
+        "bytes": 12681,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-performance-20261116/restart-performance-causal-review-01.md",
+        "sha256": "c0d9fe96a7f0a556510bb27d12b29f4e3a0a43de8a8927117ad34d86ef0a06a1"
+      },
+      {
+        "bytes": 13445,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-performance-20261116/restart-performance-results-astra-audit-01.md",
+        "sha256": "fe95d715083d01dc821860a33e52dba505eeb0a6df11ab131d194971a624292b"
+      },
+      {
+        "bytes": 14103,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-performance-20261116/restart-performance-secondary-losses-astra-01.md",
+        "sha256": "862e59fc3ae6465e9bc4367aacadb828221c4845c2fb3c51447685c1741b7f73"
+      },
+      {
+        "bytes": 693428,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-performance-20261116/results.json",
+        "sha256": "d1d1364735dc6bf60706b3a8e8d980200faeba57a38bc10bf8d2a5a0eadf1bea"
+      },
+      {
+        "bytes": 2223948,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-performance-20261116/stages.json",
+        "sha256": "1f7ff489a7fe2a44d08596cda680f002b50c954e240fcffcb8eac18f974474db"
+      },
+      {
+        "bytes": 36059,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-performance-20261116/stages.md",
+        "sha256": "a85a8a375b97a2bc653631f7d5ac8a145f102d42d0462f284703791d323e1b6a"
+      }
+    ],
+    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "schema": 1,
+    "scope": "Current4a23 six-window performance metadata,source-bound binaries,actual stock/SDK18 DSOs and native-link runtime profile/root,original scripts/commands/logs,first setup failures,formal and diagnostic analyses,read-only Astra reviews,pinned Rust/Cargo source excerpts. Seven full raw window archives separately indexed; core paths repository-relative.",
+    "source_commits": {
+      "compiler": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+      "tools": "8bb24b85412b4b388d3c3f266786ef36ebe05e6f"
+    }
+  },
+  "inventory_sha256": "159ec632a4d1b2984d3d00cb829149c09f564a456b08e07b420049fff45c0a3a",
+  "schema": 1,
+  "selectors": [
+    "out/runs/restart-performance-core-01/**",
+    "tools/research/incremental-demand/restart-performance-20261116/**"
+  ],
+  "source_root": "/workspace/zil-push-main"
+}

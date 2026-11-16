@@ -1,0 +1,22 @@
+{
+  "schema": "zil.restart-performance-window-recovery.v1",
+  "name": "diagnostic",
+  "compiler_source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+  "tool_source": "8bb24b85412b4b388d3c3f266786ef36ebe05e6f",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "manifest": "evidence-manifest.json",
+  "manifest_sha256": "33ee0d3e2d0278580ca8874e0018f2d2ec7940f8888e7f9d4aa0b9208a1249f6",
+  "archive_sha256": "e1b16b1118395ac8883a9a98bd5dae4d788069f71e0fe2b92065b3e83b828c7f",
+  "archive_bytes": 61744510,
+  "parts": 3,
+  "files": 3259,
+  "raw_bytes": 268428547,
+  "fresh_full_file_hash_verified": true,
+  "fresh_receipt": "fresh-recovery-receipt.json",
+  "payload_paths": "Window-relative beneath fresh restore root, not repository-relative. Map to original_root; modes preserved, original hardlinks expanded, never recompute product disk savings from restoration.",
+  "original_root": "out/runs/restart-performance-diagnostic-02",
+  "scope": "Complete immutable current4a23 diagnostic window, all raw reports/logs/user caches/artifacts. Diagnostic is separately labelled, never formal timings. Raw paths relative to this window root. Original main ResourceLimit and error/recovery preserved. SDK18/native-link external fixedV32.",
+  "formal_comparison": false,
+  "verify_command": "python3 tools/research/incremental-demand/archive_evidence.py verify --archive-dir ARCHIVE_DIR --restore-dir NON_EXISTENT_DESTINATION",
+  "SDK18_native_link_fixed_dependency": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json"
+}

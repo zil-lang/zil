@@ -1,0 +1,15 @@
+{
+  "archive_bytes": 74960152,
+  "files": 155,
+  "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+  "parts": 3,
+  "raw_bytes": 233517373,
+  "restore_dir": "/workspace/zil-recovery/restart-performance-core-full-fresh-01",
+  "scope": "Current4a23 six-window performance metadata,source-bound binaries,actual stock/SDK18 DSOs and native-link runtime profile/root,original scripts/commands/logs,first setup failures,formal and diagnostic analyses,read-only Astra reviews,pinned Rust/Cargo source excerpts. Seven full raw window archives separately indexed; core paths repository-relative.",
+  "sha256": "5cc2a77e3629036c84c3f36ceffa07fb97279e9796b9178a3a3f72f85641bf6e",
+  "source_commits": {
+    "compiler": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+    "tools": "8bb24b85412b4b388d3c3f266786ef36ebe05e6f"
+  },
+  "status": "verified"
+}

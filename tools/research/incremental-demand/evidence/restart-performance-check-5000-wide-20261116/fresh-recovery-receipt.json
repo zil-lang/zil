@@ -1,0 +1,15 @@
+{
+  "archive_bytes": 250987688,
+  "files": 3423,
+  "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+  "parts": 10,
+  "raw_bytes": 900045049,
+  "restore_dir": "/workspace/zil-recovery/restart-performance-check-5000-wide-full-fresh-01",
+  "scope": "Complete immutable current4a23 check-5000-wide window, all raw reports/logs/user caches/artifacts. Diagnostic is separately labelled, never formal timings. Raw paths relative to this window root. Original main ResourceLimit and error/recovery preserved. SDK18/native-link external fixedV32.",
+  "sha256": "470467781c44629bec34f24f5a63a94fd4e545be34cace36810d82eb116e5647",
+  "source_commits": {
+    "compiler": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+    "tools": "8bb24b85412b4b388d3c3f266786ef36ebe05e6f"
+  },
+  "status": "verified"
+}

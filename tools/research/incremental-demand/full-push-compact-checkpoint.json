@@ -1,12 +1,12 @@
 {
-  "schema": "zil.compiler-pain-continuation.v4",
+  "schema": "zil.compiler-pain-continuation.v5",
   "construction_branch": "research/full-push-native",
   "compiled_source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
   "compiled_tree": "35116da8321766cf49106143bd699faada166dbc",
   "binary_sha256": "302d58db48f53cd4bc1952f2a9032ead5a6d479314d24eb2ca344f558c2c113e",
   "binary": "out/binaries/4a23edc7d06bc18cbed1fb958fdaacd886d9607a/zil",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "Complete restart/function/current-accounting/analysis/native-history chain implemented, all affected correctness and release gates passed. User requested direct logic optimization, so no additional comparison window. No universal Rust win/main merge.",
+  "status": "Current4a23 formally measured against actual main/Rust in six windows;774 original requests,258 functional cells,71 runtime cases. Not all Rust workloads win; restart and 5105 repeated private backend remain slower. No compiler source changes or main merge in this measurement turn.",
   "SDK18_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
   "LLVM_rebuilt": false,
   "research_defaults_enabled": false,
@@ -62,46 +62,57 @@
       "Expand124_CT76": "Unchanged since bcf/f19/f629; original immutable receipts retain exact bindings."
     },
     "review": "restart-cost-astra-design-02.md; exact 4a23 frozen confirmation; read-only Astra not independent testing.",
-    "no_new_comparative_performance": true,
-    "last_measured_source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
-    "last_measured_binary_sha256": "57de85daefac2ec5f562d15f01bd4f54aafeb4f53838da975671cc49dd809bf2",
     "main": "9170bb4210554392e36eb7528596612596ebef80",
     "no_main_merge": true,
     "SDK18_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
     "LLVM_rebuilt": false,
     "full_bcf_raw": "local out/runs/restart-epoch-{retain,full}-window-01 only; published original receipt subset explicitly indexed, not full cache/artifact recovery",
-    "source_scope": "Complete function cache\u2192current Types recording/fee replay\u2192Analyze epoch activation\u2192Verify\u2192bounded completed machine history\u2192transform/partition/diagnostic/object key; isolated disk-candidate retry preserves genuine successful epochs."
+    "source_scope": "Complete function cache→current Types recording/fee replay→Analyze epoch activation→Verify→bounded completed machine history→transform/partition/diagnostic/object key; isolated disk-candidate retry preserves genuine successful epochs.",
+    "comparative_performance": "Now measured in six current4a23 windows; see last_measured. Prior correctness review was before these new windows."
   },
-  "current_recovery": "evidence/restart-function-chain-20261116/RESTORE.json",
-  "recovery_scope": "Current complete cache restoration chain correctness/release binaries, all first gate failures and read-only reviews; prior bcf original request receipt subset only. No new performance window and not a full bcf cache/artifact backup; SDK18/native-link are fixed V32 dependencies.",
-  "fresh_full_recovery": {
-    "archive_bytes": 19598435,
-    "files": 96,
-    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
-    "parts": 1,
-    "raw_bytes": 61849972,
-    "restore_dir": "/workspace/zil-recovery/restart-function-chain-fresh-01",
-    "scope": "Current complete cache restoration chain correctness/release binaries, all first gate failures and read-only reviews; prior bcf original request receipt subset only. No new performance window and not a full bcf cache/artifact backup; SDK18/native-link are fixed V32 dependencies.",
-    "sha256": "5dfb202b0a8656f3f55adaa29e476187f09902131d4be8ff6cbbc77c99b279af",
-    "source_commits": {
-      "compiler": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
-      "measured": "bcf409b37c5e5733c57376c0b6123b76321574a9",
-      "tools": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a"
-    },
-    "status": "verified"
-  },
+  "current_recovery": "evidence/restart-performance-core-20261116/RESTORE.json",
+  "recovery_scope": "Current4a23 complete six-window formal raw caches/artifacts and separate diagnostic02 plus core metadata, binaries and first setup failures; external fixedV32 SDK18/native-link. Previous correctness/first gate failures use immutable8bb dependency, old bcf complete raw still local only.",
   "last_measured": {
-    "source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
-    "binary_sha256": "57de85daefac2ec5f562d15f01bd4f54aafeb4f53838da975671cc49dd809bf2",
-    "report": "restart-epoch-reviews-20261116/review.md",
-    "retain_results": "restart-epoch-reviews-20261116/bcf-retained-lifecycle.json",
-    "native_results": "restart-epoch-reviews-20261116/bcf-native-workflow.json",
-    "original_receipt_subset": "restart-epoch-reviews-20261116/published-receipts.json",
-    "full_raw_local_only": [
-      "out/runs/restart-epoch-retain-window-01",
-      "out/runs/restart-epoch-full-window-01"
-    ],
-    "qualification": "396 original requests,132 quality cells,61 runtime Rust gates passed on bcf; accepted=false due actual-main5105 ResourceLimit. Restart+firstedit still loses. Full5105 flow28.926s vs previous f19 separate-window24.823s is a retained regression, not new-source performance."
+    "source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+    "binary_sha256": "302d58db48f53cd4bc1952f2a9032ead5a6d479314d24eb2ca344f558c2c113e",
+    "tool_source": "8bb24b85412b4b388d3c3f266786ef36ebe05e6f",
+    "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+    "report": "restart-performance-20261116/report.md",
+    "results": "restart-performance-20261116/results.json",
+    "stages": "restart-performance-20261116/stages.json",
+    "original_requests": 774,
+    "functional_cells": 258,
+    "source_bound_runtime_cases": 71,
+    "all_candidate_Rust_quality_passed": true,
+    "global_accepted": false,
+    "main_regression_accepted": null,
+    "native_flow_s": {
+      "1000": {
+        "baseline": 8.550813806999999,
+        "candidate": 7.165743701499999,
+        "rust": 8.0466773415
+      },
+      "2500": {
+        "baseline": 13.1991478845,
+        "candidate": 10.082063722,
+        "rust": 10.0169925735
+      },
+      "5105": {
+        "candidate": 29.4765489805,
+        "rust": 31.581858628000003
+      }
+    },
+    "retained_5105_restart_plus_firstedit_s": {
+      "candidate": 4.4413706815,
+      "rust": 1.0083505325000002
+    },
+    "native_5105_eight_private_s": {
+      "candidate": 9.831954402,
+      "rust": 8.6884125585
+    },
+    "qualification": "Main5105 ResourceLimit never a fast successful build. Check5k wide also slower than Rust/main; check2500 chain slower than main. All negatives retained. Same-window comparisons only; do not claim bcf/f19 cross-window net algorithm gains.",
+    "diagnostic": "Separate36 candidate+36Rust requests with profiling, no formal ratio/runtime gate; Fresh Rust stderr can replay old time-passes.",
+    "complete_original_raw": "Seven complete archives: six formal windows plus diagnostic02, each fresh full hash verified. Core index includes setup failures, pins, commands, scripts, logs, Rust/Cargo source references and binaries."
   },
   "previous_f19": {
     "source": "f19fc847c5774a2472bd3af85019b5c937546010",
@@ -119,16 +130,69 @@
     "4c82 driver219/5: actual self.clear fallback destroyed successful producer/push/Verify epochs; fixed by disk-origin selection and isolated retry, original five assertions preserved"
   ],
   "next_priority": [
-    "Continue logic optimization of current global machine transforms and CGU planning on repeated private edits; retained pre-change5105 restart timing bucket machine1.087s/partition.315s is a locator, not guaranteed removable time.",
-    "Track checked-add local outputs, real scalar callee dependencies and call-class DAG/class representatives/address/protected inventory before reusing changed-input transformations. Global/unsupported changes keep the original full pass and original-model preflight.",
-    "Cold process still needs actual Parse/Expand/RawInference/PlainCT/Analyze products; terminal Typed/hash/old Arc cannot fabricate their epochs. No hidden idle/background work.",
-    "After this remaining costly chain is changed, schedule one actual-main/candidate/Rust O2/CGU16/jobs1 window separating check/native and accounting restart+firstedit and retained disk. Do not repeat the old negative matrix while no relevant logic changed."
+    "Use current true dependency/policy gates to shorten whole restart product restoration; no fake frontend epochs or hidden work outside timers. Restart+first edit at5105 loses3.433s in the retained sequence.",
+    "General private edit frontend already checks one function; global machine/transform/partition/CGU invalidation and O2 object optimization/emission dominate. Eight5105 edits lose1.144s,124/128 object misses per block.",
+    "Check5k cold/large edits also lose in Types/CT/Expand and request residual, independent of LLVM. Address them as whole functional chains; retain independent Verify/default budgets/full O2.",
+    "Current user requested testing and final diagnosis only; no implementation this turn. Future full-chain implementation then unified relevant acceptance; no repeated unchanged performance matrices."
   ],
   "limits": [
     "Finite scalar102file one-crate coverage is not industrial workspace/generic/macro/async/debug/test/minute-scale coverage.",
     "10105/25105 default token and whole-project10000function capacity remain rejected; do not raise or replenish numeric budgets.",
-    "Current new cache and bounded downstream history have unmeasured encode/decode/disk/RSS costs. No measured net speed/space claim for4a23.",
-    "Current research branch includes process/evidence; goal/archive never merge main."
+    "Current research branch includes process/evidence; goal/archive never merge main.",
+    "Current measured user cache footprint is tens ofMiB; no industrial workspace/GB-level or minutes-scale guarantee. No new RSS net-benefit claim.",
+    "Resident request excludes separately recorded startup; Cargo request includes startup. Two balanced blocks, no OS cold-cache flush.",
+    "Main5105 resource failure and measured check/main regressions prevent universal acceptance or main merge."
   ],
-  "local_storage": "Old native-dependency evidence dirs are reversibly sparse-excluded, blobs remain in Git+remote; prior check/cache duplicates retired only after full hash proof at7b60 ledger. No current bcf raw deleted; no product disk savings inferred."
+  "local_storage": "All historical tracked evidence/research paths reversibly sparse-excluded; Git+remote blobs retained. No unique oldbcf or new raw removed. After all timing, only reproducible hostdebug/incremental reclaimed for fresh verification, not product savings; verifier-owned fresh duplicates retired after full hashes.",
+  "previous_checkpoint": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/full-push-compact-checkpoint.json",
+  "previous_bcf": {
+    "source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+    "binary_sha256": "57de85daefac2ec5f562d15f01bd4f54aafeb4f53838da975671cc49dd809bf2",
+    "report": "restart-epoch-reviews-20261116/review.md",
+    "retain_results": "restart-epoch-reviews-20261116/bcf-retained-lifecycle.json",
+    "native_results": "restart-epoch-reviews-20261116/bcf-native-workflow.json",
+    "original_receipt_subset": "restart-epoch-reviews-20261116/published-receipts.json",
+    "full_raw_local_only": [
+      "out/runs/restart-epoch-retain-window-01",
+      "out/runs/restart-epoch-full-window-01"
+    ],
+    "qualification": "396 original requests,132 quality cells,61 runtime Rust gates passed on bcf; accepted=false due actual-main5105 ResourceLimit. Restart+firstedit still loses. Full5105 flow28.926s vs previous f19 separate-window24.823s is a retained regression, not new-source performance."
+  },
+  "prior_recovery": {
+    "url": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/evidence/restart-function-chain-20261116/RESTORE.json",
+    "scope": "Current complete cache restoration chain correctness/release binaries, all first gate failures and read-only reviews; prior bcf original request receipt subset only. No new performance window and not a full bcf cache/artifact backup; SDK18/native-link are fixed V32 dependencies.",
+    "fresh": {
+      "archive_bytes": 19598435,
+      "files": 96,
+      "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+      "parts": 1,
+      "raw_bytes": 61849972,
+      "restore_dir": "/workspace/zil-recovery/restart-function-chain-fresh-01",
+      "scope": "Current complete cache restoration chain correctness/release binaries, all first gate failures and read-only reviews; prior bcf original request receipt subset only. No new performance window and not a full bcf cache/artifact backup; SDK18/native-link are fixed V32 dependencies.",
+      "sha256": "5dfb202b0a8656f3f55adaa29e476187f09902131d4be8ff6cbbc77c99b279af",
+      "source_commits": {
+        "compiler": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+        "measured": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+        "tools": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a"
+      },
+      "status": "verified"
+    }
+  },
+  "full_window_recovery": {
+    "archives": 7,
+    "files": 345089,
+    "raw_bytes": 8987275744,
+    "archive_bytes": 2123149449,
+    "all_fresh_full_hash_verified": true,
+    "scope": "Six formal windows and separate diagnostic02; core supplements metadata/reviews/binaries/actual runtime dependencies, first setup failures.",
+    "all_eight_archives_with_core_fresh_full_hash_verified": true
+  },
+  "fresh_core_recovery": {
+    "status": "verified",
+    "sha256": "5cc2a77e3629036c84c3f36ceffa07fb97279e9796b9178a3a3f72f85641bf6e",
+    "parts": 3,
+    "files": 155,
+    "raw_bytes": 233517373,
+    "archive_bytes": 74960152
+  }
 }
