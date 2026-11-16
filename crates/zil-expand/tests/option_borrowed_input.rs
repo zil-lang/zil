@@ -1,4 +1,4 @@
-use zil_base::{FileId, ModuleId, Phase, SourceUnit};
+use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_ir::{LifeNominalActual, LifeParameterKind, StorageBase, Type};
 
 fn expand(text: &str) -> Result<zil_ir::CoreModule, Vec<zil_base::Diagnostic>> {
@@ -29,6 +29,24 @@ fn borrowed_option_input_keeps_joint_actual_and_complete_variants() {
             original.replace(
                 "identity(Option::<&'a i32>.Some(value))",
                 "joined(Option.None(),Option::<&'a i32>.Some(value))"
+            )
+        ),
+        original.replace(
+            "let result=identity(Option::<&'a i32>.Some(value));",
+            "let pending=identity(Option.None());let alias=pending;let result:Option<&'a i32>=alias;",
+        ),
+        format!(
+            "fn joined<life c>(first:Option<&'c i32>,second:Option<&'c i32>)->Option<&'c i32>{{return second}}{}",
+            original.replace(
+                "let result=identity(Option::<&'a i32>.Some(value));",
+                "let first=identity(Option.None());let second=identity(Option.None());let combined=joined(first,second);let result:Option<&'a i32>=combined;"
+            )
+        ),
+        format!(
+            "fn joined<life c>(first:Option<&'c i32>,second:Option<&'c i32>)->Option<&'c i32>{{return second}}{}",
+            original.replace(
+                "let result=identity(Option::<&'a i32>.Some(value));",
+                "let first=identity(Option.None());let result=joined(first,Option::<&'a i32>.Some(value));"
             )
         ),
         original.replace("Option::<&'a i32>.Some(value)", "Option::<&'a i32>.None()"),
@@ -207,13 +225,90 @@ fn option_input_layout_does_not_admit_another_pointee_or_mode() {
     );
 }
 
-// Preserve the unresolved original positive separately: this pass must not
-// invent a rigid lifetime merely because the constructor has no payload.
-// It remains an explicit inference coverage gap, not a negative assertion.
+// The original source bytes remain unchanged. The complete body supplies no
+// constraint for the phantom life: semantic-scopes requires an inference
+// error, not Unsupported and not a guessed enclosing lifetime.
 #[test]
-#[ignore = "pending whole-call inference for a payload-free, unconstrained lifetime actual"]
-fn uncontextualized_none_retains_original_inference_case() {
+fn uncontextualized_none_reports_underdetermined_lifetime() {
     let text = "fn identity<life a>(x:Option<&'a i32>)->Option<&'a i32>{return x}\nfn run<life a>(value:&'a i32)->i32{let result=identity(Option.None());return 0}\nfn main()->i32{let value=42;return run(&value)}\n";
-    let core = expand(text).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
-    assert!(core.unsupported.is_empty(), "{:?}", core.unsupported);
+    let errors = expand(text).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error.phase == Phase::Expand
+            && error.category == ResultCategory::SafeReject
+            && error.message == "original call lifetime inference is underdetermined"),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn deferred_none_keeps_ambiguity_and_conflicting_rigid_classes() {
+    let identity = "fn identity<life a>(x:Option<&'a i32>)->Option<&'a i32>{return x}";
+    for body in [
+        "fn main(){let pending=identity(Option.None());}",
+        "fn join<life c>(x:Option<&'c i32>,y:Option<&'c i32>)->Option<&'c i32>{return x}fn run<life b>(input:&'b i32){let x=identity(Option.None());let y=identity(Option.None());let still_unknown=join(x,y);}fn main(){}",
+        "fn run<life a,life b>(left:&'a i32,right:&'b i32){let x=identity(Option.None());let first:Option<&'a i32>=x;let second:Option<&'b i32>=x;}fn main(){}",
+    ] {
+        let text = format!("{identity}{body}");
+        let errors = expand(&text).unwrap_err();
+        assert!(
+            errors.iter().any(|error| error.phase == Phase::Expand
+                && error.category == ResultCategory::SafeReject),
+            "{text}: {errors:?}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|error| error.category == ResultCategory::Unsupported),
+            "{text}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn later_none_context_keeps_the_frozen_original_call_obligations() {
+    let text = "fn identity<life a>(x:Option<&'a i32>)->Option<&'a i32>{return x}fn joined<life c>(x:Option<&'c i32>,y:Option<&'c i32>)->Option<&'c i32>{return x}fn run<life b>(input:&'b i32)->i32{let x=identity(Option.None());let y=identity(Option.None());let both=joined(x,y);let result:Option<&'b i32>=both;return 0}fn main()->i32{let input=42;return run(&input)}";
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "later-none-original.zil", text);
+    let parsed = zil_syntax::parse(&source).into_result().unwrap();
+    let aliases = std::collections::BTreeMap::new();
+    let core = zil_expand::expand_with_map_semantics(
+        &source,
+        &parsed,
+        &zil_base::Limits::default(),
+        &zil_base::TargetProfile::default(),
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: ModuleId(0),
+            aliases: &aliases,
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap_or_else(|errors| panic!("{errors:?}"))
+    .core;
+    let original = core.semantic.as_ref().unwrap();
+    assert!(original.definitions.iter().any(|definition| {
+        let zil_ir::SemanticDefinitionBody::FunctionWithBody { sites, .. } = &definition.body else { return false };
+        sites.iter().any(|site| matches!(&site.kind,
+            zil_ir::SemanticSiteRecipeKind::Call { actuals, .. }
+                if actuals.iter().any(|actual| matches!(actual, zil_ir::SemanticActualRecipe::Infer))))
+    }), "physical contextualization must not rewrite original Infer into a claimed solution");
+    assert!(core.unsupported.is_empty());
+}
+
+#[test]
+fn deferred_none_preserves_explicit_type_actual_and_full_life_ordinal() {
+    for formals in ["T:Copy,life a", "life a,T:Copy"] {
+        let text = format!(
+            "fn identity<{formals}>(x:Option<&'a T>)->Option<&'a T>{{return x}}fn run<life b>(input:&'b i32)->i32{{let pending=identity::<i32>(Option.None());let result:Option<&'b i32>=pending;return 0}}fn main()->i32{{let input=42;return run(&input)}}"
+        );
+        let core = expand(&text).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+        assert!(
+            core.unsupported.is_empty(),
+            "{text}: {:?}",
+            core.unsupported
+        );
+        assert!(core.life_instances.iter().any(|instance| matches!(&instance.ty,
+            Type::BorrowedStorage { storage, life }
+                if life.binder_count == 1 && matches!(storage.as_ref(), Type::Enum { variants, .. }
+                    if variants.iter().any(|(name, fields)| name == "Some" && matches!(fields.as_slice(),
+                        [Type::Address { mutable: false, inner }] if **inner == Type::I32))))));
+    }
 }

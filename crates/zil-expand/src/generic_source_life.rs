@@ -1,6 +1,8 @@
 //! Source class constraints before each qualified type gets its own local class0.
 //! These private facts describe lexical type meaning, never loans or authority.
 use super::*;
+#[path = "generic_source_inference.rs"]
+mod inference;
 
 pub(super) fn qualified_nominal(
     ty: &TypeRef,
@@ -237,6 +239,8 @@ enum Fact {
     Static,
     /// Private type variable for one actual sealed store_new expression.
     StoreElement(u32),
+    /// A pending original call life equation, never a rigid class.
+    InferLife(u32),
     Class(Binder),
     /// A real source borrow expression with no named lifetime. It is a
     /// private class identity only; the borrow kernels still prove the target.
@@ -277,6 +281,7 @@ struct Check<'a, 'b, 'l> {
     store_shadows: BTreeSet<String>,
     store_sites: BTreeMap<usize, u32>,
     store_elements: BTreeMap<u32, std::rc::Rc<Fact>>,
+    inference: inference::Pending,
     fact_depth: usize,
     budget: &'b mut Budget<'l>,
 }
@@ -310,13 +315,13 @@ impl Fact {
             Self::Function(parameters, result) => {
                 parameters.iter().any(Self::has_retained_class) || result.has_retained_class()
             }
-            Self::Static | Self::Class(_) | Self::LocalClass(_) => true,
+            Self::Static | Self::Class(_) | Self::LocalClass(_) | Self::InferLife(_) => true,
             Self::Unknown | Self::StoreElement(_) | Self::Parameter(_) => false,
         }
     }
     fn has_class(&self) -> bool {
         match self {
-            Self::Static | Self::Class(_) | Self::LocalClass(_) => true,
+            Self::Static | Self::Class(_) | Self::LocalClass(_) | Self::InferLife(_) => true,
             // Generic actuals are stored type positions: a direct Address
             // contributes its own declared class there, unlike an ordinary
             // outer function borrow whose upper is checked by its own lane.
@@ -352,6 +357,18 @@ impl Check<'_, '_, '_> {
         self.fact(span, |this| {
             this.work(value, span)?;
             Ok(match value {
+                Fact::InferLife(id) => {
+                    this.pay(span, 1)?;
+                    match this
+                        .inference
+                        .lives
+                        .get(*id as usize)
+                        .and_then(|row| row.solution.clone())
+                    {
+                        Some(value) => this.resolve_store(&value, span)?,
+                        None => Fact::InferLife(*id),
+                    }
+                }
                 Fact::StoreElement(id) => {
                     this.lookup(this.store_elements.len(), 1, span)?;
                     match this.store_elements.get(id).cloned() {
@@ -899,6 +916,12 @@ impl Check<'_, '_, '_> {
         span: Span,
         retained: bool,
     ) -> R<()> {
+        if let Fact::InferLife(id) = expected {
+            return self.constrain_life(*id, actual, span);
+        }
+        if let Fact::InferLife(id) = actual {
+            return self.constrain_life(*id, expected, span);
+        }
         if let Fact::StoreElement(id) = expected {
             return self.constrain_store(*id, actual, span);
         }
@@ -906,23 +929,24 @@ impl Check<'_, '_, '_> {
             return self.constrain_store(*id, expected, span);
         }
         let resolved;
-        let (expected_class, expected_retained, actual_class) = if self.store_elements.is_empty() {
-            (
-                expected.has_class(),
-                expected.has_retained_class(),
-                actual.has_class(),
-            )
-        } else {
-            resolved = (
-                self.resolve_store(expected, span)?,
-                self.resolve_store(actual, span)?,
-            );
-            (
-                resolved.0.has_class(),
-                resolved.0.has_retained_class(),
-                resolved.1.has_class(),
-            )
-        };
+        let (expected_class, expected_retained, actual_class) =
+            if self.store_elements.is_empty() && self.inference.lives.is_empty() {
+                (
+                    expected.has_class(),
+                    expected.has_retained_class(),
+                    actual.has_class(),
+                )
+            } else {
+                resolved = (
+                    self.resolve_store(expected, span)?,
+                    self.resolve_store(actual, span)?,
+                );
+                (
+                    resolved.0.has_class(),
+                    resolved.0.has_retained_class(),
+                    resolved.1.has_class(),
+                )
+            };
         self.fact(span, |this| {
         // Pay both the structural comparison and the class-presence queries.
         this.work(expected, span)?;
@@ -2057,9 +2081,19 @@ impl Check<'_, '_, '_> {
                     result.has_class(),
                 )?;
             }
-            // A missing payload does not choose a phantom lifetime. Only
-            // explicit actuals, other arguments, or the real receiving context
-            // may complete these formals; unresolved classes stay unresolved.
+            // Missing payloads keep fresh inference variables. They are not
+            // actual classes and must resolve before this body is published.
+            for (ordinal, parameter) in function.generics.iter().enumerate() {
+                self.budget.node(parameter.span, depth)?;
+                let formal = Binder(owner, ordinal);
+                self.lookup(map.len(), 2, expression.span)?;
+                if matches!(parameter.kind, GenericParamKind::Lifetime)
+                    && !map.contains_key(&formal)
+                {
+                    let variable = self.fresh_life(caller.owner, expression, formal)?;
+                    map.insert(formal, variable);
+                }
+            }
             self.budget.lineage_bytes(
                 formals.len().saturating_mul(std::mem::size_of::<Fact>()),
                 expression.span,
@@ -2072,6 +2106,22 @@ impl Check<'_, '_, '_> {
                     return Ok(None);
                 }
                 contexts.push(context);
+            }
+            let ExprKind::Call { arguments, .. } = &expression.kind else {
+                unreachable!()
+            };
+            for (index, actual) in actuals.iter().enumerate() {
+                if actual.is_none() {
+                    self.defer_empty_context(
+                        &arguments[index].value,
+                        caller.owner,
+                        owner,
+                        &function.params[index].ty,
+                        explicit,
+                        &map,
+                        depth + 1,
+                    )?;
+                }
             }
             return Ok(Some(contexts));
         }
@@ -3108,9 +3158,9 @@ impl Check<'_, '_, '_> {
     }
 }
 
-pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
+fn check(module: &Module, budget: &mut Budget<'_>) -> R<BTreeMap<usize, TypeRef>> {
     if !budget.has_stored_lifetimes() {
-        return Ok(());
+        return Ok(BTreeMap::new());
     }
     struct Inventory<'a> {
         functions: Vec<&'a Function>,
@@ -3296,6 +3346,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         store_shadows,
         store_sites: BTreeMap::new(),
         store_elements: BTreeMap::new(),
+        inference: inference::Pending::default(),
         fact_depth: 0,
         budget,
     };
@@ -3325,6 +3376,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
                 .generics
                 .iter()
                 .any(|p| matches!(p.kind, GenericParamKind::Lifetime))
+            && !check.needs_inference(f)?
         {
             continue;
         }
@@ -3374,7 +3426,18 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
             FunctionBody::Declaration => {}
         }
     }
-    Ok(())
+    check.finish_inference()
+}
+
+/// Resolve original empty-constructor constraints before physical expansion.
+/// The frozen semantic program remains unchanged and carries the original Infer.
+pub(super) fn prepare<'a>(module: &'a Module, budget: &mut Budget<'_>) -> R<Cow<'a, Module>> {
+    let contexts = check(module, budget)?;
+    inference::materialize(module, contexts, budget)
+}
+#[cfg(test)]
+fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
+    check(module, budget).map(|_| ())
 }
 
 #[cfg(test)]
@@ -3638,6 +3701,7 @@ mod local_class_tests {
             store_shadows: BTreeSet::new(),
             store_sites: BTreeMap::new(),
             store_elements: BTreeMap::new(),
+            inference: inference::Pending::default(),
             fact_depth: 0,
             budget: &mut budget,
         };

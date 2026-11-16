@@ -512,7 +512,8 @@ fn specialize_with_budget<'a>(
     let inherent_methods = inherent
         .as_ref()
         .map_or(&[][..], |prepared| prepared.methods.as_slice());
-    source_life::validate(module, &mut budget)?;
+    let contextual = source_life::prepare(module, &mut budget)?;
+    let module = contextual.as_ref();
     let methods =
         trait_methods::prepare(module, has_generic_methods, origins.as_ref(), &mut budget)?;
     let module = methods.as_ref().map_or(module, |prepared| &prepared.module);
