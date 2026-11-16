@@ -5981,8 +5981,8 @@ impl Proof {
         source: &SemanticOriginalTypeSource,
         limits: &Limits,
         left: &mut usize,
-    ) -> R<SemanticTypeRecipe> {
-        let ordinary = self.type_recipe(program, current, owner, source, limits, left)?;
+    ) -> R<std::borrow::Cow<'_, SemanticTypeRecipe>> {
+        let ordinary = self.type_recipe_view(program, current, owner, source, limits, left)?;
         let SemanticOriginalTypeSource::Expression(node) = source else {
             return Ok(ordinary);
         };
@@ -6017,7 +6017,7 @@ impl Proof {
                 "original constructor payload crosses an unproved lexical environment boundary",
             ));
         }
-        Ok(injection.payload.clone())
+        Ok(std::borrow::Cow::Borrowed(&injection.payload))
     }
     pub(super) fn type_recipe(
         &self,
@@ -6028,6 +6028,26 @@ impl Proof {
         limits: &Limits,
         left: &mut usize,
     ) -> R<SemanticTypeRecipe> {
+        let value = self.type_recipe_view(program, current, owner, source, limits, left)?;
+        match value {
+            std::borrow::Cow::Borrowed(value) => {
+                crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+                Ok(value.clone())
+            }
+            std::borrow::Cow::Owned(value) => Ok(value),
+        }
+    }
+    /// Borrow only the immutable completed original equation. A distinct use
+    /// owner still requires the exact checked lexical environment transport.
+    pub(super) fn type_recipe_view(
+        &self,
+        program: &SemanticModule,
+        current: SemanticDefinitionId,
+        owner: SemanticDefinitionId,
+        source: &SemanticOriginalTypeSource,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<std::borrow::Cow<'_, SemanticTypeRecipe>> {
         crate::dyn_metadata::semantic_operand_snapshot(source, limits, left, 1)?;
         let query = Query::from(source.clone());
         if !self.complete.contains(&owner) {
@@ -6079,10 +6099,10 @@ impl Proof {
             for (slot, formal) in definition.environment.iter().enumerate() {
                 if matches!(&formal.source, SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType { scope: SemanticScopeRef::Ancestor(0), source: expected }) if expected == source)
                 {
-                    return Ok(SemanticTypeRecipe::Environment {
+                    return Ok(std::borrow::Cow::Owned(SemanticTypeRecipe::Environment {
                         scope: SemanticScopeRef::Ancestor(0),
                         ordinal: slot as u32,
-                    });
+                    }));
                 }
             }
             if !matches!(value, SemanticTypeRecipe::Atom(_)) {
@@ -6091,8 +6111,7 @@ impl Proof {
                 ));
             }
         }
-        crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
-        Ok(value.clone())
+        Ok(std::borrow::Cow::Borrowed(value))
     }
     pub(super) fn fixed_call_kind(
         &self,
@@ -6162,6 +6181,22 @@ impl Proof {
         limits: &Limits,
         left: &mut usize,
     ) -> R<SemanticActualRecipe> {
+        match self.call_actual_view(owner, call, formal, limits, left)? {
+            std::borrow::Cow::Borrowed(value) => {
+                crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+                Ok(value.clone())
+            }
+            std::borrow::Cow::Owned(value) => Ok(value),
+        }
+    }
+    pub(super) fn call_actual_view(
+        &self,
+        owner: SemanticDefinitionId,
+        call: SemanticSiteId,
+        formal: u32,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<std::borrow::Cow<'_, SemanticActualRecipe>> {
         if !self.complete.contains(&owner) {
             return Err(bad(
                 "original inference owner has no complete symbolic proof",
@@ -6172,11 +6207,11 @@ impl Proof {
             .get(&(owner, call))
             .and_then(|values| values.get(formal as usize))
             .ok_or_else(|| bad("original call/formal has no derived inference solution"))?;
-        crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
         if matches!(
             value,
             SemanticActualRecipe::Type(SemanticTypeRecipe::Opaque { .. })
         ) {
+            crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
             *left = left.checked_sub(3).ok_or_else(|| {
                 Diagnostic::limit(
                     Phase::Types,
@@ -6206,15 +6241,19 @@ impl Proof {
                             "inferred Type source differs from its complete original solution",
                         ));
                     }
-                    return Ok(SemanticActualRecipe::Type(
+                    return Ok(std::borrow::Cow::Owned(SemanticActualRecipe::Type(
                         SemanticTypeRecipe::OriginalType {
                             scope: SemanticScopeRef::Ancestor(0),
                             source: SemanticOriginalTypeSource::Expression(*node),
                         },
-                    ));
+                    )));
                 }
             }
         }
-        Ok(value.clone())
+        Ok(std::borrow::Cow::Borrowed(value))
     }
 }
+
+#[cfg(test)]
+#[path = "original_query_view_tests.rs"]
+mod query_view_tests;

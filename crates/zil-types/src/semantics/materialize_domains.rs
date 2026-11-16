@@ -155,7 +155,7 @@ impl Eval<'_, '_, '_> {
         } = recipe
         {
             self.node(depth)?;
-            let expanded = self.original_type(scope, *selector, source, depth + 1)?;
+            let expanded = self.original_type_view(scope, *selector, source, depth + 1)?;
             if let Some(value) =
                 self.original_result_boundary(scope, *selector, source, hint, depth + 1)?
             {

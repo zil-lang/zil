@@ -78,6 +78,16 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         })?;
         Ok(())
     }
+    fn rows(&mut self, count: usize) -> R<()> {
+        if count > self.limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "semantic materialization row limit exceeded",
+                None,
+            ));
+        }
+        self.fee(count)
+    }
     #[track_caller]
     fn node(&mut self, depth: usize) -> R<()> {
         if depth > self.limits.max_call_depth {
@@ -388,6 +398,21 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         source: &SemanticOriginalTypeSource,
         depth: usize,
     ) -> R<SemanticTypeRecipe> {
+        match self.original_type_view(scope, selector, source, depth)? {
+            std::borrow::Cow::Borrowed(recipe) => {
+                crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
+                Ok(recipe.clone())
+            }
+            std::borrow::Cow::Owned(recipe) => Ok(recipe),
+        }
+    }
+    fn original_type_view(
+        &mut self,
+        scope: SemanticInstanceId,
+        selector: SemanticScopeRef,
+        source: &SemanticOriginalTypeSource,
+        depth: usize,
+    ) -> R<std::borrow::Cow<'a, SemanticTypeRecipe>> {
         let owner = self.ancestor(scope, selector, depth + 1)?;
         let current = self.instance(scope)?.definition;
         let owner = self.instance(owner)?.definition;
@@ -396,12 +421,19 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             .as_ref()
             .filter(|proof| proof.complete.contains(&owner))
         {
-            return proof.type_recipe(self.input, current, owner, source, self.limits, self.left);
+            return proof.type_recipe_view(
+                self.input,
+                current,
+                owner,
+                source,
+                self.limits,
+                self.left,
+            );
         }
         let frozen = self.ledger.frozen.as_deref().ok_or_else(|| {
             bad("original symbolic proof was not completed before materialization")
         })?;
-        let recipe = frozen.original.type_recipe(
+        let recipe = frozen.original.type_recipe_view(
             &frozen.semantic,
             owner,
             owner,
@@ -410,8 +442,11 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             self.left,
         )?;
         let SemanticScopeRef::Ancestor(shift) = selector;
+        if shift == 0 {
+            return Ok(recipe);
+        }
         let empty = std::collections::BTreeMap::new();
-        super::original::substitute::ty(
+        Ok(std::borrow::Cow::Owned(super::original::substitute::ty(
             &recipe,
             &super::original::substitute::Substitution {
                 frames: &[],
@@ -423,14 +458,14 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             },
             self.limits,
             self.left,
-        )
+        )?))
     }
     fn original_constructor_type(
         &mut self,
         scope: SemanticInstanceId,
         selector: SemanticScopeRef,
         source: &SemanticOriginalTypeSource,
-    ) -> R<SemanticTypeRecipe> {
+    ) -> R<std::borrow::Cow<'a, SemanticTypeRecipe>> {
         let current = self.instance(scope)?.definition;
         let owner = self.ancestor(scope, selector, 0)?;
         let owner = self.instance(owner)?.definition;
@@ -468,7 +503,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         call: SemanticSiteId,
         formal: u32,
         holder: Option<SemanticInstanceId>,
-    ) -> R<SemanticActualRecipe> {
+    ) -> R<std::borrow::Cow<'a, SemanticActualRecipe>> {
         let owner = self.instance(scope)?.definition;
         let holder = holder
             .map(|id| self.instance(id).map(|row| row.definition))
@@ -492,7 +527,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 .original
         };
         let Some(holder) = holder else {
-            return proof.call_actual(owner, call, formal, self.limits, self.left);
+            return proof.call_actual_view(owner, call, formal, self.limits, self.left);
         };
         let target = *proof
             .call_targets
@@ -509,7 +544,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                     "inferred provider holder lacks its complete original method proof",
                 ));
             }
-            return proof.call_actual(owner, call, formal, self.limits, self.left);
+            return proof.call_actual_view(owner, call, formal, self.limits, self.left);
         }
         let target = self
             .input
@@ -554,8 +589,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             .get(&(owner, call, holder))
             .and_then(|actuals| actuals.get(formal as usize))
             .ok_or_else(|| unknown("original receiver has no checked parent scope solution"))?;
-        crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
-        Ok(recipe.clone())
+        Ok(std::borrow::Cow::Borrowed(recipe))
     }
     fn inferred_actual(
         &mut self,
@@ -698,60 +732,15 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                     expression,
                     occurrence: 0,
                     recipe,
-                } => {
-                    let f = self.function(*scope)?;
-                    self.fee(self.ledger.frames.len().saturating_add(1).ilog2() as usize + 1)?;
-                    let frame = self
-                        .ledger
-                        .frames
-                        .get(&f.id)
-                        .ok_or_else(|| bad("inferred type has no actual emitter owner"))?;
-                    if frame.origin.module != *module || frame.origin.creator != *function {
-                        return Err(bad("inferred type selects another actual Core owner"));
-                    }
-                    self.fee(frame.expressions.len().saturating_add(1).ilog2() as usize + 1)?;
-                    let row = frame
-                        .expressions
-                        .get(expression)
-                        .ok_or_else(|| bad("inferred whole-type expression was not emitted"))?;
-                    let actual = if let Some(value) = row.value {
-                        f.values.get(value.0 as usize)
-                    } else {
-                        match row.place.as_ref() {
-                            Some(SemanticOperand::Local(local)) => {
-                                f.locals.get(local.0 as usize).map(|l| &l.ty)
-                            }
-                            Some(SemanticOperand::Capture(index)) => f
-                                .environment
-                                .and_then(|id| self.module.closures.iter().find(|d| d.id == id))
-                                .and_then(|d| d.captures.get(*index as usize)),
-                            _ => None,
-                        }
-                    }
-                    .ok_or_else(|| {
-                        bad("inferred type expression has no actual complete value/place type")
-                    })?;
-                    if let Some(hint) = hint {
-                        inference::charge_type_snapshot(
-                            actual,
-                            Span::default(),
-                            self.limits,
-                            self.left,
-                            1,
-                        )?;
-                        inference::charge_type_snapshot(
-                            hint,
-                            Span::default(),
-                            self.limits,
-                            self.left,
-                            1,
-                        )?;
-                        if actual != hint {
-                            return Err(bad("inferred type and actual site type disagree"));
-                        }
-                    }
-                    self.ty(*scope, recipe, Some(actual), depth + 1)
-                }
+                } => self.expression_value(
+                    *scope,
+                    *module,
+                    *function,
+                    *expression,
+                    recipe,
+                    hint,
+                    depth,
+                ),
                 SemanticCoreTypeSource::OriginalExpression {
                     module,
                     function,
@@ -759,29 +748,21 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                     occurrence: 0,
                     source,
                 } => {
-                    let recipe = self.original_type(
+                    let recipe = self.original_type_view(
                         *scope,
                         SemanticScopeRef::Ancestor(0),
                         source,
                         depth + 1,
                     )?;
-                    crate::dyn_metadata::semantic_operand_snapshot(
+                    self.expression_value(
+                        *scope,
+                        *module,
+                        *function,
+                        *expression,
                         &recipe,
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    let original = SemanticTypeValue::Core {
-                        scope: *scope,
-                        source: SemanticCoreTypeSource::Expression {
-                            module: *module,
-                            function: *function,
-                            expression: *expression,
-                            occurrence: 0,
-                            recipe: Box::new(recipe),
-                        },
-                    };
-                    self.value(owner, &original, hint, depth + 1)
+                        hint,
+                        depth,
+                    )
                 }
                 SemanticCoreTypeSource::Expression { .. }
                 | SemanticCoreTypeSource::OriginalExpression { .. } => {
@@ -789,6 +770,55 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 }
             },
         }
+    }
+    fn expression_value(
+        &mut self,
+        scope: SemanticInstanceId,
+        module: zil_base::ModuleId,
+        function: zil_base::NodeId,
+        expression: zil_base::NodeId,
+        recipe: &SemanticTypeRecipe,
+        hint: Option<&Type>,
+        depth: usize,
+    ) -> R<SemanticTypeValue> {
+        let f = self.function(scope)?;
+        self.fee(self.ledger.frames.len().saturating_add(1).ilog2() as usize + 1)?;
+        let frame = self
+            .ledger
+            .frames
+            .get(&f.id)
+            .ok_or_else(|| bad("inferred type has no actual emitter owner"))?;
+        if frame.origin.module != module || frame.origin.creator != function {
+            return Err(bad("inferred type selects another actual Core owner"));
+        }
+        self.fee(frame.expressions.len().saturating_add(1).ilog2() as usize + 1)?;
+        let row = frame
+            .expressions
+            .get(&expression)
+            .ok_or_else(|| bad("inferred whole-type expression was not emitted"))?;
+        let actual = if let Some(value) = row.value {
+            f.values.get(value.0 as usize)
+        } else {
+            match row.place.as_ref() {
+                Some(SemanticOperand::Local(local)) => {
+                    f.locals.get(local.0 as usize).map(|l| &l.ty)
+                }
+                Some(SemanticOperand::Capture(index)) => f
+                    .environment
+                    .and_then(|id| self.module.closures.iter().find(|d| d.id == id))
+                    .and_then(|d| d.captures.get(*index as usize)),
+                _ => None,
+            }
+        }
+        .ok_or_else(|| bad("inferred type expression has no actual complete value/place type"))?;
+        if let Some(hint) = hint {
+            inference::charge_type_snapshot(actual, Span::default(), self.limits, self.left, 1)?;
+            inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
+            if actual != hint {
+                return Err(bad("inferred type and actual site type disagree"));
+            }
+        }
+        self.ty(scope, recipe, Some(actual), depth + 1)
     }
     fn constructor_value(
         &mut self,
@@ -1017,8 +1047,8 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 {
                     return Ok(value);
                 }
-                let recipe = self.original_type(scope, *selector, source, depth + 1)?;
-                if let SemanticTypeRecipe::Opaque { definition, .. } = &recipe
+                let recipe = self.original_type_view(scope, *selector, source, depth + 1)?;
+                if let SemanticTypeRecipe::Opaque { definition, .. } = recipe.as_ref()
                     && self.instance(scope)?.definition != *definition
                 {
                     if let Some(value) =
@@ -1860,15 +1890,32 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         recipe: &SemanticActualRecipe,
         depth: usize,
     ) -> R<SemanticActual> {
-        crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
-        self.actual(
-            scope,
-            &SemanticActual::CoreRecipe {
-                scope,
-                recipe: Box::new(recipe.clone()),
-            },
-            depth,
-        )
+        self.node(depth)?;
+        Ok(match recipe {
+            SemanticActualRecipe::Infer => {
+                return Err(bad(
+                    "unresolved original inference variable survived its call",
+                ));
+            }
+            SemanticActualRecipe::Type(recipe) => {
+                SemanticActual::Type(self.ty(scope, recipe, None, depth + 1)?)
+            }
+            SemanticActualRecipe::Life(recipe) => SemanticActual::Life(self.life(scope, recipe)?),
+            SemanticActualRecipe::Const { carrier, value } => {
+                let ty = self.ty(scope, carrier, None, depth + 1)?;
+                let SemanticTypeValue::Resolved {
+                    ty: carrier, life, ..
+                } = &ty
+                else {
+                    unreachable!()
+                };
+                if life.binder_count != 0 {
+                    return Err(bad("const recipe has a free-class carrier"));
+                }
+                let value = self.constant(scope, value, carrier, depth + 1)?;
+                SemanticActual::Const { ty, value }
+            }
+        })
     }
     fn holder_actual(
         &mut self,
@@ -1896,6 +1943,9 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         actual: &SemanticActual,
         depth: usize,
     ) -> R<SemanticActual> {
+        if let SemanticActual::CoreRecipe { scope, recipe } = actual {
+            return self.recipe_actual(*scope, recipe, depth);
+        }
         self.node(depth)?;
         Ok(match actual {
             SemanticActual::Type(value) => {
@@ -1927,33 +1977,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 call,
                 formal,
             } => self.inferred_actual(*scope, *call, *formal, None, depth + 1)?,
-            SemanticActual::CoreRecipe { scope, recipe } => match recipe.as_ref() {
-                SemanticActualRecipe::Infer => {
-                    return Err(bad(
-                        "unresolved original inference variable survived its call",
-                    ));
-                }
-                SemanticActualRecipe::Type(recipe) => {
-                    SemanticActual::Type(self.ty(*scope, recipe, None, depth + 1)?)
-                }
-                SemanticActualRecipe::Life(recipe) => {
-                    SemanticActual::Life(self.life(*scope, recipe)?)
-                }
-                SemanticActualRecipe::Const { carrier, value } => {
-                    let ty = self.ty(*scope, carrier, None, depth + 1)?;
-                    let SemanticTypeValue::Resolved {
-                        ty: carrier, life, ..
-                    } = &ty
-                    else {
-                        unreachable!()
-                    };
-                    if life.binder_count != 0 {
-                        return Err(bad("const recipe has a free-class carrier"));
-                    }
-                    let value = self.constant(*scope, value, carrier, depth + 1)?;
-                    SemanticActual::Const { ty, value }
-                }
-            },
+            SemanticActual::CoreRecipe { .. } => unreachable!(),
         })
     }
 }
@@ -1991,26 +2015,17 @@ pub(super) fn program(
         left,
         active: BTreeSet::new(),
     };
-    eval.fee(
-        program
-            .instances
-            .len()
-            .saturating_add(program.sites.len())
-            .saturating_mul(2),
-    )?;
+    eval.rows(program.instances.len())?;
+    eval.rows(program.sites.len())?;
+    eval.fee(program.instances.len().saturating_add(program.sites.len()))?;
+    // Keep scalar identities and placement rows in place. Only transformed
+    // fields need new storage; the complete old input remains visible until
+    // every proposal has succeeded, so failures cannot publish partial output.
     let mut instances = Vec::with_capacity(program.instances.len());
     for instance in &program.instances {
-        crate::dyn_metadata::semantic_operand_snapshot(instance, limits, eval.left, 1)?;
-        instances.push(instance.clone());
-    }
-    let mut sites = Vec::with_capacity(program.sites.len());
-    for site in &program.sites {
-        crate::dyn_metadata::semantic_operand_snapshot(site, limits, eval.left, 1)?;
-        sites.push(site.clone());
-    }
-    for instance in &mut instances {
-        eval.fee(instance.actuals.len())?;
-        for (ordinal, actual) in instance.actuals.iter_mut().enumerate() {
+        eval.rows(instance.actuals.len())?;
+        let mut actuals = Vec::with_capacity(instance.actuals.len());
+        for (ordinal, actual) in instance.actuals.iter().enumerate() {
             let mut value = eval.holder_actual(instance.id, ordinal as u32, actual, 0)?;
             if matches!(value, SemanticActual::Life(_))
                 && instance.lifetime_instantiation == SemanticLifetimeInstantiation::Rigid
@@ -2048,50 +2063,61 @@ pub(super) fn program(
                     })
                     .collect();
             }
-            *actual = value;
+            actuals.push(value);
         }
-        if let Some(environment) = &mut instance.environment {
+        let environment = if let Some(environment) = &instance.environment {
             let creator = instance
                 .parent
                 .ok_or_else(|| bad("actual ghost environment has no real lexical creator"))?;
-            eval.fee(environment.actuals.len())?;
-            for value in &mut environment.actuals {
-                *value = eval.actual(creator, value, 0)?;
+            eval.rows(environment.actuals.len())?;
+            let mut values = Vec::with_capacity(environment.actuals.len());
+            for value in &environment.actuals {
+                values.push(eval.actual(creator, value, 0)?);
             }
+            Some(values)
+        } else {
+            None
+        };
+        let self_type = instance
+            .self_type
+            .as_ref()
+            .map(|claim| eval.self_claim(instance.id, claim))
+            .transpose()?;
+        eval.rows(instance.header_embedding.len())?;
+        let mut headers = Vec::with_capacity(instance.header_embedding.len());
+        for binding in &instance.header_embedding {
+            headers.push(eval.class(instance.id, &binding.actual)?);
         }
-        if let Some(claim) = &mut instance.self_type {
-            *claim = eval.self_claim(instance.id, claim)?;
-        }
-        eval.fee(instance.header_embedding.len())?;
-        for binding in &mut instance.header_embedding {
-            binding.actual = eval.class(instance.id, &binding.actual)?;
-        }
+        instances.push((actuals, environment, self_type, headers));
     }
-    for site in &mut sites {
+    let mut sites = Vec::with_capacity(program.sites.len());
+    for site in &program.sites {
         let f = eval.function(site.instance)?;
-        if matches!(site.action, SemanticSiteAction::CoreBodyCall) {
-            let owner = eval.instance(site.instance)?.definition;
-            let count = {
-                let proof = ledger.original.borrow();
-                let proof = proof
-                    .as_ref()
-                    .ok_or_else(|| bad("call lacks completed original inference"))?;
-                proof
-                    .calls
-                    .get(&(owner, site.recipe))
-                    .ok_or_else(|| bad("actual call lacks original fresh-variable solution"))?
-                    .len()
-            };
-            let mut actuals = Vec::new();
-            eval.fee(count)?;
-            for formal in 0..count {
-                let formal = u32::try_from(formal)
-                    .map_err(|_| bad("actual call full formal ordinal overflows"))?;
-                actuals.push(eval.inferred_actual(site.instance, site.recipe, formal, None, 0)?);
+        let action = match &site.action {
+            SemanticSiteAction::CoreBodyCall => {
+                let owner = eval.instance(site.instance)?.definition;
+                let count = {
+                    let proof = ledger.original.borrow();
+                    let proof = proof
+                        .as_ref()
+                        .ok_or_else(|| bad("call lacks completed original inference"))?;
+                    proof
+                        .calls
+                        .get(&(owner, site.recipe))
+                        .ok_or_else(|| bad("actual call lacks original fresh-variable solution"))?
+                        .len()
+                };
+                eval.rows(count)?;
+                let mut actuals = Vec::with_capacity(count);
+                for formal in 0..count {
+                    let formal = u32::try_from(formal)
+                        .map_err(|_| bad("actual call full formal ordinal overflows"))?;
+                    let value =
+                        eval.inferred_actual(site.instance, site.recipe, formal, None, 0)?;
+                    actuals.push(eval.actual(site.instance, &value, 0)?);
+                }
+                SemanticSiteAction::BodyCall { actuals }
             }
-            site.action = SemanticSiteAction::BodyCall { actuals };
-        }
-        match &mut site.action {
             SemanticSiteAction::Construct {
                 result: SemanticOperand::Value(result),
                 value,
@@ -2100,16 +2126,34 @@ pub(super) fn program(
                     .values
                     .get(result.0 as usize)
                     .ok_or_else(|| bad("constructor type materialization lost its actual SSA"))?;
-                *value =
-                    eval.constructor_value(site.instance, value, *result, hint, site.recipe)?;
+                SemanticSiteAction::Construct {
+                    result: SemanticOperand::Value(*result),
+                    value: eval.constructor_value(
+                        site.instance,
+                        value,
+                        *result,
+                        hint,
+                        site.recipe,
+                    )?,
+                }
             }
             SemanticSiteAction::Construct { .. } => {
                 return Err(bad("constructor result was not relocated to actual SSA"));
             }
-            SemanticSiteAction::Closure { environment, .. } => {
-                eval.fee(environment.len())?;
+            SemanticSiteAction::Closure {
+                result,
+                closure,
+                environment,
+            } => {
+                eval.rows(environment.len())?;
+                let mut values = Vec::with_capacity(environment.len());
                 for value in environment {
-                    *value = eval.actual(site.instance, value, 0)?;
+                    values.push(eval.actual(site.instance, value, 0)?);
+                }
+                SemanticSiteAction::Closure {
+                    result: result.clone(),
+                    closure: closure.clone(),
+                    environment: values,
                 }
             }
             SemanticSiteAction::TypeUse { subject, expected } => {
@@ -2132,13 +2176,17 @@ pub(super) fn program(
                 .ok_or_else(|| {
                     unknown("type-use requires its actual value or declared local type")
                 })?;
-                *expected = eval.value(site.instance, expected, Some(hint), 0).map_err(|mut diagnostic| {
+                let value = eval.value(site.instance, expected, Some(hint), 0).map_err(|mut diagnostic| {
                     diagnostic.notes.push(format!(
                         "actual type-use: instance {:?}, recipe {:?}, subject {:?}, type constructor {:?}, function {:?}, return constructor {:?}",
                         site.instance, site.recipe, subject, std::mem::discriminant(hint), f.id, std::mem::discriminant(&f.return_type)
                     ));
                     diagnostic
                 })?;
+                SemanticSiteAction::TypeUse {
+                    subject: subject.clone(),
+                    expected: value,
+                }
             }
             SemanticSiteAction::DeclareLocal {
                 local: SemanticLocalTarget::Typed(local),
@@ -2148,33 +2196,58 @@ pub(super) fn program(
                     .locals
                     .get(local.0 as usize)
                     .ok_or_else(|| bad("declaration constraint names an absent actual local"))?;
-                *expected = eval.value(site.instance, expected, Some(&hint.ty), 0).map_err(|mut diagnostic| {
+                let value = eval.value(site.instance, expected, Some(&hint.ty), 0).map_err(|mut diagnostic| {
                     diagnostic.notes.push(format!(
                         "actual local declaration: instance {:?}, recipe {:?}, local {:?}, type constructor {:?}",
                         site.instance, site.recipe, local, std::mem::discriminant(&hint.ty)
                     ));
                     diagnostic
                 })?;
-            }
-            SemanticSiteAction::Call { actuals, .. } | SemanticSiteAction::BodyCall { actuals } => {
-                eval.fee(actuals.len())?;
-                for actual in actuals {
-                    *actual = eval.actual(site.instance, actual, 0)?;
+                SemanticSiteAction::DeclareLocal {
+                    local: SemanticLocalTarget::Typed(*local),
+                    expected: value,
                 }
             }
-            SemanticSiteAction::CallableCall { .. } => {}
-            SemanticSiteAction::CoreBodyCall => {
-                return Err(bad("pending original call survived materialization"));
+            SemanticSiteAction::Call { actuals, .. } | SemanticSiteAction::BodyCall { actuals } => {
+                eval.rows(actuals.len())?;
+                let mut values = Vec::with_capacity(actuals.len());
+                for actual in actuals {
+                    values.push(eval.actual(site.instance, actual, 0)?);
+                }
+                match &site.action {
+                    SemanticSiteAction::Call { target, .. } => SemanticSiteAction::Call {
+                        target: target.clone(),
+                        actuals: values,
+                    },
+                    _ => SemanticSiteAction::BodyCall { actuals: values },
+                }
             }
+            SemanticSiteAction::CallableCall { callee } => SemanticSiteAction::CallableCall {
+                callee: callee.clone(),
+            },
             SemanticSiteAction::DeclareLocal { .. } => {
                 return Err(bad("Core declaration target survived actual relocation"));
             }
-        }
+        };
+        sites.push(action);
     }
     drop(eval);
     drop(directory);
-    program.instances = instances;
-    program.sites = sites;
+    for (instance, (actuals, environment, self_type, headers)) in
+        program.instances.iter_mut().zip(instances)
+    {
+        instance.actuals = actuals;
+        if let (Some(target), Some(actuals)) = (&mut instance.environment, environment) {
+            target.actuals = actuals;
+        }
+        instance.self_type = self_type;
+        for (binding, image) in instance.header_embedding.iter_mut().zip(headers) {
+            binding.actual = image;
+        }
+    }
+    for (site, action) in program.sites.iter_mut().zip(sites) {
+        site.action = action;
+    }
     Ok(())
 }
 
@@ -2278,11 +2351,6 @@ pub(super) fn actual_in_view(
     limits: &Limits,
     left: &mut usize,
 ) -> R<SemanticActual> {
-    crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
-    let actual = SemanticActual::CoreRecipe {
-        scope,
-        recipe: Box::new(recipe.clone()),
-    };
     Eval {
         input: program,
         module,
@@ -2291,7 +2359,7 @@ pub(super) fn actual_in_view(
         left,
         active: BTreeSet::new(),
     }
-    .actual(scope, &actual, 0)
+    .recipe_actual(scope, recipe, 0)
 }
 
 pub(super) fn parent_actuals_in_view(
@@ -2353,35 +2421,4 @@ pub(super) fn class_in_view(
         active: BTreeSet::new(),
     }
     .life(scope, recipe)
-}
-
-/// Resolve an original symbolic type in the real lexical context, without
-/// deriving it from an actual SSA type or publishing a class-flow proof.
-pub(super) fn symbolic_at(
-    program: &SemanticModule,
-    module: &TypedModule,
-    ledger: &Ledger,
-    scope: SemanticInstanceId,
-    recipe: &SemanticTypeRecipe,
-    limits: &Limits,
-    left: &mut usize,
-) -> R<SemanticTypeRecipe> {
-    if let SemanticTypeRecipe::OriginalType {
-        scope: selector,
-        source,
-    } = recipe
-    {
-        Eval {
-            input: program,
-            module: &ActualDirectory::from_module_at(module, "materialize::symbolic_at"),
-            ledger,
-            limits,
-            left,
-            active: BTreeSet::new(),
-        }
-        .original_type(scope, *selector, source, 0)
-    } else {
-        crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
-        Ok(recipe.clone())
-    }
 }

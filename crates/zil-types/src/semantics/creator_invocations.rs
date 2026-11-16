@@ -5,7 +5,7 @@ use super::*;
 
 fn selected(
     program: &SemanticModule,
-    module: &TypedModule,
+    module: &super::super::materialize::ActualDirectory<'_>,
     ledger: &Ledger,
     instance: &SemanticInstance,
     recipe: &SemanticTypeRecipe,
@@ -21,7 +21,7 @@ fn selected(
         ));
     }
     pay(left, path.len().saturating_add(1))?;
-    let mut current = super::super::materialize::symbolic_at(
+    let mut current = super::super::materialize::symbolic_in_view(
         program,
         module,
         ledger,
@@ -117,7 +117,7 @@ fn selected(
             // storage are independent domains, not physical inline fields.
             _ => return Ok(None),
         };
-        current = super::super::materialize::symbolic_at(
+        current = super::super::materialize::symbolic_in_view(
             program,
             module,
             ledger,
@@ -155,6 +155,18 @@ pub(super) fn seed(
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
+    let view = if let Some(context) = ledger.original.context() {
+        super::super::materialize::ActualDirectory::indexed(
+            module,
+            program,
+            context,
+            "creator_invocations",
+            limits,
+            left,
+        )?
+    } else {
+        super::super::materialize::ActualDirectory::from_module_at(module, "creator_invocations")
+    };
     let mut changes = Vec::new();
     for instance in &program.instances {
         pay(
@@ -206,7 +218,7 @@ pub(super) fn seed(
             };
             let Some((original_index, mode)) = selected(
                 program,
-                module,
+                &view,
                 ledger,
                 instance,
                 &recipe,
@@ -264,6 +276,7 @@ pub(super) fn seed(
         }
         changes.push((instance.id, additions));
     }
+    drop(view);
     for (id, additions) in changes {
         pay(
             left,
