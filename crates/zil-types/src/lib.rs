@@ -273,7 +273,8 @@ fn signatures(
         let mut signature_arrays = *array_billing;
         if f.type_parameters.is_empty() {
             signature_arrays |=
-                signature_errors(f, &mut errors, limits, &mut foreign_work).map_err(|e| vec![e])?;
+                signature_errors_in(Some(core), f, &mut errors, limits, &mut foreign_work)
+                    .map_err(|e| vec![e])?;
         }
         *array_billing |= signature_arrays;
         if signature_arrays {
@@ -439,6 +440,15 @@ fn signature_errors(
     limits: &Limits,
     left: &mut usize,
 ) -> R<bool> {
+    signature_errors_in(None, f, errors, limits, left)
+}
+fn signature_errors_in(
+    core: Option<&CoreModule>,
+    f: &CoreFunction,
+    errors: &mut Vec<Diagnostic>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<bool> {
     fn pure_array(ty: &Type, span: Span, limits: &Limits, left: &mut usize) -> R<bool> {
         if !matches!(ty, Type::Array { .. }) || ty.is_copy_value() {
             return Ok(false);
@@ -447,6 +457,7 @@ fn signature_errors(
         inference::charge_type_snapshot(ty, span, limits, left, 2)?;
         stored::pure_inline(ty, left, limits, span)
     }
+    let nested = borrowed_fp_qualified::ordinary_nested_signature(core, f, limits, left)?;
     if f.retained_return_sources.is_some() {
         return Err(unsupported(
             f.span,
@@ -483,6 +494,7 @@ fn signature_errors(
         || f.return_type.is_copy_value()
         || pure_result
         || f.return_type.is_scalar_or_address()
+        || nested[f.parameters.len()]
         || stored::shared_value(&f.return_type)
         || stored::shared_address(&f.return_type)
         || reference_patterns::sum_address(&f.return_type)
@@ -534,6 +546,7 @@ fn signature_errors(
         if !(p.ty.is_copy_value()
             || pure_parameter
             || p.ty.is_scalar_or_address()
+            || nested[index]
             || stored::shared_value(&p.ty)
             || stored::shared_address(&p.ty)
             || reference_patterns::sum_address(&p.ty)
@@ -563,9 +576,10 @@ fn signature_errors(
                 || p.ty.is_shared_resource_head_address()
                 || p.ty.is_shared_package_address()
                 || stored::shared_address(&p.ty)
-                || reference_patterns::sum_address(&p.ty)))
+                || reference_patterns::sum_address(&p.ty)
+                || nested[index]))
             && !(p.mode == PassingMode::BorrowMut
-                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || stored::shared_address(&p.ty) || p.ty.is_package_address() || p.ty.is_exclusive_task_head_address() || reference_patterns::sum_address(&p.ty)))
+                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || nested[index] || stored::shared_address(&p.ty) || p.ty.is_package_address() || p.ty.is_exclusive_task_head_address() || reference_patterns::sum_address(&p.ty)))
             && !(p.mode == PassingMode::Give
                 && (matches!(p.ty, Type::Managed(_)) || errors::managed_success(&p.ty)))
             && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))

@@ -241,6 +241,205 @@ fn retained_snapshot(world: &mut World<'_, '_>, shape: &RetainedLifeShape) -> R<
     }
     Ok(())
 }
+/// A raw nested Address has no embedded life annotation. Recover its child
+/// scope only from the already checked parent's complete retained directory;
+/// physical pointer depth alone cannot decide whether an outer role is Static.
+fn address_child_shape(
+    world: &mut World<'_, '_>,
+    parent: &StorageLifeShape,
+    prefix: &mut Vec<LifeTypeProjection>,
+    ty: &Type,
+    depth: usize,
+) -> R<StorageLifeShape> {
+    world.pay(1)?;
+    if depth > world.limits.max_call_depth || prefix.len() > world.limits.max_call_depth {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "nested pointee domain depth exceeded",
+            None,
+        ));
+    }
+    let (payload, mutable) = match ty {
+        Type::Address { mutable, inner } => (inner.as_ref(), *mutable),
+        Type::Desc(inner) => (inner.as_ref(), true),
+        _ => return type_shape_at(world, ty, depth + 1),
+    };
+    let mut binders = BTreeMap::new();
+    let mut reverse = BTreeMap::new();
+    for row in &parent.retained {
+        world.pay(
+            row.path
+                .len()
+                .saturating_add(prefix.len())
+                .saturating_add(1),
+        )?;
+        if row.path != *prefix {
+            continue;
+        }
+        world.pay(index::search(binders.len()).saturating_add(index::search(reverse.len())))?;
+        if row.binder >= parent.binder_count
+            || binders.insert(row.class, row.binder).is_some()
+            || reverse.insert(row.binder, row.class).is_some()
+        {
+            return Err(bad(
+                "nested pointee repeats or collapses its complete child domain",
+            ));
+        }
+    }
+    let count =
+        u32::try_from(binders.len()).map_err(|_| bad("nested pointee class count overflows"))?;
+    if count as usize > world.limits.max_nodes {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "nested pointee node limit exceeded",
+            None,
+        ));
+    }
+    for (ordinal, class) in binders.keys().enumerate() {
+        world.pay(1)?;
+        if *class != ordinal as u32 {
+            return Err(bad("nested pointee omits a full child class ordinal"));
+        }
+    }
+    prefix.push(LifeTypeProjection::Pointee);
+    let child = if matches!(payload, Type::Address { .. } | Type::Desc(_)) {
+        address_child_shape(world, parent, prefix, payload, depth + 1)?
+    } else {
+        type_shape_at(world, payload, depth + 1)?
+    };
+    // Verify the full immediate payload block before inferring its one outer
+    // occurrence. Its class count includes phantom and nominal-only classes.
+    let outer = count
+        .checked_sub(child.binder_count)
+        .filter(|extra| *extra <= 1)
+        .ok_or_else(|| bad("nested pointee changes its whole intrinsic child count"))?;
+    if outer == 0 && mutable {
+        return Err(bad("nested mutable pointee invents a Static outer role"));
+    }
+    for class in 0..child.binder_count {
+        let mut found = None;
+        for row in &parent.retained {
+            world.pay(
+                row.path
+                    .len()
+                    .saturating_add(prefix.len())
+                    .saturating_add(1),
+            )?;
+            if row.path == *prefix && row.class == class {
+                if found.replace(row.binder).is_some() {
+                    return Err(bad("nested pointee repeats its payload class mapping"));
+                }
+            }
+        }
+        let binder =
+            found.ok_or_else(|| bad("nested pointee has no complete payload class mapping"))?;
+        if reverse.get(&binder)
+            != Some(
+                &outer
+                    .checked_add(class)
+                    .ok_or_else(|| bad("nested pointee payload ordinal overflows"))?,
+            )
+        {
+            return Err(bad(
+                "nested pointee changes its independent payload domain order",
+            ));
+        }
+    }
+    prefix.pop();
+    let mut shape = StorageLifeShape {
+        binder_count: count,
+        ..empty()
+    };
+    if outer == 1 {
+        shape.slots.push(StorageLifeSlot {
+            path: Vec::new(),
+            binder: 0,
+            mode: match ty {
+                Type::Desc(_) => StoredBorrowMode::WritableDescription,
+                Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
+                _ => StoredBorrowMode::SharedAddress,
+            },
+        });
+    }
+    for row in &parent.retained {
+        world.pay(
+            row.path
+                .len()
+                .saturating_add(prefix.len())
+                .saturating_add(1),
+        )?;
+        if row.path.len() <= prefix.len() || !row.path.starts_with(prefix) {
+            continue;
+        }
+        let binder = *reverse
+            .get(&row.binder)
+            .ok_or_else(|| bad("nested retained occurrence leaves its complete child domain"))?;
+        shape.retained.push(StorageRetainedBinding {
+            path: row.path[prefix.len()..].to_vec(),
+            class: row.class,
+            binder,
+        });
+    }
+    for row in &parent.nominal_arguments {
+        world.pay(
+            row.path
+                .len()
+                .saturating_add(prefix.len())
+                .saturating_add(1),
+        )?;
+        if !row.path.starts_with(prefix) {
+            continue;
+        }
+        let binder = *reverse
+            .get(&row.binder)
+            .ok_or_else(|| bad("nested nominal occurrence leaves its complete child domain"))?;
+        shape.nominal_arguments.push(NominalLifeArgument {
+            path: row.path[prefix.len()..].to_vec(),
+            declaration: row.declaration,
+            argument: row.argument,
+            binder,
+        });
+    }
+    let mut canonical = StorageLifeShape {
+        binder_count: count,
+        slots: shape.slots.clone(),
+        ..empty()
+    };
+    world.pay(child.binder_count as usize + shape.slots.len())?;
+    let map = (0..child.binder_count)
+        .map(|class| class + outer)
+        .collect::<Vec<_>>();
+    super::super::materialize::inherit_child_shape(
+        &mut canonical,
+        &child,
+        LifeTypeProjection::Pointee,
+        &map,
+        world.limits,
+        world.left,
+    )?;
+    world.pay(
+        shape
+            .slots
+            .len()
+            .saturating_mul(3)
+            .saturating_add(shape.retained.len().saturating_mul(3))
+            .saturating_add(shape.nominal_arguments.len().saturating_mul(5))
+            .saturating_add(1),
+    )?;
+    for row in &shape.retained {
+        world.pay(row.path.len())?;
+    }
+    for row in &shape.nominal_arguments {
+        world.pay(row.path.len())?;
+    }
+    if shape != canonical {
+        return Err(bad(
+            "nested pointee changes its complete retained or nominal occurrence forest",
+        ));
+    }
+    Ok(shape)
+}
+
 pub(super) fn pointee(world: &mut World<'_, '_>, parent: &SemanticTypeValue) -> R<SharedType> {
     let inner = match World::type_of(parent)? {
         Type::Address { inner, .. } | Type::Desc(inner) | Type::Managed(inner) => inner,
@@ -250,7 +449,20 @@ pub(super) fn pointee(world: &mut World<'_, '_>, parent: &SemanticTypeValue) -> 
             ));
         }
     };
-    let shape = type_shape(world, inner)?;
+    let shape = if matches!(inner, Type::Address { .. } | Type::Desc(_)) {
+        let SemanticTypeValue::Resolved { life, .. } = parent else {
+            return Err(bad("nested pointee has no complete parent scope"));
+        };
+        address_child_shape(
+            world,
+            life,
+            &mut vec![LifeTypeProjection::Pointee],
+            inner,
+            0,
+        )?
+    } else {
+        type_shape(world, inner)?
+    };
     let images = mapped(
         world,
         parent,

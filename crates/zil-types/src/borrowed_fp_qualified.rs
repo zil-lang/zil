@@ -72,6 +72,25 @@ fn relation_inner(
     span: Span,
     source_owned: bool,
 ) -> R<()> {
+    relation_types(
+        parameters.iter(),
+        captures,
+        result,
+        life,
+        span,
+        source_owned,
+        None,
+    )
+}
+fn relation_types<'p>(
+    parameters: impl Iterator<Item = &'p Type>,
+    captures: Option<&[Type]>,
+    result: &Type,
+    life: &StorageLifeContract,
+    span: Span,
+    source_owned: bool,
+    original_domains: Option<&[Option<u32>]>,
+) -> R<()> {
     struct Check<'a> {
         life: &'a StorageLifeContract,
         binding: usize,
@@ -87,6 +106,7 @@ fn relation_inner(
         span: Span,
         captured: bool,
         source_owned: bool,
+        original_domains: Option<&'a [Option<u32>]>,
     }
     impl Check<'_> {
         fn invalid(&self, message: &str) -> Diagnostic {
@@ -167,25 +187,46 @@ fn relation_inner(
             pointee: bool,
             result: bool,
         ) -> R<bool> {
-            let Type::BorrowedStorage { storage, life } = ty else {
+            let count = if let Type::BorrowedStorage { storage, life } = ty {
+                // This source/native lane has already checked the actual shared
+                // Record shape. Other owning/nested/opaque lanes remain explicit.
+                if !(matches!(storage.as_ref(), Type::Record { .. })
+                    || self.captured && matches!(storage.as_ref(), Type::Tuple(_)))
+                    || !life.retained.is_empty()
+                    || life
+                        .slots
+                        .iter()
+                        .any(|s| s.mode != StoredBorrowMode::SharedAddress)
+                {
+                    return Err(unsupported(
+                        self.span,
+                        "qualified callable storage requires its owning or nested consumer",
+                    ));
+                }
+                life.binder_count as usize
+            } else if matches!(ty, Type::Address { .. }) && pointee {
+                let index = match base {
+                    StorageBase::Parameter(index) => index as usize,
+                    StorageBase::Result => self
+                        .original_domains
+                        .map_or(0, |rows| rows.len().saturating_sub(1)),
+                    _ => return Ok(false),
+                };
+                let Some(count) = self
+                    .original_domains
+                    .and_then(|rows| rows.get(index))
+                    .copied()
+                    .flatten()
+                else {
+                    return Ok(false);
+                };
+                if count == 0 {
+                    return Ok(true);
+                }
+                count as usize
+            } else {
                 return Ok(false);
             };
-            // This source/native lane has already checked the actual shared
-            // Record shape. Other owning/nested/opaque lanes remain explicit.
-            if !(matches!(storage.as_ref(), Type::Record { .. })
-                || self.captured && matches!(storage.as_ref(), Type::Tuple(_)))
-                || !life.retained.is_empty()
-                || life
-                    .slots
-                    .iter()
-                    .any(|s| s.mode != StoredBorrowMode::SharedAddress)
-            {
-                return Err(unsupported(
-                    self.span,
-                    "qualified callable storage requires its owning or nested consumer",
-                ));
-            }
-            let count = life.binder_count as usize;
             if count == 0 || count > self.life.classes.len().saturating_sub(self.class) {
                 return Err(self.invalid("qualified callable class domain is absent or incomplete"));
             }
@@ -272,8 +313,9 @@ fn relation_inner(
         span,
         captured: captures.is_some(),
         source_owned,
+        original_domains,
     };
-    for (index, parameter) in parameters.iter().enumerate() {
+    for (index, parameter) in parameters.enumerate() {
         let ordinal = u32::try_from(index)
             .map_err(|_| check.invalid("callable parameter ordinal overflow"))?;
         check.ty(parameter, StorageBase::Parameter(ordinal), false)?;
@@ -300,6 +342,267 @@ fn relation_inner(
         );
     }
     Ok(())
+}
+
+/// Ordinary nested addresses obtain their child-domain size from the exact
+/// original prototype, before lifetimes are erased from physical Address.
+/// A raw physical address alone cannot distinguish Static from a Life role.
+pub(super) fn ordinary_nested_signature(
+    core: Option<&CoreModule>,
+    function: &CoreFunction,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Vec<bool>> {
+    fn pay(left: &mut usize, work: usize, span: Span) -> R<()> {
+        *left = left.checked_sub(work).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "nested signature domain work exceeded",
+                Some(span),
+            )
+        })?;
+        Ok(())
+    }
+    fn nested(ty: &Type) -> bool {
+        matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Address { .. }))
+    }
+    fn domain(
+        recipe: &SemanticTypeRecipe,
+        actual: &Type,
+        limits: &Limits,
+        left: &mut usize,
+        span: Span,
+        depth: usize,
+    ) -> R<Option<u32>> {
+        pay(left, 1, span)?;
+        if depth > limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "nested signature domain depth exceeded",
+                Some(span),
+            ));
+        }
+        match (recipe, actual) {
+            (
+                SemanticTypeRecipe::Address {
+                    mutable,
+                    lifetime,
+                    inner,
+                },
+                Type::Address {
+                    mutable: actual_mode,
+                    inner: actual,
+                },
+            ) if mutable == actual_mode => {
+                let Some(child) = domain(inner, actual, limits, left, span, depth + 1)? else {
+                    return Ok(None);
+                };
+                let outer = match lifetime {
+                    SemanticOuterLifeRecipe::Static if !*mutable => 0,
+                    SemanticOuterLifeRecipe::Class(_) => 1,
+                    _ => return Ok(None),
+                };
+                let count = child.checked_add(outer).ok_or_else(|| {
+                    error(
+                        "E-FUNCTION-LIFE",
+                        span,
+                        "nested signature class domain overflows",
+                    )
+                })?;
+                if count as usize > limits.max_nodes {
+                    return Err(Diagnostic::limit(
+                        Phase::Types,
+                        "nested signature class domain exceeded",
+                        Some(span),
+                    ));
+                }
+                Ok(Some(count))
+            }
+            (SemanticTypeRecipe::Atom(original), actual)
+                if original == actual && actual.is_b0_scalar() =>
+            {
+                Ok(Some(0))
+            }
+            _ => Ok(None),
+        }
+    }
+    pay(
+        left,
+        function.parameters.len().saturating_add(1),
+        function.span,
+    )?;
+    let mut admitted = vec![false; function.parameters.len().saturating_add(1)];
+    if !function.parameters.iter().any(|p| nested(&p.ty)) && !nested(&function.return_type) {
+        return Ok(admitted);
+    }
+    let Some(life) = &function.storage_life else {
+        return Ok(admitted);
+    };
+    let Some(core) = core else {
+        return Ok(admitted);
+    };
+    let Some(semantic) = &core.semantic else {
+        return Ok(admitted);
+    };
+    pay(
+        left,
+        semantic
+            .instances
+            .len()
+            .saturating_add(semantic.definitions.len()),
+        function.span,
+    )?;
+    let mut selected = None;
+    for instance in &semantic.instances {
+        if !matches!(instance.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Core { module, function: original }) if module == core.module_id && original == function.id)
+        {
+            continue;
+        }
+        if selected.is_some_and(|old| old != instance.definition) {
+            return Err(error(
+                "E-FUNCTION-LIFE",
+                function.span,
+                "nested signature has several original prototype owners",
+            ));
+        }
+        selected = Some(instance.definition);
+    }
+    let Some(owner) = selected else {
+        return Ok(admitted);
+    };
+    let definition = semantic
+        .definitions
+        .iter()
+        .find(|row| row.id == owner)
+        .ok_or_else(|| {
+            error(
+                "E-FUNCTION-LIFE",
+                function.span,
+                "nested signature original definition is absent",
+            )
+        })?;
+    let (SemanticDefinitionBody::FunctionWithBody { signature, .. }
+    | SemanticDefinitionBody::Function { signature, .. }) = &definition.body
+    else {
+        return Ok(admitted);
+    };
+    if signature.parameters.len() != function.parameters.len() {
+        return Err(error(
+            "E-FUNCTION-LIFE",
+            function.span,
+            "nested signature omits complete original parameter order",
+        ));
+    }
+    let mut domains = vec![None; admitted.len()];
+    for (index, (original, actual)) in signature
+        .parameters
+        .iter()
+        .zip(&function.parameters)
+        .enumerate()
+    {
+        if !nested(&actual.ty) {
+            continue;
+        }
+        let (
+            SemanticTypeRecipe::Address {
+                mutable: original_mode,
+                lifetime,
+                inner: original,
+            },
+            Type::Address {
+                mutable: actual_mode,
+                inner: actual,
+            },
+        ) = (&original.ty, &actual.ty)
+        else {
+            continue;
+        };
+        if original_mode != actual_mode {
+            return Err(error(
+                "E-FUNCTION-LIFE",
+                function.span,
+                "nested signature changes its exact original outer access",
+            ));
+        }
+        pay(
+            left,
+            life.static_bindings.len().saturating_add(1),
+            function.span,
+        )?;
+        let marked_static = life
+            .static_bindings
+            .iter()
+            .any(|row| row.base == StorageBase::Parameter(index as u32) && row.path.is_empty());
+        if marked_static != matches!(lifetime, SemanticOuterLifeRecipe::Static) {
+            return Err(error(
+                "E-FUNCTION-LIFE",
+                function.span,
+                "nested signature changes its original Static/input boundary",
+            ));
+        }
+        domains[index] = domain(original, actual, limits, left, function.span, 0)?;
+        admitted[index] = domains[index].is_some();
+    }
+    let result = function.parameters.len();
+    if nested(&function.return_type) {
+        let (
+            SemanticTypeRecipe::Address {
+                mutable: original_mode,
+                lifetime,
+                inner: original,
+            },
+            Type::Address {
+                mutable: actual_mode,
+                inner: actual,
+            },
+        ) = (&signature.result, &function.return_type)
+        else {
+            return Ok(admitted);
+        };
+        if original_mode != actual_mode {
+            return Err(error(
+                "E-FUNCTION-LIFE",
+                function.span,
+                "nested result changes its exact original outer access",
+            ));
+        }
+        pay(
+            left,
+            life.static_bindings.len().saturating_add(1),
+            function.span,
+        )?;
+        let marked_static = life
+            .static_bindings
+            .iter()
+            .any(|row| row.base == StorageBase::Result && row.path.is_empty());
+        if marked_static != matches!(lifetime, SemanticOuterLifeRecipe::Static) {
+            return Err(error(
+                "E-FUNCTION-LIFE",
+                function.span,
+                "nested result changes its original Static/input boundary",
+            ));
+        }
+        domains[result] = domain(original, actual, limits, left, function.span, 0)?;
+        admitted[result] = domains[result].is_some();
+    }
+    if admitted.iter().any(|row| *row) {
+        // This is a relation/geometry check, not Copy, outlives or permission.
+        borrowed_fp::charge_contract(life, |work| pay(left, work, function.span), 1)?;
+        for parameter in &function.parameters {
+            inference::charge_type_snapshot(&parameter.ty, parameter.span, limits, left, 1)?;
+        }
+        inference::charge_type_snapshot(&function.return_type, function.span, limits, left, 1)?;
+        relation_types(
+            function.parameters.iter().map(|p| &p.ty),
+            None,
+            &function.return_type,
+            life,
+            function.span,
+            false,
+            Some(&domains),
+        )?;
+    }
+    Ok(admitted)
 }
 
 #[cfg(test)]
