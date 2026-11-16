@@ -374,5 +374,27 @@
       "readback_verified": true,
       "restore": "Concatenate parts01 through12 in numeric order, base64-decode once, then extract gzip"
     }
+  },
+  "consumer_closure_checkpoint": {
+    "source": "0ca931d117582d6583253fbfce20a295a3e66223",
+    "saved_batches": [
+      "98156b891 nominal result identity/outside source separation and inline call result view",
+      "c81734d07 original full-parent provider selection",
+      "0ca931d11 existing header Invocation images from complete real operands"
+    ],
+    "types_preflight": "cargo check --locked --keep-going -p zil-types exited 0 on exact 0ca931d11",
+    "cli_preflight": "c817 failed E0061 queries.rs1329 missing newly required source relation argument; owner completing true source derivation, no old CLI acceptance",
+    "previous_d2a_suites": "interrupted by ENOSPC; partial results are not full-suite acceptance",
+    "disk_prevention": "case completion assesses reports and source completeness before lossless phase compression with SHA256 checked decompression; cold logs compressed without dropping evidence",
+    "cosmetic_residue": "Analyze2 and Backend5 owner-audited equivalent to HEAD; backed up and restored exact committed bytes",
+    "github_recovery": {
+      "source": "c81734d07fec5a4d0c88547103fbe44c7987a718",
+      "commit": "bffb3ca659d286fadb6f43546643572abd668034",
+      "manifest_commit": "4b87db5281c40e70ef2dfb797fda18edaf41362a",
+      "prefix": "language/alpha-checkpoint-20261116T150857Z",
+      "sha256": "977aec0379abce80c93f67b0659879ebe27229766cc5fbc4b5a8d892cdc2169b",
+      "parts_readback_verified": 4
+    },
+    "alpha_accepted": false
   }
 }
