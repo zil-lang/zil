@@ -75,7 +75,7 @@ pub(super) fn resumable_callable(
 ) -> R<bool> {
     with_check(program, proof, owner, limits, left, |check| {
         let value = check.observation_type(owner, ty, 0)?;
-        if !check.sealed_capability(owner, &value, SemanticBuiltinTrait::ClosedEnvironment, 1)? {
+        if check.sealed_capability(owner, &value, SemanticBuiltinTrait::ClosedEnvironment, 1)? != Some(true) {
             return Ok(false);
         }
         if check.concrete_callable(&value, 1)?.is_some() { return Ok(true); }
