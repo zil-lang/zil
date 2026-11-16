@@ -75,7 +75,7 @@ fn callable(module:&TypedModule,request:&CallableRequest,b:&mut Budget)->Check<(
     }
     Ok(())
 }
-fn contains_source(actual:&Source,position:Option<&StoragePosition>,upper:&[StorageSource],output:&Type,allow_child:bool,b:&mut Budget)->Check<bool>{
+fn contains_source(actual:&Source,position:Option<&StoragePosition>,upper:&[StorageSource],output:&Type,allow_child:bool,variable_outer:bool,b:&mut Budget)->Check<bool>{
     let mut allowed=false;
     for atom in upper{
         dynamic_metadata::source(atom,b)?;
@@ -83,7 +83,7 @@ fn contains_source(actual:&Source,position:Option<&StoragePosition>,upper:&[Stor
             StorageSource::Exact(selected)=>allowed|=position==Some(selected),
             StorageSource::Static{leaf,mode}=>{
                 if leaf!=output||!matches!((leaf,mode),(Type::Address{mutable:false,..},StoredBorrowMode::SharedAddress)|(Type::Desc(_),StoredBorrowMode::ReadOnlyDescription)){return Err(bad("original static source upper changes its complete result type or mode"));}
-                if actual.base==HoldRoot::Static{allowed|=matches!(actual.static_dependency,StaticProvenance::Literal)||matches!(&actual.static_dependency,StaticProvenance::Conditional(key)if b.proven_static_occurrences.contains(key));}
+                if actual.base==HoldRoot::Static{allowed|=(variable_outer&&actual.static_dependency==StaticProvenance::UpperOnly)||matches!(actual.static_dependency,StaticProvenance::Literal)||matches!(&actual.static_dependency,StaticProvenance::Conditional(key)if b.proven_static_occurrences.contains(key));}
             },
             StorageSource::OwnedView{head,leaf,mode}=>{
                 if leaf!=output||!matches!((leaf,mode),(Type::Address{mutable:false,..},StoredBorrowMode::SharedAddress)|(Type::Address{mutable:true,..},StoredBorrowMode::ExclusiveAddress)|(Type::Desc(_),StoredBorrowMode::ReadOnlyDescription|StoredBorrowMode::WritableDescription)){return Err(bad("original owning view upper changes its complete result type or mode"));}
@@ -103,16 +103,23 @@ fn contains_source(actual:&Source,position:Option<&StoragePosition>,upper:&[Stor
     }
     Ok(allowed)
 }
-pub(in crate::stored_flow) fn table_source_upper(table:&DynVtable,actual:&Source,upper:&[StorageSource],output:&Type,b:&mut Budget)->Check<()>{
+pub(in crate::stored_flow) fn table_source_upper(table:&DynVtable,actual:&Source,upper:&[StorageSource],output:&Type,variable_outer:bool,b:&mut Budget)->Check<()>{
     let mut position=super::dyn_providers::selected(table,actual,b)?;
     if let Some(position)=&mut position{b.spend(actual.inline.len())?;position.path.extend(actual.inline.iter().copied().map(ContractProjection::Place));}
-    if !contains_source(actual,position.as_ref(),upper,output,true,b)?{return Err(bad("actual provider result exceeds its complete public source upper"));}Ok(())
+    if !contains_source(actual,position.as_ref(),upper,output,true,variable_outer,b)?{return Err(bad("actual provider result exceeds its complete public source upper"));}Ok(())
 }
+fn variable_outer(request:&ContractRequest,position:&StoragePosition,b:&mut Budget)->Check<bool>{
+    b.spend(request.expected_header.bindings.len().saturating_add(request.expected_header.static_bindings.len()).saturating_add(request.actual_header.as_ref().map_or(0,|header|header.bindings.len().saturating_add(header.static_bindings.len()))).saturating_mul(position.path.len().saturating_add(1)))?;
+    Ok(request.expected_header.bindings.iter().any(|row|row.position==*position)&&!request.expected_header.static_bindings.contains(position)&&request.actual_header.as_ref().is_some_and(|header|header.bindings.iter().any(|row|row.position==*position)&&!header.static_bindings.contains(position)))
+}
+
 fn source_upper(module:&TypedModule,request:&ContractRequest,actual:&Source,upper:&[StorageSource],result_path:&[PlaceProjection],b:&mut Budget)->Check<()>{
     let position=position(request,module,actual,b)?;
     if actual.base!=HoldRoot::Static&&position.is_none(){return Err(bad("contract result retains activation-local storage"));}
     let output=crate::dynamic_ports::physical_path(&request.result.ty,result_path,b)?;
-    if !contains_source(actual,position.as_ref(),upper,output,matches!(request.origin,Origin::TableSlot{..}),b)?{return Err(bad("actual returned target exceeds its independently instantiated original source upper"));}Ok(())
+    let output_position=StoragePosition{base:StorageBase::Result,path:result_path.iter().copied().map(ContractProjection::Place).collect()};
+    let variable_outer=variable_outer(request,&output_position,b)?;
+    if !contains_source(actual,position.as_ref(),upper,output,matches!(request.origin,Origin::TableSlot{..}),variable_outer,b)?{return Err(bad("actual returned target exceeds its independently instantiated original source upper"));}Ok(())
 }
 fn after_upper(module:&TypedModule,request:&ContractRequest,upper:&StorageSourceBinding,summary:&Summary,b:&mut Budget)->Check<()>{
     let mut actual_paths=Vec::new();
@@ -135,7 +142,69 @@ fn after_upper(module:&TypedModule,request:&ContractRequest,upper:&StorageSource
     for(parameter,path)in actual_paths{
         let actual=summary.external_after.iter().find(|(index,at,_)|*index==parameter&&*at==path).ok_or_else(||bad("actual Return omits an original after-state source leaf"))?;
         if actual.2.is_empty(){return Err(bad("actual after-state leaf is Unknown, not known empty"));}
-        for source in &actual.2{let selected=position(request,module,source,b)?;if !contains_source(source,selected.as_ref(),&upper.sources,output,false,b)?{return Err(bad("actual after-state target exceeds its independently instantiated original upper"));}}
+        let destination=StoragePosition{base:StorageBase::Parameter(parameter),path:path.iter().copied().map(ContractProjection::Place).collect()};
+        let mut variable=variable_outer(request,&destination,b)?;
+        if !variable&&parameter==0&&matches!(request.origin,Origin::TableSlot{..})&&!request.expected_header.static_bindings.contains(&destination)&&!request.actual_header.as_ref().is_some_and(|header|header.static_bindings.contains(&destination)){
+            // The header records a qualified Self as one complete intrinsic
+            // boundary. Its stored variable leaves are authenticated by the
+            // complete Self inventory, not flattened into extra header rows.
+            b.spend(request.self_leaves.len().saturating_mul(path.len().saturating_add(1)))?;
+            variable=request.self_leaves.iter().any(|leaf|leaf.source.base==StorageBase::Result&&leaf.source.path==destination.path&&matches!(&leaf.kind,crate::dynamic_witness::requests::LeafKind::Physical{outer:crate::dynamic_witness::requests::Borrow::Variable{..},..}));
+        }
+        for source in &actual.2{let selected=position(request,module,source,b)?;if !contains_source(source,selected.as_ref(),&upper.sources,output,false,variable,b)?{return Err(bad("actual after-state target exceeds its independently instantiated original upper"));}}
+    }Ok(())
+}
+
+fn owning_parent(source:&Source)->bool{source.leaf.is_empty()&&source.retained_port.is_none()&&source.heap_element.is_none()&&source.heap_parents.is_empty()}
+fn parent_is_preserved(position:&StoragePosition,data_root:&StoragePosition,physical_parent:bool,upper:&[StorageSource],receiver_head:bool,b:&mut Budget)->Check<bool>{
+    if receiver_head&&physical_parent&&covers(&StoragePosition{base:StorageBase::Parameter(0),path:vec![]},position,b)?{return Ok(true);}
+    for atom in upper{
+        dynamic_metadata::source(atom,b)?;
+        match atom{
+            // A saved external leaf is a separate target namespace. A bare
+            // argument head cannot cover that leaf merely by a Place prefix.
+            StorageSource::Exact(source)=>if (physical_parent||source==data_root)&&covers(source,position,b)?{return Ok(true);},
+            StorageSource::OwnedView{head,..}|StorageSource::PlaceAddress{place:head,..}=>if physical_parent&&covers(head,position,b)?{return Ok(true);},
+            StorageSource::ReborrowedLeaf{source,head}=>if (source==data_root&&covers(source,position,b)?)||(physical_parent&&covers(head,position,b)?){return Ok(true);},
+            StorageSource::Static{..}=>{},
+        }
+    }Ok(false)
+}
+
+fn immutable_parent(source:&Source)->bool{
+    // A global immutable category has no activation/retirement epoch to lose.
+    // Accepting it here proves no constant occurrence or literal provenance.
+    source.base==HoldRoot::Static&&source.leaf.is_empty()&&source.inline.is_empty()&&source.retained_port.is_none()&&source.heap_element.is_none()&&source.heap_parents.is_empty()&&source.static_dependency!=StaticProvenance::NotStatic
+}
+pub(in crate::stored_flow) fn table_parent_upper(table:&DynVtable,summary:&Summary,slot:&DynSlot,b:&mut Budget)->Check<()>{
+    if summary.dyn_result_parents.is_empty(){return Ok(());}
+    let Some(DynResultSource::Borrow{sources,..})=&slot.contract.result else{return Err(bad("actual dynamic result parents have no complete public borrowed upper"));};
+    if let Some(life)=&slot.storage_life{signature_life::charge(life,b)?;}
+    let receiver_head=slot.storage_life.as_ref().is_some_and(|life|signature_life::outer(life,StorageBase::Result)==Some(StorageBinder::Invocation(0)));
+    for parent in &summary.dyn_result_parents{
+        source_work(std::slice::from_ref(parent),b)?;
+        if immutable_parent(parent){continue;}
+        if parent.heap_element.is_some()||!parent.heap_parents.is_empty(){return Err(unsupported("actual dynamic result parent requires complete owned heap-region transport",None));}
+        let mut position=super::dyn_providers::selected(table,parent,b)?.ok_or_else(||bad("actual provider result retains an untransported local/capture parent"))?;
+        b.spend(position.path.len().saturating_add(parent.inline.len()).saturating_add(1))?;let data_root=position.clone();position.path.extend(parent.inline.iter().copied().map(ContractProjection::Place));
+        if !parent_is_preserved(&position,&data_root,owning_parent(parent),sources,receiver_head,b)?{return Err(bad("actual provider result parent is absent from the complete public data/head transport"));}
+    }Ok(())
+}
+fn contract_parents(module:&TypedModule,request:&ContractRequest,summary:&Summary,b:&mut Budget)->Check<()>{
+    if !matches!(request.origin,Origin::TableSlot{..})||summary.dyn_result_parents.is_empty(){return Ok(());}
+    let Some(DynResultSource::Borrow{sources,..})=&request.contract.result else{return Err(bad("original dynamic parent proof has no borrowed result upper"));};
+    let root=StoragePosition{base:StorageBase::Result,path:vec![]};let receiver=StoragePosition{base:StorageBase::Parameter(0),path:vec![]};
+    b.spend(request.expected_header.bindings.len().saturating_mul(2))?;
+    let output=request.expected_header.bindings.iter().find(|row|row.position==root).map(|row|row.binder);
+    let input=request.expected_header.bindings.iter().find(|row|row.position==receiver).map(|row|row.binder);
+    let receiver_head=output==input&&matches!(output,Some(StorageBinder::Invocation(_)));
+    for parent in &summary.dyn_result_parents{
+        source_work(std::slice::from_ref(parent),b)?;
+        if immutable_parent(parent){continue;}
+        if parent.heap_element.is_some()||!parent.heap_parents.is_empty(){return Err(unsupported("actual dynamic result parent requires complete owned heap-region transport",None));}
+        let position=position(request,module,parent,b)?.ok_or_else(||bad("original dynamic result retains an untransported activation parent"))?;
+        b.spend(position.path.len().saturating_add(1))?;let mut data_root=position.clone();data_root.path.truncate(data_root.path.len().saturating_sub(parent.inline.len()));
+        if !parent_is_preserved(&position,&data_root,owning_parent(parent),sources,receiver_head,b)?{return Err(bad("actual result parent exceeds the independently instantiated original data/head upper"));}
     }Ok(())
 }
 
@@ -155,6 +224,7 @@ fn contract(module:&TypedModule,request:&ContractRequest,summary:&Summary,b:&mut
     }
     if let DynResultSource::Borrow{mutable,..}=result{if !matches!(request.result.ty,Type::Address{mutable:actual,..}if actual==*mutable){return Err(bad("original borrowed result changes its actual outer mode"));}}
     if matches!(result,DynResultSource::Create|DynResultSource::Give)&&!matches!(request.result_mode,PassingMode::Create|PassingMode::Give){return Err(bad("original owning result does not match its actual responsibility mode"));}
+    contract_parents(module,request,summary,b)?;
     for guarantee in guarantees{match guarantee{
         DynGuarantee::StorageSources(upper)=>after_upper(module,request,upper,summary,b)?,
         DynGuarantee::ManageResult=>if !matches!(request.result_mode,PassingMode::Create|PassingMode::Give){return Err(bad("actual result has no original owning responsibility"));},
@@ -183,13 +253,31 @@ mod source_upper_tests{
         let port=StoragePosition{base:StorageBase::Parameter(0),path:vec![ContractProjection::RetainedPort(0)]};
         let upper=vec![StorageSource::Static{leaf:output.clone(),mode:StoredBorrowMode::SharedAddress},StorageSource::Exact(port.clone())];
         let mut actual=source();
-        assert!(contains_source(&actual,Some(&port),&upper,&output,false,&mut b).unwrap());
+        assert!(contains_source(&actual,Some(&port),&upper,&output,false,false,&mut b).unwrap());
         let mut wrong=port.clone();wrong.base=StorageBase::Parameter(1);
-        assert!(!contains_source(&actual,Some(&wrong),&upper,&output,false,&mut b).unwrap());
+        assert!(!contains_source(&actual,Some(&wrong),&upper,&output,false,false,&mut b).unwrap());
         actual.base=HoldRoot::Static;actual.leaf.clear();actual.static_dependency=StaticProvenance::UpperOnly;
-        assert!(!contains_source(&actual,None,&upper,&output,false,&mut b).unwrap());
+        assert!(!contains_source(&actual,None,&upper,&output,false,false,&mut b).unwrap());
+        assert!(contains_source(&actual,None,&upper,&output,false,true,&mut b).unwrap(),"a variable outer may carry the Static category without proving a constant occurrence");
+        assert!(b.proven_static_occurrences.is_empty(),"category containment publishes no Static grounding");
         actual.static_dependency=StaticProvenance::Literal;
-        assert!(contains_source(&actual,None,&upper,&output,false,&mut b).unwrap());
+        assert!(contains_source(&actual,None,&upper,&output,false,false,&mut b).unwrap());
+    }
+    #[test]
+    fn dynamic_parent_closure_rejects_an_unrelated_input_or_unselected_port(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);
+        let head=StoragePosition{base:StorageBase::Parameter(0),path:vec![]};
+        let data=StoragePosition{base:head.base,path:vec![ContractProjection::RetainedPort(0)]};
+        let upper=vec![StorageSource::Exact(data.clone())];
+        assert!(parent_is_preserved(&data,&data,false,&upper,false,&mut b).unwrap());
+        assert!(!parent_is_preserved(&head,&head,true,&upper,false,&mut b).unwrap(),"data containment does not implicitly transport its receiver head");
+        assert!(parent_is_preserved(&head,&head,true,&upper,true,&mut b).unwrap(),"the checked invocation role separately retains the real receiver");
+        let other=StoragePosition{base:StorageBase::Parameter(1),path:vec![]};
+        assert!(!parent_is_preserved(&other,&other,true,&upper,true,&mut b).unwrap(),"a receiver head cannot replace another actual argument parent");
+        let missing=StoragePosition{base:head.base,path:vec![ContractProjection::RetainedPort(1)]};
+        assert!(!parent_is_preserved(&missing,&missing,false,&upper,true,&mut b).unwrap(),"a receiver head is no external port parent");
+        let argument_leaf=StoragePosition{base:StorageBase::Parameter(1),path:vec![ContractProjection::Place(PlaceProjection::Field(0))]};
+        assert!(!parent_is_preserved(&argument_leaf,&argument_leaf,false,&[StorageSource::Exact(other)],false,&mut b).unwrap(),"an argument head cannot stand for the pointee of a saved pointer field");
     }
     #[test]
     fn child_upper_checks_the_actual_data_port_and_keeps_the_head_separate(){
@@ -198,10 +286,10 @@ mod source_upper_tests{
         let actual=source();let data=StoragePosition{base:StorageBase::Parameter(0),path:vec![ContractProjection::RetainedPort(0)]};
         let head=StoragePosition{base:StorageBase::Parameter(0),path:vec![]};
         let upper=vec![StorageSource::ReborrowedLeaf{source:data.clone(),head:head.clone()}];
-        assert!(contains_source(&actual,Some(&data),&upper,&output,true,&mut b).unwrap());
-        assert!(!contains_source(&actual,Some(&head),&upper,&output,true,&mut b).unwrap());
+        assert!(contains_source(&actual,Some(&data),&upper,&output,true,false,&mut b).unwrap());
+        assert!(!contains_source(&actual,Some(&head),&upper,&output,true,false,&mut b).unwrap());
         let wrong=vec![StorageSource::ReborrowedLeaf{source:data.clone(),head:StoragePosition{base:StorageBase::Parameter(1),path:vec![]}}];
-        assert!(contains_source(&actual,Some(&data),&wrong,&output,true,&mut b).is_err());
+        assert!(contains_source(&actual,Some(&data),&wrong,&output,true,false,&mut b).is_err());
     }
     #[test]
     fn owning_head_view_never_covers_a_saved_external_leaf_or_a_retained_port(){
@@ -211,11 +299,11 @@ mod source_upper_tests{
         let upper=vec![StorageSource::OwnedView{head:head.clone(),leaf:output.clone(),mode:StoredBorrowMode::SharedAddress}];
         let mut actual=source();
         let port=StoragePosition{base:head.base,path:vec![ContractProjection::RetainedPort(0)]};
-        assert!(!contains_source(&actual,Some(&port),&upper,&output,false,&mut b).unwrap());
-        assert!(!contains_source(&actual,Some(&head),&upper,&output,false,&mut b).unwrap());
+        assert!(!contains_source(&actual,Some(&port),&upper,&output,false,false,&mut b).unwrap());
+        assert!(!contains_source(&actual,Some(&head),&upper,&output,false,false,&mut b).unwrap());
         actual.leaf.clear();actual.inline.push(PlaceProjection::Field(0));
         let inline=StoragePosition{base:head.base,path:vec![ContractProjection::Place(PlaceProjection::Field(0))]};
-        assert!(contains_source(&actual,Some(&inline),&upper,&output,false,&mut b).unwrap());
+        assert!(contains_source(&actual,Some(&inline),&upper,&output,false,false,&mut b).unwrap());
         assert!(!covers(&head,&port,&mut b).unwrap());
     }
 }

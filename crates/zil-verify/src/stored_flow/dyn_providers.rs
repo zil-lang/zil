@@ -544,10 +544,18 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
                         ));
                     }
                     for source in actuals {
-                        super::dyn_contracts::table_source_upper(table,source,sources,&module.functions[entry.function.0 as usize].return_type,b)?;
+                        let actual=&module.functions[entry.function.0 as usize];
+                        let output=StoragePosition{base:StorageBase::Result,path:vec![]};
+                        b.spend(slot.storage_life.as_ref().map_or(0,|life|life.bindings.len().saturating_add(life.static_bindings.len())).saturating_add(actual.storage_life.as_ref().map_or(0,|life|life.bindings.len().saturating_add(life.static_bindings.len()))))?;
+                        let variable=slot.storage_life.as_ref().is_some_and(|life|life.bindings.iter().any(|row|row.position==output)&&!life.static_bindings.contains(&output))&&actual.storage_life.as_ref().is_some_and(|life|life.bindings.iter().any(|row|row.position==output)&&!life.static_bindings.contains(&output));
+                        super::dyn_contracts::table_source_upper(table,source,sources,&actual.return_type,variable,b)?;
                     }
                 }
             }
+            // Every actual non-target parent must already be carried by the
+            // public data/head selectors that dispatch really transports.
+            // Matching only the returned data target is insufficient.
+            super::dyn_contracts::table_parent_upper(table,summary,slot,b)?;
             let guarantees = slot
                 .contract
                 .guarantees
