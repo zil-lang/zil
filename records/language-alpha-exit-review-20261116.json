@@ -1,0 +1,106 @@
+{
+  "reviewed_at_utc": "2026-11-16T07:35:04.404852+00:00",
+  "candidate": "8f05e06f956016962396871587901d82aa1cf87f",
+  "models": {
+    "verify": "gpt-6-astra fresh independent review; no Analyze algorithm read",
+    "analyze": "gpt-6-astra independent Analyze review; no Verify algorithm read"
+  },
+  "acceptance": "NOT ACCEPTED",
+  "current": {
+    "foundation": [
+      10,
+      13
+    ],
+    "expected_negatives": [
+      4,
+      4
+    ],
+    "extra_original_sources": [
+      5,
+      12
+    ],
+    "component_units": {
+      "ir": [
+        103,
+        0
+      ],
+      "expand": [
+        168,
+        0
+      ],
+      "types": [
+        96,
+        0
+      ],
+      "analyze": [
+        304,
+        0
+      ],
+      "verify": [
+        782,
+        21
+      ]
+    }
+  },
+  "verify_review": {
+    "repeated_static_join_work": 3697804,
+    "fraction_of_default_work_limit": 0.3697804,
+    "locations": [
+      "semantic/original/calls.rs:27",
+      "semantic/flow/intrinsics.rs:318",
+      "semantic/flow.rs:217"
+    ],
+    "remedy": "Complete request-local bidirectional source association and actual site indices; preserve all candidates, roles, actions, before/after positions and ambiguity checks. Do not cache permissions, origins, loan, epoch or cleanup.",
+    "functional_issue": "Original root Address/Desc argument and value-flow adaptation incorrectly requires exact lifetime equality. Use only justified local borrowing relations, preserve all sources and keep nominal intrinsic domains rigid.",
+    "header_obligation": "Completed semantic worlds do not replace full typed physical coverage; retain signature and resource kernels.",
+    "regression_classification": {
+      "old_wire": 10,
+      "exact_cost_pin": 1,
+      "diagnostic_assertion_differences": 3,
+      "resource_capture_physical_signature_owner_cases": 7
+    }
+  },
+  "analyze_review": {
+    "repeated_site_query_work_in_collections": 873495,
+    "locations": [
+      "abstract_calls::abstract_operation",
+      "borrows::source_borrow",
+      "descriptions::source_description_at",
+      "stores::store_result"
+    ],
+    "geometry": "Construct cache already effective. Extend full immutable geometry borrowing through readonly qualifiers and complete nominal/Store directories, without caching classes, where obligations, lifetime identities or resource authority.",
+    "borrowed_iterator": "Transport full caller mixed actual vector via exact proven creator relation, then independently instantiate and verify callee Formal/Self/ForAll and whole parameter/result domains.",
+    "static_getter": "Dyn result includes Static and Exact sources; route actual Static leaf/mode via independently grounded literal/return proof, preserve SCC Unknown and strict Exact source meaning."
+  },
+  "construction": {
+    "verify_indices_and_headers": "ordinary_verify_completion",
+    "verify_context_constructor_and_actual_resource_operations": "independent_execution_verify",
+    "verify_borrowed_value_and_call_adaptation": "original_borrowed_call_completion with Astra semantic review",
+    "analyze_indices_geometry_and_store_lookup": "ct_original_coverage",
+    "analyze_static_dyn_source_transport": "resource_execution_chain",
+    "analyze_caller_mixed_transport": "types_scale_complete"
+  },
+  "release_exit": "One immutable SHA passes default10M foundation13/13, expected negatives4/4, complete extraSources12/12, current raw/Wire safety mutations and all component/work boundaries, native/C dual backend O0/O2 with failure cleanup, CT and project command consumers. Diagnostic20M never counts as acceptance.",
+  "estimated_savings": "Not asserted; observed redundant charges are not a promise of total savings.",
+  "applied_complete_batches": [
+    {
+      "commit": "122600f9d3650ef59755d9b980f4fed793c547f1",
+      "scope": "V source and actual bidirectional occurrence indices across all three reviewed consumers, plus complete physical slot bindings",
+      "state": "Saved; default10M candidate validation running, not yet accepted"
+    },
+    {
+      "commit": "ec54d7cf188a4aa1992180661054ea0ea2559780",
+      "scope": "A full caller mixed capture-domain comparison and independent callee rigid-domain audit through inputs/outputs",
+      "state": "Saved; complete original borrowed iterator candidate validation running"
+    }
+  ],
+  "borrow_review_followup": {
+    "rule": "A call region is fresh and preserves every source dependency; never choose first rigid a then assume b outlives a. A single local source must also allow complete later write constraints.",
+    "producer_coordination": "Source/Types existing Implicit directory must identify real call and full callee formal/Invocation role ordinal. Public suffix convention under validation; no first-image compatibility in V.",
+    "required_negative_examples": [
+      "bad<a,b>(x:&a)->&b{return &*x}",
+      "bad<a,b>(x:&a,y:&b)->&a{return choose(x,y)}"
+    ],
+    "source_and_actual_consumers": "Borrow creation, assignment, return and call; actual instantiate_call_heads, SSA, complete nominal intrinsic domains, source bounds, loans, ownership and cleanup must stay consistent."
+  }
+}
