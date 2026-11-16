@@ -458,12 +458,17 @@
     "outstanding": "Types16/Analyze3/Verify3 SDK failures; two reviewed same-formal Source bases still rejected; full native plan not accepted"
   },
   "pending_integration": {
-    "source": "495ccd5766a2323950b5d9ccb8f65b211e24c9c2",
+    "source": "26a80b27ed93263409123e9765eb42923a9eb5a0",
+    "github_source_verified": true,
+    "candidate_run": "alpha-resume-complete-original-task-contexts-and-source-contracts",
+    "status": "workspace all-targets precheck active; no new runtime conclusion",
     "since_last_test": [
-      "A static byte-view reads and exact constructor control site transport",
-      "V complete rigid boundary diagnostics only; Eq not changed",
-      "Types Task Context complete original zero-domain normalization"
+      "Analyze static byte-view/constructor site transport",
+      "Types original complete zero Context across four tables",
+      "Verify complete original closure creator boundary transports",
+      "Source static worker observation roles, reviewed legal bases and exact illegal Source preservation",
+      "Analyze completed original callback subtree inference and Task Closure input qualification"
     ],
-    "creator_static_review": "Astra accepted exact proof/ordinal preservation; behavior requires new candidate tests"
+    "diagnostic_coverage": "Original full SDK plus exact existing helper Source census; do not merge counts across candidates"
   }
 }

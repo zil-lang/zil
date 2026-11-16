@@ -1,5 +1,9 @@
 # 开发、复核与集成工作流
 
+## 2026-11-16 原测试循环的诊断覆盖
+
+SDK 循环首个 assert 会遮蔽同一测试后续原 Source，不能把首错清单当完整消费者清单。每个完整逻辑候选在原 SDK 全断言之外，按原 Rust helper 精确枚举全部既有 Source，用相符 CLI、明确 Limits 和逐 Source/二进制 SHA 保存独立完整诊断；该 census 不替代 SDK、raw/Wire、原生或安全验收，Unsupported/ResourceLimit 不计通过。新错误立刻按真实原定义与完整 notes 交对应 owner，不沿旧首句路由。
+
 ## 2026-11-16 Alpha 资源策略复核
 
 2026-11-16 返工预防硬约束：READY必须基于真实HEAD导出独占patch；共享文件在独立临时index做cached apply check，排其他writer与旧fmt。Root冻结整批后先cargo check --keep-going收齐跨crate机械错误，再codegen/Source，失败不得运行旧CLI。语法解析仅证明语法，不称实现已可编译。每条整链交付检查必须包含原定义/类型与来源形成、实例/发生运输、实际opcode、求解调度与调用/清理依赖、摘要完整性/真实效果、调用/返回消费、scope退出与原生清理；不能只核首个guard。真实反馈立即按exactcase+候选+完整notes发owner；已存在的诊断不得让owner空等。重复类身份/泛型边界疑难及时Astra联解，可参考Rust对应源码但不覆盖ZIL合同。
