@@ -133,11 +133,20 @@ pub(super) fn module() -> TypedModule {
         static_bindings: Vec::new(),
         fixed_binder_count: 0,
         invocation_binder_count: 1,
-        bindings: vec![row(
-            StorageBase::Parameter(0),
-            vec![],
-            StorageBinder::Invocation(0),
-        )],
+        bindings: vec![
+            row(
+                StorageBase::Parameter(0),
+                vec![],
+                StorageBinder::Invocation(0),
+            ),
+            // Returning the carrier transfers this physical borrowed slot;
+            // the separate Result class row preserves its complete domain.
+            row(
+                StorageBase::Result,
+                vec![PlaceProjection::Field(0)],
+                StorageBinder::Invocation(0),
+            ),
+        ],
         classes: vec![SignatureLifeClassBinding {
             position: SignatureLifeClass {
                 base: StorageBase::Result,
@@ -474,6 +483,16 @@ pub(super) fn shared_two_slots() -> TypedModule {
         mode: StoredBorrowMode::SharedAddress,
     });
     replace_carrier(&mut module, &old, &new);
+    module.functions[0]
+        .storage_life
+        .as_mut()
+        .unwrap()
+        .bindings
+        .push(row(
+            StorageBase::Result,
+            vec![PlaceProjection::Field(1)],
+            StorageBinder::Invocation(0),
+        ));
     let InstructionKind::MakeAggregate { fields } =
         &mut module.functions[0].blocks[0].instructions[2].kind
     else {
