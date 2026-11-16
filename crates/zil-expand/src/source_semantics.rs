@@ -13,6 +13,8 @@ mod body;
 mod body_nodes;
 #[path = "source_semantic_builtins.rs"]
 mod builtins;
+#[path = "source_semantic_call_regions.rs"]
+mod call_regions;
 #[path = "source_semantic_closures.rs"]
 mod closures;
 #[path = "source_semantic_constants.rs"]

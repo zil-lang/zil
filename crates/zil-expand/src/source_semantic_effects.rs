@@ -9,6 +9,11 @@ enum Target {
     Definition(usize),
     AppliedDefinition { owner: usize, application: usize },
     Kind(CallKind),
+    // Used only by the original occurrence observer, never ABI inference.
+    Prototype(usize, CallKind),
+    PrototypeSequence { index: usize, dimensions: u32, kind: CallKind },
+    Alternatives(usize),
+    Elements { index: usize, tuple: bool },
     StoreBorrow,
     OwnedDynFactory,
     StoreReceiver(usize),
@@ -36,6 +41,12 @@ struct Application<'a> {
     owner: usize,
     context: Option<usize>,
 }
+#[derive(Clone, Copy)]
+enum Prototype<'a> {
+    Code { owner: usize, signature: &'a SemanticSignatureRecipe, context: Option<usize>, frames: Option<usize> },
+    Formal { owner: usize, ordinal: u32 },
+    Premises { owner: usize, ty: &'a SemanticTypeRecipe },
+}
 struct Vertex {
     explicit: Option<CallKind>,
     suspend: bool,
@@ -50,6 +61,15 @@ struct Scan<'a, 'd, 'b, 'l> {
     store_elements: &'b mut Vec<Target>,
     vertex: &'b mut Vertex,
     budget: &'b mut Budget<'l>,
+    prototypes: &'b mut Vec<Prototype<'a>>,
+    alternatives: &'b mut Vec<(Target, Target)>,
+    quantifiers: &'b mut Vec<Vec<u32>>,
+    elements: &'b mut Vec<Vec<Target>>,
+    active_quantifiers: Option<usize>,
+    observations: Option<&'b mut Vec<call_regions::Observation>>,
+    call: Option<zil_base::NodeId>,
+    collect_targets: bool,
+    resolved_targets: Vec<Target>,
 }
 fn signature(definition: &SemanticDefinition) -> Option<&SemanticSignatureRecipe> {
     match &definition.body {
@@ -70,10 +90,125 @@ fn declaration_index(
         .position(|definition| definition.id == id))
 }
 impl<'a> Scan<'a, '_, '_, '_> {
-    fn edge(&mut self, target: Target, span: Span) -> R<()> {
+    fn requirement_prototypes(
+        &mut self, ty: &SemanticTypeRecipe, requirements: &'a [SemanticRequirementRecipe],
+        frames: &mut Vec<u32>, found: &mut Vec<(&'a SemanticSignatureRecipe, Vec<u32>)>,
+        depth: usize, span: Span,
+    ) -> R<()> {
+        for requirement in requirements {
+            self.budget.node(span, depth)?;
+            match requirement {
+                SemanticRequirementRecipe::Callable { ty: receiver, signature, .. }
+                    if receiver == ty || matches!((receiver, ty),
+                        (SemanticTypeRecipe::OriginalType { scope: SemanticScopeRef::Ancestor(0), source: left },
+                         SemanticTypeRecipe::OriginalType { source: right, .. }) if left == right) => {
+                    self.budget.lineage_bytes(std::mem::size_of_val(frames.as_slice()), span)?;
+                    self.budget.lineage_push(found, (signature.as_ref(), frames.clone()), span)?;
+                }
+                SemanticRequirementRecipe::ForAll { lifetimes, requirements } => {
+                    self.budget.lineage_push(frames, *lifetimes, span)?;
+                    self.requirement_prototypes(ty, requirements, frames, found, depth + 1, span)?;
+                    frames.pop();
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+    fn formal_prototypes(
+        &mut self, owner: usize, ordinal: u32,
+        found: &mut Vec<(&'a SemanticSignatureRecipe, Vec<u32>)>, depth: usize, span: Span,
+    ) -> R<()> {
+        let definition = self.definitions[owner];
+        let ty = SemanticTypeRecipe::Formal(SemanticFormalRef { scope: SemanticScopeRef::Ancestor(0), ordinal });
+        let mut frames = Vec::new();
+        if let Some(SemanticFormal::Type { requirements }) = definition.parameters.get(ordinal as usize) {
+            self.requirement_prototypes(&ty, requirements, &mut frames, found, depth + 1, span)?;
+        }
+        self.requirement_prototypes(&ty, &definition.requirements, &mut frames, found, depth + 1, span)?;
+        self.budget.drop_lineage_vec(frames, span)
+    }
+    fn premise_prototypes(
+        &mut self, owner: usize, ty: &SemanticTypeRecipe,
+        found: &mut Vec<(&'a SemanticSignatureRecipe, Vec<u32>)>, depth: usize, span: Span,
+    ) -> R<()> {
+        let mut frames = Vec::new();
+        self.requirement_prototypes(ty, &self.definitions[owner].requirements, &mut frames, found, depth + 1, span)?;
+        self.budget.drop_lineage_vec(frames, span)
+    }
+    fn result_target(
+        &mut self, owner: usize, signature: &'a SemanticSignatureRecipe, context: Option<usize>,
+        outer_frames: &[u32], depth: usize, span: Span,
+    ) -> R<Target> {
+        let mut frames = Vec::new();
+        for count in outer_frames.iter().copied().chain(std::iter::once(signature.bound_lifetimes)) {
+            self.budget.lineage_push(&mut frames, count, span)?;
+        }
+        let previous = self.active_quantifiers;
+        let index = self.quantifiers.len();
+        self.budget.lineage_push(self.quantifiers, frames, span)?;
+        self.active_quantifiers = Some(index);
+        let result = self.bound_type(owner, &signature.result, context, depth + 1, span);
+        self.active_quantifiers = previous;
+        result
+    }
+    fn observe_target(&mut self, call: zil_base::NodeId, target: Target, span: Span) -> R<()> {
+        if self.observations.is_none() { return Ok(()); }
+        let mut pending = Vec::new();
+        self.budget.lineage_push(&mut pending, target, span)?;
+        while let Some(target) = pending.pop() {
+            self.budget.node(span, 0)?;
+            if let Target::Alternatives(index) = target {
+                let (left, right) = self.alternatives[index];
+                self.budget.lineage_push(&mut pending, left, span)?;
+                self.budget.lineage_push(&mut pending, right, span)?;
+            } else { self.observe_single_target(call, target, span)?; }
+        }
+        self.budget.drop_lineage_vec(pending, span)
+    }
+    fn observe_single_target(&mut self, call: zil_base::NodeId, target: Target, span: Span) -> R<()> {
+        let caller = self.definitions[self.owner].id;
         match target {
-            Target::Kind(CallKind::Direct) | Target::StoreBorrow | Target::OwnedDynFactory => {}
+            Target::Definition(owner) | Target::AppliedDefinition { owner, .. } => {
+                if let Some(signature) = signature(self.definitions[owner]) {
+                    call_regions::signature(self.observations.as_deref_mut().unwrap(), caller, call,
+                        Some(self.definitions[owner]), signature, &[], self.budget, span)?;
+                }
+            }
+            Target::Prototype(index, _) => match self.prototypes[index] {
+                Prototype::Code { signature, frames, .. } => {
+                    let frames = frames.map_or(&[][..], |index| self.quantifiers[index].as_slice());
+                    call_regions::signature(self.observations.as_deref_mut().unwrap(), caller, call,
+                        None, signature, frames, self.budget, span)?;
+                }
+                prototype @ (Prototype::Formal { .. } | Prototype::Premises { .. }) => {
+                    let mut found = Vec::new();
+                    match prototype {
+                        Prototype::Formal { owner, ordinal } => self.formal_prototypes(owner, ordinal, &mut found, 0, span)?,
+                        Prototype::Premises { owner, ty } => self.premise_prototypes(owner, ty, &mut found, 0, span)?,
+                        Prototype::Code { .. } => unreachable!(),
+                    }
+                    for (signature, frames) in &found {
+                        call_regions::signature(self.observations.as_deref_mut().unwrap(), caller, call,
+                            None, signature, frames, self.budget, span)?;
+                    }
+                    for (_, frames) in &mut found { self.budget.drop_lineage_vec(std::mem::take(frames), span)?; }
+                    self.budget.drop_lineage_vec(found, span)?;
+                }
+            },
+            _ => {}
+        }
+        Ok(())
+    }
+    fn edge(&mut self, target: Target, span: Span) -> R<()> {
+        if self.collect_targets { self.budget.lineage_push(&mut self.resolved_targets, target, span)?; }
+        if let Some(call) = self.call {
+            self.observe_target(call, target, span)?;
+        }
+        match target {
+            Target::Kind(CallKind::Direct) | Target::Prototype(_, CallKind::Direct) | Target::StoreBorrow | Target::OwnedDynFactory => {}
             Target::Kind(CallKind::Suspend)
+            | Target::Prototype(_, CallKind::Suspend)
             | Target::Unknown
             | Target::TraitReceiver(_)
             | Target::NominalReceiver(_)
@@ -81,7 +216,10 @@ impl<'a> Scan<'a, '_, '_, '_> {
             | Target::FallibleTrait(_)
             | Target::FallibleNominal(_)
             | Target::LengthReceiver
-            | Target::CodeSequence { .. } => self.vertex.suspend = true,
+            | Target::CodeSequence { .. }
+            | Target::PrototypeSequence { .. }
+            | Target::Alternatives(_)
+            | Target::Elements { .. } => self.vertex.suspend = true,
             Target::StoreReceiver(_) => self.vertex.suspend = true,
             Target::Definition(index) | Target::AppliedDefinition { owner: index, .. } => {
                 self.budget.identity_work(self.vertex.edges.len(), span)?;
@@ -200,7 +338,23 @@ impl<'a> Scan<'a, '_, '_, '_> {
     ) -> R<Target> {
         self.budget.node(span, depth)?;
         Ok(match ty {
-            SemanticTypeRecipe::Code { signature, .. } => Target::Kind(signature.call_kind),
+            SemanticTypeRecipe::Tuple(fields) if self.observations.is_some() => {
+                let mut values = Vec::new();
+                for field in fields {
+                    let target = self.bound_type(owner, field, context, depth + 1, span)?;
+                    self.budget.lineage_push(&mut values, target, span)?;
+                }
+                let index = self.elements.len();
+                self.budget.lineage_push(self.elements, values, span)?;
+                Target::Elements { index, tuple: true }
+            }
+            SemanticTypeRecipe::Code { signature, .. } => {
+                if self.observations.is_some() {
+                    let index = self.prototypes.len();
+                    self.budget.lineage_push(self.prototypes, Prototype::Code { owner, signature, context, frames: self.active_quantifiers }, span)?;
+                    Target::Prototype(index, signature.call_kind)
+                } else { Target::Kind(signature.call_kind) }
+            },
             SemanticTypeRecipe::Managed(inner)
             | SemanticTypeRecipe::Address { inner, .. }
             | SemanticTypeRecipe::Desc { inner, .. }
@@ -287,19 +441,33 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     depth + 1,
                     span,
                 )?;
-                found.map_or(
-                    Target::FormalReceiver {
-                        owner,
-                        ordinal: reference.ordinal,
-                    },
-                    Target::Kind,
-                )
+                if let Some(kind) = found {
+                    if self.observations.is_some() {
+                        let index = self.prototypes.len();
+                        self.budget.lineage_push(self.prototypes, Prototype::Formal { owner, ordinal: reference.ordinal }, span)?;
+                        Target::Prototype(index, kind)
+                    } else { Target::Kind(kind) }
+                } else { Target::FormalReceiver { owner, ordinal: reference.ordinal } }
             }
-            SemanticTypeRecipe::Array { .. } | SemanticTypeRecipe::Slice(_) => self
-                .code_sequence(ty, depth + 1, span)?
-                .map_or(Target::LengthReceiver, |(dimensions, kind)| {
-                    Target::CodeSequence { dimensions, kind }
-                }),
+            SemanticTypeRecipe::Array { .. } | SemanticTypeRecipe::Slice(_) => {
+                let sequence = self.code_sequence(ty, depth + 1, span)?;
+                if self.observations.is_some() && let Some((dimensions, kind)) = sequence {
+                    let mut leaf = ty;
+                    loop {
+                        self.budget.node(span, depth + 1)?;
+                        match leaf {
+                            SemanticTypeRecipe::Array { element, .. } | SemanticTypeRecipe::Slice(element) => leaf = element,
+                            SemanticTypeRecipe::Address { inner, .. } | SemanticTypeRecipe::Qualified { storage: inner, .. } => leaf = inner,
+                            SemanticTypeRecipe::Code { signature, .. } => {
+                                let index = self.prototypes.len();
+                                self.budget.lineage_push(self.prototypes, Prototype::Code { owner, signature, context, frames: self.active_quantifiers }, span)?;
+                                break Target::PrototypeSequence { index, dimensions, kind };
+                            }
+                            _ => break Target::LengthReceiver,
+                        }
+                    }
+                } else { sequence.map_or(Target::LengthReceiver, |(dimensions, kind)| Target::CodeSequence { dimensions, kind }) }
+            },
             SemanticTypeRecipe::Dyn { interface, .. } => {
                 Target::TraitReceiver(interface.application.declaration)
             }
@@ -355,6 +523,20 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     };
                     owner = next;
                 }
+            }
+            SemanticTypeRecipe::OriginalType { scope, .. } if self.observations.is_some() => {
+                let Some(owner) = self.scope(owner, scope, span)? else { return Ok(Target::Unknown); };
+                let mut found = Vec::new();
+                self.premise_prototypes(owner, ty, &mut found, depth + 1, span)?;
+                let kind = found.iter().map(|(signature, _)| signature.call_kind)
+                    .reduce(|left, right| if left == CallKind::Suspend || right == CallKind::Suspend { CallKind::Suspend } else { CallKind::Direct });
+                for (_, frames) in &mut found { self.budget.drop_lineage_vec(std::mem::take(frames), span)?; }
+                self.budget.drop_lineage_vec(found, span)?;
+                if let Some(kind) = kind {
+                    let index = self.prototypes.len();
+                    self.budget.lineage_push(self.prototypes, Prototype::Premises { owner, ty }, span)?;
+                    Target::Prototype(index, kind)
+                } else { Target::Unknown }
             }
             _ => Target::Unknown,
         })
@@ -469,6 +651,10 @@ impl<'a> Scan<'a, '_, '_, '_> {
         span: Span,
     ) -> R<Target> {
         self.budget.node(span, depth)?;
+        if let Target::Elements { index, tuple: true } = receiver {
+            self.budget.identity_work(member.len().saturating_add(1), span)?;
+            return Ok(member.parse::<usize>().ok().and_then(|ordinal| self.elements[index].get(ordinal)).copied().unwrap_or(Target::Unknown));
+        }
         let Target::NominalReceiver(application) = receiver else {
             return Ok(Target::Unknown);
         };
@@ -521,8 +707,38 @@ impl<'a> Scan<'a, '_, '_, '_> {
     fn target(&mut self, expression: &'a SemanticOriginalExpr, depth: usize) -> R<Target> {
         self.budget.node(expression.span, depth)?;
         match &expression.kind {
-            CoreExprKind::Index { object, .. } => {
+            CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) if self.observations.is_some() => {
+                let mut values = Vec::new();
+                for field in fields {
+                    let target = self.target(field, depth + 1)?;
+                    self.budget.lineage_push(&mut values, target, expression.span)?;
+                }
+                let index = self.elements.len();
+                self.budget.lineage_push(self.elements, values, expression.span)?;
+                return Ok(Target::Elements { index, tuple: matches!(expression.kind, CoreExprKind::Tuple(_)) });
+            }
+            CoreExprKind::Index { object, index: subscript } => {
                 return Ok(match self.target(object, depth + 1)? {
+                    Target::Elements { index, tuple: false } => {
+                        let ordinal = match &subscript.kind { CoreExprKind::Integer(text) => text.parse::<usize>().ok(), _ => None };
+                        if let Some(ordinal) = ordinal { self.elements[index].get(ordinal).copied().unwrap_or(Target::Unknown) }
+                        else {
+                            let mut result = Target::Unknown;
+                            for ordinal in 0..self.elements[index].len() {
+                                self.budget.node(expression.span, depth + 1)?;
+                                let next = self.elements[index][ordinal];
+                                if result == Target::Unknown { result = next; }
+                                else if next != Target::Unknown && next != result {
+                                    let index = self.alternatives.len();
+                                    self.budget.lineage_push(self.alternatives, (result, next), expression.span)?;
+                                    result = Target::Alternatives(index);
+                                }
+                            }
+                            result
+                        }
+                    }
+                    Target::PrototypeSequence { index, dimensions: 1, kind } => Target::Prototype(index, kind),
+                    Target::PrototypeSequence { index, dimensions, kind } if dimensions > 1 => Target::PrototypeSequence { index, dimensions: dimensions - 1, kind },
                     Target::CodeSequence {
                         dimensions: 1,
                         kind,
@@ -538,7 +754,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
             }
             CoreExprKind::Slice { object, .. } => {
                 return Ok(match self.target(object, depth + 1)? {
-                    target @ (Target::CodeSequence { .. } | Target::LengthReceiver) => target,
+                    target @ (Target::CodeSequence { .. } | Target::PrototypeSequence { .. } | Target::LengthReceiver) => target,
                     _ => Target::Unknown,
                 });
             }
@@ -607,6 +823,33 @@ impl<'a> Scan<'a, '_, '_, '_> {
             }
             CoreExprKind::Call { callee, arguments } => {
                 let called = self.target(callee, depth + 1)?;
+                if called == Target::Unknown && self.observations.is_some() {
+                    // Method lookup uses the same lexical receiver navigation
+                    // as the effect walker, while retaining every original
+                    // selected member's full result prototype.
+                    let previous_call = self.call.take();
+                    let previous_collect = self.collect_targets;
+                    let previous_targets = std::mem::take(&mut self.resolved_targets);
+                    self.collect_targets = true;
+                    self.invoke(callee, Some(arguments.len()), depth + 1)?;
+                    self.collect_targets = previous_collect;
+                    self.call = previous_call;
+                    let mut candidates = std::mem::replace(&mut self.resolved_targets, previous_targets);
+                    let mut result = Target::Unknown;
+                    for candidate in &candidates {
+                        let owner = match candidate { Target::Definition(owner) | Target::AppliedDefinition { owner, .. } => *owner, _ => continue };
+                        if let Some(signature) = signature(self.definitions[owner]) {
+                            let next = self.result_target(owner, signature, None, &[], depth + 1, expression.span)?;
+                            result = if result == Target::Unknown { next } else if next == Target::Unknown || next == result { result } else {
+                                let index = self.alternatives.len();
+                                self.budget.lineage_push(self.alternatives, (result, next), expression.span)?;
+                                Target::Alternatives(index)
+                            };
+                        }
+                    }
+                    self.budget.drop_lineage_vec(std::mem::take(&mut candidates), expression.span)?;
+                    return Ok(result);
+                }
                 if called == Target::StoreBorrow && arguments.len() == 2 {
                     return Ok(match self.target(&arguments[0], depth + 1)? {
                         Target::StoreReceiver(index) => {
@@ -622,16 +865,37 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 let (owner, context) = match called {
                     Target::Definition(owner) => (owner, None),
                     Target::AppliedDefinition { owner, application } => (owner, Some(application)),
+                    Target::Prototype(index, _) => {
+                        if let Prototype::Code { owner, signature, context, frames } = self.prototypes[index] {
+                            let mut outer = Vec::new();
+                            if let Some(index) = frames {
+                                for count in &self.quantifiers[index] { self.budget.lineage_push(&mut outer, *count, expression.span)?; }
+                            }
+                            let result = self.result_target(owner, signature, context, &outer, depth + 1, expression.span)?;
+                            self.budget.drop_lineage_vec(outer, expression.span)?;
+                            return Ok(result);
+                        }
+                        let mut signatures = Vec::new();
+                        let owner = match self.prototypes[index] {
+                            Prototype::Formal { owner, ordinal } => { self.formal_prototypes(owner, ordinal, &mut signatures, depth + 1, expression.span)?; owner }
+                            Prototype::Premises { owner, ty } => { self.premise_prototypes(owner, ty, &mut signatures, depth + 1, expression.span)?; owner }
+                            Prototype::Code { .. } => unreachable!(),
+                        };
+                        let result = if let [(signature, frames)] = signatures.as_slice() {
+                            self.result_target(owner, signature, None, frames, depth + 1, expression.span)?
+                        } else { Target::Unknown };
+                        for (_, frames) in &mut signatures { self.budget.drop_lineage_vec(std::mem::take(frames), expression.span)?; }
+                        self.budget.drop_lineage_vec(signatures, expression.span)?;
+                        return Ok(result);
+                    }
                     _ => return Ok(Target::Unknown),
                 };
                 if let Some(signature) = signature(self.definitions[owner]) {
-                    return self.bound_type(
-                        owner,
-                        &signature.result,
-                        context,
-                        depth + 1,
-                        expression.span,
-                    );
+                    return if self.observations.is_some() {
+                        self.result_target(owner, signature, context, &[], depth + 1, expression.span)
+                    } else {
+                        self.bound_type(owner, &signature.result, context, depth + 1, expression.span)
+                    };
                 }
                 return Ok(Target::Unknown);
             }
@@ -879,7 +1143,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
     ) -> R<bool> {
         self.budget.node(span, depth)?;
         match target {
-            Target::LengthReceiver | Target::CodeSequence { .. } if spelling == "len" => {
+            Target::LengthReceiver | Target::CodeSequence { .. } | Target::PrototypeSequence { .. } if spelling == "len" => {
                 self.edge(Target::Kind(CallKind::Direct), span)?;
                 Ok(true)
             }
@@ -1043,6 +1307,10 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     if found || row.fields.len() != arity {
                         return Ok(false);
                     }
+                    if let (Some(call), Some(observations)) = (self.call, self.observations.as_deref_mut()) {
+                        call_regions::variant(observations, self.definitions[self.owner].id, call,
+                            self.definitions[index], &row.fields, self.budget, callee.span)?;
+                    }
                     found = true;
                 }
             }
@@ -1102,6 +1370,12 @@ impl<'a> Scan<'a, '_, '_, '_> {
         self.budget.node(pattern.span, depth)?;
         match &pattern.kind {
             CorePatternKind::Name(name) => self.bind(name, target, pattern.span)?,
+            CorePatternKind::Tuple(fields) if self.observations.is_some() => {
+                for (ordinal, field) in fields.iter().enumerate() {
+                    let target = if let Target::Elements { index, tuple: true } = target { self.elements[index].get(ordinal).copied().unwrap_or(Target::Unknown) } else { Target::Unknown };
+                    self.pattern_value(field, target, depth + 1)?;
+                }
+            }
             CorePatternKind::Tuple(fields)
             | CorePatternKind::Variant { fields, .. }
             | CorePatternKind::Constructor { fields, .. } => {
@@ -1193,7 +1467,11 @@ impl<'a> Scan<'a, '_, '_, '_> {
                         .find(|(local, _)| *local == name)
                     {
                         if *old != target {
-                            *old = Target::Unknown
+                            if self.observations.is_some() {
+                                let index = self.alternatives.len();
+                                self.budget.lineage_push(self.alternatives, (*old, target), statement.span)?;
+                                *old = Target::Alternatives(index);
+                            } else { *old = Target::Unknown }
                         }
                     }
                 }
@@ -1331,7 +1609,21 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     .iter()
                     .any(|argument| matches!(argument.kind, E::Spread(_))))
                 .then_some(arguments.len());
+                let previous = self.call;
+                self.call = Some(expression.id);
                 self.invoke(callee, arity, depth + 1)?;
+                // A worker invocation is an actual call of the original worker
+                // prototype, at this builtin call's real occurrence.
+                if self.observations.is_some() && let Some(worker) = arguments.first() {
+                    let mut builtin = callee.as_ref();
+                    while let E::Group(inner) | E::TypeApply { callee: inner, .. } | E::GenericApply { callee: inner, .. } = &builtin.kind { builtin = inner; }
+                    if matches!(&builtin.kind, E::Name(name) if matches!(name.as_str(), "thread_scope" | "task_create" | "task_create_owned" | "task_await"))
+                        && matches!(self.target(callee, depth + 1)?, Target::Kind(_)) {
+                        let target = self.target(worker, depth + 1)?;
+                        self.observe_target(expression.id, target, expression.span)?;
+                    }
+                }
+                self.call = previous;
             }
             E::Pipeline { input, target } => {
                 self.expression(input, depth + 1)?;
@@ -1481,6 +1773,77 @@ impl<'a> Scan<'a, '_, '_, '_> {
     }
 }
 
+/// Run the same complete original lexical walker with a signature observer.
+/// It retains original prototypes before the ABI proposal discards detail.
+/// Unknown effect summaries never reject Source or create guessed roles.
+pub(super) fn observe_call_prototypes(
+    modules: &[(ModuleId, SemanticModule)], budget: &mut Budget<'_>,
+) -> R<Vec<call_regions::Observation>> {
+    let span = Span::default();
+    let mut definitions = Vec::new();
+    for (_, module) in modules { for definition in &module.definitions { budget.lineage_push(&mut definitions, definition, span)?; } }
+    let mut order = Vec::new();
+    for (index, definition) in definitions.iter().enumerate() {
+        let mut depth = 0usize;
+        let mut parent = definition.parent;
+        while let Some(id) = parent {
+            depth += 1;
+            budget.node(span, depth)?;
+            let owner = declaration_index(&definitions, id, budget, span)?.ok_or_else(|| error(span, "Call prototype parent is absent"))?;
+            parent = definitions[owner].parent;
+        }
+        budget.lineage_push(&mut order, (depth, index), span)?;
+    }
+    budget.identity_work(order.len().saturating_mul(order.len().saturating_add(1).ilog2() as usize + 1), span)?;
+    order.sort_unstable();
+    let mut captures = Vec::new();
+    let mut applications = Vec::new();
+    let mut store_elements = Vec::new();
+    let mut prototypes = Vec::new();
+    let mut alternatives = Vec::new();
+    let mut quantifiers = Vec::new();
+    let mut elements = Vec::new();
+    let mut observations = Vec::new();
+    for &(_, index) in &order {
+        let definition = definitions[index];
+        let SemanticDefinitionBody::FunctionWithBody { signature, parameters, body, .. } = &definition.body else { continue; };
+        let mut locals = Vec::new();
+        budget.identity_work(captures.len(), span)?;
+        if let Some((_, environment)) = captures.iter().find(|(owner, _)| *owner == index) {
+            for entry in environment { budget.lineage_push(&mut locals, *entry, span)?; }
+        }
+        let mut vertex = Vertex { explicit: None, suspend: false, edges: Vec::new() };
+        let mut scan = Scan { definitions: &definitions, owner: index, locals,
+            captures: &mut captures, applications: &mut applications, store_elements: &mut store_elements,
+            vertex: &mut vertex, budget, prototypes: &mut prototypes, alternatives: &mut alternatives, quantifiers: &mut quantifiers, elements: &mut elements, active_quantifiers: None, observations: Some(&mut observations), call: None, collect_targets: false, resolved_targets: Vec::new() };
+        for (ordinal, parameter) in parameters.iter().enumerate() {
+            let target = if let Some(parameter_type) = signature.parameters.get(ordinal) {
+                scan.callable_type(index, &parameter_type.ty, 0, parameter.span)?
+            } else { Target::Unknown };
+            scan.bind(&parameter.name, target, parameter.span)?;
+        }
+        if let SemanticOriginalFunctionBody::Defined(body) = body { scan.block(body, 0)?; }
+        let locals = std::mem::take(&mut scan.locals);
+        scan.budget.drop_lineage_vec(locals, span)?;
+        let resolved = std::mem::take(&mut scan.resolved_targets);
+        scan.budget.drop_lineage_vec(resolved, span)?;
+        budget.drop_lineage_vec(vertex.edges, span)?;
+    }
+    for (_, environment) in &mut captures { budget.drop_lineage_vec(std::mem::take(environment), span)?; }
+    budget.drop_lineage_vec(captures, span)?;
+    budget.drop_lineage_vec(applications, span)?;
+    budget.drop_lineage_vec(store_elements, span)?;
+    budget.drop_lineage_vec(prototypes, span)?;
+    budget.drop_lineage_vec(alternatives, span)?;
+    for frames in &mut quantifiers { budget.drop_lineage_vec(std::mem::take(frames), span)?; }
+    budget.drop_lineage_vec(quantifiers, span)?;
+    for values in &mut elements { budget.drop_lineage_vec(std::mem::take(values), span)?; }
+    budget.drop_lineage_vec(elements, span)?;
+    budget.drop_lineage_vec(order, span)?;
+    budget.drop_lineage_vec(definitions, span)?;
+    Ok(observations)
+}
+
 pub(super) fn propose(
     modules: &mut [(ModuleId, SemanticModule)],
     originals: &SourceDeclarationInventory<'_>,
@@ -1533,6 +1896,10 @@ pub(super) fn propose(
     let mut captures: Vec<(usize, Vec<(&str, Target)>)> = Vec::new();
     let mut applications = Vec::new();
     let mut store_elements = Vec::new();
+    let mut prototypes = Vec::new();
+    let mut alternatives = Vec::new();
+    let mut quantifiers = Vec::new();
+    let mut elements = Vec::new();
     for &(_, index) in &order {
         let definition = definitions[index];
         if let SemanticDefinitionBody::FunctionWithBody {
@@ -1558,6 +1925,15 @@ pub(super) fn propose(
                 store_elements: &mut store_elements,
                 vertex: &mut vertices[index],
                 budget,
+                prototypes: &mut prototypes,
+                alternatives: &mut alternatives,
+                quantifiers: &mut quantifiers,
+                elements: &mut elements,
+                active_quantifiers: None,
+                observations: None,
+                call: None,
+                collect_targets: false,
+                resolved_targets: Vec::new(),
             };
             for (ordinal, parameter) in parameters.iter().enumerate() {
                 let target = signature
@@ -1576,6 +1952,8 @@ pub(super) fn propose(
             }
             let locals = std::mem::take(&mut scan.locals);
             scan.budget.drop_lineage_vec(locals, Span::default())?;
+            let resolved = std::mem::take(&mut scan.resolved_targets);
+            scan.budget.drop_lineage_vec(resolved, Span::default())?;
         }
     }
     budget.drop_lineage_vec(order, Span::default())?;
@@ -1585,6 +1963,12 @@ pub(super) fn propose(
     budget.drop_lineage_vec(captures, Span::default())?;
     budget.drop_lineage_vec(applications, Span::default())?;
     budget.drop_lineage_vec(store_elements, Span::default())?;
+    budget.drop_lineage_vec(prototypes, Span::default())?;
+    budget.drop_lineage_vec(alternatives, Span::default())?;
+    for frames in &mut quantifiers { budget.drop_lineage_vec(std::mem::take(frames), Span::default())?; }
+    budget.drop_lineage_vec(quantifiers, Span::default())?;
+    for values in &mut elements { budget.drop_lineage_vec(std::mem::take(values), Span::default())?; }
+    budget.drop_lineage_vec(elements, Span::default())?;
     // Monotone propagation reaches a fixed point after at most one promotion
     // per vertex. Closed recursive SCCs without a Suspend edge remain Direct.
     loop {

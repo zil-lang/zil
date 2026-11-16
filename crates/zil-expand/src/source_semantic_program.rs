@@ -1374,6 +1374,7 @@ pub(crate) fn prepare(
             };
             plan::function(&mut program, &mut normalizer, function, &inventory.closures)?;
         }
+        call_regions::prepare(&mut program.modules, &mut budget)?;
         effects::propose(&mut program.modules, &inventory.originals, &mut budget)?;
         let mut normalizer = Builder {
             inventory: &inventory.originals,
