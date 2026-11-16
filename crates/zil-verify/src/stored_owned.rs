@@ -79,6 +79,9 @@ fn capture<'a>(
         .ok_or_else(|| bad(span, "owner capture index absent"))
 }
 pub(super) fn instruction(f: &TypedFunction, i: &InstructionKind) -> bool {
+    if let InstructionKind::WriteDesc{desc,..}=i{
+        return f.values.get(desc.0 as usize).is_some_and(description);
+    }
     if let InstructionKind::TakeLocal { local } = i {
         return f
             .locals
@@ -205,6 +208,15 @@ pub(super) fn types(
                 .get(*index as usize)
                 .ok_or_else(|| bad(i.span, "description field index absent"))?;
             same_result(f, i, field, b)?;
+        }
+        InstructionKind::WriteDesc{desc,index,value}=>{
+            let ty=actual(f,*desc,i.span)?;shape(ty,i.span,b)?;
+            let Type::Desc(inner)=ty else{return Err(bad(i.span,"field write requires an actual Desc"));};
+            let Type::Record{fields,..}=inner.as_ref()else{unreachable!()};
+            let(_,field)=fields.get(*index as usize).ok_or_else(||bad(i.span,"description write field index absent"))?;
+            let operand=actual(f,*value,i.span)?;
+            stored_flow::type_work(field,&b.limits.clone(),b)?;stored_flow::type_work(operand,&b.limits.clone(),b)?;
+            if operand!=field||i.result.is_some(){return Err(bad(i.span,"description scalar write changes its exact field type or adds a result"));}
         }
         InstructionKind::DropManaged { local: id } => {
             let ty = local(f, *id, i.span)?;
@@ -466,4 +478,26 @@ pub(super) fn ordinary_byte_instruction(module:&TypedModule,f:&TypedFunction,i:&
     };
     if !ordinary_byte_value(candidate,b)?{return Ok(false);}
     crate::check_instruction(module,f,i,b)?;Ok(true)
+}
+
+#[cfg(test)]
+mod scalar_write_tests{
+    use super::*;
+    #[test]
+    fn scalar_description_write_keeps_exact_field_type_and_no_owned_payload_raw_wire(){
+        let limits=Limits::default();
+        for attack in 0..5{
+            let(mut module,plan)=crate::tests::baseline();
+            let span=module.functions[0].span;
+            let field=if attack==4{Type::Managed(Box::new(Type::I32))}else{Type::I32};
+            module.functions[0].values=vec![Type::Desc(Box::new(Type::Record{name:"ScalarOwner".into(),fields:vec![("value".into(),field)]})),Type::I32,Type::I64];
+            let operation=Instruction{result:(attack==3).then_some(ValueId(1)),kind:InstructionKind::WriteDesc{desc:ValueId(0),index:if attack==1{99}else{0},value:ValueId(if attack==2{2}else{1})},span};
+            for wire in [false,true]{
+                let decoded;let current=if wire{let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;&decoded}else{&module};
+                assert_eq!(instruction(&current.functions[0],&operation.kind),attack!=4);
+                let result=types(current,&current.functions[0],&operation,&mut Budget::new(&limits));
+                if attack==0{result.unwrap();}else{assert!(result.is_err(),"scalar field attack {attack}, wire {wire}");}
+            }
+        }
+    }
 }

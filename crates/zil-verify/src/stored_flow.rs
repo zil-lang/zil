@@ -1746,7 +1746,7 @@ pub(super) fn qualifications(
                     ));
                 }
                 let scalar_owner_operation = match &i.kind {
-                    InstructionKind::ReadDesc { desc, .. } => f
+                    InstructionKind::ReadDesc { desc, .. }|InstructionKind::WriteDesc{desc,..} => f
                         .values
                         .get(desc.0 as usize)
                         .is_some_and(super::stored_owned::description),
@@ -3767,6 +3767,7 @@ static_dependency: StaticProvenance::NotStatic,
         InstructionKind::TakeCapture { .. }
         | InstructionKind::MakeManaged { .. }
         | InstructionKind::ReadDesc { .. } => {}
+        InstructionKind::WriteDesc{desc,..} if f.values.get(desc.0 as usize).is_some_and(super::stored_owned::description)=>{}
         InstructionKind::DropTuple { local } if failure_tuple_drop(f, i, b)? => {
             state.locals[local.0 as usize] = Payload::default();
             clear_local_holes(state, *local, b)?;
@@ -5840,6 +5841,13 @@ fn windows(
                             loans: Vec::new(),
                         };
                         checks.check(&actual, true, requirements, b)?;
+                    }
+                    InstructionKind::WriteDesc{desc,..}=>{
+                        let payload=solution.values.get(desc.0 as usize).ok_or_else(||err("description write has no exact actual value"))?;
+                        let permission=if payload.store_description.sources.is_empty(){&payload.address}else{&payload.store_description};
+                        store_paths::writable(permission,&solution.loans,b)?;
+                        checks.check(permission,true,requirements,b)?;
+                        if !replacements::heads(b){store_paths::record(head_accesses,permission,true,b)?;}
                     }
                     InstructionKind::ReadDesc { desc, .. } => {
                         let actual = pointer(*desc)?;
