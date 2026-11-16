@@ -304,23 +304,8 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         &task_meter,
     )?);
     let mut text = m::Code::new();
-    text.append(sum_helpers.code);
-    for id in foreign_adapters {
-        text.append(foreign::callback_adapter(
-            functions[&id],
-            lir.target,
-            &task_meter,
-        )?);
-    }
-    text.append(dyn_dispatch::tables(
-        verified.module(),
-        &copy_plans,
-        lir.resources,
-    )?);
-    text.append(task_cleanup_helpers);
-    if copy_plans.needs_helpers() {
-        text.append(copy_aggregates::declarations());
-    }
+    // LLVM must know complete environment layouts before any aggregate helper
+    // uses them in a sized GEP. Both backends consume this declaration order.
     for closure in lir.closures {
         let mut fields = closure
             .captures
@@ -338,6 +323,23 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
             m::type_name(&(environment_type(closure.id)).clone()),
             (fields).clone(),
         ));
+    }
+    text.append(sum_helpers.code);
+    for id in foreign_adapters {
+        text.append(foreign::callback_adapter(
+            functions[&id],
+            lir.target,
+            &task_meter,
+        )?);
+    }
+    text.append(dyn_dispatch::tables(
+        verified.module(),
+        &copy_plans,
+        lir.resources,
+    )?);
+    text.append(task_cleanup_helpers);
+    if copy_plans.needs_helpers() {
+        text.append(copy_aggregates::declarations());
     }
     text.append(resource_closures::drop_functions(
         lir.closures,
