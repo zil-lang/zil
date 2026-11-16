@@ -563,6 +563,7 @@ pub(super) fn reserve_binding(
                     InstructionKind::BindPackageCapture { .. }
                     | InstructionKind::EndPackageCapture { .. } => 2,
                     InstructionKind::FunctionRef { .. } => 1,
+                    InstructionKind::WriteDesc { .. } => 2,
                     InstructionKind::ExtractIndex { .. } | InstructionKind::UpdateField { .. } => 2,
                     InstructionKind::UpdateIndex { .. } => 3,
                     InstructionKind::VariantTag { .. } | InstructionKind::ReadVariant { .. } => 1,
@@ -759,6 +760,11 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
             storage: address, ..
         } => vec![*address],
         InstructionKind::WriteAddress { address, value }
+        | InstructionKind::WriteDesc {
+            desc: address,
+            value,
+            ..
+        }
         | InstructionKind::StoreStoredBorrow {
             storage: address,
             value,
@@ -1520,6 +1526,81 @@ mod tests {
                     .unwrap_err()
                     .iter()
                     .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+            );
+        }
+    }
+
+    #[test]
+    fn descriptor_field_access_prepays_parent_layout_and_write_input() {
+        // Physical ledger probes, not descriptor access authority. Both
+        // instructions use a scalar field of the complete actual resource;
+        // WriteDesc has no result whose type could accidentally pay its input.
+        let limits = Limits::default();
+        let desc = Type::Desc(Box::new(Type::Record {
+            name: "ActualQuietPayload".repeat(32),
+            fields: vec![
+                ("value".into(), Type::I64),
+                ("unselected_parent_field".repeat(32), Type::I32),
+            ],
+        }));
+        for (kind, output) in [
+            (
+                InstructionKind::ReadDesc {
+                    desc: ValueId(0),
+                    index: 0,
+                },
+                Some(1),
+            ),
+            (
+                InstructionKind::WriteDesc {
+                    desc: ValueId(0),
+                    index: 0,
+                    value: ValueId(1),
+                },
+                None,
+            ),
+        ] {
+            let mut module = fixture::module();
+            module.functions.truncate(1);
+            let f = &mut module.functions[0];
+            f.parameters.clear();
+            f.locals.clear();
+            f.return_type = Type::Unit;
+            f.values = vec![desc.clone(), Type::I64];
+            f.blocks.truncate(1);
+            f.blocks[0].instructions = vec![fixture::instruction(output, kind)];
+            f.blocks[0].terminator = Terminator::Return(None);
+            let view = LirView {
+                schema_version: module.schema_version,
+                module_id: module.module_id,
+                verified_fingerprint: zil_base::Fingerprint::ZERO,
+                target: &module.target,
+                functions: &module.functions,
+                closures: &[],
+                resources: &[],
+                layouts: std::borrow::Cow::Borrowed(&[]),
+            };
+            let mut types = usize::MAX;
+            type_work(&desc, &mut types, &limits, 0).unwrap();
+            type_work(&Type::I64, &mut types, &limits, 0).unwrap();
+            let needed = (usize::MAX - types) + 37;
+            for _ in 0..2 {
+                let mut exact = needed;
+                reserve_emission(&view, &limits, &BTreeMap::new(), &mut exact).unwrap();
+                assert_eq!(exact, 0);
+            }
+            let failed =
+                reserve_emission(&view, &limits, &BTreeMap::new(), &mut (needed - 1)).unwrap_err();
+            assert_eq!(failed[0].category, zil_base::ResultCategory::ResourceLimit);
+            let mut binding = usize::MAX;
+            reserve_binding(&module, &limits, &mut binding).unwrap();
+            let needed = usize::MAX - binding;
+            let mut exact = needed;
+            reserve_binding(&module, &limits, &mut exact).unwrap();
+            assert_eq!(exact, 0);
+            assert_eq!(
+                reserve_binding(&module, &limits, &mut (needed - 1)).unwrap_err()[0].category,
+                zil_base::ResultCategory::ResourceLimit
             );
         }
     }
