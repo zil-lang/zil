@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-16T18:54:34.067379+00:00",
+  "updated_at_utc": "2026-11-16T21:01:27.918262+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -25,8 +25,8 @@
     "status": "Pass in exact scope; Task native remains zero; Alpha NOT ACCEPTED"
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "816a9d96449dcfc28e26d105f36c88ac00ea9821",
-  "current_candidate_under_validation": "816a9d96449dcfc28e26d105f36c88ac00ea9821",
+  "latest_ready_source": "495ccd5766a2323950b5d9ccb8f65b211e24c9c2",
+  "current_candidate_under_validation": "1a04c910ea977cce39ec98c965df263194390736",
   "wip_backup": {
     "archive_commit": "b595e54abbfda1368d69f8ed396e3c2c08eab13f",
     "source_base": "6e3b8ca32df86d17ff70fb33f366eb9314103590",
@@ -403,5 +403,67 @@
       "verify": 2
     },
     "full_notes": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-self-capture-occurrences/task-owner-complete/failure-inventory.json"
+  },
+  "latest_same_candidate_validation": {
+    "candidate": "de3b2aed8d81d67051abd49ed6cb40ad3dad2126",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-suspend-and-intrinsic-reference-consumers",
+    "foundation_positive": [
+      13,
+      13
+    ],
+    "foundation_semantic_negative": [
+      4,
+      4
+    ],
+    "extra": [
+      14,
+      14
+    ],
+    "nearest": [
+      40,
+      40
+    ],
+    "raw_reviewed": [
+      13,
+      13
+    ],
+    "option_source": [
+      6,
+      0,
+      0
+    ],
+    "task_source": [
+      5,
+      0,
+      0
+    ],
+    "task_sdk": [
+      5,
+      22,
+      0
+    ],
+    "task_sdk_successes": {
+      "source_verify_positive": 2,
+      "rejection_controls": 3,
+      "whole_sdk_native_test_passes": 0
+    },
+    "native_frame_observer": {
+      "builds_passed": 8,
+      "builds_total": 8,
+      "normal_executions": 8,
+      "allocation_failure_executions": 8,
+      "all_exact_output_exit_and_frame_cleanup_assertions_passed": true,
+      "receipt": "task-frame-observer/receipt.json"
+    },
+    "outstanding": "Types16/Analyze3/Verify3 SDK failures; two reviewed same-formal Source bases still rejected; full native plan not accepted"
+  },
+  "pending_integration": {
+    "source": "495ccd5766a2323950b5d9ccb8f65b211e24c9c2",
+    "since_last_test": [
+      "A static byte-view reads and exact constructor control site transport",
+      "V complete rigid boundary diagnostics only; Eq not changed",
+      "Types Task Context complete original zero-domain normalization"
+    ],
+    "creator_static_review": "Astra accepted exact proof/ordinal preservation; behavior requires new candidate tests"
   }
 }
