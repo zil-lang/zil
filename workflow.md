@@ -2,6 +2,8 @@
 
 ## 2026-11-16 Alpha 资源策略复核
 
+2026-11-16 返工预防硬约束：READY必须基于真实HEAD导出独占patch；共享文件在独立临时index做cached apply check，排其他writer与旧fmt。Root冻结整批后先cargo check --keep-going收齐跨crate机械错误，再codegen/Source，失败不得运行旧CLI。语法解析仅证明语法，不称实现已可编译。每条整链交付检查必须包含原定义/类型与来源形成、实例/发生运输、实际opcode、求解调度与调用/清理依赖、摘要完整性/真实效果、调用/返回消费、scope退出与原生清理；不能只核首个guard。真实反馈立即按exactcase+候选+完整notes发owner；已存在的诊断不得让owner空等。重复类身份/泛型边界疑难及时Astra联解，可参考Rust对应源码但不覆盖ZIL合同。
+
 续工校准：原25M只是早期候选，不作为新的功能硬门。完整ordinary application在48M/64M已独立Verify成功、32M为ResourceLimit；现源码明确选CLI默认`alpha-64m-v2`（64M），SDK/base默认及显式standard仍10M，其他十项Limits不变，无自动retry/raise。此策略和后续保存修复必须重新构建同版验收，不能沿用旧25M或外置诊断为默认成功。2026-11-16用户已明确继续本对话施工，迁移检查点的临时暂停解除；从已保存完整批及注明未完的WIP恢复，不重新从头审计。
 
 本条明确此前“不得提高默认预算”的适用边界：SDK 与基础 Limits 默认仍为 standard 10M，标准压力结果单独保留。经 Astra 按产品门用途重新审核，软件工作配额不是语言安全定理；本轮允许显式选择已冻结的 `--work-profile alpha`（alpha-25m-v1，25M），其他十项限制不变。不得自动扩额、失败重试、虚减实际计费、跳过任何独立证明或修改原输入来达标。CLI 及验收记录必须报告全部有效 Limits 与配置版本。
