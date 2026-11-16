@@ -405,8 +405,8 @@
     "full_notes": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-self-capture-occurrences/task-owner-complete/failure-inventory.json"
   },
   "latest_same_candidate_validation": {
-    "candidate": "26a80b27ed93263409123e9765eb42923a9eb5a0",
-    "cli_sha256": "64e544e1d4a2ac8de73f1e52c7aeec963829f3408b342ae8f31c2176a375c24c",
+    "candidate": "3d305ded6c1d1c963057c7f320a94162283af2dd",
+    "cli_sha256": "39431d4c2d982c960fba1820ee5884a77ec611c8081aa8412c90de2c16bcbd53",
     "foundation_positive": [
       13,
       13
@@ -416,7 +416,7 @@
       4
     ],
     "extra": [
-      13,
+      14,
       14
     ],
     "nearest": [
@@ -433,59 +433,55 @@
       0
     ],
     "task_sdk": [
-      11,
-      24,
+      13,
+      23,
       0
     ],
-    "task_test_identity": "35 selected: two positive Source/raw tests, nine rejection-control tests passed; entire native test failed",
+    "task_test_identity": "36 selected; two positive Source/raw tests and eleven rejection controls passed; full native SDK test still fails",
     "task_failures": {
-      "types": 17,
+      "types": 16,
       "analyze": 3,
       "verify": 4
     },
     "diagnostic_census": {
       "selected": 30,
       "success": 12,
-      "analyze": 10,
-      "verify": 5,
-      "types": 3,
-      "acceptance": false
-    },
-    "native_frame_observer": {
-      "builds": 8,
-      "normal": 8,
-      "allocation_failure": 8,
-      "all_assertions_passed": true
-    },
-    "native_basic_ready_pending": {
-      "executions": 12,
-      "all_assertions_passed": true
-    },
-    "reviewed_sameformal_positive_bases": "Both still Types SafeReject; not acceptance",
-    "acceptance": "NOT ACCEPTED; no cross-candidate sum; Unsupported negative still fails",
-    "extra_failure": "Verify Unsupported nested-borrowed: original Closure boundary lacks real creator lexical suffix; regression routed to V owner",
-    "corrected_from_initial_stage_report": true
-  },
-  "pending_integration": {
-    "source": "09ec218cb6d949d961e6363474bce339434b3662",
-    "last_functional_candidate": "574c5b3db1cd31b90d0cf7c51d88fa0dcdede568",
-    "task_sdk": [
-      13,
-      23,
-      0
-    ],
-    "diagnostic_census": {
-      "selected": 30,
-      "success": 12,
       "analyze": 12,
       "verify": 6,
-      "types": 0
+      "types": 0,
+      "acceptance": false
     },
-    "new_passes": "Two exact semantic negative controls; no added full native-family acceptance",
-    "known_regression": "extra13/14, nested-borrowed V creator suffix; complete original preserved and V owner repairing",
-    "all_original_helper_census": "Run every original helper Source, plus included-module fixture controls where loop first assert hides later cases",
-    "latest_diagnostic": "0ba3ceba Task actual protocol opcode119 exactFn5/block2/instr0; six original public fixtures independently checked",
-    "static_transport": "V complete static occurrence pending/frame proof saved09ec, untested",
-    "acceptance": "NOT ACCEPTED; Source/A/V/native same candidate still unfinished"
+    "native_helper_cases": {
+      "source_cases": 12,
+      "builds": [
+        48,
+        48
+      ],
+      "normal": [
+        48,
+        48
+      ],
+      "fail1": [
+        48,
+        48
+      ],
+      "work_profile": "standard",
+      "receipt": "all-task-helper-native/receipt.json",
+      "whole_30_accepted": false
+    },
+    "newly_restored": "Nested borrowed exact original creator regression; extra14/14",
+    "outstanding": [
+      "18 helper Sources still fail independently",
+      "Task23 failures incl Types actual protocol/error inputs, Fixed capture mappings and retained domain",
+      "Analyze original Gamma strict cleanup followup requested by Root review remains WIP",
+      "Verify returned fixed class and direct cleanup remain open",
+      "Source original pending returnedTask generic give remains open"
+    ],
+    "acceptance": "NOT ACCEPTED; no cross-candidate sum; no Unsupported safety pass"
+  },
+  "pending_integration": {
+    "source": "3d305ded6c1d1c963057c7f320a94162283af2dd",
+    "active_batches": "A strict original-Gamma cleanup; Types actual ErrorUnion/variant root and scope/capture correspondence; Source Task give; V retained-class and Direct cleanup",
+    "acceptance": "NOT ACCEPTED"
   }
 }
