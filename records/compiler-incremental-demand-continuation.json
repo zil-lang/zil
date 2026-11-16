@@ -1,78 +1,73 @@
 {
   "schema": "zil.compiler-current-native-continuation.v2",
   "branch": "research/full-push-native",
-  "source": "1be7f77757fe32c22acdb1b3975981828cc3b131",
-  "production_source": "5a2220f51e85233840c86ea8545464dcc1f4d3d5",
-  "result_commit": "41a0d6d95",
-  "binary_sha256": "2a20b22543cb2143834a24b11f751f3b49a218583dd9f5e8a2bfe1400779c659",
+  "source": "0d59085766dd8f8601d1cc399e2ed7f1e2050608",
+  "production_source": "0d59085766dd8f8601d1cc399e2ed7f1e2050608",
+  "result_commit": "061ca0628c6695d368ee9e047e67f6353e40e672",
+  "binary_sha256": "780f92f7505dbff58ed734acc6edcbfdd3e72ce11760fba83d99e97f061359d0",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "goal_read_sha": "fb6f393bab3bb73c7028ec2f8dfedb0c266c87e1",
-  "status": "Ongoing; direct first edit still slower than Rust; comprehensive and main merge gates OPEN",
+  "goal_read_sha": "f04f2bb90c9edf8b1a2947bc34b72eebd9313b2f",
+  "status": "Ongoing; native direct firstedit2.877/Rust1.409s stillNoGo, no fullchain speedup established; comprehensive/main gates OPEN",
   "latest_native": {
     "scope": "Original5105functions/102files/843875sourcebytes, two balanced blocks; native O2/CGU16/compilerjobs1, explicit bounded-class-imports128-v3 defaultoff. Closeprocess/edit/newprocess first request; resident request clock, startup separate. Not CLI exit or OS-cold.",
-    "completion": "30 compiler requests/10 functional cells/4 sustained runtime cases complete; original257domain andruntimegates PASS",
+    "completion": "window16 original30 workflow requests/10 functional cells +12 separate runtimeprofile build requests/4 sustained runtime cases complete; full257domain andruntime gates PASS",
     "compile_median_ms": {
       "cold": {
-        "candidate": 4584.2577089999995,
-        "rust": 8073.2194915
+        "candidate": 4413.220131,
+        "rust": 7911.1294530000005
       },
       "unchanged": {
-        "candidate": 30.960925000000003,
-        "rust": 57.36689749999999
+        "candidate": 47.889354999999995,
+        "rust": 37.800613
       },
       "private-001": {
-        "candidate": 2555.2869655,
-        "rust": 1462.9624985
+        "candidate": 2877.2478920000003,
+        "rust": 1408.9668905
       },
       "recovery": {
-        "candidate": 2258.9558305,
-        "rust": 6232.676893
+        "candidate": 2016.4212444999998,
+        "rust": 6386.1084615
       },
       "error": {
-        "candidate": 1985.3844785,
-        "rust": 2225.669806
+        "candidate": 1688.8904745,
+        "rust": 1905.9822985
       }
     },
     "user_disk_boundary_peak_physical_bytes": [
       {
         "block": 0,
-        "candidate": 30371840,
-        "rust": 62361600
+        "candidate": 30359552,
+        "rust": 76734464
       },
       {
         "block": 1,
-        "candidate": 30359552,
-        "rust": 62365696
+        "candidate": 30371840,
+        "rust": 61546496
       }
     ],
-    "raw": "out/runs/direct-firstedit-performance-direct-15",
-    "result": "https://github.com/zil-lang/zil/blob/41a0d6d95/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
+    "raw": "out/runs/direct-firstedit-performance-direct-16",
+    "result": "https://github.com/zil-lang/zil/blob/061ca0628c6695d368ee9e047e67f6353e40e672/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
     "main": "Actualmain defaultResourceLimit; no ratio and no acceptance",
-    "stage_costs": "Expand322.5/1107.8ms andCT114.2/469.8ms vary; backend707.6/765.1ms. Full5105Source/Core restart construction remains.",
+    "stage_costs": "Formal firstedit: block0 Types775.5ms and backend858.7ms; block1 backend1001.1ms (machine568.0/partition122.8/object192.7). Current Source/Core, CT and machine planning/partition reconstruction remain. Source-site transport removal did not establish end-to-end speed improvement: window16 still2.877/Rust1.409s; no causal attribution from crosswindow/block variation. Industrial/defaultmain/fullCLI gates remain open.",
     "changes": [
       "Analyze exact current scalar-leaf projection sharing; fresh function IDs/names bind every result",
       "Independently implemented Verify current-invocation success templates; exact body/plan/current world and valid relative diagnostic spans; original fee replay, ordinary failure fallback",
-      "Current CGU fused definition/class-declaration pruning, immutable body-owner reference sharing; one complete ORIGINAL validation before any deletion, actual-unit preflight/Builder/fullO2 retained"
+      "Current CGU fused definition/class-declaration pruning, immutable body-owner reference sharing; one complete ORIGINAL validation before any deletion, actual-unit preflight/Builder/fullO2 retained",
+      "Immutable scalar source-site transport retains original binding and current ordinal prefix; replaces three same-address AST transport traversals and map reinsertion. Original work/temppeak/releases replay only on full transport fit; low-budget ordinary interleaving and mutable clone/rewrite paths retained. Optional rows bounded64KiB/current temporary headroom."
     ]
   },
   "checks": {
-    "gates36_source": "5a2220f51e85233840c86ea8545464dcc1f4d3d5",
-    "gates36_pass": {
-      "analyze": 310,
-      "verify": 657,
-      "backend": 359,
-      "driver": 233,
+    "gates38_source": "0d59085766dd8f8601d1cc399e2ed7f1e2050608",
+    "gates38_pass": {
+      "strict_alltargets_Dwarnings": true,
+      "driver": 234,
       "native_publication": 2,
-      "fmt": true
+      "fmt": true,
+      "release_incremental0": true
     },
-    "gates36_failure": "Clippy type_complexity in candidate_projection return type; private alias only fixed in source1be, negative receipt retained",
-    "gates37_pass": [
-      "strict alltargets includingVerify -Dwarnings",
-      "fmt",
-      "release CARGO_INCREMENTAL0"
-    ],
-    "unchanged_subtree_reuse": "gates35 source8ad: IR93/Types118/API105/toolsquality27/recording2; Expand130 earlier unchanged receipt",
-    "reviews": "Analyze nonauthor Ptolemy PASS; Verify and fused prune nonauthor root PASS, independent A/V implementations; source1be differs only private alias from functional test source5a"
+    "reused": "Unchanged Analyze310/Verify657/backend359 gates36 source5a; IR93/Types118/API105/tools27+2 gates35 source8ad; Expand130 earlier unchanged subtree. No repeat whole old matrix.",
+    "source_site_checks": "Original clone executor equals optimized current parser-owned walk across all six fees/remaining budget and N/N-1 work/nodes/temporary/depth, empty-site and nested/grouped-type cases, independent parser restart, corrupt cache/current Source checks.",
+    "reviews": "Astra implemented source-site chain; nonauthor root reviewed exact current-owner/ordinal-prefix/ledger/fallback and ordinaryclone boundaries before source0d freeze. Prior A/V independent reviews retained in window15 result."
   },
   "previous_check": {
     "source": "54a0258ab9e081085254084e4b081309dc06eda9",
@@ -81,6 +76,41 @@
     "historical_goal_record": "https://github.com/zil-lang/zil/blob/fb6f393bab3bb73c7028ec2f8dfedb0c266c87e1/records/compiler-incremental-demand-continuation.json"
   },
   "invariants": "IndependentVerify/currentcompleteSource/LIR binding/originaldefaultbudgets/fullO2 unchanged. Explicitboundedresearchdefaultoff. SDK18/native-link reused; noLLVMrebuild/fullpack. Uniqueconstructionbranch. goal/archive nevermain.",
-  "unmeasured": "Industrial multi-crate/proc-macro/build.rs/minute/GB; ordinaryCLI newnative1be end-to-end not covered byresidentwindow15. Fullgoalnotachieved.",
-  "next": "Remove fullSource/Core andmachine rebuilding onrestart with actualRustconsumerdependencyreference; Astraread-onlyauditisactive. Newreusecounterscannotreplaceabsolutecompilationgoal."
+  "unmeasured": "Industrialmulti-crate/proc-macro/build.rs/minute/GB and currentnative ordinaryCLI end-to-end; resident request/startup not merged into CLI metric. Fullgoalnotachieved.",
+  "next": "Actual remaining Source/Core/Types and machine planning/partition reconstruction; currentworld bindings/independentVerify unchanged. Astra source-site chain implemented+root reviewed; no pending helper, no wait. Original mutableclone/rewrite intact. Newlocalremoval does not establish net speed or comprehensive coverage.",
+  "disk_accounting": "Maximum of simultaneous per-arm totals at observed request boundaries, globally inode-deduplicated st_blocks*512. Only original30 workflow rows; quality wrappers separate. Never sum category maxima from different instants. SDK/evidence/host excluded; not transient peak.",
+  "prior_disk_aggregation_corrections": [
+    {
+      "window": "13",
+      "source": "8ad2bfb5c9604dfdd761dd9fd48ebab7a94fe547",
+      "corrected_same_snapshot_peaks": [
+        {
+          "block": 0,
+          "candidate": 30367744,
+          "rust": 61546496
+        },
+        {
+          "block": 1,
+          "candidate": 30339072,
+          "rust": 61546496
+        }
+      ]
+    },
+    {
+      "window": "15",
+      "source": "1be7f77757fe32c22acdb1b3975981828cc3b131",
+      "corrected_same_snapshot_peaks": [
+        {
+          "block": 0,
+          "candidate": 30367744,
+          "rust": 61546496
+        },
+        {
+          "block": 1,
+          "candidate": 30355456,
+          "rust": 61550592
+        }
+      ]
+    }
+  ]
 }
