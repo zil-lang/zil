@@ -316,6 +316,37 @@ fn restart_replays_checked_function_fees_then_keeps_sparse_edits() {
     assert_eq!(stats.executed_functions, 4);
     epochs(&next, &first_edit, 102);
     compare(&next, &first_edit, &path, &options);
+
+    drop(next);
+    let valid = changed.replacen("x+7", "x+8", 1);
+    fs::write(
+        dir.0.join("m0.zil"),
+        valid.replacen("return d;", "return true;", 1),
+    )
+    .unwrap();
+    let mut rejected = CompilationSession::default();
+    let error = rejected.compile_path(&path, &options);
+    assert_eq!(error.phase, Phase::Types);
+    assert_eq!(error.verification_runs, 0);
+    assert_eq!(error.attempts.len(), 2);
+    assert_eq!(error.attempts[0].phase, Phase::Types);
+    assert_eq!(
+        error.attempts[0].retry_reason.as_deref(),
+        Some("rejected_function_work_product")
+    );
+    assert!(
+        error.attempts[0]
+            .function_type_work
+            .as_ref()
+            .unwrap()
+            .reused_functions
+            > 0
+    );
+    compare(&rejected, &error, &path, &options);
+    fs::write(dir.0.join("m0.zil"), valid).unwrap();
+    let recovery = rejected.compile_path(&path, &options);
+    success(&recovery);
+    compare(&rejected, &recovery, &path, &options);
 }
 
 #[test]

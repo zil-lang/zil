@@ -1513,6 +1513,7 @@ impl CompilationSession {
         let mut types_push_work = None;
         let mut push_types = std::mem::take(&mut self.push_types);
         let push_checkpoint = push_types.clone();
+        report.phase = Phase::Types;
         let typed_result = self.query(
             key(Phase::Types, true),
             std::slice::from_ref(&ct_snapshot),
@@ -1521,27 +1522,32 @@ impl CompilationSession {
             observer,
             || {
                 if options.push_reuse {
-                    return push_types
-                        .apply_with_function_cache(
-                            &prepared,
-                            &options.target,
-                            &options.limits,
-                            output_anchor.as_ref(),
-                            &mut function_types,
-                        )
-                        .map(|update| {
-                            if update.stats.context_rebuilds != 0 {
-                                function_work =
-                                    Some(super::session::function_work(&function_types));
-                            }
-                            types_push_work = Some(Box::new(update.stats));
-                            RawSnapshot::ProjectTyped(super::session::ProjectTypedOwner::product(
-                                update.program,
-                                key(Phase::Types, true),
-                                &push_types,
-                                &function_types,
-                            ))
-                        });
+                    let update = push_types.apply_with_function_cache(
+                        &prepared,
+                        &options.target,
+                        &options.limits,
+                        output_anchor.as_ref(),
+                        &mut function_types,
+                    );
+                    if update.is_err()
+                        || update
+                            .as_ref()
+                            .is_ok_and(|update| update.stats.context_rebuilds != 0)
+                    {
+                        // A failed rebuild has real current stats too. Keep
+                        // them for the existing rejected-candidate fallback;
+                        // a successful sparse update must not report old work.
+                        function_work = Some(super::session::function_work(&function_types));
+                    }
+                    return update.map(|update| {
+                        types_push_work = Some(Box::new(update.stats));
+                        RawSnapshot::ProjectTyped(super::session::ProjectTypedOwner::product(
+                            update.program,
+                            key(Phase::Types, true),
+                            &push_types,
+                            &function_types,
+                        ))
+                    });
                 }
                 let checked = if options.reactive_queries
                     && let Some(owners) = &reactive_owners

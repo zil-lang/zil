@@ -1454,9 +1454,14 @@ mod tests {
                 max_analysis_steps: work,
                 ..defaults.clone()
             };
-            let input = infer_program_for_ct(&source, &limits)
-                .unwrap()
-                .into_prepared();
+            let input = match infer_program_for_ct(&source, &limits) {
+                Ok(input) => input.into_prepared(),
+                Err(errors) => {
+                    assert_eq!(work, low);
+                    assert_eq!(check(work), Err(errors));
+                    continue;
+                }
+            };
             let expected = fresh(&input, &limits);
             let mut cache = FunctionSession::default();
             if expected.is_ok() {
