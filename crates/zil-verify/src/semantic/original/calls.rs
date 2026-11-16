@@ -352,7 +352,7 @@ impl CheckedOriginal {
             DynStructuralBound::Value=>self.value_type(module,context,ty,caller,active,b)?,
             DynStructuralBound::StoreElement=>self.store_element(module,context,ty,caller,active,b)?,
         };
-        if proved{Ok(())}else{Err(unsupported("original caller lacks a complete structural/cleanup obligation proof",None))}
+        if proved{Ok(())}else{Err(unsupported(format!("original caller lacks a complete structural/cleanup obligation proof [bound {bound:?}, receiver {}]",type_category(ty)),None))}
     }
     pub(super) fn value_type(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
@@ -361,6 +361,7 @@ impl CheckedOriginal {
                 Ty::Address{..}|Ty::Desc{..}|Ty::Managed(_)=>true,
                 Ty::Dyn(value)=>value.owned,
                 Ty::Closure(definition,..)=>self.checked.contains(&definition)&&self.creator_moves.contains_key(&definition),
+                Ty::Opaque(owner,arguments)=>{let hidden=self.opaque_hidden(module,context,owner,&arguments,active,b)?;self.value_type(module,context,&hidden,env,active,b)?},
                 Ty::Tuple(fields)=>{for field in fields{if !self.value_type(module,context,&field,env,active,b)?{return Ok(false);}}true},
                 Ty::Array(element,_)=>self.value_type(module,context,&element,env,active,b)?,
                 Ty::ErrorUnion(error,result)=>self.value_type(module,context,&error,env,active,b)?&&self.value_type(module,context,&result,env,active,b)?,

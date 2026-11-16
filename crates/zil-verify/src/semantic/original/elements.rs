@@ -20,6 +20,16 @@ impl CheckedOriginal {
             },
             Ty::ErrorUnion(error,result)=>self.store_element(module,context,&error,env,active,b)?&&self.store_element(module,context,&result,env,active,b)?,
             Ty::Closure(..)=>self.closed_value(module,context,ty,env,active,b)?&&self.sync_drop(module,context,ty,env,active,b)?,
+            Ty::Opaque(owner,arguments)=>{
+                // Sealed structural qualification follows this exact opaque
+                // owner's completed original result, not its Callable bound
+                // or a same-shaped emitted closure. Keep phantom actuals in
+                // the closed-environment obligation as well as the hidden
+                // physical element and its ordinary cleanup proof.
+                if !self.closed_value(module,context,ty,env,active,b)?{return Ok(false);}
+                let hidden=self.opaque_hidden(module,context,owner,&arguments,active,b)?;
+                self.store_element(module,context,&hidden,env,active,b)?
+            },
             _=>false,
         }))
     }
