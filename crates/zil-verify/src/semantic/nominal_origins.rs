@@ -90,6 +90,26 @@ impl CheckedContext {
         while let Some((current,path))=pending.pop(){
             b.spend(path.len().saturating_add(1))?;
             let storage=match current{Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};
+            if let Type::Closure(id)=storage{
+                let Some(child)=self.typed_closure_origins(module,*id,b)?else{continue;};
+                let mut injective=std::collections::BTreeSet::new();
+                for(class,origin)in child.into_iter().enumerate(){
+                    let binder=if path.is_empty(){class as u32}else{
+                        b.spend(life.retained.len().saturating_mul(path.len().saturating_add(1)))?;
+                        let mut rows=life.retained.iter().filter(|row|row.path==path&&row.class==class as u32);
+                        let row=rows.next().ok_or_else(||bad("Closure child loses its complete retained class occurrence"))?;
+                        if rows.next().is_some(){return Err(bad("Closure child repeats one retained class occurrence"));}row.binder
+                    };
+                    b.spend(injective.len().saturating_add(life.slots.len()).saturating_add(life.nominal_arguments.len()))?;
+                    if !injective.insert(binder){return Err(bad("Closure child coalesces independent intrinsic indices"));}
+                    let index=binder as usize;if index>=origins.len(){return Err(bad("Closure child maps outside the complete parent domain"));}
+                    if nominal[index]&&origins[index]!=origin{return Err(bad("Closure child changes another independently scoped intrinsic origin"));}
+                    let physical=path.iter().map(|step|if let LifeTypeProjection::Place(field)=step{Some(*field)}else{None}).collect::<Option<Vec<_>>>();
+                    if life.nominal_arguments.iter().any(|row|row.binder==binder)||!path.is_empty()&&life.slots.iter().any(|row|row.binder==binder&&physical.as_ref().is_none_or(|prefix|!row.path.starts_with(prefix))){return Err(bad("outer or nominal role coalesces a Closure child intrinsic class"));}
+                    nominal[index]=true;origins[index]=origin;
+                }
+                continue;
+            }
             if let Type::Dyn{interface}|Type::OwnedDyn{interface}=storage{
                 b.spend(module.dyn_interfaces.len())?;
                 let mut interfaces=module.dyn_interfaces.iter().filter(|row|row.id==*interface);
@@ -152,6 +172,28 @@ impl CheckedContext {
         })();active.pop();result
     }
 
+    /// Raw class images never choose a closure's κ or source frame. Only the
+    /// complete independently sealed constructor domain may supply these
+    /// origins; conflicting actual frames remain an error in closure_domain.
+    fn typed_closure_origins(&self,module:&TypedModule,id:ClosureId,b:&mut Budget)->Check<Option<Vec<IntrinsicOrigin>>>{
+        let Some(domain)=self.closure_domain(id,b)?else{return Ok(None);};
+        domain.charge_clone(b)?;
+        b.spend(module.closures.len())?;
+        let closure=crate::closures::definition(module,id,None)?;
+        let header=closure.storage_life.as_ref().ok_or_else(||bad("Closure origin has no complete actual header"))?;
+        if domain.ty!=Type::Closure(id)||domain.life.binder_count!=header.fixed_binder_count||!domain.life.slots.is_empty()||!domain.life.retained.is_empty()||!domain.life.nominal_arguments.is_empty()||domain.classes.len()!=header.fixed_binder_count as usize||domain.origins.len()!=domain.classes.len(){return Err(bad("Closure origin loses its independently sealed whole domain"));}
+        b.spend(domain.origins.len())?;let mut frame=None;
+        for(class,origin)in domain.origins.iter().enumerate(){
+            let IntrinsicOrigin::Existing{scope:ScopeKey::Instance(instance),operand:OperandKey::Receiver,path,class:ordinal}=origin else{return Err(bad("Closure origin does not select its exact sealed Receiver frame"));};
+            if !path.is_empty()||*ordinal as usize!=class||frame.is_some_and(|known|known!=*instance){return Err(bad("Closure origin permutes classes or combines independent source frames"));}frame=Some(*instance);
+        }
+        if let Some(frame)=frame{
+            let instance=self.instance(module,frame,b)?;
+            if !matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==closure.function)||instance.environment.as_ref().is_none_or(|environment|environment.closure!=SemanticClosureTarget::Typed(id))||self.definition(module,instance.definition,b)?.kind!=SemanticDefinitionKind::Closure{return Err(bad("Closure origin substitutes another actual source entry or environment"));}
+        }
+        Ok(Some(domain.origins))
+    }
+
     fn typed_nominal_origins(&self,module:&TypedModule,ty:&Type,life:&StorageLifeShape,classes:&[ClassKey],active:&mut Vec<Type>,depth:usize,b:&mut Budget)->Check<Vec<IntrinsicOrigin>>{
         b.spend(module.life_instances.len())?;
         let mut rows=module.life_instances.iter().filter(|row|row.ty==*ty);
@@ -177,6 +219,27 @@ impl CheckedContext {
         // the independent inventory before this constructor is called.
         let sources=sources.into_iter().zip(classes).map(|(origin,key)|origin.unwrap_or_else(||IntrinsicOrigin::DerivedClass{source:key.clone()})).collect::<Vec<_>>();
         self.nominal_origins(instance.declaration,&actuals,&[],life,&sources,b)
+    }
+}
+
+#[cfg(test)]
+mod closure_child_tests{
+    use super::*;
+    #[test]
+    fn nested_closure_origins_use_the_sealed_frame_even_when_outer_images_agree(){
+        let limits=Limits::default();let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("fixtures/local-closure-complete-head.wire"),&limits).unwrap();let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();
+        let programme=module.semantic.as_ref().unwrap();let child=programme.instances.iter().find(|row|row.environment.is_some()).unwrap();let parent=programme.instances.iter().find(|row|Some(row.id)==child.parent).unwrap();
+        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=parent.target else{panic!()};let id=match child.environment.as_ref().unwrap().closure{SemanticClosureTarget::Typed(id)=>id,_=>panic!()};let count=module.closures[id.0 as usize].storage_life.as_ref().unwrap().fixed_binder_count;assert!(count>0);
+        let scope=ScopeKey::Instance(parent.id);let image=ClassKey::Implicit{scope,ordinal:0};let origins=(0..count).map(|class|IntrinsicOrigin::Existing{scope:ScopeKey::Instance(child.id),operand:OperandKey::Receiver,path:vec![],class}).collect::<Vec<_>>();
+        // A scoped type/origin kernel control. The private constructor receipt
+        // is supplied here; this does not admit an SSA creator or actual body.
+        let value=CheckedType{type_cell:CheckedTypeData::new(Type::Closure(id)),life:StorageLifeShape{binder_count:count,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:vec![image.clone();count as usize],origins:origins.clone(),statics:vec![]};
+        context.closure_boundaries.borrow_mut().push(ClosureBoundary{creator:scope,node:zil_base::NodeId(0),at:SitePoint{function,block:BlockId(0),instruction:0,after:true},child:child.id,value});
+        let ty=Type::Address{mutable:true,inner:Box::new(Type::Closure(id))};let life=StorageLifeShape{binder_count:count+1,slots:vec![StorageLifeSlot{path:vec![],binder:0,mode:StoredBorrowMode::ExclusiveAddress}],retained:(0..count).map(|class|StorageRetainedBinding{path:vec![LifeTypeProjection::Pointee],class,binder:class+1}).collect(),nominal_arguments:vec![]};let images=vec![image.clone();(count+1)as usize];
+        let checked=context.checked_value(&module,&ty,&life,images,&mut b).unwrap();assert_eq!(&checked.origins[1..],origins.as_slice());assert_ne!(checked.origins[0],checked.origins[1]);assert!(checked.classes.iter().all(|class|class==&image));
+        let mut collapsed=life.clone();collapsed.retained[0].binder=0;assert!(context.typed_origins(&module,&ty,&collapsed,&checked.classes,&mut b).is_err(),"same outer image cannot merge the retained Closure κ");
+        let mut repeated=life.clone();repeated.retained.push(repeated.retained[0].clone());assert!(context.typed_origins(&module,&ty,&repeated,&checked.classes,&mut b).is_err());
+        context.closure_boundaries.borrow_mut()[0].value.origins[0]=IntrinsicOrigin::Existing{scope,operand:OperandKey::Receiver,path:vec![],class:0};assert!(context.typed_origins(&module,&ty,&life,&checked.classes,&mut b).is_err(),"the same ClosureId does not authorize another source frame");
     }
 }
 
