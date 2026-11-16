@@ -69,7 +69,7 @@ fn same_body_owner(left: &Function, right: &Function) -> bool {
     matches!((&left.blocks, &right.blocks), (Some(left), Some(right)) if left.ptr_eq(right))
 }
 
-fn function_addresses(
+pub(super) fn function_addresses(
     function: &Function,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Option<BTreeSet<String>> {

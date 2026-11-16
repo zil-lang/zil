@@ -530,6 +530,13 @@ pub fn build_view_with_cancellation_and_session(
     } else {
         if options.optimization == Optimization::O2 && options.incremental_o2 {
             let mut flat = machine.to_module();
+            if options.bounded_class_imports {
+                crate::machine_integer_ranges::fold(
+                    &mut flat,
+                    &transform_policy.protected,
+                    &mut machine_preflight,
+                );
+            }
             crate::machine_checked_add_chain::fold_checked_add_chains_cached_with_preflight(
                 &mut flat,
                 &mut checked_add_cache,
@@ -760,6 +767,13 @@ pub fn build_view_with_cancellation_and_session(
             // from the actual current original emitter output, not a partial
             // helper plan; this attempt remains inside the request's timing.
             let mut flat = original_machine.to_module();
+            if options.bounded_class_imports {
+                crate::machine_integer_ranges::fold(
+                    &mut flat,
+                    &transform_policy.protected,
+                    &mut machine_preflight,
+                );
+            }
             crate::machine_checked_add_chain::fold_checked_add_chains_cached_with_preflight(
                 &mut flat,
                 &mut checked_add_cache,
