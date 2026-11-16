@@ -1403,34 +1403,27 @@ impl<'a> Engine<'a> {
                     self.capture_actual_type(&mut source, &mut captured_lives, depth + 1)?;
                     source_actuals.insert(formal.name.clone(), source);
                     if let Some(actual) = self.qualified_type_actual(ty, depth + 1)? {
-                        if matches!(actual.ty, zil_ir::Type::Address { mutable: true, .. }) {
-                            return Err(unsupported(
-                                ty.span,
-                                "mutable address Type actual needs its affine consumer",
-                            ));
-                        }
                         if matches!(actual.ty, zil_ir::Type::Address { .. })
                             && template != options::TEMPLATE
                         {
-                            let ItemKind::Enum(declaration) = &item.kind else {
-                                return Err(unsupported(
-                                    ty.span,
-                                    "address Type actual needs its physical nominal consumer",
-                                ));
-                            };
                             let mut occurrence = false;
-                            for variant in &declaration.variants {
-                                for field in
-                                    enums::fields(declaration, &variant.name, variant.span)?
-                                {
+                            match &item.kind {
+                                ItemKind::Aggregate(declaration) => for field in &declaration.fields {
                                     self.budget.ty(&field.ty)?;
                                     occurrence |= matches!(&grouped(&field.ty).kind, TypeKind::Named { path, args } if path.as_slice() == [formal.name.as_str()] && args.is_empty());
+                                },
+                                ItemKind::Enum(declaration) => for variant in &declaration.variants {
+                                    for field in enums::fields(declaration, &variant.name, variant.span)? {
+                                        self.budget.ty(&field.ty)?;
+                                        occurrence |= matches!(&grouped(&field.ty).kind, TypeKind::Named { path, args } if path.as_slice() == [formal.name.as_str()] && args.is_empty());
+                                    }
                                 }
+                                _ => {}
                             }
                             if !occurrence {
                                 return Err(unsupported(
                                     ty.span,
-                                    "Enum Address actual needs its complete direct formal occurrence",
+                                    "Address actual needs its complete direct formal occurrence",
                                 ));
                             }
                         }

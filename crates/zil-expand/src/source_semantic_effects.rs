@@ -1670,6 +1670,32 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 for (_, value) in fields {
                     self.expression(value, depth + 1)?
                 }
+                let constructed = match &expression.kind {
+                    E::RecordConstructor { definition, .. } => *definition,
+                    E::Record { ty, .. } => {
+                        let mut ty = ty;
+                        while let SemanticTypeRecipe::Managed(inner) | SemanticTypeRecipe::Desc { inner, .. } = ty {
+                            self.budget.node(expression.span, depth + 1)?;
+                            ty = inner;
+                        }
+                        match ty {
+                            SemanticTypeRecipe::Nominal { definition, .. } => Some(*definition),
+                            _ => None,
+                        }
+                    }
+                    _ => None,
+                };
+                if let Some(definition) = constructed
+                    && self.observations.is_some()
+                {
+                    let declaration = declaration_index(self.definitions, definition, self.budget, expression.span)?
+                        .ok_or_else(|| error(expression.span, "Construct prototype declaration is absent"))?;
+                    call_regions::constructor(
+                        self.observations.as_deref_mut().unwrap(),
+                        self.definitions[self.owner].id, expression.id,
+                        self.definitions[declaration], self.budget, expression.span,
+                    )?;
+                }
             }
             E::RecordUpdate { base, fields, .. } => {
                 self.expression(base, depth + 1)?;

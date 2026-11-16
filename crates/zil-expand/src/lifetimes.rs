@@ -16,6 +16,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         task_context: bool,
         enum_fields: bool,
         ordinary_type_argument: bool,
+        record_templates: Vec<String>,
     }
     fn reference(ty: &s::TypeRef) -> &s::TypeRef {
         match &ty.kind {
@@ -207,6 +208,19 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             result
         }
         fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
+            if let s::ExprKind::Record { ty: Some(ty), base: None, .. } = &expression.kind
+                && let s::ExprKind::Name(name) = &ty.kind
+            {
+                self.budget.identity_work(self.record_templates.len(), expression.span)
+                    .map_err(|error| vec![error])?;
+                if self.record_templates.iter().any(|template| template == name) {
+                    // An omitted Type application may acquire a complete
+                    // borrowed domain from its actual fields. Select the real
+                    // source/qualified-type producers before physical inference.
+                    self.budget.note_stored_lifetimes();
+                    self.budget.note_source_identity();
+                }
+            }
             let header_mark = self.headers.len();
             if let s::ExprKind::Closure { params, return_type, .. } = &expression.kind {
                 // Explicit closure annotations use their actual lexical frame.
@@ -442,6 +456,18 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             result
         }
     }
+    let mut record_templates = Vec::new();
+    for item in &module.items {
+        budget.node(item.span, 0).map_err(|error| vec![error])?;
+        if let s::ItemKind::Aggregate(aggregate) = &item.kind
+            && !aggregate.generics.is_empty()
+        {
+            budget.text(&aggregate.name, item.span).map_err(|error| vec![error])?;
+            budget.lineage_bytes(aggregate.name.len(), item.span).map_err(|error| vec![error])?;
+            budget.lineage_push(&mut record_templates, aggregate.name.clone(), item.span)
+                .map_err(|error| vec![error])?;
+        }
+    }
     let mut walk = Walk {
         budget,
         binders: Vec::new(),
@@ -454,6 +480,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         task_context: false,
         enum_fields: false,
         ordinary_type_argument: false,
+        record_templates,
     };
     for item in &module.items {
         ct_selection::Visitor::item(&mut walk, item, 0)?;

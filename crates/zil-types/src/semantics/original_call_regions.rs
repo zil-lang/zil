@@ -10,6 +10,7 @@ pub(super) enum Role {
     Head(u32),
     Invocation(u32),
     Bound { depth: u32, index: u32 },
+    ConstructorLife(u32),
 }
 impl Role {
     fn suffix(self) -> ([u32; 4], usize) {
@@ -19,6 +20,7 @@ impl Role {
             Self::Head(ordinal) => (2, ordinal),
             Self::Invocation(ordinal) => (3, ordinal),
             Self::Bound { depth, index } => return ([u32::MAX, 4, depth, index], 4),
+            Self::ConstructorLife(ordinal) => return ([u32::MAX - 1, 0, ordinal, 0], 3),
         };
         ([u32::MAX, kind, ordinal, 0], 3)
     }
@@ -173,7 +175,12 @@ impl Check<'_, '_> {
             }
             for site in sites {
                 self.pay(1, depth)?;
-                if node.site == site.id && matches!(site.kind, SemanticSiteRecipeKind::OriginalCall)
+                let matching_kind = if matches!(role, Role::ConstructorLife(_)) {
+                    matches!(site.kind, SemanticSiteRecipeKind::Construct { .. })
+                } else {
+                    matches!(site.kind, SemanticSiteRecipeKind::OriginalCall)
+                };
+                if node.site == site.id && matching_kind
                 {
                     if selected.replace(site).is_some() {
                         return Err(bad("call region has several original call occurrences"));

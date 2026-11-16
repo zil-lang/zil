@@ -1516,6 +1516,7 @@ impl World<'_, '_> {
         variant: Option<u32>,
         fields: &[ValueId],
         values: &[Option<SharedType>],
+        locals: &[Option<SharedType>],
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<SharedType> {
         let mut selected = None;
@@ -1586,8 +1587,8 @@ impl World<'_, '_> {
                             return Err(bad("constructor omits original physical fields"));
                         }
                         self.pay(fields.len())?;
-                        for ((field, recipe), (name, ty)) in
-                            fields.iter().zip(original_fields).zip(actual_fields)
+                        for (ordinal, ((field, recipe), (name, ty))) in
+                            fields.iter().zip(original_fields).zip(actual_fields).enumerate()
                         {
                             if name != &recipe.name {
                                 return Err(bad("constructor changes original field identity"));
@@ -1614,6 +1615,21 @@ impl World<'_, '_> {
                             };
                             let expected_field = self.ty(instance.id, &recipe, ty)?;
                             let value = self.get(values, *field)?;
+                            if matches!(Self::type_of(&expected_field)?, Type::Address { .. } | Type::Desc(_))
+                                && Self::type_of(&value)? == Self::type_of(&expected_field)?
+                                && borrow_roles::call_region_argument(
+                                    self, instance, site, ordinal, *field, &expected_field,
+                                    values, locals, implicit,
+                                )?
+                            {
+                                // A constructor region changes only this
+                                // actual field's outer placement. Keep the
+                                // entire pointee domain and original SSA sigma.
+                                let actual = self.pointee(&value)?;
+                                let expected = self.pointee(&expected_field)?;
+                                self.same(instance.id, &actual, &expected, implicit)?;
+                                continue;
+                            }
                             self.constructor_field_source(
                                 instance.id,
                                 *field,
@@ -3139,6 +3155,7 @@ impl World<'_, '_> {
                                         },
                                         fields,
                                         &values,
+                                        &locals,
                                         &implicit,
                                     )?,
                                 )

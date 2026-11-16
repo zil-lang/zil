@@ -3646,6 +3646,7 @@ impl<'a> Check<'a, '_> {
             CoreExprKind::RecordConstructor { definition, fields } => self
                 .inferred_record_constructor(
                     owner,
+                    expression,
                     *definition,
                     fields,
                     variables,
