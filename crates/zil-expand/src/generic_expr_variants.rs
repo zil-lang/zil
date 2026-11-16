@@ -1128,6 +1128,18 @@ impl Engine<'_> {
                 *context = ClosureContextMarker::untrusted(
                     self.finish_closure_context(recording, e.span)?,
                 );
+                // The real producer has retained the complete scoped header,
+                // including named parent Fixed classes and actual input anchors.
+                // Only its physical annotation now follows function-header
+                // erasure; the immutable original signature is unchanged.
+                for ty in params
+                    .iter_mut()
+                    .filter_map(|parameter| parameter.ty.as_mut())
+                    .chain(return_type.iter_mut())
+                {
+                    self.budget.ty(ty)?;
+                    stored_nominal::erase_stored_type_lifetimes(ty);
+                }
             }
             None
         };

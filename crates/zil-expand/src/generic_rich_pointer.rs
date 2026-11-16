@@ -557,6 +557,13 @@ pub(crate) fn reject_fixed_closure(
             self.budget.text(value, span).map_err(|e| vec![e])
         }
         fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            if matches!(ty.kind, TypeKind::Reference { lifetime: Some(_), .. }) {
+                self.node(ty.span, depth)?;
+                return Err(vec![unsupported(
+                    ty.span,
+                    "annotated closure retained classes need their genuine enclosing definition context",
+                )]);
+            }
             // With neither written arguments nor actual stored instances, a
             // Named leaf has no retained class for this rejection query.
             // Its ordinary annotation checks run on the normal Engine path.

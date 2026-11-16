@@ -20,30 +20,30 @@ pub(super) fn has_life(item: &Item) -> bool {
     }
 }
 
-pub(super) fn erase_stored_header_lifetimes(function: &mut Function) {
-    fn erase(ty: &mut TypeRef) {
-        match &mut ty.kind {
-            TypeKind::Reference {
-                lifetime, inner, ..
-            } => {
-                *lifetime = None;
-                erase(inner);
-            }
-            TypeKind::Group(inner) => erase(inner),
-            TypeKind::Array { element, .. } => erase(element),
-            TypeKind::Tuple(fields) => {
-                for field in fields {
-                    erase(field);
-                }
-            }
-            _ => {}
+pub(super) fn erase_stored_type_lifetimes(ty: &mut TypeRef) {
+    match &mut ty.kind {
+        TypeKind::Reference {
+            lifetime, inner, ..
+        } => {
+            *lifetime = None;
+            erase_stored_type_lifetimes(inner);
         }
+        TypeKind::Group(inner) => erase_stored_type_lifetimes(inner),
+        TypeKind::Array { element, .. } => erase_stored_type_lifetimes(element),
+        TypeKind::Tuple(fields) => {
+            for field in fields {
+                erase_stored_type_lifetimes(field);
+            }
+        }
+        _ => {}
     }
+}
+pub(super) fn erase_stored_header_lifetimes(function: &mut Function) {
     for parameter in &mut function.params {
-        erase(&mut parameter.ty);
+        erase_stored_type_lifetimes(&mut parameter.ty);
     }
     if let Some(result) = &mut function.return_type {
-        erase(result);
+        erase_stored_type_lifetimes(result);
     }
 }
 

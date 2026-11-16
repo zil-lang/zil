@@ -228,6 +228,12 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 // positions here does not introduce a callable quantifier.
                 for ty in params.iter().filter_map(|parameter| parameter.ty.as_ref()).chain(return_type.iter()) {
                     self.budget.node(ty.span, depth).map_err(|error| vec![error])?;
+                    if generics::callable_return_context::named_life(ty, self.budget)
+                        .map_err(|error| vec![error])?
+                    {
+                        self.budget.note_stored_lifetimes();
+                        self.budget.note_source_identity();
+                    }
                     self.headers.push(std::ptr::from_ref(reference(ty)));
                 }
             }
