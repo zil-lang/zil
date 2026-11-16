@@ -2,12 +2,51 @@
 //! writer does not decode or relabel any historical wire format. The generated
 //! plan remains an untrusted candidate for the independent raw/Wire tests.
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
 use zil_base::{FileId, Fingerprint, Limits, ModuleId, SourceUnit, TargetProfile};
+
+fn original_source(label: &str) -> String {
+    match label {
+        "dyn-context/static-callback-getter-cycle" => "tests/fixtures/dyn-context/static-callback-getter-cycle-control.zil".into(),
+        "returned-owning-holders/semantic-only-phantom-capture" => format!("tests/fixtures/{label}.zil"),
+        "loan_control" => "tests/borrowed-callable-arguments/loan_control.zil".into(),
+        label if label.starts_with("dyn-context/") => format!("crates/zil-verify/tests/fixtures/{label}.zil"),
+        _ => format!("tests/{label}.zil"),
+    }
+}
+
+// Installation remains the caller's explicit copy of these exact generated
+// bytes. A mapping names an existing fixture reader; no historical bytes are
+// loaded and no schema/version field is edited by this producer.
+fn fixture_outputs(label: &str) -> Vec<(&'static str, String)> {
+    match label {
+        "dyn-context/context-read" => vec![
+            ("typed", format!("crates/zil-verify/tests/fixtures/{label}.typed.wire")),
+            ("candidate", format!("crates/zil-verify/tests/fixtures/{label}.candidate.wire")),
+        ],
+        "dyn-context/context-factory" | "dyn-context/context-unused" => vec![
+            ("candidate", format!("crates/zil-verify/tests/fixtures/{label}.candidate.wire")),
+        ],
+        "dyn-context/static-callback-getter-cycle" => vec![
+            ("typed", format!("crates/zil-verify/tests/fixtures/{label}.typed.wire")),
+        ],
+        "returned-owning-holders/semantic-only-phantom-capture" => vec![
+            ("candidate", "crates/zil-verify/src/semantic/fixtures/phantom-closure-complete-creator.wire".into()),
+        ],
+        "loan_control" => vec![
+            ("candidate", "tests/borrowed-callable-arguments/loan_control.candidate.wire".into()),
+            ("revival.candidate", "tests/borrowed-callable-arguments/loan_revival.candidate.wire".into()),
+        ],
+        label if label.starts_with("returned-environment-sources/") => vec![
+            ("candidate", format!("tests/{label}.wire")),
+        ],
+        _ => Vec::new(),
+    }
+}
 
 #[test]
 fn complete_original_sources_publish_current_untrusted_fixture_records() {
@@ -82,15 +121,32 @@ fn complete_original_sources_publish_current_untrusted_fixture_records() {
             include_str!("../../../tests/returned-environment-sources/loop-sources.zil"),
         ),
         (
+            "returned-owning-holders/semantic-only-phantom-capture",
+            include_str!("../../../tests/fixtures/returned-owning-holders/semantic-only-phantom-capture.zil"),
+        ),
+        (
             "loan_control",
             include_str!("../../../tests/borrowed-callable-arguments/loan_control.zil"),
         ),
     ];
+    // Exact labels only, so a focused fixture refresh cannot silently select
+    // zero inputs or hide a typo. Without a filter every complete case runs.
+    let selected = std::env::var("ZIL_CURRENT_FIXTURE_CASES").ok().map(|value| {
+        value.split(',').map(str::trim).map(str::to_owned).collect::<BTreeSet<_>>()
+    });
+    if let Some(selected) = &selected {
+        assert!(!selected.is_empty() && selected.iter().all(|label|
+            cases.iter().any(|(known, _)| label.as_str() == *known)), "unknown or empty current Source fixture selection: {selected:?}");
+    }
+    let expected = cases.iter().filter(|(label, _)|
+        selected.as_ref().is_none_or(|selected| selected.contains(*label))).count();
+    assert!(expected > 0, "current Source fixture selection must be nonempty");
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
     let mut failures = Vec::new();
     let mut records = Vec::new();
     for (label, text) in cases {
+        if selected.as_ref().is_some_and(|selected| !selected.contains(label)) { continue; }
         let path = output.join(label);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path.with_extension("zil"), text).unwrap();
@@ -129,6 +185,10 @@ fn complete_original_sources_publish_current_untrusted_fixture_records() {
                 return Err(
                     "Source fixture omitted its complete original semantic inventory".into(),
                 );
+            }
+            let original = core.semantic.as_ref().ok_or("Source omitted its original definitions")?;
+            if module.semantic.as_ref().unwrap().definitions != original.definitions {
+                return Err("Types changed or omitted complete original Source definitions".into());
             }
             fs::write(path.with_extension("typed.txt"), format!("{module:#?}")).unwrap();
             let empty = zil_ir::CandidatePlan::empty_for(&module);
@@ -216,7 +276,11 @@ fn complete_original_sources_publish_current_untrusted_fixture_records() {
                 )
                 .unwrap();
             }
-            records.push(format!("{{\"source\":\"{label}.zil\",\"source_sha256\":\"{}\",\"typed_sha256\":\"{}\",\"candidate_sha256\":\"{}\",\"module_fingerprint\":\"{}\",\"semantic_definitions\":{},\"functions\":{},\"closures\":{}}}",Fingerprint::of(text.as_bytes()).to_hex(),Fingerprint::of(&typed).to_hex(),Fingerprint::of(&candidate).to_hex(),module.fingerprint().to_hex(),module.semantic.as_ref().unwrap().definitions.len(),module.functions.len(),module.closures.len()));
+            let original = original_source(label);
+            let mappings = fixture_outputs(label).into_iter().map(|(kind, destination)|
+                format!("{{\"artifact\":\"{label}.{kind}.wire\",\"destination\":\"{destination}\"}}"))
+                .collect::<Vec<_>>().join(",");
+            records.push(format!("{{\"source\":\"{label}.zil\",\"original_source\":\"{original}\",\"source_sha256\":\"{}\",\"typed_sha256\":\"{}\",\"candidate_sha256\":\"{}\",\"module_fingerprint\":\"{}\",\"semantic_definitions\":{},\"functions\":{},\"closures\":{},\"fixture_mappings\":[{mappings}]}}",Fingerprint::of(text.as_bytes()).to_hex(),Fingerprint::of(&typed).to_hex(),Fingerprint::of(&candidate).to_hex(),module.fingerprint().to_hex(),module.semantic.as_ref().unwrap().definitions.len(),module.functions.len(),module.closures.len()));
             Ok(())
         })();
         if let Err(error) = result {
@@ -224,13 +288,13 @@ fn complete_original_sources_publish_current_untrusted_fixture_records() {
             failures.push(format!("{label}: {error}"));
         }
     }
-    fs::write(output.join("manifest.json"),format!("{{\"status\":\"{}\",\"schema\":{},\"wire\":{},\"authority\":\"UntrustedSourceAndProducerCandidates; independent raw/Wire verification required\",\"records\":[{}]}}\n",if failures.is_empty(){"Generated"}else{"Incomplete"},zil_base::SCHEMA_VERSION,zil_ir::wire::WIRE_VERSION,records.join(","))).unwrap();
+    fs::write(output.join("manifest.json"),format!("{{\"status\":\"{}\",\"schema\":{},\"wire\":{},\"authority\":\"UntrustedSourceAndProducerCandidates; independent raw/Wire verification required\",\"selected_cases\":{expected},\"records\":[{}]}}\n",if failures.is_empty(){"Generated"}else{"Incomplete"},zil_base::SCHEMA_VERSION,zil_ir::wire::WIRE_VERSION,records.join(","))).unwrap();
     assert!(
         failures.is_empty(),
         "{}; actual fixture output {}",
         failures.join("\n"),
         output.display()
     );
-    assert_eq!(records.len(), 12);
+    assert_eq!(records.len(), expected);
     eprintln!("current complete Source fixtures: {}", output.display());
 }
