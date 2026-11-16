@@ -544,21 +544,7 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
                         ));
                     }
                     for source in actuals {
-                        let position = selected(table, source, b)?
-                            .ok_or_else(|| bad("provider returned activation-local storage"))?;
-                        b.spend(
-                            sources
-                                .len()
-                                .saturating_mul(position.path.len().saturating_add(1)),
-                        )?;
-                        for atom in sources {
-                            crate::exact_storage_source(atom)?;
-                        }
-                        if !sources.contains(&StorageSource::Exact(position)) {
-                            return Err(bad(
-                                "provider actual borrowed result exceeds its public source upper",
-                            ));
-                        }
+                        super::dyn_contracts::table_source_upper(table,source,sources,&module.functions[entry.function.0 as usize].return_type,b)?;
                     }
                 }
             }

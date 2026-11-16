@@ -75,16 +75,64 @@ fn callable(module:&TypedModule,request:&CallableRequest,b:&mut Budget)->Check<(
     }
     Ok(())
 }
-fn source_upper(module:&TypedModule,request:&ContractRequest,actual:&Source,upper:&[StorageSource],result_path:&[PlaceProjection],b:&mut Budget)->Check<()>{
-    if actual.base==HoldRoot::Static{
-        let pos=StoragePosition{base:StorageBase::Result,path:result_path.iter().copied().map(ContractProjection::Place).collect()};
-        let proven=match &actual.static_dependency{StaticProvenance::Literal=>true,StaticProvenance::Conditional(key)=>b.proven_static_occurrences.contains(key),_=>false};
-        let declared=request.expected_header.static_bindings.contains(&pos)||matches!(request.origin,Origin::Callable{..})&&request.actual_header.as_ref().is_some_and(|header|header.static_bindings.contains(&pos))&&request.expected_header.bindings.iter().any(|row|row.position==pos);
-        if !proven||!declared{return Err(bad("contract static result has no exact actual literal/header proof"));}return Ok(());
+fn contains_source(actual:&Source,position:Option<&StoragePosition>,upper:&[StorageSource],output:&Type,b:&mut Budget)->Check<bool>{
+    let mut allowed=false;
+    for atom in upper{
+        dynamic_metadata::source(atom,b)?;
+        match atom{
+            StorageSource::Exact(selected)=>allowed|=position==Some(selected),
+            StorageSource::Static{leaf,mode}=>{
+                if leaf!=output||!matches!((leaf,mode),(Type::Address{mutable:false,..},StoredBorrowMode::SharedAddress)|(Type::Desc(_),StoredBorrowMode::ReadOnlyDescription)){return Err(bad("original static source upper changes its complete result type or mode"));}
+                if actual.base==HoldRoot::Static{allowed|=matches!(actual.static_dependency,StaticProvenance::Literal)||matches!(&actual.static_dependency,StaticProvenance::Conditional(key)if b.proven_static_occurrences.contains(key));}
+            },
+            StorageSource::OwnedView{head,leaf,mode}=>{
+                if leaf!=output||!matches!((leaf,mode),(Type::Address{mutable:false,..},StoredBorrowMode::SharedAddress)|(Type::Address{mutable:true,..},StoredBorrowMode::ExclusiveAddress)|(Type::Desc(_),StoredBorrowMode::ReadOnlyDescription|StoredBorrowMode::WritableDescription)){return Err(bad("original owning view upper changes its complete result type or mode"));}
+                // The real CFG already proves the typed physical projection and
+                // its parent loan. An external saved leaf is not that head.
+                if actual.leaf.is_empty()&&actual.retained_port.is_none()&&actual.heap_element.is_none()&&actual.heap_parents.is_empty(){if let Some(position)=position{allowed|=covers(head,position,b)?;}}
+            },
+            StorageSource::PlaceAddress{..}=>return Err(unsupported("original physical place source requires its independent initialized-place proof",None)),
+            StorageSource::ReborrowedLeaf{source,..}=>if position==Some(source){return Err(unsupported("original reborrowed source requires its independent actual head-parent proof",None));},
+        }
     }
-    let actual=position(request,module,actual,b)?.ok_or_else(||bad("contract result retains activation-local storage"))?;
-    if !crate::exact_storage_sources_contain(upper,&actual)?{return Err(bad("actual returned target exceeds its independently instantiated original source upper"));}Ok(())
+    Ok(allowed)
 }
+pub(in crate::stored_flow) fn table_source_upper(table:&DynVtable,actual:&Source,upper:&[StorageSource],output:&Type,b:&mut Budget)->Check<()>{
+    let mut position=super::dyn_providers::selected(table,actual,b)?;
+    if let Some(position)=&mut position{b.spend(actual.inline.len())?;position.path.extend(actual.inline.iter().copied().map(ContractProjection::Place));}
+    if !contains_source(actual,position.as_ref(),upper,output,b)?{return Err(bad("actual provider result exceeds its complete public source upper"));}Ok(())
+}
+fn source_upper(module:&TypedModule,request:&ContractRequest,actual:&Source,upper:&[StorageSource],result_path:&[PlaceProjection],b:&mut Budget)->Check<()>{
+    let position=position(request,module,actual,b)?;
+    if actual.base!=HoldRoot::Static&&position.is_none(){return Err(bad("contract result retains activation-local storage"));}
+    let output=crate::dynamic_ports::physical_path(&request.result.ty,result_path,b)?;
+    if !contains_source(actual,position.as_ref(),upper,output,b)?{return Err(bad("actual returned target exceeds its independently instantiated original source upper"));}Ok(())
+}
+fn after_upper(module:&TypedModule,request:&ContractRequest,upper:&StorageSourceBinding,summary:&Summary,b:&mut Budget)->Check<()>{
+    let mut actual_paths=Vec::new();
+    let output;
+    if let (Origin::TableSlot{table,..},StorageBase::Parameter(0),[ContractProjection::RetainedPort(port)])=(&request.origin,upper.position.base,upper.position.path.as_slice()){
+        let table=module.dyn_vtables.iter().find(|row|row.id==*table).ok_or_else(||bad("after-state contract table is absent"))?;
+        let interface=crate::dynamic_ports::interface(module,table.interface,b)?;
+        output=&interface.retained_life.ports.get(*port as usize).ok_or_else(||bad("after-state contract selects an absent Context port"))?.leaf;
+        let row=table.ports.iter().find(|row|row.port==*port).ok_or_else(||bad("after-state Context port has no complete actual row"))?;
+        for source in &row.sources{actual_paths.push((0,crate::dynamic_ports::source_places(source,b)?));}
+    }else{
+        let StorageBase::Parameter(parameter)=upper.position.base else{return Ok(());};
+        b.spend(upper.position.path.len().saturating_add(1))?;
+        let path=upper.position.path.iter().map(|step|match step{ContractProjection::Place(place)=>Ok(*place),_=>Err(bad("original after-state has no complete physical parameter selector"))}).collect::<Check<Vec<_>>>()?;
+        let value=request.parameters.get(parameter as usize).ok_or_else(||bad("after-state parameter is absent"))?;
+        let root=match &value.ty{Type::Address{inner,..}|Type::Desc(inner)=>inner.as_ref(),ty=>ty};
+        output=crate::dynamic_ports::physical_path(root,&path,b)?;
+        actual_paths.push((parameter,path));
+    }
+    for(parameter,path)in actual_paths{
+        let actual=summary.external_after.iter().find(|(index,at,_)|*index==parameter&&*at==path).ok_or_else(||bad("actual Return omits an original after-state source leaf"))?;
+        if actual.2.is_empty(){return Err(bad("actual after-state leaf is Unknown, not known empty"));}
+        for source in &actual.2{let selected=position(request,module,source,b)?;if !contains_source(source,selected.as_ref(),&upper.sources,output,b)?{return Err(bad("actual after-state target exceeds its independently instantiated original upper"));}}
+    }Ok(())
+}
+
 fn contract(module:&TypedModule,request:&ContractRequest,summary:&Summary,b:&mut Budget)->Check<()>{
     header(module,request,b)?;
     if !summary.complete||!summary.dyn_effects_known{return Err(bad("original executable contract lacks a complete actual CFG memory/effect summary"));}
@@ -102,11 +150,11 @@ fn contract(module:&TypedModule,request:&ContractRequest,summary:&Summary,b:&mut
     if let DynResultSource::Borrow{mutable,..}=result{if !matches!(request.result.ty,Type::Address{mutable:actual,..}if actual==*mutable){return Err(bad("original borrowed result changes its actual outer mode"));}}
     if matches!(result,DynResultSource::Create|DynResultSource::Give)&&!matches!(request.result_mode,PassingMode::Create|PassingMode::Give){return Err(bad("original owning result does not match its actual responsibility mode"));}
     for guarantee in guarantees{match guarantee{
-        DynGuarantee::StorageSources(upper)=>{if let StorageBase::Parameter(parameter)=upper.position.base{let path=crate::dynamic_ports::source_places(&upper.position,b)?;let actual=summary.external_after.iter().find(|(index,at,_)|*index==parameter&&*at==path).ok_or_else(||bad("actual Return omits an original after-state source leaf"))?;if actual.2.is_empty(){return Err(bad("actual after-state leaf is Unknown, not known empty"));}for source in &actual.2{source_upper(module,request,source,&upper.sources,&[],b)?;}}},
+        DynGuarantee::StorageSources(upper)=>after_upper(module,request,upper,summary,b)?,
         DynGuarantee::ManageResult=>if !matches!(request.result_mode,PassingMode::Create|PassingMode::Give){return Err(bad("actual result has no original owning responsibility"));},
         DynGuarantee::State{..}=>return Err(bad("original state guarantee has no completed actual Return state proof")),
     }}
-    for(index,path,sources)in &summary.external_after{let actual=StoragePosition{base:StorageBase::Parameter(*index),path:path.iter().copied().map(ContractProjection::Place).collect()};for source in sources{let Some(target)=position(request,module,source,b)? else{continue;};if target!=actual&&!hold.iter().any(|pos|pos==&target)&&!guarantees.iter().any(|row|matches!(row,DynGuarantee::StorageSources(upper)if upper.position==actual)){return Err(bad("actual retained after-state target is outside the original hold/guarantee upper"));}}}
+    for(index,path,sources)in &summary.external_after{let location=Source{base:HoldRoot::Parameter(*index),leaf:path.clone(),inline:vec![],retained_port:None,heap_parents:vec![],heap_element:None,static_dependency:StaticProvenance::NotStatic};let actual=position(request,module,&location,b)?.ok_or_else(||bad("actual after-state location has no public role"))?;for source in sources{let Some(target)=position(request,module,source,b)? else{continue;};if target!=actual&&!hold.iter().any(|pos|pos==&target)&&!guarantees.iter().any(|row|matches!(row,DynGuarantee::StorageSources(upper)if upper.position==actual)){return Err(bad("actual retained after-state target is outside the original hold/guarantee upper"));}}}
     if cleanup.environment{let Origin::Callable{closure}=request.origin else{return Err(bad("nonenvironment method claims environment cleanup authority"));};super::dyn_providers::cleanup_proof(module,&Type::Closure(closure),cleanup,b)?;}
     else if !cleanup.positions.is_empty()||!cleanup.access.reads.is_empty()||!cleanup.access.writes.is_empty()||!cleanup.effects.is_empty(){return Err(bad("original explicit cleanup positions have no actual owning environment role"));}
     Ok(())
@@ -116,4 +164,40 @@ pub(super) fn validate(module:&TypedModule,summaries:&[Summary],b:&mut Budget)->
     for request in pending.methods{let summary=summaries.get(request.function.0 as usize).ok_or_else(||bad("original method actual CFG summary is absent"))?;contract(module,&request,summary,b)?;}
     for request in pending.callables{callable(module,&request,b)?;let summary=summaries.get(request.contract.function.0 as usize).ok_or_else(||bad("original callable actual CFG summary is absent"))?;contract(module,&request.contract,summary,b)?;}
     Ok(())
+}
+
+#[cfg(test)]
+mod source_upper_tests{
+    use super::*;
+    fn source()->Source{Source{base:HoldRoot::Parameter(0),leaf:vec![PlaceProjection::Field(0)],inline:vec![],retained_port:None,heap_parents:vec![],heap_element:None,static_dependency:StaticProvenance::NotStatic}}
+    #[test]
+    fn static_alternative_cannot_ground_an_actual_target_or_replace_its_exact_port(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);
+        let output=Type::Address{mutable:false,inner:Box::new(Type::I32)};
+        let port=StoragePosition{base:StorageBase::Parameter(0),path:vec![ContractProjection::RetainedPort(0)]};
+        let upper=vec![StorageSource::Static{leaf:output.clone(),mode:StoredBorrowMode::SharedAddress},StorageSource::Exact(port.clone())];
+        let mut actual=source();
+        assert!(contains_source(&actual,Some(&port),&upper,&output,&mut b).unwrap());
+        let mut wrong=port.clone();wrong.base=StorageBase::Parameter(1);
+        assert!(!contains_source(&actual,Some(&wrong),&upper,&output,&mut b).unwrap());
+        actual.base=HoldRoot::Static;actual.leaf.clear();actual.static_dependency=StaticProvenance::UpperOnly;
+        assert!(!contains_source(&actual,None,&upper,&output,&mut b).unwrap());
+        actual.static_dependency=StaticProvenance::Literal;
+        assert!(contains_source(&actual,None,&upper,&output,&mut b).unwrap());
+    }
+    #[test]
+    fn owning_head_view_never_covers_a_saved_external_leaf_or_a_retained_port(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);
+        let output=Type::Address{mutable:false,inner:Box::new(Type::I32)};
+        let head=StoragePosition{base:StorageBase::Parameter(0),path:vec![]};
+        let upper=vec![StorageSource::OwnedView{head:head.clone(),leaf:output.clone(),mode:StoredBorrowMode::SharedAddress}];
+        let mut actual=source();
+        let port=StoragePosition{base:head.base,path:vec![ContractProjection::RetainedPort(0)]};
+        assert!(!contains_source(&actual,Some(&port),&upper,&output,&mut b).unwrap());
+        assert!(!contains_source(&actual,Some(&head),&upper,&output,&mut b).unwrap());
+        actual.leaf.clear();actual.inline.push(PlaceProjection::Field(0));
+        let inline=StoragePosition{base:head.base,path:vec![ContractProjection::Place(PlaceProjection::Field(0))]};
+        assert!(contains_source(&actual,Some(&inline),&upper,&output,&mut b).unwrap());
+        assert!(!covers(&head,&port,&mut b).unwrap());
+    }
 }

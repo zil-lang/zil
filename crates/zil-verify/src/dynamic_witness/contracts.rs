@@ -1,6 +1,7 @@
 //! Independent source-contract substitution. This creates a finite upper and
 //! complete typed operands, never a proof that an executable body respects it.
 use super::*;
+pub(super) mod defaults;
 
 pub(super) fn materialize(
     recipe: &DynContractRecipe,
