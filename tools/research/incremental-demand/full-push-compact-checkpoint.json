@@ -1,156 +1,67 @@
 {
-  "schema": "zil.compiler-pain-continuation.v6",
+  "schema": "zil.compiler-pain-continuation.v7",
   "construction_branch": "research/full-push-native",
-  "compiled_source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
-  "compiled_tree": "058aa40f7b173df9399875d05d156062ef337dd9",
-  "binary_sha256": "3411ee9a11c835733783278bc8f8cde7bc96a030b0379da8457f4a0c9f9f026b",
-  "binary": "/workspace/zil-push-main/out/binaries/175987698fd27ccd26a99e7bf52c7634a6409d44/zil",
+  "compiled_source": "54a0258ab9e081085254084e4b081309dc06eda9",
+  "production_source": "b530c3513cd53a7fafd3611d98633d0c6038a7ef",
+  "compiled_tree": "194201709f893011ef67906c2340ada04829cc7a",
+  "binary_sha256": "b9fa49c46353d327b4272efc86c19d54045f2985398f961ebad7287cc03af0e3",
+  "binary": "/workspace/zil-push-main/out/binaries/54a0258ab9e081085254084e4b081309dc06eda9/zil",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "directfirstedit whole chain measured; Rust gap remains; no pending build/benchmark",
-  "SDK18_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
-  "LLVM_rebuilt": false,
-  "research_defaults_enabled": false,
-  "main_merge": false,
-  "current_acceptance": {
-    "ir": {
-      "source": "992a8e6071cc182959a119444a0d8477dde65011",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "zil-ir",
-        "--lib"
-      ],
-      "counts": [
-        [
-          "ok",
-          "91",
-          "0",
-          "0"
-        ]
-      ],
-      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/ir.json"
+  "status": "current check108/36 complete; native latest7e separately; restart still behind Rust; no pending builds/benchmarks",
+  "current_result": "tools/research/incremental-demand/check-restart-scope-chain-20261116/summary.json",
+  "current_report": "tools/research/incremental-demand/check-restart-scope-chain-20261116/summary.md",
+  "current_check_scope": "Cargo dev opt0/CGU16/jobs1; Fresh workflow and actual-rustc timestamp-only controls separate",
+  "current_check_median_ms": {
+    "cold": {
+      "baseline": 927.5337095,
+      "candidate": 1245.869903,
+      "rust": 1116.979943
     },
-    "types": {
-      "source": "992a8e6071cc182959a119444a0d8477dde65011",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "zil-types",
-        "--lib"
-      ],
-      "counts": [
-        [
-          "ok",
-          "115",
-          "0",
-          "0"
-        ]
-      ],
-      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/types.json"
+    "warm-restart": {
+      "baseline": 188.450507,
+      "candidate": 656.632621,
+      "rust": 42.922138000000004
     },
-    "analyze": {
-      "source": "992a8e6071cc182959a119444a0d8477dde65011",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "zil-analyze",
-        "--lib"
+    "compiler-restart": {
+      "baseline": 69.8155885,
+      "candidate": 1152.0212295000001,
+      "rust": 325.7912435
+    }
+  },
+  "current_private8_median_ms": {
+    "baseline": 3893.415016,
+    "candidate": 814.45487,
+    "rust": 3430.2749645
+  },
+  "current_user_disk": {
+    "baseline": {
+      "boundary_peak_MiB": 45.3125,
+      "bytes_by_block": [
+        47513600,
+        47513600
       ],
-      "counts": [
-        [
-          "ok",
-          "307",
-          "0",
-          "0"
-        ]
-      ],
-      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/analyze.json"
+      "eight_edit_growth_MiB": 29.40625
     },
-    "backend": {
-      "source": "992a8e6071cc182959a119444a0d8477dde65011",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "zil-backend-llvm",
-        "--features",
-        "native-products",
-        "--lib",
-        "--",
-        "--include-ignored"
+    "candidate": {
+      "boundary_peak_MiB": 13.640625,
+      "bytes_by_block": [
+        14258176,
+        14348288
       ],
-      "counts": [
-        [
-          "ok",
-          "331",
-          "0",
-          "0"
-        ]
-      ],
-      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/backend.json"
+      "eight_edit_growth_MiB": 1.09765625
     },
-    "driver": {
-      "source": "4323862e459239bbd999ec16bbee0eb2c08c5ecb",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "zil-driver",
-        "--features",
-        "native-products",
-        "--lib"
+    "rust": {
+      "boundary_peak_MiB": 58.34765625,
+      "bytes_by_block": [
+        61181952,
+        61181952
       ],
-      "counts": [
-        [
-          "ok",
-          "231",
-          "0",
-          "0"
-        ]
-      ],
-      "receipt": "out/runs/cache-restart-chain-gates-13-4323862e4592/driver.json"
-    },
-    "publication": {
-      "source": "4323862e459239bbd999ec16bbee0eb2c08c5ecb",
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "zil-driver",
-        "--features",
-        "native-products",
-        "--test",
-        "retained_native_publication",
-        "--",
-        "--ignored"
-      ],
-      "counts": [
-        [
-          "ok",
-          "2",
-          "0",
-          "0"
-        ]
-      ],
-      "receipt": "out/runs/cache-restart-chain-gates-13-4323862e4592/publication.json"
-    },
+      "eight_edit_growth_MiB": 15.140625
+    }
+  },
+  "gates": {
     "strict": {
-      "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+      "source": "54a0258ab9e081085254084e4b081309dc06eda9",
       "command": [
         "cargo",
         "clippy",
@@ -180,10 +91,10 @@
         "warnings"
       ],
       "counts": [],
-      "receipt": "out/runs/cache-restart-chain-gates-14-175987698fd2/strict.json"
+      "receipt": "out/runs/function-first-chain-gates-21-54a0258ab9e0/strict.json"
     },
-    "driver-target": {
-      "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+    "driver": {
+      "source": "54a0258ab9e081085254084e4b081309dc06eda9",
       "command": [
         "cargo",
         "test",
@@ -194,7 +105,7 @@
         "--features",
         "native-products",
         "--lib",
-        "direct_restart_edit_lends_decoded_cfg_bytes_to_first_semantic_publication"
+        "closed_push_restart_replays_current_discovery_without_losing_real_frontend_epochs"
       ],
       "counts": [
         [
@@ -204,64 +115,36 @@
           "0"
         ]
       ],
-      "receipt": "out/runs/cache-restart-chain-gates-14-175987698fd2/driver.json"
+      "receipt": "out/runs/function-first-chain-gates-21-54a0258ab9e0/driver.json"
     },
-    "tool-direct": {
-      "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+    "publication": {
+      "source": "54a0258ab9e081085254084e4b081309dc06eda9",
       "command": [
-        "python3",
-        "-B",
-        "-m",
-        "unittest",
-        "discover",
-        "-s",
-        "tools/research/incremental-demand",
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
         "-p",
-        "test_restart_edit_matrix.py"
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--test",
+        "retained_native_publication",
+        "--",
+        "--ignored"
       ],
       "counts": [
-        "1"
+        [
+          "ok",
+          "2",
+          "0",
+          "0"
+        ]
       ],
-      "receipt": "out/runs/cache-restart-chain-gates-14-175987698fd2/tool-direct-corrected.json"
-    },
-    "tool-quality": {
-      "source": "992a8e6071cc182959a119444a0d8477dde65011",
-      "command": [
-        "python3",
-        "-B",
-        "-m",
-        "unittest",
-        "discover",
-        "-s",
-        "tools/research/incremental-demand",
-        "-p",
-        "test_closed_project_quality.py"
-      ],
-      "counts": [
-        "22"
-      ],
-      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/tool-quality.json"
-    },
-    "tool-recording": {
-      "source": "992a8e6071cc182959a119444a0d8477dde65011",
-      "command": [
-        "python3",
-        "-B",
-        "-m",
-        "unittest",
-        "discover",
-        "-s",
-        "tools/research/incremental-demand",
-        "-p",
-        "test_native_profile_recording.py"
-      ],
-      "counts": [
-        "2"
-      ],
-      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/tool-recording.json"
+      "receipt": "out/runs/function-first-chain-gates-21-54a0258ab9e0/publication.json"
     },
     "fmt": {
-      "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+      "source": "54a0258ab9e081085254084e4b081309dc06eda9",
       "command": [
         "cargo",
         "fmt",
@@ -270,10 +153,10 @@
         "--check"
       ],
       "counts": [],
-      "receipt": "out/runs/cache-restart-chain-gates-15-175987698fd2/fmt.json"
+      "receipt": "out/runs/function-first-chain-gates-21-54a0258ab9e0/fmt.json"
     },
     "release": {
-      "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+      "source": "54a0258ab9e081085254084e4b081309dc06eda9",
       "command": [
         "cargo",
         "build",
@@ -286,419 +169,114 @@
         "native-products"
       ],
       "counts": [],
-      "receipt": "out/runs/cache-restart-chain-gates-15-175987698fd2/release.json"
+      "receipt": "out/runs/function-first-chain-gates-21-54a0258ab9e0/release.json"
+    },
+    "driver_full_reused": {
+      "source": "38ff3b389574caa29c16c4b19658c8f0f71aa4c2",
+      "counts": [
+        [
+          "ok",
+          "232",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/function-first-chain-gates-19-38ff3b389574/driver.json",
+      "scope": "unchanged current producer/checker chain; final manifest-only hint handoff covered by fresh targeted multipack/no-rewrite and native publication gates"
+    },
+    "expand_reused": {
+      "source": "7e08aeefa51b54eeee76193f51b7c4d2704493da",
+      "counts": [
+        [
+          "ok",
+          "130",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/check-scope-chain-gates-18-7e08aeefa51b/expand.json",
+      "scope": "Expand source unchanged since this pass"
+    },
+    "ir_reused": {
+      "source": "992a8e6071cc182959a119444a0d8477dde65011",
+      "counts": [
+        [
+          "ok",
+          "91",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/ir.json",
+      "scope": "source subtree unchanged"
+    },
+    "types_reused": {
+      "source": "992a8e6071cc182959a119444a0d8477dde65011",
+      "counts": [
+        [
+          "ok",
+          "115",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/types.json",
+      "scope": "source subtree unchanged"
+    },
+    "analyze_reused": {
+      "source": "992a8e6071cc182959a119444a0d8477dde65011",
+      "counts": [
+        [
+          "ok",
+          "307",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/analyze.json",
+      "scope": "source subtree unchanged"
+    },
+    "backend_reused": {
+      "source": "992a8e6071cc182959a119444a0d8477dde65011",
+      "counts": [
+        [
+          "ok",
+          "331",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/backend.json",
+      "scope": "source subtree unchanged"
     }
   },
-  "current_recovery": "evidence/stable-class-performance-core-20261116/RESTORE.json",
-  "recovery_scope": "Source and concise result inGit. SDK18/stock/native-link dependencies fixede85/V32. No new full raw evidence archive or SDK copies.",
-  "last_measured": {
-    "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
-    "binary_sha256": "3411ee9a11c835733783278bc8f8cde7bc96a030b0379da8457f4a0c9f9f026b",
-    "summary": "direct-restart-edit-chain-20261116/summary.json",
-    "counts": {
-      "original_requests": 132,
-      "functional_cells": 44,
-      "runtime_cases": 4
+  "last_native_source": "7e08aeefa51b54eeee76193f51b7c4d2704493da",
+  "last_native_is_not_current_source_measurement": true,
+  "prior_results": [
+    {
+      "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+      "path": "tools/research/incremental-demand/direct-restart-edit-chain-20261116/summary.json"
     },
-    "native_direct_restart_edit_ms": {
-      "candidate": 3076.5001224999996,
-      "rust": 1423.5184955
-    },
-    "check_flow_ms": {
-      "baseline": 7068.770956,
-      "candidate": 5746.492665,
-      "rust": 7681.765325
-    },
-    "diagnostic_seconds": 2.970744205
-  },
-  "previous_f19": {
-    "source": "f19fc847c5774a2472bd3af85019b5c937546010",
-    "delivery": "7b604bef1c4d1f665cffc1c42c2a43b60d92c928",
-    "checkpoint": "https://github.com/zil-lang/zil/blob/7b604bef1c4d1f665cffc1c42c2a43b60d92c928/tools/research/incremental-demand/full-push-compact-checkpoint.json",
-    "full_recovery": [
-      "https://github.com/zil-lang/zil/blob/7b604bef1c4d1f665cffc1c42c2a43b60d92c928/tools/research/incremental-demand/evidence/native-dependency-20261116/RESTORE.json",
-      "https://github.com/zil-lang/zil/blob/afc97106d3b9ce9dc8eaa5a529c3dde72900e199/tools/research/incremental-demand/evidence/native-dependency-formal-20261116/RESTORE.json"
-    ]
-  },
-  "first_failures": [
-    "5a324 Types108/1: new quota fixture used final blocks instead of actual allocated fees",
-    "d7 mechanical E0616: new test attempted private analysis field; replaced by two real project requests",
-    "b197 Types109/1: N-1 inference failure unwrapped by new test; preserve ordinary pre-Types error",
-    "4c82 driver219/5: actual self.clear fallback destroyed successful producer/push/Verify epochs; fixed by disk-origin selection and isolated retry, original five assertions preserved"
+    {
+      "source": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c",
+      "result_commit": "59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628",
+      "not_021997": true
+    }
   ],
-  "next_priority": "Restart still rebuilds full machine/transform/partition context before15/16object hits. Target current work products for unchanged groups and stable source grouping, plus first edited CGU fullO2/object work; check cold and disk-restored process warm path stay open. Profile Codegen1499ms includesobject718/machine346/partition312; source ingress184/functionread166/sempub272ms also real costs. Analyze4857 stages now reused and112ms in diagnostic; fewer serialized functions alone is not measured CPU gain.",
-  "limits": [
-    "Finite scalar102file one-crate coverage is not industrial workspace/generic/macro/async/debug/test/minute-scale coverage.",
-    "10105/25105 default token and whole-project10000function capacity remain rejected; do not raise or replenish numeric budgets.",
-    "Current research branch includes process/evidence; goal/archive never merge main.",
-    "Current measured user cache footprint is tens ofMiB; no industrial workspace/GB-level or minutes-scale guarantee. No new RSS net-benefit claim.",
-    "Resident request excludes separately recorded startup; Cargo request includes startup. Two balanced blocks, no OS cold-cache flush.",
-    "Main5105 resource failure and measured check/main regressions prevent universal acceptance or main merge."
+  "remaining": [
+    "Native direct restart-edit remains behind Rust at7e:15/16objects hit but full5105machine/source projections and16unit partition rebuild remain.",
+    "Current restart still reconstructs source/Expand/CT/Types/Analyze; follow stage diagnostic, not object-hit counts or CargoFresh ratios.",
+    "Sparse push does not republish latest function rebuild manifest; edited bodies may need fresh checking after restart. Incremental durable function products are a concrete remaining gap.",
+    "Two-block synthetic5005/5105 cases do not establish industrial multicrote/proc-macro/build.rs/minute-or-GB coverage. No overall Rust superiority or main merge claim."
   ],
-  "local_storage": "Completed reproducible benchmark user caches from older finished windows and host debug incremental were retired for space; source/commands/reports/oracles/finalprograms/SDK/deps retained. Never counted as product disk gains.",
-  "previous_checkpoint": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/full-push-compact-checkpoint.json",
-  "previous_bcf": {
-    "source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
-    "binary_sha256": "57de85daefac2ec5f562d15f01bd4f54aafeb4f53838da975671cc49dd809bf2",
-    "report": "restart-epoch-reviews-20261116/review.md",
-    "retain_results": "restart-epoch-reviews-20261116/bcf-retained-lifecycle.json",
-    "native_results": "restart-epoch-reviews-20261116/bcf-native-workflow.json",
-    "original_receipt_subset": "restart-epoch-reviews-20261116/published-receipts.json",
-    "full_raw_local_only": [
-      "out/runs/restart-epoch-retain-window-01",
-      "out/runs/restart-epoch-full-window-01"
-    ],
-    "qualification": "396 original requests,132 quality cells,61 runtime Rust gates passed on bcf; accepted=false due actual-main5105 ResourceLimit. Restart+firstedit still loses. Full5105 flow28.926s vs previous f19 separate-window24.823s is a retained regression, not new-source performance."
-  },
-  "prior_recovery": {
-    "url": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/evidence/restart-function-chain-20261116/RESTORE.json",
-    "scope": "Current complete cache restoration chain correctness/release binaries, all first gate failures and read-only reviews; prior bcf original request receipt subset only. No new performance window and not a full bcf cache/artifact backup; SDK18/native-link are fixed V32 dependencies.",
-    "fresh": {
-      "archive_bytes": 19598435,
-      "files": 96,
-      "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
-      "parts": 1,
-      "raw_bytes": 61849972,
-      "restore_dir": "/workspace/zil-recovery/restart-function-chain-fresh-01",
-      "scope": "Current complete cache restoration chain correctness/release binaries, all first gate failures and read-only reviews; prior bcf original request receipt subset only. No new performance window and not a full bcf cache/artifact backup; SDK18/native-link are fixed V32 dependencies.",
-      "sha256": "5dfb202b0a8656f3f55adaa29e476187f09902131d4be8ff6cbbc77c99b279af",
-      "source_commits": {
-        "compiler": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
-        "measured": "bcf409b37c5e5733c57376c0b6123b76321574a9",
-        "tools": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a"
-      },
-      "status": "verified"
-    }
-  },
-  "full_window_recovery": {
-    "compiler": "305175a125240f5dd7ae4d935352047d43992723",
-    "scope": "native1000/2500/5105+retain2500/5105+check5000wide,allraw",
-    "archives": [
-      {
-        "name": "native",
-        "archive": "tools/research/incremental-demand/evidence/stable-class-performance-native-20261116",
-        "files": 235554,
-        "raw_bytes": 4006836235,
-        "archive_bytes": 855914759,
-        "sha256": "357e62ef6d5b716d9ada7812f60d3010ecb93da085dd2ee210fceb419f9d5959",
-        "fresh_receipt": "tools/research/incremental-demand/evidence/stable-class-performance-native-20261116/fresh-recovery-receipt.json"
-      },
-      {
-        "name": "retain",
-        "archive": "tools/research/incremental-demand/evidence/stable-class-performance-retain-20261116",
-        "files": 48566,
-        "raw_bytes": 1310617998,
-        "archive_bytes": 308884031,
-        "sha256": "f5f5422826cfd25d68041fe6a608ac33d6ddb7b7a3fc35de95060a285ad2b9fd",
-        "fresh_receipt": "tools/research/incremental-demand/evidence/stable-class-performance-retain-20261116/fresh-recovery-receipt.json"
-      },
-      {
-        "name": "check-5000-wide",
-        "archive": "tools/research/incremental-demand/evidence/stable-class-performance-check-5000-wide-20261116",
-        "files": 3370,
-        "raw_bytes": 894047376,
-        "archive_bytes": 250084209,
-        "sha256": "d3760279f0403bf24bb6caa2317fdcd656bdb28c893cb28910635c21b9e311ea",
-        "fresh_receipt": "tools/research/incremental-demand/evidence/stable-class-performance-check-5000-wide-20261116/fresh-recovery-receipt.json"
-      }
-    ],
-    "initial_progress": "https://github.com/zil-lang/zil/blob/305175a125240f5dd7ae4d935352047d43992723/tools/research/incremental-demand/evidence/stable-class-initial-progress-20261116/RESTORE.json",
-    "core": "evidence/stable-class-performance-core-20261116/RESTORE.json"
-  },
-  "fresh_core_recovery": {
-    "manifest": "evidence/stable-class-performance-core-20261116/evidence-manifest.json",
-    "fresh_receipt": "evidence/stable-class-performance-core-20261116/fresh-recovery-receipt.json",
-    "read_rule": "Read manifest/parts/receipt from the same immutable containing delivery commit. Exact archive hash is external to payload to avoid self-reference."
-  },
-  "active_implementation": {
-    "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
-    "status": "whole chain complete, all affected checks and scoped windows complete; overall goal open",
-    "next": "Restart still rebuilds full machine/transform/partition context before15/16object hits. Target current work products for unchanged groups and stable source grouping, plus first edited CGU fullO2/object work; check cold and disk-restored process warm path stay open. Profile Codegen1499ms includesobject718/machine346/partition312; source ingress184/functionread166/sempub272ms also real costs. Analyze4857 stages now reused and112ms in diagnostic; fewer serialized functions alone is not measured CPU gain."
-  },
-  "previous_4a23": {
-    "source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
-    "binary_sha256": "302d58db48f53cd4bc1952f2a9032ead5a6d479314d24eb2ca344f558c2c113e",
-    "tool_source": "8bb24b85412b4b388d3c3f266786ef36ebe05e6f",
-    "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-    "report": "restart-performance-20261116/report.md",
-    "results": "restart-performance-20261116/results.json",
-    "stages": "restart-performance-20261116/stages.json",
-    "original_requests": 774,
-    "functional_cells": 258,
-    "source_bound_runtime_cases": 71,
-    "all_candidate_Rust_quality_passed": true,
-    "global_accepted": false,
-    "main_regression_accepted": null,
-    "native_flow_s": {
-      "1000": {
-        "baseline": 8.550813806999999,
-        "candidate": 7.165743701499999,
-        "rust": 8.0466773415
-      },
-      "2500": {
-        "baseline": 13.1991478845,
-        "candidate": 10.082063722,
-        "rust": 10.0169925735
-      },
-      "5105": {
-        "candidate": 29.4765489805,
-        "rust": 31.581858628000003
-      }
-    },
-    "retained_5105_restart_plus_firstedit_s": {
-      "candidate": 4.4413706815,
-      "rust": 1.0083505325000002
-    },
-    "native_5105_eight_private_s": {
-      "candidate": 9.831954402,
-      "rust": 8.6884125585
-    },
-    "qualification": "Main5105 ResourceLimit never a fast successful build. Check5k wide also slower than Rust/main; check2500 chain slower than main. All negatives retained. Same-window comparisons only; do not claim bcf/f19 cross-window net algorithm gains.",
-    "diagnostic": "Separate36 candidate+36Rust requests with profiling, no formal ratio/runtime gate; Fresh Rust stderr can replay old time-passes.",
-    "complete_original_raw": "Seven complete archives: six formal windows plus diagnostic02, each fresh full hash verified. Core index includes setup failures, pins, commands, scripts, logs, Rust/Cargo source references and binaries.",
-    "immutable_delivery": "df06acabf33a76a723d1e92b1d7da71b41d4b7da"
-  },
-  "previous_305": {
-    "compiled_source": "305175a125240f5dd7ae4d935352047d43992723",
-    "compiled_tree": "4adb25dc86d0f418f883f8ad72d46c303d1d4dc7",
-    "binary_sha256": "b051fa85d441394d7e698fd932fa638a09c707e5b5b05a780314c41ce873c7ce",
-    "last_measured": {
-      "source": "305175a125240f5dd7ae4d935352047d43992723",
-      "tree": "4adb25dc86d0f418f883f8ad72d46c303d1d4dc7",
-      "binary_sha256": "b051fa85d441394d7e698fd932fa638a09c707e5b5b05a780314c41ce873c7ce",
-      "tool_source": "305175a125240f5dd7ae4d935352047d43992723",
-      "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-      "report": "stable-class-chain-20261116/report.md",
-      "results": "stable-class-chain-20261116/results.json",
-      "stages": "stable-class-chain-20261116/stages.json",
-      "original_requests": 498,
-      "functional_cells": 166,
-      "source_bound_runtime_cases": 61,
-      "main_resource_limit_rows": 48,
-      "all_candidate_Rust_quality_passed": true,
-      "global_accepted": false,
-      "native_flow_s": {
-        "1000": {
-          "baseline": 9.906079244,
-          "candidate": 7.970279252,
-          "rust": 9.520970906999999
-        },
-        "2500": {
-          "baseline": 13.6156354975,
-          "candidate": 10.4960660845,
-          "rust": 10.655058969000002
-        },
-        "5105": {
-          "candidate": 35.3479970405,
-          "rust": 37.7890014985
-        }
-      },
-      "native_5105_eight_private_s": {
-        "candidate": 12.129170815500002,
-        "rust": 11.808067836500001
-      },
-      "retained_5105_restart_plus_firstedit_s": {
-        "candidate": 5.806637742,
-        "rust": 1.4384278055
-      },
-      "check5000_flow_s": {
-        "baseline": 7.9222288605,
-        "candidate": 6.761674307500001,
-        "rust": 7.915956416499999
-      },
-      "native5105_user_disk": {
-        "block_boundary_peak_median_MiB": {
-          "candidate": 38.546875,
-          "rust": 72.85546875
-        },
-        "observed_boundary_max_MiB": {
-          "candidate": 41.09765625,
-          "rust": 72.85546875
-        },
-        "eight_private_growth_MiB": {
-          "candidate": 3.208984375,
-          "rust": 28.48046875
-        }
-      },
-      "qualification": "Native1k/5105andcheck5k flow bothblocks lead; native2500flow near tie/oneblockloses. Native5105eightprivate bothblocks lose, retained5105 restartpair bothlose by4.316/4.420s. Samewindowonly, no cross4a/404aalgorithmcausalclaim. Checkcoldbothblocks lead withlargecandidatevariation; two samples/notOScold/industrialmulticrate notproved. SDK/mainDSOs differ, notfront-end-onlyablation.",
-      "actual_work": "16native5105private requests all15objecthit/1miss;1lower,1classinput rebuild,2classkeyrebuild;checkedadd1check. Restart4Builder/5101realCFGrestore and16objecthits, yet CT/Analyze5105currentqueries andmachine/transform/partitionwholemiss.",
-      "largest_residual": "Retain5105restart codegen1.941s includesmachine1.009/partition.765/object.015; additional signed report residual1.623s remains unclassified, notassignedwireorIO.",
-      "complete_original_raw": "Three complete formal archives plus used-runtime/core; initial8windows failures/progress completearchive immutable305. All companion fresh receipts and failed ENOSPC retry retained."
-    }
-  },
-  "previous_11078": {
-    "source": "11078c56dc8450b8c47312577dd9918bcdf6d9a3",
-    "binary_sha256": "d9bef5078b5b17b6c2f58fe500519ebdd284556ddbf5f88b87f185511a1437e6",
-    "summary": "restart-layout-chain-20261116/summary.md",
-    "original_requests": 246,
-    "functional_cells": 82,
-    "runtime_cases": 22,
-    "main_resource_limit_rows": 48,
-    "all_candidate_Rust_quality_passed": true,
-    "global_accepted": false,
-    "native5105_flow_s": [
-      31.794,
-      35.568
-    ],
-    "native5105_eight_private_s": [
-      11.017,
-      11.198
-    ],
-    "retained5105_restart_firstedit_s": [
-      5.11,
-      1.478
-    ],
-    "check5000_flow_s": [
-      7.906,
-      7.763
-    ],
-    "check5000_cold_s": [
-      1.866,
-      0.827
-    ],
-    "native_disk_boundary_peak_median_MiB": [
-      36.02,
-      72.855
-    ],
-    "native8edit_growth_MiB": [
-      1.164,
-      28.48
-    ]
-  },
-  "previous_bee7": {
-    "source": "bee7ee218df3c673bc7660e1af8aea709505272d",
-    "original_requests": 138,
-    "functional_cells": 46,
-    "runtime_cases": 5,
-    "native_restart_firstedit_ms": {
-      "candidate": 4294.0973125,
-      "rust": 1444.1266070000001
-    },
-    "check_flow_ms": {
-      "baseline": 7119.669645,
-      "candidate": 5563.538215,
-      "rust": 8210.709403
-    },
-    "raw": "out/runs/cache-restart-performance-*-01"
-  },
-  "previous_480e": {
-    "compiled_source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
-    "binary_sha256": "3d8eed704d54453477b052da61f3208bc87054b6db2f99784e0f9f413ca6d4e8",
-    "last_measured": {
-      "native_source": "480e7d6fe425ad9cce4d0e69b1cf3ca869572198",
-      "binary_sha256": "3d8eed704d54453477b052da61f3208bc87054b6db2f99784e0f9f413ca6d4e8",
-      "summary": "cache-restart-chain-20261116/summary.md",
-      "native_original_requests": 36,
-      "native_functional_cells": 12,
-      "native_runtime_cases": 5,
-      "native_restart_firstedit_ms": {
-        "candidate": 4640.7901435,
-        "rust": 1333.6165925
-      },
-      "native_requests_ms": {
-        "cold": {
-          "candidate": 5186.129134500001,
-          "rust": 6723.5545995
-        },
-        "unchanged": {
-          "candidate": 73.6591705,
-          "rust": 28.3271225
-        },
-        "warm-restart": {
-          "candidate": 3490.6389755,
-          "rust": 38.49144
-        },
-        "private-001": {
-          "candidate": 1150.151168,
-          "rust": 1295.1251525
-        },
-        "error": {
-          "candidate": 1857.5538065,
-          "rust": 1958.795429
-        },
-        "recovery": {
-          "candidate": 2452.7101445,
-          "rust": 5926.9394465
-        }
-      },
-      "native_user_disk": {
-        "candidate": {
-          "boundary_peak_MiB": 32.681640625,
-          "peak_bytes_by_block": [
-            34279424,
-            34258944
-          ],
-          "eight_private_growth_MiB": null
-        },
-        "rust": {
-          "boundary_peak_MiB": 58.69140625,
-          "peak_bytes_by_block": [
-            61542400,
-            61542400
-          ],
-          "eight_private_growth_MiB": null
-        }
-      },
-      "check_source": "bee7ee218df3c673bc7660e1af8aea709505272d",
-      "check_original_requests": 102,
-      "check_functional_cells": 34,
-      "check_flow_ms": {
-        "baseline": 7119.669645,
-        "candidate": 5563.538215,
-        "rust": 8210.709403
-      },
-      "check_user_disk": {
-        "baseline": {
-          "boundary_peak_MiB": 45.3125,
-          "peak_bytes_by_block": [
-            47513600,
-            47513600
-          ],
-          "eight_private_growth_MiB": 29.40625
-        },
-        "candidate": {
-          "boundary_peak_MiB": 13.63671875,
-          "peak_bytes_by_block": [
-            14360576,
-            14237696
-          ],
-          "eight_private_growth_MiB": 1.0703125
-        },
-        "rust": {
-          "boundary_peak_MiB": 58.34765625,
-          "peak_bytes_by_block": [
-            61181952,
-            61181952
-          ],
-          "eight_private_growth_MiB": 15.140625
-        }
-      },
-      "all_candidate_Rust_quality_passed": true,
-      "global_accepted": false
-    }
-  },
-  "previous_8f": {
-    "compiled_source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
-    "binary_sha256": "1965c26f73a3a0bb2d42b3a43929c8207bd516a20e0dc9bb5a050fe7453f5936",
-    "last_measured": {
-      "source": "8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639",
-      "binary_sha256": "1965c26f73a3a0bb2d42b3a43929c8207bd516a20e0dc9bb5a050fe7453f5936",
-      "summary": "restart-bootstrap-chain-20261116/summary.json",
-      "counts": {
-        "original_requests": 138,
-        "functional_cells": 46,
-        "runtime_cases": 5
-      },
-      "native_restart_pair_ms": {
-        "candidate": 3568.0612880000003,
-        "rust": 1287.3474190000002
-      },
-      "check_flow_ms": {
-        "baseline": 6788.566467500001,
-        "candidate": 6832.098746,
-        "rust": 6832.386532500001
-      },
-      "direct_restart_edit_diagnostic_seconds": 3.714868462
-    }
-  }
+  "SDK18_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
+  "SDK_recovery": "https://github.com/zil-lang/zil/blob/e85f819f0c23d4fdbaf52748a7a97dd0ab345f61/tools/research/incremental-demand/evidence/stable-class-performance-core-20261116/RESTORE.json",
+  "V32_recovery": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
+  "LLVM_rebuilt": false,
+  "research_defaults_enabled": false,
+  "default_budgets_changed": false,
+  "independent_Verify": true,
+  "main_merge": false,
+  "full_run_archives_created": false,
+  "goal_archive_never_merge_main": true
 }
