@@ -136,12 +136,14 @@ pub struct CodegenSummary {
     /// Actual producer layout receipt, retained with its complete partition.
     /// This identifies raw provenance; it never authorizes replay or validation.
     pub partition_layout_key: Option<String>,
+    pub class_import_requested: Option<&'static str>,
     pub class_import_policy: Option<&'static str>,
+    pub class_import_fallback: Option<&'static str>,
 }
 impl CodegenSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"backend\":{},\"object_reports\":[{}],\"final_artifact\":{},\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{},\"link_tool_identities\":{},\"call_classes\":{},\"closed_prune\":{},\"partition_layout_key\":{},\"class_import_policy\":{}}}",
+            "{{\"backend\":{},\"object_reports\":[{}],\"final_artifact\":{},\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}],\"timings\":{},\"link_tool_identities\":{},\"call_classes\":{},\"closed_prune\":{},\"partition_layout_key\":{},\"class_import_requested\":{},\"class_import_policy\":{},\"class_import_fallback\":{}}}",
             zil_base::json_string(self.backend.name()),
             self.object_reports.join(","),
             self.final_artifact
@@ -168,7 +170,9 @@ impl CodegenSummary {
                 "{{\"fresh_original_units_checked\":{checked},\"full_input_cached_units\":{reused},\"fresh_removed_definitions\":{removed},\"retained_removed_definitions\":{retained},\"scope\":\"post-internalization local pruning; current API preflight remains separate\"}}"
             )),
             self.partition_layout_key.as_ref().map_or_else(|| "null".into(), |key| zil_base::json_string(key)),
-            self.class_import_policy.map_or_else(|| "null".into(), zil_base::json_string)
+            self.class_import_requested.map_or_else(|| "null".into(), zil_base::json_string),
+            self.class_import_policy.map_or_else(|| "null".into(), zil_base::json_string),
+            self.class_import_fallback.map_or_else(|| "null".into(), zil_base::json_string)
         )
     }
 }
@@ -655,6 +659,7 @@ pub fn build_view_with_cancellation_and_session(
         })
         .cloned();
     let mut closed_prune = None;
+    let mut class_import_fallback = None;
     let partitioned = if let Some(cached) = cached_partition {
         if let Some(removed) = cached.closed_prune_removed {
             closed_prune = Some((0, cached.units.len(), 0, removed));
@@ -744,6 +749,9 @@ pub fn build_view_with_cancellation_and_session(
             }
         };
         if !class_symbols.is_empty() && class_plan.is_none() {
+            if options.bounded_class_imports {
+                class_import_fallback = Some("bounded-class-layout-refused-current-model");
+            }
             check_cancelled(cancelled)?;
             // Stable helpers could not preserve the original complete import
             // policy within its existing copy limit. Rebuild the old strategy
@@ -1194,13 +1202,24 @@ pub fn build_view_with_cancellation_and_session(
         }),
         closed_prune,
         partition_layout_key,
-        class_import_policy: (!class_symbols.is_empty()).then_some(
-            if options.bounded_class_imports {
+        class_import_requested: if options.bounded_class_imports {
+            Some("bounded-classes-128-v1")
+        } else {
+            call_classes_enabled.then_some("complete")
+        },
+        class_import_policy: if options.bounded_class_imports && class_symbols.is_empty() {
+            Some("complete")
+        } else {
+            (!class_symbols.is_empty()).then_some(if options.bounded_class_imports {
                 "bounded-classes-128-v1"
             } else {
                 "complete"
-            },
-        ),
+            })
+        },
+        class_import_fallback: class_import_fallback.or_else(|| {
+            (options.bounded_class_imports && class_symbols.is_empty())
+                .then_some("no-eligible-closed-classes")
+        }),
     };
     timings.object_ns += crate::object_cache::elapsed_ns(object_setup_started);
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";

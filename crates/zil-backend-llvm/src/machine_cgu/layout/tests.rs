@@ -1680,7 +1680,7 @@ fn class_cache_cannot_hide_invalid_unused_declarations_or_clone_collisions() {
 }
 
 fn pad_cost(function: &mut Function, cost: usize) {
-    let mut next = 0;
+    let mut next = function.cost() as i128;
     while function.cost() < cost {
         function.blocks.as_mut().unwrap()[0].instructions.insert(
             0,
