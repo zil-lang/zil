@@ -38,6 +38,14 @@ fn complete_original_sources_publish_current_untrusted_fixture_records() {
             include_str!("../../zil-verify/tests/fixtures/dyn-context/context-unused.zil"),
         ),
         (
+            "dyn-context/short-external-view",
+            include_str!("../../zil-verify/tests/fixtures/dyn-context/short-external-view.zil"),
+        ),
+        (
+            "dyn-context/short-inline-view",
+            include_str!("../../zil-verify/tests/fixtures/dyn-context/short-inline-view.zil"),
+        ),
+        (
             "dyn-context/static-callback-getter-cycle",
             include_str!(
                 "../../../tests/fixtures/dyn-context/static-callback-getter-cycle-control.zil"
