@@ -22,9 +22,12 @@ type TypeFact=(usize,usize,Profile);
 // A collision still searches a complete ordered key (depth and profile too),
 // so no approximate key can prove a fact. Growth and every real key copy are
 // paid before insertion; the old set remains intact if growth runs out of work.
-#[derive(Default)]
 struct TypeFacts{buckets:Vec<BTreeSet<TypeFact>>,len:usize}
 impl TypeFacts{
+    fn new(b:&mut Budget)->Check<Self>{
+        let mut result=Self{buckets:Vec::new(),len:0};
+        result.grow(8,b)?;Ok(result)
+    }
     #[cfg(test)]
     fn len(&self)->usize{self.len}
     fn bucket(ptr:usize,count:usize)->usize{
@@ -32,7 +35,9 @@ impl TypeFacts{
         hash>>(usize::BITS-count.ilog2())
     }
     fn contains(&self,key:&TypeFact,b:&mut Budget)->Check<bool>{
-        b.spend(1)?;if self.buckets.is_empty(){return Ok(false);}
+        // Registration publishes only a nonempty bucket directory. Its
+        // one-time allocation removes the per-query empty-directory branch;
+        // an empty fact set still performs the exact ordinary bucket lookup.
         b.spend(3)?;let bucket=&self.buckets[Self::bucket(key.0,self.buckets.len())];
         b.spend(lookup(bucket.len()))?;Ok(bucket.contains(key))
     }
@@ -48,8 +53,7 @@ impl TypeFacts{
         self.buckets=buckets;Ok(())
     }
     fn insert(&mut self,key:TypeFact,b:&mut Budget)->Check<()>{
-        if self.buckets.is_empty(){self.grow(8,b)?;}
-        else if self.len.saturating_add(1)>self.buckets.len()/2&&self.buckets.len()<4096{self.grow(self.buckets.len()*2,b)?;}
+        if self.len.saturating_add(1)>self.buckets.len()/2&&self.buckets.len()<4096{self.grow(self.buckets.len()*2,b)?;}
         b.spend(3)?;let to=Self::bucket(key.0,self.buckets.len());
         b.spend(lookup(self.buckets[to].len()).saturating_add(6))?;
         if self.buckets[to].insert(key){self.len+=1;}Ok(())
@@ -83,7 +87,7 @@ impl Structure{
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:TypeFacts::default(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),
+            type_success:TypeFacts::new(b)?,recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -376,7 +380,8 @@ mod tests{
     use super::*;
     #[test]
     fn bucketed_type_facts_preserve_exact_depth_profiles_and_failed_growth(){
-        let mut b=Budget::new(&Limits::default());let mut facts=TypeFacts::default();let mut expected=BTreeSet::new();
+        let mut b=Budget::new(&Limits::default());let mut facts=TypeFacts::new(&mut b).unwrap();let mut expected=BTreeSet::new();
+        assert!(!facts.contains(&(0,0,(1_000_000,128)),&mut b).unwrap(),"an allocated empty directory supplies no fact");
         for index in 0..1024usize{let key=(0x1000+index*256,index%7,(1_000_000,128));facts.insert(key,&mut b).unwrap();expected.insert(key);}
         assert_eq!(facts.len(),expected.len());
         for key in &expected{assert!(facts.contains(key,&mut b).unwrap());assert!(!facts.contains(&(key.0,key.1+13,key.2),&mut b).unwrap());assert!(!facts.contains(&(key.0,key.1,(key.2.0-1,key.2.1)),&mut b).unwrap());}
