@@ -4,7 +4,7 @@
 use super::*;
 
 pub(super) struct Role {
-    ordinal: u32,
+    pub(super) ordinal: u32,
     value: Term,
     writes: Vec<Write>,
 }

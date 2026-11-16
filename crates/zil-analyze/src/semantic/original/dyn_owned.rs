@@ -142,7 +142,7 @@ impl Solver<'_, '_> {
                     "owned Dyn construction repeats its dependency Context",
                 ));
             }
-            crate::dyn_metadata::recipe(interface, b)?;
+            crate::dyn_metadata::recipe(interface.as_ref(), b)?;
             crate::dyn_metadata::recipe(context, b)?;
             let mut full = interface.clone();
             full.context = SemanticDynContextRecipe::Type(Box::new(context.clone()));
