@@ -2243,7 +2243,7 @@ fn resident_discovered_frontend(
 ) -> bool {
     if !options.reuse_producers()
         || options.profile != ExecutionProfile::Native
-        || options.closed_executable
+        || (options.closed_executable && !options.push_reuse)
         || options.semantic_cache.is_none()
         || options.stop_after < Stage::Verify
         || options.emit_dir.is_some()
@@ -3252,6 +3252,20 @@ pub fn main()->i32=>0",
                 event.phase == phase && event.disposition == QueryDisposition::Executed
             }));
         }
+        let warm = consumer.compile_path(&path, &options);
+        assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+        assert_eq!(warm.verification_runs, 1);
+        let warm_ingress = warm.source_ingress.as_ref().unwrap();
+        assert_eq!(warm_ingress.source_files_read, 2);
+        assert_eq!(warm_ingress.semantic_load_attempts, 0);
+        assert_eq!(warm_ingress.parser_executions, 0);
+        assert_eq!(warm_ingress.resident_routes, 1);
+        assert_eq!(warm_ingress.resident_frontend_hits, 1);
+        // Current limits still invalidate the full frontend receipt.
+        let mut constrained = options.clone();
+        constrained.limits.max_source_bytes = 1;
+        let limited = consumer.compile_path(&path, &constrained);
+        assert_eq!(limited.status, ResultCategory::ResourceLimit);
         // The restored source graph cannot hide a newly ambiguous filesystem
         // entry. Its optional replay fails and the original resolver rejects it.
         fs::create_dir(dir.0.join("dep")).unwrap();
