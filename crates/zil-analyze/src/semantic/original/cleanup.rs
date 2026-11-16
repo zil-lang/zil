@@ -1,9 +1,90 @@
 //! A concrete cleanup occurrence is not a structural SyncDrop premise.
-//! Bind it to every actual closure instance and defer only the terminal
+//! Bind it to every actual owner/closure instance and defer only the terminal
 //! worker/frame proof until raw preflight and the resource ledger complete.
 use super::*;
 
 impl Solver<'_, '_> {
+    fn bind_task_cleanup(
+        &self,
+        module: &TypedModule,
+        term: Term,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let root = self.type_root(term, b)?;
+        let Kind::Wrapped(Wrapper::Managed, payload) = self.state.arena[root] else {
+            return Ok(false);
+        };
+        if !matches!(self.state.arena[self.type_root(payload, b)?], Kind::Task(_)) {
+            return Ok(false);
+        }
+        let mut locals = BTreeSet::new();
+        for frame in self.state.frames.values() {
+            for (binding, original) in &frame.bindings {
+                b.spend(1, WORK)?;
+                // Select the independently checked binding node, never a
+                // same-typed local, name, layout or caller's concrete image.
+                if self.type_root(*original, b)? != root {
+                    continue;
+                }
+                let index = self.inventory.original_index(frame.definition, b)?;
+                let recipe = index.declaration_site(*binding, b)?;
+                let mut instances = 0usize;
+                for instance in &self.program.instances {
+                    b.spend(1, WORK)?;
+                    if instance.definition != frame.definition {
+                        continue;
+                    }
+                    let SemanticInstanceTarget::Function(target) = &instance.target else {
+                        return Err(fail("original Task cleanup binding has no actual function instance"));
+                    };
+                    let function = self.inventory.function(target, b)?;
+                    let site = self.inventory.emitted_site(self.program, instance.id, recipe, b)?;
+                    let SemanticSiteAction::DeclareLocal {
+                        local: SemanticLocalTarget::Typed(local), ..
+                    } = site.action else {
+                        return Err(fail("original Task cleanup changes its actual binding operation"));
+                    };
+                    if !function.locals.get(local.0 as usize)
+                        .filter(|declaration| declaration.id == local)
+                        .is_some_and(|declaration| matches!(&declaration.ty,
+                            Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. })))
+                    {
+                        return Err(fail("original Task cleanup binding changes its actual owning family"));
+                    }
+                    b.lookup(locals.len(), WORK)?;
+                    locals.insert((function.id, local));
+                    instances += 1;
+                }
+                if instances == 0 {
+                    return Err(fail("original Task cleanup binding has no complete actual instances"));
+                }
+            }
+        }
+        if locals.is_empty() {
+            return Ok(false);
+        }
+        for (function, local) in locals {
+            let function = module.functions.get(function.0 as usize)
+                .filter(|actual| actual.id == function)
+                .ok_or_else(|| fail("original Task cleanup loses its actual binding function"))?;
+            let mut found = false;
+            for block in &function.blocks {
+                for (position, instruction) in block.instructions.iter().enumerate() {
+                    b.spend(1, WORK)?;
+                    if matches!(instruction.kind, InstructionKind::DropManaged { local: actual } if actual == local) {
+                        b.lookup(b.semantic_cleanup_sites.len(), WORK)?;
+                        b.semantic_cleanup_sites.insert((function.id, block.id, position, local, None));
+                        found = true;
+                    }
+                }
+            }
+            if !found {
+                return Err(fail("original Task cleanup binding has no actual DropManaged site"));
+            }
+        }
+        Ok(true)
+    }
+
     fn task_cleanup_environment(
         &self,
         term: Term,
@@ -105,7 +186,7 @@ impl Solver<'_, '_> {
                     b.lookup(closures.len(), WORK)?;
                     if !closures.contains(id) { continue; }
                     b.lookup(b.semantic_cleanup_sites.len(), WORK)?;
-                    b.semantic_cleanup_sites.insert((function.id, block.id, position, local, *id));
+                    b.semantic_cleanup_sites.insert((function.id, block.id, position, local, Some(*id)));
                     b.lookup(found.len(), WORK)?;
                     found.insert(*id);
                 }
@@ -123,8 +204,11 @@ impl Solver<'_, '_> {
             if self.satisfies(*term, Predicate::SyncDrop, b, 0)? {
                 continue;
             }
-            if !self.bind_cleanup(module, *term, b)? {
-                return Err(fail("original live cleanup edge requires SyncDrop or its complete actual Task cleanup proof"));
+            if !self.bind_cleanup(module, *term, b)? && !self.bind_task_cleanup(module, *term, b)? {
+                let mut errors = fail("original live cleanup edge requires SyncDrop or its complete actual Task cleanup proof");
+                errors[0].notes.push(format!("original cleanup term {}, whole kind {:?}",
+                    self.type_root(*term, b)?, std::mem::discriminant(&self.state.arena[self.type_root(*term, b)?])));
+                return Err(errors);
             }
         }
         Ok(())
@@ -133,7 +217,8 @@ impl Solver<'_, '_> {
 
 pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     if b.semantic_cleanup_sites.is_empty() {
-        return Ok(());
+        return if b.semantic_cleanup_proofs.is_empty() { Ok(()) }
+            else { Err(fail("actual Task cleanup proof has no original pending occurrence")) };
     }
     if b.task_input_scopes.is_none() {
         return Err(fail("original concrete cleanup has no complete actual Task input scopes"));
@@ -155,13 +240,29 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
         let declaration = function.locals.get(local.0 as usize)
             .filter(|actual| actual.id == local)
             .ok_or_else(|| fail("original concrete cleanup loses its actual local"))?;
-        if !matches!(instruction.kind, InstructionKind::DropClosure { local: actual } if actual == local)
-            || declaration.ty != Type::Closure(closure)
-            || !crate::tasks::needs_synchronous_proof(module, &declaration.ty, b)?
-        {
-            return Err(fail("original concrete cleanup changes its complete Task-bearing closure site"));
+        let exact = match closure {
+            Some(closure) => matches!(instruction.kind, InstructionKind::DropClosure { local: actual } if actual == local)
+                && declaration.ty == Type::Closure(closure),
+            None => matches!(instruction.kind, InstructionKind::DropManaged { local: actual } if actual == local)
+                && matches!(&declaration.ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. })),
+        };
+        if !exact || !crate::tasks::needs_synchronous_proof(module, &declaration.ty, b)? {
+            return Err(fail("original concrete cleanup changes its exact actual Task-bearing site"));
         }
         b.spend(function.name.len().saturating_add(128), WORK)?;
+        if closure.is_none() {
+            b.lookup(b.semantic_cleanup_proofs.len(), WORK)?;
+            if !b.semantic_cleanup_proofs.contains(&(function.id, block, position, local)) {
+                let mut errors = fail("original Task cleanup lacks its complete actual resource ledger proof");
+                errors[0].notes.push(format!("function {} {}, block {} instruction {}, original-bound local {}",
+                    function.id.0, function.name, block.0, position, local.0));
+                return Err(errors);
+            }
+            if function.call_kind == CallKind::Suspend && frames.insert(function.id) {
+                crate::tasks::cleanup_frame_profile(module, function, b)?;
+            }
+            continue;
+        }
         let proof = match function.call_kind {
             CallKind::Direct => crate::tasks::require_synchronous_drop(
                 module, function, local, (block.0 as usize, position), b, Some(instruction.span)),
@@ -176,7 +277,7 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
         };
         proof.map_err(|mut errors| {
             for error in &mut errors {
-                error.notes.push(format!("original concrete cleanup actual function {} {}, block {} instruction {}, local {}, closure {}", function.id.0, function.name, block.0, position, local.0, closure.0));
+                error.notes.push(format!("original concrete cleanup actual function {} {}, block {} instruction {}, local {}, closure {:?}", function.id.0, function.name, block.0, position, local.0, closure));
             }
             errors
         })?;
@@ -184,5 +285,6 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
     // Called only after tasks::check and resources::check_module succeeded.
     // A failure above leaves every pending site intact in this request.
     b.semantic_cleanup_sites.clear();
+    b.semantic_cleanup_proofs.clear();
     Ok(())
 }

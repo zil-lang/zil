@@ -165,7 +165,7 @@ impl Check<'_, '_> {
                 )?;
             }
             let result = self.recipe_value(instance, &signature.result, b, 0)?;
-            self.original_static_header(&parameters, &result, life, b)?;
+            self.original_static_header(instance, &parameters, &result, Some(id), life, b)?;
         }
         b.spend(
             (life.fixed_binder_count as usize).saturating_add(closure.captures.len()),

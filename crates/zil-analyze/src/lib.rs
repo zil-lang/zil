@@ -151,6 +151,7 @@ fn analyze_budgeted_context(
     budget.semantic_raw_value_shapes.clear();
     budget.semantic_raw_local_shapes.clear();
     budget.semantic_cleanup_sites.clear();
+    budget.semantic_cleanup_proofs.clear();
     budget.stored_synchronous_abis.clear();
     budget.stored_task_frame_functions.clear();
     budget.stored_task_frame_pending = false;
@@ -512,7 +513,7 @@ fn publish_holds(
     plan: &mut CandidatePlan,
     budget: &mut Budget,
 ) -> CompileResult<()> {
-    if !budget.semantic_cleanup_sites.is_empty() {
+    if !budget.semantic_cleanup_sites.is_empty() || !budget.semantic_cleanup_proofs.is_empty() {
         return Err(bad("original concrete cleanup obligations remain undischarged at publication"));
     }
     if budget.stored_task_frame_pending {

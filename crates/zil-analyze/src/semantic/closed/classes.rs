@@ -2151,7 +2151,8 @@ impl Check<'_, '_> {
         Ok(output)
     }
 
-    pub(super) fn original_static_header(&self, parameters: &[Value], result: &Value,
+    pub(super) fn original_static_header(&self, instance: &SemanticInstance,
+        parameters: &[Value], result: &Value, captures: Option<ClosureId>,
         contract: &StorageLifeContract, b: &mut Budget) -> CompileResult<()> {
         // A class-free byte view is reconstructed here only from an
         // independently checked Static original type/body, never from N = 0
@@ -2169,8 +2170,35 @@ impl Check<'_, '_> {
                 static_positions.insert(StoragePosition { base, path: Vec::new() });
             }
         }
+        if let Some(id) = captures {
+            let closure = self.module.closures.get(id.0 as usize)
+                .filter(|closure| closure.id == id)
+                .ok_or_else(|| fail("Static capture header has no actual closure"))?;
+            // These complete values come from the original creator binding
+            // and every real MakeClosure operand, including literal-source
+            // proof. A factory's returned envelope is a different header.
+            b.spend(closure.captures.len(), WORK)?;
+            if closure.captures.iter().any(original::strings::is_byte_type) {
+                for binding in self.capture_creator_bindings(instance, closure, b)?.values() {
+                    if original::strings::is_byte_type(&binding.stored.ty)
+                        && empty(&binding.stored.life) && binding.stored.classes.is_empty()
+                    {
+                        let position = StoragePosition {
+                            base: StorageBase::Capture(binding.capture), path: Vec::new(),
+                        };
+                        b.lookup(static_positions.len(), WORK)?;
+                        if !static_positions.insert(position) {
+                            return Err(fail("Static capture header repeats an original creator occurrence"));
+                        }
+                    }
+                }
+            }
+        }
         if contract.static_bindings.len() != static_positions.len() {
-            return Err(fail("actual header changes its complete original Static occurrences"));
+            let mut errors = fail("actual header changes its complete original Static occurrences");
+            errors[0].notes.push(format!("original instance {:?}, proved Static occurrences {:?}; actual {:?}",
+                instance.id, static_positions, contract.static_bindings));
+            return Err(errors);
         }
         for position in &contract.static_bindings {
             b.spend(position.path.len().saturating_add(1), WORK)?;
@@ -2214,7 +2242,7 @@ impl Check<'_, '_> {
             return Ok(());
         };
         crate::signature_life::charge(contract, b)?;
-        self.original_static_header(&parameters, &result, contract, b)?;
+        self.original_static_header(instance, &parameters, &result, function.environment, contract, b)?;
         let total = (contract.fixed_binder_count as usize)
             .checked_add(contract.invocation_binder_count as usize)
             .ok_or_else(|| fail("actual header domain count overflow"))?;

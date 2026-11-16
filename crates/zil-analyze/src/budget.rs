@@ -114,9 +114,13 @@ pub(super) struct Budget {
     // immutable actual coordinate. No classes, targets, loans or capabilities.
     pub(super) semantic_raw_value_shapes: BTreeMap<(FunctionId, ValueId), zil_ir::StorageLifeShape>,
     pub(super) semantic_raw_local_shapes: BTreeMap<(FunctionId, zil_ir::LocalId), zil_ir::StorageLifeShape>,
-    // Original concrete-Closure cleanup occurrences, still requiring the
+    // Original concrete cleanup occurrences, still requiring the
     // actual worker/frame/resource proof after complete raw preflight.
-    pub(super) semantic_cleanup_sites: BTreeSet<(FunctionId, zil_ir::BlockId, usize, LocalId, zil_ir::ClosureId)>,
+    // Some identifies a Closure; None is an original owning Task binding.
+    pub(super) semantic_cleanup_sites: BTreeSet<(FunctionId, zil_ir::BlockId, usize, LocalId, Option<zil_ir::ClosureId>)>,
+    // Exact owning Task DropManaged sites discharged by the complete actual
+    // resource fixed point. This is never a structural SyncDrop theorem.
+    pub(super) semantic_cleanup_proofs: BTreeSet<(FunctionId, zil_ir::BlockId, usize, LocalId)>,
     // Exact constructor occurrences whose complete original class value and
     // actual header embedding have both been proved. No target/loan facts.
     pub(super) semantic_aggregate_classes:
@@ -313,6 +317,7 @@ impl Budget {
             semantic_raw_value_shapes: BTreeMap::new(),
             semantic_raw_local_shapes: BTreeMap::new(),
             semantic_cleanup_sites: BTreeSet::new(),
+            semantic_cleanup_proofs: BTreeSet::new(),
             semantic_aggregate_classes: BTreeMap::new(),
             stored_synchronous_abis: BTreeSet::new(),
             stored_task_frame_functions: BTreeSet::new(),

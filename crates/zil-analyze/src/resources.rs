@@ -3581,6 +3581,22 @@ impl Flow<'_> {
                     fact.sources.clear();
                     replace(state, Place::Local(*local), fact, budget)?;
                     forget_order(state, *local, budget)?;
+                    if check && !budget.semantic_cleanup_sites.is_empty()
+                        && matches!(i.kind, InstructionKind::DropManaged { .. })
+                    {
+                        let point = (f.id, f.blocks[b].id, position, *local);
+                        budget.lookup(budget.semantic_cleanup_sites.len(), "original Task cleanup occurrence")?;
+                        if budget.semantic_cleanup_sites.contains(&(point.0, point.1, point.2, point.3, None)) {
+                            if !budget.task_origin_roots || !budget.tasks || budget.task_input_scopes.is_none() {
+                                return Err(error("original Task cleanup has no complete actual preflight and input scopes"));
+                            }
+                            // The converged actual state above has checked
+                            // occupant/debt, closed or synchronous Task roots,
+                            // retained sources, later uses and cleanup order.
+                            budget.lookup(budget.semantic_cleanup_proofs.len(), "original Task cleanup proof")?;
+                            budget.semantic_cleanup_proofs.insert(point);
+                        }
+                    }
                 }
                 InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
                     if let Some(s) = self.shapes.get(&Place::Local(*local)) {
@@ -4799,7 +4815,8 @@ pub(super) fn check_module(
     if module.resources.is_empty() {
         // An absent raw table cannot bypass actual replacement obligations.
         // The paid preflight already inventoried these owning ticket sites.
-        let mut owning_entry = !budget.replacement_functions.is_empty() || budget.affine_packages;
+        let mut owning_entry = !budget.replacement_functions.is_empty() || budget.affine_packages
+            || !budget.semantic_cleanup_sites.is_empty();
         for closure in &module.closures {
             budget.spend(closure.captures.len(), "resource capture presence")?;
             owning_entry |= closure.kind == CallableKind::FnOnce
