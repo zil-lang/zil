@@ -405,18 +405,18 @@
     "full_notes": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-self-capture-occurrences/task-owner-complete/failure-inventory.json"
   },
   "latest_same_candidate_validation": {
-    "candidate": "de3b2aed8d81d67051abd49ed6cb40ad3dad2126",
-    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-suspend-and-intrinsic-reference-consumers",
+    "candidate": "26a80b27ed93263409123e9765eb42923a9eb5a0",
+    "cli_sha256": "64e544e1d4a2ac8de73f1e52c7aeec963829f3408b342ae8f31c2176a375c24c",
     "foundation_positive": [
       13,
       13
     ],
-    "foundation_semantic_negative": [
+    "semantic_negative": [
       4,
       4
     ],
     "extra": [
-      14,
+      13,
       14
     ],
     "nearest": [
@@ -427,48 +427,65 @@
       13,
       13
     ],
-    "option_source": [
-      6,
-      0,
-      0
-    ],
-    "task_source": [
-      5,
-      0,
+    "source": [
+      11,
+      11,
       0
     ],
     "task_sdk": [
-      5,
-      22,
+      11,
+      24,
       0
     ],
-    "task_sdk_successes": {
-      "source_verify_positive": 2,
-      "rejection_controls": 3,
-      "whole_sdk_native_test_passes": 0
+    "task_test_identity": "35 selected: two positive Source/raw tests, nine rejection-control tests passed; entire native test failed",
+    "task_failures": {
+      "types": 17,
+      "analyze": 3,
+      "verify": 4
+    },
+    "diagnostic_census": {
+      "selected": 30,
+      "success": 12,
+      "analyze": 10,
+      "verify": 5,
+      "types": 3,
+      "acceptance": false
     },
     "native_frame_observer": {
-      "builds_passed": 8,
-      "builds_total": 8,
-      "normal_executions": 8,
-      "allocation_failure_executions": 8,
-      "all_exact_output_exit_and_frame_cleanup_assertions_passed": true,
-      "receipt": "task-frame-observer/receipt.json"
+      "builds": 8,
+      "normal": 8,
+      "allocation_failure": 8,
+      "all_assertions_passed": true
     },
-    "outstanding": "Types16/Analyze3/Verify3 SDK failures; two reviewed same-formal Source bases still rejected; full native plan not accepted"
+    "native_basic_ready_pending": {
+      "executions": 12,
+      "all_assertions_passed": true
+    },
+    "reviewed_sameformal_positive_bases": "Both still Types SafeReject; not acceptance",
+    "acceptance": "NOT ACCEPTED; no cross-candidate sum; Unsupported negative still fails",
+    "extra_failure": "Verify Unsupported nested-borrowed: original Closure boundary lacks real creator lexical suffix; regression routed to V owner",
+    "corrected_from_initial_stage_report": true
   },
   "pending_integration": {
-    "source": "26a80b27ed93263409123e9765eb42923a9eb5a0",
-    "github_source_verified": true,
-    "candidate_run": "alpha-resume-complete-original-task-contexts-and-source-contracts",
-    "status": "workspace all-targets precheck active; no new runtime conclusion",
-    "since_last_test": [
-      "Analyze static byte-view/constructor site transport",
-      "Types original complete zero Context across four tables",
-      "Verify complete original closure creator boundary transports",
-      "Source static worker observation roles, reviewed legal bases and exact illegal Source preservation",
-      "Analyze completed original callback subtree inference and Task Closure input qualification"
+    "source": "09ec218cb6d949d961e6363474bce339434b3662",
+    "last_functional_candidate": "574c5b3db1cd31b90d0cf7c51d88fa0dcdede568",
+    "task_sdk": [
+      13,
+      23,
+      0
     ],
-    "diagnostic_coverage": "Original full SDK plus exact existing helper Source census; do not merge counts across candidates"
+    "diagnostic_census": {
+      "selected": 30,
+      "success": 12,
+      "analyze": 12,
+      "verify": 6,
+      "types": 0
+    },
+    "new_passes": "Two exact semantic negative controls; no added full native-family acceptance",
+    "known_regression": "extra13/14, nested-borrowed V creator suffix; complete original preserved and V owner repairing",
+    "all_original_helper_census": "Run every original helper Source, plus included-module fixture controls where loop first assert hides later cases",
+    "latest_diagnostic": "0ba3ceba Task actual protocol opcode119 exactFn5/block2/instr0; six original public fixtures independently checked",
+    "static_transport": "V complete static occurrence pending/frame proof saved09ec, untested",
+    "acceptance": "NOT ACCEPTED; Source/A/V/native same candidate still unfinished"
   }
 }
