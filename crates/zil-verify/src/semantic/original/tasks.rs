@@ -42,7 +42,7 @@ impl CheckedOriginal {
                 let actual = self.argument(
                     module, context, argument, &parameter, *mode, env, bindings, active, b,
                 )?;
-                self.unify(&actual, &parameter, b)?;
+                self.relate_value(&actual, &parameter, b)?;
                 let actual = self.resolved(&actual, b)?;
                 self.structural_obligation(
                     module,

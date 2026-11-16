@@ -96,11 +96,12 @@ impl CheckedOriginal {
                         if matches!(&parameter.ty,SemanticTypeRecipe::Formal(reference)if reference.scope==SemanticScopeRef::Ancestor(0)&&reference.ordinal==ordinal as u32){
                             let Arg::Type(inferred)=&checked[ordinal]else{return Err(bad("inferred Type source has another complete kind"));};
                             let source=self.expressions.get(&(env.current()?,argument.id)).ok_or_else(||bad("inferred Type argument lacks its original expression proof"))?;
-                            // Passing-mode adaptation can change Managed to
-                            // Desc. An existing whole-type receipt is usable
-                            // only when original Γ independently kept exactly
-                            // this source expression's type/category.
-                            if self.same(inferred,source,b)?{sources.push(argument.id);}
+                            // Whole-Type receipts preserve the original source
+                            // domain. A shared reborrow uses a private root-mode
+                            // view; the source expression still proves its true
+                            // exclusive category and every child class.
+                            if self.same(inferred,source,b)?{sources.push((argument.id,false));}
+                            else{let view=self.contextual_borrow_value(source,inferred,b)?;if self.same(inferred,&view,b)?{sources.push((argument.id,true));}}
                         }
                     }
                     if !sources.is_empty(){b.spend(sources.len())?;self.call_type_sources.insert((env.current()?,site.id,ordinal as u32),sources);}

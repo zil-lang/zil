@@ -75,7 +75,7 @@ pub(super) struct CheckedOriginal {
     results:BTreeMap<SemanticDefinitionId,Ty>,
     calls:BTreeMap<(SemanticDefinitionId,SemanticSiteId),Vec<Arg>>,
     intrinsic_type_sources:BTreeMap<(SemanticDefinitionId,SemanticSiteId,u32),NodeId>,
-    call_type_sources:BTreeMap<(SemanticDefinitionId,SemanticSiteId,u32),Vec<NodeId>>,
+    call_type_sources:BTreeMap<(SemanticDefinitionId,SemanticSiteId,u32),Vec<(NodeId,bool)>>,
     call_targets:BTreeMap<(SemanticDefinitionId,SemanticSiteId),SemanticDefinitionId>,
     trait_calls:BTreeMap<(SemanticDefinitionId,SemanticSiteId),trait_calls::TraitCall>,
     constructors:BTreeMap<(SemanticDefinitionId,SemanticSiteId),VariantConstruction>,

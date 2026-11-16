@@ -137,7 +137,7 @@ impl CheckedOriginal {
                             active,
                             b,
                         )?;
-                        self.unify(&actual, &element, b)?;
+                        self.relate_value(&actual, &element, b)?;
                         Ty::ErrorUnion(
                             Box::new(element.as_ref().clone()),
                             Box::new(Ty::Atom(Type::Unit)),

@@ -715,7 +715,7 @@ impl CheckedContext {
             let expected=if sources.is_empty(){self.evaluate_actual(module,recipe,environment,external,active,b)?}else{
                 if !matches!(recipe,SemanticActualRecipe::Type(_)){return Err(bad("inferred whole Type source changed its complete actual kind"));}
                 let mut selected=None;
-                for source in &sources{let value=self.evaluate_type(module,source,environment,external,active,b)?;if let Some(expected)=&selected{if !self.same_type(environment,expected,&value,b)?{return Err(bad("repeated inferred Type arguments have different whole intrinsic domains"));}}else{selected=Some(value);}}
+                for(source,shared_view)in &sources{let value=self.evaluate_type(module,source,environment,external,active,b)?;let value=if *shared_view{self.call_shared_view(&value,b)?}else{value};if let Some(expected)=&selected{if !self.same_type(environment,expected,&value,b)?{return Err(bad("repeated inferred Type arguments have different whole intrinsic domains"));}}else{selected=Some(value);}}
                 CheckedActual::Type(selected.ok_or_else(||bad("inferred whole Type has no original source occurrence"))?)
             };
             let equal=match (&expected,claim) {
@@ -744,12 +744,12 @@ impl CheckedContext {
         let mut signature=self.world_signature(module,signature,worlds,environment,external,active,b)?;
         if signature.parameters.len()!=arguments.len() {return Err(bad("actual Call operand count differs from its original signature"));}
         b.spend(arguments.len())?;
-        let source_inputs=self.original_call_inputs(module,caller,site,&signature,key,arguments,values,environment,external,active,b)?;
+        let(source_inputs,source_checks)=self.original_call_inputs(module,caller,site,&signature,key,arguments,values,environment,external,active,b)?;
         let inputs=source_inputs.iter().collect::<Vec<_>>();
         self.instantiate_call_heads(&mut signature,&inputs,key,environment,b)?;
         let actual_function=module.functions.get(callee.0 as usize).ok_or_else(||bad("actual Call function is absent"))?;
-        for ((expected,_),argument) in signature.parameters.iter().zip(arguments) {
-            if !self.call_argument(module,caller,*argument,values,expected,environment,b)? {return Err(bad("actual Call argument violates the original invariant class specialization"));}
+        for (index,((expected,_),argument)) in signature.parameters.iter().zip(arguments).enumerate() {
+            if !self.call_argument(module,caller,*argument,values,expected,environment,source_checks[index],b)? {return Err(bad("actual Call argument violates the original invariant class specialization"));}
         }
         if actual_function.return_type!=signature.result.ty {return Err(bad("actual Call specialization result whole type differs"));}
         Ok(if signature.result.ty==Type::Unit {None}else{Some(signature.result)})

@@ -149,12 +149,13 @@ impl CheckedOriginal {
         }}
         match mode{
             PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe=>{
-                let (actual,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&actual,env,false,active,b)?;}self.relate_value(&actual,expected,b)?;Ok(actual)
+                let (source,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&source,env,false,active,b)?;}let actual=self.contextual_borrow_value(&source,expected,b)?;self.relate_value(&actual,expected,b)?;Ok(actual)
             },
             PassingMode::Copy=>{
-                let (actual,place)=self.place(module,context,expression,env,bindings,active,b)?;
+                let (source,place)=self.place(module,context,expression,env,bindings,active,b)?;
+                let actual=self.contextual_borrow_value(&source,expected,b)?;
                 self.require_copy(module,context,&actual,env,active,b)?;
-                if let Some(place)=place{self.read_original(module,context,&place,&actual,env,false,active,b)?;}self.relate_value(&actual,expected,b)?;Ok(actual)
+                if let Some(place)=place{self.read_original(module,context,&place,&source,env,false,active,b)?;}self.relate_value(&actual,expected,b)?;Ok(actual)
             },
             PassingMode::Give=>{if !matches!(expression.kind,CoreExprKind::Unary{op:UnaryOp::Give,..}){return Err(bad("original owning resource argument omits explicit give"));}self.expression(module,context,expression,env,bindings,Some(expected),active,b)},
             _=>self.expression(module,context,expression,env,bindings,Some(expected),active,b),
@@ -237,6 +238,37 @@ mod projection_source_tests {
         assert!(!checked.outer_outlives(&Life::Local(owner,NodeId(11)),&a,&mut BTreeSet::new(),&mut b).unwrap(),"a local manager cannot acquire an unrelated rigid output lifetime");
         assert!(checked.observe_projection_parent(NodeId(5),&address(z.clone()),NodeId(2),&env,&mut b).is_err(),"one original projection cannot silently replace its observer source");
         assert_eq!(checked.borrow_parents[&(owner,NodeId(2))],a);
+        assert!(!checked.same_life(&a,&z,&mut b).unwrap());
+    }
+}
+
+impl CheckedOriginal {
+    /// A contextual shared reborrow consumes a view, while the source
+    /// expression and lexical binder retain their actual exclusive category.
+    pub(super) fn contextual_borrow_value(&self,actual:&Ty,expected:&Ty,b:&mut Budget)->Check<Ty>{
+        let actual=self.resolved(actual,b)?;
+        if matches!(self.resolved(expected,b)?,Ty::Address{mutable:false,..}){if let Ty::Address{mutable:true,life,inner}=actual{return Ok(Ty::Address{mutable:false,life,inner});}}
+        Ok(actual)
+    }
+}
+
+#[cfg(test)]
+mod shared_reborrow_tests {
+    use super::*;
+    #[test]
+    fn shared_reborrow_changes_only_the_outer_view_and_never_upgrades_or_retags_the_child(){
+        let owner=SemanticDefinitionId{module:zil_base::ModuleId(0),index:0};let a=Life::Formal(owner,0);let z=Life::Formal(owner,1);
+        let inner=Ty::Nominal(owner,vec![Arg::Life(a.clone()),Arg::Life(z.clone())]);
+        let address=|mutable,inner|Ty::Address{mutable,life:a.clone(),inner:Box::new(inner)};
+        let exclusive=address(true,inner.clone());let shared=address(false,inner.clone());
+        let mut checked=CheckedOriginal::default();checked.current=Some(owner);let mut b=Budget::new(&Limits::default());
+        let view=checked.contextual_borrow_value(&exclusive,&shared,&mut b).unwrap();assert_eq!(view,shared);assert_eq!(exclusive,address(true,inner));
+        checked.relate_value(&exclusive,&shared,&mut b).unwrap();
+        let reverse=checked.contextual_borrow_value(&shared,&exclusive,&mut b).unwrap();assert!(checked.relate_value(&reverse,&exclusive,&mut b).is_err());
+        let swapped=address(false,Ty::Nominal(owner,vec![Arg::Life(z.clone()),Arg::Life(a.clone())]));
+        assert!(checked.relate_value(&exclusive,&swapped,&mut b).is_err());
+        let scalar=Ty::Atom(Type::I32);let nested_exclusive=address(true,address(true,scalar.clone()));let nested_shared=address(false,address(false,scalar));
+        assert!(checked.relate_value(&nested_exclusive,&nested_shared,&mut b).is_err(),"root reborrow cannot change a pointee's own address mode");
         assert!(!checked.same_life(&a,&z,&mut b).unwrap());
     }
 }

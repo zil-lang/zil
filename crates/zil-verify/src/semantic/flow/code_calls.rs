@@ -37,10 +37,10 @@ impl CheckedContext{
         let expected=self.ordinary_code(module,SemanticCodeKind::FunctionPointer,&signature,b)?;
         if !self.same_type(environment,callee,&expected,b)?{return Err(bad("indirect code call changes its complete original code scheme"));}
         let key=ScopeKey::Witness{definition:caller.definition,frame:active.fresh(b)?};
-        let source_inputs=self.original_call_inputs(module,caller,site,&signature,key,arguments,values,environment,external,active,b)?;
+        let(source_inputs,source_checks)=self.original_call_inputs(module,caller,site,&signature,key,arguments,values,environment,external,active,b)?;
         let inputs=source_inputs.iter().collect::<Vec<_>>();
         self.instantiate_call_heads(&mut signature,&inputs,key,environment,b)?;
-        for((expected,_),argument)in signature.parameters.iter().zip(arguments){if !self.call_argument(module,caller,*argument,values,expected,environment,b)?{return Err(bad("indirect code argument changes its complete original type/class/source role"));}}
+        for(index,((expected,_),argument))in signature.parameters.iter().zip(arguments).enumerate(){if !self.call_argument(module,caller,*argument,values,expected,environment,source_checks[index],b)?{return Err(bad("indirect code argument changes its complete original type/class/source role"));}}
         Ok((signature.result.ty!=Type::Unit).then_some(signature.result))
     }
 }

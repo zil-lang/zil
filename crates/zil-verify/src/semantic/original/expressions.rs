@@ -22,7 +22,13 @@ impl CheckedOriginal {
                     }
                 }
             }
-            let actual=match &expression.kind{
+            let shared_context=expected.map(|ty|self.resolved(ty,b)).transpose()?.is_some_and(|ty|matches!(ty,Ty::Address{mutable:false,..}));
+            let actual=if shared_context&&matches!(expression.kind,CoreExprKind::Name(_)|CoreExprKind::Member{..}|CoreExprKind::ReceiverMember(_)|CoreExprKind::Index{..}|CoreExprKind::Unary{op:UnaryOp::Dereference,..}){
+                let(actual,place)=self.place(module,context,expression,env,bindings,active,b)?;
+                if matches!(self.resolved(&actual,b)?,Ty::Address{mutable:true,..}){if let Some(place)=&place{self.read_original(module,context,place,&actual,env,false,active,b)?;}}
+                else{self.take_place(module,context,&actual,place.as_ref(),env,active,b)?;}
+                actual
+            }else{match &expression.kind{
                 CoreExprKind::Unit=>Ty::Atom(Type::Unit),
                 CoreExprKind::Bool(_)=>Ty::Atom(Type::Bool),
                 CoreExprKind::Literal(value)=>Ty::Atom(value.ty()),
@@ -76,7 +82,7 @@ impl CheckedOriginal {
                 },
                 CoreExprKind::Call{callee,arguments}=>self.call(module,context,expression,callee,arguments,env,bindings,expected,active,b)?,
                 CoreExprKind::Tuple(fields)=>{let expected=expected.map(|ty|self.resolved(ty,b)).transpose()?;let mut actuals=Vec::new();for(index,field)in fields.iter().enumerate(){let field_expected=match &expected{Some(Ty::Tuple(fields))=>fields.get(index),_=>None};actuals.push(self.expression(module,context,field,env,bindings,field_expected,active,b)?);}if actuals.is_empty(){Ty::Atom(Type::Unit)}else{Ty::Tuple(actuals)}},
-                CoreExprKind::Array(fields)=>{let contextual=expected.map(|ty|self.resolved(ty,b)).transpose()?;let mut child=match contextual{Some(Ty::Array(child,_))=>*child,_=>self.fresh(b)?};for field in fields{let actual=self.expression(module,context,field,env,bindings,Some(&child),active,b)?;self.unify(&actual,&child,b)?;child=self.resolved(&child,b)?;}Ty::Array(Box::new(child),Box::new(Const{carrier:Box::new(Ty::Atom(Type::Usize)),value:ConstValue::Value(Constant::Usize(fields.len() as u64))}))},
+                CoreExprKind::Array(fields)=>{let contextual=expected.map(|ty|self.resolved(ty,b)).transpose()?;let mut child=match contextual{Some(Ty::Array(child,_))=>*child,_=>self.fresh(b)?};for field in fields{let actual=self.expression(module,context,field,env,bindings,Some(&child),active,b)?;self.relate_value(&actual,&child,b)?;child=self.resolved(&child,b)?;}Ty::Array(Box::new(child),Box::new(Const{carrier:Box::new(Ty::Atom(Type::Usize)),value:ConstValue::Value(Constant::Usize(fields.len() as u64))}))},
                 CoreExprKind::Record{ty,fields}=>{let ty=self.ty(module,context,ty,env,active,b)?;self.record(module,context,&ty,fields,None,env,bindings,active,b)?;self.constructed_resource(module,context,ty,expression,env,b)?},
                 CoreExprKind::RecordConstructor{definition,fields}=>{let ty=match expected.or(self.binding_families.get(&(id,expression.id))){Some(ty)=>match self.resolved(ty,b)?{Ty::Managed(inner)=>*inner,ty=>ty},None=>{let definition=definition.ok_or_else(||bad("original record constructor has no identity or context"))?;let row=context.definition(module,definition,b)?;if !row.parameters.is_empty(){return Err(unsupported("original generic record constructor needs full context inference",None));}Ty::Nominal(definition,vec![])}};if definition.is_some_and(|id|!matches!(ty,Ty::Nominal(actual,_)if id==actual)){return Err(bad("original record constructor changes declaration"));}self.record(module,context,&ty,fields,None,env,bindings,active,b)?;self.constructed_resource(module,context,ty,expression,env,b)?},
                 CoreExprKind::RecordUpdate{ty,base,fields}=>{let annotation=ty.as_ref().map(|ty|self.ty(module,context,ty,env,active,b)).transpose()?;let base=self.expression(module,context,base,env,bindings,annotation.as_ref().or(expected),active,b)?;self.record(module,context,&base,fields,Some(&base),env,bindings,active,b)?;base},
@@ -116,11 +122,11 @@ impl CheckedOriginal {
                 },
                 CoreExprKind::Try(value)=>match self.expression(module,context,value,env,bindings,None,active,b)?{Ty::ErrorUnion(_,result)=>*result,_=>return Err(bad("original propagation has no ErrorUnion operand"))},
                 _=>return Err(unsupported("original expression has no complete symbolic operation rule",Some(expression.span))),
-            };
+            }};
             let actual=self.code_value(module,context,expression,&actual,expected,false,env,active,b)?;
             if let Some(expected)=expected{self.relate_value(&actual,expected,b)?;}
             if self.creation(id,expression,bindings,b)?{b.spend(1)?;self.created.insert((id,expression.id));}
-            self.expressions.insert((id,expression.id),actual.clone());Ok(actual)
+            self.expressions.insert((id,expression.id),actual.clone());if let Some(expected)=expected{self.contextual_borrow_value(&actual,expected,b)}else{Ok(actual)}
         }).map_err(|mut error|{error.message.push_str(&format!(" [original definition {:?}, expression {:?}]",env.current().ok(),expression.id));if error.span.is_none(){error.span=Some(expression.span);}error})
     }
     pub(super) fn literal_original(&self,module:&TypedModule,text:&str,floating:bool,expected:Option<&Ty>,b:&mut Budget)->Check<Ty>{

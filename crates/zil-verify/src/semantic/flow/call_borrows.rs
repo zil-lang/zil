@@ -7,12 +7,12 @@ impl CheckedContext {
     /// image. An extra compiler reborrow is an input role, not the lifetime of
     /// an opaque/nominal result that retains the original caller occurrence.
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn original_call_inputs(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,signature:&CheckedSignature,key:ScopeKey,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<CheckedType>>{
+    pub(super) fn original_call_inputs(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,signature:&CheckedSignature,key:ScopeKey,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<(Vec<CheckedType>,Vec<bool>)>{
         if signature.parameters.len()!=arguments.len(){return Err(bad("actual Call inputs change the complete callee signature arity"));}
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=caller.target else{return Err(bad("original Call inputs have no actual caller function"));};
         let f=module.functions.get(function.0 as usize).filter(|row|row.id==function).ok_or_else(||bad("original Call input actual caller is absent"))?;
         b.spend(arguments.len())?;
-        let mut checked=Vec::with_capacity(arguments.len());
+        let mut checked=Vec::with_capacity(arguments.len());b.spend(arguments.len())?;let mut exact_sources=vec![false;arguments.len()];
         let original_regions=self.original.borrow().as_ref().ok_or_else(||bad("Call inputs have no original region proof"))?.has_call_regions(caller.definition,site.recipe,b)?;
         let mut adapted=Vec::new();
         for(index,argument)in arguments.iter().enumerate(){
@@ -20,33 +20,36 @@ impl CheckedContext {
             actual.charge_clone(b)?;checked.push(actual.clone());
             // Ordinary ownership, manager/Desc category adaptation and whole
             // Type arguments keep their already reconstructed actual domain.
-            // The later invariant callee P/R check is their authority. Only a
-            // fresh outer invocation head exported by R needs an original
-            // caller image instead of an extra compiler argument-reborrow head.
+            // The later invariant callee P/R check is their authority. An
+            // exported fresh head or a real exclusive-to-shared adapter also
+            // proves its original source instead of borrowing another SSA's
+            // same-shaped type. Neither path changes a child intrinsic class.
             if !matches!(actual.ty,Type::Address{..}){continue;}
             if original_regions{b.spend(1)?;adapted.push(index);continue;}
-            if !returned_input_head(signature,key,index,b)?{continue;}
-            let mut producer=None;
-            for block in &f.blocks{b.spend(block.instructions.len())?;for operation in &block.instructions{
-                if operation.result==Some(*argument)&&producer.replace(operation).is_some(){return Err(bad("Call argument adapter has several actual SSA definitions"));}
-            }}
-            let producer=producer.ok_or_else(||bad("Call argument adapter has no actual SSA definition"))?;
+            let exported=returned_input_head(signature,key,index,b)?;
+            let shared=matches!(actual.ty,Type::Address{mutable:false,..})&&matches!(signature.parameters[index].0.ty,Type::Address{mutable:false,..});
+            if !exported&&!(shared&&shared_reborrow_adapter(module,f,*argument,b)?){continue;}
+            let producer=call_borrow_producer(f,*argument,b)?;
             crate::check_instruction(module,f,producer,b)?;
             if matches!(producer.kind,InstructionKind::ReborrowAddress{..}){b.spend(1)?;adapted.push(index);}
         }
-        if adapted.is_empty(){return Ok(checked);}
+        if adapted.is_empty(){return Ok((checked,exact_sources));}
         let recipes=self.original.borrow().as_ref().ok_or_else(||bad("Call inputs have no universal original body proof"))?.call_input_recipes(module,caller.definition,site.recipe,b)?;
         if recipes.len()!=arguments.len(){return Err(bad("actual Call inputs change the exact original argument arity"));}
         for index in adapted{
             let(node,recipe,origin)=&recipes[index];let argument=arguments[index];
             let source=self.evaluate_type(module,recipe,environment,external,active,b)?;
+            let source=if matches!(source.ty,Type::Address{mutable:true,..})&&matches!(signature.parameters[index].0.ty,Type::Address{mutable:false,..}){
+                if !shared_reborrow_adapter(module,f,argument,b)?{return Err(bad("Call shared view lacks its exact exclusive-to-shared ReborrowAddress adapter"));}
+                self.call_shared_view(&source,b)?
+            }else{source};
             self.call_input_source(module,caller,f,argument,*node,*origin,b)?;
-            if !self.call_argument(module,caller,argument,values,&source,environment,b)?{
+            if !self.call_argument(module,caller,argument,values,&source,environment,true,b)?{
                 return Err(bad("actual Call input changes its original whole operand or exact argument reborrow role").with_note(format!("original {:?}, call {:?}, operand {index} expression {:?}, actual SSA {:?}, point {:?}; source domain {}, actual domain {}",caller.definition,site.recipe,node,argument,environment.at,source.life.binder_count,checked[index].life.binder_count)));
             }
-            checked[index]=source;
+            checked[index]=source;exact_sources[index]=true;
         }
-        Ok(checked)
+        Ok((checked,exact_sources))
     }
     pub(super) fn instantiate_call_heads(&self,signature:&mut CheckedSignature,arguments:&[&CheckedType],key:ScopeKey,environment:&EvalEnv,b:&mut Budget)->Check<()>{
         if arguments.len()!=signature.parameters.len(){return Err(bad("Call head substitution changes its actual arity"));}
@@ -90,8 +93,20 @@ impl CheckedContext {
             signature.invocation.retain(|key|key!=&source);signature.bound.retain(|key|key!=&source);
         }Ok(())
     }
+    pub(super) fn call_shared_view(&self,source:&CheckedType,b:&mut Budget)->Check<CheckedType>{
+        let Type::Address{mutable:true,inner}=&source.ty else{return Err(bad("Call shared source view is not an exclusive address"));};
+        source.charge_clone(b)?;dynamic_metadata::ty(inner,b)?;let mut value=source.clone();value.replace_type(Type::Address{mutable:false,inner:inner.clone()});
+        let mut outer=value.life.slots.iter().enumerate().filter(|(_,slot)|slot.path.is_empty());
+        let Some((index,slot))=outer.next()else{return Err(bad("Call exclusive source lacks its actual outer occurrence"));};
+        if outer.next().is_some()||slot.mode!=StoredBorrowMode::ExclusiveAddress{return Err(bad("Call exclusive source has another complete outer mode"));}
+        let binder=slot.binder;
+        b.spend(value.life.slots.len().saturating_add(value.life.retained.len()).saturating_add(value.life.nominal_arguments.len()))?;
+        if value.life.slots.iter().any(|slot|!slot.path.is_empty()&&slot.binder==binder)||value.life.retained.iter().any(|row|row.binder==binder)||value.life.nominal_arguments.iter().any(|row|row.binder==binder){return Err(bad("Call shared outer view overlaps a whole child intrinsic class"));}
+        value.life.slots[index].mode=StoredBorrowMode::SharedAddress;
+        Ok(value)
+    }
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn call_argument(&self,module:&TypedModule,caller:&SemanticInstance,argument:ValueId,values:&[Option<CheckedType>],expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<bool>{
+    pub(super) fn call_argument(&self,module:&TypedModule,caller:&SemanticInstance,argument:ValueId,values:&[Option<CheckedType>],expected:&CheckedType,environment:&EvalEnv,original_source_checked:bool,b:&mut Budget)->Check<bool>{
         let actual=value_at(values,argument)?;
         if self.compatible(environment,actual,expected,b)?{return Ok(true);}
         if actual.ty!=expected.ty||!matches!(actual.ty,Type::Address{..}){return Ok(false);}
@@ -108,16 +123,19 @@ impl CheckedContext {
         let mut current=argument;let mut seen=std::collections::BTreeSet::new();let mut related=false;
         loop{
             b.spend(1)?;if !seen.insert(current){return Err(bad("Call argument reborrow has an SSA producer cycle"));}
-            let mut producer=None;for block in &f.blocks{b.spend(block.instructions.len())?;for row in &block.instructions{if row.result==Some(current)&&producer.replace(row).is_some(){return Err(bad("Call argument has several SSA definitions"));}}}
-            let InstructionKind::ReborrowAddress{address,..}=&producer.ok_or_else(||bad("Call argument borrow is undefined"))?.kind else{break;};
+            let producer=call_borrow_producer(f,current,b)?;crate::check_instruction(module,f,producer,b)?;
+            let InstructionKind::ReborrowAddress{address,mutable}=&producer.kind else{break;};
             current=*address;
             let parent=value_at(values,current)?;
+            let shared_parent=outer.mode==StoredBorrowMode::SharedAddress&&!*mutable&&matches!(parent.ty,Type::Address{mutable:true,..});
+            let view=if shared_parent{Some(self.call_shared_view(parent,b)?)}else{None};let parent=view.as_ref().unwrap_or(parent);
             let Some(parent_outer)=parent.life.slots.iter().find(|row|row.path.is_empty()&&row.mode==outer.mode)else{break;};
             let key=parent.classes.get(parent_outer.binder as usize).ok_or_else(||bad("Call reborrow parent class is absent"))?;
-            if self.same(environment,source,key,b)?{
+            let related_source=self.same(environment,source,key,b)?||original_source_checked&&self.outlives(environment,key,source,b)?;
+            if related_source{
                 // The exact original expression head must be a real earlier
                 // operand in this same caller, never another class image.
-                let exact_occurrence=matches!(key,ClassKey::Outer{scope:owner,operand:OperandKey::Value(id),path,mode}if *owner==scope&&*id==current&&path.is_empty()&&*mode==outer.mode);
+                let exact_occurrence=matches!(key,ClassKey::Outer{scope:owner,operand:OperandKey::Value(id),path,mode}if *owner==scope&&*id==current&&path.is_empty()&&(*mode==outer.mode||shared_parent&&*mode==StoredBorrowMode::ExclusiveAddress));
                 let parameter_role=match key{
                     ClassKey::Formal{..}=>{
                         b.spend(environment.lexical.iter().fold(1usize,|n,frame|n.saturating_add(frame.actuals.len())))?;
@@ -126,7 +144,7 @@ impl CheckedContext {
                     ClassKey::Implicit{scope:owner,..}if *owner==scope=>loaded_parameter(f,current,b)?,
                     _=>false,
                 };
-                if !exact_occurrence&&!parameter_role{return Ok(false);}
+                if !exact_occurrence&&!parameter_role&&!original_source_checked{return Ok(false);}
                 if !self.compatible(environment,parent,expected,b)?{return Ok(false);}
                 related=true;break;
             }
@@ -240,5 +258,40 @@ mod input_image_tests{
         assert!(!context.outlives(&env,&arguments[0].classes[0],&arguments[1].classes[0],&mut b).unwrap());
         assert!(!context.outlives(&env,&fresh[0],&arguments[0].classes[0],&mut b).unwrap());
         assert_eq!(repeated.result.life.binder_count,2,"directed input adaptation must preserve the complete result domain");
+    }
+}
+
+fn call_borrow_producer<'a>(f:&'a TypedFunction,value:ValueId,b:&mut Budget)->Check<&'a Instruction>{
+    let mut producer=None;for block in &f.blocks{b.spend(block.instructions.len())?;for operation in &block.instructions{if operation.result==Some(value)&&producer.replace(operation).is_some(){return Err(bad("Call argument adapter has several actual SSA definitions"));}}}producer.ok_or_else(||bad("Call argument adapter has no actual SSA definition"))
+}
+fn shared_reborrow_adapter(module:&TypedModule,f:&TypedFunction,argument:ValueId,b:&mut Budget)->Check<bool>{
+    let mut current=argument;let mut seen=std::collections::BTreeSet::new();
+    loop{
+        b.spend(1)?;if !seen.insert(current){return Err(bad("Call shared reborrow adapter has a producer cycle"));}
+        let producer=call_borrow_producer(f,current,b)?;crate::check_instruction(module,f,producer,b)?;
+        let InstructionKind::ReborrowAddress{address,mutable:false}=producer.kind else{return Ok(false);};
+        match f.values.get(address.0 as usize){Some(Type::Address{mutable:true,..})=>return Ok(true),Some(Type::Address{mutable:false,..})=>current=address,_=>return Ok(false)}
+    }
+}
+
+#[cfg(test)]
+mod shared_view_tests{
+    use super::*;
+    #[test]
+    fn exclusive_call_view_keeps_every_inner_origin_even_when_outside_images_are_equal(){
+        let limits=Limits::default();let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/phantom-closure-complete-creator.wire"),&limits).unwrap();
+        let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();let instance=module.semantic.as_ref().unwrap().instances[0].id;let scope=ScopeKey::Instance(instance);
+        let image=ClassKey::Implicit{scope,ordinal:0};let outer=ClassKey::Outer{scope,operand:OperandKey::Value(ValueId(1)),path:vec![],mode:StoredBorrowMode::ExclusiveAddress};
+        let origin=|class|IntrinsicOrigin::Existing{scope,operand:OperandKey::Value(ValueId(0)),path:vec![LifeTypeProjection::Pointee],class};
+        // This tests complete domain transport, not admission of this synthetic
+        // scalar pointee or an actual SSA/owner permission.
+        let source=CheckedType{type_cell:crate::semantic::CheckedTypeData::new(Type::Address{mutable:true,inner:Box::new(Type::I32)}),life:StorageLifeShape{binder_count:3,slots:vec![StorageLifeSlot{path:vec![],binder:2,mode:StoredBorrowMode::ExclusiveAddress}],retained:vec![StorageRetainedBinding{path:vec![LifeTypeProjection::Pointee],class:0,binder:0},StorageRetainedBinding{path:vec![LifeTypeProjection::Pointee],class:1,binder:1}],nominal_arguments:vec![]},classes:vec![image.clone(),image,outer.clone()],origins:vec![origin(0),origin(1),IntrinsicOrigin::DerivedClass{source:outer}],statics:vec![]};
+        let view=context.call_shared_view(&source,&mut b).unwrap();
+        assert!(matches!(view.ty,Type::Address{mutable:false,..}));assert_eq!(view.life.binder_count,3);assert_eq!(view.life.retained,source.life.retained);assert_eq!(view.classes,source.classes);assert_eq!(view.origins,source.origins);assert_ne!(view.origins[0],view.origins[1]);
+        let env=EvalEnv{lexical:vec![],assumptions:vec![],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        assert!(!context.same_type(&env,&source,&view,&mut b).unwrap(),"a private view is not a global type equality");
+        let mut changed=view.clone();changed.origins.swap(0,1);assert!(!context.same_type(&env,&view,&changed,&mut b).unwrap());
+        assert!(context.call_shared_view(&view,&mut b).is_err());
+        assert!(context.reborrow_value(&view,scope,ValueId(2),true,&mut b).unwrap_err().message.contains("upgrades a shared address"));
     }
 }
