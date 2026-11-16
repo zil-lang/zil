@@ -1688,6 +1688,25 @@ pub(super) fn qualifications(
                 b.spend(1)?;
                 // Type/mode authentication is independent of dispatch flags.
                 anonymous_tuple::operation(f, i, b)?;
+                if matches!(i.kind, InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. }) {
+                    let (local, mutable) = match i.kind {
+                        InstructionKind::BorrowLocal { local } => (local, false),
+                        InstructionKind::BorrowLocalMut { local } => (local, true),
+                        _ => unreachable!(),
+                    };
+                    let source = f.locals.get(local.0 as usize).ok_or_else(||
+                        reject("E-VERIFY-TYPE", Some(i.span), "borrow source local is absent"))?;
+                    let actual = i.result.and_then(|id| f.values.get(id.0 as usize)).ok_or_else(||
+                        reject("E-VERIFY-TYPE", Some(i.span), "borrow result type is absent"))?;
+                    type_work(&source.ty, limits, b)?;
+                    type_work(actual, limits, b)?;
+                    if !matches!(actual, Type::Address { mutable: mode, inner }
+                        if *mode == mutable && inner.as_ref() == &source.ty)
+                    {
+                        return Err(reject("E-VERIFY-TYPE", Some(i.span),
+                            "borrow result differs from its exact actual local type or mode"));
+                    }
+                }
                 if let InstructionKind::Load(local) = i.kind
                     && f.locals
                         .get(local.0 as usize)
@@ -8564,7 +8583,7 @@ mod tests {
                 let expected = match variant {
                     0 => "entry and definition relation differ",
                     1 | 7 | 8 => "signature class relation",
-                    2 => "actual capture mapping",
+                    2 => "callable role changes an actual persistent class or constant occurrence",
                     3 => "requires complete class relation",
                     4 | 5 => "class equality",
                     _ => unreachable!(),
@@ -8573,6 +8592,10 @@ mod tests {
                     error.iter().any(|d| d.message.contains(expected)),
                     "variant{variant}: {error:?}"
                 );
+                if variant == 2 {
+                    assert!(error.iter().any(|d| d.category == zil_base::ResultCategory::SafeReject
+                        && d.code == "E-VERIFY-SIGNATURE-CLASS"), "variant{variant}: {error:?}");
+                }
                 if matches!(variant, 4 | 5) {
                     assert!(
                         error.iter().any(|d| d.message.contains("class equality")),
@@ -9108,7 +9131,10 @@ mod tests {
                         "case{case}: {error:?}"
                     );
                 } else if case == 9 {
-                    assert!(error.iter().any(|d| d.code == "E-VERIFY-TYPE"), "case{case}: {error:?}");
+                    assert!(error.iter().any(|d| d.category == zil_base::ResultCategory::SafeReject
+                        && d.code == "E-VERIFY-TYPE"
+                        && d.message == "borrow result differs from its exact actual local type or mode"),
+                        "case{case}: {error:?}");
                 } else if case == 10 {
                     assert!(
                         error.iter().any(|d| d.code == "E-VERIFY-STORED-OWNER"

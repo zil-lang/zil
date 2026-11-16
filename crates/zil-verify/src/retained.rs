@@ -11,6 +11,46 @@ fn bad(f: &TypedFunction, message: impl Into<String>) -> Diagnostic {
     reject("E-VERIFY-CALLABLE-CONTRACT", Some(f.span), message)
 }
 
+/// A claimed empty external envelope cannot hide physical borrowed leaves behind
+/// an unsupported entry profile. Virtual retained ports still need their actual
+/// source consumer: a nonempty port upper is not evidence of nonempty data.
+/// Layout cycles are checked first; the full factory and constructor proofs stay due.
+pub(super) fn check_self_contained_sources(
+    module: &TypedModule,
+    limits: &Limits,
+    budget: &mut Budget,
+) -> Check<()> {
+    budget.spend(module.functions.len())?;
+    for f in &module.functions {
+        let Type::Closure(id) = f.return_type else {
+            continue;
+        };
+        let Some(contract) = &f.callable_return_contract else {
+            continue;
+        };
+        if !matches!(contract.source, CallableReturnSource::Fresh)
+            || !contract.capture_sources.as_ref().is_some_and(Vec::is_empty)
+            || !contract.hold.is_empty()
+            || !contract.call.is_empty()
+            || !contract.writes.is_empty()
+        {
+            continue;
+        }
+        let leaves = sources::capture_leaves(module, id, limits, budget)?;
+        budget.spend(leaves.len())?;
+        if leaves.iter().any(|leaf| !matches!(leaf.position.path.last(),
+            Some(ContractProjection::RetainedPort(_))))
+        {
+            return Err(reject(
+                "E-VERIFY-CALLABLE-SOURCE",
+                Some(f.span),
+                "callable Hold/Call/write envelope omits actual external capture slots",
+            ));
+        }
+    }
+    Ok(())
+}
+
 // Only the new owning-input boundary needs this narrower signature. Existing
 // ordinary factories retain their lending profile and their exact old work.
 fn owning_signature(

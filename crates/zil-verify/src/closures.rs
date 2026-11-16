@@ -150,6 +150,7 @@ pub(super) fn check_definitions(
         return Err(limit("closure count exceeds the function bound"));
     }
     check_layouts(module, limits, budget)?;
+    retained::check_self_contained_sources(module, limits, budget)?;
     budget.spend(module.functions.len())?;
     let mut entries = vec![None; module.functions.len()];
     for (index, closure) in module.closures.iter().enumerate() {

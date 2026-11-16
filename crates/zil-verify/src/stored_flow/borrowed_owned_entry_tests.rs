@@ -165,10 +165,11 @@ fn zero_option_masked_owned_entry_rechecks_actual_bounds_and_parameters() {
         )
         .unwrap_err();
         if attack == "environment" {
-            assert_eq!(error.code, "E-VERIFY-STORED");
+            assert_eq!(error.category, zil_base::ResultCategory::SafeReject);
+            assert_eq!(error.code, "E-VERIFY-CLASS-EQUATION");
             assert_eq!(
                 error.message,
-                "stored target proof: callback function environment is absent"
+                "receiver entry environment is absent"
             );
         } else {
             assert_eq!(

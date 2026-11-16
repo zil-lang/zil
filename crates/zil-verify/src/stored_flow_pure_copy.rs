@@ -849,10 +849,12 @@ pub(super) fn qualified_package_description(
         .get(local.0 as usize)
         .ok_or_else(|| err("description owner local absent"))?
         .ty;
-    let Type::BorrowedStorage { storage, .. } = parent else {
-        return Ok(false);
+    let storage = match parent {
+        Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+        Type::Package { .. } => parent,
+        _ => return Ok(false),
     };
-    let Type::Package { fields, .. } = storage.as_ref() else {
+    let Type::Package { fields, .. } = storage else {
         return Ok(false);
     };
     let (_, field) = fields

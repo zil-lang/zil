@@ -421,19 +421,35 @@ fn indexed_results_keep_task_failures_and_final_actual_ancestry_checks() {
         vec![(vec![PlaceProjection::Field(0)], vec![origin(0)])],
         vec![origin(1)],
     )]);
+    // Exercise a real retained Task carrier with an Unknown boundary domain,
+    // rather than attaching a synthetic Task port to an ordinary address.
+    fixture.1.return_type = Type::Managed(Box::new(Type::Task {
+        result: Box::new(Type::Unit),
+        retained_life: zil_ir::RetainedLifeShape {
+            binder_count: 1,
+            ports: vec![zil_ir::RetainedBorrowPort {
+                leaf: fixture::address(Type::I32, false),
+                mode: StoredBorrowMode::SharedAddress,
+                binder: 0,
+            }],
+            retained: vec![],
+            nominal_arguments: vec![],
+        },
+    }));
+    fixture.1.values[0] = fixture.1.return_type.clone();
     fixture.3.values[0].task_ports.push((
-        vec![],
+        vec![ContractProjection::RetainedPort(0)],
         Permission {
             sources: vec![origin(1)],
             loans: vec![],
         },
     ));
     let error = compare(&fixture, true).unwrap_err();
-    assert!(
-        error
-            .message
-            .contains("returned Task lacks complete retained relation")
-    );
+    assert_eq!(error.category, zil_base::ResultCategory::SafeReject);
+    assert_eq!(error.code, "E-VERIFY-STORED");
+    assert_eq!(error.message, "stored target proof: Task boundary class domain is Unknown");
+    fixture.1.return_type = fixture::address(Type::I32, false);
+    fixture.1.values[0] = fixture.1.return_type.clone();
     fixture.3.values[0].task_ports.clear();
     fixture.3.loans = vec![Loan {
         receiver_head: false,
