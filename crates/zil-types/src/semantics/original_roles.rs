@@ -317,7 +317,7 @@ impl Check<'_, '_> {
             node: place.id,
         })
     }
-    fn input_lifetime(
+    pub(super) fn input_lifetime(
         &mut self,
         owner: SemanticDefinitionId,
         lifetime: &SemanticOuterLifeRecipe,
@@ -329,7 +329,12 @@ impl Check<'_, '_> {
         };
         for (ordinal, parameter) in signature.parameters.iter().enumerate() {
             self.pay(1, depth)?;
-            if matches!(&parameter.ty, SemanticTypeRecipe::Address { lifetime: source, .. } | SemanticTypeRecipe::Desc { lifetime: source, .. } if source == lifetime)
+            let parameter_type = self
+                .proof
+                .types
+                .get(&(owner, Query::Parameter(ordinal as u32)))
+                .unwrap_or(&parameter.ty);
+            if matches!(parameter_type, SemanticTypeRecipe::Address { lifetime: source, .. } | SemanticTypeRecipe::Desc { lifetime: source, .. } if source == lifetime)
             {
                 return Ok(Some(ordinal as u32));
             }

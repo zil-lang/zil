@@ -132,7 +132,8 @@ pub(super) fn evaluate(
         let actual = world.get(values, *operand)?;
         let expected = world.ty(instance.id, parameter, World::type_of(&actual)?)?;
         arguments::satisfy(
-            world, instance, None, site, ordinal, *operand, &actual, &expected, locals, implicit,
+            world, instance, None, site, ordinal, *operand, &actual, &expected, values, locals,
+            implicit,
         )?;
         parameters.push(expected);
     }

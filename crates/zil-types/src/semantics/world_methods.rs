@@ -492,6 +492,7 @@ pub(super) fn evaluate(
                 *argument,
                 &actual,
                 &expected,
+                values,
                 locals,
                 implicit,
             )?;
@@ -865,6 +866,7 @@ pub(super) fn callable(
             *argument,
             &actual,
             &expected,
+            values,
             locals,
             implicit,
         )?;
@@ -1136,6 +1138,7 @@ pub(super) fn direct(
                 *argument,
                 &actual,
                 &expected,
+                values,
                 locals,
                 implicit,
             )?;

@@ -87,6 +87,7 @@ pub(super) fn satisfy(
     operand: ValueId,
     actual: &SemanticTypeValue,
     expected: &SemanticTypeValue,
+    values: &[Option<SharedType>],
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
@@ -120,10 +121,11 @@ pub(super) fn satisfy(
             .saturating_mul(world.vacant.len().saturating_add(1)),
     )?;
     for root in &actual_roots {
-        if locals
-            .get(root.local.0 as usize)
-            .and_then(|value| value.as_ref())
-            .is_none()
+        if world.stale_locals.contains(&root.local)
+            || locals
+                .get(root.local.0 as usize)
+                .and_then(|value| value.as_ref())
+                .is_none()
         {
             return Err(bad(
                 "call outer-role adapter has an inactive actual parent storage root",
@@ -175,6 +177,47 @@ pub(super) fn satisfy(
     if super::receiver::permits(world, caller.id, site.recipe, operand, &source, &target)? {
         // This exact source binding/field path and actual producer establish
         // only this receiver loan. Its whole pointee domain was checked above.
+        return Ok(());
+    }
+    if super::borrow_roles::call_region_argument(
+        world, caller, site, parameter, operand, &expected, values, locals, implicit,
+    )? {
+        // The exact original input and reaching actual read/projection/borrow
+        // were checked; no source type or class image is replaced here.
+        let SemanticSiteAddress::Typed {
+            block, instruction, ..
+        } = site.at
+        else {
+            return Err(bad("call region has no exact actual Typed call site"));
+        };
+        let mut parents = Vec::new();
+        let mut cursor = operand;
+        let mut seen = BTreeSet::new();
+        loop {
+            world.pay(index::search(world.reborrows.len()).saturating_add(1))?;
+            if let Some(edge) = world.reborrows.get(&cursor) {
+                if parents.len() >= world.limits.max_call_depth || !seen.insert(cursor) {
+                    return Err(bad(
+                        "call region has a cyclic or excessive real reborrow chain",
+                    ));
+                }
+                parents.push(edge.parent);
+                cursor = edge.parent;
+            } else {
+                break;
+            }
+        }
+        world.argument_witnesses.push(Witness {
+            caller: caller.id,
+            callee: callee.map(|row| row.id),
+            recipe: site.recipe,
+            block,
+            instruction,
+            parameter: parameter as u32,
+            operand,
+            parents,
+            roots: actual_roots,
+        });
         return Ok(());
     }
     let mut parents = Vec::new();

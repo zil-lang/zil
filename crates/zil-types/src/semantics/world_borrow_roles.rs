@@ -57,12 +57,14 @@ fn binding_local(
     instance: &SemanticInstance,
     original: &SemanticDefinition,
     binding: NodeId,
+    observed: NodeId,
 ) -> R<LocalId> {
     binding_source_local(
         world,
         instance,
         original,
         &SemanticOriginalTypeSource::Binding(binding),
+        observed,
     )
 }
 fn binding_source_local(
@@ -70,6 +72,7 @@ fn binding_source_local(
     instance: &SemanticInstance,
     original: &SemanticDefinition,
     source: &SemanticOriginalTypeSource,
+    observed: NodeId,
 ) -> R<LocalId> {
     world.pay(world.program.sites.len())?;
     let mut found = None;
@@ -97,7 +100,72 @@ fn binding_source_local(
             found = Some(local);
         }
     }
-    found.ok_or_else(|| bad("projected loan alias lacks its exact original declaration"))
+    if let Some(local) = found {
+        return Ok(local);
+    }
+    // Pattern payloads do not have an ordinary Binding statement mint. Use
+    // this exact original Name observation and its emitted local selector;
+    // never search for another local of an equal type.
+    let ledger = world.ledger;
+    let proof = ledger.original.borrow();
+    let proof = proof
+        .as_ref()
+        .ok_or_else(|| bad("loan binding lost its original lexical proof"))?;
+    world.pay(index::search(proof.borrow_bindings.len()))?;
+    if proof.borrow_bindings.get(&(original.id, observed)) != Some(source) {
+        return Err(bad(
+            "loan observation does not name its exact original declaration",
+        ));
+    }
+    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+        return Err(bad("loan binding has no original observation directory"));
+    };
+    let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = instance.target
+    else {
+        return Err(bad("loan binding has no actual function"));
+    };
+    let function = world.function(function)?;
+    world.pay(site_nodes.len().saturating_add(world.program.sites.len()))?;
+    for node in site_nodes
+        .iter()
+        .filter(|row| row.node == SemanticOriginalNode::Expression(observed))
+    {
+        let recipe = world.original_recipe(original, node.site)?;
+        if !matches!(&recipe.kind, SemanticSiteRecipeKind::TypeUse { expected: SemanticTypeRecipe::OriginalType { scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Expression(actual) } } if *actual == observed)
+        {
+            continue;
+        }
+        for site in &world.program.sites {
+            if site.instance != instance.id || site.recipe != node.site {
+                continue;
+            }
+            let SemanticSiteAction::TypeUse { subject, .. } = &site.action else {
+                continue;
+            };
+            let local = match subject {
+                SemanticOperand::Local(local) => Some(*local),
+                SemanticOperand::Value(value) => match producer(world, function, *value)?.0 {
+                    InstructionKind::Load(local)
+                    | InstructionKind::BorrowLocal { local }
+                    | InstructionKind::BorrowLocalMut { local }
+                    | InstructionKind::DescribeLocal { local } => Some(*local),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some(local) = local {
+                if found.is_some_and(|old| old != local) {
+                    return Err(bad(
+                        "one original binding observation selects several actual locals",
+                    ));
+                }
+                found = Some(local);
+            }
+        }
+    }
+    found.ok_or_else(|| {
+        bad("projected loan alias lacks its exact original declaration or emitted binding read")
+    })
 }
 fn input_nominal(
     world: &mut World<'_, '_>,
@@ -299,7 +367,7 @@ fn trace(
                     statement: *statement,
                     pattern: pattern.clone(),
                 };
-                let local = binding_source_local(world, instance, original, &source)?;
+                let local = binding_source_local(world, instance, original, &source, step.node)?;
                 let actual = world.local(locals, local)?;
                 let valid = match cursor {
                     Cursor::Local(found) => !*read && found == local,
@@ -390,7 +458,7 @@ fn trace(
                 through_store = true;
             }
             ViewBorrowStepKind::Alias { binding } => {
-                let local = binding_local(world, instance, original, *binding)?;
+                let local = binding_local(world, instance, original, *binding, step.node)?;
                 world.local(locals, local)?;
                 match cursor {
                     Cursor::Value(value) if matches!(producer(world, function, value)?.0, InstructionKind::Load(actual) if *actual == local) =>
@@ -429,7 +497,7 @@ fn trace(
                         "call loan read changes its original mutable local root",
                     ));
                 }
-                let local = binding_local(world, instance, original, *binding)?;
+                let local = binding_local(world, instance, original, *binding, step.node)?;
                 let actual = world.local(locals, local)?;
                 match cursor {
                     Cursor::Value(value) if matches!(producer(world, function, value)?.0, InstructionKind::Load(found) if *found == local) =>
@@ -488,7 +556,7 @@ fn trace(
                 if role.root != ViewBorrowRoot::Local(*binding) {
                     return Err(bad("projected loan changes its original local root"));
                 }
-                let local = binding_local(world, instance, original, *binding)?;
+                let local = binding_local(world, instance, original, *binding, step.node)?;
                 let actual = world.local(locals, local)?;
                 match cursor {
                     Cursor::Local(found) if found == local => {}
@@ -729,6 +797,27 @@ pub(super) fn apply(
         }
         role.clone()
     };
+    let expected_source = roles::outer(world, expected)?;
+    let target_source = match &role.target_lifetime {
+        SemanticOuterLifeRecipe::Static => roles::Source::Static,
+        SemanticOuterLifeRecipe::Class(recipe) => {
+            let image = super::super::materialize::class_in_view(
+                world.program,
+                &world.view,
+                world.ledger,
+                instance.id,
+                recipe,
+                world.limits,
+                world.left,
+            )?;
+            roles::Source::Class(world.class(instance.id, &image, implicit)?)
+        }
+    };
+    if expected_source != target_source {
+        // The receipt belongs to a later call adapter, not to this source
+        // value's original sigma. Its exact call/parameter consumes it there.
+        return Ok(None);
+    }
     world.pay(1)?;
     if Rc::ptr_eq(actual, expected) {
         return Ok(None);
@@ -783,4 +872,118 @@ pub(super) fn apply(
         }
     }
     Ok(Some((world.share(expected)?, source)))
+}
+
+/// A directed call loan preserves the source's original complete sigma.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn call_region_argument(
+    world: &mut World<'_, '_>,
+    caller: &SemanticInstance,
+    site: &SemanticSite,
+    parameter: usize,
+    operand: ValueId,
+    expected: &SemanticTypeValue,
+    values: &[Option<SharedType>],
+    locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<bool> {
+    let roles::Source::Class(SemanticClassExpr::Implicit {
+        scope: SemanticScopeRef::Ancestor(0),
+        ordinal,
+    }) = roles::outer(world, expected)?
+    else {
+        return Ok(false);
+    };
+    let original = world.definition(caller.definition)?;
+    let parameter =
+        u32::try_from(parameter).map_err(|_| bad("call region parameter ordinal overflows"))?;
+    let role = {
+        let ledger = world.ledger;
+        let proof = ledger.original.borrow();
+        let proof = proof
+            .as_ref()
+            .ok_or_else(|| bad("call region lost its complete original proof"))?;
+        world.pay(index::search(proof.call_regions.len()))?;
+        let Some(region) = proof.call_regions.get(&(original.id, ordinal)) else {
+            return Ok(false);
+        };
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+            return Err(bad("call region has no complete original body"));
+        };
+        world.pay(
+            site_nodes
+                .len()
+                .saturating_add(index::search(region.inputs.len())),
+        )?;
+        if !site_nodes.iter().any(|row| {
+            row.site == site.recipe && row.node == SemanticOriginalNode::Expression(region.call)
+        }) {
+            return Ok(false);
+        }
+        let node = region
+            .inputs
+            .get(&parameter)
+            .ok_or_else(|| bad("call region omits its original full-ordinal argument"))?;
+        world.pay(index::search(proof.borrow_roles.len()))?;
+        let Some(role) = proof.borrow_roles.get(&(original.id, *node)) else {
+            // This input may already have the exact region or a proved Static
+            // endpoint. Without a loan receipt this helper grants nothing;
+            // the ordinary exact/reaching-edge consumer must still succeed.
+            return Ok(false);
+        };
+        if role.target_lifetime
+            != SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+                scope: SemanticScopeRef::Ancestor(0),
+                ordinal,
+            })
+        {
+            return Err(bad("call loan changes its independently selected region"));
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(
+            &role.source_lifetime,
+            world.limits,
+            world.left,
+            1,
+        )?;
+        crate::dyn_metadata::semantic_operand_snapshot(
+            &role.target_lifetime,
+            world.limits,
+            world.left,
+            1,
+        )?;
+        crate::dyn_metadata::semantic_operand_snapshot(
+            &role.occurrence_lifetime,
+            world.limits,
+            world.left,
+            1,
+        )?;
+        crate::dyn_metadata::semantic_operand_snapshot(&role.inner, world.limits, world.left, 1)?;
+        world.pay(role.steps.len().saturating_add(1))?;
+        for step in &role.steps {
+            match &step.kind {
+                ViewBorrowStepKind::ProjectedLocal { pattern, .. } => {
+                    if pattern.len() > world.limits.max_call_depth {
+                        return Err(Diagnostic::limit(
+                            Phase::Types,
+                            "call loan pattern depth exceeded",
+                            None,
+                        ));
+                    }
+                    world.pay(pattern.len())?;
+                }
+                ViewBorrowStepKind::Capture { name } => world.pay(name.len())?,
+                _ => {}
+            }
+        }
+        role.clone()
+    };
+    let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = caller.target
+    else {
+        return Err(bad("call loan has no actual function"));
+    };
+    let function = world.function(function)?;
+    trace(
+        world, caller, original, function, &role, operand, values, locals, implicit,
+    )?;
+    Ok(true)
 }

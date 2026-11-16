@@ -154,6 +154,75 @@ impl Check<'_, '_> {
             .insert((owner, target), value);
         Ok(())
     }
+    /// `&x` borrows x's slot when x itself is an address/descriptor. Its
+    /// referent lifetime is an inner class and cannot bound the local slot.
+    fn address_slot_bound(
+        &mut self,
+        owner: SemanticDefinitionId,
+        mut place: &SemanticOriginalExpr,
+        variables: &BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<Option<ViewBorrowBound>> {
+        loop {
+            self.pay(1, depth)?;
+            match &place.kind {
+                CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
+                    place = inner
+                }
+                _ => break,
+            }
+        }
+        let CoreExprKind::Name(name) = &place.kind else {
+            return Ok(None);
+        };
+        let Some(binding) = variables.get(name) else {
+            return Ok(None);
+        };
+        if !matches!(
+            binding.ty,
+            SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
+        ) {
+            return Ok(None);
+        }
+        self.pay(binding.origin.copy_work().saturating_add(name.len()), depth)?;
+        let (root, kind) = if binding.origin_owner != owner {
+            if !binding.capture {
+                return Ok(None);
+            }
+            (
+                ViewBorrowRoot::Capture(place.id),
+                ViewBorrowStepKind::Capture { name: name.clone() },
+            )
+        } else {
+            match &binding.origin {
+                Query::Parameter(parameter) => (
+                    ViewBorrowRoot::Parameter(*parameter),
+                    ViewBorrowStepKind::ParameterStorage,
+                ),
+                Query::Binding(binding) => (
+                    ViewBorrowRoot::Local(*binding),
+                    ViewBorrowStepKind::Local { binding: *binding },
+                ),
+                Query::BindingProjection { statement, pattern } => (
+                    ViewBorrowRoot::Local(*statement),
+                    ViewBorrowStepKind::ProjectedLocal {
+                        statement: *statement,
+                        pattern: pattern.clone(),
+                        read: false,
+                    },
+                ),
+                _ => return Ok(None),
+            }
+        };
+        Ok(Some(ViewBorrowBound {
+            root,
+            lifetime: None,
+            steps: vec![ViewBorrowStep {
+                node: place.id,
+                kind,
+            }],
+        }))
+    }
     pub(super) fn view_bound(
         &mut self,
         owner: SemanticDefinitionId,
@@ -168,6 +237,45 @@ impl Check<'_, '_> {
                 let Some(binding) = variables.get(name) else {
                     return Ok(());
                 };
+                if binding.origin_owner == owner {
+                    self.pay(binding.origin.copy_work().saturating_add(1), depth)?;
+                    let source = match &binding.origin {
+                        Query::Binding(statement) => {
+                            Some(SemanticOriginalTypeSource::Binding(*statement))
+                        }
+                        Query::BindingProjection { statement, pattern } => {
+                            Some(SemanticOriginalTypeSource::BindingProjection {
+                                statement: *statement,
+                                pattern: pattern.clone(),
+                            })
+                        }
+                        _ => None,
+                    };
+                    if let Some(source) = source {
+                        self.pay(
+                            self.proof.borrow_bindings.len().saturating_add(1).ilog2() as usize + 1,
+                            depth,
+                        )?;
+                        match self
+                            .proof
+                            .proof_mut()?
+                            .borrow_bindings
+                            .entry((owner, expression.id))
+                        {
+                            std::collections::btree_map::Entry::Occupied(row)
+                                if row.get() != &source =>
+                            {
+                                return Err(bad(
+                                    "one original loan read changes its lexical binding identity",
+                                ));
+                            }
+                            std::collections::btree_map::Entry::Occupied(_) => {}
+                            std::collections::btree_map::Entry::Vacant(row) => {
+                                row.insert(source);
+                            }
+                        }
+                    }
+                }
                 if binding.origin_owner != owner {
                     if !binding.capture {
                         return Ok(());
@@ -447,6 +555,16 @@ impl Check<'_, '_> {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut,
                 operand,
             } => {
+                if let Some(bound) =
+                    self.address_slot_bound(owner, operand, variables, depth + 1)?
+                {
+                    return self.insert_view_bound(
+                        owner,
+                        Query::Expression(expression.id),
+                        bound,
+                        depth + 1,
+                    );
+                }
                 self.place_borrow_bound(owner, operand, variables, depth + 1)?;
                 step = Some(ViewBorrowStepKind::Borrow);
                 Query::Expression(operand.id)
@@ -480,23 +598,33 @@ impl Check<'_, '_> {
         if wanted == occurrence {
             return Ok(wanted.clone());
         }
-        if !self
-            .proof
-            .view_bounds
-            .contains_key(&(owner, Query::Expression(operand.id)))
+        let slot = if matches!(&expression.kind, CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, operand: original } if original.id == operand.id)
         {
-            self.place_borrow_bound(owner, operand, variables, depth + 1)?;
-        }
-        let Some(bound) = self
-            .proof
-            .view_bounds
-            .get(&(owner, Query::Expression(operand.id)))
-        else {
-            return Err(bad(
-                "original contextual borrow has no proved projected input loan",
-            ));
+            self.address_slot_bound(owner, operand, variables, depth + 1)?
+        } else {
+            None
         };
-        let bound = snapshot_bound(bound, self.limits, self.left, depth + 1)?;
+        let bound = if let Some(slot) = slot {
+            slot
+        } else {
+            if !self
+                .proof
+                .view_bounds
+                .contains_key(&(owner, Query::Expression(operand.id)))
+            {
+                self.place_borrow_bound(owner, operand, variables, depth + 1)?;
+            }
+            let Some(bound) = self
+                .proof
+                .view_bounds
+                .get(&(owner, Query::Expression(operand.id)))
+            else {
+                return Err(bad(
+                    "original contextual borrow has no proved projected input loan",
+                ));
+            };
+            snapshot_bound(bound, self.limits, self.left, depth + 1)?
+        };
         let region = self.region_key(owner, wanted, depth + 1)?;
         if region.is_some_and(|(region_owner, _)| region_owner == owner) {
             self.record_region_source(

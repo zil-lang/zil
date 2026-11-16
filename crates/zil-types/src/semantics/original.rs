@@ -187,6 +187,8 @@ pub(super) struct Proof {
     pub(super) definition_positions: std::rc::Rc<BTreeMap<SemanticDefinitionId, usize>>,
     view_bounds: BTreeMap<(SemanticDefinitionId, Query), views::ViewBorrowBound>,
     pub borrow_roles: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
+    pub(super) borrow_bindings:
+        BTreeMap<(SemanticDefinitionId, NodeId), SemanticOriginalTypeSource>,
     pub(super) call_regions: BTreeMap<(SemanticDefinitionId, u32), call_regions::CallRegion>,
     pub field_reborrows: BTreeMap<(SemanticDefinitionId, NodeId), FieldReborrow>,
     pub declarations: std::rc::Rc<Vec<super::original_context::Declaration>>,
@@ -2543,7 +2545,12 @@ impl<'a> Check<'a, '_> {
                     expression: argument,
                     actual,
                     expected: expected.clone(),
-                    expression_is_borrowed: !roles.iter().any(|(node, _)| *node == argument.id),
+                    parameter: parameter_offset
+                        .checked_add(
+                            u32::try_from(parameter_ordinal)
+                                .map_err(|_| bad("call original parameter ordinal overflows"))?,
+                        )
+                        .ok_or_else(|| bad("call original parameter coordinate overflows"))?,
                 });
                 continue;
             }

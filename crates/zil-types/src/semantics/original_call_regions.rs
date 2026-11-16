@@ -31,6 +31,7 @@ pub(crate) struct CallRegion {
     pub sources: Vec<LocalRoleSource>,
     pub escapes: bool,
     pub required_outlives: Vec<SemanticLifeRecipe>,
+    pub inputs: BTreeMap<u32, NodeId>,
 }
 
 pub(super) struct Input<'a> {
@@ -39,7 +40,7 @@ pub(super) struct Input<'a> {
     pub expression: &'a SemanticOriginalExpr,
     pub actual: SemanticTypeRecipe,
     pub expected: SemanticOuterLifeRecipe,
-    pub expression_is_borrowed: bool,
+    pub parameter: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -224,6 +225,7 @@ impl Check<'_, '_> {
                     sources: Vec::new(),
                     escapes: false,
                     required_outlives: Vec::new(),
+                    inputs: BTreeMap::new(),
                 },
             );
         }
@@ -290,7 +292,8 @@ impl Check<'_, '_> {
                 // Local storage and inferred bindings always receive a distinct
                 // call region, even when initially supplied by one source.
                 let first = outer(&input.actual)?;
-                let mut common_input = !matches!(first, SemanticOuterLifeRecipe::Static);
+                let mut common_input = !matches!(first, SemanticOuterLifeRecipe::Static)
+                    && self.input_lifetime(owner, first, depth + 1)?.is_some();
                 for source in inputs
                     .iter()
                     .filter(|source| source.variable == Some(variable))
@@ -344,6 +347,28 @@ impl Check<'_, '_> {
                 .variable
                 .and_then(|v| settled.get(&v))
                 .unwrap_or(&input.expected);
+            if let Some(key) = self.region_key(owner, target, depth + 1)? {
+                if key.0 == owner {
+                    self.pay(1, depth)?;
+                    let row = self
+                        .proof
+                        .proof_mut()?
+                        .call_regions
+                        .get_mut(&key)
+                        .ok_or_else(|| bad("call region lost its argument directory"))?;
+                    if row.call == call.id {
+                        if row
+                            .inputs
+                            .insert(input.parameter, input.expression.id)
+                            .is_some_and(|old| old != input.expression.id)
+                        {
+                            return Err(bad(
+                                "call region changes its exact original argument occurrence",
+                            ));
+                        }
+                    }
+                }
+            }
             self.record_region_source(
                 owner,
                 target,
@@ -367,11 +392,9 @@ impl Check<'_, '_> {
                 // independently proves its endpoint and complete pointee.
                 continue;
             }
-            let (inner, mutable) = match &input.actual {
-                SemanticTypeRecipe::Address { mutable, inner, .. } => {
-                    (inner.as_ref(), Some(*mutable))
-                }
-                SemanticTypeRecipe::Desc { inner, .. } => (inner.as_ref(), None),
+            let inner = match &input.actual {
+                SemanticTypeRecipe::Address { inner, .. }
+                | SemanticTypeRecipe::Desc { inner, .. } => inner.as_ref(),
                 _ => unreachable!(),
             };
             let operand = match &input.expression.kind {
@@ -391,26 +414,9 @@ impl Check<'_, '_> {
                 target,
                 depth + 1,
             )?;
-            let inner = Box::new(copy_recipe(inner, self.limits, self.left)?);
-            crate::dyn_metadata::semantic_operand_snapshot(target, self.limits, self.left, 1)?;
-            let adapted = match mutable {
-                Some(mutable) => SemanticTypeRecipe::Address {
-                    mutable,
-                    lifetime: target.clone(),
-                    inner,
-                },
-                None => SemanticTypeRecipe::Desc {
-                    lifetime: target.clone(),
-                    inner,
-                },
-            };
-            self.pay(1, depth)?;
-            if input.expression_is_borrowed {
-                self.proof
-                    .proof_mut()?
-                    .types
-                    .insert((owner, Query::Expression(input.expression.id)), adapted);
-            }
+            // This is a call-boundary loan. Keep the source expression's
+            // original complete sigma; its independent TypeUse still checks
+            // the actual read. Only the selected call parameter uses r.
         }
         Ok(())
     }
