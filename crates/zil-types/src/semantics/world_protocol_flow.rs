@@ -729,9 +729,21 @@ fn instruction(
         | InstructionKind::ByteBufferBorrow { .. } => Value::Plain,
         _ => {
             if !state.phases.is_empty() {
-                return Err(pending(
+                // Every formatted field is a bounded scalar coordinate. Do
+                // not format an unbounded type/operand tree on the reject path.
+                world.pay(1)?;
+                let point = format!(
+                    "actual protocol instance {:?}, original definition {:?}, function {:?}, block {:?}, instruction {}, result {:?}, opcode {:?}, span {:?}; live root phases {}",
+                    caller.id, caller.definition, f.id, block, index, instruction.result,
+                    std::mem::discriminant(&instruction.kind), instruction.span, state.phases.len(),
+                );
+                world.pay(point.len())?;
+                let mut diagnostic = pending(
                     "actual protocol opcode requires its complete root and mutation relation",
-                ));
+                );
+                diagnostic.span = Some(instruction.span);
+                diagnostic.notes.push(point);
+                return Err(diagnostic);
             }
             Value::Plain
         }
