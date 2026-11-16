@@ -46,6 +46,25 @@ pub(crate) fn return_borrow_view(module:&TypedModule,function:&TypedFunction,blo
     Ok(worlds!=0&&directed)
 }
 
+/// An independently reconstructed physical stored source may be returned at
+/// a shorter original root role. This authenticates only that exact selector's
+/// outside-life bound; actual targets/parents remain with the stored solver.
+pub(crate) fn return_slot_borrow_view(module:&TypedModule,function:&TypedFunction,parameter:u32,path:&[PlaceProjection],b:&mut Budget)->Check<bool>{
+    if module.semantic.is_none()||function.storage_life.is_none(){return Ok(false);}
+    let Some(session)=b.semantic_checked.clone()else{return Ok(false);};
+    if session.module!=module as *const TypedModule as usize{return Ok(false);}
+    let mut worlds=0usize;
+    for(id,environment)in &session.worlds{
+        let instance=session.context.instance(module,*id,b)?;
+        if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){continue;}
+        b.spend(session.results.len())?;
+        let result=&session.results.iter().find(|(world,_)|world==id).ok_or_else(||bad("stored Return source loses its completed original result frame"))?.1;
+        if !session.context.return_slot_borrow_view(module,function,instance,parameter,path,result,environment,b)?{return Ok(false);}
+        worlds+=1;
+    }
+    Ok(worlds!=0)
+}
+
 /// Exact shared-local transitions from the completed original programme and
 /// every actual world. Raw headers/sites alone cannot create these rows.
 pub(crate) fn local_role_transfers(module:&TypedModule,function:&TypedFunction,b:&mut Budget)->Check<Vec<semantic::local_roles::Transfer>>{

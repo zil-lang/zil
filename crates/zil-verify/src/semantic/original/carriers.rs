@@ -165,3 +165,41 @@ mod symbolic_zero_result_tests {
         assert!(!original.retained_zero_domain(&module,&context,&life,&env,&mut active,&mut b,0).unwrap());
     }
 }
+
+impl CheckedOriginal {
+    /// Every original Task producer preserves a complete symbolic Result
+    /// directory. Explicit per-occurrence directories remain invariant; a
+    /// declaration with no such rows uses All(R), including at known N0.
+    pub(super) fn task_carrier(&self,result:Ty,mut retained:Retained,b:&mut Budget)->Check<Ty>{
+        let mut present=false;let mut whole=false;
+        for row in &retained.retained{b.spend(1)?;match row{
+            RetainedPart::All{path,parents}if path.as_slice()==[LifeTypeProjection::Result]=>{
+                if present{return Err(bad("original Task repeats its whole Result directory"));}
+                let [ClassPart::All{ty,path:child}]=parents.as_slice()else{return Err(bad("original Task Result omits its complete whole Type domain"));};
+                if !child.is_empty()||!self.same(ty,&result,b)?{return Err(bad("original Task Result directory changes its complete result Type"));}
+                present=true;whole=true;
+            },
+            RetainedPart::One{path,..}if path.as_slice()==[LifeTypeProjection::Result]=>{if whole{return Err(bad("original Task mixes whole and partial Result directories"));}present=true;},
+            _=>{},
+        }}
+        if !present{b.spend(1)?;retained.retained.push(RetainedPart::All{path:vec![LifeTypeProjection::Result],parents:vec![ClassPart::All{ty:result.clone(),path:vec![]}]});}
+        Ok(Ty::Carrier{kind:CarrierKind::Task,child:Box::new(result),retained:Box::new(retained)})
+    }
+}
+
+#[cfg(test)]
+mod canonical_task_result_tests {
+    use super::*;
+    #[test]
+    fn empty_and_explicit_task_declarations_form_the_same_complete_symbolic_result(){
+        let original=CheckedOriginal::default();let mut b=Budget::new(&Limits::default());
+        let result=Ty::Atom(Type::I32);
+        let explicit=Retained{retained:vec![RetainedPart::All{path:vec![LifeTypeProjection::Result],parents:vec![ClassPart::All{ty:result.clone(),path:vec![]}]}],..Retained::default()};
+        assert_eq!(original.task_carrier(result.clone(),Retained::default(),&mut b).unwrap(),original.task_carrier(result.clone(),explicit.clone(),&mut b).unwrap());
+        assert!(original.task_carrier(Ty::Atom(Type::I64),explicit,&mut b).is_err());
+        let unknown=Ty::Variable(SemanticDefinitionId{module:zil_base::ModuleId(0),index:0},0);
+        let formed=original.task_carrier(unknown.clone(),Retained::default(),&mut b).unwrap();
+        let Ty::Carrier{retained,..}=formed else{unreachable!()};
+        assert_eq!(retained.retained,vec![RetainedPart::All{path:vec![LifeTypeProjection::Result],parents:vec![ClassPart::All{ty:unknown,path:vec![]}]}]);
+    }
+}

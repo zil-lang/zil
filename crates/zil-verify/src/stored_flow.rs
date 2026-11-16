@@ -7697,6 +7697,12 @@ fn solve_check(
                         } else {
                             relations.get(StorageBase::Parameter(position), &source.leaf, b)?
                         })
+                    && !(path.is_empty()
+                        && source.retained_port.is_none()
+                        && source.inline.is_empty()
+                        && source.heap_parents.is_empty()
+                        && source.heap_element.is_none()
+                        && crate::dynamic_witness::semantic_patterns::return_slot_borrow_view(module,f,position,&source.leaf,b)?)
                 {
                     return Err(err(
                         "actual returned target exceeds the complete stored relation",

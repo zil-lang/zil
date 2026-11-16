@@ -631,11 +631,22 @@ impl CheckedContext {
         };
         for row in &header.bindings {
             let value=base(row.position.base)?;
-            let path=row.position.path.iter().map(|part|match part {ContractProjection::Place(step)=>Ok(*step),_=>Err(unsupported("header logical borrow occurrence requires its full opaque port source directory",None))}).collect::<Check<Vec<_>>>()?;
-            let mut slots=value.life.slots.iter().filter(|slot|slot.path==path);
-            let slot=slots.next().ok_or_else(||bad("actual header invents a variable borrow occurrence absent from its original signature"))?;
-            if slots.next().is_some(){return Err(bad("original borrow occurrence is ambiguously mapped"));}
-            let expected=value.classes.get(slot.binder as usize).ok_or_else(||bad("original borrow occurrence has no semantic class"))?;
+            let binder=if row.position.path.iter().any(|part|!matches!(part,ContractProjection::Place(_))){
+                // Opaque Task/closure/Context ports are logical selectors, not
+                // physical Place paths. The existing complete declaration
+                // walker maps their original child ordinals injectively.
+                let ports=task_domains::raw_input_ports(module,&value.ty,&value.life,b)?;
+                b.spend(ports.len().saturating_mul(row.position.path.len().saturating_add(1)))?;
+                let mut selected=ports.iter().filter(|(_,_,_,path)|*path==row.position.path);
+                let Some((_,_,class,_))=selected.next()else{return Err(bad("header logical borrow has no complete original opaque port source"));};
+                if selected.next().is_some(){return Err(bad("header logical borrow selects duplicate original port occurrences"));}*class
+            }else{
+                let path=row.position.path.iter().map(|part|match part{ContractProjection::Place(step)=>Ok(*step),_=>unreachable!()}).collect::<Check<Vec<_>>>()?;
+                let mut slots=value.life.slots.iter().filter(|slot|slot.path==path);
+                let slot=slots.next().ok_or_else(||bad("actual header invents a variable borrow occurrence absent from its original signature"))?;
+                if slots.next().is_some(){return Err(bad("original borrow occurrence is ambiguously mapped"));}slot.binder
+            };
+            let expected=value.classes.get(binder as usize).ok_or_else(||bad("original borrow occurrence has no semantic class"))?;
             let actual=&images.iter().find(|(binder,_)|*binder==row.binder).ok_or_else(||bad("actual header variable has no complete lexical embedding"))?.1;
             if !self.same(environment,actual,expected,b)? {return Err(unsupported("actual header borrow role requires a proved original per-occurrence lifetime adaptation",None));}
         }

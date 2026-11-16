@@ -76,3 +76,46 @@ impl CheckedContext {
         Ok(Some(!self.same(environment,source,target,b)?))
     }
 }
+
+impl CheckedContext {
+    /// Check the lifetime relation of a precise physical source selected by
+    /// the independent stored-value solver. This proves no data target and
+    /// never adds a source, parent loan or equality to that solver's result.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn return_slot_borrow_view(&self,module:&TypedModule,function:&TypedFunction,instance:&SemanticInstance,parameter:u32,path:&[PlaceProjection],result:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<bool>{
+        if path.is_empty()||!matches!(result.ty,Type::Address{..}|Type::Desc(_)){return Ok(false);}
+        let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;
+        if frame.key!=ScopeKey::Instance(instance.id)||frame.definition!=instance.definition||instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){return Err(bad("stored Return view changes its exact original world/entry"));}
+        let mut returns=0usize;let mut pending=vec![function.entry];let mut seen=std::collections::BTreeSet::new();
+        while let Some(id)=pending.pop(){
+            b.spend(seen.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+            if !seen.insert(id){continue;}
+            let block=function.blocks.get(id.0 as usize).filter(|block|block.id==id).ok_or_else(||bad("stored Return view selects an absent actual CFG block"))?;
+            match block.terminator{
+                Terminator::Return(Some(value))=>{if self.return_borrow_view(module,function,instance,block.id,value,result,environment,b)?.is_none(){return Ok(false);}returns+=1;},
+                Terminator::Jump(target)=>pending.push(target),
+                Terminator::Branch{then_block,else_block,..}=>pending.extend([then_block,else_block]),
+                Terminator::Return(None)|Terminator::Trap|Terminator::Unreachable=>{},
+            }
+        }
+        if returns==0{return Ok(false);}
+        b.spend(function.parameters.len())?;
+        let local=function.parameters.get(parameter as usize).ok_or_else(||bad("stored Return source selects an absent actual parameter ordinal"))?;
+        let occurrences=self.occurrences.borrow();
+        let input=occurrences.get(&(frame.key,OperandKey::Parameter(parameter))).ok_or_else(||bad("stored Return source has no completed original parameter receipt"))?;
+        if function.locals.get(local.0 as usize).is_none_or(|declaration|declaration.ty!=input.ty){return Err(bad("stored Return source changes its complete actual input type"));}
+        if !matches!(input.ty,Type::Address{..}){return Ok(false);}
+        let pointee=self.child_value(module,input,&[LifeTypeProjection::Pointee],b)?;
+        b.spend(pointee.life.slots.len().saturating_mul(path.len().saturating_add(1)))?;
+        let mut slots=pointee.life.slots.iter().filter(|slot|slot.path==path);
+        let Some(slot)=slots.next()else{return Ok(false);};
+        if slots.next().is_some(){return Err(bad("stored Return source repeats its precise physical borrow selector"));}
+        let mut heads=result.life.slots.iter().filter(|slot|slot.path.is_empty());
+        let Some(head)=heads.next()else{return Ok(false);};
+        if heads.next().is_some(){return Err(bad("stored Return view has ambiguous original result heads"));}
+        if slot.mode!=head.mode&&!(slot.mode==StoredBorrowMode::ExclusiveAddress&&head.mode==StoredBorrowMode::SharedAddress){return Ok(false);}
+        let source=pointee.classes.get(slot.binder as usize).ok_or_else(||bad("stored Return physical source has no complete outside class"))?;
+        let target=result.classes.get(head.binder as usize).ok_or_else(||bad("stored Return view has no original result class"))?;
+        self.outlives(environment,source,target,b)
+    }
+}

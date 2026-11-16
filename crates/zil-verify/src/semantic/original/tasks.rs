@@ -115,18 +115,8 @@ impl CheckedOriginal {
                 active,
                 b,
             )?;
-            // Preserve the symbolic Result directory even when this result
-            // happens to materialize N0. All(T) is not a stored target or an
-            // invented payload permission; the actual frame/result consumer
-            // expands it independently. The failure Context excludes Result
-            // explicitly below and still returns only its real inputs.
-            retained.retained.push(RetainedPart::All {
-                path: vec![LifeTypeProjection::Result],
-                parents: vec![ClassPart::All {
-                    ty: prototype.result.clone(),
-                    path: vec![],
-                }],
-            });
+            // The common Task constructor below preserves All(Result R),
+            // even at N0, without manufacturing a target or frame permission.
             let worker_definition = context.definition(module, worker, b)?;
             for requirement in &worker_definition.requirements {
                 self.obligation(
@@ -163,16 +153,10 @@ impl CheckedOriginal {
                     path.as_slice() != [LifeTypeProjection::Result]
                 }
             });
-            let failure_context = Ty::Carrier {
-                kind: CarrierKind::Task,
-                child: Box::new(Ty::Atom(Type::Unit)),
-                retained: Box::new(context_retained),
-            };
-            let task = Ty::Managed(Box::new(Ty::Carrier {
-                kind: CarrierKind::Task,
-                child: Box::new(prototype.result),
-                retained: Box::new(retained),
-            }));
+            // Failure exposes only recovered inputs. Its neutral Unit result
+            // marker carries N0, never the unproduced worker result's domain.
+            let failure_context=self.task_carrier(Ty::Atom(Type::Unit),context_retained,b)?;
+            let task=Ty::Managed(Box::new(self.task_carrier(prototype.result,retained,b)?));
             let error = if kind == Intrinsic::TaskCreateOwned {
                 self.task_failure_type(
                     module,

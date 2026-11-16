@@ -44,7 +44,7 @@ impl CheckedOriginal {
             },
             SemanticTypeRecipe::Mutex(inner)=>Ty::Carrier{kind:CarrierKind::Mutex,child:Box::new(self.ty(module,context,inner,env,active,b)?),retained:Box::default()},
             SemanticTypeRecipe::MutexGuard{payload,retained}=>Ty::Carrier{kind:CarrierKind::MutexGuard,child:Box::new(self.ty(module,context,payload,env,active,b)?),retained:Box::new(self.retained(module,context,retained,env,active,b)?)},
-            SemanticTypeRecipe::Task{result,retained}=>Ty::Carrier{kind:CarrierKind::Task,child:Box::new(self.ty(module,context,result,env,active,b)?),retained:Box::new(self.retained(module,context,retained,env,active,b)?)},
+            SemanticTypeRecipe::Task{result,retained}=>{let result=self.ty(module,context,result,env,active,b)?;let retained=self.retained(module,context,retained,env,active,b)?;self.task_carrier(result,retained,b)?},
             SemanticTypeRecipe::Registration(inner)|SemanticTypeRecipe::AsyncRegistration(inner)=>Ty::Carrier{kind:if matches!(recipe,SemanticTypeRecipe::Registration(_)){CarrierKind::Registration}else{CarrierKind::AsyncRegistration},child:Box::new(self.ty(module,context,inner,env,active,b)?),retained:Box::default()},
             SemanticTypeRecipe::Dyn{owned,interface}=>Ty::Dyn(Box::new(self.dyn_type(module,context,*owned,interface,env,active,b)?)),
             SemanticTypeRecipe::OwnedStore(inner)=>Ty::Store(Box::new(self.ty(module,context,inner,env,active,b)?)),
