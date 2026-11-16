@@ -19,12 +19,25 @@ pub(super) fn mask(states: &[ProtocolState]) -> u8 {
     states.iter().fold(0, |value, state| value | bit(*state))
 }
 
+/// Universal source identities, not concrete caller evidence. A missing or
+/// abstract input is never a locally proved synchronous constructor.
+#[derive(Clone,Debug,PartialEq,Eq,PartialOrd,Ord)]
+pub(super) enum TaskSource{
+    Unknown,
+    Input{definition:SemanticDefinitionId,ordinal:u32,path:Vec<String>},
+    Birth{definition:SemanticDefinitionId,node:NodeId},
+}
+pub(super) type Sources=BTreeSet<TaskSource>;
+pub(super) type ResultSources=BTreeMap<Vec<String>,Sources>;
+pub(super) fn unknown_sources()->Sources{BTreeSet::from([TaskSource::Unknown])}
+pub(super) fn source_width(sources:&Sources)->usize{sources.iter().fold(1usize,|n,source|n.saturating_add(match source{TaskSource::Input{path,..}=>path.iter().fold(2usize,|n,s|n.saturating_add(s.len())),_=>1}))}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Owner {
     pub(super) states: u8,
     pub(super) generation: u64,
     pub(super) task: bool,
     pub(super) owned: bool,
+    pub(super) sources: Sources,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Conditional {
@@ -41,9 +54,9 @@ pub(super) enum Value {
         borrowed: bool,
     },
     Fresh,
-    FreshTask,
-    FallibleTask,
-    FallibleTaskOwned(Vec<Value>),
+    FreshTask(Sources),
+    FallibleTask(Sources),
+    FallibleTaskOwned(Vec<Value>,Sources),
     Product(Vec<(String, Value)>),
     Poll {
         relations: Vec<Conditional>,
@@ -57,9 +70,10 @@ impl Value {
             Self::Product(fields) => fields.iter().fold(1usize, |n, (name, value)| {
                 n.saturating_add(name.len()).saturating_add(value.width())
             }),
-            Self::FallibleTaskOwned(fields) => fields
+            Self::FallibleTaskOwned(fields,sources) => fields
                 .iter()
-                .fold(1usize, |n, value| n.saturating_add(value.width())),
+                .fold(source_width(sources), |n, value| n.saturating_add(value.width())),
+            Self::FreshTask(sources)|Self::FallibleTask(sources)=>source_width(sources),
             Self::Poll { relations, .. } => relations.iter().fold(1usize, |n, row| {
                 n.saturating_add(place_width(&row.root)).saturating_add(3)
             }),
@@ -92,9 +106,9 @@ pub(super) struct State {
 impl State {
     pub(super) fn width(&self) -> usize {
         self.owners
-            .keys()
-            .fold(1usize, |n, key| {
-                n.saturating_add(place_width(key)).saturating_add(2)
+            .iter()
+            .fold(1usize, |n, (key,owner)| {
+                n.saturating_add(place_width(key)).saturating_add(source_width(&owner.sources)).saturating_add(2)
             })
             .saturating_add(self.values.iter().fold(0usize, |n, (key, value)| {
                 n.saturating_add(binder_width(key))
@@ -189,7 +203,7 @@ impl State {
                 other
                     .owners
                     .get(root)
-                    .is_some_and(|other| owner.states == other.states)
+                    .is_some_and(|other| owner.states == other.states&&owner.sources==other.sources)
             }))
     }
 }
@@ -243,6 +257,7 @@ impl Engine<'_> {
                         ));
                     }
                     owner.states |= other.states;
+                    owner.sources.extend(other.sources.iter().cloned());
                     if owner.generation != other.generation {
                         owner.generation = self.generation(b)?;
                     }
@@ -255,6 +270,7 @@ impl Engine<'_> {
                             generation: self.generation(b)?,
                             task: other.task,
                             owned: other.owned,
+                            sources:other.sources.clone(),
                         },
                     );
                 }
@@ -328,6 +344,7 @@ impl Engine<'_> {
                     generation,
                     task: false,
                     owned: true,
+                    sources:unknown_sources(),
                 },
             );
             Value::Owner {
@@ -356,5 +373,28 @@ impl Engine<'_> {
         }
         state.values.insert(binder, value);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod source_tests{
+    use super::*;
+    #[test]
+    fn task_source_loop_identity_keeps_unknown_and_every_birth(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);
+        let definition=SemanticDefinitionId{module:ModuleId(0),index:0};
+        let binder=Binder::Parameter{definition,ordinal:0};let root=root_place(&binder);
+        let birth=TaskSource::Birth{definition,node:NodeId(4)};
+        let mut a=State::default();
+        a.owners.insert(root.clone(),Owner{states:LIVE,generation:1,task:true,owned:true,sources:BTreeSet::from([birth.clone()])});
+        let mut z=a.copy(&mut b).unwrap();
+        assert!(a.same_loop(&z,&mut b).unwrap());
+        z.owners.get_mut(&root).unwrap().sources.insert(TaskSource::Unknown);
+        assert!(!a.same_loop(&z,&mut b).unwrap());
+        assert_eq!(a.owners[&root].sources,BTreeSet::from([birth]));
+        // An abstract input is a full original parameter/path coordinate,
+        // not a synonym for any concrete caller's worker.
+        let input=TaskSource::Input{definition,ordinal:0,path:vec!["$capture:task".into()]};
+        assert_ne!(input,TaskSource::Birth{definition,node:NodeId(4)});
     }
 }

@@ -144,7 +144,7 @@ impl<'a> Engine<'a> {
                 }
                 Ok(Value::Product(result))
             }
-            Value::FreshTask => {
+            Value::FreshTask(sources) => {
                 if state
                     .owners
                     .get(&destination.clone())
@@ -160,6 +160,7 @@ impl<'a> Engine<'a> {
                         generation,
                         task: true,
                         owned: true,
+                        sources,
                     },
                 );
                 Ok(Value::Owner {
@@ -195,6 +196,7 @@ impl<'a> Engine<'a> {
                         generation,
                         task: true,
                         owned: true,
+                        sources:owner.sources,
                     },
                 );
                 Ok(Value::Owner {
@@ -227,6 +229,7 @@ impl<'a> Engine<'a> {
                         generation,
                         task: true,
                         owned: !*borrowed,
+                        sources:match &place.binder{Binder::Parameter{definition,ordinal}=>BTreeSet::from([TaskSource::Input{definition:*definition,ordinal:*ordinal,path:place.fields.clone()}]),_=>unknown_sources()},
                     },
                 );
                 Value::Owner {
@@ -267,7 +270,7 @@ impl<'a> Engine<'a> {
                     self.task_cleanup_value(state, value, replacement, b)?;
                 }
             }
-            Value::FallibleTaskOwned(_) | Value::FallibleTask | Value::FreshTask => {
+            Value::FallibleTaskOwned(_,_) | Value::FallibleTask(_) | Value::FreshTask(_) => {
                 return Err(unsupported(
                     "Task conditional birth cleanup still needs both exact owning outcome edges",
                     None,
@@ -298,7 +301,7 @@ impl<'a> Engine<'a> {
                     self.task_transfer_value(state, value, b)?;
                 }
             }
-            Value::FallibleTaskOwned(inputs) => {
+            Value::FallibleTaskOwned(inputs,_) => {
                 for value in inputs {
                     self.task_transfer_value(state, value, b)?;
                 }
@@ -335,15 +338,18 @@ impl<'a> Engine<'a> {
                 .get(&self.current)
                 .ok_or_else(|| bad("Task cleanup has no fixed original effect upper"))?;
             if prototype.call_kind != CallKind::Suspend {
-                return Err(bad(
-                    "original Task cleanup edge lacks Closed and cannot suspend",
-                ));
-            }
+                b.spend(source_width(&owner.sources))?;
+                if owner.sources.is_empty()||!owner.sources.iter().all(|source|matches!(source,TaskSource::Birth{definition,node}if self.synchronous_births.contains(&(*definition,*node)))){
+                    return Err(bad("original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend"));
+                }
+                self.synchronous_tasks.insert(root.clone());
+            }else{
             // This is the sealed asynchronous cleanup edge under an explicit
             // Suspend ABI. It supplies no Closed or global SyncDrop fact. The
             // actual continuation/frame/loans are mandatory later consumers.
             self.closed_tasks.remove(root);
             self.async_tasks.insert(root.clone());
+            }
         }
         state.invalidate(root, b)?;
         let generation = self.generation(b)?;
@@ -417,6 +423,7 @@ impl<'a> Engine<'a> {
     pub(super) fn task_call(
         &mut self,
         kind: Intrinsic,
+        node:NodeId,
         values: &[Value],
         state: &mut State,
         b: &mut Budget,
@@ -424,14 +431,15 @@ impl<'a> Engine<'a> {
         if matches!(kind, Intrinsic::TaskCreate | Intrinsic::TaskCreateOwned) {
             b.spend(values.len())?;
             let inputs = values.iter().skip(1).cloned().collect::<Vec<_>>();
+            let sources=BTreeSet::from([TaskSource::Birth{definition:self.current,node}]);
             if kind == Intrinsic::TaskCreateOwned {
-                return Ok(Some(Value::FallibleTaskOwned(inputs)));
+                return Ok(Some(Value::FallibleTaskOwned(inputs,sources)));
             }
             for value in &inputs {
                 self.task_constructor_cleanup(state, value, b)?;
                 self.task_transfer_value(state, value, b)?;
             }
-            return Ok(Some(Value::FallibleTask));
+            return Ok(Some(Value::FallibleTask(sources)));
         }
         if kind == Intrinsic::TaskYield {
             return Ok(Some(Value::Plain));
@@ -523,7 +531,7 @@ impl<'a> Engine<'a> {
                     self.task_constructor_cleanup(state, value, b)?;
                 }
             }
-            Value::FallibleTaskOwned(_) | Value::FreshTask | Value::FallibleTask => {
+            Value::FallibleTaskOwned(_,_) | Value::FreshTask(_) | Value::FallibleTask(_) => {
                 return Err(unsupported(
                     "Task input still has an unresolved conditional owner generation",
                     None,
@@ -541,7 +549,7 @@ impl<'a> Engine<'a> {
         b: &mut Budget,
     ) -> Check<Value> {
         match value {
-            Value::FallibleTaskOwned(inputs) => {
+            Value::FallibleTaskOwned(inputs,sources) => {
                 b.spend(inputs.len())?;
                 if is_error {
                     Ok(Value::Product(vec![
@@ -561,13 +569,13 @@ impl<'a> Engine<'a> {
                     for input in inputs {
                         self.task_transfer_value(state, input, b)?;
                     }
-                    Ok(Value::FreshTask)
+                    Ok(Value::FreshTask(sources.clone()))
                 }
             }
-            Value::FallibleTask => Ok(if is_error {
+            Value::FallibleTask(sources) => Ok(if is_error {
                 Value::Plain
             } else {
-                Value::FreshTask
+                Value::FreshTask(sources.clone())
             }),
             _ => Ok(value.clone()),
         }
@@ -704,7 +712,7 @@ pub(super) fn task_contains_root(value: &Value, root: &Place) -> bool {
         Value::Product(fields) => fields
             .iter()
             .any(|(_, value)| task_contains_root(value, root)),
-        Value::FallibleTaskOwned(inputs) => {
+        Value::FallibleTaskOwned(inputs,_) => {
             inputs.iter().any(|value| task_contains_root(value, root))
         }
         _ => false,
@@ -731,9 +739,9 @@ pub(super) fn owner_value(value: &Value) -> bool {
     match value {
         Value::Owner { .. }
         | Value::Fresh
-        | Value::FreshTask
-        | Value::FallibleTask
-        | Value::FallibleTaskOwned(_) => true,
+        | Value::FreshTask(_)
+        | Value::FallibleTask(_)
+        | Value::FallibleTaskOwned(_,_) => true,
         Value::Product(fields) => fields.iter().any(|(_, value)| owner_value(value)),
         _ => false,
     }
@@ -759,4 +767,118 @@ pub(super) fn task_roots(value: &Value, roots: &mut Vec<(Place,bool)>, b: &mut B
         _ => {}
     }
     Ok(())
+}
+
+impl Engine<'_>{
+    pub(super) fn result_sources(&self,state:&State,value:&Value,b:&mut Budget)->Check<ResultSources>{
+        fn walk(state:&State,value:&Value,path:&mut Vec<String>,out:&mut ResultSources,b:&mut Budget)->Check<()>{
+            b.spend(path.iter().fold(1usize,|n,s|n.saturating_add(s.len())))?;
+            match value{
+                Value::Owner{root,..}=>{let owner=state.owner(root,b)?;if owner.task{b.spend(source_width(&owner.sources))?;out.insert(path.clone(),owner.sources.clone());}},
+                Value::FreshTask(sources)=>{b.spend(source_width(sources))?;out.insert(path.clone(),sources.clone());},
+                Value::Product(fields)=>for(name,value)in fields{path.push(name.clone());walk(state,value,path,out,b)?;path.pop();},
+                _=>{},
+            }
+            Ok(())
+        }
+        let mut out=BTreeMap::new();walk(state,value,&mut vec![],&mut out,b)?;Ok(out)
+    }
+    pub(super) fn record_result_sources(&mut self,state:&State,value:&Value,b:&mut Budget)->Check<()>{
+        let incoming=self.result_sources(state,value,b)?;
+        if let Some(previous)=&mut self.returned_sources{
+            b.spend(previous.len().saturating_add(incoming.len()))?;
+            for(path,sources)in previous.iter_mut(){b.spend(source_width(sources))?;if let Some(other)=incoming.get(path){b.spend(source_width(other))?;sources.extend(other.iter().cloned());}else{sources.insert(TaskSource::Unknown);}}
+            for(path,mut sources)in incoming{if !previous.contains_key(&path){sources.insert(TaskSource::Unknown);previous.insert(path,sources);}}
+        }else{self.returned_sources=Some(incoming);}
+        Ok(())
+    }
+    pub(super) fn apply_result_sources(&self,state:&mut State,value:&Value,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,b:&mut Budget)->Check<()>{
+        fn walk(state:&mut State,value:&Value,path:&mut Vec<String>,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,b:&mut Budget)->Check<()>{
+            b.spend(path.iter().fold(1usize,|n,s|n.saturating_add(s.len())))?;
+            match value{
+                Value::Owner{root,..}=>{
+                    let mut sources=Sources::new();
+                    if let Some(rows)=summary.get(path){for source in rows{b.spend(1)?;match source{
+                        TaskSource::Input{definition,ordinal,path}if *definition==target=>{
+                            if let Some(actual)=inputs.get(*ordinal as usize).and_then(|input|input.get(path)){b.spend(source_width(actual))?;sources.extend(actual.iter().cloned());}else{sources.insert(TaskSource::Unknown);}
+                        },
+                        TaskSource::Input{..}|TaskSource::Unknown=>{sources.insert(TaskSource::Unknown);},
+                        birth@TaskSource::Birth{..}=>{sources.insert(birth.clone());},
+                    }}}else{sources.insert(TaskSource::Unknown);}
+                    if sources.is_empty(){sources.insert(TaskSource::Unknown);}
+                    let owner=state.owners.get_mut(root).ok_or_else(||bad("helper Return source lost its exact newly initialized owner"))?;
+                    if owner.task{owner.sources=sources;}
+                },
+                Value::Product(fields)=>for(name,value)in fields{path.push(name.clone());walk(state,value,path,summary,inputs,target,b)?;path.pop();},
+                _=>{},
+            }
+            Ok(())
+        }
+        // The caller supplies the callee identity explicitly, never infers it
+        // from a compatible type, source name, or current concrete occupant.
+        walk(state,value,&mut vec![],summary,inputs,target,b)
+    }
+}
+
+impl CheckedOriginal{
+    /// The restricted default-close route requires a closed universal source
+    /// worker graph. It never specializes an abstract incoming Task from its
+    /// concrete caller. More general retained/unknown input frames keep their
+    /// existing Closed or Suspend obligation.
+    pub(super) fn synchronous_task_births(&self,_module:&TypedModule,_context:&CheckedContext,index:&index::Index<'_>,_active:&mut ActiveQueries,b:&mut Budget)->Check<BTreeSet<(SemanticDefinitionId,NodeId)>>{
+        let mut out=BTreeSet::new();let mut workers=BTreeMap::new();
+        for((owner,site),use_)in &self.intrinsic_calls{
+            b.spend(1)?;
+            if !matches!(use_.kind,Intrinsic::TaskCreate|Intrinsic::TaskCreateOwned){continue;}
+            let Some(worker)=use_.worker else{return Err(bad("original Task birth loses its exact worker source"));};
+            let function=index.definitions.get(owner).ok_or_else(||bad("original Task birth is outside the complete source inventory"))?;
+            let Some(index::Node::Expression(node))=function.nodes.get(site)else{return Err(bad("original Task birth has no exact source Call"));};
+            let CoreExprKind::Call{arguments,..}=&node.kind else{return Err(bad("original Task birth selects a non-Call source occurrence"));};
+            let prototype=self.prototypes.get(&worker).ok_or_else(||bad("original Task birth has no complete worker prototype"))?;
+            // No unknown retained input may be hidden by this restricted
+            // proof. Task creation's general input/failure rules remain intact.
+            if arguments.len()!=1||!prototype.parameters.is_empty()||self.free_values.get(&worker).is_some_and(|values|!values.is_empty()){continue;}
+            let proved=if let Some(proved)=workers.get(&worker){*proved}else{let proved=self.closed_source_worker(index,worker,b)?;workers.insert(worker,proved);proved};
+            if proved{out.insert((*owner,node.id));}
+        }
+        Ok(out)
+    }
+    fn closed_source_worker(&self,index:&index::Index<'_>,root:SemanticDefinitionId,b:&mut Budget)->Check<bool>{
+        fn closed(ty:&Ty,pending:&mut Vec<SemanticDefinitionId>,b:&mut Budget,depth:usize)->Check<bool>{
+            b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original synchronous worker type depth exceeded"));}
+            Ok(match ty{
+                Ty::Atom(Type::Unit|Type::Bool|Type::I8|Type::I16|Type::I32|Type::I64|Type::Isize|Type::U8|Type::U16|Type::U32|Type::U64|Type::Usize|Type::F32|Type::F64)|Ty::SealedError(_)=>true,
+                Ty::Function(id)=>{pending.push(*id);true},
+                Ty::Tuple(fields)=>{for field in fields{if !closed(field,pending,b,depth+1)?{return Ok(false);}}true},
+                Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Array(inner,_)|Ty::Slice(inner)|Ty::Store(inner)=>closed(inner,pending,b,depth+1)?,
+                Ty::ErrorUnion(error,result)=>closed(error,pending,b,depth+1)?&&closed(result,pending,b,depth+1)?,
+                Ty::Code{parameters,result,..}=>{for parameter in parameters{if !closed(parameter,pending,b,depth+1)?{return Ok(false);}}closed(result,pending,b,depth+1)?},
+                // Abstract variables, opaque targets, nominal/retained carriers
+                // and erased callbacks do not supply a closed graph premise.
+                _=>false,
+            })
+        }
+        let mut pending=vec![root];let mut seen=BTreeSet::new();
+        while let Some(id)=pending.pop(){
+            b.spend(seen.len().saturating_add(1))?;if !seen.insert(id){continue;}
+            let Some(function)=index.definitions.get(&id)else{return Ok(false);};
+            if !matches!(function.body,SemanticOriginalFunctionBody::Defined(_)){return Ok(false);}
+            let prototype=self.prototypes.get(&id).ok_or_else(||bad("synchronous worker dependency lacks its original signature"))?;
+            for ty in prototype.parameters.iter().chain(std::iter::once(&prototype.result)){
+                if !closed(&self.resolved(ty,b)?,&mut pending,b,0)?{return Ok(false);}
+            }
+            if self.free_values.get(&id).is_some_and(|values|!values.is_empty()){return Ok(false);}
+            for node in function.expressions.values(){
+                b.spend(1)?;
+                if let Some(ty)=self.expressions.get(&(id,node.id)){if !closed(&self.resolved(ty,b)?,&mut pending,b,0)?{return Ok(false);}}
+                if !matches!(node.kind,CoreExprKind::Call{..}){continue;}
+                let(_,site)=self.original_call_site(id,node.id,b)?;
+                if let Some(use_)=self.intrinsic_calls.get(&(id,site)){
+                    if matches!(use_.kind,Intrinsic::AsyncStart|Intrinsic::AsyncValid|Intrinsic::AsyncRequest|Intrinsic::AsyncPoll|Intrinsic::AsyncFinish|Intrinsic::AsyncFinishChecked|Intrinsic::ThreadScope|Intrinsic::OwnedDyn|Intrinsic::CCallback){return Ok(false);}
+                    if let Some(worker)=use_.worker{pending.push(worker);}
+                }else if let Some(callee)=self.call_targets.get(&(id,site)){pending.push(*callee);}else{return Ok(false);}
+            }
+        }
+        Ok(true)
+    }
 }

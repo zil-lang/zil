@@ -145,6 +145,7 @@ impl<'a> Engine<'a> {
                     Some(value) => self.expression(value, &mut state, depth + 1, b)?,
                     None => Value::Plain,
                 };
+                self.record_result_sources(&state,&value,b)?;
                 self.task_transfer_value(&mut state, &value, b)?;
                 let state = self.unwind(state, deferred, 0, depth + 1, b)?;
                 self.check_exit(state, value, b)?;
@@ -537,9 +538,9 @@ impl<'a> Engine<'a> {
                     value,
                     Value::Owner { .. }
                         | Value::Fresh
-                        | Value::FreshTask
-                        | Value::FallibleTask
-                        | Value::FallibleTaskOwned(_)
+                        | Value::FreshTask(_)
+                        | Value::FallibleTask(_)
+                        | Value::FallibleTaskOwned(_,_)
                 ) {
                     Err(unsupported(
                         "original wildcard owner cleanup requires a complete owner exit relation",
@@ -556,9 +557,9 @@ impl<'a> Engine<'a> {
                     value,
                     Value::Owner { .. }
                         | Value::Fresh
-                        | Value::FreshTask
-                        | Value::FallibleTask
-                        | Value::FallibleTaskOwned(_)
+                        | Value::FreshTask(_)
+                        | Value::FallibleTask(_)
+                        | Value::FallibleTaskOwned(_,_)
                 ) {
                     return Err(unsupported(
                         "original owner pattern requires its projected generation ledger",
@@ -586,9 +587,9 @@ impl<'a> Engine<'a> {
                     value,
                     Value::Owner { .. }
                         | Value::Fresh
-                        | Value::FreshTask
-                        | Value::FallibleTask
-                        | Value::FallibleTaskOwned(_)
+                        | Value::FreshTask(_)
+                        | Value::FallibleTask(_)
+                        | Value::FallibleTaskOwned(_,_)
                 ) {
                     return Err(unsupported(
                         "original owner record pattern requires its projected generation ledger",

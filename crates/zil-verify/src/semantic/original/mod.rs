@@ -84,6 +84,7 @@ pub(super) struct CheckedOriginal {
     trait_witnesses:Vec<(LifeDeclarationId,LifeDeclarationId)>,
     task_closed_cleanups:BTreeSet<(SemanticDefinitionId,Place)>,
     task_async_cleanups:BTreeSet<(SemanticDefinitionId,Place)>,
+    task_synchronous_cleanups:BTreeSet<(SemanticDefinitionId,Place)>,
     callable_nodes:BTreeMap<(SemanticDefinitionId,NodeId),NodeId>,
     code_sources:BTreeMap<(SemanticDefinitionId,NodeId),SemanticDefinitionId>,
     prototypes:BTreeMap<SemanticDefinitionId,Prototype>,

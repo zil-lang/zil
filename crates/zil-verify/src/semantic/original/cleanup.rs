@@ -82,8 +82,8 @@ impl CheckedOriginal {
             return self.remaining_drop(module,context,&hidden,place,uses,env,active,b);
         }
         let partial=uses.definite.iter().any(|moved|moved.binder==place.binder&&moved.fields.starts_with(&place.fields));
-        b.spend(self.task_closed_cleanups.len().saturating_add(self.task_async_cleanups.len()))?;
-        let nested_task=self.task_closed_cleanups.iter().chain(&self.task_async_cleanups).any(|(definition,child)|Some(*definition)==env.lexical.first().map(|frame|frame.definition)&&child.binder==place.binder&&child.fields.len()>place.fields.len()&&child.fields.starts_with(&place.fields));
+        b.spend(self.task_closed_cleanups.len().saturating_add(self.task_async_cleanups.len()).saturating_add(self.task_synchronous_cleanups.len()))?;
+        let nested_task=self.task_closed_cleanups.iter().chain(&self.task_async_cleanups).chain(&self.task_synchronous_cleanups).any(|(definition,child)|Some(*definition)==env.lexical.first().map(|frame|frame.definition)&&child.binder==place.binder&&child.fields.len()>place.fields.len()&&child.fields.starts_with(&place.fields));
         if partial||nested_task {
             let ty=self.resolved(ty,b)?;
             let fields=match &ty{
@@ -101,6 +101,9 @@ impl CheckedOriginal {
         // proved every cleanup edge, including all old loop generations.
         if self.task_closed_cleanups.contains(&(env.current()?,place.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
         if self.task_async_cleanups.contains(&(env.current()?,place.clone()))&&self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.call_kind==CallKind::Suspend)&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
+        // This is a proved source/occupant relation, not Task<T>:SyncDrop.
+        // The actual worker/source graph and every real cleanup remain required.
+        if self.task_synchronous_cleanups.contains(&(env.current()?,place.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
         if self.sync_drop(module,context,ty,env,active,b)?{Ok(())}else{Err(bad("original cleanup edge has no original SyncDrop proof"))}
     }
     pub(super) fn sync_drop(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{

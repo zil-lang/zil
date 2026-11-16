@@ -17,7 +17,7 @@ impl Engine<'_> {
                     Value::Owner {
                         borrowed: actual, ..
                     } => *actual |= borrowed,
-                    Value::Fresh | Value::FreshTask if !borrowed => {}
+                    Value::Fresh | Value::FreshTask(_) if !borrowed => {}
                     _ => {
                         return Err(unsupported(
                             "original owner expression has no exact initialized slot or proved return provenance",
@@ -156,7 +156,7 @@ impl Engine<'_> {
             }
             Try(value) => {
                 let value = self.expression(value, state, depth + 1, b)?;
-                if let Value::FallibleTaskOwned(inputs) = &value {
+                if let Value::FallibleTaskOwned(inputs,sources) = &value {
                     let mut failed = state.copy(b)?;
                     for input in inputs {
                         self.task_transfer_value(&mut failed, input, b)?;
@@ -168,15 +168,15 @@ impl Engine<'_> {
                     for input in inputs {
                         self.task_transfer_value(state, input, b)?;
                     }
-                    return Ok(Value::FreshTask);
+                    return Ok(Value::FreshTask(sources.clone()));
                 }
-                if value == Value::FallibleTask {
+                if let Value::FallibleTask(sources)=&value {
                     b.spend(self.error_unwind.len())?;
                     let deferred = self.error_unwind.clone();
                     let error = self.unwind(state.copy(b)?, &deferred, 0, depth + 1, b)?;
                     self.error_unwind = deferred;
                     self.check_exit(error, Value::Plain, b)?;
-                    return Ok(Value::FreshTask);
+                    return Ok(Value::FreshTask(sources.clone()));
                 }
                 if !matches!(value, Value::Plain) {
                     return Err(unsupported(
@@ -396,7 +396,7 @@ impl Engine<'_> {
         if let Some(use_) =
             site.and_then(|site| self.original.intrinsic_calls.get(&(self.current, site)))
         {
-            if let Some(value) = self.task_call(use_.kind, values, state, b)? {
+            if let Some(value) = self.task_call(use_.kind, node.id, values, state, b)? {
                 return Ok(value);
             }
             match use_.kind {
@@ -510,7 +510,7 @@ impl Engine<'_> {
         let ty = self.original.resolved(ty, b)?;
         match owner_type(&ty) {
             Some(false) => Ok(if tasks::is_task(&ty) {
-                Value::FreshTask
+                Value::FreshTask(unknown_sources())
             } else {
                 Value::Fresh
             }),
@@ -552,6 +552,8 @@ impl Engine<'_> {
             .map(|ty| self.poll_type(ty, b))
             .transpose()?
             .unwrap_or(false);
+        let mut input_sources=Vec::new();
+        for value in values{input_sources.push(self.result_sources(state,value,b)?);}
         let mut pending = Vec::new();
         let mut seen = BTreeSet::new();
         // Read every actual operand from the same pre-call state before any
@@ -683,7 +685,11 @@ impl Engine<'_> {
                 tag: None,
             })
         } else {
-            self.result_value(node,state,b)
+            let value=self.result_value(node,state,b)?;
+            if let Some(summary)=self.result_sources_by_function.get(&target){
+                self.apply_result_sources(state,&value,summary,&input_sources,target,b)?;
+            }
+            Ok(value)
         }
     }
     fn observing_parameter(

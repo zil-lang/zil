@@ -20,6 +20,10 @@ struct Engine<'a> {
     next: u64,
     closed_tasks: BTreeSet<Place>,
     async_tasks: BTreeSet<Place>,
+    synchronous_tasks:BTreeSet<Place>,
+    synchronous_births:&'a BTreeSet<(SemanticDefinitionId,NodeId)>,
+    result_sources_by_function:&'a BTreeMap<SemanticDefinitionId,ResultSources>,
+    returned_sources:Option<ResultSources>,
     error_unwind: Vec<&'a SemanticOriginalBlock>,
     task_loop_keys: Vec<BTreeSet<Binder>>,
     result_shapes:BTreeMap<NodeId,tasks::Shape>,
@@ -35,7 +39,10 @@ impl CheckedOriginal {
         active: &mut ActiveQueries,
         b: &mut Budget,
     ) -> Check<()> {
-        for (&id, function) in &index.definitions {
+        let synchronous_births=self.synchronous_task_births(module,context,index,active,b)?;
+        let mut result_sources_by_function=BTreeMap::new();
+        for id in protocol_order(self,index,b)? {
+            let function=&index.definitions[&id];
             b.spend(1)?;
             let SemanticDefinitionBody::FunctionWithBody {
                 protocol_contracts,
@@ -154,6 +161,10 @@ impl CheckedOriginal {
                 next: 0,
                 closed_tasks: BTreeSet::new(),
                 async_tasks: BTreeSet::new(),
+                synchronous_tasks:BTreeSet::new(),
+                synchronous_births:&synchronous_births,
+                result_sources_by_function:&result_sources_by_function,
+                returned_sources:None,
                 error_unwind: Vec::new(),
                 task_loop_keys: Vec::new(),
                 result_shapes,
@@ -199,6 +210,7 @@ impl CheckedOriginal {
                             generation,
                             task: tasks::is_task(&ty),
                             owned: !borrowed,
+                            sources:unknown_sources(),
                         },
                     );
                     state.values.insert(
@@ -257,12 +269,17 @@ impl CheckedOriginal {
                     return Err(bad("original protocol control exits outside its loop"));
                 }
                 if let Some(state) = outcome.fall {
+                    engine.record_result_sources(&state,&Value::Plain,b)?;
                     engine.check_exit(state, Value::Plain, b)?;
                 }
             }
             let closed = std::mem::take(&mut engine.closed_tasks);
             let asynchronous = std::mem::take(&mut engine.async_tasks);
+            let synchronous=std::mem::take(&mut engine.synchronous_tasks);
+            let returned=engine.returned_sources.take();
             drop(engine);
+            if let Some(returned)=returned{b.spend(returned.len())?;result_sources_by_function.insert(id,returned);}
+            for root in synchronous{b.spend(1)?;self.task_synchronous_cleanups.insert((id,root));}
             for root in closed {
                 b.spend(1)?;
                 self.task_closed_cleanups.insert((id, root));
@@ -531,4 +548,17 @@ impl<'a> Engine<'a> {
         }
         Ok(())
     }
+}
+
+/// Visit statically selected original callees before their users. A recursive
+/// edge does not assume its own Return summary: a missing summary stays unknown.
+fn protocol_order(original:&CheckedOriginal,index:&index::Index<'_>,b:&mut Budget)->Check<Vec<SemanticDefinitionId>>{
+    let mut edges=BTreeMap::<SemanticDefinitionId,BTreeSet<SemanticDefinitionId>>::new();
+    for((caller,_),callee)in &original.call_targets{b.spend(1)?;if index.definitions.contains_key(callee){edges.entry(*caller).or_default().insert(*callee);}}
+    let mut entered=BTreeSet::new();let mut done=BTreeSet::new();let mut result=Vec::new();
+    for id in index.definitions.keys(){
+        let mut pending=vec![(*id,false)];
+        while let Some((id,exit))=pending.pop(){b.spend(1)?;if exit{if done.insert(id){result.push(id);}continue;}if !entered.insert(id){continue;}pending.push((id,true));if let Some(callees)=edges.get(&id){for callee in callees{b.spend(1)?;pending.push((*callee,false));}}}
+    }
+    Ok(result)
 }
