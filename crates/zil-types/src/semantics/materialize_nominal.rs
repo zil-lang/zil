@@ -59,6 +59,20 @@ impl Eval<'_, '_, '_> {
                         if actual_life != life {
                             return Ok(false);
                         }
+                    } else if let Type::Task { retained_life, .. }
+                    | Type::MutexGuard { retained_life, .. } = actual_ty
+                    {
+                        // The whole carrier Type already includes its complete
+                        // internal Context tables, compared above. Its outer
+                        // intrinsic scope has N classes and no flattened rows.
+                        let _paid = self.copy_shape(life)?;
+                        if life.binder_count != retained_life.binder_count
+                            || !life.slots.is_empty()
+                            || !life.retained.is_empty()
+                            || !life.nominal_arguments.is_empty()
+                        {
+                            return Ok(false);
+                        }
                     } else {
                         // A root borrow's separate occurrence directory may
                         // never be inferred from its erased physical pointer.

@@ -152,6 +152,41 @@ impl<'a> Check<'a, '_> {
         }
         match ty {
             Type::BorrowedStorage { life, .. } => Ok(life.binder_count),
+            Type::Task { retained_life, .. } | Type::MutexGuard { retained_life, .. } => {
+                // These carriers own an explicit intrinsic boundary. The
+                // result/payload and all ports, retained and nominal rows are
+                // part of the exact Type, not an omitted BS qualification.
+                // This only locates class ordinals; original application and
+                // Task result-to-Context equations are checked independently.
+                inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 1)?;
+                let count = retained_life.binder_count;
+                if count as usize > self.limits.max_nodes {
+                    return Err(Diagnostic::limit(
+                        Phase::Types,
+                        "nominal child intrinsic domain limit exceeded",
+                        None,
+                    ));
+                }
+                self.pay(
+                    retained_life
+                        .ports
+                        .len()
+                        .saturating_add(retained_life.retained.len())
+                        .saturating_add(retained_life.nominal_arguments.len()),
+                )?;
+                if retained_life.ports.iter().any(|row| row.binder >= count)
+                    || retained_life.retained.iter().any(|row| row.binder >= count)
+                    || retained_life
+                        .nominal_arguments
+                        .iter()
+                        .any(|row| row.binder >= count)
+                {
+                    return Err(bad(
+                        "nominal child intrinsic row leaves its complete domain",
+                    ));
+                }
+                Ok(count)
+            }
             ty if ty.is_b0_scalar() => Ok(0),
             Type::ByteBuffer
             | Type::ForeignHandle
@@ -879,17 +914,23 @@ impl<'a> Check<'a, '_> {
                 if &ty != expected {
                     return Ok(false);
                 }
-                let intrinsic = match expected {
-                    Type::BorrowedStorage { life, .. } => Some(life),
-                    _ => None,
+                let matches = match expected {
+                    Type::BorrowedStorage { life: expected, .. } => expected == &life,
+                    Type::Task { retained_life, .. } | Type::MutexGuard { retained_life, .. } => {
+                        life.binder_count == retained_life.binder_count
+                            && life.slots.is_empty()
+                            && life.retained.is_empty()
+                            && life.nominal_arguments.is_empty()
+                    }
+                    _ => {
+                        life.binder_count == 0
+                            && life.slots.is_empty()
+                            && life.retained.is_empty()
+                            && life.nominal_arguments.is_empty()
+                    }
                 };
-                if intrinsic.map_or(
-                    life.binder_count != 0
-                        || !life.slots.is_empty()
-                        || !life.retained.is_empty()
-                        || !life.nominal_arguments.is_empty(),
-                    |expected| expected != &life,
-                ) {
+                self.shape_work(&life)?;
+                if !matches {
                     return Ok(false);
                 }
                 let images = self.type_images(owner, ordinal as u32, expected, depth + 1)?;
@@ -977,13 +1018,17 @@ impl<'a> Check<'a, '_> {
                 matches!(formal,
                 SemanticFormal::Type { requirements } if !requirements.is_empty())
             });
-        // Separate Type qualifications are untrusted input too. Reconstruct
-        // their whole original argument in every matching source application;
-        // the catalogue's claimed N/slots never authenticate themselves.
-        let has_qualified_actual = owner
-            .arguments
-            .iter()
-            .any(|actual| matches!(actual, LifeNominalActual::QualifiedType { .. }));
+        // Separate Type qualifications and embedded Task/guard Contexts are
+        // untrusted input too. Reconstruct the whole original argument in a
+        // matching source application; claimed N/ports/rows do not authenticate
+        // themselves, even when the carrier has a plain physical Type.
+        let has_qualified_actual = owner.arguments.iter().any(|actual| {
+            matches!(
+                actual,
+                LifeNominalActual::QualifiedType { .. }
+                    | LifeNominalActual::Type(Type::Task { .. } | Type::MutexGuard { .. })
+            )
+        });
         if !has_obligations && !has_qualified_actual {
             return Ok(());
         }
