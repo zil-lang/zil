@@ -13,6 +13,7 @@ impl CheckedContext {
         let f=module.functions.get(function.0 as usize).filter(|row|row.id==function).ok_or_else(||bad("original Call input actual caller is absent"))?;
         b.spend(arguments.len())?;
         let mut checked=Vec::with_capacity(arguments.len());
+        let original_regions=self.original.borrow().as_ref().ok_or_else(||bad("Call inputs have no original region proof"))?.has_call_regions(caller.definition,site.recipe,b)?;
         let mut adapted=Vec::new();
         for(index,argument)in arguments.iter().enumerate(){
             let actual=value_at(values,*argument)?;
@@ -22,7 +23,9 @@ impl CheckedContext {
             // The later invariant callee P/R check is their authority. Only a
             // fresh outer invocation head exported by R needs an original
             // caller image instead of an extra compiler argument-reborrow head.
-            if !returned_input_head(signature,key,index,b)?||!matches!(actual.ty,Type::Address{..}){continue;}
+            if !matches!(actual.ty,Type::Address{..}){continue;}
+            if original_regions{b.spend(1)?;adapted.push(index);continue;}
+            if !returned_input_head(signature,key,index,b)?{continue;}
             let mut producer=None;
             for block in &f.blocks{b.spend(block.instructions.len())?;for operation in &block.instructions{
                 if operation.result==Some(*argument)&&producer.replace(operation).is_some(){return Err(bad("Call argument adapter has several actual SSA definitions"));}
@@ -47,7 +50,7 @@ impl CheckedContext {
     }
     pub(super) fn instantiate_call_heads(&self,signature:&mut CheckedSignature,arguments:&[&CheckedType],key:ScopeKey,environment:&EvalEnv,b:&mut Budget)->Check<()>{
         if arguments.len()!=signature.parameters.len(){return Err(bad("Call head substitution changes its actual arity"));}
-        let mut invocation=Vec::<(ClassKey,ClassKey)>::new();
+        let mut invocation=Vec::<(ClassKey,Vec<ClassKey>)>::new();
         let mut static_heads=Vec::<ClassKey>::new();
         for(index,((expected,_),actual))in signature.parameters.iter().zip(arguments).enumerate(){
             for slot in &expected.life.slots{
@@ -60,21 +63,28 @@ impl CheckedContext {
                 let Some(actual_slot)=slots.next()else{
                     let mut statics=actual.statics.iter().filter(|row|matches!(row,StaticOccurrence::Direct{path,leaf,mode:StoredBorrowMode::SharedAddress}if path.is_empty()&&leaf==&actual.ty));
                     if slot.mode!=StoredBorrowMode::SharedAddress||actual.ty!=expected.ty||statics.next().is_none()||statics.next().is_some(){return Err(unsupported("Call fresh input head needs its complete actual static/borrow role",None));}
-                    if invocation.iter().any(|(key,_)|key==source){return Err(bad("Call repeated invocation head mixes static and variable actual roles"));}
                     if !static_heads.contains(source){static_heads.push(source.clone());}continue;
                 };
-                if static_heads.contains(source){return Err(bad("Call repeated invocation head mixes variable and static actual roles"));}
                 if slots.next().is_some(){return Err(bad("Call argument has duplicate head occurrences"));}
                 let image=actual.classes.get(actual_slot.binder as usize).ok_or_else(||bad("Call actual head class is absent"))?;
                 b.spend(invocation.len())?;
-                if let Some((_,previous))=invocation.iter().find(|(key,_)|key==source){if !self.same(environment,previous,image,b)?{return Err(bad("Call violates a repeated original invocation relation"));}}
-                else{invocation.push((source.clone(),image.clone()));}
+                if let Some((_,images))=invocation.iter_mut().find(|(key,_)|key==source){b.spend(images.len().saturating_add(1))?;if !images.contains(image){images.push(image.clone());}}
+                else{invocation.push((source.clone(),vec![image.clone()]));}
             }
         }
-        let mut boundary=trait_members::Boundary::default();for(source,image)in invocation{boundary.class(self,environment,&source,&image,b)?;}
+        let mut boundary=trait_members::Boundary::default();let mut dependencies=Vec::new();
+        for(source,images)in &invocation{
+            let image=images.first().ok_or_else(||bad("Call outer role has no actual input image"))?;
+            let mut equal=!static_heads.contains(source);for other in images{if !self.same(environment,image,other,b)?{equal=false;}}
+            if equal{boundary.class(self,environment,source,image,b)?;}
+            else{for image in images{b.spend(1)?;dependencies.push((image.clone(),source.clone()));}}
+        }
+        if !dependencies.is_empty(){let scope=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;let mut premises=self.premises.borrow_mut();let rows=premises.entry(scope).or_default();let mut changed=false;for edge in dependencies{b.spend(rows.relations.outlives.len().saturating_add(1))?;if !rows.relations.outlives.contains(&edge){rows.relations.outlives.push(edge);changed=true;}}drop(premises);if changed{self.invalidate_closed_frames();}}
+
         for(parameter,_)in &mut signature.parameters{*parameter=boundary.project_type(self,environment,parameter,b)?;}
         signature.result=boundary.project_type(self,environment,&signature.result,b)?;
         for source in static_heads{
+            if invocation.iter().any(|(key,_)|key==&source){continue;}
             for(parameter,_)in &mut signature.parameters{static_call_head(parameter,&source,b)?;}
             static_call_head(&mut signature.result,&source,b)?;
             signature.invocation.retain(|key|key!=&source);signature.bound.retain(|key|key!=&source);
@@ -189,7 +199,7 @@ mod input_image_tests{
         let owner=SemanticDefinitionId{module:module.module_id,index:0};
         let call=ScopeKey::Witness{definition:owner,frame:crate::semantic::api::FrameToken(0)};
         let caller=ScopeKey::Instance(SemanticInstanceId{module:module.module_id,index:0});
-        let env=EvalEnv{lexical:vec![],assumptions:vec![],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        let env=EvalEnv{lexical:vec![LexicalFrame{definition:owner,key:caller,actuals:vec![],environment:vec![],self_type:None}],assumptions:vec![caller],images:vec![],bounds:vec![],invocations:vec![],at:None};
         let fresh=[ClassKey::Implicit{scope:call,ordinal:0},ClassKey::Implicit{scope:call,ordinal:1}];
         let origins=(0..2).map(|class|IntrinsicOrigin::Existing{scope:caller,operand:OperandKey::Receiver,path:vec![],class}).collect::<Vec<_>>();
         let template=CheckedSignature{parameters:fresh.iter().cloned().map(|key|(address(key),PassingMode::Borrow)).collect(),result:CheckedType{type_cell:crate::semantic::CheckedTypeData::new(Type::Closure(ClosureId(0))),life:StorageLifeShape{binder_count:2,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:fresh.to_vec(),origins:origins.clone(),statics:vec![]},result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound:vec![],invocation:vec![]};
@@ -224,6 +234,11 @@ mod input_image_tests{
         let mut repeated=template;
         repeated.parameters[1].0=address(fresh[0].clone());
         let arguments=[address(ClassKey::Implicit{scope:caller,ordinal:0}),address(ClassKey::Implicit{scope:caller,ordinal:1})];
-        assert!(context.instantiate_call_heads(&mut repeated,&arguments.iter().collect::<Vec<_>>(),call,&env,&mut b).unwrap_err().message.contains("repeated original invocation relation"));
+        context.instantiate_call_heads(&mut repeated,&arguments.iter().collect::<Vec<_>>(),call,&env,&mut b).unwrap();
+        assert_eq!(repeated.result.classes,fresh);
+        for argument in &arguments{assert!(context.outlives(&env,&argument.classes[0],&fresh[0],&mut b).unwrap());assert!(!context.same(&env,&argument.classes[0],&fresh[0],&mut b).unwrap());}
+        assert!(!context.outlives(&env,&arguments[0].classes[0],&arguments[1].classes[0],&mut b).unwrap());
+        assert!(!context.outlives(&env,&fresh[0],&arguments[0].classes[0],&mut b).unwrap());
+        assert_eq!(repeated.result.life.binder_count,2,"directed input adaptation must preserve the complete result domain");
     }
 }

@@ -133,7 +133,7 @@ impl CheckedOriginal {
     pub(super) fn argument(&mut self,module:&TypedModule,context:&CheckedContext,expression:&SemanticOriginalExpr,expected:&Ty,mode:PassingMode,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
         if let Ty::Desc{life:expected_life,inner:payload}=self.resolved(expected,b)?{if matches!(mode,PassingMode::Infer|PassingMode::Describe){
             let(actual,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&actual,env,false,active,b)?;}
-            let effective=match self.resolved(&actual,b)?{Ty::Managed(inner)=>{self.unify(&inner,&payload,b)?;let life=Life::Local(env.current()?,expression.id);self.unify_life(&life,&expected_life,b)?;Ty::Desc{life,inner}},Ty::Desc{life,inner}=>{self.unify(&inner,&payload,b)?;self.unify_life(&life,&expected_life,b)?;Ty::Desc{life,inner}},_=>return Err(bad("original description argument has no actual owner or description"))};
+            let effective=match self.resolved(&actual,b)?{Ty::Managed(inner)=>{self.unify(&inner,&payload,b)?;let life=Life::Local(env.current()?,expression.id);self.relate_outer(&life,&expected_life,b)?;Ty::Desc{life,inner}},Ty::Desc{life,inner}=>{self.unify(&inner,&payload,b)?;self.relate_outer(&life,&expected_life,b)?;Ty::Desc{life,inner}},_=>return Err(bad("original description argument has no actual owner or description"))};
             // Only this actual argument occurrence is a description. The
             // lexical binding and parameter declaration retain their owning
             // category, source identity and complete intrinsic domain.
@@ -142,12 +142,12 @@ impl CheckedOriginal {
         }}
         match mode{
             PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe=>{
-                let (actual,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&actual,env,false,active,b)?;}self.unify(&actual,expected,b)?;Ok(actual)
+                let (actual,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&actual,env,false,active,b)?;}self.relate_value(&actual,expected,b)?;Ok(actual)
             },
             PassingMode::Copy=>{
                 let (actual,place)=self.place(module,context,expression,env,bindings,active,b)?;
                 self.require_copy(module,context,&actual,env,active,b)?;
-                if let Some(place)=place{self.read_original(module,context,&place,&actual,env,false,active,b)?;}self.unify(&actual,expected,b)?;Ok(actual)
+                if let Some(place)=place{self.read_original(module,context,&place,&actual,env,false,active,b)?;}self.relate_value(&actual,expected,b)?;Ok(actual)
             },
             PassingMode::Give=>{if !matches!(expression.kind,CoreExprKind::Unary{op:UnaryOp::Give,..}){return Err(bad("original owning resource argument omits explicit give"));}self.expression(module,context,expression,env,bindings,Some(expected),active,b)},
             _=>self.expression(module,context,expression,env,bindings,Some(expected),active,b),

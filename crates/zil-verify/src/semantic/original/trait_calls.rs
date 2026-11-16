@@ -37,7 +37,9 @@ impl CheckedOriginal {
             if !matches!((formal,&actual),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Lifetime,Arg::Life(_))|(SemanticFormal::Const{..},Arg::Const(_))){return Err(bad("original member changes a full-ordinal actual kind"));}actuals.push(actual);
         }
         selected.lexical[0].actuals=actuals;
+        let outer_floor=self.next_inference;
         let prototype=self.call_signature(module,context,method,signature,&selected,active,b)?;
+        let outer_heads=self.defer_call_heads(&prototype,&selected.lexical[0].actuals,outer_floor,b)?;
         if prototype.parameters.len()!=arguments.len()+1{return Err(bad("original member receiver/value arity differs"));}
         self.execute_effect(env,prototype.call_kind,b)?;
         let mode=prototype.modes[0];let receiver_parameter=self.resolved(&prototype.parameters[0],b)?;
@@ -47,12 +49,13 @@ impl CheckedOriginal {
         }
         if let Some(place)=&place{self.read_original(module,context,place,&object_type,env,!matches!(mode,PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe),active,b)?;}
         let actual_receiver=match receiver_parameter{Ty::Address{mutable,..}=>Ty::Address{mutable,life:Life::ReceiverRole(env.current()?,call.id,receiver_mode.unwrap()),inner:Box::new(receiver.clone())},Ty::Desc{..}=>Ty::Desc{life:Life::ReceiverRole(env.current()?,call.id,StoredBorrowMode::WritableDescription),inner:Box::new(receiver.clone())},_=>object_type};
-        self.unify(&actual_receiver,&prototype.parameters[0],b)?;
-        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters[1..]).zip(&prototype.modes[1..]){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.unify(&actual,&parameter,b)?;}
+        self.relate_value(&actual_receiver,&prototype.parameters[0],b)?;
+        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters[1..]).zip(&prototype.modes[1..]){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.relate_value(&actual,&parameter,b)?;}
+        self.finish_call_heads(&outer_heads,call.id,b)?;
         for requirement in &original.requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}
         for formal in &original.parameters{if let SemanticFormal::Type{requirements}=formal{for requirement in requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}}}
         let result=self.normalize_original_type(module,context,&prototype.result,env,active,b)?;
-        if let Some(expected)=expected{self.unify(&result,expected,b)?;}
+        if let Some(expected)=expected{self.relate_value(&result,expected,b)?;}
         let caller=context.definition(module,env.current()?,b)?;let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&caller.body else{unreachable!()};
         let mut sites=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).filter(|site|matches!(site.kind,SemanticSiteRecipeKind::OriginalCall));
         let site=sites.next().ok_or_else(||bad("abstract original member requires its exact BodyCall site"))?;if sites.next().is_some(){return Err(bad("original trait member call site is ambiguous"));}

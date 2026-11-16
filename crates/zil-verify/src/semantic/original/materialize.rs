@@ -101,6 +101,19 @@ impl CheckedOriginal {
     })}
     fn reify_outer(&self,module:&TypedModule,life:&Life,env:&EvalEnv,b:&mut Budget)->Check<SemanticOuterLifeRecipe>{if *life==Life::Static{Ok(SemanticOuterLifeRecipe::Static)}else{Ok(SemanticOuterLifeRecipe::Class(self.reify_life(module,life,env,b)?))}}
     pub(super) fn reify_life(&self,module:&TypedModule,life:&Life,env:&EvalEnv,b:&mut Budget)->Check<SemanticLifeRecipe>{let resolved=self.resolved_life(life,b)?;let life=&resolved;b.spend(1)?;Ok(match life{
+        Life::CallRegion(id)=>{
+            let(owner,node,role,_)=self.call_regions.get(id).ok_or_else(||bad("original Call region has no complete source role"))?;
+            let original=module.semantic.as_ref().and_then(|program|program.definitions.iter().find(|row|row.id==*owner)).ok_or_else(||bad("original Call region owner is absent"))?;
+            let SemanticDefinitionBody::FunctionWithBody{sites,..}=&original.body else{return Err(bad("original Call region owner has no complete body"));};
+            let(position,identity)=self.original_call_site(*owner,*node,b)?;
+            let site=sites.get(position).filter(|site|site.id==identity).ok_or_else(||bad("original Call region selects another immutable operation"))?;
+            b.spend(site.occurrence_path.len().saturating_add(original.implicit_lifetimes.len()).saturating_add(role.len()).saturating_add(1))?;
+            let mut path=site.occurrence_path.clone();path.push(u32::MAX);path.extend_from_slice(role);
+            let mut rows=original.implicit_lifetimes.iter().filter(|row|row.occurrence_path==path);
+            let row=rows.next().ok_or_else(||unsupported("original inferred Call region lacks its independent full-ordinal Source occurrence",None))?;
+            if rows.next().is_some(){return Err(bad("original Call region has several full-ordinal lifetime occurrences"));}
+            SemanticLifeRecipe::Implicit{scope:self.scope(*owner,env,b)?,ordinal:row.ordinal}
+        },
         Life::Head(definition,ordinal)=>{if env.lexical.first().is_none_or(|frame|frame.definition!=*definition){return Err(bad("original description head was not instantiated at its true call boundary"));}SemanticLifeRecipe::OuterOccurrence{operand:SemanticRecipeOperand::Parameter(*ordinal),path:vec![],mode:StoredBorrowMode::WritableDescription}},
         Life::ReceiverRole(..)=>return Err(unsupported("receiver role requires the private exact actual-call value bridge",None)),
         Life::Formal(definition,ordinal)=>SemanticLifeRecipe::Formal(SemanticFormalRef{scope:self.scope(*definition,env,b)?,ordinal:*ordinal}),

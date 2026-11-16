@@ -26,7 +26,14 @@ impl CheckedOriginal {
             if matches!(life,Life::Implicit(id,_)|Life::Head(id,_) if Some(*id)==owner){candidates.insert(life.clone());}
             Ok(life.clone())
         },0,b)?;}
-        let mut map=BTreeMap::new();for life in candidates{map.insert(life,self.fresh_life(b)?);}
+        let mut map=BTreeMap::new();for life in candidates{
+            let role=match &life{
+                Life::Implicit(_,ordinal)=>vec![1,*ordinal],Life::Head(_,ordinal)=>vec![2,*ordinal],Life::Invocation(_,index)=>vec![3,*index],
+                Life::Bound(_,index)=>{let depth=prototype.environment.bounds.iter().position(|frame|frame.contains(&life)).ok_or_else(||bad("original call Bound role has no exact private frame"))?;vec![4,u32::try_from(depth).map_err(|_|limit("original Call Bound role depth exceeds its complete domain"))?,*index]},
+                _=>return Err(bad("original call freshens a lifetime outside its exact private role directory")),
+            };
+            let fresh=self.fresh_life(b)?;let Life::Infer(id)=fresh else{unreachable!()};b.spend(role.len().saturating_add(1))?;self.call_head_roles.insert(id,role);map.insert(life,Life::Infer(id));
+        }
         let mut rewrite=|life:&Life,b:&mut Budget|{b.spend(1)?;Ok(map.get(life).cloned().unwrap_or_else(||life.clone()))};
         let environment=self.prototype_environment(prototype,selected,&mut rewrite,b)?;
         let mut premise_bounds=Vec::new();for frame in &prototype.premise_bounds{let mut values=Vec::new();for life in frame{values.push(rewrite(life,b)?);}premise_bounds.push(values);}

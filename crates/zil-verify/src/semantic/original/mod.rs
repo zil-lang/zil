@@ -88,6 +88,12 @@ pub(super) struct CheckedOriginal {
     prototypes:BTreeMap<SemanticDefinitionId,Prototype>,
     substitutions:BTreeMap<u64,Ty>,
     life_substitutions:BTreeMap<u64,Life>,
+    outer_inferences:BTreeMap<u64,Vec<Life>>,
+    call_regions:BTreeMap<u64,(SemanticDefinitionId,NodeId,Vec<u32>,Vec<Life>)>,
+    call_head_roles:BTreeMap<u64,Vec<u32>>,
+    borrow_parents:BTreeMap<(SemanticDefinitionId,NodeId),Life>,
+    outer_flows:BTreeMap<SemanticDefinitionId,Vec<(Life,Life)>>,
+    life_outlives:BTreeMap<SemanticDefinitionId,Vec<(Life,Life)>>,
     life_equalities:BTreeMap<SemanticDefinitionId,Vec<(Life,Life)>>,
     next_inference:u64,
     environments:BTreeMap<SemanticDefinitionId,Env>,
@@ -142,6 +148,7 @@ impl CheckedOriginal {
             if let Some(progress)=&mut b.diagnostic_progress{progress.original=Some((ordinal+1,total,definition.id));}
             result.definition(module,context,definition.id,active,b)?;
         }
+        result.check_outer_flows(b)?;
         b.diagnostic_stage("original body obligations");
         let obligations=std::mem::take(&mut result.copy_obligations);
         for(ty,env)in obligations{result.current=Some(env.current()?);if !result.is_copy(module,context,&ty,&env,active,b)?{return Err(bad("original repeated value use has no resolved Copy proof"));}}

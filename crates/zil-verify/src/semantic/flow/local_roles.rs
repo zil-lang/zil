@@ -17,6 +17,8 @@ impl CheckedContext{
                 }
             }
         }
+        let flows=self.original.borrow().as_ref().ok_or_else(||bad("outer value flows lack their complete original programme"))?.outer_flow_recipes(module,instance.definition,environment,b)?;
+        for(source,target)in flows{if let SemanticOuterLifeRecipe::Class(source)=source{let source=self.life(module,&source,environment,b)?;let target=self.life(module,&target,environment,b)?;b.spend(1)?;edges.push((source,target));}}
         if edges.is_empty(){return Ok(());}
         let mut premises=self.premises.borrow_mut();let rows=premises.entry(frame.key).or_default();let mut changed=false;
         for edge in edges{

@@ -32,12 +32,12 @@ impl CheckedOriginal {
             if !matches!(site.kind,SemanticSiteRecipeKind::OriginalCall){return Err(bad("registered intrinsic has another original call role"));}
             let result=self.intrinsic_call(module,context,intrinsic,site.id,&written,expected.or(family.as_ref()),arguments,env,bindings,active,b)?;
             if matches!(intrinsic,intrinsics::Intrinsic::BytesNew|intrinsics::Intrinsic::StoreNew|intrinsics::Intrinsic::AsyncStart|intrinsics::Intrinsic::MutexCreate|intrinsics::Intrinsic::TaskCreate|intrinsics::Intrinsic::TaskCreateOwned){b.spend(1)?;self.created.insert((env.current()?,call.id));}
-            if let Some(expected)=expected{self.unify(&result,expected,b)?;}
+            if let Some(expected)=expected{self.relate_value(&result,expected,b)?;}
             return Ok(result);
         }
         let static_type=self.static_call_type(module,context,base,env,bindings,b)?;
         if let Some(Ty::Function(target))=&static_type{if let Some(result)=self.static_trait_call(module,context,*target,call,base,written_types,written_mixed,arguments,env,bindings,expected,active,b)?{return Ok(result);}}
-        if static_type.is_none(){if let Some(result)=self.slice_len_call(module,context,call,base,written_types.is_some()||written_mixed.is_some(),arguments,env,bindings,active,b)?{if let Some(expected)=expected{self.unify(&result,expected,b)?;}return Ok(result);}}
+        if static_type.is_none(){if let Some(result)=self.slice_len_call(module,context,call,base,written_types.is_some()||written_mixed.is_some(),arguments,env,bindings,active,b)?{if let Some(expected)=expected{self.relate_value(&result,expected,b)?;}return Ok(result);}}
         if static_type.is_none(){if let Some(result)=self.trait_member_call(module,context,call,base,written_types,written_mixed,arguments,env,bindings,expected,active,b)?{return Ok(result);}}
         if static_type.is_none(){if let Some(result)=self.variant_constructor(module,context,call,base,written_types,written_mixed,arguments,env,bindings,expected,active,b)?{return Ok(result);}}
         self.callable_nodes.insert((env.current()?,call.id),base.id);
@@ -64,14 +64,17 @@ impl CheckedOriginal {
                 }
                 let mut selected=self.environment(module,context,target,active,b)?;
                 selected.lexical[0].actuals=checked.clone();
+                let outer_floor=self.next_inference;
                 let prototype=self.call_signature(module,context,target,signature,&selected,active,b)?;
                 if let Some(family)=&family {self.bind_family_result(&prototype.result,family,b)?;}
+                let outer_heads=self.defer_call_heads(&prototype,&checked,outer_floor,b)?;
                 self.execute_effect(env,prototype.call_kind,b)?;
                 if prototype.parameters.len()!=arguments.len(){return Err(bad("original Call value arity differs from the declared signature"));}
                 if let Some(expected)=expected{if !associated::has_projection(&prototype.result,b)?{self.unify(&prototype.result,expected,b)?;}}
-                for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.unify(&actual,&parameter,b)?;}
+                for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.relate_value(&actual,&parameter,b)?;}
+                self.finish_call_heads(&outer_heads,call.id,b)?;
                 let result=self.normalize_original_type(module,context,&prototype.result,env,active,b)?;
-                if let Some(expected)=expected{self.unify(&result,expected,b)?;}
+                if let Some(expected)=expected{self.relate_value(&result,expected,b)?;}
                 // Opaque result capabilities refer to the defining body's
                 // actual Result role. Complete every original return before
                 // interpreting those obligations in this call's full actuals.
@@ -111,15 +114,16 @@ impl CheckedOriginal {
                 if written_types.is_some()||written_mixed.is_some(){return Err(bad("original closure invocation has unsupported generic application"));}
                 let original=context.definition(module,definition,b)?;let SemanticDefinitionBody::FunctionWithBody{signature,..}=&original.body else{return Err(bad("original Closure has no complete signature/body"));};
                 let mut selected=self.environment(module,context,definition,active,b)?;selected.lexical[0].actuals=actuals;selected.lexical[0].environment=sealed;
-                let rigid=if let Some(prototype)=self.prototypes.get(&definition){prototype.clone()}else{let rigid=self.environment(module,context,definition,active,b)?;self.signature(module,context,signature,&rigid,active,b)?};let prototype=self.instantiate_prototype(&rigid,Some(definition),&selected,b)?;
+                let rigid=if let Some(prototype)=self.prototypes.get(&definition){prototype.clone()}else{let rigid=self.environment(module,context,definition,active,b)?;self.signature(module,context,signature,&rigid,active,b)?};let outer_floor=self.next_inference;let prototype=self.instantiate_prototype(&rigid,Some(definition),&selected,b)?;
                 if prototype.callable_kind==Some(CallableKind::FnOnce){if let Some(place)=&callee_place{self.read_original(module,context,place,&callee_type,env,true,active,b)?;}}
                 if prototype.callable_kind==Some(CallableKind::FnMut){if let Some(place)=&callee_place{self.written.entry(env.current()?).or_default().insert(place.binder.clone());}}
-                self.invoke(module,context,&prototype,arguments,env,bindings,active,b)
+                self.invoke(module,context,call.id,outer_floor,&prototype,arguments,env,bindings,active,b)
             },
-            Ty::Code{parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,..}=>self.invoke(module,context,&Prototype{parameters,result:*result,environment:env.clone(),modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,premise_bounds:vec![],callable_kind:None},arguments,env,bindings,active,b),
+            Ty::Code{parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,..}=>{let prototype=Prototype{parameters,result:*result,environment:env.clone(),modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes,premise_bounds:vec![],callable_kind:None};let outer_floor=self.next_inference;self.invoke(module,context,call.id,outer_floor,&prototype,arguments,env,bindings,active,b)},
             Ty::Address{mutable,inner,..}=>{
                 if written_types.is_some()||written_mixed.is_some(){return Err(bad("original borrowed callable has a written generic application"));}
                 let target=self.resolved(&inner,b)?;
+                let outer_floor=self.next_inference;
                 let prototype=match &target{
                     Ty::Closure(definition,actuals,sealed)=>{
                         let original=context.definition(module,*definition,b)?;let SemanticDefinitionBody::FunctionWithBody{signature,..}=&original.body else{return Err(bad("original borrowed Closure omits its body/signature"));};
@@ -136,22 +140,22 @@ impl CheckedOriginal {
                     Some(CallableKind::FnOnce)=>return Err(bad("original borrowed callable cannot transfer its FnOnce owner")),
                     None=>return Err(bad("original borrowed callable has no independently proved invocation capability")),
                 }
-                self.invoke(module,context,&prototype,arguments,env,bindings,active,b)
+                self.invoke(module,context,call.id,outer_floor,&prototype,arguments,env,bindings,active,b)
             },
             variable=>{
                 let prototype=self.callable_premise(module,context,&variable,env,active,b)?.ok_or_else(||bad("original indirect Call has no complete Callable premise"))?;
                 // The premise owns this code signature's quantifiers. Each
                 // call gets fresh roles; caller input heads and retained
                 // domains are not among those code binders (owner is None).
-                let prototype=self.instantiate_prototype(&prototype,None,&prototype.environment,b)?;
+                let outer_floor=self.next_inference;let prototype=self.instantiate_prototype(&prototype,None,&prototype.environment,b)?;
                 if prototype.callable_kind==Some(CallableKind::FnOnce){if let Some(place)=&callee_place{self.read_original(module,context,place,&variable,env,true,active,b)?;}}
                 if prototype.callable_kind==Some(CallableKind::FnMut){if let Some(place)=&callee_place{self.written.entry(env.current()?).or_default().insert(place.binder.clone());}}
-                self.invoke(module,context,&prototype,arguments,env,bindings,active,b)
+                self.invoke(module,context,call.id,outer_floor,&prototype,arguments,env,bindings,active,b)
             },
         }
     }
     #[allow(clippy::too_many_arguments)]
-    fn invoke(&mut self,module:&TypedModule,context:&CheckedContext,prototype:&Prototype,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{self.execute_effect(env,prototype.call_kind,b)?;if prototype.parameters.len()!=arguments.len(){return Err(bad("original Callable arity differs"));}for((argument,expected),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let actual=self.argument(module,context,argument,expected,*mode,env,bindings,active,b)?;self.unify(&actual,expected,b)?;}Ok(prototype.result.clone())}
+    fn invoke(&mut self,module:&TypedModule,context:&CheckedContext,node:NodeId,outer_floor:u64,prototype:&Prototype,arguments:&[SemanticOriginalExpr],env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{let outer_heads=self.defer_call_heads(prototype,&[],outer_floor,b)?;self.execute_effect(env,prototype.call_kind,b)?;if prototype.parameters.len()!=arguments.len(){return Err(bad("original Callable arity differs"));}for((argument,expected),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let actual=self.argument(module,context,argument,expected,*mode,env,bindings,active,b)?;self.relate_value(&actual,expected,b)?;}self.finish_call_heads(&outer_heads,node,b)?;Ok(prototype.result.clone())}
     pub(super) fn same_argument(&mut self,left:&Arg,right:&Arg,b:&mut Budget)->Check<()>{match(left,right){(Arg::Type(left),Arg::Type(right))=>self.unify(left,right,b),(Arg::Life(left),Arg::Life(right))=>self.unify_life(left,right,b),_ if left==right=>Ok(()),_=>Err(bad("original Call argument differs from its solved symbolic identity/carrier"))}}
     pub(super) fn callable_premise(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Prototype>>{
         if let Ty::Opaque(owner,arguments)=self.resolved(ty,b)?{return self.opaque_callable(module,context,owner,&arguments,active,b);}
@@ -221,6 +225,7 @@ impl CheckedOriginal {
         match requirement {
             SemanticRequirementRecipe::TypeEqual{left,right}=>{let left=self.ty(module,context,left,target,active,b)?;let right=self.ty(module,context,right,target,active,b)?;if !self.same(&left,&right,b)?{return Err(bad("original caller does not prove target TypeEqual requirement"));}Ok(())},
             SemanticRequirementRecipe::LifeEqual{left,right}=>{let left=self.life(module,context,left,target,active,b)?;let right=self.life(module,context,right,target,active,b)?;if self.same_life(&left,&right,b)?{Ok(())}else{Err(bad("original caller does not prove the target lifetime equality"))}},
+            SemanticRequirementRecipe::Outlives{longer,shorter}=>{let longer=self.life(module,context,longer,target,active,b)?;let shorter=self.life(module,context,shorter,target,active,b)?;if self.outer_outlives(&longer,&shorter,&mut BTreeSet::new(),b)?{Ok(())}else{Err(bad("original caller does not prove every source of the target outer lifetime relation"))}},
             SemanticRequirementRecipe::Callable{ty,signature,kind}=>self.callable_goal(module,context,ty,signature,*kind,target,caller,active,b),
             SemanticRequirementRecipe::ForAll{lifetimes,requirements}=>{
                 let mut selected=self.copy_environment(target,b)?;

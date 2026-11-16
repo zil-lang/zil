@@ -29,7 +29,7 @@ impl CheckedOriginal{
             actuals.push(value);
         }
         let mut selected=self.environment(module,context,id,active,b)?;selected.lexical[0].actuals=actuals.clone();
-        for(field,value)in fields.iter().zip(arguments){let parameter=self.ty(module,context,field,&selected,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&parameter),active,b)?;self.unify(&actual,&parameter,b)?;}
+        for(field,value)in fields.iter().zip(arguments){let parameter=self.ty(module,context,field,&selected,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&parameter),active,b)?;self.relate_value(&actual,&parameter,b)?;}
         let actuals=self.resolve_arguments(&actuals,0,b)?;
         for value in &actuals{match value{Arg::Type(ty)if usage::has_inference(ty,&self.substitutions,b)?=>return Err(bad("original enum Type actual is not uniquely determined")),Arg::Life(Life::Infer(_))=>return Err(bad("original enum lifetime actual is not uniquely determined")),_=>{}}}
         selected.lexical[0].actuals=actuals.clone();
@@ -115,11 +115,14 @@ impl CheckedOriginal {
             if !matches!((formal,&actual),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Lifetime,Arg::Life(_))|(SemanticFormal::Const{..},Arg::Const(_))){return Err(bad("original static method changes a full-ordinal actual kind"));}actuals.push(actual);
         }
         selected.lexical[0].actuals=actuals;
+        let outer_floor=self.next_inference;
         let prototype=self.call_signature(module,context,target,signature,&selected,active,b)?;
+        let outer_heads=self.defer_call_heads(&prototype,&selected.lexical[0].actuals,outer_floor,b)?;
         if prototype.parameters.len()!=arguments.len(){return Err(bad("original static method argument arity differs"));}
         self.execute_effect(env,prototype.call_kind,b)?;
         if let Some(expected)=expected{if !associated::has_projection(&prototype.result,b)?{self.unify(&prototype.result,expected,b)?;}}
-        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.unify(&actual,&parameter,b)?;}
+        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.relate_value(&actual,&parameter,b)?;}
+        self.finish_call_heads(&outer_heads,call.id,b)?;
         for definition in [scope,original]{
             let depth=selected.lexical.iter().position(|frame|frame.definition==definition.id).ok_or_else(||bad("original static method obligation loses its declaration scope"))?;
             let mut obligation_env=selected.clone();obligation_env.lexical=obligation_env.lexical[depth..].to_vec();
@@ -127,7 +130,7 @@ impl CheckedOriginal {
             for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{for requirement in requirements{self.obligation(module,context,requirement,&obligation_env,env,active,b)?;}}}
         }
         let result=self.normalize_original_type(module,context,&prototype.result,env,active,b)?;
-        if let Some(expected)=expected{self.unify(&result,expected,b)?;}
+        if let Some(expected)=expected{self.relate_value(&result,expected,b)?;}
         let caller=context.definition(module,env.current()?,b)?;let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&caller.body else{return Err(bad("original static method has no caller body"));};
         b.spend(site_nodes.len().saturating_mul(sites.len().saturating_add(1)))?;
         let mut rows=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).filter(|site|matches!(site.kind,SemanticSiteRecipeKind::OriginalCall));

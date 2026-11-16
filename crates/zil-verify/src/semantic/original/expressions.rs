@@ -30,7 +30,7 @@ impl CheckedOriginal {
                 CoreExprKind::String(_)=>Ty::Address{mutable:false,life:Life::Static,inner:Box::new(Ty::Slice(Box::new(Ty::Atom(Type::U8))))},
                 CoreExprKind::Name(name)=>match bindings.get(name){Some(binding)=>{self.value_bindings.insert((id,expression.id),binding.identity.clone());let place=Place{binder:binding.identity.clone(),fields:vec![]};self.read_original(module,context,&place,&binding.ty,env,true,active,b)?;binding.identity.charge_clone(b)?;self.value_places.insert((id,expression.id),place);binding.ty.clone()},None=>match self.bound_name(module,context,name,env,active,b)?{Arg::Type(ty)=>ty,Arg::Const(value)=>*value.carrier,Arg::Life(_)=>return Err(bad("original value expression selects a lifetime name"))}},
                 CoreExprKind::CompileTime(value)|CoreExprKind::Group(value)=>self.expression(module,context,value,env,bindings,expected,active,b)?,
-                CoreExprKind::Ascribed{ty,value}=>{let expected=self.ty(module,context,ty,env,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.unify(&actual,&expected,b)?;expected},
+                CoreExprKind::Ascribed{ty,value}=>{let expected=self.ty(module,context,ty,env,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.relate_value(&actual,&expected,b)?;expected},
                 CoreExprKind::NumericConvert{value,target}|CoreExprKind::IntegerConvert{value,target}=>{let source=self.expression(module,context,value,env,bindings,None,active,b)?;let target=self.ty(module,context,target,env,active,b)?;if !matches!(self.resolved(&source,b)?,Ty::Atom(ref ty)if ty.is_integer()||ty.is_float())||!matches!(self.resolved(&target,b)?,Ty::Atom(ref ty)if ty.is_integer()||ty.is_float()){return Err(bad("original numeric conversion has nonnumeric endpoint"));}target},
                 CoreExprKind::Unary{op:UnaryOp::Negate,operand}if matches!(operand.kind,CoreExprKind::Integer(_))=>{let CoreExprKind::Integer(text)=&operand.kind else{unreachable!()};let ty=self.literal_original_sign(module,text,false,true,expected,b)?;self.expressions.insert((id,operand.id),ty.clone());ty},
                 CoreExprKind::Unary{op:UnaryOp::Borrow|UnaryOp::BorrowMut,operand}=>{
@@ -38,6 +38,7 @@ impl CheckedOriginal {
                     let(child,place)=self.place(module,context,operand,env,bindings,active,b)?;
                     if mutable{self.mutable_place(module,context,operand,env,bindings,active,b)?;}
                     if let Some(place)=place{self.read_original(module,context,&place,&child,env,false,active,b)?;}
+                    self.remember_borrow_parent(module,id,expression.id,operand.id,b)?;
                     Ty::Address{mutable,life:Life::Local(id,expression.id),inner:Box::new(child)}
                 },
                 CoreExprKind::Unary{op:UnaryOp::Dereference,..}|CoreExprKind::Member{..}|CoreExprKind::Index{..}|CoreExprKind::ReceiverMember(_)=>{
@@ -115,7 +116,7 @@ impl CheckedOriginal {
                 _=>return Err(unsupported("original expression has no complete symbolic operation rule",Some(expression.span))),
             };
             let actual=self.code_value(module,context,expression,&actual,expected,false,env,active,b)?;
-            if let Some(expected)=expected{self.unify(&actual,expected,b)?;}
+            if let Some(expected)=expected{self.relate_value(&actual,expected,b)?;}
             if self.creation(id,expression,bindings,b)?{b.spend(1)?;self.created.insert((id,expression.id));}
             self.expressions.insert((id,expression.id),actual.clone());Ok(actual)
         }).map_err(|mut error|{error.message.push_str(&format!(" [original definition {:?}, expression {:?}]",env.current().ok(),expression.id));if error.span.is_none(){error.span=Some(expression.span);}error})

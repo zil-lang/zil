@@ -60,3 +60,10 @@ impl CheckedOriginal{
         for((owner,_),role)in &self.local_roles{b.spend(1)?;if *owner==definition&&role.ordinal==ordinal{return Ok(true);}}Ok(false)
     }
 }
+
+impl CheckedOriginal {
+    pub(super) fn local_outer_sources(&self,life:&Life,b:&mut Budget)->Check<Option<Vec<Life>>>{
+        let Life::Implicit(owner,ordinal)=life else{return Ok(None);};
+        for((definition,_),role)in &self.local_roles{b.spend(1)?;if definition==owner&&role.ordinal==*ordinal{b.spend(role.sources.len())?;return Ok(Some(role.sources.iter().cloned().collect()));}}Ok(None)
+    }
+}
