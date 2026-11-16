@@ -17,11 +17,11 @@ impl CheckedOriginal{
         if fields.len()!=arguments.len(){return Err(bad("original enum constructor does not supply every declared field"));}
         let contextual=expected.map(|ty|self.resolved(ty,b)).transpose()?;
         let contextual=match contextual{Some(Ty::Nominal(actual,values))if actual==id=>Some(values),_=>None};
-        let written=written_types.map_or_else(||written_mixed.map_or(0,<[CoreGenericArgument<SemanticTypeRecipe>]>::len),<[SemanticTypeRecipe]>::len);
-        if written>definition.parameters.len(){return Err(bad("original enum constructor has excess mixed actuals"));}
+        let written_slots=Self::written_original_slots(&definition.parameters,written_types,written_mixed,b)?;
         let mut actuals=Vec::new();
         for(ordinal,formal)in definition.parameters.iter().enumerate(){
-            let explicit=if let Some(types)=written_types{types.get(ordinal).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(values)=written_mixed{match values.get(ordinal){Some(CoreGenericArgument::Type(ty))=>Some(Arg::Type(self.ty(module,context,ty,env,active,b)?)),Some(CoreGenericArgument::Lifetime(name))=>{let value=self.named(module,context,env.current()?,name,SemanticOriginalNamespace::Lifetime,b)?.ok_or_else(||bad("enum constructor lifetime has no original name binding"))?;let SemanticOriginalNameValue::Recipe(recipe @ SemanticActualRecipe::Life(_))=value else{return Err(bad("enum constructor lifetime selects another formal kind"));};Some(self.actual(module,context,recipe,env,active,b)?)},Some(CoreGenericArgument::Const(_))=>return Err(unsupported("original enum written Const needs its complete original expression/carrier solution",None)),None=>None}}else{None};
+            let written_slot=written_slots[ordinal];
+            let explicit=if let Some(types)=written_types{written_slot.and_then(|index|types.get(index)).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(values)=written_mixed{match written_slot.and_then(|index|values.get(index)){Some(CoreGenericArgument::Type(ty))=>Some(Arg::Type(self.ty(module,context,ty,env,active,b)?)),Some(CoreGenericArgument::Lifetime(name))=>{let value=self.named(module,context,env.current()?,name,SemanticOriginalNamespace::Lifetime,b)?.ok_or_else(||bad("enum constructor lifetime has no original name binding"))?;let SemanticOriginalNameValue::Recipe(recipe @ SemanticActualRecipe::Life(_))=value else{return Err(bad("enum constructor lifetime selects another formal kind"));};Some(self.actual(module,context,recipe,env,active,b)?)},Some(CoreGenericArgument::Const(_))=>return Err(unsupported("original enum written Const needs its complete original expression/carrier solution",None)),None=>None}}else{None};
             let value=match explicit.or_else(||alias.as_ref().and_then(|values|values.get(ordinal)).cloned()).or_else(||contextual.as_ref().and_then(|values|values.get(ordinal)).cloned()){Some(value)=>value,None=>match formal{SemanticFormal::Type{..}=>Arg::Type(self.fresh(b)?),SemanticFormal::Lifetime=>Arg::Life(self.fresh_life(b)?),_=>return Err(unsupported("original enum Const inference has no complete caller constraint",None))}};
             if !matches!((formal,&value),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Lifetime,Arg::Life(_))|(SemanticFormal::Const{..},Arg::Const(_))){return Err(bad("original enum constructor changes a full-ordinal formal kind"));}
             if let Some(old)=alias.as_ref().and_then(|values|values.get(ordinal)){self.same_argument(old,&value,b)?;}
@@ -102,11 +102,11 @@ impl CheckedOriginal {
         let frame=selected.lexical.iter_mut().find(|row|row.definition==scope.id).ok_or_else(||bad("original static member omits its trait parent"))?;
         frame.actuals=self.resolve_arguments(&trait_arguments,0,b)?;
         selected.self_type=Some((scope.id,self.resolved(&receiver,b)?));
-        let written=written_types.map_or_else(||written_mixed.map_or(0,<[CoreGenericArgument<SemanticTypeRecipe>]>::len),<[SemanticTypeRecipe]>::len);
-        if written>original.parameters.len(){return Err(bad("original static member has excess written mixed actuals"));}
+        let written_slots=Self::written_original_slots(&original.parameters,written_types,written_mixed,b)?;
         let mut actuals=Vec::new();
         for(ordinal,formal)in original.parameters.iter().enumerate(){
-            let written=if let Some(types)=written_types{types.get(ordinal).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(mixed)=written_mixed{match mixed.get(ordinal){
+            let written_slot=written_slots[ordinal];
+            let written=if let Some(types)=written_types{written_slot.and_then(|index|types.get(index)).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(mixed)=written_mixed{match written_slot.and_then(|index|mixed.get(index)){
                 Some(CoreGenericArgument::Type(ty))=>Some(Arg::Type(self.ty(module,context,ty,env,active,b)?)),
                 Some(CoreGenericArgument::Lifetime(name))=>{let value=self.named(module,context,env.current()?,name,SemanticOriginalNamespace::Lifetime,b)?.ok_or_else(||bad("original static member lifetime is unresolved"))?;let SemanticOriginalNameValue::Recipe(recipe @ SemanticActualRecipe::Life(_))=value else{return Err(bad("original static member lifetime has another kind"));};Some(self.actual(module,context,recipe,env,active,b)?)},
                 Some(CoreGenericArgument::Const(_))=>return Err(unsupported("original static method Const requires its exact declared carrier",None)),None=>None,

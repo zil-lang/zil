@@ -50,11 +50,11 @@ impl CheckedOriginal {
                 if !matches!(site.kind,SemanticSiteRecipeKind::Call{..}|SemanticSiteRecipeKind::OriginalCall){return Err(bad("original static Call lacks a unique exact call site"));}
                 let proposed=match &site.kind{SemanticSiteRecipeKind::Call{target:claim,actuals}=>{if *claim!=target{return Err(bad("original Call recipe resolves another lexical declaration"));}Some(actuals.as_slice())},SemanticSiteRecipeKind::OriginalCall=>None,_=>unreachable!()};
                 if proposed.is_some_and(|actuals|actuals.len()!=definition.parameters.len()){return Err(bad("original Call omits full-ordinal actual obligations"));}
-                let written_len=written_types.map_or_else(||written_mixed.map_or(0,<[CoreGenericArgument<SemanticTypeRecipe>]>::len),<[SemanticTypeRecipe]>::len);
-                if written_len>definition.parameters.len(){return Err(bad("original Call has excess written mixed arguments"));}
+                let written_slots=Self::written_original_slots(&definition.parameters,written_types,written_mixed,b)?;
                 let mut checked=Vec::new();
                 for(ordinal,formal)in definition.parameters.iter().enumerate(){
-                    let written=if let Some(types)=written_types{types.get(ordinal).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(mixed)=written_mixed{match mixed.get(ordinal){Some(CoreGenericArgument::Type(ty))=>Some(Arg::Type(self.ty(module,context,ty,env,active,b)?)),Some(CoreGenericArgument::Const(_))=>return Err(unsupported("original written const argument requires its solved full carrier",None)),Some(CoreGenericArgument::Lifetime(name))=>{
+                    let written_slot=written_slots[ordinal];
+                    let written=if let Some(types)=written_types{written_slot.and_then(|index|types.get(index)).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(mixed)=written_mixed{match written_slot.and_then(|index|mixed.get(index)){Some(CoreGenericArgument::Type(ty))=>Some(Arg::Type(self.ty(module,context,ty,env,active,b)?)),Some(CoreGenericArgument::Const(_))=>return Err(unsupported("original written const argument requires its solved full carrier",None)),Some(CoreGenericArgument::Lifetime(name))=>{
                         let row=self.named(module,context,env.current()?,name,SemanticOriginalNamespace::Lifetime,b)?.ok_or_else(||bad("written original life name has no lexical binding"))?;
                         let SemanticOriginalNameValue::Recipe(recipe @ SemanticActualRecipe::Life(_))=row else{return Err(bad("original life name selects another full-ordinal kind"));};Some(self.actual(module,context,recipe,env,active,b)?)
                     },None=>None}}else{None};
@@ -89,7 +89,7 @@ impl CheckedOriginal {
                 // Preserve every inducing occurrence; the actual bridge must
                 // compare all of them rather than choose the first match.
                 for(ordinal,formal)in definition.parameters.iter().enumerate(){
-                    if ordinal<written_len||!matches!(formal,SemanticFormal::Type{..}){continue;}
+                    if written_slots[ordinal].is_some()||!matches!(formal,SemanticFormal::Type{..}){continue;}
                     let mut sources=Vec::new();
                     for(parameter,argument)in signature.parameters.iter().zip(arguments){
                         b.spend(1)?;
@@ -404,5 +404,69 @@ impl CheckedOriginal {
         let mut parameters=Vec::new();for parameter in &actual.parameters{parameters.push(self.map_invocation_type(parameter,&mut rewrite,0,b)?);}
         let result=self.map_invocation_type(&actual.result,&mut rewrite,0,b)?;
         Ok((parameters,result))
+    }
+}
+
+impl CheckedOriginal {
+    /// Written syntax may omit Life actuals. The solved vector still has one
+    /// slot per original mixed formal: only an elided Life can be skipped,
+    /// and all explicit Type/Const/Life arguments retain their written order.
+    pub(super) fn written_original_slots(formals:&[SemanticFormal],types:Option<&[SemanticTypeRecipe]>,mixed:Option<&[CoreGenericArgument<SemanticTypeRecipe>]>,b:&mut Budget)->Check<Vec<Option<usize>>>{
+        if types.is_some()&&mixed.is_some(){return Err(bad("original application has two competing written actual lists"));}
+        let count=types.map_or_else(||mixed.map_or(0,<[CoreGenericArgument<SemanticTypeRecipe>]>::len),<[SemanticTypeRecipe]>::len);
+        b.spend(formals.len().saturating_add(count))?;
+        let mut slots=Vec::with_capacity(formals.len());let mut next=0;
+        for formal in formals {
+            let argument=if types.is_some(){(next<count).then_some(0)}else{mixed.and_then(|arguments|arguments.get(next)).map(|argument|match argument{CoreGenericArgument::Type(_)=>0,CoreGenericArgument::Const(_)=>1,CoreGenericArgument::Lifetime(_)=>2})};
+            let kind=match formal{SemanticFormal::Type{..}=>0,SemanticFormal::Const{..}=>1,SemanticFormal::Lifetime=>2};
+            match argument {
+                None=>slots.push(None),
+                Some(actual)if kind==2&&actual!=2=>slots.push(None),
+                Some(actual)if actual==kind=>{slots.push(Some(next));next+=1;},
+                Some(_)=>return Err(bad("written original argument changes full-ordinal kind")),
+            }
+        }
+        if next!=count{return Err(bad("original application has excess written mixed arguments"));}Ok(slots)
+    }
+}
+
+#[cfg(test)]
+mod written_kind_tests {
+    use super::*;
+    fn scalar()->SemanticTypeRecipe{SemanticTypeRecipe::Atom(Type::I32)}
+    fn formal_type()->SemanticFormal{SemanticFormal::Type{requirements:vec![]}}
+    fn formal_const()->SemanticFormal{SemanticFormal::Const{carrier:scalar()}}
+    fn ty()->CoreGenericArgument<SemanticTypeRecipe>{CoreGenericArgument::Type(scalar())}
+    fn life(name:&str)->CoreGenericArgument<SemanticTypeRecipe>{CoreGenericArgument::Lifetime(name.into())}
+    fn constant()->CoreGenericArgument<SemanticTypeRecipe>{CoreGenericArgument::Const(CoreExpr{id:NodeId(1),kind:CoreExprKind::Integer("3".into()),span:Span{file:zil_base::FileId(0),start:0,end:1}})}
+    fn slots(formals:&[SemanticFormal],arguments:&[CoreGenericArgument<SemanticTypeRecipe>])->Check<Vec<Option<usize>>>{CheckedOriginal::written_original_slots(formals,None,Some(arguments),&mut Budget::new(&Limits::default()))}
+    #[test]
+    fn omitted_lives_preserve_complete_mixed_slots_and_explicit_order(){
+        let map_get=[SemanticFormal::Lifetime,formal_type(),formal_type()];
+        assert_eq!(slots(&map_get,&[ty(),ty()]).unwrap(),vec![None,Some(0),Some(1)]);
+        let types=[scalar(),scalar()];
+        assert_eq!(CheckedOriginal::written_original_slots(&map_get,Some(&types),None,&mut Budget::new(&Limits::default())).unwrap(),vec![None,Some(0),Some(1)]);
+        let interleaved=[SemanticFormal::Lifetime,formal_type(),SemanticFormal::Lifetime,formal_const(),formal_type(),SemanticFormal::Lifetime];
+        assert_eq!(slots(&interleaved,&[ty(),life("a"),constant(),ty()]).unwrap(),vec![None,Some(0),Some(1),Some(2),Some(3),None]);
+        assert_eq!(slots(&interleaved,&[life("a"),ty(),life("b"),constant(),ty(),life("c")]).unwrap(),(0..6).map(Some).collect::<Vec<_>>());
+        assert_eq!(slots(&interleaved,&[]).unwrap(),vec![None;6],"missing constraints remain inference obligations in their own full slots");
+        assert_eq!(slots(&[SemanticFormal::Lifetime,SemanticFormal::Lifetime,formal_type()],&[life("a"),life("a"),ty()]).unwrap(),vec![Some(0),Some(1),Some(2)],"equal written life images must retain both formal occurrences");
+        assert_eq!(slots(&map_get,&[ty()]).unwrap(),vec![None,Some(0),None]);
+    }
+    #[test]
+    fn wrong_kinds_cannot_skip_types_or_consts_or_leave_extra_actuals(){
+        for(formals,arguments)in [
+            (vec![formal_type(),formal_const()],vec![constant(),ty()]),
+            (vec![formal_const(),formal_type()],vec![ty()]),
+            (vec![formal_type(),SemanticFormal::Lifetime],vec![life("a"),ty()]),
+            (vec![SemanticFormal::Lifetime,formal_type()],vec![life("a"),life("b"),ty()]),
+            (vec![SemanticFormal::Lifetime,formal_type(),formal_const()],vec![ty(),ty(),constant()]),
+            (vec![formal_type()],vec![ty(),ty()]),
+            (vec![SemanticFormal::Lifetime],vec![ty()]),
+            (vec![],vec![life("a")]),
+        ]{let error=slots(&formals,&arguments).unwrap_err();assert_eq!(error.category,zil_base::ResultCategory::SafeReject);assert!(error.message.contains("full-ordinal kind")||error.message.contains("excess written mixed"),"{error:?}");}
+        let formals=[formal_const()];let types=[scalar()];
+        assert!(CheckedOriginal::written_original_slots(&formals,Some(&types),None,&mut Budget::new(&Limits::default())).unwrap_err().message.contains("full-ordinal kind"));
+        assert!(CheckedOriginal::written_original_slots(&[],Some(&[]),Some(&[]),&mut Budget::new(&Limits::default())).is_err(),"two competing syntax lists cannot share a full-ordinal map");
     }
 }
