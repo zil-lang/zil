@@ -148,20 +148,18 @@ pub(super) fn full_type(
     life: &StorageLifeShape,
     b: &mut Budget,
 ) -> Check<()> {
-    dynamic_metadata::ty(ty, b)?;
+    dynamic_metadata::bounds_type(ty, b)?;
     if life.binder_count as usize > b.limits.max_nodes {
         return Err(limit("Task complete nominal domain exceeded"));
     }
     crate::semantic::task_domains::charge_life(life, b)?;
     b.spend(life.binder_count as usize)?;
-    let value = DynTypeValue {
-        ty: ty.clone(),
-        life: life.clone(),
-        classes: (0..life.binder_count).map(StorageBinder::Fixed).collect(),
-    };
-    dynamic_witness::check_type_value(
+    let classes:Vec<_>=(0..life.binder_count).map(StorageBinder::Fixed).collect();
+    dynamic_witness::check_type_parts(
         module,
-        &value,
+        ty,
+        life,
+        &classes,
         DynInstantiationScope {
             fixed_binder_count: life.binder_count,
             invocation_binder_count: 0,

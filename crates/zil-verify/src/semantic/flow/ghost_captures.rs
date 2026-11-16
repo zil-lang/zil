@@ -30,7 +30,8 @@ pub(super) fn complete_environment(module:&TypedModule,value:&CheckedType,b:&mut
     // Its full occurrence directory supplies that role, still as an untrusted
     // source obligation; the actual producer/loan kernels prove the target.
     b.spend(count as usize)?;
-    dynamic_witness::check_type_value(module,&DynTypeValue{ty:value.ty.clone(),life:value.life.clone(),classes:(0..count).map(StorageBinder::Fixed).collect()},DynInstantiationScope{fixed_binder_count:count,invocation_binder_count:0},b)
+    let classes:Vec<_>=(0..count).map(StorageBinder::Fixed).collect();
+    dynamic_witness::check_type_parts(module,&value.ty,&value.life,&classes,DynInstantiationScope{fixed_binder_count:count,invocation_binder_count:0},b)
 }
 
 impl CheckedContext{

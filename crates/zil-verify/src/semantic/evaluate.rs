@@ -521,12 +521,12 @@ impl CheckedContext {
             fixed_binder_count: count,
             invocation_binder_count: 0,
         };
-        let value = DynTypeValue {
-            ty: ty.clone(),
-            life: life.clone(),
-            classes: (0..count).map(StorageBinder::Fixed).collect(),
-        };
-        dynamic_witness::check_type_value(module, &value, scope, b)?;
+        b.spend(count as usize)?;
+        let inventory_classes: Vec<_> = (0..count).map(StorageBinder::Fixed).collect();
+        dynamic_witness::check_type_parts(module, ty, life, &inventory_classes, scope, b)?;
+        // The returned value still owns its full shape; only the temporary
+        // validation payload was removed.
+        dynamic_metadata::life_shape(life,b)?;
         let mut origins = self.typed_origins(module,ty,life,&classes,b)?;
         let mut statics = vec![];
         if let Type::Closure(id) = ty {

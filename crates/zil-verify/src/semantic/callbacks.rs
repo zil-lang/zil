@@ -33,7 +33,7 @@ impl CheckedContext{
 fn ghost_code_value(module:&TypedModule,value:&CheckedType,b:&mut Budget)->Check<()>{
     dynamic_metadata::ty(&value.ty,b)?;dynamic_metadata::life_shape(&value.life,b)?;
     if value.life!=empty_life()||!value.classes.is_empty()||!value.origins.is_empty()||!value.statics.is_empty(){return Err(unsupported("plain code cannot erase a complete borrowed or intrinsic parameter/result domain",None));}
-    dynamic_witness::check_type_value(module,&DynTypeValue{ty:value.ty.clone(),life:value.life.clone(),classes:vec![]},DynInstantiationScope{fixed_binder_count:0,invocation_binder_count:0},b)
+    dynamic_witness::check_type_parts(module,&value.ty,&value.life,&[],DynInstantiationScope{fixed_binder_count:0,invocation_binder_count:0},b)
 }
 
 #[cfg(test)]

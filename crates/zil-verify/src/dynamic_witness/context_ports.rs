@@ -8,10 +8,10 @@ pub(super) struct Port {
     pub binder: u32,
     pub inner: Vec<(u32, u32)>,
 }
-pub(super) fn check(
+pub(super) fn check<'a>(
     module: &TypedModule,
-    interface: &DynInterface,
-    mut domain: impl FnMut(&Type, &mut Budget) -> Check<u32>,
+    interface: &'a DynInterface,
+    mut domain: impl FnMut(&'a Type, &mut Budget) -> Check<u32>,
     b: &mut Budget,
 ) -> Check<Vec<Port>> {
     let Some(context) = &interface.context else {

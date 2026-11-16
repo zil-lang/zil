@@ -12,26 +12,74 @@ pub(super) struct Domain {
 
 pub(super) struct Inventory<'a> {
     module: &'a TypedModule,
-    active: Vec<Type>,
+    active: Vec<&'a Type>,
 }
-impl Inventory<'_> {
-    pub(super) fn domain(&mut self, ty: &Type, b: &mut Budget) -> Check<Domain> {
+// The recursion stack borrows immutable input nodes. It is not a domain cache:
+// the same type in another sibling occurrence still gets a complete proof.
+fn active_contains(active: &[&Type], ty: &Type, b: &mut Budget) -> Check<bool> {
+    for previous in active {
+        b.spend(1)?;
+        if std::ptr::eq(*previous, ty) {
+            return Ok(true);
+        }
+        if std::mem::discriminant(*previous) != std::mem::discriminant(ty) {
+            continue;
+        }
+        let different_head = match (*previous, ty) {
+            (Type::Record { name: a, fields: x }, Type::Record { name: z, fields: y })
+            | (Type::Package { name: a, fields: x }, Type::Package { name: z, fields: y }) => {
+                if x.len() != y.len() || a.len() != z.len() {
+                    true
+                } else {
+                    b.spend(a.len().saturating_add(z.len()))?;
+                    a != z
+                }
+            }
+            (Type::Enum { name: a, variants: x }, Type::Enum { name: z, variants: y }) => {
+                if x.len() != y.len() || a.len() != z.len() {
+                    true
+                } else {
+                    b.spend(a.len().saturating_add(z.len()))?;
+                    a != z
+                }
+            }
+            (Type::Tuple(a), Type::Tuple(z)) => a.len() != z.len(),
+            (Type::Closure(a), Type::Closure(z)) => a != z,
+            (Type::Array { length: a, .. }, Type::Array { length: z, .. }) => a != z,
+            (Type::Address { mutable: a, .. }, Type::Address { mutable: z, .. }) => a != z,
+            _ => false,
+        };
+        if different_head {
+            continue;
+        }
+        // Equal heads alone never establish a recursive domain. Prepay the
+        // genuine complete structural comparison, including all class fields.
+        dynamic_metadata::ty(previous, b)?;
         dynamic_metadata::ty(ty, b)?;
+        if *previous == ty {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+impl<'a> Inventory<'a> {
+    pub(super) fn domain(&mut self, ty: &'a Type, b: &mut Budget) -> Check<Domain> {
+        dynamic_metadata::bounds_type(ty, b)?;
         b.spend(self.active.len().saturating_add(1))?;
         if self.active.len() >= b.limits.max_call_depth.min(128) {
             return Err(limit("dynamic actual inventory depth exceeded"));
         }
-        if self.active.contains(ty) {
+        if active_contains(&self.active,ty,b)? {
             return Err(bad(
                 "dynamic actual inventory has an unproved recursive domain",
             ));
         }
-        self.active.push(ty.clone());
+        self.active.push(ty);
         let result = self.node(ty, b);
         self.active.pop();
         result
     }
-    fn node(&mut self, ty: &Type, b: &mut Budget) -> Check<Domain> {
+    fn node(&mut self, ty: &'a Type, b: &mut Budget) -> Check<Domain> {
         let mut closed = Domain {
             count: 0,
             pending_sources: false,
@@ -220,12 +268,7 @@ impl Inventory<'_> {
                     self.actuals(&app.actuals, scope, b)?;
                 }
                 for associated in &d.associated_types {
-                    let value = DynTypeValue {
-                        ty: associated.ty.clone(),
-                        life: associated.life.clone(),
-                        classes: associated.classes.clone(),
-                    };
-                    self.value(&value, scope, b)?;
+                    self.parts(&associated.ty,&associated.life,&associated.classes,scope,b)?;
                 }
                 // Constant carriers must be truly closed scalar domains, not
                 // silently omit the lifetime part of a qualified carrier.
@@ -318,7 +361,7 @@ impl Inventory<'_> {
     }
     fn static_occurrences(
         &mut self,
-        ty: &Type,
+        ty: &'a Type,
         position: StoragePosition,
         expected: &mut Vec<StoragePosition>,
         depth: usize,
@@ -330,7 +373,7 @@ impl Inventory<'_> {
                 "zero Closure actual static directory exceeds selected bound",
             ));
         }
-        let mut child = |this: &mut Self, ty: &Type, step: PlaceProjection, b: &mut Budget| {
+        let mut child = |this: &mut Self, ty: &'a Type, step: PlaceProjection, b: &mut Budget| {
             b.spend(position.path.len().saturating_add(1))?;
             let mut next = position.clone();
             next.path.push(ContractProjection::Place(step));
@@ -394,7 +437,7 @@ impl Inventory<'_> {
         }
         Ok(())
     }
-    fn zero(&mut self, ty: &Type, b: &mut Budget) -> Check<Domain> {
+    fn zero(&mut self, ty: &'a Type, b: &mut Budget) -> Check<Domain> {
         let domain = self.domain(ty, b)?;
         if domain.count != 0 {
             return Err(bad(
@@ -406,7 +449,7 @@ impl Inventory<'_> {
     // Outer borrows are represented by their enclosing complete contract. This
     // traversal validates the nested semantic domains without counting them a
     // second time or inventing capture/parameter paths in opaque Self.
-    fn children(&mut self, ty: &Type, b: &mut Budget) -> Check<()> {
+    fn children(&mut self, ty: &'a Type, b: &mut Budget) -> Check<()> {
         match ty {
             Type::Address { inner, .. } | Type::Desc(inner) => self.children(inner, b),
             Type::Tuple(fields) => {
@@ -420,7 +463,7 @@ impl Inventory<'_> {
     }
     fn actuals(
         &mut self,
-        actuals: &[DynGenericActual],
+        actuals: &'a [DynGenericActual],
         scope: DynInstantiationScope,
         b: &mut Budget,
     ) -> Check<()> {
@@ -441,40 +484,45 @@ impl Inventory<'_> {
     }
     fn value(
         &mut self,
-        value: &DynTypeValue,
+        value: &'a DynTypeValue,
         scope: DynInstantiationScope,
         b: &mut Budget,
     ) -> Check<Domain> {
-        dynamic_metadata::recipe(value, b)?;
-        if value.life.binder_count as usize > b.limits.max_nodes {
+        self.parts(&value.ty,&value.life,&value.classes,scope,b)
+    }
+    fn parts(&mut self,ty:&'a Type,life:&StorageLifeShape,classes:&[StorageBinder],scope:DynInstantiationScope,b:&mut Budget)->Check<Domain>{
+        dynamic_metadata::bounds_type_parts(ty,life,classes,b)?;
+        if life.binder_count as usize > b.limits.max_nodes {
             return Err(limit("dynamic complete type domain exceeds selected bound"));
         }
-        b.spend(value.life.binder_count as usize)?;
-        if value.classes.len() != value.life.binder_count as usize {
+        b.spend(life.binder_count as usize)?;
+        if classes.len() != life.binder_count as usize {
             return Err(bad("dynamic complete type class coverage differs"));
         }
-        for class in &value.classes {
+        for class in classes {
             scopes::class(scope, *class, b)?;
         }
-        if let Type::BorrowedStorage { life, .. } = &value.ty {
-            if life != &value.life {
+        if let Type::BorrowedStorage { life: embedded, .. } = ty {
+            dynamic_metadata::life_shape(embedded,b)?;
+            dynamic_metadata::life_shape(life,b)?;
+            if embedded != life {
                 return Err(bad("dynamic external and embedded complete shapes differ"));
             }
         } else if matches!(
-            value.ty,
+            *ty,
             Type::Managed(_) | Type::Address { .. } | Type::Desc(_)
         ) {
-            return super::compound::external(self, &value.ty, &value.life, b);
-        } else if !value.life.slots.is_empty()
-            || !value.life.retained.is_empty()
-            || !value.life.nominal_arguments.is_empty()
+            return super::compound::external(self, ty, life, b);
+        } else if !life.slots.is_empty()
+            || !life.retained.is_empty()
+            || !life.nominal_arguments.is_empty()
         {
             return Err(bad(
                 "dynamic opaque/closed root invents physical or nominal rows",
             ));
         }
-        let domain = self.domain(&value.ty, b)?;
-        if domain.count != value.life.binder_count {
+        let domain = self.domain(ty, b)?;
+        if domain.count != life.binder_count {
             return Err(bad(
                 "dynamic type intrinsic domain differs from its complete inventory",
             ));
@@ -493,6 +541,9 @@ pub(super) fn check(
         active: vec![],
     }
     .value(value, scope, b)
+}
+pub(super) fn check_parts(module:&TypedModule,ty:&Type,life:&StorageLifeShape,classes:&[StorageBinder],scope:DynInstantiationScope,b:&mut Budget)->Check<Domain>{
+    Inventory{module,active:vec![]}.parts(ty,life,classes,scope,b)
 }
 pub(super) fn intrinsic(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<Domain> {
     Inventory {
@@ -514,6 +565,27 @@ pub(super) fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn borrowed_cycle_stack_keeps_full_identity_including_child_and_life_fields() {
+        let nominal=|child|Type::Record{name:"same_nominal_head".into(),fields:vec![("value".into(),child)]};
+        let life=|n|StorageLifeShape{binder_count:n,slots:vec![],retained:vec![],nominal_arguments:vec![]};
+        let types=[nominal(Type::I32),nominal(Type::Bool),Type::BorrowedStorage{storage:Box::new(nominal(Type::I32)),life:life(0)},Type::BorrowedStorage{storage:Box::new(nominal(Type::I32)),life:life(1)},Type::Closure(ClosureId(0)),Type::Closure(ClosureId(1))];
+        for original in &types {
+            for actual in &types {
+                let detached=actual.clone();
+                let mut b=Budget::new(&Limits::default());
+                assert_eq!(active_contains(&[original],&detached,&mut b).unwrap(),original==actual);
+                assert_eq!(active_contains(&[original],actual,&mut b).unwrap(),original==actual);
+            }
+        }
+        let (module,_)=crate::tests::baseline();
+        let ty=Type::Record{name:"borrowed_inventory_no_owned_copy_".repeat(128),fields:vec![("huge_field_".repeat(128),Type::I32)]};
+        let mut inventory=Budget::new(&Limits::default());
+        let result=intrinsic(&module,&ty,&mut inventory).unwrap();
+        assert_eq!(result.count,0);assert!(!result.pending_sources);
+        let mut copy=Budget::new(&Limits::default());dynamic_metadata::ty(&ty,&mut copy).unwrap();
+        assert!(inventory.remaining>copy.remaining,"a borrowed traversal does not clone the nominal payload into its recursion stack");
+    }
     fn value(ty: Type, count: u32) -> DynTypeValue {
         DynTypeValue {
             ty,

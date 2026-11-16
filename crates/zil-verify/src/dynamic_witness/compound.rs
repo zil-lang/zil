@@ -10,7 +10,7 @@ struct Walk<'a, 'm> {
     nominal: Vec<NominalLifeArgument>,
     pending: bool,
 }
-impl Walk<'_, '_> {
+impl<'a,'m> Walk<'a,'m> {
     fn boundary(
         &mut self,
         path: &[LifeTypeProjection],
@@ -44,7 +44,7 @@ impl Walk<'_, '_> {
     }
     fn node(
         &mut self,
-        ty: &Type,
+        ty: &'m Type,
         physical: &mut Vec<PlaceProjection>,
         semantic: &mut Vec<LifeTypeProjection>,
         inline: bool,
@@ -197,9 +197,9 @@ impl Walk<'_, '_> {
         Ok(())
     }
 }
-pub(super) fn check(
-    inventory: &mut values::Inventory<'_>,
-    storage: &Type,
+pub(super) fn check<'m>(
+    inventory: &mut values::Inventory<'m>,
+    storage: &'m Type,
     life: &StorageLifeShape,
     b: &mut Budget,
 ) -> Check<values::Domain> {
@@ -210,9 +210,9 @@ pub(super) fn check(
 }
 /// Ordinary wrapper paths belong to the actual constructor. Managed adds a
 /// Pointee edge; it does not turn its whole payload into one opaque boundary.
-pub(super) fn external(
-    inventory: &mut values::Inventory<'_>,
-    ty: &Type,
+pub(super) fn external<'m>(
+    inventory: &mut values::Inventory<'m>,
+    ty: &'m Type,
     life: &StorageLifeShape,
     b: &mut Budget,
 ) -> Check<values::Domain> {
@@ -223,9 +223,9 @@ pub(super) fn external(
     }
     external_inner(inventory, ty, life, false, b)
 }
-fn external_inner(
-    inventory: &mut values::Inventory<'_>,
-    storage: &Type,
+fn external_inner<'m>(
+    inventory: &mut values::Inventory<'m>,
+    storage: &'m Type,
     life: &StorageLifeShape,
     anonymous: bool,
     b: &mut Budget,

@@ -78,6 +78,19 @@ pub(crate) fn check_type_value(
     values::check(module, value, scope, budget).map(|_| ())
 }
 
+/// The same complete inventory over borrowed parts. This avoids constructing
+/// an owned DTV solely to run the independent read-only interpreter.
+pub(crate) fn check_type_parts(
+    module: &TypedModule,
+    ty: &Type,
+    life: &StorageLifeShape,
+    classes: &[StorageBinder],
+    scope: DynInstantiationScope,
+    budget: &mut Budget,
+) -> Check<()> {
+    values::check_parts(module,ty,life,classes,scope,budget).map(|_| ())
+}
+
 /// Rebuild every physical/retained/owning environment leaf from the exact
 /// actual closure header. This is a second consumer of the original request,
 /// not a source/loan/cleanup certificate; those remain with the CFG kernels.

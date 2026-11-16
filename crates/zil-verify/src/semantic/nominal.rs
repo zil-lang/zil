@@ -334,15 +334,14 @@ impl CheckedContext {
         }
         // This checks the full actual nominal metadata without treating its
         // outside images as proof that existing child classes are identical.
-        let raw = DynTypeValue {
-            ty: ty.clone(),
-            life: life.clone(),
-            classes: (0..life.binder_count).map(StorageBinder::Fixed).collect(),
-        };
         if !self.domain_only.get(){
-            dynamic_witness::check_type_value(
+            b.spend(life.binder_count as usize)?;
+            let inventory_classes:Vec<_>=(0..life.binder_count).map(StorageBinder::Fixed).collect();
+            dynamic_witness::check_type_parts(
                 module,
-                &raw,
+                ty,
+                &life,
+                &inventory_classes,
                 DynInstantiationScope {
                     fixed_binder_count: life.binder_count,
                     invocation_binder_count: 0,

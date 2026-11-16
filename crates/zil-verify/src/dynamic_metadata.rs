@@ -57,6 +57,9 @@ pub(super) fn ty(root: &Type, b: &mut Budget) -> Check<()> {
     ty_at(root, 0, b)
 }
 fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> Check<()> {
+    type_walk(root,initial_depth,true,b)
+}
+fn type_walk(root:&Type,initial_depth:usize,copy_or_compare:bool,b:&mut Budget)->Check<()>{
     let cap = b.limits.max_nodes;
     let depth_cap = b.limits.max_call_depth.min(128);
     pay(b, &mut 0usize, cap, 1)?;
@@ -110,10 +113,10 @@ fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> Check<()> {
                 children.push(result.as_ref());
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
-                b.spend(name.len())?;
+                b.spend(if copy_or_compare{name.len()}else{1})?;
                 pay(b, &mut nodes, cap, fields.len())?;
                 for (name, ty) in fields {
-                    b.spend(name.len())?;
+                    b.spend(if copy_or_compare{name.len()}else{1})?;
                     children.push(ty);
                 }
             }
@@ -122,10 +125,10 @@ fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> Check<()> {
                 children.extend(fields);
             }
             Type::Enum { name, variants } => {
-                b.spend(name.len())?;
+                b.spend(if copy_or_compare{name.len()}else{1})?;
                 pay(b, &mut nodes, cap, variants.len())?;
                 for (name, fields) in variants {
-                    b.spend(name.len())?;
+                    b.spend(if copy_or_compare{name.len()}else{1})?;
                     pay(b, &mut nodes, cap, fields.len())?;
                     children.extend(fields);
                 }
@@ -151,7 +154,7 @@ fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> Check<()> {
                 children.push(result.as_ref());
             }
             Type::Named(name) | Type::Unsupported(name) => {
-                b.spend(name.len())?;
+                b.spend(if copy_or_compare{name.len()}else{1})?;
             }
             Type::ByteBuffer
             | Type::ForeignHandle
@@ -178,8 +181,43 @@ fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> Check<()> {
 /// continue to use ty(), whose full traversal prepays that actual work.
 fn type_bounds_at(root:&Type,depth:usize,b:&mut Budget)->Check<()>{
     if structure::type_known(root,depth,b)?{return Ok(());}
-    ty_at(root,depth,b)?;
+    type_walk(root,depth,false,b)?;
     structure::type_success(root,depth,b)
+}
+pub(crate) fn bounds_type(root:&Type,b:&mut Budget)->Check<()>{type_bounds_at(root,0,b)}
+/// The exact public DTV callbacks, without allocating/copying a DTV payload.
+/// All class/domain interpretation remains with the independent inventory.
+pub(crate) fn bounds_type_parts(ty:&Type,life:&StorageLifeShape,classes:&[StorageBinder],b:&mut Budget)->Check<()>{
+    let work=&mut BoundsWork(RecipeWork{b,nodes:0});
+    work.node(0)?;work.ty(ty,1)?;work.life(life,1)?;work.rows(classes.len(),1)?;
+    for _ in classes{work.node(1)?;}Ok(())
+}
+
+#[cfg(test)]
+mod borrowed_parts_tests {
+    use super::*;
+    #[test]
+    fn borrowed_dtv_preserves_public_visitor_quotas_and_depths() {
+        let value=DynTypeValue{
+            ty:Type::Tuple(vec![Type::Record{name:"long_name".repeat(64),fields:vec![("field".repeat(64),Type::I32)]}]),
+            life:StorageLifeShape{binder_count:1,slots:vec![],retained:vec![StorageRetainedBinding{path:vec![LifeTypeProjection::Place(PlaceProjection::Field(0))],class:0,binder:0}],nominal_arguments:vec![]},
+            classes:vec![StorageBinder::Invocation(0)],
+        };
+        for nodes in [0,1,2,3,4,8,16,64] {
+            for depth in [0,1,2,3,128] {
+                let limits=Limits{max_nodes:nodes,max_call_depth:depth,..Limits::default()};
+                let mut borrowed=Budget::new(&limits);let mut owned=Budget::new(&limits);
+                let a=bounds_type_parts(&value.ty,&value.life,&value.classes,&mut borrowed);
+                let z=value.visit_dyn_metadata(&mut BoundsWork(RecipeWork{b:&mut owned,nodes:0}),0);
+                assert_eq!(a,z,"nodes={nodes}, depth={depth}");
+                assert_eq!(borrowed.remaining,owned.remaining);
+            }
+        }
+        let mut bounded=Budget::new(&Limits::default());let mut copied=Budget::new(&Limits::default());
+        bounds_type_parts(&value.ty,&value.life,&value.classes,&mut bounded).unwrap();
+        recipe(&value,&mut copied).unwrap();
+        assert!(bounded.remaining>copied.remaining,"only the removed copy stops reading nominal name bytes");
+    }
 }
 
 /// Pay the entire public retained directory independently of its Context type.
