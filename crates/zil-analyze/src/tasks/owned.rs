@@ -210,7 +210,7 @@ fn complete_aggregate(module: &TypedModule, t: &Type, budget: &mut Budget) -> Co
         match t {
             t if scalar(t) => {}
             Type::Managed(payload) => {
-                if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+                if matches!(payload.as_ref(), Type::OwnedStore { .. } | Type::Task { .. }) {
                     if !pollable_storage(module, t, budget)? {
                         return Ok(false);
                     }
@@ -279,10 +279,10 @@ fn aggregate_resources<'a>(
                             "frame cleanup has no actual closure definition",
                         )
                     })?;
-                if !super::input_scope::known_zero(module, t, budget)? {
+                if !frame_closure_domain(module, definition, budget)? {
                     return Err(fail(
                         zil_base::Span::default(),
-                        "frame cleanup closure has an unknown or nonzero captured class domain",
+                        "frame cleanup closure lacks its complete actual captured class directory",
                     ));
                 }
                 budget.spend(
@@ -331,7 +331,7 @@ pub(super) fn result_type(
         return Ok(retained_pointee(inner));
     }
     if let Type::Managed(payload) = t {
-        if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+        if matches!(payload.as_ref(), Type::OwnedStore { .. } | Type::Task { .. }) {
             return pollable_storage(module, t, budget);
         }
         return if payload.as_ref() == &Type::ByteBuffer {
@@ -547,16 +547,51 @@ fn storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> CompileResult
         t => Ok(scalar(t)),
     }
 }
-// A private continuation profile, independently reconstructed from actual
-// concrete captures. It grants no Closed/no-future state and admits no borrow.
+fn frame_closure_domain(module: &TypedModule, c: &zil_ir::ClosureDefinition, budget: &mut Budget) -> CompileResult<bool> {
+    let domain = super::input_scope::domain(&Type::Closure(c.id), budget)?;
+    let super::input_scope::Domain::Known(count) = domain else { return Ok(false); };
+    if count == 0 { return Ok(true); }
+    let Some(life) = &c.storage_life else { return Ok(false); };
+    let Some(entry) = module.functions.get(c.function.0 as usize).filter(|entry|
+        entry.id == c.function && entry.environment == Some(c.id) && entry.foreign.is_none()
+            && entry.call_kind == CallKind::Direct && entry.storage_life.as_ref() == Some(life)) else {
+        return Ok(false);
+    };
+    budget.spend(c.parameters.len().saturating_add(c.captures.len()).saturating_add(1),
+        "complete Task frame closure header")?;
+    if count != life.fixed_binder_count || entry.return_type != c.result
+        || entry.parameters.len() != c.parameters.len() { return Ok(false); }
+    for (parameter, expected) in entry.parameters.iter().zip(&c.parameters) {
+        let actual = local_type(entry, *parameter, Some(entry.span))?;
+        budget.type_work(actual, false, "Task frame closure actual parameter")?;
+        budget.type_work(expected, false, "Task frame closure declared parameter")?;
+        if actual != expected { return Ok(false); }
+    }
+    for ty in c.parameters.iter().chain(&c.captures).chain(std::iter::once(&c.result)) {
+        budget.type_work(ty, false, "Task frame full closure class carrier")?;
+    }
+    crate::signature_life::charge(life, budget)?;
+    crate::signature_life::closure_relation_resource_scopes(module, c.kind, &c.parameters,
+        &c.captures, &c.result, life, budget)?;
+    Ok(true)
+}
+// A private physical continuation profile. Complete retained classes stay in
+// their real header domain; frame layout grants no Closed or SyncDrop proof.
 fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    pollable_storage_at(module, t, budget, 0, &mut BTreeSet::new())
+}
+fn pollable_storage_at(module: &TypedModule, t: &Type, budget: &mut Budget,
+    depth: usize, active: &mut BTreeSet<ClosureId>) -> CompileResult<bool> {
+    if depth > budget.partial_depth {
+        return Err(vec![Diagnostic::limit(Phase::Analyze, "Task frame capture storage exceeds its finite depth", None)]);
+    }
     budget.type_work(t, false, "pollable frame actual type")?;
     budget.spend(1, "pollable frame actual storage")?;
     match t {
         Type::Record { fields, .. } | Type::Package { fields, .. } => {
             budget.spend(fields.len(), "pollable frame complete product")?;
             for (_, field) in fields {
-                if !pollable_storage(module, field, budget)? {
+                if !pollable_storage_at(module, field, budget, depth + 1, active)? {
                     return Ok(false);
                 }
             }
@@ -565,7 +600,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
         Type::Tuple(fields) => {
             budget.spend(fields.len(), "pollable frame complete tuple")?;
             for field in fields {
-                if !pollable_storage(module, field, budget)? {
+                if !pollable_storage_at(module, field, budget, depth + 1, active)? {
                     return Ok(false);
                 }
             }
@@ -576,7 +611,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
             for (_, fields) in variants {
                 budget.spend(fields.len(), "pollable frame complete alternative fields")?;
                 for field in fields {
-                    if !pollable_storage(module, field, budget)? {
+                    if !pollable_storage_at(module, field, budget, depth + 1, active)? {
                         return Ok(false);
                     }
                 }
@@ -584,8 +619,8 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
             Ok(true)
         }
         Type::ErrorUnion { error, result } => {
-            Ok(pollable_storage(module, error, budget)?
-                && pollable_storage(module, result, budget)?)
+            Ok(pollable_storage_at(module, error, budget, depth + 1, active)?
+                && pollable_storage_at(module, result, budget, depth + 1, active)?)
         }
         Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. }) => {
             crate::ownership_store::payload_definition(module, p, budget)?;
@@ -593,10 +628,11 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
         }
         // An owned child head is a real asynchronous cleanup obligation. Its
         // constructor is separately traced by Task origin/migration checks.
-        Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Task{retained_life,..} if retained_life.ports.is_empty()) =>
-        {
-            super::require_closed_context(p)?;
-            Ok(super::input_scope::domain(p, budget)? == super::input_scope::Domain::Known(0))
+        Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::Task { .. }) => {
+            // This is the actual opaque pointer/head slot, never an inline
+            // expansion of its result, ports or phantom class domain.
+            frame_resource(module, p, budget, None)?;
+            Ok(true)
         }
         Type::Managed(p) | Type::Desc(p)
             if matches!(p.as_ref(), Type::AsyncRegistration { .. }) =>
@@ -604,10 +640,10 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
             let Type::AsyncRegistration { environment } = p.as_ref() else {
                 unreachable!()
             };
-            pollable_storage(module, environment, budget)
+            pollable_storage_at(module, environment, budget, depth + 1, active)
         }
         Type::Address { inner, .. } if retained_pointee(inner) => Ok(true),
-        Type::Address { inner, .. } => pollable_storage(module, inner, budget),
+        Type::Address { inner, .. } => pollable_storage_at(module, inner, budget, depth + 1, active),
         Type::Closure(id) => {
             let Some(c) = module.closures.get(id.0 as usize).filter(|c| c.id == *id) else {
                 return Ok(false);
@@ -615,13 +651,16 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
             if !c.lending_captures.is_empty() {
                 return Ok(false);
             }
-            if super::input_scope::domain(t, budget)? != super::input_scope::Domain::Known(0) {
-                return Ok(false);
+            if !frame_closure_domain(module, c, budget)? { return Ok(false); }
+            budget.lookup(active.len(), "Task frame active capture graph")?;
+            if !active.insert(*id) {
+                return Err(fail(Default::default(), "Task frame closure storage is recursively inline"));
             }
+            let result = (|| {
             for (index, capture) in c.captures.iter().enumerate() {
                 if matches!(capture,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}|Type::AsyncRegistration{..}))
                 {
-                    if !pollable_storage(module, capture, budget)? {
+                    if !pollable_storage_at(module, capture, budget, depth + 1, active)? {
                         return Ok(false);
                     }
                     // A real owner leaf is drained by the enclosing root's
@@ -645,16 +684,15 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
                         position.base == StorageBase::Capture(index as u32)
                             && position.path.is_empty()
                     }) || !retained_pointee(inner)
-                        || super::input_scope::domain(t, budget)?
-                            != super::input_scope::Domain::Known(0)
+                        || !super::input_scope::known_zero(module, inner, budget)?
                     {
                         return Ok(false);
                     }
-                    // Only frame layout eligibility. Analyze's independent
-                    // all-constructor/write source proof has already run.
+                    // Only frame layout eligibility. The separate actual
+                    // all-constructor/write source proof is still required.
                     continue;
                 }
-                let complete = pollable_storage(module, capture, budget)?;
+                let complete = pollable_storage_at(module, capture, budget, depth + 1, active)?;
                 if !complete {
                     return Ok(false);
                 }
@@ -669,6 +707,9 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Comp
                 }
             }
             Ok(true)
+            })();
+            active.remove(id);
+            result
         }
         _ => storage(module, t, budget),
     }
@@ -1308,15 +1349,18 @@ pub(super) fn profile(
         }
     }
     let mut checked = BTreeSet::new();
-    for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
+    for (is_value, index, t) in f.locals.iter().map(|l| (false, l.id.0 as usize, &l.ty))
+        .chain(f.values.iter().enumerate().map(|(index, ty)| (true, index, ty))) {
         let old_storage = pollable_storage(module, t, budget)?;
         let enum_storage = !old_storage && complete_aggregate(module, t, budget)?;
         if !old_storage && !enum_storage {
-            return Err(reject(
-                "E-VERIFY-TASK",
-                span,
-                "task owner needs a complete canonical inline resource frame slot",
-            ));
+            budget.type_work(t, false, "Task rejected complete frame slot")?;
+            budget.spend(192, "Task rejected canonical slot diagnostic")?;
+            let mut errors = reject("E-VERIFY-TASK", span,
+                "task owner needs a complete canonical inline resource frame slot");
+            errors[0].notes.push(format!("actual function {} ({}) {} {index}, complete Type {t:?}",
+                f.id.0, f.name, if is_value { "SSA" } else { "local" }));
+            return Err(errors);
         }
         let leaves = aggregate_resources(module, t, budget)?;
         for leaf in leaves {
