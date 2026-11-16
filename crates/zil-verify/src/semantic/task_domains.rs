@@ -1243,7 +1243,12 @@ pub(crate) fn metadata_zero_type(
                 if header.fixed_binder_count != 0 {
                     return Ok(Some(false));
                 }
-                pending.extend(&row.captures);
+                // The opaque value's domain is its complete Fixed directory.
+                // A declared Static capture is an outstanding source proof,
+                // not another variable class obtained from its raw Address.
+                signature_life::closure_relation_resource_scopes(module,&row.parameters,&row.captures,row.kind,crate::stored_callables::life_result(row),header,None,b)?;
+                statics::pending(module,ty,b)?;
+                found=true;
             }
             Type::Named(_) | Type::Unsupported(_) => return Ok(None),
             _ => {}
@@ -1482,4 +1487,21 @@ pub(crate) fn drain(module: &TypedModule, b: &mut Budget) -> Check<()> {
         }
     }
     Ok(())
+}
+
+/// A missing zero-variable function header can contain opaque logical Static
+/// obligations. Preserve every declared occurrence until the actual least-root
+/// pass has checked all constructors, writes and Returns.
+pub(super) fn defer_zero_header_statics(module:&TypedModule,value:&CheckedType,b:&mut Budget)->Check<bool>{
+    statics::validate(module,&value.ty,&value.statics,b)?;
+    let declared=statics::pending(module,&value.ty,b)?;
+    for row in declared.iter().chain(&value.statics){
+        let StaticOccurrence::Logical{closure,position,..}=row else{return Ok(false);};
+        if !matches!(position.base,StorageBase::Capture(_)|StorageBase::Result){return Ok(false);}
+        dynamic_metadata::position(position,b)?;
+        b.spend(b.semantic_static_occurrences.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+        if b.semantic_static_occurrences.len()>=b.limits.max_nodes{return Err(limit("semantic logical Static occurrence inventory exceeded"));}
+        b.semantic_static_occurrences.insert((*closure,position.clone()));
+    }
+    Ok(true)
 }

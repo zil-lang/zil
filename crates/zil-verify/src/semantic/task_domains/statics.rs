@@ -95,6 +95,25 @@ mod tests{
         module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![leaf,Type::Address{mutable:false,inner:Box::new(Type::I32)}],parameters:vec![],result:Type::I32,kind:CallableKind::Fn,storage_life:Some(header),lending_captures:vec![]});module
     }
     #[test]
+    fn zero_variable_static_environment_still_requires_final_actual_source_proof(){
+        let mut module=module();module.closures[0].captures.truncate(1);
+        let header=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],static_bindings:vec![StoragePosition{base:StorageBase::Capture(0),path:vec![]}],classes:vec![]};
+        module.closures[0].storage_life=Some(header.clone());module.functions[0].storage_life=Some(header);module.functions[0].return_type=Type::I32;
+        let ty=Type::Closure(ClosureId(0));let limits=Limits::default();let mut b=Budget::new(&limits);
+        assert_eq!(super::super::metadata_zero_type(&module,&ty,&mut b).unwrap(),Some(true));
+        let rows=pending(&module,&ty,&mut b).unwrap();assert_eq!(rows.len(),1);
+        let value=CheckedType{type_cell:CheckedTypeData::new(ty),life:empty_life(),classes:vec![],origins:vec![],statics:rows.clone()};
+        assert!(super::super::defer_zero_header_statics(&module,&value,&mut b).unwrap());
+        assert_eq!(b.semantic_static_occurrences.len(),1);assert!(b.proven_static_occurrences.is_empty());
+        assert!(super::super::super::callable_obligations::drain(&module,&mut b).is_err());
+        assert!(super::super::defer_zero_header_statics(&module,&value,&mut b).unwrap());
+        b.proven_static_occurrences.insert((ClosureId(0),StoragePosition{base:StorageBase::Capture(0),path:vec![]}));
+        super::super::super::callable_obligations::drain(&module,&mut b).unwrap();
+        assert_eq!(value.statics,rows,"known variable N0 never clears its Static obligations");
+        let mut missing=module.clone();missing.closures[0].storage_life.as_mut().unwrap().static_bindings.clear();missing.functions[0].storage_life=missing.closures[0].storage_life.clone();
+        assert!(super::super::metadata_zero_type(&missing,&value.ty,&mut Budget::new(&limits)).is_err(),"an undeclared capture borrow cannot become known N0");
+    }
+    #[test]
     fn static_capture_retains_an_exact_pending_root_without_a_variable_port(){
         let module=module();let ty=Type::Closure(ClosureId(0));let mut b=Budget::new(&Limits::default());
         let rows=pending(&module,&ty,&mut b).unwrap();assert_eq!(rows.len(),1);validate(&module,&ty,&rows,&mut b).unwrap();

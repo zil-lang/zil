@@ -58,6 +58,8 @@ pub(crate) fn drain(module:&TypedModule,b:&mut Budget)->Check<()> {
             },
         }}
     }
+    let logical=std::mem::take(&mut b.semantic_static_occurrences);
+    for(closure,position)in logical{static_node(module,closure,&position,b)?;}
     Ok(())
 }
 pub(super) fn static_node(module:&TypedModule,id:ClosureId,position:&StoragePosition,b:&mut Budget)->Check<()> {

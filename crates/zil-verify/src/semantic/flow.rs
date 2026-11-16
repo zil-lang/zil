@@ -611,9 +611,14 @@ impl CheckedContext {
     }
     fn header(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,signature:&CheckedSignature,environment:&EvalEnv,b:&mut Budget)->Check<()> {
         let Some(header)=f.storage_life.as_ref() else {
-            if instance.header_embedding.is_empty()&&self.zero_header_function(module,f,b)?&&signature.result.classes.is_empty()&&signature.result.statics.is_empty()&&self.zero_header_type(module,&signature.result.ty,b)?{
-                let mut zero=true;for(value,_)in &signature.parameters{if !value.classes.is_empty()||!value.statics.is_empty()||!self.zero_header_type(module,&value.ty,b)?{zero=false;break;}}
-                if zero{return Ok(());}
+            if instance.header_embedding.is_empty()&&self.zero_header_function(module,f,b)?&&signature.result.classes.is_empty()&&self.zero_header_type(module,&signature.result.ty,b)?{
+                let mut zero=true;for(value,_)in &signature.parameters{if !value.classes.is_empty()||!self.zero_header_type(module,&value.ty,b)?{zero=false;break;}}
+                if zero{
+                    for value in signature.parameters.iter().map(|(value,_)|value).chain(std::iter::once(&signature.result)){
+                        if !task_domains::defer_zero_header_statics(module,value,b)?{return Err(bad("zero-variable semantic header has an unproved direct Static occurrence"));}
+                    }
+                    return Ok(());
+                }
             }
             return Err(bad("actual semantic header is Unknown"));
         };
