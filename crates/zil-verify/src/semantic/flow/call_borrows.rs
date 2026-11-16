@@ -32,8 +32,9 @@ impl CheckedContext {
             if !matches!(actual.ty,Type::Address{..}){continue;}
             b.spend(original_regions.len())?;if original_regions.iter().any(|(ordinal,_)|*ordinal as usize==index){b.spend(1)?;adapted.push(index);continue;}
             let exported=returned_input_head(signature,key,index,b)?;
+            let local_window=self.original_local_call_window(caller,&signature.parameters[index].0,environment,b)?;
             let shared=matches!(actual.ty,Type::Address{mutable:false,..})&&matches!(signature.parameters[index].0.ty,Type::Address{mutable:false,..});
-            if !exported&&!(shared&&shared_reborrow_adapter(module,f,*argument,b)?){continue;}
+            if !exported&&!local_window&&!(shared&&shared_reborrow_adapter(module,f,*argument,b)?){continue;}
             let producer=call_borrow_producer(f,*argument,b)?;
             crate::check_instruction(module,f,producer,b)?;
             if matches!(producer.kind,InstructionKind::ReborrowAddress{..}){b.spend(1)?;adapted.push(index);}
@@ -55,6 +56,18 @@ impl CheckedContext {
             checked[index]=source;exact_sources[index]=true;
         }
         Ok((checked,exact_sources))
+    }
+    /// A concrete callee lifetime can already be fixed by an invariant raw
+    /// pointee to this caller's shared-local window. Its other root argument
+    /// still needs the real original operand -> compiler reborrow proof.
+    pub(super) fn original_local_call_window(&self,caller:&SemanticInstance,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<bool>{
+        if !matches!(expected.ty,Type::Address{..}){return Ok(false);}
+        b.spend(expected.life.slots.len())?;let mut slots=expected.life.slots.iter().filter(|row|row.path.is_empty());
+        let Some(slot)=slots.next()else{return Ok(false);};if slots.next().is_some(){return Err(bad("Call local window has duplicate root occurrences"));}
+        let Some(ClassKey::Implicit{scope,ordinal})=expected.classes.get(slot.binder as usize)else{return Ok(false);};
+        let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;
+        if *scope!=frame.key||frame.definition!=caller.definition{return Ok(false);}
+        self.original.borrow().as_ref().ok_or_else(||bad("Call local window lacks its complete original body"))?.has_local_role(caller.definition,*ordinal,b)
     }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn instantiate_original_call_heads(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,signature:&mut CheckedSignature,arguments:&[&CheckedType],key:ScopeKey,environment:&EvalEnv,b:&mut Budget)->Check<()> {
@@ -407,5 +420,29 @@ impl CheckedContext {
         let view=dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode:StoredBorrowMode::SharedAddress,outer:Some(outer)},&[child],active,b)?;
         if !self.same_type(environment,&view,expected,b)?{return Err(bad("stored shared view changes a complete original child domain"));}
         Ok(Some(view))
+    }
+}
+
+#[cfg(test)]
+mod local_window_argument_tests{
+    use super::*;
+    #[test]
+    fn checked_original_source_adapts_a_real_reborrow_to_its_local_window_only(){
+        let limits=Limits::default();let(mut module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/phantom-closure-complete-creator.wire"),&limits).unwrap();let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();
+        let caller=module.semantic.as_ref().unwrap().instances[0].clone();let scope=ScopeKey::Instance(caller.id);
+        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=caller.target else{panic!("fixture must have a concrete actual entry")};
+        let f=&mut module.functions[function.0 as usize];f.locals.truncate(1);f.locals[0].ty=Type::Address{mutable:false,inner:Box::new(Type::I32)};f.parameters=vec![LocalId(0)];f.values=vec![f.locals[0].ty.clone();2];let span=f.span;
+        f.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::Load(LocalId(0)),span},Instruction{result:Some(ValueId(1)),kind:InstructionKind::ReborrowAddress{address:ValueId(0),mutable:false},span}];
+        let sigma=ClassKey::Formal{scope,ordinal:0};let window=ClassKey::Implicit{scope,ordinal:7};let other=ClassKey::Implicit{scope,ordinal:8};let child=ClassKey::Outer{scope,operand:OperandKey::Value(ValueId(1)),path:vec![],mode:StoredBorrowMode::SharedAddress};
+        let address=|key:ClassKey|CheckedType{type_cell:CheckedTypeData::new(Type::Address{mutable:false,inner:Box::new(Type::I32)}),life:StorageLifeShape{binder_count:1,slots:vec![StorageLifeSlot{path:vec![],binder:0,mode:StoredBorrowMode::SharedAddress}],retained:vec![],nominal_arguments:vec![]},origins:vec![IntrinsicOrigin::DerivedClass{source:key.clone()}],classes:vec![key],statics:vec![]};
+        let env=EvalEnv{lexical:vec![LexicalFrame{definition:caller.definition,key:scope,actuals:vec![CheckedActual::Life(sigma.clone())],environment:vec![],self_type:None}],assumptions:vec![scope],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        // A completed original initializer/assignment supplies this direction;
+        // this is a scoped transport control, not a source or SSA admission.
+        context.premises.borrow_mut().entry(scope).or_default().relations.outlives.push((sigma.clone(),window.clone()));
+        let values=vec![Some(address(sigma.clone())),Some(address(child))];
+        assert!(!context.call_argument(&module,&caller,ValueId(1),&values,&address(window.clone()),&env,false,&mut b).unwrap());
+        assert!(context.call_argument(&module,&caller,ValueId(1),&values,&address(window.clone()),&env,true,&mut b).unwrap());
+        assert!(!context.call_argument(&module,&caller,ValueId(1),&values,&address(other),&env,true,&mut b).unwrap());
+        assert!(!context.same(&env,&sigma,&window,&mut b).unwrap());assert!(!context.outlives(&env,&window,&sigma,&mut b).unwrap());
     }
 }

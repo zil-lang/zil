@@ -770,10 +770,18 @@ impl CheckedContext {
         self.instantiate_original_call_heads(module,caller,site,&mut signature,&inputs,key,environment,b)?;
         let actual_function=module.functions.get(callee.0 as usize).ok_or_else(||bad("actual Call function is absent"))?;
         for (index,((expected,_),argument)) in signature.parameters.iter().zip(arguments).enumerate() {
-            if !self.call_argument(module,caller,*argument,values,expected,environment,source_checks[index],b)? {return Err(bad("actual Call argument violates the original invariant class specialization"));}
+            if !self.call_argument(module,caller,*argument,values,expected,environment,source_checks[index],b)? {
+                let actual=value_at(values,*argument)?;
+                return Err(bad("actual Call argument violates the original invariant class specialization")
+                    .with_note(format!("caller {:?}, original {:?}, call {:?}, callee {:?}, parameter {index}, actual SSA {:?}, original source checked {}; actual/expected N {}/{}, retained {}/{}, nominal {}/{}",caller.target,caller.definition,site.recipe,callee,argument,source_checks[index],actual.life.binder_count,expected.life.binder_count,actual.life.retained.len(),expected.life.retained.len(),actual.life.nominal_arguments.len(),expected.life.nominal_arguments.len()))
+                    .with_note(format!("actual class/origin prefix {:?} / {:?}; expected {:?} / {:?}",&actual.classes[..actual.classes.len().min(8)],&actual.origins[..actual.origins.len().min(8)],&expected.classes[..expected.classes.len().min(8)],&expected.origins[..expected.origins.len().min(8)])));
+            }
         }
         self.check_call_input_wf(module,&signature,arguments,values,environment,b)?;
         if actual_function.return_type!=signature.result.ty {return Err(bad("actual Call specialization result whole type differs"));}
+        for(index,((expected,_),argument))in signature.parameters.iter().zip(arguments).enumerate(){
+            if self.original_local_call_window(caller,expected,environment,b)?{self.record_local_role_call(module,caller,u32::try_from(index).map_err(|_|limit("Call local view parameter exceeds its domain"))?,*argument,expected,environment,b)?;}
+        }
         Ok(if signature.result.ty==Type::Unit {None}else{Some(signature.result)})
     }
     #[allow(clippy::too_many_arguments)]

@@ -337,3 +337,42 @@ pub(super) fn contracts(module:&TypedModule,mask:&mut [bool],b:&mut Budget)->Che
         for target in crate::stored_flow::contract_dependencies(module,function,b)?{b.spend(queue.len().saturating_add(1))?;queue.push(target);}
     }Ok(())
 }
+
+/// A caller without a raw cell in its own spelling can still consume a
+/// callee's copied inner pointer. Keep that caller and its actual executable
+/// dependencies in the same memory proof. This selects work only; no edge
+/// supplies a source, a class equality or a complete callee summary.
+pub(super) fn references(module:&TypedModule,mask:&mut [bool],b:&mut Budget)->Check<()>{
+    if !b.raw_reference_cells{return Ok(());}
+    let count=module.functions.len();if mask.len()!=count{return Err(reject("E-VERIFY-STORED-PARTITION",None,"raw reference work mask omits actual functions"));}
+    b.spend(count.saturating_mul(3))?;let mut edges=vec![Vec::new();count];let mut seen=vec![false;count];
+    let mut pending=mask.iter().enumerate().filter_map(|(index,yes)|yes.then_some(index)).collect::<Vec<_>>();
+    for(index,function)in module.functions.iter().enumerate(){
+        for target in crate::stored_flow::contract_dependencies(module,function.id,b)?{
+            let target_index=target.0 as usize;
+            if module.functions.get(target_index).is_none_or(|row|row.id!=target){return Err(reject("E-VERIFY-STORED-PARTITION",None,"raw reference dependency selects an absent actual function"));}
+            b.spend(edges[index].len().saturating_add(edges[target_index].len()).saturating_add(2))?;
+            edges[index].push(target_index);edges[target_index].push(index);
+        }
+    }
+    while let Some(index)=pending.pop(){b.spend(1)?;if std::mem::replace(&mut seen[index],true){continue;}mask[index]=true;
+        b.spend(edges[index].len())?;for target in &edges[index]{if !seen[*target]{if pending.len()==pending.capacity(){b.spend(pending.len().saturating_add(1))?;}b.spend(1)?;pending.push(*target);}}
+    }Ok(())
+}
+
+#[cfg(test)]
+mod raw_call_work_tests{
+    use super::*;
+    #[test]
+    fn rich_return_callers_and_their_actual_dependencies_share_the_existing_solver(){
+        let(module,_)=crate::tests::baseline();let mut module=module;let mut raw=module.functions[0].clone();raw.id=FunctionId(0);let mut middle=raw.clone();middle.id=FunctionId(1);let mut caller=raw.clone();caller.id=FunctionId(2);let mut peer=raw.clone();peer.id=FunctionId(3);
+        for f in [&mut raw,&mut middle,&mut caller,&mut peer]{f.blocks[0].instructions.clear();}
+        let span=raw.span;
+        middle.blocks[0].instructions.push(Instruction{result:None,kind:InstructionKind::Call{function:FunctionId(0),arguments:vec![]},span});
+        caller.blocks[0].instructions.push(Instruction{result:None,kind:InstructionKind::Call{function:FunctionId(1),arguments:vec![]},span});
+        module.functions=vec![raw,middle,caller,peer];
+        let mut mask=vec![true,false,false,false];let mut b=Budget::new(&Limits::default());b.raw_reference_cells=true;
+        references(&module,&mut mask,&mut b).unwrap();assert_eq!(mask,vec![true,true,true,false]);
+        let mut ordinary=vec![true,false,false,false];references(&module,&mut ordinary,&mut Budget::new(&Limits::default())).unwrap();assert_eq!(ordinary,vec![true,false,false,false],"unrelated profiles keep their work selection");
+    }
+}

@@ -6,12 +6,14 @@ use std::collections::BTreeSet;
 pub(super) struct Writes {
     ordinal: u32,
     sites: BTreeSet<(BlockId, u32, ValueId)>,
+    calls: BTreeSet<(BlockId,u32,u32)>,
 }
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Transfer {
     pub(crate) local: LocalId,
     pub(crate) outputs: Vec<SignatureLifeClassBinding>,
     pub(crate) stores: Vec<(BlockId, u32, ValueId)>,
+    pub(crate) calls: Vec<(BlockId,u32,u32)>,
 }
 
 // Every dependency must have an original input/static/role identity. A
@@ -115,6 +117,7 @@ impl CheckedContext {
             .or_insert_with(|| Writes {
                 ordinal: *ordinal,
                 sites: BTreeSet::new(),
+                calls: BTreeSet::new(),
             });
         if row.ordinal != *ordinal {
             return Err(bad(
@@ -134,6 +137,29 @@ impl CheckedContext {
         }
         row.sites.insert((at.block, at.instruction, value));
         Ok(())
+    }
+
+    /// The whole original/actual call has proved this root view. Keep the
+    /// exact opcode and parameter with the already checked Store transition;
+    /// neither row is an equality of the local window and its source.
+    pub(super) fn record_local_role_call(&self,module:&TypedModule,instance:&SemanticInstance,parameter:u32,argument:ValueId,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()>{
+        let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;
+        let at=environment.at.ok_or_else(||bad("shared local call view has no actual operation"))?;
+        if !matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==at.function)||frame.definition!=instance.definition{return Err(bad("shared local call view selects another actual/original owner"));}
+        let operation=module.functions.get(at.function.0 as usize).and_then(|f|f.blocks.get(at.block.0 as usize)).and_then(|block|block.instructions.get(at.instruction as usize)).ok_or_else(||bad("shared local call operation is absent"))?;
+        if !matches!(&operation.kind,InstructionKind::Call{arguments,..}if arguments.get(parameter as usize)==Some(&argument)){return Err(bad("shared local call view changes its exact opcode or argument"));}
+        b.spend(expected.life.slots.len())?;let mut slots=expected.life.slots.iter().filter(|row|row.path.is_empty());
+        let slot=slots.next().ok_or_else(||bad("shared local call view has no root occurrence"))?;
+        if slots.next().is_some(){return Err(bad("shared local call view repeats its root"));}
+        let Some(ClassKey::Implicit{scope,ordinal})=expected.classes.get(slot.binder as usize)else{return Err(bad("shared local call view has no original local role"));};
+        if *scope!=frame.key{return Err(bad("shared local call view belongs to another frame"));}
+        let mut writes=self.local_role_writes.borrow_mut();b.spend(writes.len())?;
+        let mut selected=writes.iter_mut().filter(|((owner,_),write)|*owner==instance.id&&write.ordinal==*ordinal);
+        let(_,write)=selected.next().ok_or_else(||bad("shared local call view lacks its real Store transition"))?;
+        if selected.next().is_some(){return Err(bad("shared local call view selects more than one real local"));}
+        b.spend(write.calls.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+        if write.calls.len()>=b.limits.max_nodes&&!write.calls.contains(&(at.block,at.instruction,parameter)){return Err(limit("shared local call view directory exceeded"));}
+        write.calls.insert((at.block,at.instruction,parameter));Ok(())
     }
 
     pub(super) fn publish_local_role_transfers(
@@ -324,11 +350,12 @@ impl CheckedContext {
                         }
                     }
                 }
-                b.spend(actual_stores.len().saturating_add(1))?;
+                b.spend(actual_stores.len().saturating_add(write.calls.len()).saturating_add(1))?;
                 transfers.push(Transfer {
                     local: *local,
                     outputs,
                     stores: actual_stores.into_iter().collect(),
+                    calls: write.calls.iter().copied().collect(),
                 });
             }
             if let Some(previous) = ready.get(&function) {
@@ -379,7 +406,7 @@ impl CheckedContext {
 fn charge_transfers(rows: &[Transfer], b: &mut Budget) -> Check<()> {
     b.spend(rows.len())?;
     for row in rows {
-        b.spend(row.stores.len().saturating_add(row.outputs.len()))?;
+        b.spend(row.stores.len().saturating_add(row.outputs.len()).saturating_add(row.calls.len()))?;
         for output in &row.outputs {
             b.spend(output.position.path.len())?;
         }

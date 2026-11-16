@@ -1385,6 +1385,7 @@ fn check_module_budget(
     };
     if let Some(mask)=&mut stored_partition{stored_partition::contracts(module,mask,&mut budget)?;}
     if let Some(mask)=&mut store_option_mask{stored_partition::contracts(module,mask,&mut budget)?;}
+    if let Some(mask)=&mut store_option_mask{stored_partition::references(module,mask,&mut budget)?;}
     if budget.stored_borrows || budget.task_sources() {
         stored_flow::qualifications(
             module,

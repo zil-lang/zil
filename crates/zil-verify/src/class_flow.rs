@@ -2329,8 +2329,24 @@ fn check_with(
                     } => {
                         let callee = &module.functions[function.0 as usize];
                         if let Some(c) = &callee.storage_life {
+                            let mut views=Vec::new();
+                            for role in &local_roles{b.spend(role.calls.len())?;for(bid,ordinal,parameter)in &role.calls{if *bid==block.id&&*ordinal==instruction_index as u32{b.spend(views.len().saturating_add(1))?;if !views.contains(parameter){views.push(*parameter);}}}}
+                            let mut projected=None;
+                            if !views.is_empty(){
+                                for parameter in &views{
+                                    if arguments.get(*parameter as usize).is_none(){return Err(bad("checked local Call view selects an absent argument"));}
+                                    b.spend(c.bindings.len())?;if c.bindings.iter().filter(|row|row.position.base==StorageBase::Parameter(*parameter)&&row.position.path.is_empty()).count()!=1{return Err(bad("checked local Call view loses its exact root binding"));}
+                                }
+                                crate::signature_life::charge(c,b)?;let mut contract=c.clone();
+                                b.spend(contract.bindings.len().saturating_mul(views.len().saturating_add(1)))?;
+                                contract.bindings.retain(|row|!row.position.path.is_empty()||!matches!(row.position.base,StorageBase::Parameter(parameter)if views.contains(&parameter)));
+                                projected=Some(contract);
+                            }
+                            // The completed actual call supplies only these
+                            // directed root views. Every child class and all
+                            // other parameter/result equations remain intact.
                             call_with_outer(
-                                c,
+                                projected.as_ref().unwrap_or(c),
                                 arguments,
                                 i.result,
                                 &values,
