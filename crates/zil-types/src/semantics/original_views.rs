@@ -5,6 +5,23 @@ use super::*;
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) enum ViewBorrowStepKind {
     Parameter,
+    ParameterStorage,
+    Slice,
+    Index {
+        constant: Option<u32>,
+    },
+    Dereference,
+    CallResult {
+        site: SemanticSiteId,
+    },
+    Capture {
+        name: String,
+    },
+    ProjectedLocal {
+        statement: NodeId,
+        pattern: Vec<u32>,
+        read: bool,
+    },
     Local {
         binding: NodeId,
     },
@@ -28,6 +45,8 @@ pub(crate) enum ViewBorrowStepKind {
 pub(crate) enum ViewBorrowRoot {
     Parameter(u32),
     Local(NodeId),
+    Result(NodeId),
+    Capture(NodeId),
 }
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct ViewBorrowStep {
@@ -67,6 +86,25 @@ pub(super) fn snapshot_bound(
         .ok_or_else(|| {
             Diagnostic::limit(Phase::Types, "projected loan source work exceeded", None)
         })?;
+    for step in &value.steps {
+        if let ViewBorrowStepKind::Capture { name } = &step.kind {
+            *left = left.checked_sub(name.len()).ok_or_else(|| {
+                Diagnostic::limit(Phase::Types, "capture loan source work exceeded", None)
+            })?;
+        }
+        if let ViewBorrowStepKind::ProjectedLocal { pattern, .. } = &step.kind {
+            if pattern.len() > limits.max_call_depth {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "projected binding loan depth exceeded",
+                    None,
+                ));
+            }
+            *left = left.checked_sub(pattern.len()).ok_or_else(|| {
+                Diagnostic::limit(Phase::Types, "projected binding loan work exceeded", None)
+            })?;
+        }
+    }
     if let Some(lifetime) = &value.lifetime {
         crate::dyn_metadata::semantic_operand_snapshot(lifetime, limits, left, 1)?;
     }
@@ -131,7 +169,36 @@ impl Check<'_, '_> {
                     return Ok(());
                 };
                 if binding.origin_owner != owner {
-                    return Ok(());
+                    if !binding.capture {
+                        return Ok(());
+                    }
+                    let lifetime = match &binding.ty {
+                        SemanticTypeRecipe::Address { lifetime, .. }
+                        | SemanticTypeRecipe::Desc { lifetime, .. } => Some(lifetime.clone()),
+                        _ => None,
+                    };
+                    if let Some(lifetime) = &lifetime {
+                        crate::dyn_metadata::semantic_operand_snapshot(
+                            lifetime,
+                            self.limits,
+                            self.left,
+                            1,
+                        )?;
+                    }
+                    self.pay(name.len().saturating_add(1), depth)?;
+                    return self.insert_view_bound(
+                        owner,
+                        Query::Expression(expression.id),
+                        ViewBorrowBound {
+                            root: ViewBorrowRoot::Capture(expression.id),
+                            lifetime,
+                            steps: vec![ViewBorrowStep {
+                                node: expression.id,
+                                kind: ViewBorrowStepKind::Capture { name: name.clone() },
+                            }],
+                        },
+                        depth + 1,
+                    );
                 }
                 if let Query::Parameter(parameter) = binding.origin {
                     if binding.mutable || binding.written {
@@ -163,6 +230,37 @@ impl Check<'_, '_> {
                             steps: vec![ViewBorrowStep {
                                 node: expression.id,
                                 kind: ViewBorrowStepKind::Parameter,
+                            }],
+                        },
+                        depth + 1,
+                    );
+                }
+                if let Query::BindingProjection { statement, pattern } = &binding.origin {
+                    let lifetime = match &binding.ty {
+                        SemanticTypeRecipe::Address { lifetime, .. }
+                        | SemanticTypeRecipe::Desc { lifetime, .. } => lifetime,
+                        _ => return Ok(()),
+                    };
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        lifetime,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    self.pay(pattern.len().saturating_add(1), depth)?;
+                    return self.insert_view_bound(
+                        owner,
+                        Query::Expression(expression.id),
+                        ViewBorrowBound {
+                            root: ViewBorrowRoot::Local(*statement),
+                            lifetime: Some(lifetime.clone()),
+                            steps: vec![ViewBorrowStep {
+                                node: expression.id,
+                                kind: ViewBorrowStepKind::ProjectedLocal {
+                                    statement: *statement,
+                                    pattern: pattern.clone(),
+                                    read: true,
+                                },
                             }],
                         },
                         depth + 1,
@@ -261,21 +359,95 @@ impl Check<'_, '_> {
                     ..
                 }) = self.proof.intrinsics.get(&(owner, site.id))
                 else {
-                    return Ok(());
+                    let site = site.id;
+                    let checked = self.proof.call_targets.contains_key(&(owner, site))
+                        || self.proof.callable_calls.contains_key(&(owner, site))
+                        || self.proof.intrinsics.contains_key(&(owner, site));
+                    if !checked {
+                        return Ok(());
+                    }
+                    let Some(ty) = self
+                        .proof
+                        .types
+                        .get(&(owner, Query::Expression(expression.id)))
+                    else {
+                        return Ok(());
+                    };
+                    let lifetime = match ty {
+                        SemanticTypeRecipe::Address { lifetime, .. }
+                        | SemanticTypeRecipe::Desc { lifetime, .. } => lifetime,
+                        _ => return Ok(()),
+                    };
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        lifetime,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    return self.insert_view_bound(
+                        owner,
+                        Query::Expression(expression.id),
+                        ViewBorrowBound {
+                            root: ViewBorrowRoot::Result(expression.id),
+                            lifetime: Some(lifetime.clone()),
+                            steps: vec![ViewBorrowStep {
+                                node: expression.id,
+                                kind: ViewBorrowStepKind::CallResult { site },
+                            }],
+                        },
+                        depth + 1,
+                    );
                 };
                 let Some(argument) = arguments.first() else {
                     return Err(bad("projected Store loan omits its real descriptor"));
                 };
-                step = Some(ViewBorrowStepKind::StoreBorrow {
-                    site: site.id,
-                    mutable: *mutable,
-                });
+                let site = site.id;
+                let mutable = *mutable;
+                self.place_borrow_bound(owner, argument, variables, depth + 1)?;
+                step = Some(ViewBorrowStepKind::StoreBorrow { site, mutable });
                 Query::Expression(argument.id)
+            }
+            CoreExprKind::Slice { object, .. } => {
+                self.place_borrow_bound(owner, object, variables, depth + 1)?;
+                step = Some(ViewBorrowStepKind::Slice);
+                Query::Expression(object.id)
+            }
+            CoreExprKind::Index { object, index } => {
+                self.place_borrow_bound(owner, object, variables, depth + 1)?;
+                let literal = match &index.kind {
+                    CoreExprKind::Integer(text) => {
+                        self.pay(text.len(), depth)?;
+                        Some(integer(text, Some(&Type::I64), false, index.span)?)
+                    }
+                    CoreExprKind::Literal(value) => Some(value.clone()),
+                    _ => None,
+                };
+                let constant = literal.and_then(|value| match value {
+                    Constant::I8(v) => u32::try_from(v).ok(),
+                    Constant::I16(v) => u32::try_from(v).ok(),
+                    Constant::I32(v) => u32::try_from(v).ok(),
+                    Constant::I64(v) | Constant::Isize(v) => u32::try_from(v).ok(),
+                    Constant::U8(v) => Some(v as u32),
+                    Constant::U16(v) => Some(v as u32),
+                    Constant::U32(v) => Some(v),
+                    _ => None,
+                });
+                step = Some(ViewBorrowStepKind::Index { constant });
+                Query::Expression(object.id)
+            }
+            CoreExprKind::Unary {
+                op: UnaryOp::Dereference,
+                operand,
+            } => {
+                self.place_borrow_bound(owner, operand, variables, depth + 1)?;
+                step = Some(ViewBorrowStepKind::Dereference);
+                Query::Expression(operand.id)
             }
             CoreExprKind::Unary {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut,
                 operand,
             } => {
+                self.place_borrow_bound(owner, operand, variables, depth + 1)?;
                 step = Some(ViewBorrowStepKind::Borrow);
                 Query::Expression(operand.id)
             }
@@ -343,7 +515,15 @@ impl Check<'_, '_> {
                     scope: SemanticScopeRef::Ancestor(0),
                     ..
                 }),
-            ) if matches!(bound.root, ViewBorrowRoot::Local(_)) => true,
+            ) if matches!(
+                bound.root,
+                ViewBorrowRoot::Local(_)
+                    | ViewBorrowRoot::Capture(_)
+                    | ViewBorrowRoot::Parameter(_)
+            ) =>
+            {
+                true
+            }
             (Some(SemanticOuterLifeRecipe::Static), _) => true,
             (
                 Some(SemanticOuterLifeRecipe::Class(source)),
@@ -394,6 +574,57 @@ impl Check<'_, '_> {
                 let Some(binding) = variables.get(name) else {
                     return Ok(());
                 };
+                if let Query::Parameter(parameter) = binding.origin {
+                    if binding.origin_owner != owner
+                        || matches!(
+                            binding.ty,
+                            SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
+                        )
+                    {
+                        return Ok(());
+                    }
+                    return self.insert_view_bound(
+                        owner,
+                        Query::Expression(expression.id),
+                        ViewBorrowBound {
+                            root: ViewBorrowRoot::Parameter(parameter),
+                            lifetime: None,
+                            steps: vec![ViewBorrowStep {
+                                node: expression.id,
+                                kind: ViewBorrowStepKind::ParameterStorage,
+                            }],
+                        },
+                        depth + 1,
+                    );
+                }
+                if let Query::BindingProjection { statement, pattern } = &binding.origin {
+                    if binding.origin_owner != owner
+                        || matches!(
+                            binding.ty,
+                            SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
+                        )
+                    {
+                        return Ok(());
+                    }
+                    self.pay(pattern.len().saturating_add(1), depth)?;
+                    return self.insert_view_bound(
+                        owner,
+                        Query::Expression(expression.id),
+                        ViewBorrowBound {
+                            root: ViewBorrowRoot::Local(*statement),
+                            lifetime: None,
+                            steps: vec![ViewBorrowStep {
+                                node: expression.id,
+                                kind: ViewBorrowStepKind::ProjectedLocal {
+                                    statement: *statement,
+                                    pattern: pattern.clone(),
+                                    read: false,
+                                },
+                            }],
+                        },
+                        depth + 1,
+                    );
+                }
                 let Query::Binding(node) = binding.origin else {
                     return Ok(());
                 };
@@ -425,10 +656,20 @@ impl Check<'_, '_> {
                 self.place_borrow_bound(owner, value, variables, depth + 1)?;
                 self.view_bound(owner, expression, variables, depth + 1)
             }
-            CoreExprKind::Member { object, .. } => {
+            CoreExprKind::Member { object, .. }
+            | CoreExprKind::Slice { object, .. }
+            | CoreExprKind::Index { object, .. } => {
                 self.place_borrow_bound(owner, object, variables, depth + 1)?;
                 self.view_bound(owner, expression, variables, depth + 1)
             }
+            CoreExprKind::Unary {
+                op: UnaryOp::Dereference,
+                operand,
+            } => {
+                self.place_borrow_bound(owner, operand, variables, depth + 1)?;
+                self.view_bound(owner, expression, variables, depth + 1)
+            }
+            CoreExprKind::Call { .. } => self.view_bound(owner, expression, variables, depth + 1),
             _ => Ok(()),
         }
     }
