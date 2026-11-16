@@ -1,7 +1,7 @@
 # Full-push 精简恢复入口
 
-唯一施工分支research/full-push-native；最新正式被测源码 `8f06a9ebb635e64b49aef5affdcd7ab7e0c0e639`。
+唯一施工分支research/full-push-native；最新正式被测源码 `175987698fd27ccd26a99e7bf52c7634a6409d44`。
 
-[本轮精简结果](restart-bootstrap-chain-20261116/summary.md)：138请求/46格/5运行质量；原生冷3.973/R6.901s、首改1.033/R1.266s，重启构建+首改3.568/R1.287s仍输。直接重启首改profile3.715s/257原生输入过，Analyze1.169s与磁盘layout miss待修。check5000冷1.484/R.804s仍输，全流程6.832/6.832s近持平。
+[直接重启首改整链结果](direct-restart-edit-chain-20261116/summary.md)：正式132请求/44格/4运行质量通过，另三请求profile/257原生输入过。原生冷3.772/R6.991s，但直接首改3.077/R1.424s仍落后；check冷1.468/R1.165s，连续八私改.995/R3.076s。原生用户边界峰42.416/R65.934MiB，check13.637/R58.355MiB。
 
-当前继续实现直接重启首改Analyze与磁盘类布局链，完成后集中验收。按[compiler-performance skill](../../../.agents/skills/compiler-performance/SKILL.md)，默认仅精简结果，不打包/复制SDK。独立Verify、原预算、完整O2、研究默认关闭；旧480e/bee7/98fa/021997数字不转记，goal/archive不合main。SDK18/native-link沿固定e85/V32恢复，不重建LLVM。
+已完本批构建/测量，没有待完成进程。剩余首改Codegen（O2对象/机器/分区）、重启bootstrap与checkcold；全面/main/工业门仍开放。按[compiler-performance skill](../../../.agents/skills/compiler-performance/SKILL.md)，直接修改先于新进程首个请求，不能先无改预热。只保精简结果，不默认大归档；原Verify/预算/完整O2/研究默认保持。旧8f/480e/bee7/98fa/021997不转记，goal/archive不合main。SDK18/native-link固定e85/V32，不重建LLVM。

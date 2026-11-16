@@ -1,0 +1,993 @@
+{
+  "schema": "zil.direct-restart-edit-chain.v1",
+  "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+  "binary_sha256": "3411ee9a11c835733783278bc8f8cde7bc96a030b0379da8457f4a0c9f9f026b",
+  "tool_source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "conditions": "O2/CGU16/compiler jobs1,2 balanced blocks; check/native separate, no OS cache flushing; ZIL resident request time excludes startup, Cargo request includes startup. Startup and cleanup stay separate. Formal native input validation jobs8, sustained runtime serial.",
+  "counts": {
+    "original_requests": 132,
+    "functional_cells": 44,
+    "runtime_cases": 4
+  },
+  "windows": {
+    "direct": {
+      "size": "5105",
+      "original_requests": 30,
+      "functional_cells": 10,
+      "runtime_cases": 4,
+      "candidate_Rust_quality_passed": true,
+      "global_accepted": false,
+      "main_regression_accepted": null,
+      "main_resource_limit": true,
+      "flow_ms": {
+        "candidate": 9951.5464415,
+        "rust": 15724.280339500001
+      },
+      "requests_ms": {
+        "cold": {
+          "candidate": 3772.1381305000004,
+          "rust": 6990.811243
+        },
+        "unchanged": {
+          "candidate": 59.545691500000004,
+          "rust": 28.394547000000003
+        },
+        "private-001": {
+          "candidate": 3076.5001224999996,
+          "rust": 1423.5184955
+        },
+        "error": {
+          "candidate": 1439.2856565,
+          "rust": 1682.3949475
+        },
+        "recovery": {
+          "candidate": 1604.0768405,
+          "rust": 5599.1611065
+        }
+      },
+      "paired_C_minus_R_ms": {
+        "cold": {
+          "median": -3218.6731125,
+          "by_block": [
+            -1691.5410629999997,
+            -4745.805162000001
+          ]
+        },
+        "unchanged": {
+          "median": 31.1511445,
+          "by_block": [
+            14.085136000000002,
+            48.217152999999996
+          ]
+        },
+        "private-001": {
+          "median": 1652.9816269999997,
+          "by_block": [
+            1560.3790619999997,
+            1745.5841919999998
+          ]
+        },
+        "error": {
+          "median": -243.10929099999998,
+          "by_block": [
+            -265.900476,
+            -220.31810599999994
+          ]
+        },
+        "recovery": {
+          "median": -3995.0842659999994,
+          "by_block": [
+            -4428.487322999999,
+            -3561.6812089999994
+          ]
+        }
+      },
+      "eight_private_ms": null,
+      "disk": {
+        "candidate": {
+          "boundary_peak_MiB": 42.416015625,
+          "peak_bytes_by_block": [
+            44478464,
+            44474368
+          ],
+          "eight_private_growth_MiB": null
+        },
+        "rust": {
+          "boundary_peak_MiB": 65.93359375,
+          "peak_bytes_by_block": [
+            76730368,
+            61542400
+          ],
+          "eight_private_growth_MiB": null
+        }
+      },
+      "stages_ms": {
+        "cold": {
+          "phase": {
+            "parse": 0.20935,
+            "expand": 483.6910785,
+            "types": 408.42057350000005,
+            "analyze": 155.0679585,
+            "verify": 107.019904,
+            "lower": 7.8300045,
+            "codegen": 1891.4604875,
+            "ct": 95.43747300000001
+          },
+          "backend": {
+            "machine_ns": 662.388944,
+            "machine_emit_ns": 439.20253349999996,
+            "machine_transform_ns": 215.8927425,
+            "machine_preflight_ns": 43.7241755,
+            "partition_ns": 540.3535420000001,
+            "diagnostic_ns": 158.542406,
+            "object_ns": 468.999405,
+            "link_key_ns": 35.299856,
+            "link_execution_ns": 24.515886000000002,
+            "other_ns": 1.3135875,
+            "total_ns": 1891.4136265
+          }
+        },
+        "private-001": {
+          "phase": {
+            "parse": 0.2455245,
+            "expand": 331.17372550000005,
+            "types": 363.757173,
+            "analyze": 118.1026495,
+            "verify": 83.043627,
+            "lower": 7.65847,
+            "codegen": 1499.1893140000002,
+            "ct": 90.4280795
+          },
+          "backend": {
+            "machine_ns": 435.419001,
+            "machine_emit_ns": 227.340779,
+            "machine_transform_ns": 133.04370649999998,
+            "machine_preflight_ns": 40.38954,
+            "partition_ns": 316.0448,
+            "diagnostic_ns": 96.812543,
+            "object_ns": 521.6675425,
+            "link_key_ns": 93.36124600000001,
+            "link_execution_ns": 26.3616805,
+            "other_ns": 9.4623645,
+            "total_ns": 1499.1291775
+          }
+        },
+        "recovery": {
+          "phase": {
+            "parse": 0.08349500000000001,
+            "expand": 15.144489499999999,
+            "types": 81.7713455,
+            "analyze": 72.63578000000001,
+            "verify": 105.9418995,
+            "lower": 9.9306585,
+            "codegen": 1037.0310445,
+            "ct": 11.385295
+          },
+          "backend": {
+            "machine_ns": 267.6691575,
+            "machine_emit_ns": 110.5291065,
+            "machine_transform_ns": 148.79909350000003,
+            "machine_preflight_ns": 47.912204,
+            "partition_ns": 389.955393,
+            "diagnostic_ns": 77.490593,
+            "object_ns": 269.608016,
+            "link_key_ns": 0.45270099999999996,
+            "link_execution_ns": 29.167271,
+            "other_ns": 2.664006,
+            "total_ns": 1037.0071375
+          }
+        }
+      },
+      "raw": "out/runs/cache-restart-performance-direct-04"
+    },
+    "check-5000-wide": {
+      "size": "5000",
+      "original_requests": 102,
+      "functional_cells": 34,
+      "runtime_cases": 0,
+      "candidate_Rust_quality_passed": true,
+      "global_accepted": true,
+      "main_regression_accepted": null,
+      "main_resource_limit": false,
+      "flow_ms": {
+        "baseline": 7068.770956,
+        "candidate": 5746.492665,
+        "rust": 7681.765325
+      },
+      "requests_ms": {
+        "cold": {
+          "baseline": 430.28796850000003,
+          "candidate": 1468.134864,
+          "rust": 1164.966437
+        },
+        "unchanged": {
+          "baseline": 65.006343,
+          "candidate": 8.5370445,
+          "rust": 16.528351
+        },
+        "private-001": {
+          "baseline": 678.0903315,
+          "candidate": 289.3010125,
+          "rust": 326.940117
+        },
+        "private-002": {
+          "baseline": 359.9446845,
+          "candidate": 99.35947250000001,
+          "rust": 301.58122000000003
+        },
+        "private-003": {
+          "baseline": 779.535734,
+          "candidate": 102.5708015,
+          "rust": 500.000024
+        },
+        "private-004": {
+          "baseline": 440.2906545,
+          "candidate": 105.3556015,
+          "rust": 268.229604
+        },
+        "private-005": {
+          "baseline": 519.69415,
+          "candidate": 119.5478425,
+          "rust": 642.0195570000001
+        },
+        "private-006": {
+          "baseline": 561.0214225,
+          "candidate": 87.6912885,
+          "rust": 355.7157135
+        },
+        "private-007": {
+          "baseline": 500.92321749999996,
+          "candidate": 94.316045,
+          "rust": 280.302043
+        },
+        "private-008": {
+          "baseline": 428.490435,
+          "candidate": 96.8323065,
+          "rust": 401.090643
+        },
+        "unchanged-after-edits": {
+          "baseline": 74.72533150000001,
+          "candidate": 12.0884295,
+          "rust": 17.555979
+        },
+        "positions": {
+          "baseline": 698.5646745,
+          "candidate": 497.78564900000003,
+          "rust": 917.8832869999999
+        },
+        "broad": {
+          "baseline": 730.1226005,
+          "candidate": 605.8286694999999,
+          "rust": 829.3394165
+        },
+        "error": {
+          "baseline": 246.85184049999998,
+          "candidate": 63.454809499999996,
+          "rust": 361.63076750000005
+        },
+        "recovery": {
+          "baseline": 411.0677985,
+          "candidate": 114.2450615,
+          "rust": 590.1413985
+        },
+        "restore": {
+          "baseline": 90.9816355,
+          "candidate": 780.231515,
+          "rust": 689.4766500000001
+        },
+        "warm-restart": {
+          "baseline": 53.172134,
+          "candidate": 1201.212252,
+          "rust": 18.364117
+        }
+      },
+      "paired_C_minus_R_ms": {
+        "cold": {
+          "median": 303.16842700000007,
+          "by_block": [
+            1256.672328,
+            -650.335474
+          ]
+        },
+        "unchanged": {
+          "median": -7.991306499999999,
+          "by_block": [
+            -5.97386,
+            -10.008752999999999
+          ]
+        },
+        "private-001": {
+          "median": -37.63910449999999,
+          "by_block": [
+            112.28407900000002,
+            -187.562288
+          ]
+        },
+        "private-002": {
+          "median": -202.2217475,
+          "by_block": [
+            -228.334415,
+            -176.10908
+          ]
+        },
+        "private-003": {
+          "median": -397.42922250000004,
+          "by_block": [
+            -574.1374050000001,
+            -220.72103999999996
+          ]
+        },
+        "private-004": {
+          "median": -162.87400250000002,
+          "by_block": [
+            -188.21602199999998,
+            -137.53198300000003
+          ]
+        },
+        "private-005": {
+          "median": -522.4717145,
+          "by_block": [
+            -230.333744,
+            -814.609685
+          ]
+        },
+        "private-006": {
+          "median": -268.024425,
+          "by_block": [
+            -339.051392,
+            -196.997458
+          ]
+        },
+        "private-007": {
+          "median": -185.985998,
+          "by_block": [
+            -168.90918499999998,
+            -203.062811
+          ]
+        },
+        "private-008": {
+          "median": -304.2583364999999,
+          "by_block": [
+            -442.98644999999993,
+            -165.53022299999998
+          ]
+        },
+        "unchanged-after-edits": {
+          "median": -5.4675495000000005,
+          "by_block": [
+            -6.831138000000001,
+            -4.103961
+          ]
+        },
+        "positions": {
+          "median": -420.0976379999999,
+          "by_block": [
+            -156.12439699999993,
+            -684.0708789999999
+          ]
+        },
+        "broad": {
+          "median": -223.51074700000004,
+          "by_block": [
+            -346.58864900000003,
+            -100.43284500000004
+          ]
+        },
+        "error": {
+          "median": -298.17595800000004,
+          "by_block": [
+            -322.800995,
+            -273.550921
+          ]
+        },
+        "recovery": {
+          "median": -475.896337,
+          "by_block": [
+            -564.784451,
+            -387.008223
+          ]
+        },
+        "restore": {
+          "median": 90.754865,
+          "by_block": [
+            -149.69705,
+            331.20678
+          ]
+        },
+        "warm-restart": {
+          "median": 1182.848135,
+          "by_block": [
+            1760.4077419999999,
+            605.288528
+          ]
+        }
+      },
+      "eight_private_ms": {
+        "baseline": 4267.9906295,
+        "candidate": 994.9743705,
+        "rust": 3075.8789214999997
+      },
+      "disk": {
+        "baseline": {
+          "boundary_peak_MiB": 45.3125,
+          "peak_bytes_by_block": [
+            47513600,
+            47513600
+          ],
+          "eight_private_growth_MiB": 29.40625
+        },
+        "candidate": {
+          "boundary_peak_MiB": 13.63671875,
+          "peak_bytes_by_block": [
+            14315520,
+            14282752
+          ],
+          "eight_private_growth_MiB": 1.064453125
+        },
+        "rust": {
+          "boundary_peak_MiB": 58.35546875,
+          "peak_bytes_by_block": [
+            61190144,
+            61190144
+          ],
+          "eight_private_growth_MiB": 15.1484375
+        }
+      },
+      "stages_ms": {
+        "cold": {
+          "phase": {
+            "parse": 0.1348995,
+            "expand": 774.5591380000001,
+            "types": 225.13942300000002,
+            "analyze": 88.642436,
+            "verify": 48.985433,
+            "ct": 48.3634165
+          },
+          "backend": {}
+        },
+        "warm-restart": {
+          "phase": {
+            "parse": 0.30064,
+            "expand": 556.4506765,
+            "types": 114.66679199999999,
+            "analyze": 74.634579,
+            "verify": 41.3609345,
+            "ct": 47.2913845
+          },
+          "backend": {}
+        },
+        "private-001": {
+          "phase": {
+            "parse": 0.053675,
+            "expand": 13.146951000000001,
+            "types": 0.2868795,
+            "analyze": 0.135099,
+            "verify": 23.5535395,
+            "ct": 11.8108845
+          },
+          "backend": {}
+        },
+        "positions": {
+          "phase": {
+            "parse": 0.539771,
+            "expand": 192.03641549999998,
+            "types": 46.411102,
+            "analyze": 26.03453,
+            "verify": 51.596399,
+            "ct": 31.852404
+          },
+          "backend": {}
+        },
+        "broad": {
+          "phase": {
+            "parse": 0.47593700000000005,
+            "expand": 146.51747899999998,
+            "types": 50.123084500000004,
+            "analyze": 83.105336,
+            "verify": 72.7614145,
+            "ct": 28.704585
+          },
+          "backend": {}
+        },
+        "restore": {
+          "phase": {
+            "parse": 0.3340595,
+            "expand": 208.86429149999998,
+            "types": 94.2956175,
+            "analyze": 51.599178,
+            "verify": 61.906857,
+            "ct": 56.932685500000005
+          },
+          "backend": {}
+        },
+        "recovery": {
+          "phase": {
+            "parse": 0.0983165,
+            "expand": 15.049921000000001,
+            "types": 6.885731,
+            "analyze": 0.285477,
+            "verify": 27.387276999999997,
+            "ct": 17.1525975
+          },
+          "backend": {}
+        }
+      },
+      "raw": "out/runs/cache-restart-performance-check-5000-wide-04"
+    }
+  },
+  "diagnostic": {
+    "formal_comparison": false,
+    "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+    "requests": 3,
+    "request_seconds": 2.970744205,
+    "native_oracles": 257,
+    "phase_ms": {
+      "parse": 0.137888,
+      "expand": 304.654255,
+      "types": 149.149446,
+      "analyze": 112.428531,
+      "verify": 98.565138,
+      "lower": 7.873625,
+      "codegen": 1498.663174,
+      "ct": 85.251721
+    },
+    "backend_ms": {
+      "machine_ns": 346.241854,
+      "machine_emit_ns": 172.700366,
+      "machine_transform_ns": 169.580665,
+      "machine_preflight_ns": 56.82992,
+      "partition_ns": 312.266012,
+      "diagnostic_ns": 43.595353,
+      "object_ns": 718.287295,
+      "link_key_ns": 27.408858,
+      "link_execution_ns": 47.928279,
+      "other_ns": 2.572784,
+      "total_ns": 1498.300435
+    },
+    "driver_ns": {
+      "discovery_receipt_publication": 4961688,
+      "function_cache_publication": 19793063,
+      "function_cache_read": 166430237,
+      "function_checkpoint": 17947,
+      "owner_binding": 38508,
+      "producer_checkpoint": 8282,
+      "project_setup": 1645591,
+      "semantic_cache_read": 20832,
+      "semantic_candidate_publication": 272141473,
+      "source_ingress": 183874520
+    },
+    "analysis": {
+      "executed_functions": 5,
+      "reused_functions": 5098,
+      "retained_queries": 5,
+      "candidate_reused_functions": 0,
+      "candidate_executed_functions": 5105,
+      "equal_function_results": 0,
+      "changed_function_results": 5105,
+      "shared_program_reuses": 0,
+      "initialization_inputs_built": 246,
+      "candidate_inputs_built": 5101,
+      "dependency_signatures_checked": 5102,
+      "resource_transfers_executed": 0,
+      "resource_transfers_reused": 0,
+      "retained_candidate_queries": 5101,
+      "product_admission_functions_checked": 5105,
+      "product_function_queries_executed": 5105,
+      "product_function_queries_reused": 0,
+      "product_global_obligations_executed": 1,
+      "product_global_obligations_reused": 0,
+      "product_plan_rows_replaced": 0,
+      "product_semantic_functions_compared": 0,
+      "product_relocated_function_bindings": 0,
+      "bootstrap_templates": 143,
+      "bootstrap_initialization_reuses": 4857,
+      "bootstrap_local_reuses": 4857,
+      "bootstrap_scope_reuses": 4857,
+      "bootstrap_hold_reuses": 4857
+    },
+    "semantic_publication": {
+      "serialized_functions": 5,
+      "reused_functions": 5100,
+      "written_segments": 10215,
+      "existing_segments": 1,
+      "written_bytes": 8913237,
+      "manifest_bytes": 1385345,
+      "canonical_functions": 5105,
+      "bound_functions": 0,
+      "encode_ns": 157078639,
+      "guard_ns": 12430682,
+      "item_io_ns": 87679092,
+      "manifest_io_ns": 9414405,
+      "physical_pack_writes": 1,
+      "physical_pack_bytes": 8913337,
+      "manifest_writes": 1,
+      "compacted_items": 0,
+      "referenced_packs": 1,
+      "referenced_pack_payload_bytes": 8913237,
+      "serialized_function_plans": 5105,
+      "reused_function_plans": 0,
+      "serialized_function_plan_bytes": 1569656,
+      "reused_function_plan_bytes": 0,
+      "function_bindings_checked": 5105,
+      "function_plan_bindings_compared": 0
+    },
+    "function_decoding": {
+      "decode_attempts": 5101,
+      "decoded_functions": 5101,
+      "reused_decoded_functions": 0,
+      "relabeled_decoded_functions": 0
+    },
+    "backend_work": {
+      "lowered_functions": 5105,
+      "reused_functions": 0,
+      "reused_body_templates": 4857,
+      "produced_body_templates": 143,
+      "reused_machine_module": false,
+      "whole_machine_input_functions_compared": 0,
+      "reused_machine_transforms": false,
+      "reused_call_class_inputs": 0,
+      "rebuilt_call_class_inputs": 5109,
+      "reused_call_class_keys": 0,
+      "rebuilt_call_class_keys": 5100,
+      "machine_preflights_checked": 1,
+      "machine_preflights_reused": 1,
+      "checked_add_functions_checked": 5104,
+      "checked_add_functions_reused": 0,
+      "reused_partition_layout": false,
+      "reused_partition": false,
+      "reused_object_keys": 0,
+      "reused_link": false,
+      "rendered_diagnostic_items": 5266,
+      "reused_diagnostic_items": 0,
+      "reused_partition_recipe": false,
+      "reused_partition_units": 0,
+      "rebuilt_partition_units": 16,
+      "reused_partition_items": 0,
+      "rebuilt_partition_items": 9635,
+      "representation_functions_checked": 5105,
+      "representation_functions_reused": 0,
+      "scoped_thread_functions_checked": 5105,
+      "scoped_thread_functions_reused": 0,
+      "source_projection_traversals": 5105,
+      "source_projection_instruction_visits": 201772,
+      "source_projection_reuses": 0,
+      "native_history_restored_units": 0,
+      "native_history_retained_epochs": 0,
+      "native_history_payload_bytes": 0
+    },
+    "raw": "out/runs/cache-restart-direct-edit-diagnostic-02/diagnostic/5105/block-00/requests/002-private-001/candidate"
+  },
+  "checks": {
+    "ir": {
+      "source": "992a8e6071cc182959a119444a0d8477dde65011",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-ir",
+        "--lib"
+      ],
+      "counts": [
+        [
+          "ok",
+          "91",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/ir.json"
+    },
+    "types": {
+      "source": "992a8e6071cc182959a119444a0d8477dde65011",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-types",
+        "--lib"
+      ],
+      "counts": [
+        [
+          "ok",
+          "115",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/types.json"
+    },
+    "analyze": {
+      "source": "992a8e6071cc182959a119444a0d8477dde65011",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-analyze",
+        "--lib"
+      ],
+      "counts": [
+        [
+          "ok",
+          "307",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/analyze.json"
+    },
+    "backend": {
+      "source": "992a8e6071cc182959a119444a0d8477dde65011",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--include-ignored"
+      ],
+      "counts": [
+        [
+          "ok",
+          "331",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/backend.json"
+    },
+    "driver": {
+      "source": "4323862e459239bbd999ec16bbee0eb2c08c5ecb",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib"
+      ],
+      "counts": [
+        [
+          "ok",
+          "231",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-13-4323862e4592/driver.json"
+    },
+    "publication": {
+      "source": "4323862e459239bbd999ec16bbee0eb2c08c5ecb",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--test",
+        "retained_native_publication",
+        "--",
+        "--ignored"
+      ],
+      "counts": [
+        [
+          "ok",
+          "2",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-13-4323862e4592/publication.json"
+    },
+    "strict": {
+      "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-cli",
+        "-p",
+        "zil-ir",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-expand",
+        "-p",
+        "zil-types",
+        "-p",
+        "zil-driver",
+        "-p",
+        "zil-llvm-api",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "zil-cli/native-products,zil-driver/native-products,zil-llvm-api/text-reference",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "counts": [],
+      "receipt": "out/runs/cache-restart-chain-gates-14-175987698fd2/strict.json"
+    },
+    "driver-target": {
+      "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib",
+        "direct_restart_edit_lends_decoded_cfg_bytes_to_first_semantic_publication"
+      ],
+      "counts": [
+        [
+          "ok",
+          "1",
+          "0",
+          "0"
+        ]
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-14-175987698fd2/driver.json"
+    },
+    "tool-direct": {
+      "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/research/incremental-demand",
+        "-p",
+        "test_restart_edit_matrix.py"
+      ],
+      "counts": [
+        "1"
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-14-175987698fd2/tool-direct-corrected.json"
+    },
+    "tool-quality": {
+      "source": "992a8e6071cc182959a119444a0d8477dde65011",
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/research/incremental-demand",
+        "-p",
+        "test_closed_project_quality.py"
+      ],
+      "counts": [
+        "22"
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/tool-quality.json"
+    },
+    "tool-recording": {
+      "source": "992a8e6071cc182959a119444a0d8477dde65011",
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/research/incremental-demand",
+        "-p",
+        "test_native_profile_recording.py"
+      ],
+      "counts": [
+        "2"
+      ],
+      "receipt": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/tool-recording.json"
+    },
+    "fmt": {
+      "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "counts": [],
+      "receipt": "out/runs/cache-restart-chain-gates-15-175987698fd2/fmt.json"
+    },
+    "release": {
+      "source": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "-p",
+        "zil-cli",
+        "--features",
+        "native-products"
+      ],
+      "counts": [],
+      "receipt": "out/runs/cache-restart-chain-gates-15-175987698fd2/release.json"
+    }
+  },
+  "review": {
+    "production_candidate": "4323862e459239bbd999ec16bbee0eb2c08c5ecb",
+    "non_author_IR_Types_driver_backend": "Nietzsche: budget blocker closed after retaining old plan bytes",
+    "non_author_Analyze_protocol": "Peirce: Analyze no blocker; short-history disk names blocker corrected175 with real1test",
+    "latest_delta": "175 only short-history tool summary + strengthened matched-limits span assertion; actualproductionRust unchanged432"
+  },
+  "implementation": [
+    "current equal call-free scalar Analyze stages reuse actual successful same-request calculations; current IDs/dependency facts/global obligations and original three stage costs stay independent",
+    "current class layout is derived from one actual graph on a direct restart miss; same immutable machine body observations share actual owners; replanning is correctly reported as not a disk hit",
+    "genuine function-cache decoder encodings feed first whole semantic publication through sealed current FunctionProduct/full function Eq/actual name range/full Limits; original node/byte Writer fallbacks retained",
+    "seed cache headroom counts function AND plan encodings; real16KiB mixed old-plan/current-function case requires original writer fallback",
+    "new formal direct restart protocol first request is already edited, no unchanged prewarm; old multi-edit disk fields replaced by actual five-request boundaries",
+    "native-link SDK archive defaults to identity audit with explicit payload-copy opt-in"
+  ],
+  "review_and_receipt_fixes": [
+    {
+      "candidate": "992a8e6071cc182959a119444a0d8477dde65011",
+      "issue": "seed headroom omitted old plan slots; fixed432; all completed992 tests retained, obsolete release stopped",
+      "raw": "out/runs/cache-restart-chain-gates-12-992a8e6071cc/review-stop.json"
+    },
+    {
+      "candidate": "4323862e459239bbd999ec16bbee0eb2c08c5ecb",
+      "issue": "direct tool inherited absent long-history disk keys; tool-only fix175 +1realtest; existing full compiler checks reused"
+    },
+    {
+      "candidate": "175987698fd27ccd26a99e7bf52c7634a6409d44",
+      "issue": "external receipt parser only accepted plural tests, actual one test passed; corrected receipt from identical raw log, no rerun",
+      "raw": "out/runs/cache-restart-chain-gates-14-175987698fd2/tool-direct-corrected.json"
+    }
+  ],
+  "disk_scope": "Explicit user semantic/object caches, program and diagnostic IR; Rust target including outputs. lstat/st_blocks request-boundary peaks, global inode dedup. SDK/host target/source/evidence excluded; not instantaneous peaks/equal quotas/industrial workspace.",
+  "frequency": "Standalone CLI starts a new compiler on every invocation, so retained-cache recovery can recur on each edited build. Persistent workers/IDEs reduce restarts. No telemetry frequency percentage. Restart+unchanged-build+edit is not direct restart-edit.",
+  "negative_scope": [
+    "direct first edit remains slower than Rust in both blocks",
+    "native unchanged request slower than Rust",
+    "check cold/restart and restore slower than Rust; do not hide them behind eight-edit/flow totals",
+    "synthetic5000/5105 functions only, no industrial multi-crate/proc-macro/build.rs/minutes/GB claim",
+    "main5105 default ResourceLimit is not fast success; main merge gate remains open"
+  ],
+  "prior_measured": {
+    "8f06a9e": "restart-bootstrap-chain-20261116/summary.md",
+    "480e": "cache-restart-chain-20261116/summary.md",
+    "no_cross_version_timing_assignment": true
+  },
+  "next_priority": "Restart still rebuilds full machine/transform/partition context before15/16object hits. Target current work products for unchanged groups and stable source grouping, plus first edited CGU fullO2/object work; check cold and disk-restored process warm path stay open. Profile Codegen1499ms includesobject718/machine346/partition312; source ingress184/functionread166/sempub272ms also real costs. Analyze4857 stages now reused and112ms in diagnostic; fewer serialized functions alone is not measured CPU gain.",
+  "record_policy": "Concise version/commands/counts/necessary failures only; no full-run/SDK restoration archives. Native-link payload copies disabled by default; original mapped-LLVM runtime verification snapshots remain in the frozen existing harness. No full raw upload or fresh-restore.",
+  "storage": "Completed reproducible benchmark user caches from older finished windows and host debug incremental were retired for space; source/commands/reports/oracles/finalprograms/SDK/deps retained. Never counted as product disk gains.",
+  "SDK18_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
+  "LLVM_rebuilt": false,
+  "independent_Verify_preserved": true,
+  "default_budgets_changed": false,
+  "full_O2_preserved": true,
+  "research_defaults_enabled": false,
+  "main_merge": false
+}
