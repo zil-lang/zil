@@ -815,7 +815,7 @@ impl Check<'_, '_> {
                     StorageBase::Parameter(_) | StorageBase::Result | StorageBase::Capture(_)
                 )
             })
-            || !closure.lending_captures.is_empty()
+            || !closure.lending_captures.is_empty() && closure.kind != CallableKind::FnOnce
         {
             return Err(unknown(
                 "ghost capture needs its complete retained data and actual head relation",
@@ -836,7 +836,7 @@ impl Check<'_, '_> {
         {
             return Err(fail("ghost capture changes its original environment"));
         }
-        let SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. } = &definition.body
+        let SemanticDefinitionBody::FunctionWithBody { sites: recipes, signature, .. } = &definition.body
         else {
             return Err(fail("ghost capture omits its complete original body"));
         };
@@ -847,8 +847,23 @@ impl Check<'_, '_> {
         let mut used_slots = BTreeSet::new();
         let creator_bindings = self.capture_creator_bindings(instance, closure, b)?;
         let mut static_captures = BTreeSet::new();
+        let mut static_result = false;
         for position in &contract.static_bindings {
             b.spend(position.path.len().saturating_add(1), WORK)?;
+            if position.base == StorageBase::Result {
+                if !position.path.is_empty() || static_result {
+                    return Err(fail("Static closure result repeats or projects its whole occurrence"));
+                }
+                let expected = self.recipe_value(instance, &signature.result, b, 0)?;
+                if !original::strings::is_byte_type(&expected.ty) || !empty(&expected.life)
+                    || !expected.classes.is_empty() || closure.result != expected.ty
+                {
+                    return Err(fail("Static closure result changes its complete original type and domain"));
+                }
+                self.static_byte_returns(function, &expected.ty, b)?;
+                static_result = true;
+                continue;
+            }
             let StorageBase::Capture(capture) = position.base else {
                 return Err(unknown("Static closure header needs its complete noncapture original occurrence"));
             };
@@ -875,6 +890,20 @@ impl Check<'_, '_> {
                     return Err(fail("literal byte-view capture omits its whole Static header occurrence"));
                 }
             }
+        }
+        if !closure.lending_captures.is_empty() {
+            if !static_result || !closure.lending_captures.windows(2).all(|pair| pair[0] < pair[1]) {
+                return Err(unknown("consuming Static result needs its whole original capture and return relation"));
+            }
+            for capture in &closure.lending_captures {
+                b.lookup(static_captures.len(), WORK)?;
+                if !static_captures.contains(capture) {
+                    return Err(unknown("consuming result retains a non-Static captured head"));
+                }
+            }
+            // Every listed capture is creator-grounded literal storage and
+            // every actual Return is independently Static. No owned head or
+            // environment-relative loan is lent through this exception.
         }
         for binding in creator_bindings.values() {
             self.ghost_capture_rows(
@@ -2109,6 +2138,14 @@ impl Check<'_, '_> {
             return Err(unknown("concrete closure result needs its complete non-Static class boundary"));
         }
         let target = self.inventory.function(&SemanticFunctionTarget::Typed(closure.function), b)?;
+        self.static_byte_returns(target, ty, b)?;
+        Ok(output)
+    }
+
+    fn static_byte_returns(&self, target: &TypedFunction, ty: &Type, b: &mut Budget) -> CompileResult<()> {
+        if !original::strings::is_byte_type(ty) || target.return_type != *ty {
+            return Err(fail("Static byte producer changes its complete actual returned type"));
+        }
         let position = StoragePosition { base: StorageBase::Result, path: Vec::new() };
         let life = target.storage_life.as_ref()
             .ok_or_else(|| fail("Static closure result has no complete actual header"))?;
@@ -2148,7 +2185,7 @@ impl Check<'_, '_> {
             }
         }
         if !returned { return Err(fail("Static byte producer has no grounded actual return")); }
-        Ok(output)
+        Ok(())
     }
 
     pub(super) fn original_static_header(&self, instance: &SemanticInstance,

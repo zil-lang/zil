@@ -393,6 +393,13 @@ impl Proof<'_, '_> {
             CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
                 self.expression(state, value, b, depth + 1)
             }
+            CoreExprKind::GenericApply { callee, arguments } => {
+                // Mixed actuals specialize the already checked original value;
+                // they neither evaluate another owner nor retire its source.
+                // Preserve its complete alias, exposure and outcome relation.
+                b.spend(arguments.len(), WORK)?;
+                self.expression(state, callee, b, depth + 1)
+            }
             CoreExprKind::Try(value) => self.try_value(state, value, b, depth + 1),
             CoreExprKind::Unary {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Give,
