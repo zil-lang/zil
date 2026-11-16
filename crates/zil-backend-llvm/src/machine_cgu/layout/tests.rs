@@ -1915,7 +1915,22 @@ fn bounded_policy_cannot_reuse_complete_disk_or_materialization_roles() {
     assert_ne!(cache.key(), old_key);
     assert!(cache.read().is_none());
     // Even a correctly framed Complete recipe under the new key is rejected.
-    cache.pending(&old_layout).unwrap().pin().unwrap().commit();
+    Cache::new(
+        &directory.0,
+        &module,
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        true,
+        CallImportPolicy::BoundedClasses,
+    )
+    .unwrap()
+    .with_classes(&classes)
+    .pending(&old_layout)
+    .unwrap()
+    .pin()
+    .unwrap()
+    .commit();
     assert!(
         cache
             .load_classes(&module, &source.as_view(), EntryPoint::None, 2, &classes)
