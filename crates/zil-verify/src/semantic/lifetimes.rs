@@ -99,8 +99,7 @@ impl CheckedContext {
             },
             _=>self.occurrences.borrow().get(&(scope,operand.clone())).cloned().ok_or_else(||unsupported("semantic runtime occurrence has no actual SSA/Local ledger fact",None))?,
         };
-        dynamic_metadata::ty(&value.ty,b)?;
-        b.spend(value.classes.len())?;
+        value.charge_clone(b)?;
         let selected=select(&value.ty,path,b)?;
         if let Some(mode)=outer {
             let valid=matches!((mode,selected),(StoredBorrowMode::SharedAddress,Type::Address{mutable:false,..})|(StoredBorrowMode::ExclusiveAddress,Type::Address{mutable:true,..})|(StoredBorrowMode::ReadOnlyDescription,Type::Desc(_))|(StoredBorrowMode::WritableDescription,Type::Desc(_)));

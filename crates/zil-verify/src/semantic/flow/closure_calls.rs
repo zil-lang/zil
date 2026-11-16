@@ -47,7 +47,7 @@ impl CheckedContext {
                 let key=self.class(module,&row.actual,&world,b)?;free.push(key.clone());
                 boundary.class(self,environment,&key,&receiver.classes[class as usize],b)?;
             }
-            let owner=CheckedType{ty:Type::Closure(id),life:StorageLifeShape{binder_count:header.fixed_binder_count,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:free,origins:(0..header.fixed_binder_count).map(|class|IntrinsicOrigin::Existing{scope:ScopeKey::Instance(instance.id),operand:OperandKey::Receiver,path:vec![],class}).collect(),statics:receiver.statics.clone()};
+            let owner=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Closure(id)),life:StorageLifeShape{binder_count:header.fixed_binder_count,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:free,origins:(0..header.fixed_binder_count).map(|class|IntrinsicOrigin::Existing{scope:ScopeKey::Instance(instance.id),operand:OperandKey::Receiver,path:vec![],class}).collect(),statics:receiver.statics.clone()};
             boundary.value(self,environment,&owner,receiver,b)?;
             for(parameter,_)in &mut signature.parameters{*parameter=boundary.project_type(self,environment,parameter,b)?;}
             signature.result=boundary.project_type(self,environment,&signature.result,b)?;

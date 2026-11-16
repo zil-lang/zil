@@ -130,14 +130,14 @@ impl CheckedContext {
         let mut actuals=Vec::new();let mut sources=vec![None;classes.len()];
         for(ordinal,actual)in instance.arguments.iter().enumerate(){match actual{
             LifeNominalActual::Lifetime(class)=>{let key=classes.get(*class as usize).cloned().ok_or_else(||bad("nominal Life actual escapes its complete intrinsic domain"))?;sources[*class as usize]=Some(IntrinsicOrigin::DerivedClass{source:key.clone()});actuals.push(CheckedActual::Life(key));},
-            LifeNominalActual::Const(value)=>actuals.push(CheckedActual::Const{carrier:CheckedType{ty:value.ty(),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]},value:value.clone()}),
+            LifeNominalActual::Const(value)=>actuals.push(CheckedActual::Const{carrier:CheckedType{type_cell: crate::semantic::CheckedTypeData::new(value.ty()),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]},value:value.clone()}),
             LifeNominalActual::Type(child)|LifeNominalActual::QualifiedType{ty:child,..}=>{
                 let child_life=match actual{LifeNominalActual::QualifiedType{life,..}=>life.clone(),LifeNominalActual::Type(Type::BorrowedStorage{life,..})=>life.clone(),_=>empty_life()};
                 let mut images=Vec::new();let mut binders=Vec::new();
                 for class in 0..child_life.binder_count{let mut rows=life.retained.iter().filter(|row|row.path==[LifeTypeProjection::TypeArgument(ordinal as u32)]&&row.class==class);let row=rows.next().ok_or_else(||bad("nominal Type actual lacks its full intrinsic occurrence map"))?;if rows.next().is_some(){return Err(bad("nominal Type actual intrinsic occurrence repeats"));}images.push(classes.get(row.binder as usize).cloned().ok_or_else(||bad("nominal Type actual maps outside its parent"))?);binders.push(row.binder);}
                 let origins=self.typed_origins_at(module,child,&child_life,&images,active,depth+1,b)?;
                 for(binder,origin)in binders.into_iter().zip(&origins){if let Some(old)=&sources[binder as usize]{if old!=origin{return Err(bad("nominal actuals coalesce independent intrinsic origins"));}}sources[binder as usize]=Some(origin.clone());}
-                actuals.push(CheckedActual::Type(CheckedType{ty:child.clone(),life:child_life,classes:images,origins,statics:vec![]}));
+                actuals.push(CheckedActual::Type(CheckedType{type_cell: crate::semantic::CheckedTypeData::new(child.clone()),life:child_life,classes:images,origins,statics:vec![]}));
             },
         }}
         // Class sources arising only in physical fields still have their

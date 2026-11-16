@@ -91,7 +91,7 @@ impl CheckedContext {
         classes: Vec<ClassKey>,
         b: &mut Budget,
     ) -> Check<CheckedType> {
-        dynamic_metadata::ty(ty, b)?;
+        let type_cell=self.shared_type_cell(ty,b)?;
         if classes.len() != life.binder_count as usize || classes.len() > b.limits.max_nodes {
             return Err(bad(
                 "Task metadata loses its complete declared class domain",
@@ -124,8 +124,7 @@ impl CheckedContext {
                 ));
             }
         }
-        Ok(CheckedType {
-            ty: ty.clone(),
+        Ok(CheckedType {type_cell,
             life: life.clone(),
             origins: classes
                 .iter()
@@ -769,10 +768,10 @@ fn build_frame(
         parameter_types: signature
             .parameters
             .iter()
-            .map(|(value, _)| value.ty.clone())
-            .collect(),
+            .map(|(value, _)| value.raw_type_copy(b))
+            .collect::<Check<Vec<_>>>()?,
         result: Some(signature.result.clone()),
-        result_type: signature.result.ty.clone(),
+        result_type: signature.result.raw_type_copy(b)?,
         shape,
         port_sources,
         input_maps,

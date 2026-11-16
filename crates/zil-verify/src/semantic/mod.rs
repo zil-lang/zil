@@ -61,6 +61,7 @@ pub(crate) struct CheckedContext {
     original: RefCell<Option<original::CheckedOriginal>>,
     closure_boundaries: RefCell<Vec<ClosureBoundary>>,
     frozen_functions: BTreeMap<SemanticInstanceId,frozen::FrozenFunction>,
+    shared_types: RefCell<BTreeMap<usize,(std::rc::Weak<CheckedTypeData>,(usize,usize))>>,
 }
 
 /// A provisional constructor fact. It becomes trusted only when every actual
@@ -139,8 +140,30 @@ impl ActiveQueries {
 }
 
 impl CheckedContext {
+    /// Share only an exact live allocation, or an exact registered immutable
+    /// module node. A fresh temporary Type is always copied and paid cold.
+    pub(super) fn shared_type_cell(&self,ty:&Type,b:&mut Budget)->Check<std::rc::Rc<CheckedTypeData>>{
+        let ptr=ty as *const Type as usize;
+        let profile=(b.limits.max_nodes,b.limits.max_call_depth.min(128));
+        let fee=self.shared_types.borrow().len().checked_ilog2().map_or(1,|n|n as usize+2);
+        b.spend(fee)?;
+        let known=self.shared_types.borrow().get(&ptr).and_then(|(cell,checked)|cell.upgrade().map(|cell|(cell,*checked)));
+        if let Some((cell,checked))=known{
+            if checked!=profile{dynamic_metadata::bounds_type(ty,b)?;}
+            return Ok(cell);
+        }
+        dynamic_metadata::bounds_type(ty,b)?;
+        let cell=if let Some(cell)=dynamic_metadata::shared_type(ty,b)?{cell}else{
+            dynamic_metadata::ty(ty,b)?;
+            CheckedTypeData::new(ty.clone())
+        };
+        b.spend(fee.saturating_add(2))?;
+        self.shared_types.borrow_mut().insert(&cell.ty as *const Type as usize,(std::rc::Rc::downgrade(&cell),profile));
+        Ok(cell)
+    }
+
     pub(crate) fn register_closure_cursor(&self,instance:SemanticInstanceId,environment:&EvalEnv,arguments:&[CheckedActual],sealed:&[CheckedActual],expected:&CheckedType,b:&mut Budget)->Check<()> {
-        dynamic_metadata::ty(&expected.ty,b)?;
+        expected.charge_clone(b)?;
         b.spend(arguments.len().saturating_add(sealed.len()).saturating_add(expected.classes.len()).saturating_add(environment.lexical.len()))?;
         self.pending_closures.borrow_mut().push(ClosureCursor{instance,environment:environment.clone(),arguments:arguments.to_vec(),sealed:sealed.to_vec(),expected:expected.clone()});
         Ok(())

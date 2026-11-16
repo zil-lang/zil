@@ -39,7 +39,7 @@ fn ghost_code_value(module:&TypedModule,value:&CheckedType,b:&mut Budget)->Check
 #[cfg(test)]
 mod tests{
     use super::*;
-    fn value(ty:Type)->CheckedType{CheckedType{ty,life:empty_life(),classes:vec![],origins:vec![],statics:vec![]}}
+    fn value(ty:Type)->CheckedType{CheckedType{type_cell: crate::semantic::CheckedTypeData::new(ty),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]}}
     #[test]
     fn c_code_geometry_keeps_all_numeric_widths_and_excludes_borrowed_or_suspend_roles(){
         let limits=Limits::default();let bytes=include_bytes!("fixtures/ordinary-identity-complete-head.wire");

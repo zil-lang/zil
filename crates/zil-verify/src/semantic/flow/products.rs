@@ -66,7 +66,7 @@ impl CheckedContext{
                 let storage=match inner.as_ref(){Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};
                 if !matches!(storage,Type::Array{..}|Type::Slice{..}){return Err(bad("actual slice changes its original array/slice carrier"));}
                 let child=self.child_value(module,parent,&[LifeTypeProjection::Pointee,LifeTypeProjection::Element],b)?;
-                let mut slice=CheckedType{ty:Type::Slice{element:Box::new(child.ty.clone())},life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
+                let mut slice=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Slice{element:Box::new(child.raw_type_copy(b)?)}),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
                 self.attach_child(environment,&mut slice,&child,vec![LifeTypeProjection::Element],None,b)?;slice.life.binder_count=slice.classes.len() as u32;
                 let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
                 let mut heads=parent.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==mode);

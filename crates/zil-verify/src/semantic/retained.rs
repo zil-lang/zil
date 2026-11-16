@@ -95,7 +95,7 @@ impl CheckedContext {
                         return Err(bad("retained port has another complete leaf/mode"));
                     }
                     ports.push(RetainedBorrowPort {
-                        leaf: value.ty,
+                        leaf: value.into_raw_type(b)?,
                         mode: *mode,
                         binder,
                     });

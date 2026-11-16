@@ -16,10 +16,10 @@ impl CheckedContext {
         if tables.next().is_some()||table.interface!=interface||table.self_type!=source.ty||table.self_life.as_ref()!=Some(&source.life)||table.self_classes.len()!=source.classes.len(){return Err(bad("erasure provider loses its whole actual Self domain"));}
         for(actual,binder)in source.classes.iter().zip(&table.self_classes){let StorageBinder::Fixed(index)=binder else{return Err(bad("erasure Self Context includes an invocation image"));};let image=erased.classes.get(*index as usize).ok_or_else(||bad("erasure Self class has no complete Context image"))?;if !self.same(env,actual,image,b)?{return Err(bad("erasure Self-to-Context transport changes an original class image"));}}
         let raw=crate::dynamic_dispatch::instruction(module,f,instruction,b)?.ok_or_else(||bad("erasure actual kernel has no result"))?;
-        let owner=CheckedType{ty:Type::OwnedDyn{interface},..erased};
+        let owner=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::OwnedDyn{interface}),..erased};
         let Type::ErrorUnion{error,..}=&raw else{return Err(bad("owning erasure kernel omits its canonical failure sum"));};
         let error=self.closed_value(module,error,b)?;
-        let mut result=CheckedType{ty:raw,life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
+        let mut result=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(raw),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
         for(arm,child)in [(true,error),(false,owner)]{let projection=PlaceProjection::ErrorArm(arm);self.attach_child(env,&mut result,&child,vec![LifeTypeProjection::Place(projection)],Some(projection),b)?;}result.life.binder_count=result.classes.len() as u32;Ok(result)
     }
     #[allow(clippy::too_many_arguments)]
@@ -31,7 +31,7 @@ impl CheckedContext {
         let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
         let outer=ClassKey::Outer{scope,operand:OperandKey::Value(result),path:vec![],mode};
         let child=match &instruction.kind{
-            InstructionKind::BorrowDynOwned{local,..}=>{let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("erased borrowing has no initialized complete owner"))?;let owner=if matches!(owner.ty,Type::Address{..}){self.child_value(module,owner,&[LifeTypeProjection::Pointee],b)?}else{owner.clone()};if owner.ty!=(Type::OwnedDyn{interface:*interface}){return Err(bad("erased borrowing changes its actual owner interface"));}CheckedType{ty:Type::Dyn{interface:*interface},..owner}},
+            InstructionKind::BorrowDynOwned{local,..}=>{let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("erased borrowing has no initialized complete owner"))?;let owner=if matches!(owner.ty,Type::Address{..}){self.child_value(module,owner,&[LifeTypeProjection::Pointee],b)?}else{owner.clone()};if owner.ty!=(Type::OwnedDyn{interface:*interface}){return Err(bad("erased borrowing changes its actual owner interface"));}CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Dyn{interface:*interface}),..owner}},
             InstructionKind::MakeDynBorrow{source,vtable,..}=>{
                 let source=self.child_value(module,value_at(values,*source)?,&[LifeTypeProjection::Pointee],b)?;
                 b.spend(module.dyn_vtables.len().saturating_add(module.dyn_interfaces.len()))?;
@@ -67,7 +67,9 @@ impl CheckedContext {
         selected_env.invocations=signature.invocation.clone();
         let mut boundary=trait_members::Boundary::default();
         for(value,recorded)in actuals.iter().zip(&selected.actuals){let checked=match recorded{DynGenericActual::Life(StorageBinder::Invocation(index))=>CheckedActual::Life(signature.invocation.get(*index as usize).ok_or_else(||bad("slot method Life escapes its invocation domain"))?.clone()),DynGenericActual::Life(StorageBinder::Fixed(index))=>CheckedActual::Life(receiver.classes.get(*index as usize).ok_or_else(||bad("slot method Life escapes its complete Context"))?.clone()),DynGenericActual::Type(ty)=>CheckedActual::Type(self.construct_value(module,ty,&empty_life(),vec![],b)?),DynGenericActual::QualifiedType(value)=>self.dyn_method_actual(module,value,&receiver.classes,&receiver.origins,&signature.invocation,b).map(CheckedActual::Type)?,DynGenericActual::Const(value)=>CheckedActual::Const{carrier:atomic(&value.ty(),b)?,value:value.clone()}};boundary.actual(self,env,&checked,value,b)?;}
-        if signature.parameters.len()!=arguments.len()+1||signature.parameters[0].1!=selected.receiver.mode||signature.parameters.iter().skip(1).map(|(_,mode)|*mode).collect::<Vec<_>>()!=selected.parameter_modes||signature.result_mode!=selected.result_mode||signature.call_kind!=selected.call_kind||signature.result.ty!=selected.result||signature.parameters.iter().skip(1).map(|(value,_)|value.ty.clone()).collect::<Vec<_>>()!=selected.parameters{return Err(bad("dynamic slot whole ABI differs from its exact original signature"));}
+        for(value,_)in &signature.parameters{dynamic_metadata::ty(&value.ty,b)?;}
+        dynamic_metadata::ty(&signature.result.ty,b)?;
+        if signature.parameters.len()!=arguments.len()+1||signature.parameters[0].1!=selected.receiver.mode||signature.parameters.iter().skip(1).map(|(_,mode)|*mode).collect::<Vec<_>>()!=selected.parameter_modes||signature.result_mode!=selected.result_mode||signature.call_kind!=selected.call_kind||signature.result.ty!=selected.result||signature.parameters.iter().skip(1).map(|(value,_)|&value.ty).ne(selected.parameters.iter()){return Err(bad("dynamic slot whole ABI differs from its exact original signature"));}
         for((expected,_),actual)in signature.parameters.iter().zip(std::iter::once(callee).chain(arguments)){boundary.value(self,env,expected,value_at(values,*actual)?,b)?;}
         self.evaluate_requirements(module,&definition.requirements,&selected_env,RequirementMode::ActualObligation,external,active,b)?;
         for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{self.evaluate_requirements(module,requirements,&selected_env,RequirementMode::ActualObligation,external,active,b)?;}}

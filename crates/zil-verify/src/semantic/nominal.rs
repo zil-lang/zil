@@ -349,8 +349,7 @@ impl CheckedContext {
                 b,
             )?;
         }
-        Ok(Some(CheckedType {
-            ty: ty.clone(),
+        Ok(Some(CheckedType {type_cell: self.shared_type_cell(ty,b)?,
             life,
             classes,
             origins,

@@ -169,7 +169,7 @@ fn nominal_pointee_and_outer_life_keep_distinct_intrinsics_with_equal_images(){
     }
     // Two direct outer occurrences of the same original Life are fresh
     // structural rows and may share one class; a nominal κ was not erased.
-    let scalar=CheckedType{ty:Type::I32,life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
+    let scalar=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::I32),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
     let borrow=dynamic_witness::semantic_external::construct(&context,&env,dynamic_witness::semantic_external::Constructor::Address{mode:StoredBorrowMode::SharedAddress,outer:Some(a)},&[scalar],&mut active,&mut b).unwrap();
     let tuple=dynamic_witness::semantic_external::construct(&context,&env,dynamic_witness::semantic_external::Constructor::Tuple,&[borrow.clone(),borrow],&mut active,&mut b).unwrap();
     assert_eq!(tuple.life.binder_count,1);assert_eq!(tuple.life.slots.len(),2);
@@ -338,8 +338,7 @@ fn a_reborrow_preserves_two_distinct_inner_origins_with_equal_outside_images() {
     let key=ClassKey::Implicit{scope,ordinal:0};
     let origin=|class|IntrinsicOrigin::Existing{scope,operand:OperandKey::Value(ValueId(0)),path:vec![LifeTypeProjection::Pointee],class};
     let old=ClassKey::Outer{scope,operand:OperandKey::Value(ValueId(1)),path:vec![],mode:StoredBorrowMode::SharedAddress};
-    let parent=CheckedType{
-        ty:Type::Address{mutable:false,inner:Box::new(Type::I32)},
+    let parent=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Address{mutable:false,inner:Box::new(Type::I32)}),
         // The transfer's domain bookkeeping is tested independently of a
         // real rich pointee admission: no opaque/type permission is issued.
         life:StorageLifeShape{binder_count:3,slots:vec![StorageLifeSlot{path:vec![],binder:2,mode:StoredBorrowMode::SharedAddress}],retained:vec![StorageRetainedBinding{path:vec![LifeTypeProjection::Pointee],class:0,binder:0},StorageRetainedBinding{path:vec![LifeTypeProjection::Pointee],class:1,binder:1}],nominal_arguments:vec![]},

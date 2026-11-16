@@ -100,8 +100,8 @@ impl Boundary{
         else{self.classes.push((actual.clone(),expected.clone()));}Ok(())
     }
     pub(super) fn value(&mut self,context:&CheckedContext,env:&EvalEnv,actual:&CheckedType,expected:&CheckedType,b:&mut Budget)->Check<()>{
-        dynamic_metadata::ty(&actual.ty,b)?;dynamic_metadata::ty(&expected.ty,b)?;
-        if actual.ty!=expected.ty||actual.life!=expected.life||actual.classes.len()!=expected.classes.len()||actual.origins.len()!=expected.origins.len()||actual.statics!=expected.statics{return Err(bad("member call boundary changes its complete type/domain/static occurrences"));}
+        let same_raw=actual.same_raw_type(expected,b)?;
+        if !same_raw||actual.life!=expected.life||actual.classes.len()!=expected.classes.len()||actual.origins.len()!=expected.origins.len()||actual.statics!=expected.statics{return Err(bad("member call boundary changes its complete type/domain/static occurrences"));}
         let mut local=Vec::<(&IntrinsicOrigin,&IntrinsicOrigin)>::new();
         for(a,z)in actual.origins.iter().zip(&expected.origins){
             b.spend(local.len().saturating_add(1))?;
@@ -118,14 +118,7 @@ impl Boundary{
     }
 }
 
-fn charge_value(value:&CheckedType,b:&mut Budget)->Check<()>{
-    dynamic_metadata::ty(&value.ty,b)?;dynamic_metadata::life_shape(&value.life,b)?;
-    b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;
-    for key in &value.classes{if let ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=key{b.spend(path.len())?;}}
-    for origin in &value.origins{super::super::nominal_origins::charge_origin(origin,b)?;}
-    for row in &value.statics{match row{StaticOccurrence::Direct{path,leaf,..}=>{b.spend(path.len())?;dynamic_metadata::ty(leaf,b)?;},StaticOccurrence::Logical{position,leaf,..}=>{dynamic_metadata::position(position,b)?;dynamic_metadata::ty(leaf,b)?;}}}
-    Ok(())
-}
+fn charge_value(value:&CheckedType,b:&mut Budget)->Check<()>{value.charge_clone(b)}
 
 #[cfg(test)]
 mod tests{

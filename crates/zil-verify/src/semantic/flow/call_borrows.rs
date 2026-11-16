@@ -80,8 +80,7 @@ impl CheckedContext {
             }
         }
         if !related{return Ok(false);}
-        dynamic_metadata::ty(&expected.ty,b)?;
-        b.spend(expected.classes.len().saturating_add(expected.origins.len()).saturating_add(expected.statics.len()))?;
+        expected.charge_clone(b)?;
         let mut role=expected.clone();
         role.classes[outer.binder as usize]=actual.classes.get(actual_outer.binder as usize).cloned().ok_or_else(||bad("Call actual child head is absent"))?;
         role.origins[outer.binder as usize]=actual.origins.get(actual_outer.binder as usize).cloned().ok_or_else(||bad("Call actual child head origin is absent"))?;
@@ -110,6 +109,6 @@ fn static_call_head(value:&mut CheckedType,source:&ClassKey,b:&mut Budget)->Chec
         for row in &mut value.life.retained{if row.binder>index{row.binder-=1;}}
         for row in &mut value.life.nominal_arguments{if row.binder>index{row.binder-=1;}}
         value.classes.remove(index as usize);value.origins.remove(index as usize);value.life.binder_count=value.classes.len() as u32;
-        let row=StaticOccurrence::Direct{path:vec![],leaf:value.ty.clone(),mode:StoredBorrowMode::SharedAddress};if !value.statics.contains(&row){value.statics.push(row);}
+        let row=StaticOccurrence::Direct{path:vec![],leaf:value.raw_type_copy(b)?,mode:StoredBorrowMode::SharedAddress};if !value.statics.contains(&row){value.statics.push(row);}
     }Ok(())
 }

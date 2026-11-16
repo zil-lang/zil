@@ -158,7 +158,7 @@ pub(super) fn value(module:&TypedModule,scope:SemanticDefinitionId,recipe:&Seman
         for(ordinal,actual)in supplied.iter().enumerate(){b.spend(1)?;actuals.push(match actual{
             DynGenericActual::Type(_)|DynGenericActual::QualifiedType(_)=>{let value=instantiate::actual_type(module,is_method,ordinal as u32,args,b)?;CheckedActual::Type(symbols.outgoing(&value,key,OperandKey::TypeArgument{scope:key,ordinal:ordinal as u32},b)?)},
             DynGenericActual::Life(image)=>{let pattern=if is_method{DynLifePattern::MethodParameter(ordinal as u32)}else{DynLifePattern::DeclarationParameter(ordinal as u32)};let term=args.terms.optional_life(pattern,b)?.unwrap_or(terms::LifeTerm{origin:terms::Origin{owner:args.owner,root:terms::Root::Lexical(*image),class:0},image:*image});let class=symbols.life(ClassKey::Formal{scope:key,ordinal:ordinal as u32},term,b)?;CheckedActual::Life(class)},
-            DynGenericActual::Const(value)=>CheckedActual::Const{carrier:CheckedType{ty:value.ty(),life:StorageLifeShape{binder_count:0,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:vec![],origins:vec![],statics:vec![]},value:value.clone()},
+            DynGenericActual::Const(value)=>CheckedActual::Const{carrier:CheckedType{type_cell: crate::semantic::CheckedTypeData::new(value.ty()),life:StorageLifeShape{binder_count:0,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:vec![],origins:vec![],statics:vec![]},value:value.clone()},
         });}
         let mut sealed=Vec::new();for formal in &definition.environment{sealed.push(context.evaluate_actual(module,&formal.source,&env,&mut proofs,&mut active,b)?);}
         let self_type=matches!(definition.body,SemanticDefinitionBody::Scope(_)).then(||receiver.clone());

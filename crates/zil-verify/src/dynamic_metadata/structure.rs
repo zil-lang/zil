@@ -29,6 +29,7 @@ pub(crate) struct Structure{
     declaration_success:BTreeSet<(usize,Option<SemanticDefinitionId>,Profile)>,
     resource_success:BTreeSet<(usize,Profile)>,
     owners:BTreeMap<(OwnerKey,SemanticDefinitionId),usize>,
+    shared_types:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
 }
 impl Structure{
     /// The root checker keeps this exact module immutably borrowed until this
@@ -40,7 +41,7 @@ impl Structure{
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:BTreeSet::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeSet::new(),owners:BTreeMap::new(),
+            type_success:BTreeSet::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeSet::new(),owners:BTreeMap::new(),shared_types:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -216,6 +217,30 @@ pub(crate) fn resource_success(module:&TypedModule,record:&Type,b:&mut Budget)->
     let state=b.structural.as_ref().unwrap();
     let key=(ptr,profile(b));let fee=lookup(state.resource_success.len()).saturating_add(2);b.spend(fee)?;
     b.structural.as_mut().unwrap().resource_success.insert(key);Ok(())
+}
+
+/// Owned storage for an exact registered immutable input node. This memo owns
+/// no class/origin/source result and never recognizes a temporary by address.
+pub(crate) fn shared_type(ty:&Type,b:&mut Budget)->Check<Option<std::rc::Rc<crate::semantic::CheckedTypeData>>>{
+    let Some(state)=&b.structural else{return Ok(None);};
+    let ptr=ty as *const Type as usize;
+    let fee=lookup(state.types.len()).saturating_add(lookup(state.shared_types.len())).saturating_add(1);
+    b.spend(fee)?;
+    let state=b.structural.as_ref().unwrap();
+    if !state.types.contains(&ptr){return Ok(None);}
+    if let Some(shared)=state.shared_types.get(&ptr){return Ok(Some(shared.clone()));}
+    super::ty(ty,b)?;
+    let shared=crate::semantic::CheckedTypeData::new(ty.clone());
+    b.spend(lookup(b.structural.as_ref().unwrap().shared_types.len()).saturating_add(2))?;
+    let mut state=b.structural.take().unwrap();
+    // The scope itself keeps every registered copied node alive. Registering
+    // its child pointers permits the same immutable payload directory to be
+    // borrowed by resource/metadata consumers, without re-cloning the tree.
+    state.shared_types.insert(ptr,shared.clone());
+    let result=state.ty(&shared.ty,b);
+    b.structural=Some(state);
+    result?;
+    Ok(Some(shared))
 }
 
 #[cfg(test)]

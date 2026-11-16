@@ -369,7 +369,7 @@ pub(crate) fn construct(
     b.spend(children.len())?;
     let mut normalized_children=Vec::with_capacity(children.len());
     for child in children{
-        charge_type(child,b)?;
+        child.charge_clone(b)?;
         let mut child=child.clone();
         for origin in &mut child.origins{*origin=context.normalized_origin(environment,origin,b)?;}
         normalized_children.push(child);
@@ -385,11 +385,11 @@ pub(crate) fn construct(
     {
         domain.key(key, false, b)?;
     }
-    let mut values = Vec::with_capacity(children.len());
+    let mut terms = Vec::with_capacity(children.len());
     let mut statics = Vec::new();
     for (index, child) in children.iter().enumerate() {
-        let (value, pending) = domain.symbols.incoming_pending(child, b)?;
-        values.push(value);
+        let (value, pending) = domain.symbols.incoming_pending_terms(child, b)?;
+        terms.push(value);
         for row in pending {
             let prefix = match kind {
                 Constructor::Tuple => {
@@ -411,44 +411,21 @@ pub(crate) fn construct(
             });
         }
     }
-    let one = |values: &mut Vec<terms::Value>| -> Check<terms::Value> {
-        if values.len() != 1 {
-            return Err(bad("unary semantic constructor has another child count"));
-        }
-        Ok(values.pop().unwrap())
+    b.spend(children.len().saturating_add(terms.iter().map(Vec::len).sum::<usize>()))?;
+    let classes:Vec<Vec<StorageBinder>>=terms.iter().map(|terms|terms.iter().map(|term|term.image).collect()).collect();
+    let values:Vec<constructors::View<'_>>=children.iter().zip(&terms).zip(&classes).map(|((child,terms),classes)|constructors::View{ty:&child.ty,life:&child.life,terms,classes}).collect();
+    let one=||->Check<constructors::View<'_>>{if values.len()!=1{return Err(bad("unary semantic constructor has another child count"));}Ok(values[0])};
+    let value=match kind{
+        Constructor::Tuple=>constructors::tuple_views(&values,b)?,
+        Constructor::Managed=>constructors::managed_view(one()?,b)?,
+        Constructor::Address{mode,outer:Some(key)}=>constructors::address_view(one()?,Some(domain.symbols.class(&key,b)?),mode,b)?,
+        Constructor::Address{mode,outer:None}=>{
+            let value=constructors::address_view(one()?,None,mode,b)?;
+            dynamic_metadata::ty(&value.raw.ty,b)?;
+            statics.push(StaticOccurrence::Direct{path:vec![],leaf:value.raw.ty.clone(),mode});value
+        },
     };
-    let value = match kind {
-        Constructor::Tuple => constructors::tuple(&values, b)?,
-        Constructor::Managed => constructors::managed(&one(&mut values)?, b)?,
-        Constructor::Address {
-            mode,
-            outer: Some(key),
-        } => constructors::address(&one(&mut values)?, domain.symbols.class(&key, b)?, mode, b)?,
-        Constructor::Address { mode, outer: None } => {
-            if !matches!(
-                mode,
-                StoredBorrowMode::SharedAddress | StoredBorrowMode::ReadOnlyDescription
-            ) {
-                return Err(bad("static type constructor cannot invent mutable storage"));
-            }
-            let child = one(&mut values)?;
-            let mut value = constructors::managed(&child, b)?;
-            value.raw.ty = match mode {
-                StoredBorrowMode::SharedAddress => Type::Address {
-                    mutable: false,
-                    inner: Box::new(child.raw.ty),
-                },
-                _ => Type::Desc(Box::new(child.raw.ty)),
-            };
-            statics.push(StaticOccurrence::Direct {
-                path: vec![],
-                leaf: value.raw.ty.clone(),
-                mode,
-            });
-            value
-        }
-    };
-    domain.symbols.constructed(value, statics, b)
+    domain.symbols.constructed(value,statics,b)
 }
 
 impl ExternalProofs for Proofs {

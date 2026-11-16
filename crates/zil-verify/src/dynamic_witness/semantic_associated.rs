@@ -537,8 +537,7 @@ impl Inference<'_> {
 
 fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<CheckedType> {
     values::closed(module, ty, b)?;
-    Ok(CheckedType {
-        ty: ty.clone(),
+    Ok(CheckedType {type_cell: crate::semantic::CheckedTypeData::new(ty.clone()),
         life: StorageLifeShape {
             binder_count: 0,
             slots: vec![],
@@ -662,8 +661,7 @@ fn child(
             }
         }
     }
-    Ok(CheckedType {
-        ty: ty.clone(),
+    Ok(CheckedType {type_cell: crate::semantic::CheckedTypeData::new(ty.clone()),
         life,
         classes,
         origins,

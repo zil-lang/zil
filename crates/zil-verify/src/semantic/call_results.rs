@@ -23,11 +23,7 @@ impl CheckedContext{
             // complete world signature, actuals and operands were replayed.
             let values=self.occurrences.borrow();
             let Some(value)=values.get(&(scope,OperandKey::Value(value)))else{continue;};
-            dynamic_metadata::ty(&value.ty,b)?;dynamic_metadata::life_shape(&value.life,b)?;
-            b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;
-            for key in &value.classes{if let ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=key{b.spend(path.len())?;}}
-            for origin in &value.origins{charge_intrinsic_origin(origin,b)?;}
-            for row in &value.statics{match row{StaticOccurrence::Direct{path,leaf,..}=>{b.spend(path.len())?;dynamic_metadata::ty(leaf,b)?;},StaticOccurrence::Logical{position,leaf,..}=>{dynamic_metadata::position(position,b)?;dynamic_metadata::ty(leaf,b)?;}}}
+            value.charge_clone(b)?;
             if selected.replace(value.clone()).is_some(){return Err(unsupported("original Call result has several unresolved actual source occurrences",None));}
         }
         Ok(selected)

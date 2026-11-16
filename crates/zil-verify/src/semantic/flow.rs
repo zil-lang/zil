@@ -103,7 +103,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
 }
 impl CheckedContext {
     pub(super) fn record(&self,scope:ScopeKey,key:OperandKey,value:&CheckedType,b:&mut Budget)->Check<()> {
-        dynamic_metadata::ty(&value.ty,b)?;
+        value.charge_clone(b)?;
         b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;
         let mut aliases=self.origin_aliases.borrow_mut();
         for (class,origin) in value.origins.iter().enumerate() {
@@ -442,7 +442,7 @@ impl CheckedContext {
             CheckedActual::Type(value)if !value.classes.is_empty()=>{ghost_captures::complete_environment(module,value,b)?;for(class,key)in value.classes.iter().enumerate(){b.spend(1)?;anchors.push((SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(ordinal as u32),path:vec![],class:class as u32},key.clone()));}},
             _=>{},
         }}
-        for value in &checked{b.spend(1)?;match value{CheckedActual::Type(value)|CheckedActual::Const{carrier:value,..}=>{dynamic_metadata::ty(&value.ty,b)?;b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;},CheckedActual::Life(_)=>{}}}
+        for value in &checked{b.spend(1)?;match value{CheckedActual::Type(value)|CheckedActual::Const{carrier:value,..}=>{value.charge_clone(b)?;b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;},CheckedActual::Life(_)=>{}}}
         let sealed=checked.clone();
         self.seals.borrow_mut().insert(child.id,checked);
         let child_environment=self.environment_for_instance(module,child.id,active,b)?;
@@ -537,7 +537,7 @@ impl CheckedContext {
             statics.push(StaticOccurrence::Logical{closure,position:position.clone(),leaf:leaf.clone(),mode});
         }
         let mut life=empty_life();life.binder_count=classes.len() as u32;
-        let value=CheckedType{ty:Type::Closure(closure),life,classes,origins,statics};
+        let value=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Closure(closure)),life,classes,origins,statics};
         let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&creator_definition.body else{unreachable!()};
         let node=site_nodes.iter().find(|row|row.site==site.recipe).ok_or_else(||bad("Closure creator has no exact original node"))?;
         let SemanticOriginalNode::Expression(node)=node.node else{return Err(bad("Closure creator original node is not an expression"));};
@@ -822,4 +822,4 @@ impl CheckedContext {
     }
 }
 fn value_at(values:&[Option<CheckedType>],id:ValueId)->Check<&CheckedType> {values.get(id.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual SSA use has no independent semantic definition"))}
-fn atomic(ty:&Type,b:&mut Budget)->Check<CheckedType> {b.spend(1)?;if !ty.is_b0_scalar() {return Err(bad("actual scalar instruction contains a borrowed/opaque semantic carrier"));}Ok(CheckedType{ty:ty.clone(),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]})}
+fn atomic(ty:&Type,b:&mut Budget)->Check<CheckedType> {b.spend(1)?;if !ty.is_b0_scalar() {return Err(bad("actual scalar instruction contains a borrowed/opaque semantic carrier"));}Ok(CheckedType{type_cell: crate::semantic::CheckedTypeData::new(ty.clone()),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]})}

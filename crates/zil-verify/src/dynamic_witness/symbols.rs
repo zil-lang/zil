@@ -114,8 +114,7 @@ impl Symbols {
             }
             origins.push(origin);
         }
-        Ok(CheckedType {
-            ty: value.raw.ty.clone(),
+        Ok(CheckedType {type_cell: crate::semantic::CheckedTypeData::new(value.raw.ty.clone()),
             life: value.life.clone(),
             classes,
             origins,
@@ -136,7 +135,7 @@ impl Symbols {
                 "fresh semantic construction has no request-local image domain",
             ));
         }
-        dynamic_metadata::recipe(&value.raw, b)?;
+        dynamic_metadata::bounds_type_parts(&value.raw.ty,&value.raw.life,&value.raw.classes,b)?;
         b.spend(value.terms.len())?;
         let mut classes = Vec::with_capacity(value.terms.len());
         let mut origins = Vec::with_capacity(value.terms.len());
@@ -159,8 +158,7 @@ impl Symbols {
                 });
             }
         }
-        Ok(CheckedType {
-            ty: value.raw.ty,
+        Ok(CheckedType {type_cell: crate::semantic::CheckedTypeData::new(value.raw.ty),
             life: value.raw.life,
             classes,
             origins,
@@ -177,11 +175,11 @@ impl Symbols {
     }
     /// Preserve static occurrences alongside the term conversion. The caller
     /// must retain these in its executable request; this grants no provenance.
-    pub(super) fn incoming_pending(
+    pub(super) fn incoming_pending_terms(
         &mut self,
         value: &CheckedType,
         b: &mut Budget,
-    ) -> Check<(terms::Value, Vec<crate::semantic::StaticOccurrence>)> {
+    ) -> Check<(Vec<terms::LifeTerm>, Vec<crate::semantic::StaticOccurrence>)> {
         b.spend(value.statics.len())?;
         for occurrence in &value.statics {
             use crate::semantic::StaticOccurrence;
@@ -196,10 +194,19 @@ impl Symbols {
                 }
             }
         }
-        Ok((self.incoming_value(value, b)?, value.statics.clone()))
+        Ok((self.incoming_terms(value, b)?, value.statics.clone()))
     }
-    fn incoming_value(&mut self, value: &CheckedType, b: &mut Budget) -> Check<terms::Value> {
-        dynamic_metadata::ty(&value.ty, b)?;
+    pub(super) fn incoming_pending(&mut self,value:&CheckedType,b:&mut Budget)->Check<(terms::Value,Vec<crate::semantic::StaticOccurrence>)>{
+        let(terms,statics)=self.incoming_pending_terms(value,b)?;
+        dynamic_metadata::ty(&value.ty,b)?;
+        Ok((terms::Value{raw:DynTypeValue{ty:value.ty.clone(),life:value.life.clone(),classes:terms.iter().map(|term|term.image).collect()},terms},statics))
+    }
+    fn incoming_value(&mut self,value:&CheckedType,b:&mut Budget)->Check<terms::Value>{
+        dynamic_metadata::ty(&value.ty,b)?;
+        let terms=self.incoming_terms(value,b)?;
+        Ok(terms::Value{raw:DynTypeValue{ty:value.ty.clone(),life:value.life.clone(),classes:terms.iter().map(|term|term.image).collect()},terms})
+    }
+    pub(super) fn incoming_terms(&mut self,value:&CheckedType,b:&mut Budget)->Check<Vec<terms::LifeTerm>>{
         let count = value.life.binder_count as usize;
         if count > b.limits.max_nodes
             || value.classes.len() != count
@@ -253,15 +260,9 @@ impl Symbols {
             };
             terms.push(terms::LifeTerm { origin, image });
         }
-        Ok(terms::Value {
-            raw: DynTypeValue {
-                ty: value.ty.clone(),
-                life: value.life.clone(),
-                classes: terms.iter().map(|term| term.image).collect(),
-            },
-            terms,
-        })
+        Ok(terms)
     }
+
 }
 
 #[cfg(test)]
@@ -329,9 +330,11 @@ mod tests {
         for row in &mut derived.life.nominal_arguments {
             row.binder = 0;
         }
-        if let Type::BorrowedStorage { life, .. } = &mut derived.ty {
+        let mut changed=derived.raw_type_copy(&mut budget).unwrap();
+        if let Type::BorrowedStorage { life, .. } = &mut changed {
             *life = derived.life.clone();
         }
+        derived.replace_type(changed);
         derived.classes.truncate(1);
         derived.origins = vec![IntrinsicOrigin::DerivedClass {
             source: derived.classes[0].clone(),

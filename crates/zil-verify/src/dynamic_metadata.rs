@@ -2,7 +2,7 @@
 //! This grants no Context, port, cleanup or return-source authority.
 use super::*;
 mod structure;
-pub(crate) use structure::{Structure,owner_known,owner_success,resource_known,resource_success};
+pub(crate) use structure::{Structure,owner_known,owner_success,resource_known,resource_success,shared_type};
 fn pay(b: &mut Budget, nodes: &mut usize, cap: usize, n: usize) -> Check<()> {
     *nodes = nodes
         .checked_add(n)
@@ -193,6 +193,14 @@ pub(crate) fn bounds_type_parts(ty:&Type,life:&StorageLifeShape,classes:&[Storag
     for _ in classes{work.node(1)?;}Ok(())
 }
 
+/// Prepayment for the one real owned child copy made by a fresh constructor.
+/// This is the same complete DTV visitor without allocating a temporary DTV.
+pub(crate) fn copy_type_parts(ty:&Type,life:&StorageLifeShape,classes:&[StorageBinder],b:&mut Budget)->Check<()>{
+    let work=&mut RecipeWork{b,nodes:0};
+    work.node(0)?;work.ty(ty,1)?;work.life(life,1)?;work.rows(classes.len(),1)?;
+    for _ in classes{work.node(1)?;}Ok(())
+}
+
 #[cfg(test)]
 mod borrowed_parts_tests {
     use super::*;
@@ -211,6 +219,11 @@ mod borrowed_parts_tests {
                 let z=value.visit_dyn_metadata(&mut BoundsWork(RecipeWork{b:&mut owned,nodes:0}),0);
                 assert_eq!(a,z,"nodes={nodes}, depth={depth}");
                 assert_eq!(borrowed.remaining,owned.remaining);
+                let mut copied=Budget::new(&limits);let mut public=Budget::new(&limits);
+                let a=copy_type_parts(&value.ty,&value.life,&value.classes,&mut copied);
+                let z=recipe(&value,&mut public);
+                assert_eq!(a,z,"owned-copy nodes={nodes}, depth={depth}");
+                assert_eq!(copied.remaining,public.remaining);
             }
         }
         let mut bounded=Budget::new(&Limits::default());let mut copied=Budget::new(&Limits::default());

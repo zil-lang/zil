@@ -39,11 +39,7 @@ impl CheckedContext {
                     if let Some(parameter)=parameter {
                         let values=self.occurrences.borrow();
                         if let Some(value)=values.get(&(frame.key,OperandKey::Parameter(parameter))) {
-                            dynamic_metadata::ty(&value.ty,b)?;dynamic_metadata::life_shape(&value.life,b)?;
-                            b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;
-                            for key in &value.classes{if let ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=key{b.spend(path.len())?;}}
-                            for origin in &value.origins{charge_intrinsic_origin(origin,b)?;}
-                            for row in &value.statics{match row{StaticOccurrence::Direct{path,leaf,..}=>{b.spend(path.len())?;dynamic_metadata::ty(leaf,b)?;},StaticOccurrence::Logical{position,leaf,..}=>{dynamic_metadata::position(position,b)?;dynamic_metadata::ty(leaf,b)?;}}}
+                            value.charge_clone(b)?;
                             return Ok(value.clone());
                         }
                     }
@@ -87,8 +83,7 @@ impl CheckedContext {
                     return Err(bad("Atom is not a true atomic type"));
                 }
                 dynamic_metadata::ty(ty, b)?;
-                Ok(CheckedType {
-                    ty: ty.clone(),
+                Ok(CheckedType {type_cell: crate::semantic::CheckedTypeData::new(ty.clone()),
                     life: empty_life(),
                     classes: vec![],
                     origins: vec![],
@@ -105,14 +100,7 @@ impl CheckedContext {
             SemanticTypeRecipe::Formal(reference) => {
                 match self.formal(environment, reference, b)? {
                     CheckedActual::Type(value) => {
-                        dynamic_metadata::ty(&value.ty, b)?;
-                        b.spend(
-                            value
-                                .classes
-                                .len()
-                                .saturating_add(value.origins.len())
-                                .saturating_add(value.statics.len()),
-                        )?;
+                        value.charge_clone(b)?;
                         Ok(value.clone())
                     }
                     _ => Err(bad("Type recipe selects a different formal kind")),
@@ -121,14 +109,7 @@ impl CheckedContext {
             SemanticTypeRecipe::Environment { scope, ordinal } => {
                 match self.environment_actual(environment, *scope, *ordinal, b)? {
                     CheckedActual::Type(value) => {
-                        dynamic_metadata::ty(&value.ty, b)?;
-                        b.spend(
-                            value
-                                .classes
-                                .len()
-                                .saturating_add(value.origins.len())
-                                .saturating_add(value.statics.len()),
-                        )?;
+                        value.charge_clone(b)?;
                         Ok(value.clone())
                     }
                     _ => Err(bad(
@@ -142,8 +123,7 @@ impl CheckedContext {
                     .self_type
                     .as_ref()
                     .ok_or_else(|| bad("SelfType has no independently selected receiver"))?;
-                dynamic_metadata::ty(&value.ty, b)?;
-                b.spend(value.classes.len())?;
+                value.charge_clone(b)?;
                 Ok(value.clone())
             }
             SemanticTypeRecipe::Address {
@@ -210,8 +190,7 @@ impl CheckedContext {
             SemanticTypeRecipe::Array { element, length } => {
                 let child =
                     self.evaluate_type(module, element, environment, external, active, b)?;
-                let carrier = CheckedType {
-                    ty: Type::Usize,
+                let carrier = CheckedType {type_cell: crate::semantic::CheckedTypeData::new(Type::Usize),
                     life: empty_life(),
                     classes: vec![],
                     origins: vec![],
@@ -231,11 +210,10 @@ impl CheckedContext {
                 };
                 let length = u32::try_from(length)
                     .map_err(|_| bad("array length exceeds the finite IR domain"))?;
-                let mut value = CheckedType {
-                    ty: Type::Array {
-                        element: Box::new(child.ty.clone()),
+                let mut value = CheckedType {type_cell: crate::semantic::CheckedTypeData::new(Type::Array {
+                        element: Box::new(child.raw_type_copy(b)?),
                         length,
-                    },
+                    }),
                     life: empty_life(),
                     classes: vec![],
                     origins: vec![],
@@ -261,37 +239,36 @@ impl CheckedContext {
                 let (ty, projection) = match recipe {
                     SemanticTypeRecipe::Slice(_) => (
                         Type::Slice {
-                            element: Box::new(child.ty.clone()),
+                            element: Box::new(child.raw_type_copy(b)?),
                         },
                         LifeTypeProjection::Element,
                     ),
                     SemanticTypeRecipe::OwnedStore(_) => (
                         Type::OwnedStore {
-                            element: Box::new(child.ty.clone()),
+                            element: Box::new(child.raw_type_copy(b)?),
                         },
                         LifeTypeProjection::Element,
                     ),
                     SemanticTypeRecipe::Mutex(_) => (
                         Type::Mutex {
-                            payload: Box::new(child.ty.clone()),
+                            payload: Box::new(child.raw_type_copy(b)?),
                         },
                         LifeTypeProjection::Pointee,
                     ),
                     SemanticTypeRecipe::Registration(_) => (
                         Type::Registration {
-                            environment: Box::new(child.ty.clone()),
+                            environment: Box::new(child.raw_type_copy(b)?),
                         },
                         LifeTypeProjection::Pointee,
                     ),
                     _ => (
                         Type::AsyncRegistration {
-                            environment: Box::new(child.ty.clone()),
+                            environment: Box::new(child.raw_type_copy(b)?),
                         },
                         LifeTypeProjection::Pointee,
                     ),
                 };
-                let mut value = CheckedType {
-                    ty,
+                let mut value = CheckedType {type_cell: crate::semantic::CheckedTypeData::new(ty),
                     life: empty_life(),
                     classes: vec![],
                     origins: vec![],
@@ -355,12 +332,12 @@ impl CheckedContext {
                 }
                 let ty = if matches!(recipe, SemanticTypeRecipe::Task { .. }) {
                     Type::Task {
-                        result: Box::new(child.ty),
+                        result: Box::new(child.into_raw_type(b)?),
                         retained_life: checked.shape,
                     }
                 } else {
                     Type::MutexGuard {
-                        payload: Box::new(child.ty),
+                        payload: Box::new(child.into_raw_type(b)?),
                         retained_life: checked.shape,
                     }
                 };
@@ -378,11 +355,10 @@ impl CheckedContext {
                 let error = self.evaluate_type(module, error, environment, external, active, b)?;
                 let result =
                     self.evaluate_type(module, result, environment, external, active, b)?;
-                let mut value = CheckedType {
-                    ty: Type::ErrorUnion {
-                        error: Box::new(error.ty.clone()),
-                        result: Box::new(result.ty.clone()),
-                    },
+                let mut value = CheckedType {type_cell: crate::semantic::CheckedTypeData::new(Type::ErrorUnion {
+                        error: Box::new(error.raw_type_copy(b)?),
+                        result: Box::new(result.raw_type_copy(b)?),
+                    }),
                     life: empty_life(),
                     classes: vec![],
                     origins: vec![],
@@ -514,7 +490,7 @@ impl CheckedContext {
         classes: Vec<ClassKey>,
         b: &mut Budget,
     ) -> Check<CheckedType> {
-        dynamic_metadata::ty(ty, b)?;
+        let type_cell=self.shared_type_cell(ty,b)?;
         let count =
             u32::try_from(classes.len()).map_err(|_| limit("semantic class domain exceeds u32"))?;
         let scope = DynInstantiationScope {
@@ -540,8 +516,7 @@ impl CheckedContext {
                 statics = domain.statics;
             }
         }
-        Ok(CheckedType {
-            ty: ty.clone(),
+        Ok(CheckedType {type_cell,
             life: life.clone(),
             classes,
             origins,
