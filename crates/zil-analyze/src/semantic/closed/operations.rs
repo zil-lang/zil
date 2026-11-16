@@ -1734,10 +1734,10 @@ impl Check<'_, '_> {
                 if !nested(&value.ty) { continue; }
                 crate::dyn_metadata::shape(&value.life, b)?;
                 b.lookup(b.semantic_raw_local_shapes.len(), WORK)?;
-                if let Some(old) = b.semantic_raw_local_shapes.get(&(function.id, *local)).cloned() {
+                if let Some(old) = b.semantic_raw_local_shapes.get(&(function.id, **local)).cloned() {
                     crate::dyn_metadata::shape(&old, b)?;
                     if old != value.life { return Err(fail("raw local has different complete declared geometries in its actual worlds")); }
-                } else { b.semantic_raw_local_shapes.insert((function.id, *local), value.life.clone()); }
+                } else { b.semantic_raw_local_shapes.insert((function.id, **local), value.life.clone()); }
             }
             self.inventory.profile_step("actual CFG coverage", b);
             for block in &function.blocks {
