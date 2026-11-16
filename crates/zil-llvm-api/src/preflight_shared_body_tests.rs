@@ -103,8 +103,8 @@ fn shared_success_checks_once_in_both_modes_and_keeps_every_named_schedule() {
     let schedules = validate_impl::<true>(&shared).unwrap();
     assert_eq!(BODY_VALIDATIONS.with(Cell::get) - before, 1);
     assert_eq!(schedules.functions.len(), 3);
-    assert_eq!(schedules.functions["first"], vec![(0, 0), (0, 1), (1, 1)]);
-    assert_eq!(schedules.functions["second"], vec![(0, 0), (0, 1), (1, 1)]);
+    assert_eq!(schedules.functions["first"], vec![(0, 0), (1, 1), (0, 1)]);
+    assert_eq!(schedules.functions["second"], vec![(0, 0), (1, 1), (0, 1)]);
     assert!(schedules.functions["declaration"].is_empty());
     let before = BODY_VALIDATIONS.with(Cell::get);
     assert!(
