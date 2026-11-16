@@ -354,16 +354,16 @@ statistics!(
     allowance_nodes_decrease
 );
 #[derive(Clone, Debug)]
-struct HeaderInput(Arc<zil_syntax::ParseResult>);
+struct HeaderInput(Arc<Vec<s::Item>>);
 impl PartialEq for HeaderInput {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0) || scalar_headers(self, other)
+        Arc::ptr_eq(&self.0, &other.0) || self.0 == other.0
     }
 }
 impl std::ops::Deref for HeaderInput {
     type Target = [s::Item];
     fn deref(&self) -> &Self::Target {
-        &self.0.module.items
+        &self.0
     }
 }
 #[derive(Clone, Debug, PartialEq)]
@@ -873,16 +873,15 @@ impl ExpandSession {
                         // signature and attribute inputs of this projection.
                         self.entries[&module.id].headers.clone()
                     } else {
-                        // Keep the real immutable parser tree. Comparing the
-                        // header projection borrows it; no function/parameter/
-                        // type tree is cloned or rewritten to erase spans.
-                        let current = HeaderInput(parsed.parsed_shared());
+                        // Compare the current borrowed projection first. Only
+                        // changed headers allocate a body-free projection; no
+                        // old function body is retained by a header owner.
                         self.entries
                             .get(&module.id)
                             .map(|old| &old.headers)
-                            .filter(|old| *old == &current)
+                            .filter(|old| scalar_headers(old, &module.items))
                             .cloned()
-                            .unwrap_or(current)
+                            .unwrap_or_else(|| HeaderInput(Arc::new(module_headers(module))))
                     },
                     scalar,
                     scalar_nodes: nodes,
@@ -1340,7 +1339,8 @@ impl ExpandSession {
         }))
     }
 }
-// This is the existing header projection, read from the complete parser owner.
+// This is the existing header projection, borrowed from the current parser
+// owner or the body-free retained header table.
 // Only the spans previously cleared by module_headers/header are ignored.
 // In particular, attribute arguments and generic/contract inputs retain their
 // full original equality. Admission, not this projection, excludes rich ASTs.
@@ -1531,7 +1531,6 @@ fn same_function_interface(left: &CoreFunction, right: &CoreFunction) -> bool {
             name == rn && ty == rt && mode == rm
         })
 }
-#[cfg(test)]
 fn module_headers(module: &s::Module) -> Vec<s::Item> {
     let mut module_headers = Vec::new();
     for item in &module.items {
@@ -1569,7 +1568,6 @@ fn module_headers(module: &s::Module) -> Vec<s::Item> {
 // All emitted spans therefore come from the current module. Complete semantic
 // headers still bind the public InputContext; scalar product reuse projects the
 // namespace while the local parser owner/bytes bind each consumed signature.
-#[cfg(test)]
 fn header(function: &s::Function) -> s::Function {
     fn ty(value: &mut s::TypeRef) {
         value.span = Span::default();

@@ -84,11 +84,10 @@ fn borrowed_scalar_headers_match_the_original_owned_projection() {
     for left in &inputs {
         assert!(scalar(&left.parsed().module, &Limits::default()).0);
         let left_owned = module_headers(&left.parsed().module);
-        let left_borrowed = HeaderInput(left.parsed_shared());
         for right in &inputs {
             let right_owned = module_headers(&right.parsed().module);
             assert_eq!(
-                left_borrowed == HeaderInput(right.parsed_shared()),
+                scalar_headers(&left_owned, &right.parsed().module.items),
                 left_owned == right_owned,
                 "{} / {}",
                 left.source().text,
@@ -101,10 +100,26 @@ fn borrowed_scalar_headers_match_the_original_owned_projection() {
         }
     }
     assert_eq!(
-        HeaderInput(inputs[0].parsed_shared()),
-        HeaderInput(inputs[3].parsed_shared()),
-        "complete bodies stay on their parser owners but are not signature inputs"
+        HeaderInput(Arc::new(module_headers(&inputs[0].parsed().module))),
+        HeaderInput(Arc::new(module_headers(&inputs[3].parsed().module))),
+        "retained headers exclude bodies"
     );
+}
+
+#[test]
+fn retained_headers_do_not_keep_a_parser_body_alive() {
+    let source = parsed(0, "fn f(x:i32)->i32=>x+1;");
+    let tree = source.parsed_shared();
+    let weak = Arc::downgrade(&tree);
+    let headers = HeaderInput(Arc::new(module_headers(&tree.module)));
+    drop(tree);
+    drop(source);
+    assert!(weak.upgrade().is_none());
+    assert_eq!(headers.len(), 1);
+    let s::ItemKind::Function(function) = &headers[0].kind else {
+        panic!("function header");
+    };
+    assert!(matches!(function.body, s::FunctionBody::Declaration));
 }
 
 #[test]

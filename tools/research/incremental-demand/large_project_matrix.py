@@ -520,13 +520,14 @@ def run_and_report(args, workloads, manifest):
             cold = [r for r in history_rows if r['request'] == 'cold'][-1]['disk_after']
             edited = [r for r in history_rows if r['request'] == 'unchanged-after-edits'][-1]['disk_after']
             restored = [r for r in history_rows if r['request'] == 'restore'][-1]['disk_after']
+            restarted = [r for r in history_rows if r['request'] == 'warm-restart'][-1]['disk_after']
             categories = sorted({key for r in history_rows for key in r['disk_after']['categories']})
             summary['disk_boundaries'].append({'block': block, 'categories': {category: {
                 'observed_boundary_peak': {key: max(r['disk_after']['categories'].get(category, {}).get(key, 0) for r in history_rows) for key in METRICS},
                 'growth_from_empty': {key: last['categories'].get(category, {}).get(key, 0)-first['categories'].get(category, {}).get(key, 0) for key in METRICS},
                 'growth_from_cold': {key: last['categories'].get(category, {}).get(key, 0)-cold['categories'].get(category, {}).get(key, 0) for key in METRICS},
                 'growth_over_private_edits': {key: edited['categories'].get(category, {}).get(key, 0)-cold['categories'].get(category, {}).get(key, 0) for key in METRICS},
-                'warm_restart_delta': {key: last['categories'].get(category, {}).get(key, 0)-restored['categories'].get(category, {}).get(key, 0) for key in METRICS}
+                'warm_restart_delta': {key: restarted['categories'].get(category, {}).get(key, 0)-restored['categories'].get(category, {}).get(key, 0) for key in METRICS}
             } for category in categories}, 'transient_build_peak': None})
     manifest.update(valid=valid, failure=failure)
     rc.save(args.out/'manifest.json', manifest)
