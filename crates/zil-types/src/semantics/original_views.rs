@@ -822,6 +822,10 @@ impl Check<'_, '_> {
                     ..
                 }),
             ) if local_region
+                // Only a call region records this new unbounded place source
+                // before admission. An existing local role's old inputs cannot
+                // justify an unrecorded indirect write from a shorter local.
+                && region.is_some_and(|(region_owner, _)| region_owner == owner)
                 && matches!(
                     bound.root,
                     ViewBorrowRoot::Local(_)

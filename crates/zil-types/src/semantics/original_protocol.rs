@@ -17,6 +17,10 @@ pub(in crate::semantics) fn recipe_key(
 const OPEN: u8 = 1;
 const CLOSING: u8 = 2;
 const CLOSED: u8 = 4;
+// Private absence of an owning generation, distinct from Closed and from an
+// unreachable phase set. Only actual destruction or a proved Give relation
+// establishes this state; it is never a usable protocol input.
+const RETIRED: u8 = 8;
 const UNKNOWN: u8 = OPEN | CLOSING | CLOSED;
 
 fn bit(s: ProtocolState) -> u8 {
@@ -28,6 +32,13 @@ fn bit(s: ProtocolState) -> u8 {
 }
 fn mask(states: &[ProtocolState]) -> u8 {
     states.iter().fold(0, |m, s| m | bit(*s))
+}
+fn output_mask(states: &[ProtocolState]) -> u8 {
+    if states.is_empty() {
+        RETIRED
+    } else {
+        mask(states)
+    }
 }
 fn lookup_work(len: usize) -> usize {
     len.saturating_add(1).ilog2() as usize + 1
@@ -747,7 +758,14 @@ impl<'a> Engine<'a, '_> {
         let result: R<Root> = (|| {
             self.pay(value.work().saturating_add(state.roots.len()), depth)?;
             match value {
-                Value::Root(root, true, _, _) if state.roots.contains_key(root) => Ok(*root),
+                Value::Root(root, true, _, _)
+                    if state
+                        .roots
+                        .get(root)
+                        .is_some_and(|phase| *phase != 0 && *phase & RETIRED == 0) =>
+                {
+                    Ok(*root)
+                }
                 _ => Err(failure(
                     "protocol operation lacks its live original parameter or owning occurrence",
                 )),
@@ -769,6 +787,11 @@ impl<'a> Engine<'a, '_> {
         let result: R<()> = (|| {
             self.pay(state.work(), depth)?;
             let previous = state.roots.get(&root).copied().unwrap_or(UNKNOWN);
+            // An unknown observer cannot restore a generation which no longer
+            // exists. Only an independently checked mint/replacement can do so.
+            if previous == RETIRED && !replace {
+                return Ok(());
+            }
             for values in state.names.values_mut() {
                 for value in values {
                     value.invalidate(root, replace, previous);
@@ -1739,7 +1762,7 @@ impl<'a> Engine<'a, '_> {
                             "reachable original protocol exit is absent from the declared relation",
                         )
                     })?;
-                    if actual == 0 || actual & !mask(&row.output) != 0 {
+                    if actual == 0 || actual & !output_mask(&row.output) != 0 {
                         return Err(failure(
                             "original protocol exit exceeds its declared conditional phase relation",
                         ));
@@ -1934,7 +1957,7 @@ impl<'a> Engine<'a, '_> {
                             // CLOSED guard: a nonclosed execution faults without
                             // reclaiming anything. Only its successful return
                             // retires the owning generation here.
-                            self.change(state, root, CLOSED, true, depth)?;
+                            self.change(state, root, RETIRED, true, depth)?;
                             return Ok(Value::Plain);
                         }
                         let closing = if phase & (OPEN | CLOSING) != 0 {
@@ -2013,6 +2036,13 @@ impl<'a> Engine<'a, '_> {
                     failure("protocol parameter is not an original call argument")
                 })?;
                 let root = self.root(argument, state, depth)?;
+                if parameters[contract.parameter as usize].mode == PassingMode::Give
+                    && !matches!(argument, Value::Root(_, true, true, _))
+                {
+                    return Err(failure(
+                        "retiring protocol argument is not its actual live Give owner",
+                    ));
+                }
                 if !seen.insert(root) {
                     return Err(failure(
                         "independent protocol roles alias one exclusive original root",
@@ -2041,7 +2071,7 @@ impl<'a> Engine<'a, '_> {
                     self.pay(contract.exits.len().saturating_mul(4), depth)?;
                     for row in &contract.exits {
                         if bit(row.input) & *phase != 0 && row.exit == exit {
-                            output |= mask(&row.output);
+                            output |= output_mask(&row.output);
                         }
                     }
                     if output == 0 {
@@ -2063,7 +2093,7 @@ impl<'a> Engine<'a, '_> {
                 let joined = outcomes
                     .iter()
                     .fold(0, |m, o| m | o.phases.get(root).copied().unwrap_or(0));
-                self.change(state, *root, joined, false, depth)?;
+                self.change(state, *root, joined, joined == RETIRED, depth)?;
             }
             if outcomes.iter().all(|o| o.exit == ProtocolExit::Return) {
                 return Ok(Value::Plain);
@@ -4162,12 +4192,22 @@ impl<'a> Engine<'a, '_> {
                 }
                 let mut exits = BTreeSet::new();
                 for row in &contract.exits {
-                    if !entry.contains(&row.input)
-                        || !exits.insert((row.input, row.exit))
-                        || row.output.is_empty()
+                    if !entry.contains(&row.input) || !exits.insert((row.input, row.exit)) {
+                        return Err(failure(
+                            "original protocol relation has an invalid input or duplicate exit",
+                        ));
+                    }
+                    let consumed = parameters[parameter].mode == PassingMode::Give;
+                    if row.output.is_empty() != consumed
+                        || consumed
+                            && self.query_ownership(
+                                owner,
+                                Query::Parameter(contract.parameter),
+                                depth + 1,
+                            )? != Some(true)
                     {
                         return Err(failure(
-                            "original protocol relation has an invalid input, duplicate exit, or empty output",
+                            "original protocol retired output requires its exact Give owner; borrowed outputs retain states",
                         ));
                     }
                     let mut output = BTreeSet::new();

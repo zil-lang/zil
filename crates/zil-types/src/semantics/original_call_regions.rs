@@ -180,8 +180,7 @@ impl Check<'_, '_> {
                 } else {
                     matches!(site.kind, SemanticSiteRecipeKind::OriginalCall)
                 };
-                if node.site == site.id && matching_kind
-                {
+                if node.site == site.id && matching_kind {
                     if selected.replace(site).is_some() {
                         return Err(bad("call region has several original call occurrences"));
                     }
@@ -421,6 +420,42 @@ impl Check<'_, '_> {
                 target,
                 depth + 1,
             )?;
+            if let SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit {
+                scope: SemanticScopeRef::Ancestor(0),
+                ordinal,
+            }) = target
+            {
+                self.pay(
+                    self.proof.call_regions.len().saturating_add(1).ilog2() as usize + 1,
+                    depth,
+                )?;
+                if !self.proof.call_regions.contains_key(&(owner, *ordinal)) {
+                    self.pay(
+                        self.proof.call_borrows.len().saturating_add(1).ilog2() as usize + 1,
+                        depth,
+                    )?;
+                    let key = (owner, call.id, input.parameter);
+                    if let Some(prior) = self.proof.call_borrows.get(&key) {
+                        if *prior != input.expression.id {
+                            return Err(bad(
+                                "one original contextual call input changes its source occurrence",
+                            ));
+                        }
+                    } else {
+                        if self.proof.call_borrows.len() >= self.limits.max_nodes {
+                            return Err(Diagnostic::limit(
+                                Phase::Types,
+                                "original contextual call input limit exceeded",
+                                None,
+                            ));
+                        }
+                        self.proof
+                            .proof_mut()?
+                            .call_borrows
+                            .insert(key, input.expression.id);
+                    }
+                }
+            }
             // This is a call-boundary loan. Keep the source expression's
             // original complete sigma; its independent TypeUse still checks
             // the actual read. Only the selected call parameter uses r.
@@ -515,6 +550,15 @@ impl Check<'_, '_> {
                         if self.call_region_outlives(owner, source, &incoming, active, depth + 1)? {
                             return Ok(true);
                         }
+                    }
+                }
+            }
+        }
+        if let Some(sources) = self.local_role_source_lifetimes(owner, target, depth + 1)? {
+            for incoming in sources {
+                if let SemanticOuterLifeRecipe::Class(incoming) = incoming {
+                    if self.call_region_outlives(owner, source, &incoming, active, depth + 1)? {
+                        return Ok(true);
                     }
                 }
             }

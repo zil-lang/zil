@@ -2012,29 +2012,70 @@ pub(super) fn call_region_argument(
         let proof = proof
             .as_ref()
             .ok_or_else(|| bad("call region lost its complete original proof"))?;
-        world.pay(index::search(proof.call_regions.len()))?;
-        let Some(region) = proof.call_regions.get(&(original.id, ordinal)) else {
-            return Ok(false);
-        };
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
             return Err(bad("call region has no complete original body"));
         };
-        world.pay(
-            site_nodes
-                .len()
-                .saturating_add(index::search(region.inputs.len())),
-        )?;
-        if !site_nodes.iter().any(|row| {
-            row.site == site.recipe && row.node == SemanticOriginalNode::Expression(region.call)
-        }) {
-            return Ok(false);
-        }
-        let node = region
-            .inputs
-            .get(&parameter)
-            .ok_or_else(|| bad("call region omits its original full-ordinal argument"))?;
+        world.pay(index::search(proof.call_regions.len()))?;
+        let node = if let Some(region) = proof.call_regions.get(&(original.id, ordinal)) {
+            world.pay(
+                site_nodes
+                    .len()
+                    .saturating_add(index::search(region.inputs.len())),
+            )?;
+            if !site_nodes.iter().any(|row| {
+                row.site == site.recipe && row.node == SemanticOriginalNode::Expression(region.call)
+            }) {
+                return Ok(false);
+            }
+            *region
+                .inputs
+                .get(&parameter)
+                .ok_or_else(|| bad("call region omits its original full-ordinal argument"))?
+        } else {
+            // A parameter may already be fixed to a mutable local's original
+            // role by an invariant inner type. That role is not a fresh call
+            // region: authenticate its own declaration and this exact input.
+            world.pay(proof.local_roles.len().saturating_add(site_nodes.len()))?;
+            let lifetime = SemanticLifeRecipe::Implicit {
+                scope: SemanticScopeRef::Ancestor(0),
+                ordinal,
+            };
+            let mut roles = proof
+                .local_roles
+                .iter()
+                .filter(|((owner, _), role)| *owner == original.id && role.lifetime == lifetime);
+            if roles.next().is_none() {
+                return Ok(false);
+            }
+            if roles.next().is_some() {
+                return Err(bad(
+                    "contextual call target has several original local roles",
+                ));
+            }
+            let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
+            let Some(row) = nodes.next() else {
+                return Ok(false);
+            };
+            if nodes.next().is_some() {
+                return Err(bad("contextual call has several original occurrences"));
+            }
+            let SemanticOriginalNode::Expression(call) = row.node else {
+                return Ok(false);
+            };
+            if !matches!(
+                world.original_recipe(original, site.recipe)?.kind,
+                SemanticSiteRecipeKind::OriginalCall | SemanticSiteRecipeKind::Construct { .. }
+            ) {
+                return Ok(false);
+            }
+            world.pay(index::search(proof.call_borrows.len()))?;
+            let Some(node) = proof.call_borrows.get(&(original.id, call, parameter)) else {
+                return Ok(false);
+            };
+            *node
+        };
         world.pay(index::search(proof.borrow_roles.len()))?;
-        let Some(role) = proof.borrow_roles.get(&(original.id, *node)) else {
+        let Some(role) = proof.borrow_roles.get(&(original.id, node)) else {
             // This input may already have the exact region or a proved Static
             // endpoint. Without a loan receipt this helper grants nothing;
             // the ordinary exact/reaching-edge consumer must still succeed.
@@ -2084,7 +2125,7 @@ pub(super) fn call_region_argument(
                 _ => {}
             }
         }
-        (*node, role.clone())
+        (node, role.clone())
     };
     let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = caller.target
     else {

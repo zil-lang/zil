@@ -1231,9 +1231,14 @@ impl Check<'_, '_> {
                 ));
             };
             let parameter = self.expr(owner, argument, variables, None, depth + 1)?;
-            let task = match (&parameter, op) {
-                (SemanticTypeRecipe::Desc { inner, .. }, TaskOp::Valid) => inner.as_ref(),
-                (SemanticTypeRecipe::Managed(inner), TaskOp::FinishDestroy) => inner.as_ref(),
+            let observed = self.observation_type(owner, &parameter, depth + 1)?;
+            let task = match (&observed, op) {
+                (SemanticTypeRecipe::Desc { inner, .. }, TaskOp::Valid) => {
+                    copy_recipe(inner, self.limits, self.left)?
+                }
+                (SemanticTypeRecipe::Managed(inner), TaskOp::FinishDestroy) => {
+                    copy_recipe(inner, self.limits, self.left)?
+                }
                 (
                     SemanticTypeRecipe::Address {
                         mutable: true,
@@ -1242,12 +1247,13 @@ impl Check<'_, '_> {
                     },
                     TaskOp::Poll | TaskOp::RequestCancel | TaskOp::PollClose,
                 ) => {
-                    let SemanticTypeRecipe::Managed(task) = inner.as_ref() else {
+                    let head = self.observation_type(owner, inner, depth + 1)?;
+                    let SemanticTypeRecipe::Managed(task) = head else {
                         return Err(bad(
                             "Task mutation requires an exclusive owning head address",
                         ));
                     };
-                    task.as_ref()
+                    *task
                 }
                 _ => {
                     return Err(bad(
@@ -1257,7 +1263,7 @@ impl Check<'_, '_> {
             };
             let SemanticTypeRecipe::Task {
                 result: payload, ..
-            } = task
+            } = &task
             else {
                 return Err(bad(
                     "original Task operation changes its real sealed head kind",
@@ -1666,17 +1672,18 @@ impl Check<'_, '_> {
                 ));
             };
             let parameter = self.expr(owner, argument, variables, None, depth + 1)?;
-            let inner = match (&parameter, op) {
+            let observed = self.observation_type(owner, &parameter, depth + 1)?;
+            let inner = match (&observed, op) {
                 (
                     SemanticTypeRecipe::Desc { inner, .. },
                     RegistrationOp::Valid | RegistrationOp::AsyncValid,
-                ) => inner.as_ref(),
+                ) => copy_recipe(inner, self.limits, self.left)?,
                 (
                     SemanticTypeRecipe::Managed(inner),
                     RegistrationOp::Close
                     | RegistrationOp::AsyncFinish
                     | RegistrationOp::AsyncFinishChecked,
-                ) => inner.as_ref(),
+                ) => copy_recipe(inner, self.limits, self.left)?,
                 (
                     SemanticTypeRecipe::Address {
                         mutable: true,
@@ -1685,12 +1692,13 @@ impl Check<'_, '_> {
                     },
                     RegistrationOp::AsyncRequest | RegistrationOp::AsyncPollClose,
                 ) => {
-                    let SemanticTypeRecipe::Managed(payload) = inner.as_ref() else {
+                    let head = self.observation_type(owner, inner, depth + 1)?;
+                    let SemanticTypeRecipe::Managed(payload) = head else {
                         return Err(bad(
                             "registration mutation requires an exclusive owning head address",
                         ));
                     };
-                    payload.as_ref()
+                    *payload
                 }
                 _ => {
                     return Err(bad(
@@ -1698,7 +1706,7 @@ impl Check<'_, '_> {
                     ));
                 }
             };
-            let environment = match (inner, op) {
+            let environment = match (&inner, op) {
                 (
                     SemanticTypeRecipe::Registration(environment),
                     RegistrationOp::Valid | RegistrationOp::Close,

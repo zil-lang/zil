@@ -187,6 +187,9 @@ pub(super) struct Proof {
     pub(super) definition_positions: std::rc::Rc<BTreeMap<SemanticDefinitionId, usize>>,
     view_bounds: BTreeMap<(SemanticDefinitionId, Query), views::ViewBorrowBound>,
     pub borrow_roles: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
+    // Exact original call input for an already-declared contextual outer role.
+    // The value's own TypeUse keeps its original sigma; only this call uses it.
+    pub(super) call_borrows: BTreeMap<(SemanticDefinitionId, NodeId, u32), NodeId>,
     pub(super) return_borrows: BTreeMap<(SemanticDefinitionId, NodeId), BorrowRole>,
     pub(super) shared_views: BTreeMap<(SemanticDefinitionId, Query), NodeId>,
     pub(super) borrow_bindings:

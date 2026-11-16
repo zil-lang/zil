@@ -127,6 +127,66 @@ impl Check<'_, '_> {
         );
         Ok(role_type)
     }
+    /// Existing sources establish only incoming directed bounds for a mutable
+    /// local role. They never identify that role with an input, nor prove that
+    /// the role outlives its sources (which later writes may extend).
+    pub(super) fn local_role_source_lifetimes(
+        &mut self,
+        owner: SemanticDefinitionId,
+        lifetime: &SemanticLifeRecipe,
+        depth: usize,
+    ) -> R<Option<Vec<SemanticOuterLifeRecipe>>> {
+        if !matches!(
+            lifetime,
+            SemanticLifeRecipe::Implicit {
+                scope: SemanticScopeRef::Ancestor(0),
+                ..
+            }
+        ) {
+            return Ok(None);
+        }
+        self.pay(self.proof.local_roles.len(), depth)?;
+        let mut selected = None;
+        for (key, role) in &self.proof.local_roles {
+            if key.0 == owner && &role.lifetime == lifetime {
+                if selected.replace((*key, role.sources.len())).is_some() {
+                    return Err(bad(
+                        "one original local lifetime has several declaration roles",
+                    ));
+                }
+            }
+        }
+        let Some((key, count)) = selected else {
+            return Ok(None);
+        };
+        self.pay(
+            count.saturating_add(
+                self.proof.local_roles.len().saturating_add(1).ilog2() as usize + 1,
+            ),
+            depth,
+        )?;
+        let role = self
+            .proof
+            .local_roles
+            .get(&key)
+            .ok_or_else(|| bad("original local source role disappeared"))?;
+        let mut sources = Vec::new();
+        for source in &role.sources {
+            crate::dyn_metadata::semantic_operand_snapshot(
+                &source.lifetime,
+                self.limits,
+                self.left,
+                1,
+            )?;
+            sources.push(source.lifetime.clone());
+        }
+        if sources.is_empty() {
+            return Err(bad(
+                "original local directed bound has no complete incoming source",
+            ));
+        }
+        Ok(Some(sources))
+    }
     pub(super) fn assign_role(
         &mut self,
         owner: SemanticDefinitionId,
