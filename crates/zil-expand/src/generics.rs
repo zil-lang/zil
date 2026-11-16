@@ -88,6 +88,8 @@ impl Env {
 }
 #[path = "generic_budget.rs"]
 mod budget;
+#[path = "generic_instance_index.rs"]
+mod instance_index;
 pub(super) use budget::Budget;
 #[path = "generic_alias.rs"]
 mod aliases;
@@ -594,6 +596,7 @@ struct Engine<'a> {
     stored_nominals: bool,
     pattern_types: &'a BTreeMap<String, TypeRef>,
     templates: BTreeMap<String, &'a Item>,
+    template_directory: instance_index::Templates<'a>,
     enums: BTreeMap<String, &'a EnumDecl>,
     nominals: BTreeMap<String, &'a Item>,
     traits: trait_bounds::Index<'a>,
@@ -623,7 +626,7 @@ struct Engine<'a> {
     nominal_binder_collision: bool,
     signatures: BTreeMap<String, Cow<'a, Function>>,
     foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
-    instances: BTreeMap<(String, Vec<String>), String>,
+    instances: instance_index::Instances,
     realized_impls: BTreeSet<(trait_instances::Key, String)>,
     semantic_impl_scopes: BTreeMap<(trait_instances::Key, String), zil_ir::SemanticInstanceId>,
     semantic_selected_scope: Option<(usize, zil_ir::SemanticInstanceId)>,
@@ -722,6 +725,7 @@ impl<'a> Engine<'a> {
             resolved_method_calls: trait_instances::Calls::new(),
             method_calls: trait_instances::CallTargets::new(),
             templates: BTreeMap::new(),
+            template_directory: instance_index::Templates::default(),
             enums: BTreeMap::new(),
             nominals: BTreeMap::new(),
             return_type: None,
@@ -743,7 +747,7 @@ impl<'a> Engine<'a> {
             nominal_binder_collision: false,
             signatures: BTreeMap::new(),
             foreign_signatures: BTreeMap::new(),
-            instances: BTreeMap::new(),
+            instances: instance_index::Instances::default(),
             realized_impls: BTreeSet::new(),
             semantic_impl_scopes: BTreeMap::new(),
             semantic_selected_scope: None,
@@ -821,6 +825,8 @@ impl<'a> Engine<'a> {
                 }
             }
         }
+        engine.template_directory =
+            instance_index::Templates::new(&engine.templates, &mut engine.budget, module.span)?;
         engine.validate_impl_recipes()?;
         engine.validate_trait_defaults(module)?;
         engine.validate_trait_constants(module)?;
@@ -1341,6 +1347,7 @@ impl<'a> Engine<'a> {
             self.products.origins = Some(output_origins);
         }
         self.products.allowance = Some(self.budget.remaining_limits());
+        self.products.cost_profile = self.budget.take_cost_profile();
         *products = std::mem::take(&mut self.products);
         Ok(result)
     }
@@ -1559,7 +1566,7 @@ impl<'a> Engine<'a> {
             self.budget.lineage_bytes(context.len(), span)?;
             self.budget.lineage_push(&mut key.1, context, span)?;
         }
-        if let Some(existing) = self.instances.get(&key) {
+        if let Some(existing) = self.instances.get(&key, &mut self.budget, span)? {
             self.budget.drop_lineage_vec(nominal_dependencies, span)?;
             return Ok(store_templates::Instantiation::Eager(existing.clone()));
         }
@@ -1581,7 +1588,8 @@ impl<'a> Engine<'a> {
             Some(family) => format!("$generic_{template}_$data{family}_{}", self.instances.len()),
             None => format!("$generic_{}_{}", template, self.instances.len()),
         };
-        self.instances.insert(key, generated.clone());
+        self.instances
+            .insert(key, generated.clone(), &mut self.budget, span)?;
         if matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_)) {
             self.instance_types.insert(
                 generated.clone(),
@@ -2684,6 +2692,25 @@ impl<'a> Engine<'a> {
                     self.bind_resource_access(pattern, value, ty.as_ref(), env)?;
                     self.bind_semantic_source(pattern, env)?;
                 }
+                // The exact original local annotation and its scoped class
+                // recipe are already in the semantic body/emission directory,
+                // and the environment above keeps the full Source type. Erase
+                // only this physical root label after those consumers record
+                // it; nested domains continue through their normal producer.
+                if self.products.semantic.is_some() && let Some(annotation) = ty
+                    && matches!(annotation.kind, TypeKind::Reference { lifetime: Some(_), .. } | TypeKind::Group(_))
+                {
+                    fn erase_root(ty: &mut TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<()> {
+                        budget.node(ty.span, depth)?;
+                        match &mut ty.kind {
+                            TypeKind::Group(inner) => erase_root(inner, budget, depth + 1)?,
+                            TypeKind::Reference { lifetime, .. } => *lifetime = None,
+                            _ => {}
+                        }
+                        Ok(())
+                    }
+                    erase_root(annotation, &mut self.budget, depth + 1)?;
+                }
             }
             StmtKind::Return(Some(e)) => {
                 if self.source_enum_return_active
@@ -3679,21 +3706,21 @@ fn bind(pattern: &Pattern, ty: Option<TypeRef>, env: &mut Env) {
     }
 }
 fn type_key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
-    budget.ty(ty)?;
+    // Key formation borrows the existing syntax. It copies output bytes, but
+    // does not clone an Item/Expr/TypeRef tree at every preflight node.
+    budget.metadata_scope(ty.span, false, |budget| budget.ty(ty))?;
     type_key_bounded(ty, budget)
 }
 fn type_key_bounded(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
     if let Some(key) = rich_pointer::key(ty, budget)? {
         return Ok(key);
     }
-    // The profile is recorded during the existing bounded AST walk. Requests
-    // without anonymous sums retain their original key fees and traversal.
-    if budget.has_anonymous_sums()
-        || budget.has_borrowed_keys()
-        || budget.has_type_member_patterns()
-    {
-        type_keys::prepay(ty, budget)?;
+    if let Some(key) = type_keys::streamed(ty, budget)? {
+        return Ok(key);
     }
+    // Sorted sums and quantified keys allocate separate canonical child
+    // strings. Pay that renderer's complete output and comparison work.
+    type_keys::prepay(ty, budget)?;
     render_type_key(ty)
 }
 fn render_type_key(ty: &TypeRef) -> R<String> {
@@ -3938,6 +3965,25 @@ fn unify_argument_scoped(
     let mut actual = actual;
     while let TypeKind::Group(inner) = &actual.kind {
         actual = inner;
+    }
+    if let TypeKind::Named { path, args } = &pattern.kind
+        && path.len() == 1 && args.is_empty() && variables.contains(&path[0])
+        && let Some(prior) = found.get(&path[0])
+        && let (
+            TypeKind::Reference { mutable: false, inner: expected, .. },
+            TypeKind::Reference { mutable: true, inner: available, .. },
+        ) = (&grouped(prior).kind, &actual.kind)
+    {
+        // The wanted complete T already selects a shared root view. Retain T
+        // unchanged and compare the entire pointee invariantly; only the real
+        // argument operation may create the shared reborrow later in Types.
+        // Neither a nested address mode nor a nominal/phantom class can change.
+        if source_unification_key(expected, source, budget)?
+            != source_unification_key(available, source, budget)?
+        {
+            return Err(error(span, "conflicting generic argument constraints"));
+        }
+        return Ok(());
     }
     if let (
         TypeKind::Reference {

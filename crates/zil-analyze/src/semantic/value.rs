@@ -18,12 +18,120 @@ pub(super) enum Class {
     // Every actual borrow/reborrow producer has its own outer occurrence. Its
     // source is read only from that exact instruction at a real consumer.
     Reborrow(FunctionId, ValueId),
+    // Exact caller/original-call/callee-declaration role. Actual SSA selection
+    // must separately match that immutable call receipt.
+    CallResult(
+        SemanticInstanceId,
+        zil_base::NodeId,
+        SemanticDefinitionId,
+        u32,
+    ),
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub(super) struct Value {
-    pub ty: Type,
-    pub life: StorageLifeShape,
+    geometry: std::sync::Arc<geometry::Geometry>,
     pub classes: Vec<Class>,
+}
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        (std::sync::Arc::ptr_eq(&self.geometry, &other.geometry) || self.geometry == other.geometry)
+            && self.classes == other.classes
+    }
+}
+impl Eq for Value {}
+impl std::ops::Deref for Value {
+    type Target = geometry::Geometry;
+    fn deref(&self) -> &Self::Target {
+        &self.geometry
+    }
+}
+impl Value {
+    pub(super) fn check_geometry(&self, b: &mut Budget) -> CompileResult<()> {
+        geometry::check_geometry(&self.geometry, b)
+    }
+    pub(super) fn from_geometry(
+        geometry: std::sync::Arc<geometry::Geometry>,
+        classes: Vec<Class>,
+    ) -> Self {
+        Self { geometry, classes }
+    }
+    pub(super) fn new(ty: Type, life: StorageLifeShape, classes: Vec<Class>) -> Self {
+        Self {
+            geometry: std::sync::Arc::new(geometry::Geometry::new(ty, life)),
+            classes,
+        }
+    }
+    #[track_caller]
+    pub(super) fn into_parts(
+        self,
+        b: &mut Budget,
+    ) -> CompileResult<(Type, StorageLifeShape, Vec<Class>)> {
+        let geometry = match std::sync::Arc::try_unwrap(self.geometry) {
+            Ok(geometry) => geometry,
+            Err(geometry) => {
+                crate::dyn_metadata::ty(&geometry.ty, b)?;
+                crate::dyn_metadata::shape(&geometry.life, b)?;
+                geometry.as_ref().clone()
+            }
+        };
+        Ok((geometry.ty, geometry.life, self.classes))
+    }
+    #[track_caller]
+    pub(super) fn into_type(self, b: &mut Budget) -> CompileResult<Type> {
+        match std::sync::Arc::try_unwrap(self.geometry) {
+            Ok(geometry) => Ok(geometry.ty),
+            Err(geometry) => {
+                crate::dyn_metadata::ty(&geometry.ty, b)?;
+                Ok(geometry.ty.clone())
+            }
+        }
+    }
+    pub(super) fn geometry_mut(
+        &mut self,
+        b: &mut Budget,
+    ) -> CompileResult<&mut geometry::Geometry> {
+        b.spend(1, WORK)?;
+        if std::sync::Arc::strong_count(&self.geometry) != 1 {
+            crate::dyn_metadata::ty(&self.geometry.ty, b)?;
+            crate::dyn_metadata::shape(&self.geometry.life, b)?;
+        }
+        let geometry = std::sync::Arc::make_mut(&mut self.geometry);
+        geometry.invalidate();
+        Ok(geometry)
+    }
+    pub(super) fn field_equal(
+        &self,
+        owner: &std::sync::Arc<geometry::Geometry>,
+        variant: Option<usize>,
+        field: usize,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        geometry::field_equal(owner, variant, field, &self.geometry, b)
+    }
+    pub(super) fn equal_paid(&self, other: &Self, b: &mut Budget) -> CompileResult<bool> {
+        b.spend(
+            self.classes
+                .len()
+                .saturating_add(other.classes.len())
+                .saturating_add(1),
+            WORK,
+        )?;
+        if self.classes != other.classes {
+            return Ok(false);
+        }
+        geometry::same_geometry(&self.geometry, &other.geometry, b)
+    }
+    pub(super) fn with_classes(&self, classes: Vec<Class>, b: &mut Budget) -> CompileResult<Self> {
+        b.spend(1, WORK)?;
+        Ok(Self {
+            geometry: std::sync::Arc::clone(&self.geometry),
+            classes,
+        })
+    }
+    pub(super) fn copy(&self, b: &mut Budget) -> CompileResult<Self> {
+        b.spend(self.classes.len().saturating_add(1), WORK)?;
+        Ok(self.clone())
+    }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum Argument {
@@ -38,8 +146,14 @@ fn unknown(message: &str) -> Vec<zil_base::Diagnostic> {
         None,
     )]
 }
+#[track_caller]
 fn put<T>(rows: &mut Vec<T>, value: T, b: &mut Budget) -> CompileResult<()> {
-    b.spend(rows.len().saturating_add(1), WORK)?;
+    let relocation = if rows.len() == rows.capacity() {
+        rows.len()
+    } else {
+        0
+    };
+    b.spend(relocation.saturating_add(1), WORK)?;
     rows.try_reserve(1).map_err(|_| {
         vec![zil_base::Diagnostic::limit(
             zil_base::Phase::Analyze,
@@ -59,11 +173,92 @@ pub(super) fn empty() -> StorageLifeShape {
     }
 }
 pub(super) fn scalar(ty: Type) -> Value {
-    Value {
-        ty,
-        life: empty(),
-        classes: Vec::new(),
+    Value::new(ty, empty(), Vec::new())
+}
+pub(super) fn borrowed_scalar(
+    ty: &Type,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+) -> CompileResult<Value> {
+    Ok(Value::from_geometry(
+        inventory.geometry.type_value(ty, None, b)?,
+        Vec::new(),
+    ))
+}
+pub(super) fn borrowed_full(
+    ty: &Type,
+    life: &StorageLifeShape,
+    classes: Vec<Class>,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+) -> CompileResult<Value> {
+    Ok(Value::from_geometry(
+        inventory.geometry.resolved(ty, life, b)?,
+        classes,
+    ))
+}
+pub(super) fn unary(kind: geometry::Unary, inner: Value, b: &mut Budget) -> CompileResult<Value> {
+    crate::dyn_metadata::shape(&inner.life, b)?;
+    let life = inner.life.clone();
+    let geometry = geometry::construct(
+        geometry::Constructor::Unary(kind),
+        &[&inner.geometry],
+        life,
+        b,
+    )?;
+    Ok(Value::from_geometry(geometry, inner.classes))
+}
+pub(super) fn tuple(fields: Vec<Value>, b: &mut Budget) -> CompileResult<Value> {
+    b.spend(fields.len().saturating_add(1), WORK)?;
+    let mut children = Vec::new();
+    children
+        .try_reserve_exact(fields.len())
+        .map_err(|_| fail("semantic tuple geometry allocation failed"))?;
+    for field in &fields {
+        if !empty_shape(&field.life) || !field.classes.is_empty() {
+            return Err(fail("plain tuple geometry loses a complete child domain"));
+        }
+        children.push(&field.geometry);
     }
+    let geometry = geometry::construct(geometry::Constructor::Tuple, &children, empty(), b)?;
+    Ok(Value::from_geometry(geometry, Vec::new()))
+}
+/// A sum retains the entire success domain even while its error arm is
+/// active. This whole-child directory is a type map, never an active-tag proof.
+pub(super) fn error_union(error: Value, result: Value, b: &mut Budget) -> CompileResult<Value> {
+    if !error.classes.is_empty() || error.life != empty() {
+        return Err(unknown(
+            "ErrorUnion needs its complete nonzero error-arm domain",
+        ));
+    }
+    if result.classes.len() != result.life.binder_count as usize {
+        return Err(fail("ErrorUnion success omits a complete intrinsic class"));
+    }
+    let mut retained = Vec::new();
+    for child in 0..result.life.binder_count {
+        put(
+            &mut retained,
+            StorageRetainedBinding {
+                path: vec![LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))],
+                class: child,
+                binder: child,
+            },
+            b,
+        )?;
+    }
+    let geometry = geometry::construct(
+        geometry::Constructor::ErrorUnion,
+        &[&error.geometry, &result.geometry],
+        StorageLifeShape {
+            binder_count: u32::try_from(result.classes.len())
+                .map_err(|_| fail("ErrorUnion complete domain overflows"))?,
+            slots: Vec::new(),
+            retained,
+            nominal_arguments: Vec::new(),
+        },
+        b,
+    )?;
+    Ok(Value::from_geometry(geometry, result.classes))
 }
 pub(super) fn intern(rows: &mut Vec<Class>, class: Class, b: &mut Budget) -> CompileResult<u32> {
     b.spend(rows.len().saturating_add(1), WORK)?;
@@ -80,14 +275,44 @@ pub(super) fn address(
     inner: Value,
     b: &mut Budget,
 ) -> CompileResult<Value> {
+    reference(
+        geometry::Unary::Address(mutable),
+        if mutable {
+            StoredBorrowMode::ExclusiveAddress
+        } else {
+            StoredBorrowMode::SharedAddress
+        },
+        class,
+        inner,
+        b,
+    )
+}
+pub(super) fn description(class: Class, inner: Value, b: &mut Budget) -> CompileResult<Value> {
+    reference(
+        geometry::Unary::Desc,
+        StoredBorrowMode::WritableDescription,
+        class,
+        inner,
+        b,
+    )
+}
+fn reference(
+    kind: geometry::Unary,
+    mode: StoredBorrowMode,
+    class: Class,
+    inner: Value,
+    b: &mut Budget,
+) -> CompileResult<Value> {
     if inner.life.binder_count as usize != inner.classes.len() {
         return Err(fail("address child omits its complete intrinsic domain"));
     }
     let mut classes = Vec::new();
     let outer = intern(&mut classes, class, b)?;
     let mut retained = Vec::new();
-    for (index, class) in inner.classes.into_iter().enumerate() {
-        let binder = intern(&mut classes, class, b)?;
+    let mut child_binders = Vec::new();
+    for (index, class) in inner.classes.iter().enumerate() {
+        let binder = intern(&mut classes, class.clone(), b)?;
+        put(&mut child_binders, binder, b)?;
         put(
             &mut retained,
             StorageRetainedBinding {
@@ -99,35 +324,88 @@ pub(super) fn address(
             b,
         )?;
     }
+    // Transport the complete child forest. Direct Pointee rows above retain
+    // every intrinsic class, including phantom ones; descendants keep their
+    // own ordered paths and complete nominal argument ordinals as well.
+    for row in &inner.life.retained {
+        let mut path = Vec::new();
+        put(&mut path, LifeTypeProjection::Pointee, b)?;
+        for step in &row.path { put(&mut path, step.clone(), b)?; }
+        let binder = *child_binders.get(row.binder as usize)
+            .ok_or_else(|| fail("address child retained row leaves its intrinsic domain"))?;
+        put(&mut retained, StorageRetainedBinding { path, class: row.class, binder }, b)?;
+    }
+    let mut nominal_arguments = Vec::new();
+    for row in &inner.life.nominal_arguments {
+        let mut path = Vec::new();
+        put(&mut path, LifeTypeProjection::Pointee, b)?;
+        for step in &row.path { put(&mut path, step.clone(), b)?; }
+        let binder = *child_binders.get(row.binder as usize)
+            .ok_or_else(|| fail("address child nominal row leaves its intrinsic domain"))?;
+        put(&mut nominal_arguments, NominalLifeArgument {
+            path, declaration: row.declaration, argument: row.argument, binder,
+        }, b)?;
+    }
     let binder_count =
         u32::try_from(classes.len()).map_err(|_| fail("address complete domain overflow"))?;
-    b.spend(3, WORK)?;
-    Ok(Value {
-        ty: Type::Address {
-            mutable,
-            inner: Box::new(inner.ty),
-        },
-        life: StorageLifeShape {
+    b.spend(1, WORK)?; // The fresh outer occurrence row is still allocated.
+    let geometry = geometry::construct(
+        geometry::Constructor::Unary(kind),
+        &[&inner.geometry],
+        StorageLifeShape {
             binder_count,
             slots: vec![StorageLifeSlot {
                 path: Vec::new(),
                 binder: outer,
-                mode: if mutable {
-                    StoredBorrowMode::ExclusiveAddress
-                } else {
-                    StoredBorrowMode::SharedAddress
-                },
+                mode,
             }],
-            // The child retains its own intrinsic shape and nominal identity
-            // inside inner.ty. Only the explicit child-class embedding crosses
-            // this Address boundary; no duplicate nominal or physical slots.
+
             retained,
-            nominal_arguments: Vec::new(),
+            nominal_arguments,
         },
-        classes,
-    })
+        b,
+    )?;
+    Ok(Value::from_geometry(geometry, classes))
 }
 
+pub(super) fn dyn_domain(
+    ty: &Type,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+) -> CompileResult<StorageLifeShape> {
+    let (Type::Dyn { interface: id } | Type::OwnedDyn { interface: id }) = ty else {
+        return Err(fail("opaque Dyn domain query selects another constructor"));
+    };
+    let mut selected = None;
+    for interface in &inventory.module.dyn_interfaces {
+        b.spend(1, WORK)?;
+        if interface.id == *id && selected.replace(interface).is_some() {
+            return Err(fail(
+                "opaque Dyn domain has competing actual interface identities",
+            ));
+        }
+    }
+    let interface =
+        selected.ok_or_else(|| fail("opaque Dyn domain has no complete actual interface"))?;
+    crate::dyn_metadata::retained_shape(&interface.retained_life, b)?;
+    Ok(StorageLifeShape {
+        binder_count: interface.retained_life.binder_count,
+        slots: Vec::new(),
+        retained: interface.retained_life.retained.clone(),
+        nominal_arguments: interface.retained_life.nominal_arguments.clone(),
+    })
+}
+/// Check only the complete physical forest with fresh binder-coordinate
+/// symbols. This supplies no actual class equation or original premise.
+pub(super) fn check_address_domain(
+    ty: &Type, life: &StorageLifeShape, inventory: &Inventory<'_>, b: &mut Budget,
+) -> CompileResult<()> {
+    let geometry = inventory.geometry.resolved(ty, life, b)?;
+    let mut classes = Vec::new();
+    for binder in 0..life.binder_count { put(&mut classes, Class::Local(binder), b)?; }
+    pointee(&Value::from_geometry(geometry, classes), inventory, b)?;
+    Ok(())
+}
 pub(super) fn pointee(
     input: &Value,
     inventory: &Inventory<'_>,
@@ -136,7 +414,9 @@ pub(super) fn pointee(
     let Type::Address { inner, .. } = &input.ty else {
         return Err(fail("whole pointee query is not an Address"));
     };
+    geometry::retain_child(&input.geometry, geometry::Child::Inner, b)?;
     let life = match inner.as_ref() {
+        Type::Dyn { .. } | Type::OwnedDyn { .. } => dyn_domain(inner, inventory, b)?,
         Type::MutexGuard { .. } => mutex_guard_domain(inner, b)?,
         Type::BorrowedStorage { life, .. } => {
             crate::dyn_metadata::shape(life, b)?;
@@ -176,10 +456,11 @@ pub(super) fn pointee(
             empty()
         }
     };
-    if input.life.retained.len() != life.binder_count as usize {
-        return Err(fail("whole pointee omits complete child class occurrences"));
+    if input.classes.len() != input.life.binder_count as usize {
+        return Err(fail("whole address omits its complete class image"));
     }
     let mut classes = Vec::new();
+    let mut local_classes = Vec::new();
     for index in 0..life.binder_count {
         let mut selected = None;
         for row in &input.life.retained {
@@ -197,13 +478,19 @@ pub(super) fn pointee(
             .get(binder as usize)
             .ok_or_else(|| fail("whole pointee class is out of range"))?;
         put(&mut classes, class.clone(), b)?;
+        put(&mut local_classes, Class::Local(binder), b)?;
     }
-    crate::dyn_metadata::ty(inner, b)?;
-    Ok(Value {
-        ty: inner.as_ref().clone(),
-        life,
-        classes,
-    })
+    let geometry = geometry::project(&input.geometry, geometry::Child::Inner, &life, b)?;
+    if !(super::original::strings::is_byte_type(&input.ty) && empty_shape(&input.life) && input.classes.is_empty()) {
+        let [slot] = input.life.slots.as_slice() else { return Err(fail("whole address has no unique outer slot")); };
+        let Type::Address { mutable, .. } = input.ty else { unreachable!() };
+        let expected = address(mutable, Class::Local(slot.binder),
+            Value::from_geometry(std::sync::Arc::clone(&geometry), local_classes), b)?;
+        if expected.life != input.life {
+            return Err(fail("whole address changes its complete Pointee class or nominal forest"));
+        }
+    }
+    Ok(Value::from_geometry(geometry, classes))
 }
 
 fn mutex_guard_domain(ty: &Type, b: &mut Budget) -> CompileResult<StorageLifeShape> {
@@ -237,6 +524,92 @@ fn mutex_guard_domain(ty: &Type, b: &mut Budget) -> CompileResult<StorageLifeSha
     })
 }
 
+// Borrow the current full actuals while matching the immutable catalogue.
+// Building a temporary public LifeNominalActual used to deep-clone each Type
+// solely to compare it and then discard it. No semantic image is cached here.
+enum ExpectedActual<'a> {
+    Lifetime(u32),
+    Type {
+        ty: &'a Type,
+        life: Option<&'a StorageLifeShape>,
+    },
+    Value(&'a Value),
+    Const(&'a Constant),
+}
+fn empty_shape(life: &StorageLifeShape) -> bool {
+    life.binder_count == 0
+        && life.slots.is_empty()
+        && life.retained.is_empty()
+        && life.nominal_arguments.is_empty()
+}
+fn actual_equal(actual: &LifeNominalActual, expected: &ExpectedActual<'_>) -> bool {
+    if let ExpectedActual::Value(value) = expected {
+        return actual_equal(
+            actual,
+            &ExpectedActual::Type {
+                ty: &value.ty,
+                life: (!value.classes.is_empty()).then_some(&value.life),
+            },
+        );
+    }
+    match (actual, expected) {
+        (LifeNominalActual::Lifetime(actual), ExpectedActual::Lifetime(expected)) => {
+            actual == expected
+        }
+        (LifeNominalActual::Const(actual), ExpectedActual::Const(expected)) => actual == *expected,
+        (LifeNominalActual::Type(actual), ExpectedActual::Type { ty, life }) => {
+            actual == *ty && life.is_none_or(empty_shape)
+        }
+        (
+            LifeNominalActual::QualifiedType {
+                ty: actual,
+                life: actual_life,
+            },
+            ExpectedActual::Type { ty, life },
+        ) => {
+            actual == *ty
+                && match life {
+                    Some(expected) => actual_life == *expected,
+                    None => empty_shape(actual_life),
+                }
+        }
+        _ => false,
+    }
+}
+
+fn actual_equal_paid(
+    actual: &LifeNominalActual,
+    expected: &ExpectedActual<'_>,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let (ty, life) = match actual {
+        LifeNominalActual::Type(ty) => (ty, None),
+        LifeNominalActual::QualifiedType { ty, life } => (ty, Some(life)),
+        _ => return Ok(actual_equal(actual, expected)),
+    };
+    let (expected_ty, expected_life, expected_owner) = match expected {
+        ExpectedActual::Type { ty, life } => (*ty, *life, None),
+        ExpectedActual::Value(value) => (
+            &value.ty,
+            (!value.classes.is_empty()).then_some(&value.life),
+            Some(&value.geometry),
+        ),
+        _ => return Ok(false),
+    };
+    let geometry = inventory.geometry.type_value(ty, life, b)?;
+    let expected = match expected_owner {
+        Some(owner) if expected_life.is_some() || empty_shape(&owner.life) => {
+            b.spend(1, "semantic geometry shared result")?;
+            std::sync::Arc::clone(owner)
+        }
+        _ => inventory
+            .geometry
+            .type_value(expected_ty, expected_life, b)?,
+    };
+    geometry::same_geometry(&geometry, &expected, b)
+}
+
 /// Reconstruct a nominal from the original whole argument vector. A local
 /// binder is selected by its actual occurrence, never a caller's numeric ID.
 pub(super) fn nominal(
@@ -264,7 +637,7 @@ pub(super) fn nominal(
         return Err(fail("semantic nominal value omits mixed arguments"));
     }
     let mut declared = None;
-    for item in &inventory.module.life_declarations {
+    for item in inventory.nominal_declarations(*declaration, b)? {
         b.spend(1, WORK)?;
         if item.id == *declaration && declared.replace(item).is_some() {
             return Err(fail("nominal declaration identity is duplicated"));
@@ -295,7 +668,7 @@ pub(super) fn nominal(
         match (formal, kind, argument) {
             (SemanticFormal::Lifetime, LifeParameterKind::Lifetime, Argument::Life(class)) => {
                 let binder = intern(&mut classes, class.clone(), b)?;
-                put(&mut expected, LifeNominalActual::Lifetime(binder), b)?;
+                put(&mut expected, ExpectedActual::Lifetime(binder), b)?;
                 put(
                     &mut nominal_rows,
                     NominalLifeArgument {
@@ -308,7 +681,6 @@ pub(super) fn nominal(
                 )?;
             }
             (SemanticFormal::Type { .. }, LifeParameterKind::Type, Argument::Type(value)) => {
-                crate::dyn_metadata::ty(&value.ty, b)?;
                 for (child, class) in value.classes.iter().enumerate() {
                     let binder = intern(&mut classes, class.clone(), b)?;
                     put(
@@ -324,14 +696,7 @@ pub(super) fn nominal(
                 }
                 put(
                     &mut expected,
-                    if value.classes.is_empty() {
-                        LifeNominalActual::Type(value.ty.clone())
-                    } else {
-                        LifeNominalActual::QualifiedType {
-                            ty: value.ty.clone(),
-                            life: value.life.clone(),
-                        }
-                    },
+                    ExpectedActual::Value(value),
                     b,
                 )?;
             }
@@ -341,7 +706,7 @@ pub(super) fn nominal(
                 Argument::Const { carrier, value },
             ) if ty == carrier && value.ty() == *carrier => {
                 crate::dyn_metadata::ty(carrier, b)?;
-                put(&mut expected, LifeNominalActual::Const(value.clone()), b)?;
+                put(&mut expected, ExpectedActual::Const(value), b)?;
             }
             _ => {
                 return Err(fail(
@@ -521,18 +886,18 @@ pub(super) fn nominal(
         nominal_arguments: nominal_rows,
     };
     let mut selected = None;
-    for instance in &inventory.module.life_instances {
+    for (position, instance) in inventory.nominal_instances(*declaration, b)? {
+        b.spend(1, WORK)?;
+        if instance.declaration != *declaration {
+            continue;
+        }
         b.spend(
             instance.arguments.len().saturating_add(expected.len() + 1),
             WORK,
         )?;
         for argument in &instance.arguments {
             match argument {
-                LifeNominalActual::Type(ty) => crate::dyn_metadata::ty(ty, b)?,
-                LifeNominalActual::QualifiedType { ty, life } => {
-                    crate::dyn_metadata::ty(ty, b)?;
-                    crate::dyn_metadata::shape(life, b)?;
-                }
+                LifeNominalActual::Type(_) | LifeNominalActual::QualifiedType { .. } => {}
                 LifeNominalActual::Const(value) => {
                     b.spend(1, WORK)?;
                     if let Constant::WideString(units) = value {
@@ -545,33 +910,17 @@ pub(super) fn nominal(
         // A complete zero Type domain has two explicit inventory spellings:
         // Type(T) and QualifiedType(T, empty).  Neither spelling changes T or
         // supplies a class.  Nonzero domains still require the exact shape.
-        let arguments_equal = instance.arguments.len() == expected.len()
-            && instance
-                .arguments
-                .iter()
-                .zip(&expected)
-                .all(|(actual, expected)| match (actual, expected) {
-                    (
-                        LifeNominalActual::QualifiedType { ty, life },
-                        LifeNominalActual::Type(other),
-                    )
-                    | (
-                        LifeNominalActual::Type(other),
-                        LifeNominalActual::QualifiedType { ty, life },
-                    ) => {
-                        ty == other
-                            && life.binder_count == 0
-                            && life.slots.is_empty()
-                            && life.retained.is_empty()
-                            && life.nominal_arguments.is_empty()
-                    }
-                    _ => actual == expected,
-                });
-        if instance.declaration != *declaration || !arguments_equal {
+        let mut arguments_equal = instance.arguments.len() == expected.len();
+        for (actual, expected) in instance.arguments.iter().zip(&expected) {
+            arguments_equal &= actual_equal_paid(actual, expected, inventory, b)?;
+        }
+        if !arguments_equal {
             continue;
         }
-        crate::dyn_metadata::ty(&instance.ty, b)?;
-        let storage = match &instance.ty {
+        let actual_geometry = inventory.geometry.nominal(position, inventory.module, b)?;
+        crate::dyn_metadata::shape(&actual_geometry.life, b)?;
+        crate::dyn_metadata::shape(&shape, b)?;
+        let storage = match &actual_geometry.ty {
             Type::BorrowedStorage { storage, life } if *life == shape => storage.as_ref(),
             Type::BorrowedStorage { .. } => continue,
             ty if classes.is_empty()
@@ -599,10 +948,22 @@ pub(super) fn nominal(
                 Type::Package { fields: actual, .. },
             ) => {
                 b.spend(source_fields.len().saturating_add(actual.len()), WORK)?;
-                actual.len() == fields.len()
-                    && source_fields.iter().zip(actual).zip(fields).all(
-                        |((source, (name, ty)), field)| source.name == *name && *ty == field.ty,
-                    )
+                let mut valid = actual.len() == fields.len();
+                for (ordinal, ((source, (name, _)), field)) in
+                    source_fields.iter().zip(actual).zip(fields).enumerate()
+                {
+                    b.spend(
+                        source
+                            .name
+                            .len()
+                            .saturating_add(name.len())
+                            .saturating_add(1),
+                        WORK,
+                    )?;
+                    valid &= source.name == *name;
+                    valid &= field.field_equal(&actual_geometry, None, ordinal, b)?;
+                }
+                valid
             }
             (
                 LifeNominalKind::Enum,
@@ -615,11 +976,18 @@ pub(super) fn nominal(
             ) => {
                 let mut offset = 0usize;
                 let mut valid = source_variants.len() == actual.len();
-                for (source, (name, types)) in source_variants.iter().zip(actual) {
+                for (variant, (source, (name, types))) in
+                    source_variants.iter().zip(actual).enumerate()
+                {
                     b.spend(types.len().saturating_add(name.len() + 1), WORK)?;
                     valid &= source.name == *name && source.fields.len() == types.len();
-                    for ty in types {
-                        valid &= fields.get(offset).is_some_and(|field| field.ty == *ty);
+                    for (ordinal, _) in types.iter().enumerate() {
+                        valid &= match fields.get(offset) {
+                            Some(field) => {
+                                field.field_equal(&actual_geometry, Some(variant), ordinal, b)?
+                            }
+                            None => false,
+                        };
                         offset += 1;
                     }
                 }
@@ -627,31 +995,33 @@ pub(super) fn nominal(
             }
             _ => false,
         };
-        if valid && selected.replace(instance).is_some() {
+        if valid && selected.replace((position, instance)).is_some() {
             return Err(fail(
                 "nominal value has ambiguous complete physical instances",
             ));
         }
     }
-    let instance = selected
+    let (position, instance) = selected
         .ok_or_else(|| fail("nominal value has no exact original whole-domain instance"))?;
-    b.spend(inventory.module.life_instances.len(), WORK)?;
-    if inventory
-        .module
-        .life_instances
-        .iter()
-        .filter(|other| other.ty == instance.ty)
-        .count()
-        != 1
+    let geometry = inventory.geometry.nominal(position, inventory.module, b)?;
+    if crate::stored_flow::nominal_instance_index(
+        inventory.module,
+        &geometry.ty,
+        inventory.limits,
+        b,
+    )? != position
     {
         return Err(fail("nominal value has a nonunique exact type catalogue"));
     }
     crate::stored_flow::validate_nominal_metadata(inventory.module, instance, inventory.limits, b)?;
-    Ok(Value {
-        ty: instance.ty.clone(),
-        life: shape,
-        classes,
-    })
+    // The generated current domain was independently matched above. Sharing
+    // its immutable layout never shares the freshly generated class vector.
+    if geometry.life != shape {
+        return Err(fail(
+            "nominal geometry differs from the current complete domain",
+        ));
+    }
+    Ok(Value { geometry, classes })
 }
 
 pub(super) fn ancestor<'a>(
@@ -745,6 +1115,20 @@ pub(super) fn class(
                         return Err(fail(
                             "fresh outer occurrence changes its actual complete local head",
                         ));
+                    }
+                }
+                InstructionKind::BorrowCapture { index, mutable: output } => {
+                    let closure = function.environment
+                        .and_then(|id| inventory.module.closures.get(id.0 as usize))
+                        .filter(|closure| closure.function == function.id)
+                        .ok_or_else(|| fail("fresh capture occurrence has another actual environment"))?;
+                    let captured = closure.captures.get(*index as usize)
+                        .ok_or_else(|| fail("fresh capture occurrence leaves its actual capture directory"))?;
+                    crate::dyn_metadata::ty(captured, b)?;
+                    if output != mutable || captured != inner.as_ref()
+                        || *output && closure.kind == CallableKind::Fn
+                    {
+                        return Err(fail("fresh capture occurrence changes its complete child type or environment mode"));
                     }
                 }
                 InstructionKind::ReborrowAddress {
@@ -890,16 +1274,12 @@ pub(super) fn class(
         }
         SemanticClassExpr::Implicit { scope, ordinal } => {
             let context = ancestor(instance, *scope, inventory, b)?;
-            let count = inventory
-                .definition(context.definition, b)?
-                .implicit_lifetimes
-                .len();
-            b.spend(count, WORK)?;
+            b.spend(1, WORK)?;
             if !inventory
                 .definition(context.definition, b)?
                 .implicit_lifetimes
-                .iter()
-                .any(|row| row.ordinal == *ordinal)
+                .get(*ordinal as usize)
+                .is_some_and(|row| row.ordinal == *ordinal)
             {
                 return Err(fail(
                     "semantic implicit class has no real declaration occurrence",
@@ -1023,21 +1403,45 @@ pub(super) fn resolved(
     b: &mut Budget,
     depth: usize,
 ) -> CompileResult<Value> {
+    let SemanticTypeValue::Resolved { ty, life, classes } = input else {
+        return Err(fail("Core type remains in an executable semantic value"));
+    };
+    resolved_parts(instance, ty, life, classes, inventory, b, depth)
+}
+fn resolved_parts(
+    instance: &SemanticInstance,
+    ty: &Type,
+    life: &StorageLifeShape,
+    classes: &[SemanticClassExpr],
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+    depth: usize,
+) -> CompileResult<Value> {
     b.spend(1, WORK)?;
     if depth > b.partial_depth {
         return Err(unknown(
             "complete semantic type value exceeds its finite depth",
         ));
     }
-    let SemanticTypeValue::Resolved { ty, life, classes } = input else {
-        return Err(fail("Core type remains in an executable semantic value"));
-    };
-    crate::dyn_metadata::ty(ty, b)?;
-    crate::dyn_metadata::shape(life, b)?;
+    let geometry = inventory.geometry.resolved(ty, life, b)?;
+    let ty = &geometry.ty;
+    let life = &geometry.life;
     if classes.len() != life.binder_count as usize {
         return Err(fail(
             "complete semantic type value omits an intrinsic class",
         ));
+    }
+    // Publish only physical child Type identities before independent domain
+    // qualification recursively visits them. No child class image is stored.
+    match ty {
+        Type::Address { .. } | Type::Desc(_) => {
+            geometry::retain_child(&geometry, geometry::Child::Inner, b)?;
+        }
+        Type::ErrorUnion { .. } => {
+            geometry::retain_child(&geometry, geometry::Child::UnionError, b)?;
+            geometry::retain_child(&geometry, geometry::Child::UnionResult, b)?;
+        }
+        _ => {}
     }
     match ty {
         Type::Address { .. }
@@ -1051,6 +1455,40 @@ pub(super) fn resolved(
             return Err(fail(
                 "semantic whole type and embedded lifetime shape differ",
             ));
+        }
+        Type::Dyn { .. } | Type::OwnedDyn { .. } => {
+            if dyn_domain(ty, inventory, b)? != *life {
+                return Err(fail(
+                    "semantic Dyn value changes its complete Context domain",
+                ));
+            }
+        }
+        Type::ErrorUnion { error, result }
+            if matches!(result.as_ref(), Type::Dyn { .. } | Type::OwnedDyn { .. }) =>
+        {
+            crate::stored_flow::validate_plain_nominal_zero(
+                inventory.module,
+                error,
+                inventory.limits,
+                b,
+            )?;
+            let child = dyn_domain(result, inventory, b)?;
+            let mut locals = Vec::new();
+            for index in 0..child.binder_count {
+                put(&mut locals, Class::Local(index), b)?;
+            }
+            let error = geometry::project(&geometry, geometry::Child::UnionError, &empty(), b)?;
+            let result = geometry::project(&geometry, geometry::Child::UnionResult, &child, b)?;
+            let expected = error_union(
+                Value::from_geometry(error, Vec::new()),
+                Value::from_geometry(result, locals),
+                b,
+            )?;
+            if expected.life != *life {
+                return Err(fail(
+                    "semantic ErrorUnion changes its complete Dyn child domain",
+                ));
+            }
         }
         Type::Closure(id) => {
             let definition = inventory
@@ -1114,11 +1552,11 @@ pub(super) fn resolved(
                     } else {
                         StoredBorrowMode::SharedAddress
                     }
-                || !life.nominal_arguments.is_empty()
             {
                 return Err(fail("semantic address loses its exact outer occurrence"));
             }
             let child_life = match inner.as_ref() {
+                Type::Dyn { .. } | Type::OwnedDyn { .. } => dyn_domain(inner, inventory, b)?,
                 Type::MutexGuard { .. } => mutex_guard_domain(inner, b)?,
                 Type::BorrowedStorage { life, .. } => {
                     crate::dyn_metadata::shape(life, b)?;
@@ -1159,11 +1597,6 @@ pub(super) fn resolved(
                     empty()
                 }
             };
-            if life.retained.len() != child_life.binder_count as usize {
-                return Err(fail(
-                    "semantic address omits or duplicates a Pointee class occurrence",
-                ));
-            }
             let mut child_expressions = Vec::new();
             let mut local_classes = Vec::new();
             for child in 0..child_life.binder_count {
@@ -1187,25 +1620,17 @@ pub(super) fn resolved(
                 put(&mut child_expressions, expression.clone(), b)?;
                 put(&mut local_classes, Class::Local(binder), b)?;
             }
-            crate::dyn_metadata::ty(inner, b)?;
-            crate::dyn_metadata::shape(&child_life, b)?;
-            let child = SemanticTypeValue::Resolved {
-                ty: inner.as_ref().clone(),
-                life: child_life.clone(),
-                classes: child_expressions,
-            };
-            // Recursively validate the child's intrinsic domain. External image
-            // equality does not shrink that domain or its phantom inventory.
-            resolved(instance, &child, inventory, b, depth + 1)?;
-            crate::dyn_metadata::ty(inner, b)?;
+            let child = geometry::project(&geometry, geometry::Child::Inner, &child_life, b)?;
+            // Recursively validate the complete child with its actual fresh
+            // expressions. Only immutable physical geometry is shared.
+            resolved_parts(
+                instance, &child.ty, &child.life, &child_expressions,
+                inventory, b, depth + 1,
+            )?;
             let expected = address(
                 *mutable,
                 Class::Local(0),
-                Value {
-                    ty: inner.as_ref().clone(),
-                    life: child_life,
-                    classes: local_classes,
-                },
+                Value::from_geometry(child, local_classes),
                 b,
             )?;
             if expected.life != *life {
@@ -1238,8 +1663,193 @@ pub(super) fn resolved(
         put(&mut images, image, b)?;
     }
     Ok(Value {
-        ty: ty.clone(),
-        life: life.clone(),
+        geometry,
         classes: images,
     })
+}
+
+#[cfg(test)]
+mod geometry_tests {
+    use super::*;
+
+    #[test]
+    fn sum_preserves_unused_success_classes_and_whole_child_identity() {
+        let mut budget = Budget::new(&zil_base::Limits::default());
+        let success = Value::new(
+            Type::Closure(ClosureId(0)),
+            StorageLifeShape {
+                binder_count: 2,
+                slots: Vec::new(),
+                retained: Vec::new(),
+                nominal_arguments: Vec::new(),
+            },
+            vec![Class::Local(7), Class::Local(9)],
+        );
+        let sum = error_union(scalar(Type::U8), success, &mut budget).unwrap();
+        assert_eq!(sum.classes, vec![Class::Local(7), Class::Local(9)]);
+        assert_eq!(sum.life.binder_count, 2);
+        assert_eq!(sum.life.retained.len(), 2);
+        for (index, row) in sum.life.retained.iter().enumerate() {
+            assert_eq!(
+                row.path,
+                vec![LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))]
+            );
+            assert_eq!(row.class, index as u32);
+            assert_eq!(row.binder, index as u32);
+        }
+        let missing = Value::new(
+            Type::Closure(ClosureId(0)),
+            StorageLifeShape {
+                binder_count: 2,
+                slots: Vec::new(),
+                retained: Vec::new(),
+                nominal_arguments: Vec::new(),
+            },
+            vec![Class::Local(7)],
+        );
+        assert!(error_union(scalar(Type::U8), missing, &mut budget).is_err());
+    }
+
+    #[test]
+    fn shared_layout_keeps_independent_complete_class_images() {
+        let mut budget = Budget::new(&zil_base::Limits::default());
+        let first = address(false, Class::Local(0), scalar(Type::I32), &mut budget).unwrap();
+        let other = first
+            .with_classes(vec![Class::Local(1)], &mut budget)
+            .unwrap();
+        assert!(std::sync::Arc::ptr_eq(&first.geometry, &other.geometry));
+        assert_ne!(first, other);
+        assert_eq!(first, first.copy(&mut budget).unwrap());
+
+        // The same physical child Type can carry a different whole intrinsic
+        // domain and current image. Constructor reuse must rebuild the full
+        // outer/child partition rather than returning the old geometry.
+        let child = |class| {
+            Value::new(
+                Type::Closure(ClosureId(0)),
+                StorageLifeShape {
+                    binder_count: 1,
+                    slots: Vec::new(),
+                    retained: Vec::new(),
+                    nominal_arguments: Vec::new(),
+                },
+                vec![class],
+            )
+        };
+        let merged = address(false, Class::Local(0), child(Class::Local(0)), &mut budget).unwrap();
+        let separate =
+            address(false, Class::Local(0), child(Class::Local(1)), &mut budget).unwrap();
+        assert_eq!(merged.ty, separate.ty);
+        assert_eq!(merged.life.binder_count, 1);
+        assert_eq!(separate.life.binder_count, 2);
+        assert_eq!(merged.classes, vec![Class::Local(0)]);
+        assert_eq!(separate.classes, vec![Class::Local(0), Class::Local(1)]);
+        assert!(!std::sync::Arc::ptr_eq(
+            &merged.geometry,
+            &separate.geometry
+        ));
+    }
+
+    #[test]
+    fn address_transports_complete_child_forest_and_phantom_actuals() {
+        let mut budget = Budget::new(&zil_base::Limits::default());
+        let declaration = LifeDeclarationId {
+            module: zil_base::ModuleId(0), declaration: zil_base::NodeId(7), compiler: false,
+        };
+        let child_life = StorageLifeShape {
+            binder_count: 2,
+            slots: vec![StorageLifeSlot { path: vec![PlaceProjection::Field(0)], binder: 0,
+                mode: StoredBorrowMode::SharedAddress }],
+            retained: vec![StorageRetainedBinding { path: vec![LifeTypeProjection::Place(PlaceProjection::Field(1))], class: 0, binder: 0 }],
+            nominal_arguments: vec![
+                NominalLifeArgument { path: Vec::new(), declaration, argument: 2, binder: 0 },
+                NominalLifeArgument { path: Vec::new(), declaration, argument: 4, binder: 1 },
+            ],
+        };
+        let child = Value::new(Type::BorrowedStorage {
+            storage: Box::new(Type::Record { name: "Holder".into(), fields: vec![
+                ("pointer".into(), Type::Address { mutable: false, inner: Box::new(Type::I32) }),
+                ("callback".into(), Type::Closure(ClosureId(0))),
+            ] }), life: child_life.clone(),
+        }, child_life.clone(), vec![Class::Local(7), Class::Local(9)]);
+        let parent = address(false, Class::Local(3), child.copy(&mut budget).unwrap(), &mut budget).unwrap();
+        assert_eq!(parent.life.binder_count, 3);
+        assert_eq!(parent.life.slots.len(), 1);
+        assert!(parent.life.slots[0].path.is_empty());
+        assert_eq!(parent.life.retained, vec![
+            StorageRetainedBinding { path: vec![LifeTypeProjection::Pointee], class: 0, binder: 1 },
+            StorageRetainedBinding { path: vec![LifeTypeProjection::Pointee], class: 1, binder: 2 },
+            StorageRetainedBinding { path: vec![LifeTypeProjection::Pointee, LifeTypeProjection::Place(PlaceProjection::Field(1))], class: 0, binder: 1 },
+        ]);
+        assert_eq!(parent.life.nominal_arguments, vec![
+            NominalLifeArgument { path: vec![LifeTypeProjection::Pointee], declaration, argument: 2, binder: 1 },
+            NominalLifeArgument { path: vec![LifeTypeProjection::Pointee], declaration, argument: 4, binder: 2 },
+        ]);
+        let coincident = parent.with_classes(vec![Class::Local(3); 3], &mut budget).unwrap();
+        assert_eq!(coincident.life, parent.life);
+        assert_eq!(coincident.life.binder_count, 3);
+        let mut missing = child.copy(&mut budget).unwrap();
+        missing.classes.pop();
+        assert!(address(false, Class::Local(3), missing, &mut budget).is_err());
+        let mut dangling = child;
+        dangling.geometry_mut(&mut budget).unwrap().life.nominal_arguments[1].binder = 2;
+        assert!(address(false, Class::Local(3), dangling, &mut budget).is_err());
+    }
+
+    #[test]
+    fn borrowed_nominal_actuals_keep_full_type_and_phantom_domain_equality() {
+        let ty = Type::I32;
+        let expected = ExpectedActual::Type {
+            ty: &ty,
+            life: None,
+        };
+        assert!(actual_equal(&LifeNominalActual::Type(Type::I32), &expected));
+        assert!(!actual_equal(
+            &LifeNominalActual::Type(Type::U32),
+            &expected
+        ));
+        assert!(actual_equal(
+            &LifeNominalActual::QualifiedType {
+                ty: Type::I32,
+                life: empty()
+            },
+            &expected
+        ));
+        let mut phantom = empty();
+        phantom.binder_count = 1;
+        assert!(!actual_equal(
+            &LifeNominalActual::QualifiedType {
+                ty: Type::I32,
+                life: phantom
+            },
+            &expected
+        ));
+    }
+
+    #[test]
+    fn changing_shared_geometry_preserves_the_original_layout_and_classes() {
+        let mut budget = Budget::new(&zil_base::Limits::default());
+        let first = address(false, Class::Local(0), scalar(Type::I32), &mut budget).unwrap();
+        let mut other = first.copy(&mut budget).unwrap();
+        let diagnostic = format!("{first:?}");
+        assert!(first.equal_paid(&other, &mut budget).unwrap());
+        assert_eq!(diagnostic, format!("{first:?}"));
+        let different_classes = first
+            .with_classes(vec![Class::Local(1)], &mut budget)
+            .unwrap();
+        assert!(!first.equal_paid(&different_classes, &mut budget).unwrap());
+        let before = budget.remaining();
+        let geometry = other.geometry_mut(&mut budget).unwrap();
+        let Type::Address { mutable, .. } = &mut geometry.ty else {
+            panic!()
+        };
+        *mutable = true;
+        geometry.life.slots[0].mode = StoredBorrowMode::ExclusiveAddress;
+        assert!(budget.remaining() < before);
+        assert!(matches!(first.ty, Type::Address { mutable: false, .. }));
+        assert!(matches!(other.ty, Type::Address { mutable: true, .. }));
+        assert_eq!(first.classes, other.classes);
+        assert_ne!(first, other);
+        assert!(!first.equal_paid(&other, &mut budget).unwrap());
+    }
 }

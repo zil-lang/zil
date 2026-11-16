@@ -843,87 +843,90 @@ impl CompilationSession {
             report,
             observer,
             || {
-                let inference =
-                    zil_types::infer_shared_program_for_ct(&expanded.core, &options.limits)?;
-                let inferred = inference.program();
-                let mut remaining = expanded.selection.remaining(&options.limits)?;
-                if let Some(usage) = &expanded.ct_usage {
-                    remaining.max_ct_steps = remaining
-                        .max_ct_steps
-                        .checked_sub(usage.steps)
-                        .ok_or_else(|| {
-                            vec![Diagnostic::limit(
-                                Phase::Ct,
-                                "Type/Syntax CT step budget exceeded",
-                                None,
-                            )]
-                        })?;
-                    remaining.max_nodes = remaining
-                        .max_nodes
-                        .checked_sub(usage.generated_nodes as usize)
-                        .ok_or_else(|| {
-                            vec![Diagnostic::limit(
-                                Phase::Ct,
-                                "Type/Syntax CT generated node budget exceeded",
-                                None,
-                            )]
-                        })?;
-                }
-                let context = zil_ct::SourceProgramContext::new(inferred, &remaining)?;
-                let initial_remaining = remaining.clone();
-                let mut unchanged = true;
-                for module in &inferred.modules {
-                    let Some(usage) = zil_ct::validate_unchanged_source(
-                        &module.core,
-                        &options.target,
-                        &remaining,
-                        Some(&context),
-                    ) else {
-                        unchanged = false;
-                        break;
-                    };
-                    charge_ct_usage(&mut remaining, usage?, module.core.functions.len())?;
-                }
-                if unchanged {
+                (|| {
+                    let inference =
+                        zil_types::infer_shared_program_for_ct(&expanded.core, &options.limits)?;
+                    let inferred = inference.program();
+                    let mut remaining = expanded.selection.remaining(&options.limits)?;
+                    if let Some(usage) = &expanded.ct_usage {
+                        remaining.max_ct_steps = remaining
+                            .max_ct_steps
+                            .checked_sub(usage.steps)
+                            .ok_or_else(|| {
+                                vec![Diagnostic::limit(
+                                    Phase::Ct,
+                                    "Type/Syntax CT step budget exceeded",
+                                    None,
+                                )]
+                            })?;
+                        remaining.max_nodes = remaining
+                            .max_nodes
+                            .checked_sub(usage.generated_nodes as usize)
+                            .ok_or_else(|| {
+                                vec![Diagnostic::limit(
+                                    Phase::Ct,
+                                    "Type/Syntax CT generated node budget exceeded",
+                                    None,
+                                )]
+                            })?;
+                    }
+                    let context = zil_ct::SourceProgramContext::new(inferred, &remaining)?;
+                    let initial_remaining = remaining.clone();
+                    let mut unchanged = true;
+                    for module in &inferred.modules {
+                        let Some(usage) = zil_ct::validate_unchanged_source(
+                            &module.core,
+                            &options.target,
+                            &remaining,
+                            Some(&context),
+                        ) else {
+                            unchanged = false;
+                            break;
+                        };
+                        charge_ct_usage(&mut remaining, usage?, module.core.functions.len())?;
+                    }
+                    if unchanged {
+                        drop(context);
+                        return Ok(RawSnapshot::ProjectCore(Arc::new(
+                            inference.into_prepared(),
+                        )));
+                    }
+                    // A plain prefix performed no CT queries or mutation. The full
+                    // evaluator starts with its original logical allowance.
+                    remaining = initial_remaining;
+                    let mut modules = Vec::new();
+                    for module in &inferred.modules {
+                        // Restrict execution to the remaining graph allowance BEFORE
+                        // entering the CT verifier/VM, then deduct actual usage.
+                        let compiler = super::ct_program::Compiler {
+                            program: inferred,
+                            module: module.core.module_id,
+                            target: &options.target,
+                        };
+                        let (core, usage) = zil_ct::evaluate_source_constants_with_compiler(
+                            &module.core,
+                            &options.target,
+                            &remaining,
+                            Some(&context),
+                            &compiler,
+                        )?;
+                        charge_ct_usage(&mut remaining, usage, core.functions.len())?;
+                        modules.push(ProgramModule {
+                            core,
+                            imports: module.imports.clone(),
+                            exports: module.exports.clone(),
+                        });
+                    }
                     drop(context);
-                    return Ok(RawSnapshot::ProjectCore(Arc::new(
-                        inference.into_prepared(),
-                    )));
-                }
-                // A plain prefix performed no CT queries or mutation. The full
-                // evaluator starts with its original logical allowance.
-                remaining = initial_remaining;
-                let mut modules = Vec::new();
-                for module in &inferred.modules {
-                    // Restrict execution to the remaining graph allowance BEFORE
-                    // entering the CT verifier/VM, then deduct actual usage.
-                    let compiler = super::ct_program::Compiler {
-                        program: inferred,
-                        module: module.core.module_id,
-                        target: &options.target,
-                    };
-                    let (core, usage) = zil_ct::evaluate_source_constants_with_compiler(
-                        &module.core,
-                        &options.target,
-                        &remaining,
-                        Some(&context),
-                        &compiler,
-                    )?;
-                    charge_ct_usage(&mut remaining, usage, core.functions.len())?;
-                    modules.push(ProgramModule {
-                        core,
-                        imports: module.imports.clone(),
-                        exports: module.exports.clone(),
-                    });
-                }
-                drop(context);
-                Ok(RawSnapshot::ProjectCore(Arc::new(
-                    inference.after_evaluation(CoreProgram {
-                        root: project.root,
-                        source_fingerprint: fingerprint,
-                        modules,
-                    }),
-                )))
+                    Ok(RawSnapshot::ProjectCore(Arc::new(
+                        inference.after_evaluation(CoreProgram {
+                            root: project.root,
+                            source_fingerprint: fingerprint,
+                            modules,
+                        }),
+                    )))
+                })()
+                .map_err(super::ct_program::ct_errors)
             },
         )?;
         let RawSnapshot::ProjectCore(prepared) = raw else {

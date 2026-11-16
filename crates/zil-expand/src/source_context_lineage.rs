@@ -5,6 +5,21 @@ use crate::ct_selection::Visitor;
 use crate::generics::origins::Origins;
 use zil_base::{CompileResult, Limits};
 use zil_syntax::ast::{self as s, Module};
+#[path = "source_ast_storage.rs"]
+mod storage;
+
+// A frozen source snapshot is input data for later CT and runtime checks.
+// Walk every syntax form for clone cost; the runtime specialization walk has
+// a different stage contract and rejects valid unexecuted CT syntax.
+struct FrozenCopy<'a, 'l>(&'a mut Budget<'l>);
+impl Visitor for FrozenCopy<'_, '_> {
+    fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+        self.0.node(span, depth).map_err(|error| vec![error])
+    }
+    fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+        self.0.text(text, span).map_err(|error| vec![error])
+    }
+}
 
 struct Discovery<'a, 'l>(&'a mut Budget<'l>, bool);
 impl Visitor for Discovery<'_, '_> {
@@ -189,8 +204,67 @@ fn capture_impl(
                         bad(item.span, "captured original declaration is absent")
                     })?);
                 }
+                let (original, generated) = match resolved.declarations() {
+                    DeclarationPlacement::Aligned(supplied) => {
+                        budget.identity_work(supplied.len(), module.span)?;
+                        let row = supplied
+                            .iter()
+                            .find(|row| row.module == module.id)
+                            .ok_or_else(|| {
+                                bad(module.span, "aligned original source tree is absent")
+                            })?;
+                        if row.original.id != module.id {
+                            return Err(bad(
+                                module.span,
+                                "aligned original source tree changes module",
+                            ));
+                        }
+                        budget
+                            .identity_work(row.generated.trees.len().saturating_add(1), module.span)?;
+                        budget.lineage_bytes(
+                            row.generated
+                                .trees
+                                .len()
+                                .saturating_mul(
+                                    std::mem::size_of::<std::sync::Arc<GeneratedSourceTree>>(),
+                                ),
+                            module.span,
+                        )?;
+                        (row.original.clone(), row.generated.clone())
+                    }
+                    DeclarationPlacement::Original => {
+                        let before = budget.remaining_limits();
+                        let original = budget.metadata_scope(module.span, false, |budget| {
+                            for item in &module.items {
+                                FrozenCopy(budget)
+                                    .item(item, 0)
+                                    .map_err(|mut errors| errors.remove(0))?;
+                            }
+                            // Syntax node/work/depth bounds above are unchanged.
+                            // Charge only the heap actually retained by this clone.
+                            storage::module(module, budget)?;
+                            Ok(std::sync::Arc::new((*module).clone()))
+                        }).map_err(|mut error| {
+                            let left = budget.remaining_limits();
+                            error.notes.push(format!(
+                                "original Module {} frozen AST clone: temporary allowance {} -> {}, work {} -> {}, nodes {} -> {}",
+                                module.id.0, before.max_source_bytes, left.max_source_bytes,
+                                before.max_analysis_steps, left.max_analysis_steps,
+                                before.max_nodes, left.max_nodes,
+                            ));
+                            error
+                        })?;
+                        (original, GeneratedSourceCatalog::default())
+                    }
+                    DeclarationPlacement::Unavailable => {
+                        return Err(bad(module.span, "original source tree is unavailable"));
+                    }
+                };
+                budget.lineage_bytes(std::mem::size_of::<ModuleDeclarationOrigins>(), module.span)?;
                 captured.push(ModuleDeclarationOrigins {
                     module: module.id,
+                    original,
+                    generated,
                     items,
                 });
             }
@@ -205,6 +279,39 @@ fn capture_impl(
 mod tests {
     use super::*;
     use zil_base::{FileId, ResultCategory};
+
+    #[test]
+    fn original_capture_retains_unexecuted_ct_syntax() {
+        let source = SourceUnit::new(
+            FileId(12),
+            ModuleId(7),
+            "ct-original.zil",
+            "fn unused(s:Syntax<Expr>)->Syntax<Expr>{return quote<Expr>{ $(s)+1 }} \
+             fn statements(){#emit quote<StmtList>{let x=1;};} \
+             #emit quote<ItemList>{fn generated(){}}",
+        );
+        let parsed = zil_syntax::parse(&source);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let aliases = BTreeMap::new();
+        let context = SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Original,
+        };
+        let limits = Limits::default();
+        let (captured, left) = capture_original_impl(
+            std::slice::from_ref(&source),
+            &[&parsed.module],
+            context,
+            &limits,
+        )
+        .unwrap();
+        let captured = captured.unwrap();
+        assert_eq!(captured[0].original.as_ref(), &parsed.module);
+        assert_eq!(captured[0].items.len(), 3);
+        assert!(left.max_source_bytes < limits.max_source_bytes);
+        assert!(left.max_nodes < limits.max_nodes);
+    }
 
     #[test]
     fn original_capture_keeps_actual_rows_and_pays_discovery() {

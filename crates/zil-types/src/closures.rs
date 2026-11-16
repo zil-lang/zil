@@ -6406,8 +6406,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
     }
     fn reserve_signature(&self, signature: &Signature, span: Span) -> R<()> {
         if let Some(bindings) = &signature.retained_return_sources {
-            inference::charge_return_sources(bindings, self.limits, span, |n| {
-                self.graph.spend_count(n, span)
+            inference::charge_return_sources(bindings, self.limits, span, |charge| match charge {
+                inference::ReturnSourceCharge::Work(work) => self.graph.spend_count(work, span),
+                inference::ReturnSourceCharge::Type(ty) => self.graph.reserve_type(ty, 0, span),
             })?;
         }
         if let Some(life) = &signature.storage_life {

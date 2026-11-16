@@ -89,7 +89,18 @@ pub(super) fn populate(
     left: &mut usize,
 ) -> R<()> {
     invocations::seed(program, module, ledger, limits, left)?;
-    let view = super::materialize::ActualDirectory::from_module_at(module, "creator_headers");
+    let view = if let Some(context) = ledger.original.context() {
+        super::materialize::ActualDirectory::indexed(
+            module,
+            program,
+            context,
+            "creator_headers",
+            limits,
+            left,
+        )?
+    } else {
+        super::materialize::ActualDirectory::from_module_at(module, "creator_headers")
+    };
     let mut changes = Vec::new();
     for instance in &program.instances {
         pay(left, 1)?;

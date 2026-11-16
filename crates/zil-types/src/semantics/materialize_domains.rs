@@ -155,7 +155,7 @@ impl Eval<'_, '_, '_> {
         } = recipe
         {
             self.node(depth)?;
-            let expanded = self.original_type(scope, *selector, source, depth + 1)?;
+            let expanded = self.original_type_view(scope, *selector, source, depth + 1)?;
             if let Some(value) =
                 self.original_result_boundary(scope, *selector, source, hint, depth + 1)?
             {
@@ -645,17 +645,16 @@ impl Eval<'_, '_, '_> {
                         binder: *binder,
                     });
                 }
-            } else {
-                for row in child.retained {
-                    self.fee(row.path.len().saturating_add(2))?;
-                    let mut path = vec![LifeTypeProjection::Place(PlaceProjection::Field(ordinal))];
-                    path.extend(row.path);
-                    life.retained.push(StorageRetainedBinding {
-                        path,
-                        class: row.class,
-                        binder: mapped(row.binder)?,
-                    });
-                }
+            }
+            for row in child.retained {
+                self.fee(row.path.len().saturating_add(2))?;
+                let mut path = vec![LifeTypeProjection::Place(PlaceProjection::Field(ordinal))];
+                path.extend(row.path);
+                life.retained.push(StorageRetainedBinding {
+                    path,
+                    class: row.class,
+                    binder: mapped(row.binder)?,
+                });
             }
             for row in child.nominal_arguments {
                 self.fee(row.path.len().saturating_add(2))?;

@@ -10,16 +10,19 @@ impl CheckedContext {
         let erased=self.evaluate_type(module,target,env,external,active,b)?;
         if erased.ty!=(Type::Dyn{interface}){return Err(bad("owning erasure selects another complete original interface"));}
         let expected=self.evaluate_type(module,original_source,env,external,active,b)?;
+        let SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(node)}=original_source else{return Err(bad("owning erasure source loses its exact original expression role"));};
+        let source_use=self.original.borrow().as_ref().ok_or_else(||bad("erasure lacks its complete original operand proof"))?.intrinsic(caller.definition,site.recipe,b)?;
+        self.call_input_source(module,caller,f,source,*node,source_use.buffer,b)?;
         let source=value_at(values,source)?;
         if !self.compatible(env,source,&expected,b)?{return Err(bad("owning erasure changes its original complete source value"));}
         b.spend(module.dyn_vtables.len())?;let mut tables=module.dyn_vtables.iter().filter(|row|row.id==vtable);let table=tables.next().ok_or_else(||bad("erasure actual provider table is absent"))?;
         if tables.next().is_some()||table.interface!=interface||table.self_type!=source.ty||table.self_life.as_ref()!=Some(&source.life)||table.self_classes.len()!=source.classes.len(){return Err(bad("erasure provider loses its whole actual Self domain"));}
         for(actual,binder)in source.classes.iter().zip(&table.self_classes){let StorageBinder::Fixed(index)=binder else{return Err(bad("erasure Self Context includes an invocation image"));};let image=erased.classes.get(*index as usize).ok_or_else(||bad("erasure Self class has no complete Context image"))?;if !self.same(env,actual,image,b)?{return Err(bad("erasure Self-to-Context transport changes an original class image"));}}
         let raw=crate::dynamic_dispatch::instruction(module,f,instruction,b)?.ok_or_else(||bad("erasure actual kernel has no result"))?;
-        let owner=CheckedType{ty:Type::OwnedDyn{interface},..erased};
+        let owner=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::OwnedDyn{interface}),..erased};
         let Type::ErrorUnion{error,..}=&raw else{return Err(bad("owning erasure kernel omits its canonical failure sum"));};
         let error=self.closed_value(module,error,b)?;
-        let mut result=CheckedType{ty:raw,life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
+        let mut result=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(raw),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
         for(arm,child)in [(true,error),(false,owner)]{let projection=PlaceProjection::ErrorArm(arm);self.attach_child(env,&mut result,&child,vec![LifeTypeProjection::Place(projection)],Some(projection),b)?;}result.life.binder_count=result.classes.len() as u32;Ok(result)
     }
     #[allow(clippy::too_many_arguments)]
@@ -31,7 +34,7 @@ impl CheckedContext {
         let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
         let outer=ClassKey::Outer{scope,operand:OperandKey::Value(result),path:vec![],mode};
         let child=match &instruction.kind{
-            InstructionKind::BorrowDynOwned{local,..}=>{let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("erased borrowing has no initialized complete owner"))?;let owner=if matches!(owner.ty,Type::Address{..}){self.child_value(module,owner,&[LifeTypeProjection::Pointee],b)?}else{owner.clone()};if owner.ty!=(Type::OwnedDyn{interface:*interface}){return Err(bad("erased borrowing changes its actual owner interface"));}CheckedType{ty:Type::Dyn{interface:*interface},..owner}},
+            InstructionKind::BorrowDynOwned{local,..}=>{let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("erased borrowing has no initialized complete owner"))?;let owner=if matches!(owner.ty,Type::Address{..}){self.child_value(module,owner,&[LifeTypeProjection::Pointee],b)?}else{owner.clone()};if owner.ty!=(Type::OwnedDyn{interface:*interface}){return Err(bad("erased borrowing changes its actual owner interface"));}CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Dyn{interface:*interface}),..owner}},
             InstructionKind::MakeDynBorrow{source,vtable,..}=>{
                 let source=self.child_value(module,value_at(values,*source)?,&[LifeTypeProjection::Pointee],b)?;
                 b.spend(module.dyn_vtables.len().saturating_add(module.dyn_interfaces.len()))?;
@@ -39,8 +42,13 @@ impl CheckedContext {
                 let shape=&module.dyn_interfaces.iter().find(|row|row.id==*interface).ok_or_else(||bad("borrowed erasure interface is absent"))?.retained_life;
                 let mut classes=vec![None;shape.binder_count as usize];let mut origins=vec![None;shape.binder_count as usize];
                 for((key,origin),binder)in source.classes.iter().zip(&source.origins).zip(&table.self_classes){let StorageBinder::Fixed(index)=binder else{return Err(bad("borrowed erasure Context includes invocation authority"));};let target=classes.get_mut(*index as usize).ok_or_else(||bad("borrowed erasure class is outside Context"))?;if let Some(previous)=target{if !self.same(env,previous,key,b)?{return Err(bad("borrowed erasure Context changes a full class image"));}}else{*target=Some(key.clone());}let target=&mut origins[*index as usize];if target.is_none(){*target=Some(origin.clone());}}
-                let classes=classes.into_iter().collect::<Option<Vec<_>>>().ok_or_else(||bad("borrowed erasure has an unanchored original Context class"))?;let origins=origins.into_iter().collect::<Option<Vec<_>>>().ok_or_else(||bad("borrowed erasure has an unanchored original Context occurrence"))?;
-                let life=StorageLifeShape{binder_count:shape.binder_count,slots:vec![],retained:vec![],nominal_arguments:vec![]};let mut child=self.construct_value(module,&Type::Dyn{interface:*interface},&life,classes,b)?;child.origins=origins;child
+                let classes=classes.into_iter().collect::<Option<Vec<_>>>().ok_or_else(||bad("borrowed erasure has an unanchored original Context class"))?;let _origins=origins.into_iter().collect::<Option<Vec<_>>>().ok_or_else(||bad("borrowed erasure has an unanchored original Context occurrence"))?;
+                dynamic_metadata::retained_shape(shape,b)?;
+                let life=StorageLifeShape{binder_count:shape.binder_count,slots:vec![],retained:shape.retained.clone(),nominal_arguments:shape.nominal_arguments.clone()};
+                // Source Self κ and the public Context κ are separate type
+                // domains. The full Self map above proves outside images;
+                // reconstruct the Context's own original nominal identities.
+                self.construct_value(module,&Type::Dyn{interface:*interface},&life,classes,b)?
             },_=>return Err(bad("erased borrowing selects another actual operation")),
         };
         dynamic_witness::semantic_external::construct(self,env,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(outer)},&[child],active,b)
@@ -57,7 +65,7 @@ impl CheckedContext {
         let application=self.application(module,&original.application,env,external,active,b)?;
         b.spend(module.dyn_interfaces.len())?;let iface=module.dyn_interfaces.iter().find(|row|row.id==*interface).ok_or_else(||bad("dynamic call actual interface is absent"))?;let selected=iface.slots.get(*slot as usize).ok_or_else(||bad("dynamic call selects no exact actual slot"))?;
         if selected.member.ordinal!=original.member||!self.dyn_application_matches(module,&application,&selected.member.application,&receiver.classes,&receiver.origins,env,b)?{return Err(bad("dynamic call selects another complete original trait/member application"));}
-        let mut actuals=Vec::new();for recipe in &original.actuals{actuals.push(match recipe{original::MethodActualRecipe::Recipe(recipe)=>self.evaluate_actual(module,recipe,env,external,active,b)?,original::MethodActualRecipe::ReceiverRole(role)=>CheckedActual::Life(self.class(module,role,env,b)?)});}
+        let mut actuals=Vec::new();for recipe in &original.actuals{actuals.push(match recipe{original::MethodActualRecipe::Recipe(recipe)=>self.evaluate_actual(module,recipe,env,external,active,b)?,original::MethodActualRecipe::ReceiverRole(role)=>CheckedActual::Life(self.class(module,role,env,b)?),original::MethodActualRecipe::SourceType(sources)=>CheckedActual::Type(self.inferred_call_type(module,sources,env,external,active,b)?.ok_or_else(||bad("dynamic method inferred whole Type lacks its exact original sources"))?)});}
         let SemanticSiteAction::BodyCall{actuals:source_claims}=&site.action else{unreachable!()};if source_claims.len()!=actuals.len()||selected.actuals.len()!=actuals.len(){return Err(bad("dynamic call loses its complete mixed method actual vector"));}
         for(value,claim)in actuals.iter().zip(source_claims){self.actual_claim(module,claim,value,env,b)?;}
         let programme=module.semantic.as_ref().ok_or_else(||bad("dynamic call lacks its original programme"))?;b.spend(programme.dyn_scopes.len())?;let mut methods=programme.dyn_scopes.iter().filter(|row|row.owner==SemanticDynOwner::MethodSignature{declaration:application.declaration,member:original.member});let method=methods.next().ok_or_else(||bad("dynamic member lacks its exact original declaration scope"))?;if methods.next().is_some(){return Err(bad("dynamic member declaration scope is ambiguous"));}
@@ -67,7 +75,9 @@ impl CheckedContext {
         selected_env.invocations=signature.invocation.clone();
         let mut boundary=trait_members::Boundary::default();
         for(value,recorded)in actuals.iter().zip(&selected.actuals){let checked=match recorded{DynGenericActual::Life(StorageBinder::Invocation(index))=>CheckedActual::Life(signature.invocation.get(*index as usize).ok_or_else(||bad("slot method Life escapes its invocation domain"))?.clone()),DynGenericActual::Life(StorageBinder::Fixed(index))=>CheckedActual::Life(receiver.classes.get(*index as usize).ok_or_else(||bad("slot method Life escapes its complete Context"))?.clone()),DynGenericActual::Type(ty)=>CheckedActual::Type(self.construct_value(module,ty,&empty_life(),vec![],b)?),DynGenericActual::QualifiedType(value)=>self.dyn_method_actual(module,value,&receiver.classes,&receiver.origins,&signature.invocation,b).map(CheckedActual::Type)?,DynGenericActual::Const(value)=>CheckedActual::Const{carrier:atomic(&value.ty(),b)?,value:value.clone()}};boundary.actual(self,env,&checked,value,b)?;}
-        if signature.parameters.len()!=arguments.len()+1||signature.parameters[0].1!=selected.receiver.mode||signature.parameters.iter().skip(1).map(|(_,mode)|*mode).collect::<Vec<_>>()!=selected.parameter_modes||signature.result_mode!=selected.result_mode||signature.call_kind!=selected.call_kind||signature.result.ty!=selected.result||signature.parameters.iter().skip(1).map(|(value,_)|value.ty.clone()).collect::<Vec<_>>()!=selected.parameters{return Err(bad("dynamic slot whole ABI differs from its exact original signature"));}
+        for(value,_)in &signature.parameters{dynamic_metadata::ty(&value.ty,b)?;}
+        dynamic_metadata::ty(&signature.result.ty,b)?;
+        if signature.parameters.len()!=arguments.len()+1||signature.parameters[0].1!=selected.receiver.mode||signature.parameters.iter().skip(1).map(|(_,mode)|*mode).collect::<Vec<_>>()!=selected.parameter_modes||signature.result_mode!=selected.result_mode||signature.call_kind!=selected.call_kind||signature.result.ty!=selected.result||signature.parameters.iter().skip(1).map(|(value,_)|&value.ty).ne(selected.parameters.iter()){return Err(bad("dynamic slot whole ABI differs from its exact original signature"));}
         for((expected,_),actual)in signature.parameters.iter().zip(std::iter::once(callee).chain(arguments)){boundary.value(self,env,expected,value_at(values,*actual)?,b)?;}
         self.evaluate_requirements(module,&definition.requirements,&selected_env,RequirementMode::ActualObligation,external,active,b)?;
         for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{self.evaluate_requirements(module,requirements,&selected_env,RequirementMode::ActualObligation,external,active,b)?;}}

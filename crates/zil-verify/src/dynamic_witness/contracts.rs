@@ -1,6 +1,7 @@
 //! Independent source-contract substitution. This creates a finite upper and
 //! complete typed operands, never a proof that an executable body respects it.
 use super::*;
+pub(super) mod defaults;
 
 pub(super) fn materialize(
     recipe: &DynContractRecipe,
@@ -334,7 +335,7 @@ pub(super) fn charge(module: &TypedModule, contract: &DynContract, b: &mut Budge
                 }
                 b.spend(binding.sources.len())?;
                 for source in &binding.sources {
-                    position(crate::exact_storage_source(source)?, b)?;
+                    dynamic_metadata::source(source, b)?;
                 }
             }
             DynGuarantee::State {
@@ -360,7 +361,7 @@ pub(super) fn charge(module: &TypedModule, contract: &DynContract, b: &mut Budge
         }
         b.spend(sources.len())?;
         for source in sources {
-            position(crate::exact_storage_source(source)?, b)?;
+            dynamic_metadata::source(source, b)?;
         }
     }
     for effect in contract.effects.iter().flatten() {
@@ -510,4 +511,38 @@ mod tests {
         *mode = StoredBorrowMode::ExclusiveAddress;
         assert!(interpret(&wrong, &mut Budget::new(&limits)).is_err());
     }
+    #[test]
+    fn complete_source_metadata_charges_all_atom_kinds_without_claiming_a_region() {
+        let limits=Limits::default();let(mut module,_)=crate::tests::baseline();
+        let input=position(StorageBase::Parameter(0));
+        let leaf=Type::Address{mutable:false,inner:Box::new(Type::I32)};
+        let sources=vec![
+            StorageSource::Exact(input.clone()),
+            StorageSource::PlaceAddress{place:StoragePosition{base:input.base,path:vec![ContractProjection::Place(PlaceProjection::Field(1))]},mode:StoredBorrowMode::SharedAddress},
+            StorageSource::OwnedView{head:input.clone(),leaf:leaf.clone(),mode:StoredBorrowMode::SharedAddress},
+            StorageSource::ReborrowedLeaf{source:StoragePosition{base:input.base,path:vec![ContractProjection::RetainedPort(0)]},head:input},
+            StorageSource::Static{leaf,mode:StoredBorrowMode::SharedAddress},
+        ];
+        module.functions[0].retained_return_sources=Some(vec![StorageSourceBinding{position:position(StorageBase::Result),sources}]);
+        let bytes=zil_ir::wire::encode_module_candidate(&module,&CandidatePlan::empty_for(&module),&limits).unwrap();
+        let(decoded,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+        for module in [&module,&decoded]{
+            let rows=module.functions[0].retained_return_sources.as_ref().unwrap();
+            let contract=DynContract{
+                requires:Some(vec![]),guarantees:Some(vec![DynGuarantee::StorageSources(rows[0].clone())]),hold:Some(vec![]),call:Some(DynCallAccess{reads:vec![],writes:vec![]}),
+                result:Some(DynResultSource::Borrow{sources:rows[0].sources.clone(),mutable:false}),cleanup:Some(DynCleanupContract{environment:false,positions:vec![],access:DynCallAccess{reads:vec![],writes:vec![]},effects:vec![]}),effects:Some(vec![]),resume:Some(DynResumeBound::Local),threads:Some(DynThreadRequirements{transfer:false,share:false}),
+            };
+            let before=contract.clone();let mut b=Budget::new(&limits);
+            charge(module,&contract,&mut b).unwrap();
+            assert_eq!(contract,before,"metadata metering does not rewrite source categories");
+            assert!(b.proven_static_occurrences.is_empty(),"a Static tag is no provenance witness");
+            assert!(b.pending_dyn_contracts.methods.is_empty()&&b.pending_dyn_contracts.callables.is_empty(),"metering constructs no executable region proof");
+            let cost=limits.max_analysis_steps-b.remaining;
+            let mut short=limits.clone();short.max_analysis_steps=cost-1;
+            assert_eq!(charge(module,&contract,&mut Budget::new(&short)).unwrap_err().category,zil_base::ResultCategory::ResourceLimit);
+            let mut exact=limits.clone();exact.max_analysis_steps=cost;
+            charge(module,&contract,&mut Budget::new(&exact)).unwrap();
+        }
+    }
+
 }

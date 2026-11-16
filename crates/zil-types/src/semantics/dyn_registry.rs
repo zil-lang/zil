@@ -3,6 +3,8 @@
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::NodeId;
+#[path = "dyn_registry_instances.rs"]
+mod instances;
 
 pub(crate) fn relocate(
     program: &SemanticModule,
@@ -11,6 +13,7 @@ pub(crate) fn relocate(
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
+    instances::complete(program, module, ledger, limits, left)?;
     provider_fee(
         left,
         module.functions.len().saturating_add(ledger.frames.len()),

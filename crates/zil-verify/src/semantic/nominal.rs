@@ -24,11 +24,8 @@ impl CheckedContext {
                 "Nominal recipe selects another original definition kind",
             ));
         };
-        b.spend(module.life_declarations.len())?;
-        let mut declarations = module
-            .life_declarations
-            .iter()
-            .filter(|row| row.id == *declaration);
+        let rows=dynamic_metadata::nominal_declarations(module,*declaration,b)?;
+        let mut declarations=rows.into_iter();
         if let Some(actual) = declarations.next() {
             if declarations.next().is_some()
                 || actual.identity != definition.identity
@@ -175,11 +172,7 @@ impl CheckedContext {
             }
         };
         let mut selected = None;
-        b.spend(module.life_instances.len())?;
-        for instance in &module.life_instances {
-            if instance.declaration != *declaration {
-                continue;
-            }
+        for instance in dynamic_metadata::nominal_instances(module,*declaration,b)? {
             if let Some(candidate) = self.nominal_candidate(
                 module,
                 &instance.ty,
@@ -197,12 +190,8 @@ impl CheckedContext {
         // Known0 ordinary nominals may have no stored-life inventory. Their
         // real nominal scope instance supplies the exact original identity;
         // neither a type name nor a same-layout type search is accepted.
-        if let Some(program) = &module.semantic {
-            b.spend(program.instances.len())?;
-            for instance in &program.instances {
-                if instance.definition != id || instance.target != SemanticInstanceTarget::Scope {
-                    continue;
-                }
+        if module.semantic.is_some() {
+            for instance in dynamic_metadata::nominal_scope_instances(module,id,b)? {
                 let Some(value) = &instance.self_type else {
                     continue;
                 };
@@ -249,12 +238,12 @@ impl CheckedContext {
         caller: &EvalEnv,
         b: &mut Budget,
     ) -> Check<Option<CheckedType>> {
-        dynamic_metadata::ty(ty, b)?;
+        dynamic_metadata::bounds_type(ty, b)?;
         if recorded.len() != actuals.len() {
             return Ok(None);
         }
         let life = match ty {
-            Type::BorrowedStorage { life, .. } => life.clone(),
+            Type::BorrowedStorage { life, .. } => {dynamic_metadata::life_shape(life,b)?;life.clone()},
             _ => empty_life(),
         };
         if life.binder_count as usize > b.limits.max_nodes {
@@ -334,15 +323,14 @@ impl CheckedContext {
         }
         // This checks the full actual nominal metadata without treating its
         // outside images as proof that existing child classes are identical.
-        let raw = DynTypeValue {
-            ty: ty.clone(),
-            life: life.clone(),
-            classes: (0..life.binder_count).map(StorageBinder::Fixed).collect(),
-        };
         if !self.domain_only.get(){
-            dynamic_witness::check_type_value(
+            b.spend(life.binder_count as usize)?;
+            let inventory_classes:Vec<_>=(0..life.binder_count).map(StorageBinder::Fixed).collect();
+            dynamic_witness::check_type_parts(
                 module,
-                &raw,
+                ty,
+                &life,
+                &inventory_classes,
                 DynInstantiationScope {
                     fixed_binder_count: life.binder_count,
                     invocation_binder_count: 0,
@@ -350,8 +338,7 @@ impl CheckedContext {
                 b,
             )?;
         }
-        Ok(Some(CheckedType {
-            ty: ty.clone(),
+        Ok(Some(CheckedType {type_cell: self.shared_type_cell(ty,b)?,
             life,
             classes,
             origins,

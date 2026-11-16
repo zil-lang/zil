@@ -3,6 +3,30 @@
 //! static pending occurrences keep their separate consumers.
 use super::*;
 impl CheckedContext {
+    pub(super) fn closed_pointee(&self,module:&TypedModule,ty:&Type,b:&mut Budget)->Check<CheckedType>{
+        let Type::Slice{element}=ty else{return self.closed_value(module,ty,b);};
+        // A slice is unsized metadata below one real Address. The independent
+        // operation already selected its actual parent head; no bare Slice
+        // value, allocation, Copy grant or new data root is constructed here.
+        dynamic_metadata::ty(ty,b)?;
+        crate::slices::target(&module.target)?;
+        crate::slices::check_pointee(ty,None)?;
+        let element=self.closed_value(module,element,b)?;
+        if !element.ty.is_copy_value()||element.life!=empty_life()||!element.classes.is_empty()||!element.origins.is_empty()||!element.statics.is_empty(){return Err(bad("closed slice pointee lacks its complete finite Copy element domain"));}
+        self.checked_value(module,ty,&empty_life(),vec![],b)
+    }
+    fn closed_code(&self,module:&TypedModule,ty:&Type,b:&mut Budget)->Check<CheckedType>{
+        let(parameters,result,foreign)=match ty{
+            Type::FunctionPointer{parameters,result}=>(parameters,result,false),
+            Type::ForeignCallback{parameters,result}=>(parameters,result,true),
+            _=>return Err(bad("closed code metadata selects another actual code carrier")),
+        };
+        b.spend(parameters.len().saturating_add(1))?;
+        let mut inputs=Vec::new();for parameter in parameters{inputs.push((self.closed_value(module,parameter,b)?,PassingMode::Infer));}
+        let signature=CheckedSignature{parameters:inputs,result:self.closed_value(module,result,b)?,result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound:vec![],invocation:vec![]};
+        let value=if foreign{self.foreign_callback_code(module,&signature,b)?}else{self.ordinary_code(module,SemanticCodeKind::FunctionPointer,&signature,b)?};
+        if &value.ty!=ty{return Err(bad("closed code metadata changes its complete encoded ABI"));}Ok(value)
+    }
     pub(super) fn closed_value(&self,module:&TypedModule,ty:&Type,b:&mut Budget)->Check<CheckedType>{
         let mut pending=vec![ty];let mut closures=std::collections::BTreeSet::new();
         while let Some(ty)=pending.pop(){b.spend(1)?;match ty{
@@ -19,7 +43,9 @@ impl CheckedContext {
                 pending.extend(&definition.captures);
             },
             Type::MutexGuard{..}|Type::Dyn{..}|Type::OwnedDyn{..}=>return Err(unsupported("opaque value requires its full checked manager/port consumer",None)),
-            Type::Slice{..}|Type::FunctionPointer{..}|Type::BorrowedFunctionPointer{..}|Type::ForeignCallback{..}=>return Err(unsupported("closed value requires its complete code/unsized scope consumer",None)),
+            Type::FunctionPointer{..}|Type::ForeignCallback{..}=>{self.closed_code(module,ty,b)?;},
+            Type::Slice{..}=>return Err(unsupported("unsized Slice metadata is valid only below its actual Address boundary",None)),
+            Type::BorrowedFunctionPointer{..}=>return Err(unsupported("borrowed code requires its complete original quantified signature consumer",None)),
             _=>{},
         }}
         let(count,_)=dynamic_witness::intrinsic_domain(module,ty,b)?;if count!=0{return Err(bad("complete value inventory has a nonzero intrinsic domain"));}

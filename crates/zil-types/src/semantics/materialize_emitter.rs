@@ -587,26 +587,21 @@ impl Eval<'_, '_, '_> {
                     "actual Task input changes its complete original worker parameter type",
                 ));
             }
-            for (class, binder) in map.iter().enumerate() {
-                retained.push(StorageRetainedBinding {
-                    path: vec![LifeTypeProjection::Parameter(ordinal)],
-                    class: class as u32,
-                    binder: *binder,
-                });
-            }
-            for row in &life.nominal_arguments {
-                self.fee(row.path.len().saturating_add(2))?;
-                let mut path = vec![LifeTypeProjection::Parameter(ordinal)];
-                path.extend_from_slice(&row.path);
-                nominal_arguments.push(NominalLifeArgument {
-                    path,
-                    declaration: row.declaration,
-                    argument: row.argument,
-                    binder: *map
-                        .get(row.binder as usize)
-                        .ok_or_else(|| bad("Task input nominal class leaves its full domain"))?,
-                });
-            }
+            let mut input_shape = StorageLifeShape {
+                binder_count: u32::try_from(classes.len())
+                    .map_err(|_| bad("Task input joint domain overflows"))?,
+                ..empty()
+            };
+            inherit_child_shape(
+                &mut input_shape,
+                life,
+                LifeTypeProjection::Parameter(ordinal),
+                &map,
+                self.limits,
+                self.left,
+            )?;
+            retained.extend(input_shape.retained);
+            nominal_arguments.extend(input_shape.nominal_arguments);
             let projected = crate::tasks::context_ports::from_type(
                 self.module,
                 ty,
@@ -681,21 +676,30 @@ impl Eval<'_, '_, '_> {
                 return Err(bad("Task result collapses two complete intrinsic indices"));
             }
             result_map.push(binder);
-            retained.push(StorageRetainedBinding {
-                path: vec![LifeTypeProjection::Result],
-                class: class as u32,
-                binder,
-            });
         }
         let binder_count =
             u32::try_from(selectors.len()).map_err(|_| bad("Task input joint domain overflows"))?;
+        let mut result_shape = StorageLifeShape {
+            binder_count,
+            slots: Vec::new(),
+            retained,
+            nominal_arguments,
+        };
+        inherit_child_shape(
+            &mut result_shape,
+            life,
+            LifeTypeProjection::Result,
+            &result_map,
+            self.limits,
+            self.left,
+        )?;
         let inputs = self.compose_tuple(domains)?;
         Ok((
             RetainedLifeShape {
                 binder_count,
                 ports,
-                retained,
-                nominal_arguments,
+                retained: result_shape.retained,
+                nominal_arguments: result_shape.nominal_arguments,
             },
             bindings,
             inputs.value,
@@ -824,13 +828,15 @@ pub(crate) fn prepare_poll(
         }
     }
     eval.fee(life.binder_count as usize)?;
-    for class in 0..life.binder_count {
-        life.retained.push(StorageRetainedBinding {
-            path: vec![LifeTypeProjection::TypeArgument(0)],
-            class,
-            binder: class,
-        });
-    }
+    let map = (0..life.binder_count).collect::<Vec<_>>();
+    inherit_child_shape(
+        &mut life,
+        &payload_life,
+        LifeTypeProjection::TypeArgument(0),
+        &map,
+        limits,
+        eval.left,
+    )?;
     let storage = Type::Enum {
         name: crate::tasks::poll_name(&payload),
         variants: vec![

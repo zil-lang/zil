@@ -20,6 +20,9 @@ impl Check<'_, '_> {
         }
         match ty {
             Type::Dyn { .. } | Type::OwnedDyn { .. } => {
+                if !empty(&value::dyn_domain(ty, self.inventory, b)?) {
+                    return Err(fail("zero-domain dynamic value retains complete Context classes"));
+                }
                 if !self.dyn_value_type(ty, b, depth + 1)? {
                     return Err(fail(
                         "dynamic zero-domain type has no complete original formation",
@@ -135,7 +138,29 @@ impl Check<'_, '_> {
         let Type::Managed(payload) = ty else {
             return Err(fail("actual resource scope has no complete owning carrier"));
         };
-        match payload.as_ref() {
+        self.resource_payload_scope(ty, payload, b, depth)
+    }
+    /// Qualify a real owning or weak carrier's payload without manufacturing a
+    /// Managed Type. This grants neither an initialized owner nor a weak loan.
+    pub(super) fn borrowed_resource_scope(
+        &self,
+        ty: &Type,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "actual resource scope exceeds its bounded inventory depth",
+            ));
+        }
+        let (Type::Managed(payload) | Type::Desc(payload)) = ty else {
+            return Err(fail("actual resource scope has no complete carrier"));
+        };
+        self.resource_payload_scope(ty, payload, b, depth)
+    }
+    fn resource_payload_scope(&self, ty: &Type, payload: &Type, b: &mut Budget, depth: usize) -> CompileResult<()> {
+        match payload {
             Type::Mutex { payload } => self.mutex_payload(payload, b),
             Type::Task { result, .. } => {
                 self.zero_data(result, b, depth + 1)?;
@@ -205,76 +230,37 @@ impl Check<'_, '_> {
                 "actual nominal cleanup exceeds its complete inventory depth",
             ));
         }
+        let source_life = match payload { Type::BorrowedStorage { life, .. } => Some(life), _ => None };
+        let geometry = self.inventory.geometry.type_value(payload, source_life, b)?;
         crate::stored_flow::validate_plain_nominal_zero(
             self.module,
-            payload,
+            &geometry.ty,
             self.inventory.limits,
             b,
         )?;
-        let mut original = None;
-        for instance in &self.module.life_instances {
-            b.spend(1, WORK)?;
-            crate::dyn_metadata::ty(payload, b)?;
-            crate::dyn_metadata::ty(&instance.ty, b)?;
-            if instance.ty != *payload {
-                continue;
+        // This same complete call freshly reconstructs all original mixed
+        // arguments, fields and N/kappa before returning the unique identity.
+        // Cleanup/provider obligations below remain independent and uncached.
+        let (original, arguments) = self.nominal_inventory_source_at(payload, b, depth + 1)?;
+        if !matches!(
+            self.inventory.definition(original, b)?.body,
+            SemanticDefinitionBody::Nominal {
+                kind: LifeNominalKind::Resource,
+                ..
             }
-            let mut found = None;
-            for definition in self.inventory.definitions.values() {
-                b.spend(1, WORK)?;
-                if let SemanticDefinitionBody::Nominal {
-                    declaration,
-                    kind: LifeNominalKind::Resource,
-                    ..
-                } = &definition.body
-                {
-                    if *declaration == instance.declaration
-                        && found.replace(definition.id).is_some()
-                    {
-                        return Err(fail(
-                            "actual resource payload has multiple original definitions",
-                        ));
-                    }
-                }
-            }
-            let definition = found.ok_or_else(|| {
-                fail("actual resource payload is not its original resource declaration")
-            })?;
-            let mut arguments = Vec::new();
-            for actual in &instance.arguments {
-                let LifeNominalActual::Type(ty) = actual else {
-                    return Err(unknown(
-                        "actual resource cleanup needs its complete mixed lifetime and constant substitution",
-                    ));
-                };
-                crate::dyn_metadata::ty(ty, b)?;
-                self.push_value(&mut arguments, ty.clone(), b)?;
-            }
-            let expected =
-                self.nominal_actual(definition, &arguments, b, depth + 1)?;
-            crate::dyn_metadata::ty(&expected, b)?;
-            crate::dyn_metadata::ty(payload, b)?;
-            if expected != *payload {
-                return Err(fail(
-                    "actual resource payload changes its original complete field substitution",
-                ));
-            }
-            if original.replace(definition).is_some() {
-                return Err(fail(
-                    "actual resource payload has multiple complete nominal instances",
-                ));
-            }
+        ) {
+            return Err(fail(
+                "actual resource payload is not its original resource declaration",
+            ));
         }
-        let original = original.ok_or_else(|| {
-            fail("actual resource payload omits its complete original nominal identity")
-        })?;
+        self.qualify_resource_nominal(original, &arguments, b, depth + 1)?;
         let drop = original::resources::drop_method(original, self.inventory, b)?;
         let mut actual = None;
         for resource in &self.module.resources {
             b.spend(1, WORK)?;
-            crate::dyn_metadata::ty(&resource.payload, b)?;
-            crate::dyn_metadata::ty(payload, b)?;
-            if resource.payload == *payload && actual.replace(resource).is_some() {
+            let source_life = match &resource.payload { Type::BorrowedStorage { life, .. } => Some(life), _ => None };
+            let candidate = self.inventory.geometry.type_value(&resource.payload, source_life, b)?;
+            if geometry::same_type(&candidate.ty, &geometry.ty, b)? && actual.replace(resource).is_some() {
                 return Err(fail(
                     "actual resource payload has multiple cleanup definitions",
                 ));
@@ -345,6 +331,57 @@ impl Check<'_, '_> {
                 "actual resource whole value retains Core-only metadata",
             ));
         };
+        let geometry = self.inventory.geometry.resolved(ty, life, b)?;
+        let ty = &geometry.ty;
+        let life = &geometry.life;
+        if let Some(SemanticClassExpr::IntrinsicClass {
+            operand: SemanticOperand::Value(source), path, ..
+        }) = classes.first() && path.is_empty() {
+            // Whole-SSA identity transport reads a separately reconstructed
+            // complete value. It cannot let a claim supply its own RHS class,
+            // change the child directory, or turn a same-shaped Type into a
+            // different source. Nonidentity/projected recipes retain their
+            // dedicated checked consumers.
+            for (ordinal, expression) in classes.iter().enumerate() {
+                b.spend(1, WORK)?;
+                if !matches!(expression, SemanticClassExpr::IntrinsicClass {
+                    operand: SemanticOperand::Value(actual), path, class,
+                } if actual == source && path.is_empty() && *class as usize == ordinal) {
+                    return Err(unknown("whole SSA class transport needs its complete canonical child coordinates"));
+                }
+            }
+            let key = (context.id, *source);
+            {
+                let mut active = self.value_queries.borrow_mut();
+                b.lookup(active.len(), WORK)?;
+                if active.len() >= b.helper_nodes {
+                    return Err(vec![zil_base::Diagnostic::limit(zil_base::Phase::Analyze,
+                        "whole SSA class source queries exceed their finite node limit", None)]);
+                }
+                if !active.insert(key) {
+                    return Err(fail("whole SSA class source is cyclic without an independent completed value"));
+                }
+            }
+            let result = (|| {
+            let SemanticInstanceTarget::Function(target) = &context.target else {
+                return Err(fail("whole SSA class transport has no actual function world"));
+            };
+            let function = self.inventory.function(target, b)?;
+            let actual = self.ssa_value(context, function, *source, b, depth + 1)?;
+            crate::dyn_metadata::shape(&actual.life, b)?;
+            crate::dyn_metadata::shape(life, b)?;
+            if !geometry::same_type(&actual.ty, ty, b)?
+                || actual.life != *life
+                || actual.classes.len() != classes.len()
+                || classes.len() != life.binder_count as usize
+            {
+                return Err(fail("whole SSA claim changes its complete actual Type, domain or class directory"));
+            }
+            Ok(actual)
+            })();
+            self.value_queries.borrow_mut().remove(&key);
+            return result;
+        }
         match ty {
             Type::MutexGuard { .. } => {
                 self.ordinary_type_at(ty, b, depth + 1)?;
@@ -360,12 +397,7 @@ impl Check<'_, '_> {
                     ));
                 }
                 let class = value::class(context, &classes[0], self.inventory, b, depth + 1)?;
-                crate::dyn_metadata::ty(ty, b)?;
-                Ok(Value {
-                    ty: ty.clone(),
-                    life: life.clone(),
-                    classes: vec![class],
-                })
+                Ok(Value::from_geometry(geometry, vec![class]))
             }
             Type::Address { mutable, inner }
                 if matches!(inner.as_ref(), Type::MutexGuard { .. }) =>
@@ -390,16 +422,12 @@ impl Check<'_, '_> {
                 let expected = value::address(
                     *mutable,
                     value::Class::Local(0),
-                    Value {
-                        ty: inner.as_ref().clone(),
-                        life: StorageLifeShape {
+                    Value::new(inner.as_ref().clone(), StorageLifeShape {
                             binder_count: 1,
                             slots: Vec::new(),
                             retained: Vec::new(),
                             nominal_arguments: Vec::new(),
-                        },
-                        classes: vec![value::Class::Local(row.binder)],
-                    },
+                        }, vec![value::Class::Local(row.binder)]),
                     b,
                 )?;
                 if expected.life != *life {
@@ -412,12 +440,7 @@ impl Check<'_, '_> {
                     let image = value::class(context, expression, self.inventory, b, depth + 1)?;
                     self.push_value(&mut images, image, b)?;
                 }
-                crate::dyn_metadata::ty(ty, b)?;
-                Ok(Value {
-                    ty: ty.clone(),
-                    life: life.clone(),
-                    classes: images,
-                })
+                Ok(Value::from_geometry(geometry, images))
             }
             Type::Desc(inner) => {
                 crate::dyn_metadata::ty(inner, b)?;
@@ -434,12 +457,7 @@ impl Check<'_, '_> {
                     ));
                 }
                 let class = value::class(context, &classes[0], self.inventory, b, depth + 1)?;
-                crate::dyn_metadata::ty(ty, b)?;
-                Ok(Value {
-                    ty: ty.clone(),
-                    life: life.clone(),
-                    classes: vec![class],
-                })
+                Ok(Value::from_geometry(geometry, vec![class]))
             }
             Type::Managed(_) => {
                 self.resource_zero(ty, b, depth + 1)?;
@@ -449,8 +467,7 @@ impl Check<'_, '_> {
                         "actual zero resource carries another claimed intrinsic domain",
                     ));
                 }
-                crate::dyn_metadata::ty(ty, b)?;
-                Ok(value::scalar(ty.clone()))
+                Ok(Value::from_geometry(geometry, Vec::new()))
             }
             Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)) => {
                 self.resource_zero(inner, b, depth + 1)?;
@@ -477,12 +494,7 @@ impl Check<'_, '_> {
                     ));
                 }
                 let class = value::class(context, &classes[0], self.inventory, b, depth + 1)?;
-                crate::dyn_metadata::ty(ty, b)?;
-                Ok(Value {
-                    ty: ty.clone(),
-                    life: life.clone(),
-                    classes: vec![class],
-                })
+                Ok(Value::from_geometry(geometry, vec![class]))
             }
             _ => value::resolved(context, input, self.inventory, b, depth + 1),
         }

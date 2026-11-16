@@ -36,7 +36,46 @@ impl Check<'_, '_> {
                 .ok_or_else(|| fail("owning callable has no original anchor"))?,
             b,
         )?;
+        self.owned_place_value(
+            instance,
+            function,
+            id,
+            local,
+            source,
+            &mut BTreeSet::new(),
+            b,
+            0,
+        )
+    }
+
+    // Callee lowering can move the selected field into a temporary and then
+    // consume that temporary. Follow actual consuming transfers; Load, an
+    // intervening access, a vacant activation or a different root cannot stand
+    // in for the original move. Every incoming CFG path must prove the origin.
+    #[allow(clippy::too_many_arguments)]
+    fn owned_place_value(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        id: ValueId,
+        local: LocalId,
+        source: &original::borrow_places::Source,
+        active: &mut BTreeSet<(LocalId, BlockId, usize)>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "owning callable transfer exceeds its finite ancestry",
+            ));
+        }
         let (block, index, instruction) = self.defining(function, id, b)?;
+        if function.values.get(id.0 as usize) != Some(&source.inner.ty) {
+            return Err(fail(
+                "owning callable transfer changes its complete child type",
+            ));
+        }
         b.spend(source.path.len().saturating_add(1), WORK)?;
         let matches = match &instruction.kind {
             InstructionKind::TakeLocal { local: actual } => {
@@ -59,23 +98,156 @@ impl Check<'_, '_> {
             }
             _ => false,
         };
-        if !matches || function.values.get(id.0 as usize) != Some(&source.inner.ty) {
+        if matches {
+            let root = self.local_value(instance, function, local, (block, index), b, 0)?;
+            if !self.capture_values_equal(&root, &source.root, b)?
+                || self.borrow_field_type(&root.ty, &source.path, b)? != &source.inner.ty
+            {
+                return Err(fail(
+                    "owning callable loses its original root and complete child domain",
+                ));
+            }
+            return Ok(());
+        }
+        let InstructionKind::TakeLocal { local: temporary } = instruction.kind else {
             return Err(fail(
                 "owning callable takes another original place, field or full type",
             ));
-        }
-        let root = self.local_value(instance, function, local, (block, index), b, 0)?;
-        if root != source.root
-            || self.borrow_field_type(&root.ty, &source.path, b)? != &source.inner.ty
-        {
-            return Err(fail(
-                "owning callable loses its original root and complete child domain",
+        };
+        self.owned_place_local(
+            instance,
+            function,
+            temporary,
+            (block, index),
+            local,
+            source,
+            active,
+            b,
+            depth + 1,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn owned_place_local(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        temporary: LocalId,
+        at: (BlockId, usize),
+        local: LocalId,
+        source: &original::borrow_places::Source,
+        active: &mut BTreeSet<(LocalId, BlockId, usize)>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "owning callable temporary exceeds its finite ancestry",
             ));
         }
+        let declaration = function
+            .locals
+            .get(temporary.0 as usize)
+            .filter(|item| item.id == temporary)
+            .ok_or_else(|| fail("owning callable temporary has no exact local declaration"))?;
+        if declaration.ty != source.inner.ty {
+            return Err(fail(
+                "owning callable temporary changes its complete stored type",
+            ));
+        }
+        let key = (temporary, at.0, at.1);
+        b.lookup(active.len(), WORK)?;
+        if !active.insert(key) {
+            return Err(unknown(
+                "owning callable transfer has an ungrounded CFG cycle",
+            ));
+        }
+        let block = function
+            .blocks
+            .get(at.0.0 as usize)
+            .filter(|block| block.id == at.0)
+            .ok_or_else(|| fail("owning callable temporary has no actual block"))?;
+        for (index, instruction) in block.instructions.iter().enumerate().take(at.1).rev() {
+            b.spend(1, WORK)?;
+            if let InstructionKind::Store {
+                local: target,
+                value,
+            } = instruction.kind
+                && target == temporary
+            {
+                operations::available_before(
+                    function,
+                    (block.id, index, SemanticSiteEdge::Before),
+                    value,
+                    b,
+                )?;
+                self.owned_place_value(
+                    instance,
+                    function,
+                    value,
+                    local,
+                    source,
+                    active,
+                    b,
+                    depth + 1,
+                )?;
+                b.lookup(active.len(), WORK)?;
+                active.remove(&key);
+                return Ok(());
+            }
+            let interferes = match crate::incremental::Operation::of(&instruction.kind) {
+                crate::incremental::Operation::Read(target)
+                | crate::incremental::Operation::Store(target)
+                | crate::incremental::Operation::Take(target)
+                | crate::incremental::Operation::Kill(target) => target == temporary,
+                crate::incremental::Operation::Unpack { source, fields } => {
+                    b.spend(fields.len(), WORK)?;
+                    source == temporary || fields.contains(&temporary)
+                }
+                crate::incremental::Operation::Other => false,
+            };
+            if interferes {
+                return Err(fail(
+                    "owning callable temporary crosses an access or vacant activation",
+                ));
+            }
+        }
+        if block.id == function.entry {
+            return Err(fail(
+                "owning callable temporary has no actual consuming store origin",
+            ));
+        }
+        let initialized = crate::shared_initialization(function, b)?;
+        let mut incoming = false;
+        for predecessor in &initialized.predecessors[block.id.0 as usize] {
+            b.spend(1, WORK)?;
+            if !initialized.reachable[*predecessor] {
+                continue;
+            }
+            incoming = true;
+            let previous = &function.blocks[*predecessor];
+            self.owned_place_local(
+                instance,
+                function,
+                temporary,
+                (previous.id, previous.instructions.len()),
+                local,
+                source,
+                active,
+                b,
+                depth + 1,
+            )?;
+        }
+        if !incoming {
+            return Err(fail("owning callable temporary has no reachable source"));
+        }
+        b.lookup(active.len(), WORK)?;
+        active.remove(&key);
         Ok(())
     }
 
-    fn borrow_field_type<'a>(
+    pub(super) fn borrow_field_type<'a>(
         &self,
         mut ty: &'a Type,
         path: &[u32],
@@ -147,6 +319,20 @@ impl Check<'_, '_> {
                     index: None,
                     fresh: true,
                 })
+            }
+            InstructionKind::BorrowPackageField { local, index: field, mutable } => {
+                let actual = function.locals.get(local.0 as usize)
+                    .filter(|declaration| declaration.id == *local)
+                    .ok_or_else(|| fail("actual package field borrow has no local declaration"))?;
+                if !matches!(actual.ty, Type::Package { .. })
+                    || *mutable != *output_mutable
+                    || self.borrow_field_type(&actual.ty, &[*field], b)? != output_inner.as_ref()
+                {
+                    return Err(fail("actual package field borrow changes its complete leaf or mode"));
+                }
+                b.spend(1, WORK)?;
+                Ok(Origin { root: Root::Local(*local, block, index, false),
+                    path: vec![*field], index: None, fresh: true })
             }
             InstructionKind::BorrowPlaceLocal {
                 local,
@@ -347,7 +533,63 @@ impl Check<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<()> {
-        let origin = self.projected_borrow_origin(function, id, b, depth + 1)?;
+        let mut origin = self.projected_borrow_origin(function, id, b, depth + 1)?;
+        if let Root::Local(local, block, index, true) = &origin.root
+            && matches!(source.anchor, Some(original::LocalAnchor::Environment(_)))
+            && !source.indirect
+        {
+            // A borrowed callable capture is spilled as Address<whole F>.
+            // Loading this compiler slot preserves the actual BorrowCapture;
+            // it is not a read of a pointer stored inside lexical F. The
+            // finite capture-origin proof checks every initialized CFG source.
+            let capture = self.capture_local_origin(function, *local, (*block, *index), b, depth + 1)?;
+            let closure = function.environment
+                .and_then(|id| self.module.closures.get(id.0 as usize))
+                .filter(|closure| closure.function == function.id)
+                .ok_or_else(|| fail("borrowed capture spill has another actual environment"))?;
+            let captured = closure.captures.get(capture as usize)
+                .ok_or_else(|| fail("borrowed capture spill leaves its actual capture directory"))?;
+            let local_type = &function.locals.get(local.0 as usize)
+                .filter(|item| item.id == *local)
+                .ok_or_else(|| fail("borrowed capture spill has no actual local"))?.ty;
+            if !geometry::same_type(captured, &source.root.ty, b)?
+                || !matches!(local_type, Type::Address { inner, .. }
+                    if inner.as_ref() == captured)
+            {
+                return Err(fail("borrowed capture spill changes its complete lexical value or physical pointer boundary"));
+            }
+            // Normalize only the canonical capture-borrow spill. A copied
+            // value subsequently borrowed from another local is another
+            // physical root even when its capture-origin image is the same.
+            let mut stores = 0usize;
+            for actual_block in &function.blocks {
+                for item in &actual_block.instructions {
+                    b.spend(1, WORK)?;
+                    match &item.kind {
+                        InstructionKind::Store { local: target, value } if target == local => {
+                            stores = stores.saturating_add(1);
+                            let (_, _, producer) = self.defining(function, *value, b)?;
+                            if actual_block.id != function.entry
+                                || !matches!(producer.kind, InstructionKind::BorrowCapture { index, .. }
+                                    if index == capture)
+                            {
+                                return Err(fail("borrowed capture spill is not its genuine entry capture borrow"));
+                            }
+                        }
+                        kind if matches!(crate::incremental::Operation::of(kind),
+                            crate::incremental::Operation::Store(target) if target == *local) => {
+                            return Err(fail("borrowed capture spill has another actual defining write"));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            if stores != 1 {
+                return Err(fail("borrowed capture spill has no unique genuine capture borrow"));
+            }
+            origin.root = Root::Capture(capture, false);
+            origin.fresh = true;
+        }
         b.spend(origin.path.len().saturating_add(source.path.len()), WORK)?;
         if origin.path != source.path || !(origin.fresh || outer_fresh) {
             return Err(fail(
@@ -401,7 +643,8 @@ impl Check<'_, '_> {
                 )
             }
         };
-        if root != source.root || indirect != (source.indirect || address_input) {
+        if !self.capture_values_equal(&root, &source.root, b)?
+            || indirect != (source.indirect || address_input) {
             return Err(fail(
                 "actual borrowed root changes its original whole classes or pointer boundary",
             ));
@@ -423,7 +666,7 @@ impl Check<'_, '_> {
                 let observed = self.original_subject_value(instance, function, node, b)?;
                 if observed != Some(actual) {
                     let definition = self.inventory.definition(instance.definition, b)?;
-                    let original = super::super::original_index::index(definition, b)?;
+                    let original = self.inventory.original_index(definition.id, b)?;
                     let expression = original.get_expr(node, b)?;
                     let (_, _, operation) = self.defining(function, actual, b)?;
                     // A folded integer literal need not have a separate

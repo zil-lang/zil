@@ -11,7 +11,7 @@ fn with_check<T>(
     run: impl FnOnce(&mut Check<'_, '_>) -> R<T>,
 ) -> R<T> {
     *left = left
-        .checked_sub(proof.complete.len().saturating_add(1))
+        .checked_sub(proof.complete.len().saturating_add(1).ilog2() as usize + 2)
         .ok_or_else(|| {
             Diagnostic::limit(Phase::Types, "original cleanup context work exceeded", None)
         })?;
@@ -34,6 +34,7 @@ fn with_check<T>(
         stage_depth: 0,
         cleanup_depth: 0,
         requested_snapshot: None,
+        snapshot_sources: None,
         escape_active: Vec::new(),
     };
     let result = run(&mut check);
@@ -323,9 +324,9 @@ impl Check<'_, '_> {
         if self.copy_type(owner, &ty, depth + 1)? {
             return Ok(true);
         }
-        for requirement in self.original_requirements(owner, depth + 1)? {
+        for requirement in self.original_requirements(owner, depth + 1)?.iter() {
             self.pay(1, depth)?;
-            let premise = match &requirement {
+            let premise = match requirement {
                 SemanticRequirementRecipe::Structural {
                     ty,
                     bound:
@@ -458,10 +459,32 @@ impl Check<'_, '_> {
                     ));
                 }
                 self.call_requirements(owner, callee, arguments, depth + 1)?;
+                // A definition-local proof may release captured views without
+                // ever transporting their private lifetime names to the caller.
                 self.contexts.push(*definition);
-                let result = self.cleanup_capability(*definition, hidden, depth + 1);
+                let original = self.cleanup_capability(*definition, hidden, depth + 1);
                 self.contexts.pop();
-                return result;
+                if original? {
+                    return Ok(true);
+                }
+                // The original definition remains checked under its abstract
+                // premises. This application has its own complete mixed
+                // arguments and may prove cleanup of that specialized value;
+                // it never installs SyncDrop(F) in the defining Gamma.
+                let specialized = super::super::instantiate::ty(
+                    self.program,
+                    &self.proof,
+                    hidden,
+                    super::super::instantiate::DomainMapping {
+                        source: *definition,
+                        use_definition: owner,
+                        arguments,
+                        parent_call: None,
+                    },
+                    self.limits,
+                    self.left,
+                )?;
+                return self.cleanup_capability(owner, &specialized, depth + 1);
             }
             SemanticTypeRecipe::Tuple(fields) | SemanticTypeRecipe::AnonymousSum(fields) => {
                 for field in fields {

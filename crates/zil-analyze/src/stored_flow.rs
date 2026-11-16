@@ -30,7 +30,7 @@ pub(super) mod enum_address;
 mod mutex;
 mod nominal;
 mod nominal_zero;
-mod synchronous_abi;
+pub(crate) mod synchronous_abi;
 pub(super) fn synchronous_callback_module(
     module: &TypedModule,
     b: &mut Budget,
@@ -52,6 +52,14 @@ pub(super) fn validate_plain_nominal_zero(
     b: &mut Budget,
 ) -> CompileResult<()> {
     nominal_zero::validate_type(module, ty, limits, b)
+}
+pub(super) fn nominal_instance_index(
+    module: &TypedModule,
+    ty: &Type,
+    limits: &Limits,
+    b: &mut Budget,
+) -> CompileResult<usize> {
+    nominal_zero::exact_index(module, ty, limits, b)
 }
 pub(super) mod option_address;
 mod retained;
@@ -473,12 +481,11 @@ fn package_return_candidates(
         }
         fee(b, block.instructions.len())?;
         for instruction in &block.instructions {
-            let InstructionKind::Call {
-                function,
-                arguments,
-            } = &instruction.kind
-            else {
-                continue;
+            let (function, arguments) = match &instruction.kind {
+                InstructionKind::Call { function, arguments }
+                | InstructionKind::SuspendCall { function, arguments }
+                    if synchronous_abi::ordinary_call(&instruction.kind, b)? => (function, arguments),
+                _ => continue,
             };
             let callee = &module.functions[function.0 as usize];
             if callee.foreign.is_some()
@@ -2470,11 +2477,10 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     }
     super::signature_life::charge(c, b)?;
     fee(b, f.parameters.len())?;
-    if f.reference_return_bound.is_some() {
-        return Err(failure(
-            "stored signature contradicts another active profile",
-        ));
-    }
+    // A direct return-source upper and a complete class relation are
+    // independent obligations. lifetimes::headers already validates the
+    // former's exact parameter directory; returns() below checks both against
+    // every actual returned target, including projected inline input storage.
     if f.foreign.is_some() {
         fee(b, f.blocks.len().saturating_add(1))?;
         if f.call_kind != CallKind::Direct || f.environment.is_some() || !f.blocks.is_empty() {
@@ -2540,14 +2546,14 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             ));
         }
         super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
-        return super::signature_life::closure_relation(
-            &module.closures,
-            &module.dyn_interfaces,
+        return super::signature_life::closure_relation_resource_scopes(
+            module,
             d.kind,
             &parameters,
             &d.captures,
             super::stored_callables::life_result(d),
             c,
+            b,
         );
     }
     let byte_signature = byte_companion
@@ -4017,7 +4023,9 @@ fn slot_loan_ids(
                         b,
                     )?;
                 }
-                InstructionKind::Call { function, .. } => {
+                InstructionKind::Call { function, .. }
+                | InstructionKind::SuspendCall { function, .. }
+                    if synchronous_abi::ordinary_call(&instruction.kind, b)? => {
                     let callee = module
                         .functions
                         .get(function.0 as usize)
@@ -4681,10 +4689,9 @@ fn transfer(
             }
         }
         InstructionKind::UnsafeEnter { .. } | InstructionKind::UnsafeExit { .. } => {}
-        InstructionKind::Call {
-            function,
-            arguments,
-        } => {
+        InstructionKind::Call { function, arguments }
+        | InstructionKind::SuspendCall { function, arguments }
+            if synchronous_abi::ordinary_call(&i.kind, b)? => {
             let callee = module
                 .functions
                 .get(function.0 as usize)
@@ -4944,7 +4951,8 @@ fn transfer(
             out = task_address::borrow_capture(*index, state, b)?;
         }
         InstructionKind::BorrowCapture { index, .. }
-            if f.environment.is_some_and(|id| b.returned_borrowed_environments.contains(&id))
+            if (f.environment.is_some_and(|id| b.returned_borrowed_environments.contains(&id))
+                || super::forward::nested_entry_capture(module, f, *index, b)?)
                 && f.environment.and_then(|id|module.closures.get(id.0 as usize))
                     .and_then(|definition|definition.captures.get(*index as usize))
                     .is_some_and(|ty|matches!(ty, Type::Closure(_))) =>
@@ -5358,7 +5366,30 @@ fn transfer(
         }
         _ if super::stored_callables::instruction(module, f, i) => {}
         InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
-            if super::class_flow::pointer_instruction(f, i) => {}
+            if super::class_flow::pointer_instruction(f, i) => {
+                if super::class_flow::thin::instruction(f, i)
+                    && let InstructionKind::CallIndirect { callee, arguments } = &i.kind
+                {
+                    for input in std::iter::once(callee).chain(arguments) {
+                        fee(b, 1)?;
+                        let payload = get(*input)?;
+                        if !payload.pointer.targets.is_empty()
+                            || !payload.pointer.loans.is_empty()
+                            || !payload.slots.is_empty()
+                            || !payload.held.targets.is_empty()
+                            || !payload.held.loans.is_empty()
+                            || !payload.store_description.targets.is_empty()
+                            || !payload.store_description.loans.is_empty()
+                            || !payload.task_ports.is_empty()
+                            || !payload.dyn_ports.is_empty()
+                            || payload.creation_complete.is_some()
+                            || !payload.environment.is_empty()
+                        {
+                            return Err(failure("thin code input carries actual stored target permissions"));
+                        }
+                    }
+                }
+            }
         InstructionKind::ReadAddress { address } => {
             let Type::Address { inner, .. } = value_type(f, *address)? else {
                 return Err(failure("read transfer lacks an actual Address"));
@@ -5538,7 +5569,6 @@ fn transfer(
                 | InstructionKind::AddressField { .. }
                 | InstructionKind::AddressIndex { .. }
                 | InstructionKind::AddressSlice { .. }
-                | InstructionKind::Call { .. }
                 | InstructionKind::BorrowCapture { .. }
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
@@ -5554,6 +5584,7 @@ fn transfer(
             || ordinary_error_borrow(f, i, b)?
             || pure_copy::ordinary_package_borrow(module, f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?
+            || synchronous_abi::ordinary_call(&i.kind, b)?
             || mutex_operation)
         && matches!(value_type(f, result)?, Type::Address { .. })
     {
@@ -5595,7 +5626,7 @@ fn transfer(
         out.pointer.loans.insert(id);
     }
     if let Some(result) = i.result
-        && matches!(i.kind, InstructionKind::Call { .. })
+        && synchronous_abi::ordinary_call(&i.kind, b)?
         && carrier(value_type(f, result)?).is_some()
     {
         let mut next = f.values.len();
@@ -5672,12 +5703,16 @@ fn separate(
     b: &mut Budget,
 ) -> CompileResult<()> {
     if intersects(left, right, b)? {
-        return Err(vec![Diagnostic::error(
+        let mut diagnostic = Diagnostic::error(
             Phase::Analyze,
             "E-BORROW-CONFLICT",
             None,
             "simultaneously live access overlaps an actual stored target/parent loan",
-        )]);
+        );
+        diagnostic.notes.push(format!(
+            "actual conflicting targets: access={left:?}; held={right:?}"
+        ));
+        return Err(vec![diagnostic]);
     }
     if may_alias(left, right) {
         let width = target_width(left)
@@ -5747,7 +5782,17 @@ fn permission_tail(
         if write || loan.mutable {
             for target in &permission.targets {
                 for held in &loan.targets {
-                    separate(target, held, apart, b)?;
+                    separate(target, held, apart, b).map_err(|mut errors| {
+                        for error in &mut errors {
+                            if error.code == "E-BORROW-CONFLICT" {
+                                error.notes.push(format!(
+                                    "actual live loan {id}: mutable={}, receiver_head={}, parents={:?}; access_write={write}, access_loans={:?}, ancestors={ignore:?}",
+                                    loan.mutable, loan.receiver_head, loan.parents, permission.loans,
+                                ));
+                            }
+                        }
+                        errors
+                    })?;
                 }
             }
         }
@@ -6682,6 +6727,32 @@ fn windows(
                             b,
                         )?;
                     }
+                    InstructionKind::TakeCapture { index }
+                    | InstructionKind::WriteCapture { index, .. }
+                        if f.environment
+                            .and_then(|id| module.closures.get(id.0 as usize))
+                            .and_then(|definition| definition.captures.get(*index as usize))
+                            .is_some_and(|ty| matches!(ty, Type::Closure(_))) =>
+                    {
+                        // Moving or replacing a child changes this physical
+                        // capture slot. A previously borrowed child frame may
+                        // still be live even when no caller invokes this entry.
+                        // Its payload transfer never carries a loan of the old
+                        // slot to the new position.
+                        let actual = Permission {
+                            targets: BTreeSet::from([Target {
+                                retained_port: None,
+                                base: HoldRoot::Capture(*index),
+                                stored: vec![],
+                                place: vec![],
+                                heap_parents: Vec::new(),
+                                heap_element: None,
+                            }]),
+                            loans: Loans::new(),
+                        };
+                        fee(b, 1)?;
+                        access.check(&actual, true, apart, b)?;
+                    }
                     InstructionKind::BorrowCapture { index, mutable } => {
                         let actual = Permission {
                             targets: BTreeSet::from([Target {
@@ -6956,10 +7027,9 @@ fn windows(
                             }
                         }
                     }
-                    InstructionKind::Call {
-                        function,
-                        arguments,
-                    } => {
+                    InstructionKind::Call { function, arguments }
+                    | InstructionKind::SuspendCall { function, arguments }
+                        if synchronous_abi::ordinary_call(&i.kind, b)? => {
                         let callee = &module.functions[function.0 as usize];
                         if !summaries[function.0 as usize].head_accesses.is_empty() {
                             for (target, write) in &summaries[function.0 as usize].head_accesses {
@@ -7119,9 +7189,10 @@ fn windows(
             })();
             checked.map_err(|mut errors| {
                 for error in &mut errors {
-                    error
-                        .notes
-                        .push(format!("actual stored access in {}: {:?}", f.name, i.kind));
+                    error.notes.push(format!(
+                        "actual stored access in {} block {bi} instruction {position}: {:?}",
+                        f.name, i.kind
+                    ));
                 }
                 errors
             })?;
@@ -7705,7 +7776,7 @@ fn derive_cfg(
                         &loans,
                         b,
                     )?;
-                    dyn_environment::summarize(module, f, value, &mut actual, b)?;
+                    dyn_environment::summarize(module, f, (id, value), &mut actual, b)?;
                 }
             }
             if let Some(d) = f
@@ -7871,9 +7942,11 @@ fn derive_cfg(
             if b.stored_slot_updates {
                 for block in &f.blocks {
                     for instruction in &block.instructions {
-                        let InstructionKind::Call { function, .. } = &instruction.kind else {
-                            continue;
-                        };
+                        let (InstructionKind::Call { function, .. }
+                            | InstructionKind::SuspendCall { function, .. }) = &instruction.kind else {
+                                continue;
+                            };
+                        if !synchronous_abi::ordinary_call(&instruction.kind, b)? { continue; }
                         let callee = module
                             .functions
                             .get(function.0 as usize)
@@ -8682,6 +8755,7 @@ fn actual_instructions(
                 && !pure_copy::operation(&i.kind)
                 && !pure_copy::ordinary_owned_union(f, i, b)?
                 && !pure_copy::ordinary_package_borrow(module, f, i, b)?
+                && !synchronous_abi::ordinary_call(&i.kind, b)?
                 && !matches!(
                     &i.kind,
                     InstructionKind::StaticUtf8 { .. }
@@ -8896,8 +8970,10 @@ fn actual_instructions(
                     address_result(f, i, *mutable, &d.captures[*index as usize], b)?;
                 }
                 InstructionKind::BorrowCapture { index, mutable }
-                    if f.environment
+                    if (f
+                        .environment
                         .is_some_and(|id| b.returned_borrowed_environments.contains(&id))
+                        || super::forward::nested_entry_capture(module, f, *index, b)?)
                         && f.environment
                             .and_then(|id| module.closures.get(id.0 as usize))
                             .and_then(|d| d.captures.get(*index as usize))
@@ -9174,10 +9250,9 @@ fn actual_instructions(
                         _ => {}
                     }
                 }
-                InstructionKind::Call {
-                    function,
-                    arguments,
-                } => {
+                InstructionKind::Call { function, arguments }
+                | InstructionKind::SuspendCall { function, arguments }
+                    if synchronous_abi::ordinary_call(&i.kind, b)? => {
                     let target = module
                         .functions
                         .get(function.0 as usize)
@@ -9529,22 +9604,6 @@ mod tests {
             }
         }
         assert_eq!(
-            // Measured on the unchanged raw fixture after the paid path
-            // index, word liveness, fact copy and per-instruction access work.
-            // Includes word/set-bit scans, every Permission projection and
-            // every empty outer-frame visit on the unchanged raw fixture.
-            low,
-            // Six scalar Managed TakeCapture sites keep the existing owning
-            // ledger (48 fewer steps), and addressed captures select current
-            // memory once instead of also joining stale SSA slots (180 fewer).
-            // Preserve the upstream f727 exact 12_296 control, including
-            // independent FnOnce debt and raw metadata prehash accounting.
-            // Complete stored-CFG publication charges each actual function
-            // once (4ceb); this fixture has exactly two such entries.
-            12_296 + m.functions.len(),
-            "bounded actual identity/ownership work changed"
-        );
-        assert_eq!(
             super::super::analyze(&m, &limits(14_077)).unwrap(),
             expected,
             "the prior allowance remains a complete-plan success control"
@@ -9563,6 +9622,10 @@ mod tests {
             assert_eq!(super::super::analyze(&m, &limits(low)).unwrap(), expected);
         }
         println!("owned Fixed Analyze N={low}; N-1/fresh/warm identical");
+        assert_eq!(
+            low, 12_574,
+            "complete bounded identity/ownership work changed"
+        );
     }
     #[test]
     fn owned_fixed_heads_require_actual_resource_definitions() {

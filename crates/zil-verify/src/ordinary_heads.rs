@@ -154,7 +154,60 @@ fn zero(
     }
 }
 
+// A mutex description/guard has a real lifetime class but no stored data
+// pointer when its complete payload is Known0. The ordinary borrow/resource
+// kernels own its actual manager root, guard epoch and scoped-thread accesses.
+fn mutex_value(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bool>{
+    let manager=match ty{
+        Type::Desc(inner)if matches!(inner.as_ref(),Type::Mutex{..})=>inner.as_ref(),
+        Type::MutexGuard{payload,retained_life}=>{
+            crate::generic_mutex::guard_shape(payload,retained_life,b)?;
+            if crate::dynamic_witness::intrinsic_domain(module,payload,b)?.0!=0{return Ok(false);}
+            return Ok(true);
+        },
+        _=>return Ok(false),
+    };
+    b.spend(module.resources.len())?;
+    let mut rows=module.resources.iter().filter(|row|row.payload==*manager);
+    let Some(resource)=rows.next()else{return Ok(false);};
+    if rows.next().is_some(){return Ok(false);}
+    crate::generic_mutex::definition(module,resource,b)?;
+    Ok(crate::dynamic_witness::intrinsic_domain(module,manager,b)?.0==0)
+}
+pub(super) fn resource_closure(module:&TypedModule,id:ClosureId,b:&mut Budget)->Check<bool>{
+    let definition=crate::closures::definition(module,id,None)?;
+    let entry=module.functions.get(definition.function.0 as usize).ok_or_else(||reject("E-VERIFY-CLOSURE",None,"resource closure exact entry is absent"))?;
+    let Some(relation)=&definition.storage_life else{return Ok(false);};
+    if entry.id!=definition.function||entry.environment!=Some(id)||entry.storage_life.as_ref()!=Some(relation)||entry.call_kind!=CallKind::Direct||entry.foreign.is_some()||!definition.lending_captures.is_empty()||!definition.result.is_copy_value(){return Ok(false);}
+    let mut resource=false;
+    for capture in &definition.captures{
+        b.spend(1)?;
+        if matches!(capture,Type::Desc(_))&&mutex_value(module,capture,b)?{resource=true;}
+        else if !capture.is_copy_value()||!zero(module,capture,&mut Vec::new(),0,b)?{return Ok(false);}
+    }
+    if !resource{return Ok(false);}
+    for ty in definition.parameters.iter().chain(std::iter::once(&definition.result)){
+        let inner=if let Type::Address{inner,..}|Type::Desc(inner)=ty{inner.as_ref()}else{ty};
+        if !zero(module,inner,&mut Vec::new(),0,b)?{return Ok(false);}
+    }
+    // Preserve and independently authenticate the full nonzero Closure domain.
+    crate::dynamic_witness::intrinsic_domain(module,&Type::Closure(id),b)?;
+    Ok(true)
+}
+
+pub(super) fn resource_body(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->Check<bool>{
+    if let Some(id)=f.environment && resource_closure(module,id,b)?{return Ok(true);}
+    for ty in f.locals.iter().map(|local|&local.ty).chain(&f.values){
+        b.spend(1)?;
+        if let Type::Closure(id)=ty && resource_closure(module,*id,b)?{return Ok(true);}
+    }
+    Ok(false)
+}
+
 fn head_type(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    if mutex_value(module,ty,b)?{return Ok(true);}
+    if let Type::Closure(id)=ty && resource_closure(module,*id,b)?{return Ok(true);}
+    if let Type::Address{inner,..}=ty && mutex_value(module,inner,b)?{return Ok(true);}
     let inner = if let Type::Address { inner, .. } | Type::Desc(inner) = ty {
         inner.as_ref()
     } else {
@@ -166,6 +219,7 @@ fn head_type(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
 /// The relation remains present and exact: every outer Address/Desc input appears
 /// once in source order, with canonical invocation binders and no output row.
 pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<bool> {
+    if let Some(id)=f.environment && resource_closure(module,id,b)?{return Ok(true);}
     let Some(c) = &f.storage_life else {
         return Ok(false);
     };
@@ -222,6 +276,7 @@ pub(super) fn body(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> C
         return Ok(false);
     }
     for ty in f.values.iter().chain(f.locals.iter().map(|l| &l.ty)) {
+        if super::stored_owned::ordinary_store_value(module,ty,b)?||super::stored_owned::ordinary_byte_value(ty,b)?{return Ok(false);}
         if !head_type(module, ty, b)? {
             return Ok(false);
         }

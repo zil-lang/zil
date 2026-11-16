@@ -7,7 +7,7 @@ impl CheckedContext {
         let context=match &recipe.context{
             SemanticDynContextRecipe::Closed=>Context{ty:None,shape:RetainedLifeShape{binder_count:0,ports:vec![],retained:vec![],nominal_arguments:vec![]},classes:vec![],origins:vec![]},
             SemanticDynContextRecipe::Shape(shape)=>{let value=self.retained_shape(module,shape,env,external,active,b)?;Context{ty:None,shape:value.shape,classes:value.classes,origins:value.origins}},
-            SemanticDynContextRecipe::Type(ty)=>{let value=self.evaluate_type(module,ty,env,external,active,b)?;let mut ports=Vec::new();for(leaf,mode,binder)in self.retained_leaves(module,&value,b)?{ports.push(RetainedBorrowPort{leaf,mode,binder});}Context{ty:Some(value.ty),shape:RetainedLifeShape{binder_count:value.life.binder_count,ports,retained:value.life.retained,nominal_arguments:value.life.nominal_arguments},classes:value.classes,origins:value.origins}},
+            SemanticDynContextRecipe::Type(ty)=>{let value=self.evaluate_type(module,ty,env,external,active,b)?;let mut ports=Vec::new();for(leaf,mode,binder)in self.retained_leaves(module,&value,b)?{ports.push(RetainedBorrowPort{leaf,mode,binder});}dynamic_metadata::ty(&value.ty,b)?;Context{ty:Some(value.ty.clone()),shape:RetainedLifeShape{binder_count:value.life.binder_count,ports,retained:value.life.retained,nominal_arguments:value.life.nominal_arguments},classes:value.classes,origins:value.origins}},
         };
         let application=self.application(module,&recipe.application,env,external,active,b)?;
         let mut associated=Vec::new();for row in &recipe.associated{let application=self.application(module,&row.application,env,external,active,b)?;let value=match &row.value{SemanticAssociatedRecipe::Type(ty)=>CheckedActual::Type(self.evaluate_type(module,ty,env,external,active,b)?),SemanticAssociatedRecipe::Const{carrier,value}=>{let carrier=self.evaluate_type(module,carrier,env,external,active,b)?;let value=self.evaluate_constant(module,value,&carrier,env,external,active,b)?;CheckedActual::Const{carrier,value}}};associated.push((application,row.member,value));}
@@ -31,7 +31,7 @@ impl CheckedContext {
         }
         let interface=selected.ok_or_else(||bad("original dynamic type has no exact complete actual interface"))?;
         let ty=if owned{Type::OwnedDyn{interface:interface.id}}else{Type::Dyn{interface:interface.id}};
-        let life=StorageLifeShape{binder_count:context.shape.binder_count,slots:vec![],retained:vec![],nominal_arguments:vec![]};
+        let life=StorageLifeShape{binder_count:context.shape.binder_count,slots:vec![],retained:context.shape.retained,nominal_arguments:context.shape.nominal_arguments};
         let mut result=self.construct_value(module,&ty,&life,context.classes,b)?;result.origins=context.origins;Ok(result)
     }
     pub(super) fn dyn_value(&self,module:&TypedModule,ty:&Type,life:&StorageLifeShape,actual:&[StorageBinder],domain:&[ClassKey],domain_origins:&[IntrinsicOrigin],b:&mut Budget)->Check<CheckedType>{

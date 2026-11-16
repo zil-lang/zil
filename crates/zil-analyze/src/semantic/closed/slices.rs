@@ -54,7 +54,7 @@ impl Check<'_, '_> {
             ));
         }
         let actual = self.ssa_value(instance, function, address, b, 0)?;
-        if !self.outer_role(instance, function, &actual, expected, b, 0)? {
+        if !self.outer_call_role(instance, function, (block, index), 0, address, &actual, expected, b, 0)? {
             return Err(fail(
                 "actual slice length changes the original complete reference role",
             ));

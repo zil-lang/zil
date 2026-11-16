@@ -323,7 +323,7 @@ pub(super) fn shared_input(t: &Type) -> bool {
         t => t.is_address_pointee(),
     }
 }
-fn borrowed_capture_input(ty: &Type) -> bool {
+pub(super) fn borrowed_capture_input(ty: &Type) -> bool {
     shared_input(ty)
         || matches!(ty, Type::Address { inner, .. }
         if inner.is_address_pointee() || matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
@@ -386,11 +386,43 @@ pub(super) fn inline_qualified_capture(
     let _complete_domain = super::dynamic_witness::intrinsic_domain(module, ty, b)?;
     Ok(true)
 }
+// An actual description head is checked by the complete closure relation.
+// Only the exact sealed manager definition can supply its Known0 pointee;
+// no missing capture row or equal physical shape substitutes for that proof.
+fn described_mutex_capture(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bool>{
+    let Type::Desc(manager)=ty else{return Ok(false);};
+    if !matches!(manager.as_ref(),Type::Mutex{..}){return Ok(false);}
+    b.spend(module.resources.len())?;
+    let mut rows=module.resources.iter().filter(|row|row.payload==**manager);
+    let resource=rows.next().ok_or_else(||reject("E-VERIFY-CLOSURE",None,"captured mutex description has no exact sealed manager"))?;
+    if rows.next().is_some(){return Err(reject("E-VERIFY-CLOSURE",None,"captured mutex description has duplicate sealed managers"));}
+    super::generic_mutex::definition(module,resource,b)?;
+    Ok(super::dynamic_witness::intrinsic_domain(module,manager,b)?.0==0)
+}
+pub(super) fn complete_value_input(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bool>{
+    let (value,borrowed)=if let Type::Address{inner,..}=ty{(inner.as_ref(),true)}else{(ty,false)};
+    if matches!(value,Type::Address{..}|Type::Desc(_)){return Ok(false);}
+    if !borrowed && !(super::signature_life::closed_owned_parameter(value)||matches!(value,Type::FunctionPointer{..}|Type::ForeignCallback{..})){return Ok(false);}
+    if super::dynamic_witness::intrinsic_domain(module,value,b)?.0!=0{return Ok(false);}
+    super::dynamic_witness::structural_actual(module,value,DynStructuralBound::Value,b)?;
+    Ok(true)
+}
 pub(super) fn captured_profile(
     module: &TypedModule,
     d: &ClosureDefinition,
     b: &mut Budget,
 ) -> Check<()> {
+    // Retaining an owner is a Task environment composition even when its
+    // complete lifetime directory is Known0. It still carries real cleanup
+    // debt and needs the ordinary Task carrier/source consumers.
+    for capture in &d.captures{
+        b.spend(1)?;
+        if let Type::Managed(task)=capture && matches!(task.as_ref(),Type::Task{..}){
+            super::tasks::require_closed_context(task,None)?;
+            super::dynamic_witness::intrinsic_domain(module,task,b)?;
+            b.task_retained_environments=true;
+        }
+    }
     if let Some(entry) = module.functions.get(d.function.0 as usize)
         && super::tasks::input_scope::empty_function(module, entry, b)?
     {
@@ -400,6 +432,7 @@ pub(super) fn captured_profile(
     for ty in &d.parameters {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
         if !borrowed_capture_input(ty)
+            && !complete_value_input(module,ty,b)?
             && !super::stored_flow::context_capture_type(module, ty, b)?
             && !inline_qualified_capture(module, ty, b)?
         {
@@ -429,14 +462,23 @@ pub(super) fn captured_profile(
         };
         b.task_retained_environments |= matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{retained_life,..} if !retained_life.ports.is_empty()));
         if !(borrowed_capture_input(ty)
+            || complete_value_input(module,ty,b)?
             || matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}) && matches!(d.kind,CallableKind::FnOnce | CallableKind::FnMut))
             || super::stored_owned::owner(ty)
+            || super::stored_owned::ordinary_byte_value(ty,b)?
+            || super::stored_owned::ordinary_store_value(module,ty,b)?
+            || packages::capture_owner(ty)
+            || described_mutex_capture(module,ty,b)?
             || closed_owner
             || super::stored_flow::context_capture_type(module, ty, b)?
             || matches!(ty, Type::BorrowedStorage { .. }) && packages::capture_owner(ty)
             || matches!(ty, Type::Closure(child) if finite(module, *child))
             || inline_qualified_capture(module, ty, b)?)
         {
+            // Prove the real Fresh empty-source obligation before returning
+            // a profile limitation. This includes borrowed leaves hidden in
+            // nested child environments; it grants no capture admission.
+            super::retained::check_self_contained_sources(module,&b.limits.clone(),b)?;
             return Err(unsupported(
                 "captured Fixed requires shared/scalar captures or a finite class-free genuine Once owner",
                 None,
@@ -538,7 +580,7 @@ pub(super) fn definitions(
                     "captured Fixed definition and actual entry relation differ",
                 ));
             }
-            super::signature_life::closure_relation(
+            super::signature_life::closure_relation_resource_scopes(
                 module,
                 &d.parameters,
                 &d.captures,
@@ -546,6 +588,7 @@ pub(super) fn definitions(
                 life_result(d),
                 c,
                 Some(f.span),
+                b,
             )?;
         }
     }

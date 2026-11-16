@@ -21,7 +21,7 @@ impl Eval<'_, '_, '_> {
                 },
                 _,
             ) => {
-                let expanded = self.original_type(scope, *selector, source, depth + 1)?;
+                let expanded = self.original_type_view(scope, *selector, source, depth + 1)?;
                 return self.endpoint_recipe(scope, &expanded, step, depth + 1);
             }
             (SemanticTypeRecipe::Qualified { storage, .. }, _) => {

@@ -2,6 +2,15 @@
 //! incoming image stays separate from exact class normalization and whole N.
 use super::*;
 use crate::semantics::original::{LocalRole, LocalRoleKind};
+#[path = "world_environment_classes.rs"]
+mod environment_classes;
+pub(super) fn environment_class(
+    world: &mut World<'_, '_>,
+    scope: SemanticInstanceId,
+    image: &SemanticClassExpr,
+) -> R<SemanticClassExpr> {
+    environment_classes::normalize(world, scope, image)
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum Source {
     Static,
@@ -300,11 +309,11 @@ pub(super) fn loop_sources(
     let Some(binding) = binding else {
         return Ok(None);
     };
-    let mut work = vec![(owner, binding, 0usize)];
+    let mut work = vec![(owner, binding, false, 0usize)];
     let mut visited = std::collections::BTreeSet::new();
     let mut images = Vec::new();
     let mut unknown = false;
-    while let Some((scope, binding, depth)) = work.pop() {
+    while let Some((scope, binding, region, depth)) = work.pop() {
         world.pay(1)?;
         if depth > world.limits.max_call_depth {
             return Err(Diagnostic::limit(
@@ -313,7 +322,7 @@ pub(super) fn loop_sources(
                 None,
             ));
         }
-        if !visited.insert((scope, binding)) {
+        if !visited.insert((scope, binding, region)) {
             continue;
         }
         if scope != owner {
@@ -326,12 +335,21 @@ pub(super) fn loop_sources(
             let proof = proof
                 .as_ref()
                 .ok_or_else(|| bad("loop role source proof disappeared"))?;
-            let role = proof
-                .local_roles
-                .get(&(scope, binding))
-                .ok_or_else(|| bad("loop role source references an absent original role"))?;
-            world.pay(role.sources.len())?;
-            for source in &role.sources {
+            let sources = if region {
+                &proof
+                    .call_regions
+                    .get(&(scope, binding.0))
+                    .ok_or_else(|| bad("loop source references an absent original call region"))?
+                    .sources
+            } else {
+                &proof
+                    .local_roles
+                    .get(&(scope, binding))
+                    .ok_or_else(|| bad("loop role source references an absent original role"))?
+                    .sources
+            };
+            world.pay(sources.len())?;
+            for source in sources {
                 crate::dyn_metadata::semantic_operand_snapshot(
                     &source.lifetime,
                     world.limits,
@@ -339,7 +357,7 @@ pub(super) fn loop_sources(
                     1,
                 )?;
             }
-            role.sources.clone()
+            sources.clone()
         };
         for source in sources {
             match source.escape {
@@ -347,7 +365,11 @@ pub(super) fn loop_sources(
                 | crate::semantics::original::OriginalRoleEscape::Static => {}
                 crate::semantics::original::OriginalRoleEscape::Role { owner, binding } => {
                     world.pay(1)?;
-                    work.push((owner, binding, depth + 1));
+                    work.push((owner, binding, false, depth + 1));
+                }
+                crate::semantics::original::OriginalRoleEscape::CallRegion { owner, ordinal } => {
+                    world.pay(1)?;
+                    work.push((owner, zil_base::NodeId(ordinal), true, depth + 1));
                 }
                 crate::semantics::original::OriginalRoleEscape::LocalPlace { .. } => {
                     match source.lifetime {

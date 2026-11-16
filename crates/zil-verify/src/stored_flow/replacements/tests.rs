@@ -245,7 +245,10 @@ fn old_head_child_and_weak_description_do_not_survive_commit_raw_wire() {
             },
             ValueHold {
                 value: ValueId(4),
-                roots: vec![HoldRoot::Parameter(0)],
+                // DescribeAddress retains an owner observation in the resource
+                // ledger; it is not an Address lifetime Hold. Keep V3's real
+                // parameter loan so the stale head/child rejection is reached.
+                roots: vec![],
             },
             ValueHold {
                 value: ValueId(5),

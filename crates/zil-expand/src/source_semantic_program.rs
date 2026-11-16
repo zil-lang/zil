@@ -702,6 +702,12 @@ impl Program {
                 .map(|(module, row)| (*module, row.creator, row.node, row.statement)),
             budget,
         )?;
+        self.ledger.prepare_emissions(
+            self.nodes
+                .iter()
+                .map(|(_, row)| (row.marker, row.creator, row.node)),
+            budget,
+        )?;
         for (module, _) in outputs {
             for function in &module.core.functions {
                 inventory.block(
@@ -721,9 +727,10 @@ impl Program {
                 )
             })?;
             let node = inventory
-                .nodes
-                .get(&(module, emission.creator, emission.node, emission.statement))
-                .and_then(|node| *node)
+                .get(
+                    &(module, emission.creator, emission.node, emission.statement),
+                    budget,
+                )?
                 .ok_or_else(|| {
                     error(
                         Span::default(),
@@ -817,7 +824,17 @@ impl Program {
             .flat_map(|(_, module)| &module.definitions)
             .find(|row| row.id == definition)
             .ok_or_else(|| error(span, "actual lexical scope original declaration is absent"))?;
-        if !original.parameters.is_empty() || !original.environment.is_empty() {
+        // A retained life-only method is already a real rigid program: its
+        // enclosing impl/nominal keeps every original Life formal, even when
+        // the runtime syntax erased those binders. Type/Const scopes instead
+        // require their actual specialization and receiver-call request.
+        budget.identity_work(original.parameters.len(), span)?;
+        if original
+            .parameters
+            .iter()
+            .any(|formal| !matches!(formal, SemanticFormal::Lifetime))
+            || !original.environment.is_empty()
+        {
             return Err(unsupported(
                 span,
                 &format!(
@@ -827,6 +844,7 @@ impl Program {
             ));
         }
         let parent = original.parent;
+        let parameters = original.parameters.len();
         let self_type = match &original.body {
             SemanticDefinitionBody::Scope(
                 SemanticScopeRecipe::InherentImpl { self_type, .. }
@@ -836,10 +854,26 @@ impl Program {
                 prepay_recipe(self_type, budget, span, 0)?;
                 self_type.clone()
             }
-            SemanticDefinitionBody::Nominal { .. } => SemanticTypeRecipe::Nominal {
-                definition,
-                arguments: Vec::new(),
-            },
+            SemanticDefinitionBody::Nominal { .. } => {
+                let mut arguments = Vec::new();
+                for ordinal in 0..parameters {
+                    budget.node(span, depth)?;
+                    let ordinal = u32::try_from(ordinal)
+                        .map_err(|_| error(span, "nominal scope formal ordinal exhausted"))?;
+                    budget.lineage_push(
+                        &mut arguments,
+                        SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(SemanticFormalRef {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            ordinal,
+                        })),
+                        span,
+                    )?;
+                }
+                SemanticTypeRecipe::Nominal {
+                    definition,
+                    arguments,
+                }
+            }
             _ => {
                 return Err(unsupported(
                     span,
@@ -858,6 +892,26 @@ impl Program {
             .next_instance
             .checked_add(1)
             .ok_or_else(|| error(span, "lexical scope instance namespace exhausted"))?;
+        let mut actuals = Vec::new();
+        for ordinal in 0..parameters {
+            budget.node(span, depth)?;
+            let ordinal = u32::try_from(ordinal)
+                .map_err(|_| error(span, "lexical scope formal ordinal exhausted"))?;
+            budget.lineage_bytes(std::mem::size_of::<SemanticActualRecipe>(), span)?;
+            budget.lineage_push(
+                &mut actuals,
+                SemanticActual::CoreRecipe {
+                    scope: id,
+                    recipe: Box::new(SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(
+                        SemanticFormalRef {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            ordinal,
+                        },
+                    ))),
+                },
+                span,
+            )?;
+        }
         budget.lineage_bytes(
             std::mem::size_of::<SemanticInstance>()
                 + 12 * std::mem::size_of::<(SemanticDefinitionId, SemanticInstanceId)>(),
@@ -869,7 +923,7 @@ impl Program {
             target: SemanticInstanceTarget::Scope,
             lifetime_instantiation: SemanticLifetimeInstantiation::Rigid,
             parent,
-            actuals: Vec::new(),
+            actuals,
             header_embedding: Vec::new(),
             environment: None,
             self_type: Some(SemanticTypeValue::Core {
@@ -892,9 +946,9 @@ impl Program {
         budget: &mut Budget<'_>,
     ) -> R<()> {
         self.ledger.finish(budget, Span::default())?;
-        // Complete non-generic lexical scopes are data derived from their
-        // actual original declarations. Generic scopes need actual caller
-        // substitutions and are never silently represented by empty actuals.
+        // Closed and rigid Life lexical scopes come from their complete
+        // originals. Type/Const scopes need actual caller substitutions and
+        // are never silently represented by empty actuals.
         let mut parents = BTreeMap::new();
         for instance in &self.instances {
             let definition = self.templates[instance.template].definition;
@@ -1243,6 +1297,10 @@ pub(crate) fn prepare(
                 .iter_mut()
                 .find(|m| m.id == row.module)
                 .ok_or_else(|| error(row.item.span, "original function module is absent"))?;
+            // `path` is the actual CT output placement. The independent
+            // source_path/declaration mapping was checked against the complete
+            // frozen original/generated tree before any semantic token exists.
+            // In particular a retained member's output ordinal is not its ID.
             let item = item_mut(target, &row.path)
                 .ok_or_else(|| error(row.item.span, "actual cloned original function is absent"))?;
             let function = match &mut item.kind {
@@ -1307,6 +1365,7 @@ pub(crate) fn prepare(
                 lexical_offset: 0,
                 implicit: Vec::new(),
                 bound_lives: Vec::new(),
+                alias_frames: Vec::new(),
                 invocations: Vec::new(),
                 closures: Vec::new(),
                 next_body_nodes: Vec::new(),
@@ -1315,6 +1374,7 @@ pub(crate) fn prepare(
             };
             plan::function(&mut program, &mut normalizer, function, &inventory.closures)?;
         }
+        call_regions::prepare(&mut program.modules, &mut budget)?;
         effects::propose(&mut program.modules, &inventory.originals, &mut budget)?;
         let mut normalizer = Builder {
             inventory: &inventory.originals,
@@ -1325,6 +1385,7 @@ pub(crate) fn prepare(
             lexical_offset: 0,
             implicit: Vec::new(),
             bound_lives: Vec::new(),
+            alias_frames: Vec::new(),
             invocations: Vec::new(),
             closures: Vec::new(),
             next_body_nodes: Vec::new(),

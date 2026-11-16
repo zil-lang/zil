@@ -5,36 +5,38 @@ use dynamic_witness::semantic_external::{Proofs,select_original_member};
 
 impl CheckedContext {
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn actual_trait_member(&self,module:&TypedModule,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,original:original::TraitCallRecipes,external:&mut Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
+    pub(super) fn actual_trait_member(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,original:original::TraitCallRecipes,external:&mut Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
         let receiver=self.evaluate_type(module,&original.receiver,environment,external,active,b)?;
         let application=self.application(module,&original.application,environment,external,active,b)?;
-        let mut actuals=Vec::new();for recipe in &original.actuals{actuals.push(match recipe{original::MethodActualRecipe::Recipe(recipe)=>self.evaluate_actual(module,recipe,environment,external,active,b)?,original::MethodActualRecipe::ReceiverRole(role)=>CheckedActual::Life(self.class(module,role,environment,b)?)});}
+        let mut actuals=Vec::new();for recipe in &original.actuals{actuals.push(match recipe{original::MethodActualRecipe::Recipe(recipe)=>self.evaluate_actual(module,recipe,environment,external,active,b)?,original::MethodActualRecipe::ReceiverRole(role)=>CheckedActual::Life(self.class(module,role,environment,b)?),original::MethodActualRecipe::SourceType(sources)=>CheckedActual::Type(self.inferred_call_type(module,sources,environment,external,active,b)?.ok_or_else(||bad("method inferred whole Type lacks its exact original sources"))?)});}
         let receipt=select_original_member(external,module,self,environment,&receiver,&application,original.member,&actuals,active,b)?;
         if receipt.member!=original.member||receipt.application!=application||receipt.receiver!=receiver{return Err(bad("actual member selection changes its complete requested identity"));}
         let function=module.functions.get(callee.0 as usize).filter(|row|row.id==callee).ok_or_else(||bad("actual member function identity is absent"))?;
         if function.foreign.is_some()||function.environment.is_some(){return Err(bad("ordinary member Call selects foreign or hidden closure authority"));}
-        if let Some(instance)=&function.dyn_instance{
-            dynamic_metadata::recipe(instance,b)?;
-            if instance.definition!=receipt.definition{return Err(bad("actual member Dyn instance selects another original definition"));}
-            // This is redundant dynamic authority, not needed to name a
-            // static method. Its full independent dynamic proof is mandatory.
-            return Err(unsupported("static member carrying dynamic-instance authority needs its complete dynamic bridge",None));
-        }
+        dynamic_witness::semantic_external::check_static_member_instance(module,self,environment,function,&receipt,active,b)?;
         let claims=match &site.action{SemanticSiteAction::BodyCall{actuals}=>actuals,SemanticSiteAction::Call{target:SemanticFunctionTarget::Typed(id),actuals}if *id==callee=>actuals,_=>return Err(bad("actual member Call has another source emission role"))};
         if claims.len()!=actuals.len(){return Err(bad("actual member call omits its full mixed method actuals"));}
         for(expected,claim)in actuals.iter().zip(claims){self.member_actual_claim(module,expected,claim,environment,b)?;}
-        self.call_worlds(module,callee,receipt.body,&receipt.environment,environment,active,b)?;
-        let signature=&receipt.actual_signature;
+        let worlds=self.call_worlds(module,callee,receipt.body,&receipt.environment,environment,active,b)?;
+        b.spend(receipt.actual_signature.parameters.len().saturating_add(receipt.actual_signature.bound.len()).saturating_add(receipt.actual_signature.invocation.len()).saturating_add(1))?;
+        for(value,_)in &receipt.actual_signature.parameters{value.charge_clone(b)?;}receipt.actual_signature.result.charge_clone(b)?;
+        for key in receipt.actual_signature.bound.iter().chain(&receipt.actual_signature.invocation){if let ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=key{b.spend(path.len())?;}}
+        let mut signature=receipt.actual_signature.clone();
+        let key=receipt.environment.lexical.first().ok_or_else(||bad("static member lacks its exact source method frame"))?.key;
+        let(source_inputs,source_checks)=self.original_call_inputs(module,caller,site,&signature,key,arguments,values,environment,external,active,b)?;
+        let inputs=source_inputs.iter().collect::<Vec<_>>();
+        self.instantiate_original_call_heads(module,caller,site,&mut signature,&inputs,key,environment,b)?;
         if signature.parameters.len()!=arguments.len()||function.parameters.len()!=arguments.len()||function.call_kind!=signature.call_kind||function.result_mode!=signature.result_mode||function.return_type!=signature.result.ty{return Err(bad("actual member whole function ABI differs from its exact source specialization"));}
-        for(((expected,_mode),argument),parameter)in signature.parameters.iter().zip(arguments).zip(&function.parameters){
-            let actual=value_at(values,*argument)?;
+        for(index,(((expected,_mode),argument),parameter))in signature.parameters.iter().zip(arguments).zip(&function.parameters).enumerate(){
             let local=function.locals.get(parameter.0 as usize).ok_or_else(||bad("actual member parameter local is absent"))?;
-            if local.ty!=expected.ty||!self.compatible(environment,actual,expected,b)?{return Err(bad("actual member argument violates its complete invariant type/mode/class relation"));}
+            if local.ty!=expected.ty||!self.call_argument(module,caller,*argument,values,expected,environment,source_checks[index],b)?{return Err(bad("actual member argument violates its complete invariant type/mode/class relation"));}
         }
         // These are signatures and original identity only. All actual function
         // CFG/loans/cleanup and the pending universal relation must still pass;
         // raw trait/body contract uppers have supplied no permission here.
-        Ok(if signature.result.ty==Type::Unit{None}else{Some(signature.result.clone())})
+        b.spend(worlds.len())?;
+        self.record_static_member(module,caller,site,function,receipt,worlds.into_iter().map(|world|world.instance).collect(),b)?;
+        Ok(if signature.result.ty==Type::Unit{None}else{Some(signature.result)})
     }
     fn member_actual_claim(&self,module:&TypedModule,expected:&CheckedActual,claim:&SemanticActual,environment:&EvalEnv,b:&mut Budget)->Check<()>{
         let equal=match(expected,claim){(CheckedActual::Type(expected),SemanticActual::Type(claim))=>{self.claim(module,claim,expected,environment,b)?;true},(CheckedActual::Const{carrier,value},SemanticActual::Const{ty,value:actual})=>{self.claim(module,ty,carrier,environment,b)?;value==actual},(CheckedActual::Life(expected),SemanticActual::Life(actual))=>self.same(environment,expected,&self.class(module,actual,environment,b)?,b)?,_=>false};
@@ -100,8 +102,8 @@ impl Boundary{
         else{self.classes.push((actual.clone(),expected.clone()));}Ok(())
     }
     pub(super) fn value(&mut self,context:&CheckedContext,env:&EvalEnv,actual:&CheckedType,expected:&CheckedType,b:&mut Budget)->Check<()>{
-        dynamic_metadata::ty(&actual.ty,b)?;dynamic_metadata::ty(&expected.ty,b)?;
-        if actual.ty!=expected.ty||actual.life!=expected.life||actual.classes.len()!=expected.classes.len()||actual.origins.len()!=expected.origins.len()||actual.statics!=expected.statics{return Err(bad("member call boundary changes its complete type/domain/static occurrences"));}
+        let same_raw=actual.same_raw_type(expected,b)?;
+        if !same_raw||actual.life!=expected.life||actual.classes.len()!=expected.classes.len()||actual.origins.len()!=expected.origins.len()||actual.statics!=expected.statics{return Err(bad("member call boundary changes its complete type/domain/static occurrences"));}
         let mut local=Vec::<(&IntrinsicOrigin,&IntrinsicOrigin)>::new();
         for(a,z)in actual.origins.iter().zip(&expected.origins){
             b.spend(local.len().saturating_add(1))?;
@@ -118,14 +120,7 @@ impl Boundary{
     }
 }
 
-fn charge_value(value:&CheckedType,b:&mut Budget)->Check<()>{
-    dynamic_metadata::ty(&value.ty,b)?;dynamic_metadata::life_shape(&value.life,b)?;
-    b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;
-    for key in &value.classes{if let ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=key{b.spend(path.len())?;}}
-    for origin in &value.origins{super::super::nominal_origins::charge_origin(origin,b)?;}
-    for row in &value.statics{match row{StaticOccurrence::Direct{path,leaf,..}=>{b.spend(path.len())?;dynamic_metadata::ty(leaf,b)?;},StaticOccurrence::Logical{position,leaf,..}=>{dynamic_metadata::position(position,b)?;dynamic_metadata::ty(leaf,b)?;}}}
-    Ok(())
-}
+fn charge_value(value:&CheckedType,b:&mut Budget)->Check<()>{value.charge_clone(b)}
 
 #[cfg(test)]
 mod tests{

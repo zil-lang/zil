@@ -11,7 +11,7 @@ impl CheckedContext{
         match &instruction.kind{
             InstructionKind::BindPackageCapture{local,index}|InstructionKind::EndPackageCapture{local,index}=>{
                 let occurrences=self.occurrences.borrow();let source=occurrences.get(&(scope,OperandKey::Capture(*index))).ok_or_else(||bad("actual package capture has no completely sealed creator operand"))?;
-                dynamic_witness::intrinsic_domain(module,&source.ty,b)?;
+                ghost_captures::complete_environment(module,source,b)?;
                 if f.locals.get(local.0 as usize).is_none_or(|target|target.ty!=source.ty){return Err(bad("package capture local differs from its full sealed environment type"));}
                 dynamic_metadata::ty(&source.ty,b)?;b.spend(source.origins.len())?;
                 let target=state.locals.get_mut(local.0 as usize).ok_or_else(||bad("package capture local is absent"))?;
@@ -34,8 +34,31 @@ impl CheckedContext{
             },
             InstructionKind::DescribeCapture{index}|InstructionKind::BorrowCapture{index,..}=>{
                 let occurrences=self.occurrences.borrow();let child=occurrences.get(&(scope,OperandKey::Capture(*index))).ok_or_else(||bad("actual captured owner has no sealed creator source"))?;
-                dynamic_witness::intrinsic_domain(module,&child.ty,b)?;
+                ghost_captures::complete_environment(module,child,b)?;
                 match instruction.kind{InstructionKind::DescribeCapture{..}=>self.owner_description(module,child,instruction,scope,environment,active,b).map(Some),InstructionKind::BorrowCapture{mutable,..}=>self.owner_address(child,instruction,scope,mutable,environment,active,b).map(Some),_=>unreachable!()}
+            },
+            InstructionKind::DropPackageField{local,index}|InstructionKind::StorePackageField{local,index,..}=>{
+                let parent=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual package field replacement has no complete parent domain"))?;
+                if f.locals.get(local.0 as usize).is_none_or(|row|row.ty!=parent.ty){return Err(bad("actual package field replacement changes its exact parent local type"));}
+                let storage=match &parent.ty{Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};
+                let Type::Package{fields,..}=storage else{return Err(bad("actual package field replacement has another owning product kind"));};
+                if fields.get(*index as usize).is_none(){return Err(bad("actual package field replacement selects no original field"));}
+                let child=self.child_value(module,parent,&[LifeTypeProjection::Place(PlaceProjection::Field(*index))],b)?;
+                match instruction.kind{
+                    InstructionKind::StorePackageField{value,..}=>{
+                        if !self.compatible(environment,value_at(values,value)?,&child,b)?{return Err(bad("actual package field replacement changes its complete original child domain"));}
+                    },
+                    InstructionKind::DropPackageField{..}=>{
+                        // This is a conditional cleanup of the selected field,
+                        // including the empty slot after an actual FnOnce take.
+                        // The owning Product kernel retains the live/vacant
+                        // debt and loan checks; its parent ghost domain stays
+                        // intact for an exact same-domain field refill.
+                        ghost_captures::complete_environment(module,&child,b)?;
+                    },
+                    _=>unreachable!(),
+                }
+                Ok(None)
             },
             InstructionKind::WriteCapture{index,value}=>{
                 let value=value_at(values,*value)?;
@@ -44,7 +67,7 @@ impl CheckedContext{
             },
             InstructionKind::DropPackage{local}=>{
                 let target=state.locals.get_mut(local.0 as usize).ok_or_else(||bad("package cleanup local is absent"))?;
-                if let Some(value)=target.as_ref(){dynamic_witness::intrinsic_domain(module,&value.ty,b)?;}
+                if let Some(value)=target.as_ref(){ghost_captures::complete_environment(module,value,b)?;}
                 *target=None;Ok(None)
             },
             InstructionKind::ExtractField{aggregate,index}=>{
@@ -54,7 +77,14 @@ impl CheckedContext{
             InstructionKind::AddressField{address,index}=>{
                 let parent=value_at(values,*address)?;let Type::Address{mutable,inner}=&parent.ty else{return Err(bad("actual field address lacks a typed parent address"));};
                 actual_field(inner,*index,b)?;
-                let child=self.child_value(module,parent,&[LifeTypeProjection::Pointee,LifeTypeProjection::Place(PlaceProjection::Field(*index))],b)?;
+                // An actual resource-head Address contains the Managed
+                // position, whose payload has its own complete child domain.
+                // The raw kernel above proves this exact canonical head role;
+                // keep both projections rather than erasing the owner layer.
+                let mut path=vec![LifeTypeProjection::Pointee];
+                if matches!(inner.as_ref(),Type::Managed(_)){path.push(LifeTypeProjection::Pointee);}
+                path.push(LifeTypeProjection::Place(PlaceProjection::Field(*index)));
+                let child=self.child_value(module,parent,&path,b)?;
                 let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
                 let slot=parent.life.slots.iter().find(|slot|slot.path.is_empty()&&slot.mode==mode).ok_or_else(||bad("actual field address has no complete parent head occurrence"))?;
                 let key=parent.classes.get(slot.binder as usize).cloned().ok_or_else(||bad("actual field parent head class is absent"))?;

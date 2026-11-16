@@ -2,6 +2,18 @@
 //! only equal intrinsic origins. Existing child type values are never rewritten.
 use super::*;
 
+#[derive(Clone,Copy)]
+pub(super) struct View<'a>{
+    pub ty:&'a Type,
+    pub life:&'a StorageLifeShape,
+    pub classes:&'a [StorageBinder],
+    pub terms:&'a [terms::LifeTerm],
+}
+impl<'a> View<'a>{
+    fn of(value:&'a terms::Value)->Self{Self{ty:&value.raw.ty,life:&value.raw.life,classes:&value.raw.classes,terms:&value.terms}}
+    fn term(self,class:u32,b:&mut Budget)->Check<terms::LifeTerm>{b.spend(1)?;self.terms.get(class as usize).copied().ok_or_else(||bad("actual intrinsic occurrence has no complete origin term"))}
+}
+
 #[derive(Default)]
 struct Rows {
     slots: Vec<(Vec<PlaceProjection>, StoredBorrowMode, terms::LifeTerm)>,
@@ -11,15 +23,15 @@ struct Rows {
 impl Rows {
     fn child(
         &mut self,
-        child: &terms::Value,
+        child: View<'_>,
         physical: &[PlaceProjection],
         semantic: &[LifeTypeProjection],
         inline: bool,
         b: &mut Budget,
     ) -> Check<()> {
-        dynamic_metadata::recipe(&child.raw, b)?;
+        dynamic_metadata::bounds_type_parts(child.ty,child.life,child.classes,b)?;
         let boundary = matches!(
-            child.raw.ty,
+            child.ty,
             Type::BorrowedStorage { .. }
                 | Type::Closure(_)
                 | Type::Task { .. }
@@ -33,7 +45,7 @@ impl Rows {
                 self.retained.push((semantic.to_vec(), class as u32, *term));
             }
         } else {
-            for row in &child.raw.life.retained {
+            for row in &child.life.retained {
                 b.spend(
                     semantic
                         .len()
@@ -47,7 +59,7 @@ impl Rows {
             }
         }
         if inline {
-            for row in &child.raw.life.slots {
+            for row in &child.life.slots {
                 b.spend(
                     physical
                         .len()
@@ -59,12 +71,12 @@ impl Rows {
                 self.slots
                     .push((path, row.mode, child.term(row.binder, b)?));
             }
-        } else if !boundary && !child.raw.life.slots.is_empty() {
+        } else if !boundary && !child.life.slots.is_empty() {
             return Err(bad(
                 "raw semantic pointee borrow needs an independent complete child scope",
             ));
         }
-        for row in &child.raw.life.nominal_arguments {
+        for row in &child.life.nominal_arguments {
             b.spend(
                 semantic
                     .len()
@@ -80,7 +92,7 @@ impl Rows {
         }
         Ok(())
     }
-    fn finish(self, mut ty: Type, qualified: bool, b: &mut Budget) -> Check<terms::Value> {
+    fn shape(self,b:&mut Budget)->Check<Shape>{
         b.spend(
             self.nominal
                 .len()
@@ -129,64 +141,69 @@ impl Rows {
             retained,
             nominal_arguments,
         };
-        dynamic_metadata::ty(&ty, b)?;
-        if qualified && !unique.is_empty() {
-            ty = Type::BorrowedStorage {
-                storage: Box::new(ty),
-                life: life.clone(),
-            };
-        }
-        Ok(terms::Value {
-            raw: DynTypeValue {
-                ty,
-                life,
-                classes: unique.iter().map(|v| v.image).collect(),
-            },
-            terms: unique,
-        })
+        b.spend(unique.len())?;
+        Ok(Shape{life,classes:unique.iter().map(|term|term.image).collect(),terms:unique})
     }
-}
-pub(super) fn address(
-    child: &terms::Value,
-    term: terms::LifeTerm,
-    mode: StoredBorrowMode,
-    b: &mut Budget,
-) -> Check<terms::Value> {
-    let mut rows = Rows::default();
-    rows.slots.push((vec![], mode, term));
-    rows.child(child, &[], &[LifeTypeProjection::Pointee], false, b)?;
-    let ty = match mode {
-        StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress => Type::Address {
-            mutable: mode == StoredBorrowMode::ExclusiveAddress,
-            inner: Box::new(child.raw.ty.clone()),
-        },
-        StoredBorrowMode::ReadOnlyDescription | StoredBorrowMode::WritableDescription => {
-            Type::Desc(Box::new(child.raw.ty.clone()))
+    fn finish(self,mut ty:Type,qualified:bool,b:&mut Budget)->Check<terms::Value>{
+        let shape=self.shape(b)?;
+        dynamic_metadata::bounds_type(&ty,b)?;
+        if qualified&&!shape.terms.is_empty(){
+            dynamic_metadata::life_shape(&shape.life,b)?;
+            ty=Type::BorrowedStorage{storage:Box::new(ty),life:shape.life.clone()};
         }
+        Ok(terms::Value{raw:DynTypeValue{ty,life:shape.life,classes:shape.classes},terms:shape.terms})
+    }
+
+}
+
+pub(super) fn address(child:&terms::Value,term:terms::LifeTerm,mode:StoredBorrowMode,b:&mut Budget)->Check<terms::Value>{address_view(View::of(child),Some(term),mode,b)}
+pub(super) fn managed(child:&terms::Value,b:&mut Budget)->Check<terms::Value>{managed_view(View::of(child),b)}
+pub(super) fn tuple(children:&[terms::Value],b:&mut Budget)->Check<terms::Value>{
+    b.spend(children.len())?;let views:Vec<_>=children.iter().map(View::of).collect();tuple_views(&views,b)
+}
+pub(super) fn address_view(child:View<'_>,term:Option<terms::LifeTerm>,mode:StoredBorrowMode,b:&mut Budget)->Check<terms::Value>{
+    let mut rows=Rows::default();
+    if let Some(term)=term{rows.slots.push((vec![],mode,term));}
+    else if !matches!(mode,StoredBorrowMode::SharedAddress|StoredBorrowMode::ReadOnlyDescription){return Err(bad("static type constructor cannot invent mutable storage"));}
+    rows.child(child,&[],&[LifeTypeProjection::Pointee],false,b)?;
+    dynamic_metadata::ty(child.ty,b)?;
+    let ty=match mode{
+        StoredBorrowMode::SharedAddress|StoredBorrowMode::ExclusiveAddress=>Type::Address{mutable:mode==StoredBorrowMode::ExclusiveAddress,inner:Box::new(child.ty.clone())},
+        _=>Type::Desc(Box::new(child.ty.clone())),
     };
-    rows.finish(ty, false, b)
+    rows.finish(ty,false,b)
 }
-pub(super) fn managed(child: &terms::Value, b: &mut Budget) -> Check<terms::Value> {
-    let mut rows = Rows::default();
-    rows.child(child, &[], &[LifeTypeProjection::Pointee], false, b)?;
-    rows.finish(Type::Managed(Box::new(child.raw.ty.clone())), false, b)
+pub(super) fn managed_view(child:View<'_>,b:&mut Budget)->Check<terms::Value>{
+    let mut rows=Rows::default();rows.child(child,&[],&[LifeTypeProjection::Pointee],false,b)?;
+    dynamic_metadata::ty(child.ty,b)?;
+    rows.finish(Type::Managed(Box::new(child.ty.clone())),false,b)
 }
-pub(super) fn tuple(children: &[terms::Value], b: &mut Budget) -> Check<terms::Value> {
-    b.spend(children.len())?;
-    let mut rows = Rows::default();
-    let mut fields = Vec::with_capacity(children.len());
-    for (index, child) in children.iter().enumerate() {
-        let field = PlaceProjection::Field(index as u32);
-        rows.child(
-            child,
-            &[field],
-            &[LifeTypeProjection::Place(field)],
-            true,
-            b,
-        )?;
-        fields.push(child.raw.ty.clone());
+pub(super) fn tuple_views(children:&[View<'_>],b:&mut Budget)->Check<terms::Value>{
+    b.spend(children.len())?;let mut rows=Rows::default();let mut fields=Vec::with_capacity(children.len());
+    for(index,child)in children.iter().copied().enumerate(){
+        let field=PlaceProjection::Field(index as u32);
+        rows.child(child,&[field],&[LifeTypeProjection::Place(field)],true,b)?;
+        dynamic_metadata::ty(child.ty,b)?;fields.push(child.ty.clone());
     }
-    rows.finish(if fields.is_empty(){Type::Unit}else{Type::Tuple(fields)}, true, b)
+    rows.finish(if fields.is_empty(){Type::Unit}else{Type::Tuple(fields)},true,b)
+}
+
+/// Fresh logical occurrence directories, independent of physical Type storage.
+pub(super) struct Shape{pub life:StorageLifeShape,pub classes:Vec<StorageBinder>,pub terms:Vec<terms::LifeTerm>}
+pub(super) fn shape_views(kind:crate::semantic::PhysicalConstructor,children:&[View<'_>],head:Option<terms::LifeTerm>,mode:Option<StoredBorrowMode>,b:&mut Budget)->Check<Shape>{
+    use crate::semantic::PhysicalConstructor as K;
+    b.spend(children.len())?;let mut rows=Rows::default();
+    if kind==K::Tuple{
+        for(index,child)in children.iter().copied().enumerate(){let field=PlaceProjection::Field(index as u32);rows.child(child,&[field],&[LifeTypeProjection::Place(field)],true,b)?;}
+    }else{
+        if children.len()!=1{return Err(bad("unary semantic constructor has another child count"));}
+        if let Some(mode)=mode{
+            if let Some(head)=head{rows.slots.push((vec![],mode,head));}
+            else if !matches!(mode,StoredBorrowMode::SharedAddress|StoredBorrowMode::ReadOnlyDescription){return Err(bad("static type constructor cannot invent mutable storage"));}
+        }
+        rows.child(children[0],&[],&[LifeTypeProjection::Pointee],false,b)?;
+    }
+    rows.shape(b)
 }
 
 #[cfg(test)]

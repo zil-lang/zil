@@ -605,6 +605,14 @@ fn check_element_admission(
     product_container: bool,
     budget: &mut Budget,
 ) -> Check<()> {
+    if limits.is_none()&&dynamic_metadata::store_element_known(module,element,product_container,budget)?{return Ok(());}
+    check_element_admission_cold(module,element,span,limits,product_container,budget)?;
+    if limits.is_none(){dynamic_metadata::store_element_success(module,element,product_container,budget)?;}
+    Ok(())
+}
+fn check_element_admission_cold(
+    module:&TypedModule,element:&Type,span:Option<Span>,limits:Option<&Limits>,product_container:bool,budget:&mut Budget,
+)->Check<()>{
     if plain_element(element) {
         return check_pod_element(element, &module.target, span, budget);
     }

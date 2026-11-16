@@ -273,7 +273,8 @@ fn signatures(
         let mut signature_arrays = *array_billing;
         if f.type_parameters.is_empty() {
             signature_arrays |=
-                signature_errors(f, &mut errors, limits, &mut foreign_work).map_err(|e| vec![e])?;
+                signature_errors_in(Some(core), f, &mut errors, limits, &mut foreign_work)
+                    .map_err(|e| vec![e])?;
         }
         *array_billing |= signature_arrays;
         if signature_arrays {
@@ -439,6 +440,15 @@ fn signature_errors(
     limits: &Limits,
     left: &mut usize,
 ) -> R<bool> {
+    signature_errors_in(None, f, errors, limits, left)
+}
+fn signature_errors_in(
+    core: Option<&CoreModule>,
+    f: &CoreFunction,
+    errors: &mut Vec<Diagnostic>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<bool> {
     fn pure_array(ty: &Type, span: Span, limits: &Limits, left: &mut usize) -> R<bool> {
         if !matches!(ty, Type::Array { .. }) || ty.is_copy_value() {
             return Ok(false);
@@ -447,6 +457,7 @@ fn signature_errors(
         inference::charge_type_snapshot(ty, span, limits, left, 2)?;
         stored::pure_inline(ty, left, limits, span)
     }
+    let nested = borrowed_fp_qualified::ordinary_nested_signature(core, f, limits, left)?;
     if f.retained_return_sources.is_some() {
         return Err(unsupported(
             f.span,
@@ -483,6 +494,7 @@ fn signature_errors(
         || f.return_type.is_copy_value()
         || pure_result
         || f.return_type.is_scalar_or_address()
+        || nested[f.parameters.len()]
         || stored::shared_value(&f.return_type)
         || stored::shared_address(&f.return_type)
         || reference_patterns::sum_address(&f.return_type)
@@ -534,6 +546,7 @@ fn signature_errors(
         if !(p.ty.is_copy_value()
             || pure_parameter
             || p.ty.is_scalar_or_address()
+            || nested[index]
             || stored::shared_value(&p.ty)
             || stored::shared_address(&p.ty)
             || reference_patterns::sum_address(&p.ty)
@@ -563,9 +576,10 @@ fn signature_errors(
                 || p.ty.is_shared_resource_head_address()
                 || p.ty.is_shared_package_address()
                 || stored::shared_address(&p.ty)
-                || reference_patterns::sum_address(&p.ty)))
+                || reference_patterns::sum_address(&p.ty)
+                || nested[index]))
             && !(p.mode == PassingMode::BorrowMut
-                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || stored::shared_address(&p.ty) || p.ty.is_package_address() || p.ty.is_exclusive_task_head_address() || reference_patterns::sum_address(&p.ty)))
+                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || nested[index] || stored::shared_address(&p.ty) || p.ty.is_package_address() || p.ty.is_exclusive_task_head_address() || reference_patterns::sum_address(&p.ty)))
             && !(p.mode == PassingMode::Give
                 && (matches!(p.ty, Type::Managed(_)) || errors::managed_success(&p.ty)))
             && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))
@@ -603,10 +617,10 @@ pub fn check(
             .record_pass(tag, cost_checkpoint, remaining);
         cost_checkpoint = remaining;
     };
-    if core.semantic.is_some() {
+    let input_lease = if core.semantic.is_some() {
         let mut remaining = closure_state.remaining_work();
         let before = remaining;
-        semantics::abi::prepare(
+        let lease = semantics::abi::prepare(
             &mut closure_state.semantic_emission,
             &[core],
             limits,
@@ -616,7 +630,10 @@ pub fn check(
         closure_state
             .snapshot(before - remaining, Span::default())
             .map_err(|error| vec![error])?;
-    }
+        lease
+    } else {
+        None
+    };
     mark_cost(
         "single: original ABI and universal source",
         closure_state.remaining_work(),
@@ -839,6 +856,7 @@ pub fn check(
         &[core],
         &mut module,
         &semantic_emission,
+        input_lease.as_ref(),
         limits,
         &mut remaining,
     )
@@ -900,6 +918,7 @@ struct Builder<'a, 'c> {
     resource_temp_floor: usize,
     next_replacement: u32,
     prepared_replacements: Vec<owning_place_replace::Prepared>,
+    prepared_copy_read: Option<addresses::PreparedRead>,
     sequenced_values: std::collections::BTreeSet<LocalId>,
     ordinary_managed_values: std::collections::BTreeSet<LocalId>,
     managed_slots: std::collections::BTreeSet<LocalId>,
@@ -1149,6 +1168,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             resource_temp_floor: 0,
             next_replacement: 0,
             prepared_replacements: Vec::new(),
+            prepared_copy_read: None,
             sequenced_values: std::collections::BTreeSet::new(),
             ordinary_managed_values: std::collections::BTreeSet::new(),
             managed_slots: std::collections::BTreeSet::new(),
@@ -2463,6 +2483,9 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.expr_raw(e, expected)
     }
     fn expr_raw(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        if let Some(value) = self.read_prepared_copy(e, expected)? {
+            return Ok(value);
+        }
         if let Some(value) = self.take_replacement_input(e, expected)? {
             return Ok(value);
         }
@@ -4130,6 +4153,17 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.closures.pending[id.0 as usize].typed = Some(typed);
         Ok(())
     }
+    fn semantic_local_callee(&mut self, expression: &CoreExpr, local: LocalId) -> R<()> {
+        let mut source = expression;
+        loop {
+            self.semantic_local_place(source, local)?;
+            let CoreExprKind::Group(inner) = &source.kind else {
+                break;
+            };
+            source = inner;
+        }
+        Ok(())
+    }
     fn call_closure(
         &mut self,
         callee: &CoreExpr,
@@ -4139,7 +4173,21 @@ impl<'a, 'c> Builder<'a, 'c> {
     ) -> R<(ValueId, Type)> {
         // Evaluate the callee once, before any argument, even for a conditional
         // or hygienic Sequence expression that produces a closure value.
-        let mut existing_place = match &callee.kind {
+        let mut local_expression = callee;
+        let mut groups = 0usize;
+        while let CoreExprKind::Group(inner) = &local_expression.kind {
+            if groups >= self.limits.max_call_depth {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "local callee group depth exceeded",
+                    Some(callee.span),
+                ));
+            }
+            self.closures.snapshot(1, local_expression.span)?;
+            groups += 1;
+            local_expression = inner;
+        }
+        let mut existing_place = match &local_expression.kind {
             CoreExprKind::Name(name) => self.lookup(name),
             _ => None,
         };
@@ -4147,7 +4195,33 @@ impl<'a, 'c> Builder<'a, 'c> {
         let field_callee = self.package_callable_callee(callee)?;
         // An owning environment is not a Copy callee value. Shared and
         // Exclusive invocation borrow the actual local; Consume transfers it.
-        let declared_capture = self.factory_declared_kind(callee)?;
+        let declared_capture = self.factory_declared_kind(local_expression)?;
+        let local_requires_place = if let Some(local) = existing_place
+            && let Type::Closure(id) = self.function.locals[local.0 as usize].ty
+        {
+            let declared = self.declared_state_kind(local_expression, None, id)?;
+            self.closures.snapshot(
+                self.helper_bounds
+                    .len()
+                    .saturating_add(self.closures.pending[id.0 as usize].captures.len())
+                    .saturating_add(1),
+                callee.span,
+            )?;
+            let kind = declared.unwrap_or_else(|| {
+                self.helper_bounds
+                    .iter()
+                    .find(|bound| {
+                        self.function.parameters.get(bound.index as usize).copied() == Some(local)
+                    })
+                    .map_or_else(
+                        || self.closures.pending[id.0 as usize].callable_kind(),
+                        |bound| bound.kind,
+                    )
+            });
+            kind != CallableKind::Fn
+        } else {
+            false
+        };
         let captured_once = existing_place.and_then(|local| self.closure_captures.get(&local).cloned())
             .filter(|(_, ty)| matches!(ty, Type::Closure(id) if declared_capture.unwrap_or_else(|| self.closures.pending[id.0 as usize].callable_kind()) == CallableKind::FnOnce));
         let (mut callee_value, ty) = if let Some((value, id, kind)) = field_callee {
@@ -4158,7 +4232,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 (None, Type::Closure(id))
             }
         } else if let Some((index, ty)) = captured_once {
-            self.semantic_local_place(callee, existing_place.expect("selected named capture"))?;
+            self.semantic_local_callee(callee, existing_place.expect("selected named capture"))?;
             existing_place = None;
             (
                 Some(self.value(InstructionKind::TakeCapture { index }, ty.clone(), span)?),
@@ -4167,10 +4241,10 @@ impl<'a, 'c> Builder<'a, 'c> {
         } else if let Some(local) = existing_place
             && let Some(id) = self.closure_slots.get(&local).copied()
         {
-            self.semantic_local_place(callee, local)?;
+            self.semantic_local_callee(callee, local)?;
             existing_place = None;
             let kind = self
-                .declared_state_kind(callee, None, id)?
+                .declared_state_kind(local_expression, None, id)?
                 .unwrap_or_else(|| self.closures.pending[id.0 as usize].callable_kind());
             if kind == CallableKind::FnOnce {
                 let (value, ty) = self.take_closure_slot(local, span)?;
@@ -4183,7 +4257,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                 (None, Type::Closure(id))
             }
         } else if let Some(local) = existing_place
-            && (self.owned_closure(&self.function.locals[local.0 as usize].ty)
+            && (local_requires_place
+                || self.owned_closure(&self.function.locals[local.0 as usize].ty)
                 || self.lending_closure(match self.function.locals[local.0 as usize].ty {
                     Type::Closure(id) => Some(id),
                     _ => None,
@@ -4191,7 +4266,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 || (self.forwarding_modes && declared_capture.is_some())
                 || matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
         {
-            self.semantic_local_place(callee, local)?;
+            self.semantic_local_callee(callee, local)?;
             (None, self.function.locals[local.0 as usize].ty.clone())
         } else {
             let (value, ty) = self.expr(callee, None)?;
@@ -4222,7 +4297,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 "called value is not a function pointer or concrete closure",
             ));
         };
-        let mut declared_kind = self.declared_state_kind(callee, None, id)?;
+        let mut declared_kind = self.declared_state_kind(local_expression, None, id)?;
         if declared_kind.is_none()
             && let Some(value) = callee_value
         {

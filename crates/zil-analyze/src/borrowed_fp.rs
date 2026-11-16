@@ -257,14 +257,14 @@ fn callback_returns(
                     return Err(bad("captured callback actual parameter differs"));
                 }
             }
-            super::signature_life::closure_relation(
-                &module.closures,
-                &module.dyn_interfaces,
+            super::signature_life::closure_relation_resource_scopes(
+                module,
                 closure.kind,
                 &closure.parameters,
                 &closure.captures,
                 super::stored_callables::life_result(closure),
                 life,
+                budget,
             )?;
             // This qualification rejects qualified/opaque/borrowed output
             // trees; actual owner debt is conserved by the resource solver.

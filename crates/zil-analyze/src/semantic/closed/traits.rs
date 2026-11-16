@@ -10,20 +10,52 @@ pub(super) struct Query {
     arguments: Vec<Argument>,
     member: Option<u32>,
 }
-fn charge_value(value: &Value, b: &mut Budget) -> CompileResult<()> {
-    crate::dyn_metadata::ty(&value.ty, b)?;
-    crate::dyn_metadata::shape(&value.life, b)?;
-    b.spend(value.classes.len(), WORK)
+pub(super) struct ActiveQuery {
+    query: Query,
 }
+
+#[track_caller]
+fn charge_value(value: &Value, b: &mut Budget) -> CompileResult<()> {
+    // A Value clone shares geometry and copies its current class vector. Raw
+    // bounds may be reused at this exact profile; no live trait fact is reused.
+    value.check_geometry(b)?;
+    b.spend(value.classes.len().saturating_add(1), WORK)
+}
+#[track_caller]
 fn charge_arguments(arguments: &[Argument], b: &mut Budget) -> CompileResult<()> {
+    b.spend(arguments.len(), WORK)?;
     for argument in arguments {
         match argument {
             Argument::Type(value) => charge_value(value, b)?,
-            Argument::Const { carrier, .. } => crate::dyn_metadata::ty(carrier, b)?,
+            Argument::Const { carrier, value } => {
+                crate::dyn_metadata::ty(carrier, b)?;
+                if let Constant::WideString(units) = value {
+                    b.spend(units.len(), WORK)?;
+                }
+            }
             Argument::Life(_) => b.spend(1, WORK)?,
         }
     }
     Ok(())
+}
+pub(super) fn arguments_equal(left: &[Argument], right: &[Argument], b: &mut Budget) -> CompileResult<bool> {
+    b.spend(left.len().saturating_add(right.len()), WORK)?;
+    if left.len() != right.len() { return Ok(false); }
+    let mut equal = true;
+    for (left, right) in left.iter().zip(right) {
+        equal &= match (left, right) {
+            (Argument::Type(left), Argument::Type(right)) => left.equal_paid(right, b)?,
+            (Argument::Life(left), Argument::Life(right)) => left == right,
+            (Argument::Const { carrier: left_ty, value: left }, Argument::Const { carrier: right_ty, value: right }) => {
+                let same_carrier = geometry::same_type(left_ty, right_ty, b)?;
+                let width = |value: &Constant| match value { Constant::WideString(units) => units.len(), _ => 1 };
+                b.spend(width(left).saturating_add(width(right)), WORK)?;
+                same_carrier && left == right
+            }
+            _ => false,
+        };
+    }
+    Ok(equal)
 }
 impl Check<'_, '_> {
     #[allow(clippy::too_many_arguments)]
@@ -58,10 +90,7 @@ impl Check<'_, '_> {
                     "original dynamic receiver lost its complete interface application",
                 ));
             };
-            if !empty(&boundary.receiver.life)
-                || !boundary.receiver.classes.is_empty()
-                || !boundary.result.classes.is_empty()
-                || !actuals.is_empty()
+            if !actuals.is_empty()
                 || !boundary.method_actuals.is_empty()
                 || boundary.call_kind != CallKind::Direct
             {
@@ -120,6 +149,19 @@ impl Check<'_, '_> {
                 .receiver_anchor
                 .ok_or_else(|| fail("original dynamic receiver has no lexical head"))?;
             let local = self.anchored_local(instance, function, anchor, b)?;
+            let actual_receiver = self.local_value(instance, function, local, (block, index), b, 0)?;
+            let actual_receiver = if owned {
+                if !matches!(actual_receiver.ty, Type::OwnedDyn { interface } if interface == *expected) {
+                    return Err(fail("dynamic call changes its exact original owning interface"));
+                }
+                let (_, life, classes) = actual_receiver.into_parts(b)?;
+                Value::new(Type::Dyn { interface: *expected }, life, classes)
+            } else {
+                self.pointee(&actual_receiver, b)?
+            };
+            if !actual_receiver.equal_paid(&boundary.receiver, b)? {
+                return Err(fail("dynamic call changes its original complete Context class relation"));
+            }
             operations::available_before(
                 function,
                 (block, index, SemanticSiteEdge::Before),
@@ -215,6 +257,84 @@ impl Check<'_, '_> {
                     return Err(fail(
                         "actual dynamic argument changes its original full class relation",
                     ));
+                }
+            }
+            if !boundary.result.classes.is_empty() {
+                // A persistent result role is interpreted from the original
+                // trait actual in this complete Context. Actual port sources,
+                // loans and static alternatives are checked by dyn dispatch.
+                let Type::Address { mutable: false, .. } = &boundary.result.ty else {
+                    return Err(unknown(
+                        "dynamic result requires its complete non-address intrinsic domain",
+                    ));
+                };
+                let [head] = boundary.result.life.slots.as_slice() else {
+                    return Err(fail(
+                        "dynamic result omits its exact original outer occurrence",
+                    ));
+                };
+                if !head.path.is_empty()
+                    || !boundary.result.life.retained.is_empty()
+                    || !boundary.result.life.nominal_arguments.is_empty()
+                    || boundary.result.classes.len() != 1
+                    || head.binder != 0
+                {
+                    return Err(unknown(
+                        "dynamic result needs its complete nested class projection",
+                    ));
+                }
+                let life = slot.storage_life.as_ref().ok_or_else(|| {
+                    unknown("dynamic result has no complete slot lifetime contract")
+                })?;
+                let mut result_role = None;
+                for row in &life.bindings {
+                    b.spend(row.position.path.len().saturating_add(1), WORK)?;
+                    if row.position.base == StorageBase::Result
+                        && row.position.path.is_empty()
+                        && result_role.replace(row.binder).is_some()
+                    {
+                        return Err(fail("dynamic result repeats its original outer role"));
+                    }
+                }
+                match result_role {
+                    Some(StorageBinder::Fixed(class)) => {
+                        if boundary.receiver.classes.get(class as usize) != boundary.result.classes.first() {
+                            return Err(fail("dynamic result changes the exact original persistent trait class"));
+                        }
+                    }
+                    Some(StorageBinder::Invocation(invocation)) => {
+                        let mut receiver_role = None;
+                        for row in &life.bindings {
+                            b.spend(row.position.path.len().saturating_add(1), WORK)?;
+                            if row.position.base == StorageBase::Parameter(0) && row.position.path.is_empty()
+                                && receiver_role.replace(row.binder).is_some() {
+                                return Err(fail("dynamic receiver repeats its complete original invocation role"));
+                            }
+                        }
+                        if receiver_role != Some(StorageBinder::Invocation(invocation)) {
+                            return Err(fail("dynamic result changes its declared receiver invocation bound"));
+                        }
+                        let adapter = boundary.receiver_adapter.as_ref().ok_or_else(||
+                            fail("dynamic result omits its independently checked original receiver adapter"))?;
+                        let [slot] = adapter.life.slots.as_slice() else {
+                            return Err(fail("dynamic receiver adapter omits its complete outer occurrence"));
+                        };
+                        if !slot.path.is_empty()
+                            || adapter.classes.get(slot.binder as usize) != boundary.result.classes.first()
+                        {
+                            return Err(fail("dynamic result changes this original call's exact receiver occurrence"));
+                        }
+                        let actual = self.ssa_value(instance, function, *callee, b, 0)?;
+                        if !self.outer_call_role(instance, function, (block, index), 0, *callee,
+                            &actual, adapter, b, 0)? {
+                            return Err(fail("dynamic result lacks its exact original invocation and actual owner-head source"));
+                        }
+                    }
+                    None => return Err(fail("dynamic result has no complete original result role")),
+                }
+                let child = self.pointee(&boundary.result, b)?;
+                if !child.classes.is_empty() || !empty(&child.life) {
+                    return Err(fail("dynamic result drops a full pointee class"));
                 }
             }
             if let Some(result) = instruction.result {
@@ -351,10 +471,9 @@ impl Check<'_, '_> {
             let head = *arguments
                 .first()
                 .ok_or_else(|| fail("actual trait call omits its receiver"))?;
-            let anchored = self.anchored_local(instance, function, anchor, b)?;
             if let Some(source) = &boundary.receiver_place {
                 self.checked_borrow_place(instance, function, head, source, false, false, b, 0)?;
-            } else if self.receiver_local(function, head, b, 0)? != anchored {
+            } else if !self.anchored_value(instance, function, anchor, head, b, 0)? {
                 return Err(fail(
                     "actual trait invocation takes another original receiver head",
                 ));
@@ -389,7 +508,7 @@ impl Check<'_, '_> {
                 && let Some(source) = &boundary.receiver_place
             {
                 let required = self.pointee(expected, b)?;
-                if required != source.inner {
+                if !self.capture_values_equal(&required, &source.inner, b)? {
                     return Err(fail(
                         "projected trait receiver changes its complete child domain",
                     ));
@@ -399,15 +518,26 @@ impl Check<'_, '_> {
                 // The ordinary memory checker independently proves the loan.
             } else if self.uses_full_value(actual, b)? {
                 let actual = self.ssa_value(instance, function, *argument, b, 0)?;
-                let valid = if matches!(expected.ty, Type::Address { .. }) {
-                    self.outer_role(instance, function, &actual, expected, b, 0)?
+                let valid = if matches!(expected.ty, Type::Address { .. } | Type::Desc(_)) {
+                    self.outer_call_role(instance, function, (block, index), ordinal, *argument, &actual, expected, b, 0)?
                 } else {
                     actual == *expected
                 };
                 if !valid {
-                    return Err(fail(
-                        "actual trait argument changes its full intrinsic classes or outer call role",
+                    let before = b.remaining();
+                    crate::dyn_metadata::ty(&actual.ty, b)?;
+                    crate::dyn_metadata::shape(&actual.life, b)?;
+                    crate::dyn_metadata::ty(&expected.ty, b)?;
+                    crate::dyn_metadata::shape(&expected.life, b)?;
+                    let work = before - b.remaining();
+                    b.spend(work.saturating_mul(256).saturating_add(actual.classes.len().saturating_add(expected.classes.len()).saturating_mul(512)).saturating_add(1024), WORK)?;
+                    let mut errors = fail("actual trait argument changes its full intrinsic classes or outer call role");
+                    errors[0].notes.push(format!(
+                        "trait original member {}:{} receiver declaration {:?} method slot {}; actual function {} call block {} instruction {} recipe {} parameter {} operand {}; independent source sigma {actual:?}; independent call adapter {expected:?}",
+                        boundary.method.module.0, boundary.method.index, boundary.declaration,
+                        boundary.member, function.id.0, block.0, index, site.0, ordinal, argument.0,
                     ));
+                    return Err(errors);
                 }
             }
         }
@@ -416,21 +546,32 @@ impl Check<'_, '_> {
                 "actual trait method result differs from its independently instantiated original member",
             ));
         }
-        if !boundary.result.classes.is_empty() {
-            return Err(unknown(
-                "trait result needs its complete concrete entry result-role substitution",
-            ));
-        }
+        let output = if boundary.result.classes.is_empty() {
+            boundary.result
+        } else {
+            self.call_output_from_entry(
+                instance,
+                function,
+                (block, index),
+                callee,
+                arguments,
+                &boundary.parameters,
+                &boundary.result.ty,
+                Some(boundary.result.copy(b)?),
+                b,
+                0,
+            )?
+        };
         if let Some(result) = instruction.result {
-            if function.values.get(result.0 as usize) != Some(&boundary.result.ty) {
+            if function.values.get(result.0 as usize) != Some(&output.ty) {
                 return Err(fail(
                     "actual trait call result SSA has another complete type",
                 ));
             }
-        } else if boundary.result.ty != Type::Unit {
+        } else if output.ty != Type::Unit {
             return Err(fail("actual trait call omits its promised result value"));
         }
-        Ok(Some(boundary.result))
+        Ok(Some(output))
     }
     pub(super) fn trait_result(
         &self,
@@ -487,15 +628,24 @@ impl Check<'_, '_> {
             member,
         };
         for old in self.trait_queries.borrow().iter() {
-            charge_value(&old.receiver, b)?;
-            charge_arguments(&old.arguments, b)?;
-            if old == &query {
+            b.spend(1, WORK)?;
+            if old.query.declaration != declaration || old.query.member != member {
+                continue;
+            }
+            // Old queries are immutable owned clones, already fully bounded.
+            // Pay a complete paired comparison rather than re-walking their
+            // raw metadata; every current query still had a fresh preflight.
+            if old.query.receiver.equal_paid(&query.receiver, b)?
+                && arguments_equal(&old.query.arguments, &query.arguments, b)?
+            {
                 return Err(fail(
                     "actual original associated/trait query graph is cyclic",
                 ));
             }
         }
-        self.trait_queries.borrow_mut().push(query);
+        let width = self.trait_queries.borrow().len();
+        b.spend(width.saturating_add(1), WORK)?;
+        self.trait_queries.borrow_mut().push(ActiveQuery { query });
         Ok(())
     }
 
@@ -609,15 +759,11 @@ impl Check<'_, '_> {
                 // Start at the original Self recipe. The supplied Self claim
                 // is checked separately and never selects this provider.
                 let self_value = self.recipe_value(candidate, self_type, b, depth + 1)?;
-                charge_value(&self_value, b)?;
-                charge_value(receiver, b)?;
-                if self_value != *receiver {
+                if !self_value.equal_paid(receiver, b)? {
                     continue;
                 }
                 let actuals = self.trait_actuals(candidate, trait_application, b, depth + 1)?;
-                charge_arguments(&actuals, b)?;
-                charge_arguments(arguments, b)?;
-                if actuals != arguments {
+                if !arguments_equal(&actuals, arguments, b)? {
                     continue;
                 }
                 if let Some(old) = selected {
@@ -784,7 +930,9 @@ pub(in crate::semantic) fn original_associated(
         inventory,
         original,
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
+        value_queries: std::cell::RefCell::new(BTreeSet::new()),
         trait_queries: std::cell::RefCell::new(Vec::new()),
+        nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),
     };
     checker.associated_actual(receiver, declaration, arguments, member, b, depth)
 }
@@ -808,7 +956,9 @@ pub(in crate::semantic) fn original_self(
                 inventory,
                 original,
                 scope_queries: std::cell::RefCell::new(BTreeSet::new()),
+        value_queries: std::cell::RefCell::new(BTreeSet::new()),
                 trait_queries: std::cell::RefCell::new(Vec::new()),
+                nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),
             };
             return checker.original_scope_self(context, b, depth + 1);
         }

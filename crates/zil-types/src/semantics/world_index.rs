@@ -10,6 +10,8 @@ pub(super) struct Index {
     pub frozen_instances: BTreeMap<SemanticInstanceId, usize>,
     pub points: BTreeMap<(SemanticInstanceId, BlockId, usize), Vec<usize>>,
     pub sites: BTreeMap<SemanticInstanceId, Vec<usize>>,
+    pub recipes: BTreeMap<(SemanticDefinitionId, SemanticSiteId), usize>,
+    pub expressions: BTreeMap<(FunctionId, ValueId), Vec<zil_base::NodeId>>,
 }
 pub(super) fn search(n: usize) -> usize {
     n.saturating_add(1).ilog2() as usize + 1
@@ -102,6 +104,70 @@ impl Index {
                 }
             }
         }
+        for definition in &program.definitions {
+            index.add_recipes(definition, limits, left)?;
+        }
+        if let Some(source) = &ledger.frozen {
+            for definition in &source.semantic.definitions {
+                pay(left, search(index.definitions.len()))?;
+                if !index.definitions.contains_key(&definition.id) {
+                    index.add_recipes(definition, limits, left)?;
+                }
+            }
+        }
+        let mut expressions = 0usize;
+        for (function, frame) in &ledger.frames {
+            pay(left, frame.expressions.len().saturating_add(1))?;
+            for (node, expression) in &frame.expressions {
+                if let Some(value) = expression.value {
+                    expressions = expressions.saturating_add(1);
+                    if expressions > limits.max_nodes {
+                        return Err(Diagnostic::limit(
+                            Phase::Types,
+                            "actual expression index node limit exceeded",
+                            None,
+                        ));
+                    }
+                    pay(left, search(index.expressions.len()).saturating_add(2))?;
+                    index
+                        .expressions
+                        .entry((*function, value))
+                        .or_default()
+                        .push(*node);
+                }
+            }
+        }
         Ok(index)
+    }
+    fn add_recipes(
+        &mut self,
+        definition: &SemanticDefinition,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<()> {
+        let (SemanticDefinitionBody::Function { sites, .. }
+        | SemanticDefinitionBody::FunctionWithBody { sites, .. }) = &definition.body
+        else {
+            return Ok(());
+        };
+        pay(left, sites.len())?;
+        for (offset, site) in sites.iter().enumerate() {
+            if self.recipes.len() >= limits.max_nodes {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "original recipe index node limit exceeded",
+                    None,
+                ));
+            }
+            pay(left, search(self.recipes.len()).saturating_add(2))?;
+            if self
+                .recipes
+                .insert((definition.id, site.id), offset)
+                .is_some()
+            {
+                return Err(bad("original definition repeats a recipe identity"));
+            }
+        }
+        Ok(())
     }
 }

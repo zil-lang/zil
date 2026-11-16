@@ -44,7 +44,10 @@ pub(crate) fn shape(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
                 Type::Slice { element } => element.as_ref(),
                 other => other,
             };
-            if !closed_pointee(pointee, limits, b)? && !matches!(pointee, Type::Package { .. }) {
+            if !closed_pointee(pointee, limits, b)?
+                && !(matches!(pointee, Type::Package { .. })
+                    && pure_copy::ordinary_owned_value(pointee, b)?)
+            {
                 return Ok(false);
             }
         }
@@ -67,6 +70,63 @@ pub(crate) fn shape(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
             && map.class == 0
             && map.binder == 0,
     )
+}
+
+/// The Type actual owns its own class coordinates. Its outer Address class
+/// maps through TypeArgument(0) into the enum class; it is not a zero-domain
+/// Type merely because the pointee has no stored targets.
+pub(super) fn instance(
+    module: &TypedModule,
+    instance: &LifeNominalInstance,
+    limits: &Limits,
+    b: &mut Budget,
+) -> Check<()> {
+    if !shape(&instance.ty, limits, b)? {
+        return Err(err("builtin Option has no complete shared-address layout"));
+    }
+    let Type::BorrowedStorage { storage, .. } = &instance.ty else {
+        unreachable!()
+    };
+    let Type::Enum { variants, .. } = storage.as_ref() else {
+        unreachable!()
+    };
+    let [actual] = instance.arguments.as_slice() else {
+        return Err(err("builtin Option omits its complete Type actual"));
+    };
+    let actual_ty = match actual {
+        LifeNominalActual::Type(ty) => ty,
+        LifeNominalActual::QualifiedType { ty, life } => {
+            type_work(ty, limits, b)?;
+            b.spend(life.slots.len().saturating_add(life.retained.len())
+                .saturating_add(life.nominal_arguments.len()).saturating_add(1))?;
+            if life.binder_count != 1 || !life.retained.is_empty()
+                || !life.nominal_arguments.is_empty()
+                || !matches!(life.slots.as_slice(), [slot]
+                    if slot.path.is_empty() && slot.binder == 0
+                        && slot.mode == StoredBorrowMode::SharedAddress)
+            {
+                return Err(err("Option Type actual omits or changes its own outer borrow class"));
+            }
+            ty
+        }
+        _ => return Err(err("builtin Option changes its full-ordinal Type actual kind")),
+    };
+    type_work(actual_ty, limits, b)?;
+    if actual_ty != &variants[1].1[0] {
+        return Err(err("Option Type actual differs from the complete Some payload"));
+    }
+    let Type::Address { inner, mutable: false } = actual_ty else {
+        return Err(err("Option Type actual is not its shared outer borrow"));
+    };
+    let pointee = match inner.as_ref() {
+        Type::Slice { element } => element.as_ref(),
+        other => other,
+    };
+    let (classes, pending) = crate::dynamic_witness::intrinsic_domain(module, pointee, b)?;
+    if classes != 0 || pending {
+        return Err(err("Option outer borrow cannot erase its pointee's persistent domain"));
+    }
+    crate::dynamic_witness::structural_actual(module, pointee, DynStructuralBound::Value, b)
 }
 
 /// Authenticate the complete operation before either preflight or permission flow.

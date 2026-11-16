@@ -22,6 +22,9 @@ fn old_full_scan(
             &state.locals[id - solution.values.len()]
         };
         loans.add(&payload.address.loans, b)?;
+        if b.store_descriptions()||!payload.store_description.loans.is_empty(){
+            loans.add(&payload.store_description.loans,b)?;
+        }
         if b.task_borrowed_results {
             for (_, p) in &payload.task_ports {
                 loans.add(&p.loans, b)?;

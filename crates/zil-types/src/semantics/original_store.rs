@@ -34,7 +34,7 @@ impl Check<'_, '_> {
         };
         self.pay(arguments.len().saturating_add(8), depth)?;
         let mut parameters = Vec::new();
-        let (element, result) = if kind == IntrinsicKind::StoreNew {
+        let (element, mut result) = if kind == IntrinsicKind::StoreNew {
             if !arguments.is_empty() {
                 return Err(bad("original Store constructor has nonzero value arity"));
             }
@@ -143,7 +143,90 @@ impl Check<'_, '_> {
                 "original Store operation lacks a complete StoreElement premise",
             ));
         }
-        self.record_intrinsic(owner, site, kind, parameters, &result, wanted, depth + 1)?;
+        let borrowed = matches!(kind, IntrinsicKind::StoreBorrow { .. });
+        self.record_intrinsic(
+            owner,
+            site,
+            kind,
+            parameters,
+            &result,
+            if borrowed { None } else { wanted },
+            depth + 1,
+        )?;
+        if borrowed {
+            if let (
+                SemanticTypeRecipe::Address {
+                    mutable,
+                    lifetime,
+                    inner,
+                },
+                Some(SemanticTypeRecipe::Address {
+                    mutable: requested,
+                    lifetime: target,
+                    inner: expected,
+                }),
+            ) = (&result, wanted)
+            {
+                self.same(inner, expected)?;
+                if mutable != requested {
+                    return Err(bad("original Store loan changes its requested access mode"));
+                }
+                if !matches!(
+                    target,
+                    SemanticOuterLifeRecipe::Class(
+                        SemanticLifeRecipe::Implicit {
+                            scope: SemanticScopeRef::Ancestor(u32::MAX),
+                            ..
+                        } | SemanticLifeRecipe::Environment {
+                            scope: SemanticScopeRef::Ancestor(u32::MAX),
+                            ..
+                        }
+                    )
+                ) && lifetime != target
+                {
+                    // The descriptor is a projected view of a real input (or
+                    // explicitly borrowed local), rather than an independent
+                    // short-lived owner of the Store element. Preserve both
+                    // the sealed raw result and this directed input theorem.
+                    self.place_borrow_bound(owner, &arguments[0], variables, depth + 1)?;
+                    self.view_bound(owner, expression, variables, depth + 1)?;
+                    let target = self.contextual_borrow_role(
+                        owner,
+                        expression,
+                        expression,
+                        variables,
+                        inner,
+                        lifetime,
+                        target,
+                        depth + 1,
+                    )?;
+                    result = SemanticTypeRecipe::Address {
+                        mutable: *mutable,
+                        lifetime: target,
+                        inner: Box::new(copy_recipe(inner, self.limits, self.left)?),
+                    };
+                }
+            }
+            if let Some(wanted) = wanted {
+                if !matches!(
+                    wanted,
+                    SemanticTypeRecipe::Address {
+                        lifetime: SemanticOuterLifeRecipe::Class(
+                            SemanticLifeRecipe::Implicit {
+                                scope: SemanticScopeRef::Ancestor(u32::MAX),
+                                ..
+                            } | SemanticLifeRecipe::Environment {
+                                scope: SemanticScopeRef::Ancestor(u32::MAX),
+                                ..
+                            }
+                        ),
+                        ..
+                    }
+                ) {
+                    self.same(&result, wanted)?;
+                }
+            }
+        }
         self.pay(1, depth)?;
         self.proof
             .proof_mut()?

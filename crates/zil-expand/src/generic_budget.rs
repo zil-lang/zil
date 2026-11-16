@@ -2,12 +2,15 @@
 //! This is a private bound on work, never a type or capability certificate.
 use super::*;
 
+pub(crate) type CostProfile = BTreeMap<(&'static str, u32), (usize, usize)>;
+
 pub(crate) struct Budget<'a> {
     pub(crate) target_pointer_width: u16,
     pub(crate) context: origins::WalkContext,
     limits: &'a Limits,
     nodes: usize,
     work: usize,
+    cost_profile: Option<CostProfile>,
     temporary_bytes: Option<usize>,
     lineage_bytes: usize,
     scoped_scratch: usize,
@@ -35,6 +38,7 @@ impl<'a> Budget<'a> {
             limits,
             nodes: limits.max_nodes,
             work: limits.max_analysis_steps,
+            cost_profile: std::env::var_os("ZIL_EXPAND_PROFILE_COSTS").map(|_| BTreeMap::new()),
             temporary_bytes: None,
             lineage_bytes: 0,
             scoped_scratch: 0,
@@ -318,7 +322,38 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    pub(crate) fn take_cost_profile(&mut self) -> Option<CostProfile> {
+        self.cost_profile.take()
+    }
+    #[track_caller]
     pub(crate) fn adopt_remaining(&mut self, remaining: &Limits) {
+        self.adopt_profiled_remaining(remaining, None);
+    }
+    #[track_caller]
+    pub(crate) fn adopt_profiled_remaining(
+        &mut self,
+        remaining: &Limits,
+        child: Option<CostProfile>,
+    ) {
+        let spent = self.work.saturating_sub(remaining.max_analysis_steps);
+        let mut accounted = 0usize;
+        if let (Some(parent), Some(child)) = (&mut self.cost_profile, child) {
+            // Successful children have no failed attempted debit. Front-end
+            // preparation before their Budget was created remains in the
+            // residual at this caller, so no debit is hidden or counted twice.
+            let measured = child
+                .values()
+                .try_fold(0usize, |sum, (work, _)| sum.checked_add(*work));
+            if let Some(measured) = measured.filter(|measured| *measured <= spent) {
+                for (site, (work, calls)) in child {
+                    let row = parent.entry(site).or_default();
+                    row.0 = row.0.saturating_add(work);
+                    row.1 = row.1.saturating_add(calls);
+                }
+                accounted = measured;
+            }
+        }
+        self.profile_cost(spent - accounted);
         self.nodes = self.nodes.min(remaining.max_nodes);
         self.work = self.work.min(remaining.max_analysis_steps);
         if let Some(bytes) = &mut self.temporary_bytes {
@@ -341,9 +376,11 @@ impl<'a> Budget<'a> {
     /// when the older AST planner uses only its node/work ledger. Keep that
     /// marginal allocation quota separate instead of enabling unrelated AST
     /// temporary charges for every old node visit.
+    #[track_caller]
     pub(crate) fn lineage_bytes(&mut self, bytes: usize, span: Span) -> R<()> {
+        self.profile_cost(bytes.max(1));
         self.work = self.work.checked_sub(bytes.max(1)).ok_or_else(|| {
-            Diagnostic::limit(
+            self.profile_limit(
                 Phase::Expand,
                 "declaration lineage copy work exhausted",
                 Some(span),
@@ -403,7 +440,9 @@ impl<'a> Budget<'a> {
     pub(super) fn enum_profile(&self, span: Span) -> bool {
         self.enum_profiles.contains(&span)
     }
+    #[track_caller]
     pub(crate) fn node(&mut self, span: Span, depth: usize) -> R<()> {
+        self.profile_cost(1);
         let node_bytes = std::mem::size_of::<Item>()
             .saturating_add(std::mem::size_of::<Expr>())
             .saturating_add(std::mem::size_of::<TypeRef>())
@@ -412,7 +451,7 @@ impl<'a> Budget<'a> {
             self.temporary(node_bytes, span)?;
         }
         if depth > self.limits.max_call_depth || self.nodes == 0 || self.work == 0 {
-            return Err(Diagnostic::limit(
+            return Err(self.profile_limit(
                 Phase::Expand,
                 "generic expansion budget exceeded",
                 Some(span),
@@ -422,7 +461,9 @@ impl<'a> Budget<'a> {
         self.work -= 1;
         Ok(())
     }
+    #[track_caller]
     pub(crate) fn numeric_work(&mut self, amount: usize, span: Span) -> R<()> {
+        self.profile_cost(amount);
         self.temporary(amount, span)?;
         self.work = self.work.checked_sub(amount).ok_or_else(|| {
             Diagnostic::limit(
@@ -433,6 +474,7 @@ impl<'a> Budget<'a> {
         })?;
         Ok(())
     }
+    #[track_caller]
     pub(crate) fn identity_node(&mut self, depth: usize, span: Span) -> R<()> {
         self.identity_work(1, span)?;
         if depth > self.limits.max_call_depth {
@@ -444,12 +486,14 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    #[track_caller]
     pub(crate) fn identity_work(&mut self, amount: usize, span: Span) -> R<()> {
+        self.profile_cost(amount);
         if !self.metadata_mode {
             self.temporary(amount, span)?;
         }
         self.work = self.work.checked_sub(amount).ok_or_else(|| {
-            Diagnostic::limit(
+            self.profile_limit(
                 Phase::Expand,
                 "structural type identity work exhausted",
                 Some(span),
@@ -457,7 +501,9 @@ impl<'a> Budget<'a> {
         })?;
         Ok(())
     }
+    #[track_caller]
     pub(crate) fn text(&mut self, text: &str, span: Span) -> R<()> {
+        self.profile_cost(text.len());
         if !self.metadata_mode {
             self.temporary(
                 text.len().saturating_add(4 * std::mem::size_of::<String>()),
@@ -465,7 +511,7 @@ impl<'a> Budget<'a> {
             )?;
         }
         self.work = self.work.checked_sub(text.len()).ok_or_else(|| {
-            Diagnostic::limit(
+            self.profile_limit(
                 Phase::Expand,
                 "generic metadata budget exceeded",
                 Some(span),
@@ -473,7 +519,47 @@ impl<'a> Budget<'a> {
         })?;
         Ok(())
     }
+    #[track_caller]
+    fn profile_cost(&mut self, work: usize) {
+        let Some(profile) = &mut self.cost_profile else {
+            return;
+        };
+        let at = std::panic::Location::caller();
+        let key = (at.file(), at.line());
+        // These are static Rust caller coordinates, never input-controlled
+        // names. Keep every site: truncating insertion order hid expensive
+        // late phases while presenting the remaining rows as a full ledger.
+        let entry = profile.entry(key).or_default();
+        entry.0 = entry.0.saturating_add(work);
+        entry.1 = entry.1.saturating_add(1);
+    }
+    fn profile_limit(&self, phase: Phase, message: &str, span: Option<Span>) -> Diagnostic {
+        let mut diagnostic = Diagnostic::limit(phase, message, span);
+        if let Some(profile) = &self.cost_profile {
+            diagnostic.notes.push(format!(
+                "Expand work allowance {}; remaining {}",
+                self.limits.max_analysis_steps, self.work
+            ));
+            diagnostic.notes.push(format!(
+                "Expand profiled attempted work {}; caller sites {}",
+                profile
+                    .values()
+                    .fold(0usize, |total, (work, _)| total.saturating_add(*work)),
+                profile.len()
+            ));
+            let mut rows = profile.iter().collect::<Vec<_>>();
+            rows.sort_unstable_by_key(|(key, (work, _))| (std::cmp::Reverse(*work), **key));
+            for ((file, line), (work, calls)) in rows.into_iter().take(24) {
+                diagnostic.notes.push(format!(
+                    "Expand caller {file}:{line}: {work} work in {calls} calls"
+                ));
+            }
+        }
+        diagnostic
+    }
+    #[track_caller]
     pub(crate) fn wide_units(&mut self, units: &[u16], span: Span) -> R<()> {
+        self.profile_cost(units.len());
         self.work = self.work.checked_sub(units.len()).ok_or_else(|| {
             Diagnostic::limit(
                 Phase::Expand,
@@ -1592,6 +1678,50 @@ impl<'a> Budget<'a> {
 #[cfg(test)]
 mod allocation_tests {
     use super::*;
+
+    #[test]
+    fn child_profile_preserves_exact_parent_debit_and_unprofiled_preparation() {
+        let limits = Limits::default();
+        let mut parent = Budget::new(&limits);
+        parent.cost_profile = Some(BTreeMap::new());
+        parent.identity_work(11, Span::default()).unwrap();
+        let mut child_limits = parent.remaining_limits();
+        child_limits.max_analysis_steps -= 17; // preparation before child Budget
+        let mut child = Budget::new(&child_limits);
+        child.cost_profile = Some(BTreeMap::new());
+        child.identity_work(29, Span::default()).unwrap();
+        let remaining = child.remaining_limits();
+        parent.adopt_profiled_remaining(&remaining, child.take_cost_profile());
+        let profile = parent.cost_profile.as_ref().unwrap();
+        assert_eq!(
+            profile.values().map(|(work, _)| work).sum::<usize>(),
+            11 + 17 + 29
+        );
+        assert!(profile.values().any(|(work, _)| *work == 29));
+        assert!(profile.values().any(|(work, _)| *work == 17));
+        assert_eq!(limits.max_analysis_steps - parent.work, 11 + 17 + 29);
+    }
+
+    #[test]
+    fn cost_profile_keeps_late_callers_and_all_direct_work_debits() {
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        budget.cost_profile = Some(
+            (0..256)
+                .map(|line| (("earlier.rs", line), (1, 1)))
+                .collect(),
+        );
+        budget.identity_work(37, Span::default()).unwrap();
+        budget.numeric_work(19, Span::default()).unwrap();
+        budget.wide_units(&[1, 2, 3], Span::default()).unwrap();
+        let profile = budget.cost_profile.as_ref().unwrap();
+        assert_eq!(profile.len(), 259);
+        assert_eq!(
+            profile.values().map(|(work, _)| work).sum::<usize>(),
+            256 + 37 + 19 + 3
+        );
+        assert_eq!(limits.max_analysis_steps - budget.work, 37 + 19 + 3);
+    }
 
     #[test]
     fn borrowed_visits_release_scratch_and_preserve_retained_bytes_at_exact_limit() {

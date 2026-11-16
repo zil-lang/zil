@@ -15,17 +15,22 @@ pub(crate) fn nested(ty: &Type) -> bool {
         if fields.iter().any(|(_, field)| matches!(package_storage(field), Type::Package { .. })))
 }
 
+#[track_caller]
 pub(crate) fn admit(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
     admit_shape(ty, budget, false, None, false).map(|_| ())
 }
 
 /// A capture borrows the complete owning head, without acquiring its cleanup
 /// debt. The actual source and entry permissions are checked by holds/loans.
+#[track_caller]
 pub(crate) fn admit_capture_head(
     module: &TypedModule,
     ty: &Type,
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    if admit_callback_head(module, ty, budget)? {
+        return Ok(());
+    }
     // The global inventory only schedules complete checking. In particular,
     // a capture type snapshot need not share a pointer with a local/SSA type;
     // this branch still validates every actual field and sealed Store below.
@@ -39,15 +44,49 @@ pub(crate) fn admit_capture_head(
     }
 }
 
+/// Borrowing an already formed callback State does not grant a new container
+/// qualification. Its complete concrete environment and fields must still
+/// satisfy the independent State profile; actual loans and field cleanup stay
+/// with the ordinary executable resource proof.
+pub(crate) fn admit_callback_head(
+    module: &TypedModule,
+    ty: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let Type::Package { name, fields } = package_storage(ty) else {
+        return Ok(false);
+    };
+    budget.spend(fields.len(), "borrowed callback State field inventory")?;
+    if !fields.iter().any(|(_, field)| matches!(field, Type::Closure(_))) {
+        return Ok(false);
+    }
+    budget.product(fields.len(), fields.len().saturating_add(1), 1,
+        "borrowed callback State field identities")?;
+    let mut names = BTreeSet::new();
+    if name.is_empty() {
+        return Err(error("Product nominal identity is empty"));
+    }
+    for (field, _) in fields {
+        budget.spend(field.len(), "borrowed callback State field name")?;
+        if field.is_empty() || !names.insert(field) {
+            return Err(error("Product field identity is empty or duplicated"));
+        }
+    }
+    crate::dynamic_store::callback_element(module, package_storage(ty), budget)?;
+    Ok(true)
+}
+
 /// A borrowed nested Product retains its old finite field profile. A valid
 /// owner outside that profile is unsupported at this boundary; malformed
 /// Product identities still fail the independent structural check.
+#[track_caller]
 pub(crate) fn admit_borrowed(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
     admit_shape(ty, budget, false, None, true).map(|_| ())
 }
 
 /// Admission for ordinary complete ownership, independent of element/capture
 /// and shared-head profiles. Actual Store resources are checked by preflight.
+#[track_caller]
 pub(crate) fn admit_owned(
     module: &TypedModule,
     ty: &Type,
@@ -102,6 +141,7 @@ pub(crate) fn admit_owned(
     Ok(has_stores)
 }
 
+#[track_caller]
 fn admit_shape(
     ty: &Type,
     budget: &mut Budget,
@@ -112,6 +152,7 @@ fn admit_shape(
     // Raw preflight has bounded depth already. Pay before any new identity
     // collection, Copy classification or repeated complete-type traversal.
     budget.type_work(ty, true, "ordinary Product admission")?;
+    #[track_caller]
     fn fields(
         ty: &Type,
         budget: &mut Budget,
@@ -140,6 +181,7 @@ fn admit_shape(
         if name.is_empty() {
             return Err(error("Product nominal identity is empty"));
         }
+        let product_name = name;
         for (name, ty) in entries {
             budget.product(
                 name.len(),
@@ -196,9 +238,16 @@ fn admit_shape(
                             None,
                         )]);
                     }
-                    return Err(error(
+                    let mut diagnostics = error(
                         "ordinary Product has an unsupported owning or borrowed child",
-                    ));
+                    );
+                    for diagnostic in &mut diagnostics {
+                        diagnostic.notes.push(format!(
+                            "actual Product {product_name}, field {name}, complete child {ty:?}"
+                        ));
+                        diagnostic.notes.push(format!("Product admission requested at {}", std::panic::Location::caller()));
+                    }
+                    return Err(diagnostics);
                 }
             }
         }

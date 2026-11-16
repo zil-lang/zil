@@ -260,7 +260,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
     let full=module.functions.iter().any(|f|f.dyn_instance.is_some())||module.dyn_vtables.iter().any(|table|table.self_life.is_some()||table.implementation_witnesses.is_some())||module.dyn_declarations.iter().any(|d|d.implicit_lifetimes.is_some()||d.direct_supertraits.is_some()||d.requirements.is_some()||d.associated_definitions.is_some()||d.method_signatures.is_some()||d.method_definitions.is_some());
     if full{
         let pending=crate::dynamic_witness::declaration_graph(module,budget)?;
-        for function in &module.functions{if let Some(instance)=&function.dyn_instance{crate::dynamic_metadata::recipe(instance,budget)?;if !pending.methods.iter().any(|request|request.function==function.id&&request.specialization.as_ref()==Some(instance))&&!pending.callables.iter().any(|request|request.contract.function==function.id&&request.contract.specialization.as_ref()==Some(instance)){return Err(bad("actual dynamic specialization has no exact complete original executable request",None));}}}
+        for function in &module.functions{if let Some(instance)=&function.dyn_instance{crate::dynamic_metadata::recipe(instance,budget)?;if !pending.methods.iter().any(|request|request.function==function.id&&request.specialization.as_ref()==Some(instance))&&!pending.callables.iter().any(|request|request.contract.function==function.id&&request.contract.specialization.as_ref()==Some(instance))&&!crate::dynamic_witness::semantic_patterns::checked_static_specialization(module,function,budget)?{return Err(bad("actual dynamic specialization has no exact complete original executable request",None));}}}
         budget.spend(pending.methods.len().saturating_add(pending.callables.len()))?;
         budget.pending_dyn_contracts.methods.extend(pending.methods);
         budget.pending_dyn_contracts.callables.extend(pending.callables);
@@ -992,11 +992,7 @@ pub(super) fn type_owned(
 ) -> Check<()> {
     budget.spend(module.dyn_interfaces.len().saturating_add(1))?;
     let iface = interface(module, interface_id)?;
-    if iface.context.is_some() {
-        crate::dynamic_ports::validate_cleanup(iface, budget)?;
-    } else {
-        crate::dynamic_cleanup::bound(iface.owning_cleanup.as_ref(), budget)?;
-    }
+    crate::dynamic_cleanup::interface_bound(module,iface,budget)?;
     Ok(())
 }
 

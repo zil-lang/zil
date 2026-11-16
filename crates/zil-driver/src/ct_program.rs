@@ -21,6 +21,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         limits: &Limits,
     ) -> CompileResult<CtProgram> {
         self.compile_query(expression, expected, None, limits)
+            .map_err(ct_errors)
     }
     fn compile_in_frozen_context(
         &self,
@@ -30,6 +31,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         limits: &Limits,
     ) -> CompileResult<CtProgram> {
         self.compile_query(expression, expected, Some(frozen), limits)
+            .map_err(ct_errors)
     }
 }
 impl Compiler<'_> {
@@ -410,10 +412,16 @@ impl Compiler<'_> {
         })
     }
 }
-fn ct_errors(mut errors: Vec<Diagnostic>) -> Vec<Diagnostic> {
+pub(super) fn ct_errors(mut errors: Vec<Diagnostic>) -> Vec<Diagnostic> {
     for d in &mut errors {
         d.phase = Phase::Ct;
-        d.notes.push("while compiling a pure #(...) query".into());
+        if !d
+            .notes
+            .iter()
+            .any(|note| note == "while compiling a pure #(...) query")
+        {
+            d.notes.push("while compiling a pure #(...) query".into());
+        }
     }
     errors
 }
@@ -756,6 +764,56 @@ struct Collector<'a> {
     limits: &'a Limits,
 }
 impl Collector<'_> {
+    fn imported_visibility(
+        &mut self,
+        target: ModuleId,
+        name: &str,
+        span: Span,
+        depth: usize,
+    ) -> CompileResult<()> {
+        let program = self.program;
+        let mut selected = None;
+        for module in &program.modules {
+            self.charge(depth)?;
+            if module.core.module_id == target {
+                if selected.replace(module).is_some() {
+                    return Err(vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-MODULE-ID",
+                        Some(span),
+                        "imported CT module identity is ambiguous",
+                    )]);
+                }
+            }
+        }
+        let Some(module) = selected else {
+            return Ok(());
+        };
+        let mut selected = None;
+        for function in &module.core.functions {
+            self.charge(depth)?;
+            self.text(name)?;
+            self.text(&function.name)?;
+            if function.name == name && selected.replace(function).is_some() {
+                // A missing or ambiguous target is not a private declaration.
+                // The ordinary source/type consumers retain that obligation.
+                return Ok(());
+            }
+        }
+        let Some(function) = selected else {
+            return Ok(());
+        };
+        self.text_len(module.exports.len().saturating_add(1))?;
+        if !module.exports.contains(&function.id) {
+            return Err(vec![Diagnostic::error(
+                Phase::Ct,
+                "E-MODULE-PRIVATE",
+                Some(span),
+                "imported CT function is private",
+            )]);
+        }
+        Ok(())
+    }
     fn charge(&mut self, depth: usize) -> CompileResult<()> {
         if self.nodes >= self.limits.max_nodes || depth > self.limits.max_call_depth {
             return Err(vec![Diagnostic::limit(
@@ -1368,10 +1426,13 @@ impl Collector<'_> {
             }
             CoreExprKind::Call { callee, arguments } => {
                 if self.query
-                    && let Some((module, name)) = resolve(self.program, module, callee)
+                    && let Some((target, name)) = resolve(self.program, module, callee)
                 {
+                    if matches!(&callee.kind, CoreExprKind::Member { .. }) {
+                        self.imported_visibility(target, name, callee.span, depth + 1)?;
+                    }
                     self.text(name)?;
-                    if self.selected.insert((module, name.into())) {
+                    if self.selected.insert((target, name.into())) {
                         if self.selected.len() >= self.limits.max_functions {
                             return Err(vec![Diagnostic::limit(
                                 Phase::Ct,
@@ -1380,7 +1441,7 @@ impl Collector<'_> {
                             )]);
                         }
                         self.text(name)?;
-                        self.pending.push_back((module, name.into()));
+                        self.pending.push_back((target, name.into()));
                     }
                 }
                 self.expression(module, callee, depth + 1)?;

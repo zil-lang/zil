@@ -246,7 +246,6 @@ pub(crate) fn teardown(
         || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
-        || f.storage_life.is_some()
         || f.parameters.len() != 1
         || f.return_type != Type::Unit
         || f.result_mode != PassingMode::Infer
@@ -254,6 +253,11 @@ pub(crate) fn teardown(
         return Err(failure(
             "Fixed owner teardown requires an ordinary actual Desc-to-Unit entry",
         ));
+    }
+    if f.storage_life.is_some()
+        && !super::super::signature_life::ordinary_heads::relation(module, f, b)?
+    {
+        return Err(failure("Fixed owner teardown changes its complete ordinary input-head relation"));
     }
     let Some(Type::Desc(actual)) = f
         .parameters
@@ -286,7 +290,8 @@ pub(crate) fn teardown(
         for block in &f.blocks {
             fee(b, block.instructions.len())?;
             if block.instructions.iter().any(|i| matches!(i.kind,
-                InstructionKind::Call{function,..} | InstructionKind::FunctionRef { function } if function == id))
+                InstructionKind::Call{function,..} | InstructionKind::SuspendCall { function, .. }
+                    | InstructionKind::FunctionRef { function } if function == id))
             { return Err(failure("Fixed owner teardown cannot be called as an ordinary function")); }
         }
     }

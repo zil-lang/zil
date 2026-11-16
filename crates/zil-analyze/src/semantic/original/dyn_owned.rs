@@ -6,11 +6,15 @@ pub(super) struct Creation {
     provider: SemanticDefinitionId,
     actuals: Vec<Term>,
     source: Term,
+    interface: Term,
+    trait_actuals: Vec<Term>,
     output: Term,
 }
 pub(in crate::semantic) struct DynCreation {
     pub(in crate::semantic) provider: SemanticDefinitionId,
     pub(in crate::semantic) actuals: Vec<crate::semantic::value::Argument>,
+    pub(in crate::semantic) interface: crate::semantic::value::Value,
+    pub(in crate::semantic) trait_actuals: Vec<crate::semantic::value::Argument>,
     pub(in crate::semantic) source: crate::semantic::value::Value,
     pub(in crate::semantic) output: crate::semantic::value::Value,
 }
@@ -57,7 +61,14 @@ impl Checked {
             let actual = self.argument(*actual, context, program, inventory, b, 0)?;
             Solver::push(&mut actuals, actual, b)?;
         }
+        let mut trait_actuals = Vec::new();
+        for actual in &creation.trait_actuals {
+            let actual = self.argument(*actual, context, program, inventory, b, 0)?;
+            Solver::push(&mut trait_actuals, actual, b)?;
+        }
         Ok(DynCreation {
+            interface: self.value(creation.interface, context, program, inventory, b, 0)?,
+            trait_actuals,
             provider: creation.provider,
             actuals,
             source: self.value(creation.source, context, program, inventory, b, 0)?,
@@ -74,47 +85,15 @@ impl Solver<'_, '_> {
         if !ty.owned {
             return Ok(false);
         }
-        if !ty.arguments.is_empty()
-            || !ty.associated.is_empty()
-            || !matches!(ty.context, dyn_types::Context::Closed)
-        {
-            return Err(unknown(
-                "original owning Dyn cleanup needs its complete scoped canonical bound key",
-            ));
+        // SyncDrop belongs to the builtin owning carrier, not to the trait
+        // or erased Self. Every constructor separately requires Self:SyncDrop;
+        // each executable interface and concrete table must prove its complete
+        // cleanup upper and real destructor before semantic publication.
+        let declaration = self.inventory.original_dyn(ty.declaration, b)?;
+        if declaration.kind != DynDeclarationKind::Trait {
+            return Err(fail("owning Dyn cleanup has no original trait identity"));
         }
-        let mut selected = None;
-        for interface in &self.inventory.module.dyn_interfaces {
-            b.spend(1, WORK)?;
-            crate::dyn_metadata::recipe(&interface.application, b)?;
-            crate::dyn_metadata::retained_shape(&interface.retained_life, b)?;
-            if interface.application.declaration != ty.declaration
-                || !interface.application.actuals.is_empty()
-                || interface.context.is_some()
-                || interface.retained_life.binder_count != 0
-                || !interface.retained_life.ports.is_empty()
-                || !interface.retained_life.retained.is_empty()
-                || !interface.retained_life.nominal_arguments.is_empty()
-                || !interface.associated_types.is_empty()
-                || !interface.associated_constants.is_empty()
-            {
-                continue;
-            }
-            crate::dyn_cleanup::metadata(interface.owning_cleanup.as_ref(), b)?;
-            crate::dyn_cleanup::bound(interface, b)?;
-            if selected.replace(interface.id).is_some() {
-                return Err(unknown(
-                    "original owning Dyn cleanup has multiple canonical interface relocations",
-                ));
-            }
-        }
-        if selected.is_none() {
-            return Err(unknown(
-                "original owning Dyn type has no complete canonical synchronous owner bound",
-            ));
-        }
-        // This is a required invariant of the concrete builtin owner type.
-        // All actual tables still need exact concrete Direct cleanup proof in
-        // the actual bridge; no successful analysis is published before it.
+        self.dyn_domain_covered(ty, b, 0)?;
         Ok(true)
     }
     #[allow(clippy::too_many_arguments)]
@@ -128,17 +107,49 @@ impl Solver<'_, '_> {
         depth: usize,
     ) -> CompileResult<Term> {
         self.step(depth, b)?;
-        let [CoreGenericArgument::Type(interface)] = written else {
-            return Err(unknown(
-                "original owned Dyn construction needs its full written trait and Context recipe",
-            ));
+        let (interface, context) = match written {
+            [CoreGenericArgument::Type(interface)] => (interface, None),
+            [
+                CoreGenericArgument::Type(interface),
+                CoreGenericArgument::Type(context),
+            ] => (interface, Some(context)),
+            _ => {
+                return Err(fail(
+                    "owned Dyn construction requires its full trait and optional Context Type arguments",
+                ));
+            }
         };
         let [source] = arguments else {
             return Err(fail(
                 "original owned Dyn construction consumes exactly one complete Self",
             ));
         };
-        let interface = self.recipe(frame, interface, b, depth + 1)?;
+        // The builtin's two written Types form one interface application.
+        // Forming the first fragment alone would incorrectly demand Closed
+        // before its explicit Context has been supplied.
+        let interface = if let Some(context) = context {
+            let SemanticTypeRecipe::Dyn {
+                owned: false,
+                interface,
+            } = interface
+            else {
+                return Err(fail(
+                    "owned Dyn Context requires its exact written borrowed trait recipe",
+                ));
+            };
+            if !matches!(interface.context, SemanticDynContextRecipe::Closed) {
+                return Err(fail(
+                    "owned Dyn construction repeats its dependency Context",
+                ));
+            }
+            crate::dyn_metadata::recipe(interface.as_ref(), b)?;
+            crate::dyn_metadata::recipe(context, b)?;
+            let mut full = interface.clone();
+            full.context = SemanticDynContextRecipe::Type(Box::new(context.clone()));
+            self.dyn_type(frame, false, &full, b, depth + 1)?
+        } else {
+            self.recipe(frame, interface, b, depth + 1)?
+        };
         let root = self.type_root(interface, b)?;
         let Kind::Dyn(ty) = &self.state.arena[root] else {
             return Err(fail(
@@ -153,8 +164,10 @@ impl Solver<'_, '_> {
             ));
         }
         ty.owned = true;
+        self.dyn_domain_covered(&ty, b, depth + 1)?;
         self.owned_dyn_sync(&ty, b)?;
         let source = self.expression(frame, source, b, depth + 1)?;
+        self.dyn_source_covered(&ty, source, b, depth + 1)?;
         let (implementation, provider_actuals) =
             self.original_provider(frame, source, ty.declaration, &ty.arguments, b, depth + 1)?;
         for predicate in [Predicate::Value, Predicate::SyncDrop] {
@@ -206,6 +219,12 @@ impl Solver<'_, '_> {
             ));
         }
         let error = self.atom(crate::dyn_dispatch::create_error(), b)?;
+        b.spend(ty.work(), WORK)?;
+        let mut borrowed = ty.clone();
+        borrowed.owned = false;
+        b.spend(borrowed.arguments.len(), WORK)?;
+        let trait_actuals = borrowed.arguments.clone();
+        let interface = self.term(Kind::Dyn(borrowed), b)?;
         let owner = self.term(Kind::Dyn(ty), b)?;
         let output = self.term(
             Kind::ErrorUnion {
@@ -224,6 +243,8 @@ impl Solver<'_, '_> {
                     provider: implementation,
                     actuals: provider_actuals,
                     source,
+                    interface,
+                    trait_actuals,
                     output,
                 },
             )

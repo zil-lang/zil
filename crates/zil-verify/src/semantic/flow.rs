@@ -19,21 +19,31 @@ mod dyn_values;
 mod static_values;
 mod callbacks;
 mod scoped_threads;
+mod closure_calls;
+mod code_calls;
+mod type_uses;
+mod callable_sources;
+mod local_roles;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
     check_program_mode(module,None,b)
 }
 pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContext<'_>>,b:&mut Budget)->Check<()> {
+    b.diagnostic_stage("semantic catalogue");
     let context=CheckedContext::catalogue_mode(module,frozen,b)?;
     let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
     crate::foreign::check_declarations(module,b)?;
     let mut active=ActiveQueries::new();
+    b.diagnostic_stage("original universal bodies");
     let mut original=original::CheckedOriginal::check(module,&context,&mut active,b)?;
+    b.diagnostic_stage("original frozen schemes");
     original.frozen_schemes(module,&context,&mut active,b)?;
     *context.original.borrow_mut()=Some(original);
     let mut external=dynamic_witness::semantic_external::Proofs::default();
+    b.diagnostic_stage("task context metadata");
     context.prepare_task_contexts(module,&mut external,&mut active,b)?;
+    b.diagnostic_stage("frozen specialization boundaries");
     if let Some(frozen)=frozen {frozen.specializations(module,&context,&mut active,b)?;}
     let mut checked_instances=std::collections::BTreeSet::new();
     let mut checked_worlds=Vec::new();
@@ -45,8 +55,12 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
     }
     b.spend(ordered.len().saturating_mul(ordered.len().checked_ilog2().map_or(1,|n|n as usize+1)))?;
     ordered.sort_by_key(|(depth,instance)|(*depth,instance.id));
+    let total=if b.diagnostic_progress.is_some(){ordered.iter().filter(|(_,instance)|matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(_)))).count()}else{0};
+    let mut ordinal=0;
     for (_,instance) in ordered {
         if let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target {
+            ordinal+=1;b.diagnostic_stage("actual world environment");
+            if let Some(progress)=&mut b.diagnostic_progress{progress.world=Some((ordinal,total,instance.id,function));}
             let environment=context.environment_for_instance(module,instance.id,&mut active,b)?;
             let definition=context.definition(module,instance.definition,b)?;
             context.evaluate_requirements(module,&definition.requirements,&environment,RequirementMode::DeclarationPremise,&mut external,&mut active,b)?;
@@ -54,7 +68,9 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
                 if let SemanticFormal::Type{requirements}=formal {context.evaluate_requirements(module,requirements,&environment,RequirementMode::DeclarationPremise,&mut external,&mut active,b)?;}
             }
             let SemanticDefinitionBody::FunctionWithBody{signature,..}=&definition.body else {return Err(bad("actual function has no original signature"));};
+            b.diagnostic_stage("actual world signature");
             let signature=context.evaluate_signature(module,signature,&environment,&mut external,&mut active,b)?;
+            b.diagnostic_stage("actual world body");
             context.function(module,instance,function,&signature,&environment,&mut external,&mut active,b)?;
             context.mark_task_worker_checked(module,instance,&signature,b)?;
             checked_instances.insert(instance.id);
@@ -62,6 +78,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
             checked_worlds.push((instance.id,environment));
         }
     }
+    b.diagnostic_stage("actual closure boundaries");
     for boundary in context.closure_boundaries.borrow().iter() {
         b.spend(1)?;
         if !checked_instances.contains(&boundary.child)||!context.seals.borrow().contains_key(&boundary.child){return Err(bad("actual Closure boundary has no completely checked child entry and creator seal"));}
@@ -76,13 +93,18 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
         let closure=entry.environment.ok_or_else(||bad("pending Closure entry lacks its environment identity"))?;
         let relation=entry.storage_life.as_ref().ok_or_else(||bad("pending Closure entry complete header is Unknown"))?;
         if cursor.expected.ty!=Type::Closure(closure)||cursor.expected.life.binder_count!=relation.fixed_binder_count||cursor.expected.classes.len()!=relation.fixed_binder_count as usize||cursor.arguments.len()!=definition.parameters.len()||cursor.sealed.len()!=definition.environment.len() {return Err(bad("pending Closure cursor contradicts its fully checked actual entry/domain"));}
+        b.spend(checked_worlds.len())?;
+        let actual=checked_worlds.iter().find(|(id,_)|*id==instance.id).ok_or_else(||bad("pending Closure cursor has no exact completed original world"))?;
+        context.finish_closure_cursor(module,cursor,&actual.1,b)?;
         // The caller-side cursor may instantiate the generic creator's rigid
         // lifetime into another caller domain. Its original recipe and every
         // actual Call substitution are checked separately; no global union
         // equates those outside images with the rigid creator's identities.
     }
+    b.diagnostic_stage("actual external methods");
     context.finish_external_methods(module,&mut external,&mut active,b)?;
     context.defer_callable_shapes(module,&mut external,&checked_instances,b)?;
+    context.complete_static_members(module,&checked_instances,b)?;
     // External shape requests are obligations, not proof tokens. No Some
     // program is published while its actual entry/static memory is pending.
     if !external.callable_shapes.is_empty()||!external.pending_statics.is_empty() {
@@ -94,12 +116,16 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
         b.spend(program.instances.len())?;
         if function.foreign.is_none()&&!program.instances.iter().any(|row|matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id==function.id)) {return Err(bad("semantic programme omits an actual function instance"));}
     }
+    b.diagnostic_stage("actual constructor publication");
     context.publish_constructor_classes(module,&checked_worlds,b)?;
+    context.publish_local_role_transfers(module,&checked_worlds,b)?;
+    b.spend(1)?;
+    b.semantic_checked=Some(std::rc::Rc::new(dynamic_witness::semantic_patterns::Session::new(module,context,active)));
     Ok(())
 }
 impl CheckedContext {
     pub(super) fn record(&self,scope:ScopeKey,key:OperandKey,value:&CheckedType,b:&mut Budget)->Check<()> {
-        dynamic_metadata::ty(&value.ty,b)?;
+        value.charge_clone(b)?;
         b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;
         let mut aliases=self.origin_aliases.borrow_mut();
         for (class,origin) in value.origins.iter().enumerate() {
@@ -166,6 +192,7 @@ impl CheckedContext {
             initial.locals[parameter.0 as usize]=Some(expected.clone());
             self.record(scope,OperandKey::Parameter(index as u32),expected,b)?;
         }
+        self.prepare_local_roles(module,instance,environment,b)?;
         self.header(module,instance,f,signature,environment,b)?;
         if f.foreign.is_some() {
             let definition=self.definition(module,instance.definition,b)?;
@@ -186,8 +213,7 @@ impl CheckedContext {
             for (ordinal,instruction) in block.instructions.iter().enumerate() {
                 let mut environment=environment.clone();
                 environment.at=Some(SitePoint{function,block:block.id,instruction:ordinal as u32,after:false});
-                let sites=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?.sites.iter().filter(|site|site.instance==instance.id&&matches!(site.at,SemanticSiteAddress::Typed{block:id,instruction:index,..} if id==block.id&&index==ordinal as u32)).collect::<Vec<_>>();
-                b.spend(module.semantic.as_ref().unwrap().sites.len())?;
+                let sites=self.actual_sites(module,instance.id,block.id,ordinal as u32,b)?;
                 for site in &sites {
                     if let SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(local),expected}=&site.action {
                         let value=self.site_expected(module,instance,site,&environment,external,active,b)?;
@@ -195,6 +221,15 @@ impl CheckedContext {
                         self.claim(module,expected,&value,&environment,b)?;
                         if let Some(old)=&constraints[local.0 as usize] {if !self.same_type(&environment,old,&value,b)? {return Err(bad("local declarations impose different semantic constraints"));}}
                         constraints[local.0 as usize]=Some(value);
+                    }
+                }
+                // An existing operand's Before observation belongs to the
+                // input boundary. Calls may consume its independently bound
+                // source occurrence; their own results remain unavailable.
+                let mut input_uses=std::collections::BTreeSet::new();
+                for site in &sites{
+                    if matches!(site.at,SemanticSiteAddress::Typed{edge:SemanticSiteEdge::Before,..})&&matches!(&site.action,SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),..}if Some(*value)!=instruction.result&&values.get(value.0 as usize).and_then(Option::as_ref).is_some()){
+                        b.spend(1)?;self.check_type_use(module,instance,f,site,&state,&values,signature,&environment,external,active,b)?;input_uses.insert(site.recipe);
                     }
                 }
                 let produced=match &instruction.kind {
@@ -252,10 +287,10 @@ impl CheckedContext {
                         let value=self.occurrences.borrow().get(&(scope,OperandKey::Capture(*index))).cloned().ok_or_else(||bad("actual capture read has no sealed creator operand"))?;
                         Some(value)
                     }
-                    InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}|InstructionKind::ReadPackageField{..}|InstructionKind::TakePackageField{..}|InstructionKind::DescribePackageField{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::DropPackage{..}|InstructionKind::ExtractField{..}|InstructionKind::AddressField{..}|InstructionKind::DescribeAddress{..}|InstructionKind::ReadDesc{..}|InstructionKind::WriteDesc{..}=>self.owner_field_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
+                    InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}|InstructionKind::DropPackageField{..}|InstructionKind::StorePackageField{..}|InstructionKind::ReadPackageField{..}|InstructionKind::TakePackageField{..}|InstructionKind::DescribePackageField{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::DropPackage{..}|InstructionKind::ExtractField{..}|InstructionKind::AddressField{..}|InstructionKind::DescribeAddress{..}|InstructionKind::ReadDesc{..}|InstructionKind::WriteDesc{..}=>self.owner_field_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
                     InstructionKind::SliceLength{..} if sites.iter().any(|site|matches!(site.action,SemanticSiteAction::BodyCall{..}))=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
-                    InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
-                    InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,&sites,&mut state,&values,signature,&environment,external,active,b)?,
+                    InstructionKind::LoadStoredBorrow{..}|InstructionKind::StoreStoredBorrow{..}|InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::UpdateIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
+                    InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::BorrowPlaceLocal{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,&sites,&mut state,&values,signature,&environment,external,active,b)?,
                     InstructionKind::ReadAddress{address}=>{
                         let address=value_at(&values,*address)?;
                         let Type::Address{..}=&address.ty else{return Err(bad("actual dereference operand is not an address"));};
@@ -268,10 +303,16 @@ impl CheckedContext {
                         if !self.compatible(&environment,value,&child,b)?{return Err(bad("actual address write changes its complete child type/domain"));}None
                     }
                     InstructionKind::Store{local,value}=>{
+                        let actual=*value;
                         let value=value_at(&values,*value)?;
-                        if let Some(expected)=&constraints[local.0 as usize] {if !self.compatible(&environment,value,expected,b)? {return Err(bad("actual Store violates the declared rigid semantic class constraint"));}}
+                        let mut normalized=None;
+                        if let Some(expected)=&constraints[local.0 as usize] {
+                            if !self.compatible(&environment,value,expected,b)? {return Err(bad("actual Store violates the declared rigid semantic class constraint"));}
+                            normalized=self.local_role_value(module,value,expected,&environment,active,b)?;
+                        }
                         if f.locals[local.0 as usize].ty!=value.ty {return Err(bad("actual Store changes its local complete type"));}
-                        state.locals[local.0 as usize]=Some(value.clone());None
+                        if let Some(value)=&normalized{self.record_local_role_write(instance,*local,actual,value,&environment,b)?;}
+                        state.locals[local.0 as usize]=Some(match normalized{Some(value)=>value,None=>value.clone()});None
                     }
                     InstructionKind::StorageLive(local)|InstructionKind::StorageDead(local)=>{state.locals[local.0 as usize]=None;None},
                     InstructionKind::MakeAggregate{fields}|InstructionKind::MakePackage{fields}|InstructionKind::MakeManaged{fields}|InstructionKind::MakeOwnedTuple{fields}|InstructionKind::MakeOwnedArray{elements:fields}=>{
@@ -321,7 +362,18 @@ impl CheckedContext {
                         }
                         state.locals[local.0 as usize]=None;None
                     },
-                    InstructionKind::DropDynOwned{local}=>{crate::dynamic_dispatch::instruction(module,f,instruction,b)?;let owner=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("erased cleanup has no complete initialized owner"))?;if !matches!(owner.ty,Type::OwnedDyn{..}){return Err(bad("erased cleanup has another complete owner kind"));}dynamic_witness::structural_actual(module,&owner.ty,DynStructuralBound::SyncDrop,b)?;state.locals[local.0 as usize]=None;None},
+                    InstructionKind::DropDynOwned{local}=>{
+                        crate::dynamic_dispatch::instruction(module,f,instruction,b)?;
+                        let actual=f.locals.get(local.0 as usize).ok_or_else(||bad("erased cleanup has no exact actual local"))?;
+                        if !matches!(actual.ty,Type::OwnedDyn{..}){return Err(bad("erased cleanup has another complete owner kind"));}
+                        if let Some(owner)=state.locals.get(local.0 as usize).and_then(Option::as_ref){if owner.ty!=actual.ty{return Err(bad("erased cleanup changes its complete initialized original owner"));}}
+                        dynamic_witness::structural_actual(module,&actual.ty,DynStructuralBound::SyncDrop,b)?;
+                        // Conditional cleanup of an already transferred slot
+                        // is empty. Actual ownership/debt/loan kernels still
+                        // prove every live owner is finalized exactly once.
+                        state.locals[local.0 as usize]=None;None
+                    },
+                    InstructionKind::FunctionRef{..}=>Some(self.function_pointer(module,instance,f,instruction,&environment,external,active,b)?),
                     InstructionKind::ForeignFunctionRef{..}=>self.actual_intrinsic(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeClosure{closure,captures}=>{
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Closure{..}));
@@ -329,7 +381,7 @@ impl CheckedContext {
                         if declarations.next().is_some() {return Err(bad("actual Closure creation has duplicate semantic claims"));}
                         Some(self.seal_closure(module,instance,site,*closure,captures,&values,&environment,external,active,b)?)
                     }
-                    InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}=>{
+                    InstructionKind::CallIndirect{..}|InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}=>{
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::CallableCall{..}|SemanticSiteAction::BodyCall{..}));
                         let site=declarations.next().ok_or_else(||bad("actual CallableCall has no original callee recipe"))?;
                         if declarations.next().is_some(){return Err(bad("actual CallableCall has duplicate original claims"));}
@@ -347,12 +399,10 @@ impl CheckedContext {
                     values[id.0 as usize]=Some(value.clone());self.record(scope,OperandKey::Value(id),&value,b)?;
                 }
                 for site in &sites {
-                    if let SemanticSiteAction::TypeUse{subject,expected}=&site.action {
-                        let required=self.site_expected(module,instance,site,&environment,external,active,b)?;
-                        self.claim(module,expected,&required,&environment,b)?;
-                        let value=match subject {SemanticOperand::Value(value)=>value_at(&values,*value)?,SemanticOperand::Local(local)=>state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual type use reads an uninitialized local"))?,_=>return Err(unsupported("semantic TypeUse requires its exact actual operand ledger",None))};
-                        self.bind_implicit_use(module,instance,site,subject,value,&required,&environment,b)?;
-                        if !self.compatible(&environment,value,&required,b)? {return Err(bad(&format!("actual TypeUse violates its original rigid class requirement [instance {:?}, site {:?}, subject {:?}, actual domain {}, required domain {}]",instance.id,site.recipe,subject,value.life.binder_count,required.life.binder_count)));}
+                    if matches!(site.action,SemanticSiteAction::TypeUse{..})&&!input_uses.contains(&site.recipe) {
+                        let mut site_environment=environment.clone();
+                        if let Some(at)=&mut site_environment.at{at.after=matches!(instruction.kind,InstructionKind::MakeClosure{..})&&matches!(site.at,SemanticSiteAddress::Typed{edge:SemanticSiteEdge::After,..});}
+                        self.check_type_use(module,instance,f,site,&state,&values,signature,&site_environment,external,active,b)?;
                     }
                 }
             }
@@ -421,15 +471,15 @@ impl CheckedContext {
         let mut anchors=Vec::<(SemanticClassExpr,ClassKey)>::new();
         for(ordinal,value)in checked.iter().enumerate(){match value{
             CheckedActual::Life(key)=>anchors.push((SemanticClassExpr::Environment{scope:SemanticScopeRef::Ancestor(0),ordinal:ordinal as u32},key.clone())),
-            CheckedActual::Type(value)if !value.classes.is_empty()=>{ghost_captures::phantom_only(value,b)?;for(class,key)in value.classes.iter().enumerate(){b.spend(1)?;anchors.push((SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(ordinal as u32),path:vec![],class:class as u32},key.clone()));}},
+            CheckedActual::Type(value)if !value.classes.is_empty()=>{ghost_captures::complete_environment(module,value,b)?;for(class,key)in value.classes.iter().enumerate(){b.spend(1)?;anchors.push((SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(ordinal as u32),path:vec![],class:class as u32},key.clone()));}},
             _=>{},
         }}
-        for value in &checked{b.spend(1)?;match value{CheckedActual::Type(value)|CheckedActual::Const{carrier:value,..}=>{dynamic_metadata::ty(&value.ty,b)?;b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;},CheckedActual::Life(_)=>{}}}
+        for value in &checked{b.spend(1)?;match value{CheckedActual::Type(value)|CheckedActual::Const{carrier:value,..}=>{value.charge_clone(b)?;b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;},CheckedActual::Life(_)=>{}}}
         let sealed=checked.clone();
         self.seals.borrow_mut().insert(child.id,checked);
         let child_environment=self.environment_for_instance(module,child.id,active,b)?;
         let child_scope=ScopeKey::Instance(child.id);
-        let mut capture_images=Vec::new();let mut logical_captures=BTreeMap::new();
+        let mut capture_images=Vec::new();let mut logical_captures=BTreeMap::new();let mut borrowed_captures=BTreeMap::new();
         let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&creator_definition.body else{unreachable!()};
         let node=site_nodes.iter().find(|row|row.site==site.recipe).ok_or_else(||bad("Closure creator has no exact original node"))?;
         let SemanticOriginalNode::Expression(creation_node)=node.node else{return Err(bad("Closure creator original node is not an expression"));};
@@ -438,7 +488,10 @@ impl CheckedContext {
             if let Some(head)=self.capture_implicit(module,child,index as u32,b)? {
                 let ClassKey::Implicit{ordinal,..}=&head else{return Err(bad("capture head does not select an original implicit occurrence"));};
                 self.capture_local_source(module,creator,child,*ordinal,*capture,b)?;
-                if !matches!(&value.ty,Type::Address{inner,..} if inner.is_b0_scalar()){return Err(unsupported("implicit capture head requires its complete qualified pointee directory",None));}
+                if !matches!(&value.ty,Type::Address{..}){return Err(bad("implicit captured head has another complete borrow carrier"));}
+                let pointee=self.child_value(module,&value,&[LifeTypeProjection::Pointee],b)?;
+                let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&pointee,&sealed,environment,b)?;
+                borrowed_captures.insert(index as u32,ordinal);
                 let slot=value.life.slots.iter().find(|row|row.path.is_empty()).ok_or_else(||bad("actual implicit capture has no variable head occurrence"))?;
                 let binder=slot.binder as usize;
                 if binder>=value.classes.len()||binder>=value.origins.len(){return Err(bad("implicit capture head class is absent"));}
@@ -449,10 +502,8 @@ impl CheckedContext {
                 anchors.push((SemanticClassExpr::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal:*ordinal},value.classes[binder].clone()));
                 capture_images.push((head.clone(),value.classes[binder].clone()));
                 value.classes[binder]=head.clone();value.origins[binder]=IntrinsicOrigin::DerivedClass{source:head};
-            }else if value.classes.is_empty()&&value.statics.is_empty(){
-                self.classfree_capture(module,creator,child,index as u32,*capture,b)?;
             }else{
-                let ordinal=self.phantom_capture(module,creator,child,creation_node,*capture,&value,&sealed,environment,b)?;
+                let ordinal=self.environment_capture(module,creator,child,creation_node,*capture,&value,&sealed,environment,b)?;
                 logical_captures.insert(index as u32,ordinal);
             }
             self.record(child_scope,OperandKey::Capture(index as u32),&value,b)?;
@@ -491,16 +542,7 @@ impl CheckedContext {
         for (index,_) in captures.iter().enumerate() {
             if let Some(ordinal)=logical_captures.get(&(index as u32)){
                 let CheckedActual::Type(value)=&sealed[*ordinal]else{unreachable!()};
-                for class in 0..value.classes.len(){
-                    b.spend(relation.classes.len().saturating_add(child.header_embedding.len()))?;
-                    let mut rows=relation.classes.iter().filter(|row|row.position.base==StorageBase::Capture(index as u32)&&row.position.path.is_empty()&&row.position.class==class as u32);
-                    let row=rows.next().ok_or_else(||bad("logical capture class lacks its complete actual header occurrence"))?;
-                    if rows.next().is_some(){return Err(bad("logical capture class has repeated header occurrences"));}
-                    let mut embedding=child.header_embedding.iter().filter(|map|map.header==row.binder);
-                    let map=embedding.next().ok_or_else(||bad("logical capture class has no original environment embedding"))?;
-                    let expected=SemanticClassExpr::IntrinsicClass{operand:SemanticOperand::Environment(*ordinal as u32),path:vec![],class:class as u32};
-                    if !matches!(row.binder,StorageBinder::Fixed(_))||embedding.next().is_some()||map.actual!=expected{return Err(bad("logical capture class maps another original environment occurrence"));}
-                }
+                self.environment_capture_header(relation,child,index as u32,*ordinal,value,b)?;
                 continue;
             }
             if value_at(values,captures[index])?.classes.is_empty(){continue;}
@@ -510,6 +552,10 @@ impl CheckedContext {
             let StorageBinder::Fixed(class)=fixed[0].binder else{return Err(bad("persistent captured head is not in the Closure Fixed domain"));};
             let row=child.header_embedding.iter().find(|row|row.header==StorageBinder::Fixed(class)).ok_or_else(||bad("actual captured head loses its original Fixed embedding"))?;
             if self.class(module,&row.actual,&child_environment,b)?!=head{return Err(bad("Closure captured head maps to another original class occurrence"));}
+            if let Some(ordinal)=borrowed_captures.get(&(index as u32)){
+                let CheckedActual::Type(pointee)=&sealed[*ordinal]else{unreachable!()};
+                self.borrowed_capture_header(relation,child,index as u32,*ordinal,pointee,b)?;
+            }
         }
         for position in &relation.static_bindings {
             if !position.path.is_empty(){return Err(unsupported("opaque static occurrence needs its complete nested logical leaf inventory",None));}
@@ -523,7 +569,7 @@ impl CheckedContext {
             statics.push(StaticOccurrence::Logical{closure,position:position.clone(),leaf:leaf.clone(),mode});
         }
         let mut life=empty_life();life.binder_count=classes.len() as u32;
-        let value=CheckedType{ty:Type::Closure(closure),life,classes,origins,statics};
+        let value=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Closure(closure)),life,classes,origins,statics};
         let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&creator_definition.body else{unreachable!()};
         let node=site_nodes.iter().find(|row|row.site==site.recipe).ok_or_else(||bad("Closure creator has no exact original node"))?;
         let SemanticOriginalNode::Expression(node)=node.node else{return Err(bad("Closure creator original node is not an expression"));};
@@ -627,17 +673,29 @@ impl CheckedContext {
         };
         if matches!(&site.action,SemanticSiteAction::BodyCall{actuals}if !actuals.is_empty()){return Err(bad("nongeneric original callable invocation adds actual arguments"));}
         let (actual,arguments)=match opcode {
-            InstructionKind::CallClosure{callee,arguments}|InstructionKind::CallClosureOnce{callee,arguments}|InstructionKind::CallClosureBorrowed{callee,arguments,..}=>(value_at(values,*callee)?,arguments),
+            InstructionKind::CallIndirect{callee,arguments}|InstructionKind::CallClosure{callee,arguments}|InstructionKind::CallClosureOnce{callee,arguments}|InstructionKind::CallClosureBorrowed{callee,arguments,..}=>(value_at(values,*callee)?,arguments),
             InstructionKind::CallClosureShared{callee,arguments}|InstructionKind::CallClosureMut{callee,arguments}=>(state.locals.get(callee.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual callable local is not initialized"))?,arguments),_=>return Err(bad("actual opcode is not a closure invocation")),
         };
-        if !self.same_type(environment,actual,&expected,b)?{return Err(bad("actual callee occupant differs from its original full callable type"));}
+        let invocation_borrow;
+        let original_value=if matches!(opcode,InstructionKind::CallClosureBorrowed{..})
+            &&matches!(expected.ty,Type::Closure(_))&&matches!(actual.ty,Type::Address{..}){
+            let InstructionKind::CallClosureBorrowed{callee,..}=opcode else{unreachable!()};
+            let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=caller.target else{return Err(bad("borrowed callable has no actual original caller entry"));};
+            let f=module.functions.get(function.0 as usize).filter(|f|f.id==function).ok_or_else(||bad("borrowed callable actual caller entry is absent"))?;
+            let node=self.original_callable_source(module,caller,site,b)?;
+            self.original_projection_source(module,caller,f,*callee,caller.definition,node,true,b)?;
+            invocation_borrow=self.child_value(module,actual,&[LifeTypeProjection::Pointee],b)?;&invocation_borrow
+        }else{actual};
+        if !self.same_type(environment,original_value,&expected,b)?{return Err(bad("actual callee occupant differs from its original full callable type").with_note(format!("original {:?}, site {:?}; actual {:?} domain {}, expected {:?} domain {}",caller.definition,site.recipe,original_value.ty,original_value.life.binder_count,expected.ty,expected.life.binder_count)));}
+        if matches!(opcode,InstructionKind::CallIndirect{..}){return self.indirect_call(module,caller,site,actual,arguments,values,environment,external,active,b);}
         let id=match &actual.ty {Type::Closure(id)=>*id,Type::Address{inner,..}=>match inner.as_ref(){Type::Closure(id)=>*id,_=>return Err(bad("borrowed callee does not address a concrete Closure"))},_=>return Err(unsupported("actual callable requires its full code/trait dispatch proof",None))};
         b.spend(module.closures.len())?;
         let mut definitions=module.closures.iter().filter(|row|row.id==id);
         let definition=definitions.next().ok_or_else(||bad("actual callable definition is absent"))?;
         if definitions.next().is_some()||definition.parameters.len()!=arguments.len(){return Err(bad("actual callable identity or arity differs"));}
-        for (argument,expected) in arguments.iter().zip(&definition.parameters){let actual=value_at(values,*argument)?;if actual.ty!=*expected{return Err(bad("actual callable argument has a different complete type"));}if !actual.classes.is_empty()||!actual.statics.is_empty(){return Err(unsupported("actual CallableCall requires complete per-role borrowed/qualified arguments",None));}self.closed_value(module,expected,b)?;}
-        if definition.result==Type::Unit{Ok(None)}else{Ok(Some(self.closed_value(module,&definition.result,b)?))}
+        let receiver=if matches!(actual.ty,Type::Address{..}){self.child_value(module,actual,&[LifeTypeProjection::Pointee],b)?}else{actual.clone()};
+        self.closure_call(module,caller,site,id,&receiver,arguments,values,environment,external,active,b)
+
     }
     fn actual_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut dynamic_witness::semantic_external::Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
         let definition=self.definition(module,caller.definition,b)?;
@@ -645,7 +703,7 @@ impl CheckedContext {
         let site_recipe=sites.iter().find(|row|row.id==site.recipe).ok_or_else(||bad("actual Call has no original recipe"))?;
         if !matches!(site_recipe.kind,SemanticSiteRecipeKind::Call{..}|SemanticSiteRecipeKind::OriginalCall){return Err(bad("actual Call has another original operation role"));}
         let member=self.original.borrow().as_ref().ok_or_else(||bad("original member Call has no independent symbolic proof"))?.trait_call_recipes(module,caller.definition,site.recipe,environment,b)?;
-        if let Some(member)=member{return self.actual_trait_member(module,site,callee,arguments,values,environment,member,external,active,b);}
+        if let Some(member)=member{return self.actual_trait_member(module,caller,site,callee,arguments,values,environment,member,external,active,b);}
         let (resolved_target,actuals)=self.original.borrow().as_ref().ok_or_else(||bad("original body Call has no independent symbolic proof"))?.call_recipes(module,caller.definition,site.recipe,environment,b)?;
         let target=&resolved_target;
         let target_definition=self.definition(module,*target,b)?;
@@ -660,9 +718,7 @@ impl CheckedContext {
             let sources=self.original.borrow().as_ref().ok_or_else(||bad("Call inference has no checked original body"))?.call_type_sources(caller.definition,site.recipe,ordinal as u32,b)?;
             let expected=if sources.is_empty(){self.evaluate_actual(module,recipe,environment,external,active,b)?}else{
                 if !matches!(recipe,SemanticActualRecipe::Type(_)){return Err(bad("inferred whole Type source changed its complete actual kind"));}
-                let mut selected=None;
-                for source in &sources{let value=self.evaluate_type(module,source,environment,external,active,b)?;if let Some(expected)=&selected{if !self.same_type(environment,expected,&value,b)?{return Err(bad("repeated inferred Type arguments have different whole intrinsic domains"));}}else{selected=Some(value);}}
-                CheckedActual::Type(selected.ok_or_else(||bad("inferred whole Type has no original source occurrence"))?)
+                CheckedActual::Type(self.inferred_call_type(module,&sources,environment,external,active,b)?.ok_or_else(||bad("inferred whole Type has no original source occurrence"))?)
             };
             let equal=match (&expected,claim) {
                 (CheckedActual::Type(expected),SemanticActual::Type(claim))=>{self.claim(module,claim,expected,environment,b)?;true},
@@ -690,14 +746,24 @@ impl CheckedContext {
         let mut signature=self.world_signature(module,signature,worlds,environment,external,active,b)?;
         if signature.parameters.len()!=arguments.len() {return Err(bad("actual Call operand count differs from its original signature"));}
         b.spend(arguments.len())?;
-        let inputs=arguments.iter().map(|argument|value_at(values,*argument)).collect::<Check<Vec<_>>>()?;
-        self.instantiate_call_heads(&mut signature,&inputs,key,environment,b)?;
+        let(source_inputs,source_checks)=self.original_call_inputs(module,caller,site,&signature,key,arguments,values,environment,external,active,b)?;
+        let inputs=source_inputs.iter().collect::<Vec<_>>();
+        self.instantiate_original_call_heads(module,caller,site,&mut signature,&inputs,key,environment,b)?;
         let actual_function=module.functions.get(callee.0 as usize).ok_or_else(||bad("actual Call function is absent"))?;
-        for ((expected,_),argument) in signature.parameters.iter().zip(arguments) {
-            if !self.call_argument(module,caller,*argument,values,expected,environment,b)? {return Err(bad("actual Call argument violates the original invariant class specialization"));}
+        for (index,((expected,_),argument)) in signature.parameters.iter().zip(arguments).enumerate() {
+            if !self.call_argument(module,caller,*argument,values,expected,environment,source_checks[index],b)? {return Err(bad("actual Call argument violates the original invariant class specialization"));}
         }
         if actual_function.return_type!=signature.result.ty {return Err(bad("actual Call specialization result whole type differs"));}
         Ok(if signature.result.ty==Type::Unit {None}else{Some(signature.result)})
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn check_type_use(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,site:&SemanticSite,state:&State,values:&[Option<CheckedType>],signature:&CheckedSignature,environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{
+        let SemanticSiteAction::TypeUse{subject,expected}=&site.action else{return Err(bad("TypeUse consumer selects another semantic action"));};
+        let required=self.site_expected(module,instance,site,environment,external,active,b)?;
+        let value=self.type_use_operand(module,instance,f,subject,state,values,signature,environment,b)?;
+        self.bind_implicit_use(module,instance,site,subject,&value,&required,environment,b)?;
+        self.claim_type_use(module,expected,&required,environment,b)?;
+        if !self.compatible(environment,&value,&required,b)?{return Err(bad(&format!("actual TypeUse violates its original rigid class requirement [instance {:?}, site {:?}, subject {:?}, actual domain {}, required domain {}]",instance.id,site.recipe,subject,value.life.binder_count,required.life.binder_count)));}Ok(())
     }
     fn bind_implicit_use(&self,module:&TypedModule,instance:&SemanticInstance,site:&SemanticSite,subject:&SemanticOperand,actual:&CheckedType,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
         let definition=self.definition(module,instance.definition,b)?;
@@ -708,7 +774,7 @@ impl CheckedContext {
         let source_recipe=if let SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:original_source}=source_recipe{
             let original=self.original.borrow();let original=original.as_ref().ok_or_else(||bad("original implicit address lacks its complete body proof"))?;
             source=original.original_address_source(module,instance.definition,original_source,b)?;
-            if source.is_none(){source=original.original_description_source(instance.definition,original_source,b)?;}
+            if source.is_none(){source=original.original_description_source(module,instance.definition,original_source,b)?;}
             expanded=original.type_recipe(module,instance.definition,original_source,environment,b)?;&expanded
         }else{source_recipe};
         let (ordinal,description)=match source_recipe{
@@ -723,6 +789,11 @@ impl CheckedContext {
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target else{return Err(bad("implicit occurrence belongs to a nonexecutable scope"));};
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("implicit occurrence actual function is absent"))?;
         if let Some(source)=source{self.intrinsic_buffer_source(module,instance,f,value,source,b)?;}
+        // A description may be stored in a real local environment view and
+        // loaded repeatedly. The complete original Place/source check above
+        // follows every actual alias/store to its creator; a second direct-SSA
+        // Describe-only whitelist would lose this independently proved root.
+        if !description {
         let mut seen=std::collections::BTreeSet::new();
         loop {
             b.spend(1)?;if !seen.insert(value){return Err(bad("implicit address producer cycle"));}
@@ -732,9 +803,11 @@ impl CheckedContext {
             match &instruction.kind {
                 InstructionKind::ReborrowAddress{address,..}|InstructionKind::AddressSlice{address,..}=>value=*address,
                 InstructionKind::BorrowLocal{..}|InstructionKind::BorrowLocalMut{..}if !description=>break,
+                InstructionKind::AddressField{..}|InstructionKind::AddressIndex{..}|InstructionKind::BorrowPackageField{..}|InstructionKind::BorrowCapture{..}if !description&&source.is_some()=>break,
                 InstructionKind::DescribeLocal{..}|InstructionKind::DescribePackageField{..}|InstructionKind::DescribeCapture{..}|InstructionKind::DescribeAddress{..}if description=>break,
                 _=>return Ok(()),
             }
+        }
         }
         if actual.ty!=expected.ty{return Ok(());}
         let Some(a)=actual.life.slots.iter().find(|row|row.path.is_empty()) else{return Ok(());};
@@ -747,6 +820,7 @@ impl CheckedContext {
         // This original declaration names this exact actual borrow occurrence;
         // it is not equality inferred from a shared outside image or header.
         b.spend(1)?;
+        b.spend(1)?;self.invalidate_closed_frames();
         self.premises.borrow_mut().entry(frame.key).or_default().relations.equalities.push((original,actual.clone()));
         Ok(())
     }
@@ -780,23 +854,66 @@ impl CheckedContext {
         b.spend(path.len().saturating_add(1))?;
         Ok(Some(IntrinsicOrigin::Existing{scope,operand,path:path.clone(),class:*class}))
     }
-    pub(super) fn claim(&self,module:&TypedModule,claim:&SemanticTypeValue,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {
+    pub(super) fn claim(&self,module:&TypedModule,claim:&SemanticTypeValue,expected:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {self.claim_scoped(module,claim,expected,environment,false,b)}
+    fn claim_type_use(&self,module:&TypedModule,claim:&SemanticTypeValue,source:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<()> {self.claim_scoped(module,claim,source,environment,true,b)}
+    /// A TypeUse may advertise an allowed outer view of this exact source.
+    /// The source occurrence has already been bound to its real SSA producer;
+    /// this comparison neither replaces that source nor adds any equality.
+    fn claim_scoped(&self,module:&TypedModule,claim:&SemanticTypeValue,expected:&CheckedType,environment:&EvalEnv,root_view:bool,b:&mut Budget)->Check<()> {
         let (ty,life,expressions)=resolved(claim)?;
         let mut classes=Vec::new();for expression in expressions {classes.push(self.class(module,expression,environment,b)?);}
         // Metadata-only Task frame construction compares the same complete
         // claim, but cannot re-enter the full Task instruction/WF consumer.
         // Its later frame/site obligations remain mandatory at module exit.
         let mut actual=self.construct_value(module,ty,life,classes,b)?;
+        let closure_cursor=self.original_closure_claim(&actual,expected,b)?;
         for (index,expression) in expressions.iter().enumerate() {
             let source=self.expression_origin(expression,environment,b)?;
             let expected_origin=expected.origins.get(index).ok_or_else(||bad(&format!("nominal claim original domain is incomplete [at {:?}, original {:?}, claim type {:?}, claim domain {}, claim classes {}, expected type {:?}, expected domain {}, expected classes {}, expected origins {}]",environment.at,environment.lexical.first().map(|frame|frame.definition),ty,life.binder_count,expressions.len(),expected.ty,expected.life.binder_count,expected.classes.len(),expected.origins.len())))?;
             if let Some(origin)=self.nominal_claim_origin(&actual.origins[index],expected_origin,source.as_ref(),environment,b)?{actual.origins[index]=origin;}
-            else if let Some(origin)=source{actual.origins[index]=origin;}
+            else if let Some(origin)=source{
+                if closure_cursor&&!self.same_origin(environment,&origin,expected_origin,b)?{return Err(bad("closure claim changes its exact original intrinsic occurrence"));}
+                actual.origins[index]=origin;
+            }
+            else if closure_cursor{
+                // An Implicit/Formal image is not an assertion that this κ is
+                // a new outer Life identity. Keep the exact original closure
+                // Receiver index, backed by the mandatory complete cursor.
+                super::nominal_origins::charge_origin(expected_origin,b)?;
+                actual.origins[index]=expected_origin.clone();
+            }
         }
         self.claim_static_obligations(&mut actual,expected,b)?;
-        if !self.same_type(environment,&actual,expected,b)? {return Err(bad("site complete type/class claim differs from its original scoped recipe"));}
+        let same=self.same_type(environment,&actual,expected,b)?;
+        let view=!same&&root_view&&self.compatible(environment,expected,&actual,b)?;
+        if !same&&!view {return Err(bad("site complete type/class claim differs from its original scoped recipe").with_note(format!("original {:?}, actual point {:?}; domains {}/{}, class images {:?}/{:?}",environment.lexical.first().map(|frame|frame.definition),environment.at,actual.life.binder_count,expected.life.binder_count,&actual.classes[..actual.classes.len().min(6)],&expected.classes[..expected.classes.len().min(6)])));}
         Ok(())
     }
 }
 fn value_at(values:&[Option<CheckedType>],id:ValueId)->Check<&CheckedType> {values.get(id.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual SSA use has no independent semantic definition"))}
-fn atomic(ty:&Type,b:&mut Budget)->Check<CheckedType> {b.spend(1)?;if !ty.is_b0_scalar() {return Err(bad("actual scalar instruction contains a borrowed/opaque semantic carrier"));}Ok(CheckedType{ty:ty.clone(),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]})}
+fn atomic(ty:&Type,b:&mut Budget)->Check<CheckedType> {b.spend(1)?;if !ty.is_b0_scalar() {return Err(bad("actual scalar instruction contains a borrowed/opaque semantic carrier"));}Ok(CheckedType{type_cell: crate::semantic::CheckedTypeData::new(ty.clone()),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]})}
+
+#[cfg(test)]
+mod type_use_view_tests {
+    use super::*;
+    #[test]
+    fn type_use_views_follow_the_proved_source_direction_without_equating_roles(){
+        let limits=Limits::default();let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("fixtures/phantom-closure-complete-creator.wire"),&limits).unwrap();let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();
+        let instance=&module.semantic.as_ref().unwrap().instances[0];let scope=ScopeKey::Instance(instance.id);
+        let input=ClassKey::Formal{scope,ordinal:0};let source=ClassKey::Implicit{scope,ordinal:0};
+        // A scoped relation kernel control: these frames are not an admission
+        // proof for an SSA value, source expression, header or resource owner.
+        let env=EvalEnv{lexical:vec![LexicalFrame{definition:instance.definition,key:scope,actuals:vec![CheckedActual::Life(input.clone()),CheckedActual::Life(source.clone())],environment:vec![],self_type:None}],assumptions:vec![scope],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        let ty=Type::Address{mutable:false,inner:Box::new(Type::I32)};let life=StorageLifeShape{binder_count:1,slots:vec![StorageLifeSlot{path:vec![],binder:0,mode:StoredBorrowMode::SharedAddress}],retained:vec![],nominal_arguments:vec![]};
+        let value=|class:ClassKey|CheckedType{type_cell:CheckedTypeData::new(ty.clone()),life:life.clone(),origins:vec![IntrinsicOrigin::DerivedClass{source:class.clone()}],classes:vec![class],statics:vec![]};
+        let claim=|ordinal,ty:Type|SemanticTypeValue::Resolved{ty,life:life.clone(),classes:vec![SemanticClassExpr::Formal{scope:SemanticScopeRef::Ancestor(0),ordinal}]};
+        context.premises.borrow_mut().entry(scope).or_default().relations.outlives.push((source.clone(),input.clone()));
+        assert!(context.claim(&module,&claim(0,ty.clone()),&value(source.clone()),&env,&mut b).is_err(),"ordinary complete type claims remain exact");
+        context.claim_type_use(&module,&claim(0,ty.clone()),&value(source.clone()),&env,&mut b).unwrap();
+        assert!(!context.same(&env,&source,&input,&mut b).unwrap());
+        assert!(context.claim_type_use(&module,&claim(1,ty.clone()),&value(input.clone()),&env,&mut b).is_err());
+        assert!(context.claim_type_use(&module,&claim(0,Type::Address{mutable:false,inner:Box::new(Type::I64)}),&value(source.clone()),&env,&mut b).is_err());
+        context.premises.borrow_mut().entry(scope).or_default().relations.outlives=vec![(input,source.clone())];
+        assert!(context.claim_type_use(&module,&claim(0,ty.clone()),&value(source),&env,&mut b).is_err(),"an upper bound cannot be reversed into a root view");
+    }
+}

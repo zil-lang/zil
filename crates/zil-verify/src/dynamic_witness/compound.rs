@@ -10,7 +10,7 @@ struct Walk<'a, 'm> {
     nominal: Vec<NominalLifeArgument>,
     pending: bool,
 }
-impl Walk<'_, '_> {
+impl<'a,'m> Walk<'a,'m> {
     fn boundary(
         &mut self,
         path: &[LifeTypeProjection],
@@ -36,6 +36,7 @@ impl Walk<'_, '_> {
                     "compound repeats or misbinds an actual child class occurrence",
                 ));
             }
+            if map.contains(&row.binder){return Err(bad("compound child coalesces independent intrinsic class indices"));}
             b.spend(path.len().saturating_add(1))?;
             self.retained.push((path.to_vec(), class));
             map.push(row.binder);
@@ -44,7 +45,7 @@ impl Walk<'_, '_> {
     }
     fn node(
         &mut self,
-        ty: &Type,
+        ty: &'m Type,
         physical: &mut Vec<PlaceProjection>,
         semantic: &mut Vec<LifeTypeProjection>,
         inline: bool,
@@ -96,7 +97,21 @@ impl Walk<'_, '_> {
                     }
                 }
             }
-            Type::Closure(_) | Type::Task { .. } | Type::MutexGuard { .. } | Type::Dyn { .. } | Type::OwnedDyn { .. } => {
+            Type::Dyn{..}|Type::OwnedDyn{..}=>{
+                let domain=self.inventory.domain(ty,b)?;self.pending|=domain.pending_sources;
+                let map=self.boundary(semantic,domain.count,b)?;
+                let context=self.inventory.dyn_context(ty,b)?.ok_or_else(||bad("compound erased child loses its exact Context directory"))?;
+                // The child retains its complete internal logical directory.
+                // A parent records its whole intrinsic boundary and prefixes
+                // nominal identities, without adding any physical Context GEP.
+                for row in &context.nominal_arguments{
+                    b.spend(semantic.len().saturating_add(row.path.len()).saturating_add(1))?;
+                    let binder=*map.get(row.binder as usize).ok_or_else(||bad("opaque nominal Context row escapes its child domain"))?;
+                    let mut path=semantic.clone();path.extend_from_slice(&row.path);
+                    self.nominal.push(NominalLifeArgument{path,declaration:row.declaration,argument:row.argument,binder});
+                }
+            },
+            Type::Closure(_) | Type::Task { .. } | Type::MutexGuard { .. } => {
                 let domain = self.inventory.domain(ty, b)?;
                 self.pending |= domain.pending_sources;
                 self.boundary(semantic, domain.count, b)?;
@@ -107,16 +122,16 @@ impl Walk<'_, '_> {
                         "semantic pointee raw Address has no independent complete child domain",
                     ));
                 }
-                b.spend(physical.len().saturating_add(1))?;
-                self.slots.push((
-                    physical.clone(),
-                    if *mutable {
-                        StoredBorrowMode::ExclusiveAddress
-                    } else {
-                        StoredBorrowMode::SharedAddress
-                    },
-                    None,
-                ));
+                b.spend(physical.len().saturating_add(self.life.slots.len()).saturating_add(1))?;
+                if self.life.slots.iter().any(|row|row.path==*physical){
+                    self.slots.push((physical.clone(),if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress},None));
+                }else{
+                    if *mutable{return Err(bad("static compound occurrence cannot invent an exclusive address"));}
+                    // No variable κ is fabricated. This is a pending immutable
+                    // source occurrence, discharged by actual constructors,
+                    // writes and Return provenance before module release.
+                    self.pending=true;
+                }
                 semantic.push(LifeTypeProjection::Pointee);
                 self.node(inner, physical, semantic, false, depth + 1, b)?;
                 semantic.pop();
@@ -135,21 +150,14 @@ impl Walk<'_, '_> {
                         .saturating_add(1),
                 )?;
                 let mut rows = self.life.slots.iter().filter(|row| row.path == *physical);
-                let row = rows
-                    .next()
-                    .ok_or_else(|| bad("compound Description occurrence is absent"))?;
-                if rows.next().is_some()
-                    || !matches!(
-                        row.mode,
-                        StoredBorrowMode::ReadOnlyDescription
-                            | StoredBorrowMode::WritableDescription
-                    )
-                {
-                    return Err(bad(
-                        "compound Description mode is not an actual weak description",
-                    ));
+                if let Some(row)=rows.next(){
+                    if rows.next().is_some()||!matches!(row.mode,StoredBorrowMode::ReadOnlyDescription|StoredBorrowMode::WritableDescription){return Err(bad("compound Description mode is not an actual weak description"));}
+                    self.slots.push((physical.clone(),row.mode,None));
+                }else{
+                    // A constant description is read-only and still has no
+                    // source certificate at this metadata layer.
+                    self.pending=true;
                 }
-                self.slots.push((physical.clone(), row.mode, None));
                 semantic.push(LifeTypeProjection::Pointee);
                 self.node(inner, physical, semantic, false, depth + 1, b)?;
                 semantic.pop();
@@ -204,9 +212,9 @@ impl Walk<'_, '_> {
         Ok(())
     }
 }
-pub(super) fn check(
-    inventory: &mut values::Inventory<'_>,
-    storage: &Type,
+pub(super) fn check<'m>(
+    inventory: &mut values::Inventory<'m>,
+    storage: &'m Type,
     life: &StorageLifeShape,
     b: &mut Budget,
 ) -> Check<values::Domain> {
@@ -217,9 +225,9 @@ pub(super) fn check(
 }
 /// Ordinary wrapper paths belong to the actual constructor. Managed adds a
 /// Pointee edge; it does not turn its whole payload into one opaque boundary.
-pub(super) fn external(
-    inventory: &mut values::Inventory<'_>,
-    ty: &Type,
+pub(super) fn external<'m>(
+    inventory: &mut values::Inventory<'m>,
+    ty: &'m Type,
     life: &StorageLifeShape,
     b: &mut Budget,
 ) -> Check<values::Domain> {
@@ -230,9 +238,9 @@ pub(super) fn external(
     }
     external_inner(inventory, ty, life, false, b)
 }
-fn external_inner(
-    inventory: &mut values::Inventory<'_>,
-    storage: &Type,
+fn external_inner<'m>(
+    inventory: &mut values::Inventory<'m>,
+    storage: &'m Type,
     life: &StorageLifeShape,
     anonymous: bool,
     b: &mut Budget,

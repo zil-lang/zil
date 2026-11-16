@@ -1,6 +1,8 @@
 //! Bounded raw dyn metadata traversal before hashing or recursive comparisons.
 //! This grants no Context, port, cleanup or return-source authority.
 use super::*;
+mod structure;
+pub(crate) use structure::{Structure,owner_known,owner_success,lexical_scopes,nominal_declarations,nominal_instances,nominal_scope_instances,resource_known,resource_success,store_element_known,store_element_success,stored_type_known,stored_type_success,shared_type,adopt_type_cell};
 fn pay(b: &mut Budget, nodes: &mut usize, cap: usize, n: usize) -> Check<()> {
     *nodes = nodes
         .checked_add(n)
@@ -51,10 +53,18 @@ fn retained(
     }
     Ok(())
 }
+#[track_caller]
 pub(super) fn ty(root: &Type, b: &mut Budget) -> Check<()> {
-    ty_at(root, 0, b)
+    let previous=b.diagnostic_metadata_caller;
+    if b.diagnostic_costs.is_some(){b.diagnostic_metadata_caller=Some(std::panic::Location::caller());}
+    let result=ty_at(root, 0, b);
+    b.diagnostic_metadata_caller=previous;
+    result
 }
 fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> Check<()> {
+    type_walk(root,initial_depth,true,b)
+}
+fn type_walk(root:&Type,initial_depth:usize,copy_or_compare:bool,b:&mut Budget)->Check<()>{
     let cap = b.limits.max_nodes;
     let depth_cap = b.limits.max_call_depth.min(128);
     pay(b, &mut 0usize, cap, 1)?;
@@ -108,10 +118,10 @@ fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> Check<()> {
                 children.push(result.as_ref());
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
-                b.spend(name.len())?;
+                b.spend(if copy_or_compare{name.len()}else{1})?;
                 pay(b, &mut nodes, cap, fields.len())?;
                 for (name, ty) in fields {
-                    b.spend(name.len())?;
+                    b.spend(if copy_or_compare{name.len()}else{1})?;
                     children.push(ty);
                 }
             }
@@ -120,10 +130,10 @@ fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> Check<()> {
                 children.extend(fields);
             }
             Type::Enum { name, variants } => {
-                b.spend(name.len())?;
+                b.spend(if copy_or_compare{name.len()}else{1})?;
                 pay(b, &mut nodes, cap, variants.len())?;
                 for (name, fields) in variants {
-                    b.spend(name.len())?;
+                    b.spend(if copy_or_compare{name.len()}else{1})?;
                     pay(b, &mut nodes, cap, fields.len())?;
                     children.extend(fields);
                 }
@@ -149,7 +159,7 @@ fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> Check<()> {
                 children.push(result.as_ref());
             }
             Type::Named(name) | Type::Unsupported(name) => {
-                b.spend(name.len())?;
+                b.spend(if copy_or_compare{name.len()}else{1})?;
             }
             Type::ByteBuffer
             | Type::ForeignHandle
@@ -171,6 +181,100 @@ fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> Check<()> {
         }
     }
     Ok(())
+}
+/// Pure bounds only. Callers that clone, hash or compare the complete Type
+/// continue to use ty(), whose full traversal prepays that actual work.
+fn type_bounds_at(root:&Type,depth:usize,b:&mut Budget)->Check<()>{
+    // A complete fixed small tree is cheaper to walk than to look up and
+    // publish a fact. This selects the ordinary cold walker, including every
+    // node/depth/path bound, and never supplies an intrinsic-domain proof.
+    if inexpensive_bounds(root){return type_walk(root,depth,false,b);}
+    if structure::type_known(root,depth,b)?{return Ok(());}
+    type_walk(root,depth,false,b)?;
+    structure::type_success(root,depth,b)
+}
+fn inexpensive_bounds(ty:&Type)->bool{
+    fn leaf(ty:&Type)->bool{ty.is_b0_scalar()||matches!(ty,Type::ByteBuffer|Type::ForeignHandle|Type::SyncCell(_)|Type::TaskI32|Type::CWideString|Type::Closure(_)|Type::Dyn{..}|Type::OwnedDyn{..})}
+    match ty{
+        Type::Address{inner,..}|Type::Desc(inner)|Type::Managed(inner)|Type::Slice{element:inner}|Type::Array{element:inner,..}|Type::OwnedStore{element:inner}|Type::Mutex{payload:inner}|Type::Registration{environment:inner}|Type::AsyncRegistration{environment:inner}|Type::Opaque{hidden:inner,..}=>leaf(inner),
+        Type::Record{fields,..}|Type::Package{fields,..}=>fields.is_empty()||matches!(fields.as_slice(),[(_,child)]if leaf(child)),
+        Type::Tuple(fields)=>fields.len()<=2&&fields.iter().all(leaf),
+        Type::ErrorUnion{error,result}=>leaf(error)&&leaf(result),
+        Type::FunctionPointer{parameters,result}|Type::ForeignCallback{parameters,result}=>parameters.len()<=1&&parameters.iter().all(leaf)&&leaf(result),
+        _=>false,
+    }
+}
+pub(crate) fn bounds_type(root:&Type,b:&mut Budget)->Check<()>{type_bounds_at(root,0,b)}
+/// The exact public DTV callbacks, without allocating/copying a DTV payload.
+/// All class/domain interpretation remains with the independent inventory.
+pub(crate) fn bounds_type_parts(ty:&Type,life:&StorageLifeShape,classes:&[StorageBinder],b:&mut Budget)->Check<()>{
+    let work=&mut BoundsWork(RecipeWork{b,nodes:0});
+    work.node(0)?;work.ty(ty,1)?;work.life(life,1)?;work.rows(classes.len(),1)?;
+    for _ in classes{work.node(1)?;}Ok(())
+}
+
+/// Prepayment for the one real owned child copy made by a fresh constructor.
+/// This is the same complete DTV visitor without allocating a temporary DTV.
+#[track_caller]
+pub(crate) fn copy_type_parts(ty:&Type,life:&StorageLifeShape,classes:&[StorageBinder],b:&mut Budget)->Check<()>{
+    let previous=b.diagnostic_metadata_caller;
+    if b.diagnostic_costs.is_some(){b.diagnostic_metadata_caller=Some(std::panic::Location::caller());}
+    let result=(||{let work=&mut RecipeWork{b,nodes:0};
+    work.node(0)?;work.ty(ty,1)?;work.life(life,1)?;work.rows(classes.len(),1)?;
+    for _ in classes{work.node(1)?;}Ok(())})();
+    b.diagnostic_metadata_caller=previous;
+    result
+}
+
+#[cfg(test)]
+mod borrowed_parts_tests {
+    use super::*;
+    #[test]
+    fn metadata_caller_attribution_restores_outer_on_success_and_error_without_changing_work(){
+        let value=DynTypeValue{ty:Type::Tuple(vec![Type::I32]),life:StorageLifeShape{binder_count:0,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:vec![]};
+        let outer=std::panic::Location::caller();
+        for kind in 0..3{
+            let limits=Limits{max_call_depth:0,..Limits::default()};
+            let mut profiled=Budget::new(&limits);let mut control=Budget::new(&limits);
+            profiled.diagnostic_costs=Some(BTreeMap::new());control.diagnostic_costs=None;
+            profiled.diagnostic_metadata_caller=Some(outer);
+            let run=|b:&mut Budget|match kind{0=>ty(&value.ty,b),1=>recipe(&value,b),_=>copy_type_parts(&value.ty,&value.life,&value.classes,b)};
+            assert!(run(&mut profiled).is_err());assert!(run(&mut control).is_err());
+            assert_eq!(profiled.remaining,control.remaining);
+            assert!(std::ptr::eq(profiled.diagnostic_metadata_caller.unwrap(),outer));
+            profiled.limits.max_call_depth=128;control.limits.max_call_depth=128;
+            run(&mut profiled).unwrap();run(&mut control).unwrap();
+            assert_eq!(profiled.remaining,control.remaining);
+            assert!(std::ptr::eq(profiled.diagnostic_metadata_caller.unwrap(),outer));
+        }
+    }
+    #[test]
+    fn borrowed_dtv_preserves_public_visitor_quotas_and_depths() {
+        let value=DynTypeValue{
+            ty:Type::Tuple(vec![Type::Record{name:"long_name".repeat(64),fields:vec![("field".repeat(64),Type::I32)]}]),
+            life:StorageLifeShape{binder_count:1,slots:vec![],retained:vec![StorageRetainedBinding{path:vec![LifeTypeProjection::Place(PlaceProjection::Field(0))],class:0,binder:0}],nominal_arguments:vec![]},
+            classes:vec![StorageBinder::Invocation(0)],
+        };
+        for nodes in [0,1,2,3,4,8,16,64] {
+            for depth in [0,1,2,3,128] {
+                let limits=Limits{max_nodes:nodes,max_call_depth:depth,..Limits::default()};
+                let mut borrowed=Budget::new(&limits);let mut owned=Budget::new(&limits);
+                let a=bounds_type_parts(&value.ty,&value.life,&value.classes,&mut borrowed);
+                let z=value.visit_dyn_metadata(&mut BoundsWork(RecipeWork{b:&mut owned,nodes:0}),0);
+                assert_eq!(a,z,"nodes={nodes}, depth={depth}");
+                assert_eq!(borrowed.remaining,owned.remaining);
+                let mut copied=Budget::new(&limits);let mut public=Budget::new(&limits);
+                let a=copy_type_parts(&value.ty,&value.life,&value.classes,&mut copied);
+                let z=recipe(&value,&mut public);
+                assert_eq!(a,z,"owned-copy nodes={nodes}, depth={depth}");
+                assert_eq!(copied.remaining,public.remaining);
+            }
+        }
+        let mut bounded=Budget::new(&Limits::default());let mut copied=Budget::new(&Limits::default());
+        bounds_type_parts(&value.ty,&value.life,&value.classes,&mut bounded).unwrap();
+        recipe(&value,&mut copied).unwrap();
+        assert!(bounded.remaining>copied.remaining,"only the removed copy stops reading nominal name bytes");
+    }
 }
 
 /// Pay the entire public retained directory independently of its Context type.
@@ -255,6 +359,14 @@ pub(super) fn program_declaration(program:&SemanticModule,declarations:&[DynDecl
     declaration_in_scope(declaration,owner,b)
 }
 pub(super) fn declaration_in_scope(declaration:&DynDeclaration,owner:&SemanticDefinition,b:&mut Budget)->Check<()> {
+    if matches!(owner.body,SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl{trait_kind:SemanticBuiltinTrait::Drop,..})){
+        // This comparison still occurs even when the declaration's bounds
+        // are known. Keep the full identity-read payment before equality.
+        for identity in [&owner.identity,&declaration.identity]{
+            b.spend(identity.package.len().saturating_add(identity.module_path.len()).saturating_add(identity.declaration_path.len()).saturating_add(identity.generation_path.len()).saturating_add(1))?;
+            for text in identity.module_path.iter().chain(&identity.declaration_path){b.spend(text.len())?;}
+        }
+    }
     let valid=match (&owner.body,declaration.kind) {
         (SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{declaration:id}),DynDeclarationKind::Trait)=>*id==declaration.id,
         (SemanticDefinitionBody::Scope(SemanticScopeRecipe::InherentImpl{declaration:id,..}|SemanticScopeRecipe::TraitImpl{declaration:id,..}),DynDeclarationKind::Impl)=>*id==declaration.id,
@@ -265,6 +377,7 @@ pub(super) fn declaration_in_scope(declaration:&DynDeclaration,owner:&SemanticDe
     declaration_at(declaration,Some(owner.id),b)
 }
 fn declaration_at(declaration:&DynDeclaration,owner:Option<SemanticDefinitionId>,b:&mut Budget)->Check<()> {
+    if structure::declaration_known(declaration,owner,b)?{return Ok(());}
     recipe_declaration(declaration, b)?;
     pattern_at(declaration, owner, b)?;
     kinds(&declaration.parameters, b)?;
@@ -299,6 +412,7 @@ fn declaration_at(declaration:&DynDeclaration,owner:Option<SemanticDefinitionId>
             DynMemberKind::Type => {}
         }
     }
+    structure::declaration_success(declaration,owner,b)?;
     Ok(())
 }
 pub(super) fn interface(module: &TypedModule, item: &DynInterface, b: &mut Budget) -> Check<()> {
@@ -689,8 +803,32 @@ impl DynRecipeVisitor for RecipeWork<'_> {
         self.rows(value.len(), depth)
     }
 }
+#[track_caller]
 pub(super) fn recipe<T: DynRecipeMetadata>(value: &T, b: &mut Budget) -> Check<()> {
-    value.visit_dyn_metadata(&mut RecipeWork { b, nodes: 0 }, 0)
+    let previous=b.diagnostic_metadata_caller;
+    if b.diagnostic_costs.is_some(){b.diagnostic_metadata_caller=Some(std::panic::Location::caller());}
+    let result=value.visit_dyn_metadata(&mut RecipeWork { b, nodes: 0 }, 0);
+    b.diagnostic_metadata_caller=previous;
+    result
+}
+/// A registered immutable recipe may reuse only its structural bounds. This
+/// is not a prepayment for cloning/comparing it, or a semantic obligation.
+pub(super) fn bounds_recipe<T:DynRecipeMetadata+'static>(value:&T,b:&mut Budget)->Check<()>{
+    if structure::recipe_known(value,b)?{return Ok(());}
+    value.visit_dyn_metadata(&mut BoundsWork(RecipeWork{b,nodes:0}),0)?;
+    structure::recipe_success(value,b)
+}
+struct BoundsWork<'a>(RecipeWork<'a>);
+impl DynRecipeVisitor for BoundsWork<'_>{
+    type Error=Diagnostic;
+    fn node(&mut self,d:usize)->Check<()>{self.0.node(d)}
+    fn rows(&mut self,n:usize,d:usize)->Check<()>{self.0.rows(n,d)}
+    fn ty(&mut self,value:&Type,d:usize)->Check<()>{self.0.node(d)?;type_bounds_at(value,d,self.0.b)}
+    fn life(&mut self,value:&StorageLifeShape,d:usize)->Check<()>{self.0.life(value,d)}
+    fn identity(&mut self,value:&LifeDeclarationIdentity,d:usize)->Check<()>{self.0.identity(value,d)}
+    fn position(&mut self,value:&StoragePosition,d:usize)->Check<()>{self.0.position(value,d)}
+    fn constant(&mut self,value:&Constant,d:usize)->Check<()>{self.0.constant(value,d)}
+    fn text(&mut self,value:&str,d:usize)->Check<()>{self.0.text(value,d)}
 }
 /// The same bounded primitive visitors used by complete recipe traversal.
 pub(super) fn life_shape(value:&StorageLifeShape,b:&mut Budget)->Check<()>{
@@ -735,12 +873,15 @@ pub(super) fn recipe_table(value: &DynVtable, b: &mut Budget) -> Check<()> {
 /// cleanup is independently checked against the original sealed Drop body.
 pub(crate) fn sealed_drop_metadata(module:&TypedModule,declaration:&DynDeclaration,b:&mut Budget)->Check<bool>{
     let Some(program)=&module.semantic else{return Ok(false);};
+    program_sealed_drop_metadata(program,&module.dyn_declarations,declaration,b)
+}
+pub(in crate) fn program_sealed_drop_metadata(program:&SemanticModule,declarations:&[DynDeclaration],declaration:&DynDeclaration,b:&mut Budget)->Check<bool>{
     b.spend(program.dyn_scopes.len().saturating_add(program.definitions.len()))?;
     let mut bindings=program.dyn_scopes.iter().filter(|row|row.owner==SemanticDynOwner::Declaration(declaration.id));
     let Some(binding)=bindings.next() else{return Ok(false);};if bindings.next().is_some(){return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop original owner is duplicated"));}
     let Some(owner)=program.definitions.iter().find(|row|row.id==binding.scope) else{return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop original owner is absent"));};
     if !matches!(owner.body,SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl{trait_kind:SemanticBuiltinTrait::Drop,..})){return Ok(false);}
-    let owner=crate::dynamic_witness::semantic_external::original_scope(module,declaration.id,b)?;
+    let owner=crate::dynamic_witness::semantic_external::original_program_scope(program,declarations,declaration.id,b)?;
     declaration_in_scope(declaration,owner,b)?;
     if declaration.implemented_trait.is_some(){return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop metadata cannot implement an open dynamic trait"));}
     let [member]=declaration.members.as_slice() else{return Err(reject("E-VERIFY-DYN-PATTERN",None,"sealed Drop original member inventory differs"));};

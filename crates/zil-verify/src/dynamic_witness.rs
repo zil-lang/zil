@@ -12,6 +12,7 @@ mod implicit;
 mod instantiate;
 mod keys;
 mod matching;
+pub(crate) mod semantic_patterns;
 mod queries;
 mod scopes;
 mod structural;
@@ -77,6 +78,19 @@ pub(crate) fn check_type_value(
     values::check(module, value, scope, budget).map(|_| ())
 }
 
+/// The same complete inventory over borrowed parts. This avoids constructing
+/// an owned DTV solely to run the independent read-only interpreter.
+pub(crate) fn check_type_parts(
+    module: &TypedModule,
+    ty: &Type,
+    life: &StorageLifeShape,
+    classes: &[StorageBinder],
+    scope: DynInstantiationScope,
+    budget: &mut Budget,
+) -> Check<()> {
+    values::check_parts(module,ty,life,classes,scope,budget).map(|_| ())
+}
+
 /// Rebuild every physical/retained/owning environment leaf from the exact
 /// actual closure header. This is a second consumer of the original request,
 /// not a source/loan/cleanup certificate; those remain with the CFG kernels.
@@ -94,4 +108,13 @@ pub(crate) fn check_callable_environment(module:&TypedModule,request:&requests::
     let leaves=inventory::self_leaves(module,&value,request.contract.scope,b)?;
     b.spend(leaves.len().saturating_add(request.contract.self_leaves.len()))?;
     if leaves!=request.contract.self_leaves{return Err(bad("callable hidden environment changes an exact actual mode/source/whole-child occurrence"));}Ok(())
+}
+
+/// Reuse this kernel's complete Context proof when a concrete slot relates a
+/// port's whole pointee domain to a result or another actual argument.
+pub(crate) fn context_port_inner(module:&TypedModule,interface:&DynInterface,port:u32,budget:&mut Budget)->Check<Vec<(u32,u32)>>{
+    let ports=context_ports::check(module,interface,|ty,b|values::intrinsic(module,ty,b).map(|domain|domain.count),budget)?;
+    let row=ports.get(port as usize).ok_or_else(||bad("Context inner-map query selects an absent port"))?;
+    budget.spend(row.inner.len().saturating_mul(2).saturating_add(1))?;
+    Ok(row.inner.clone())
 }

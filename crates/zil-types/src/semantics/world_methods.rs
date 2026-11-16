@@ -1,6 +1,8 @@
 //! Actual method boundaries consume the independently checked original provider
 //! theorem. Concrete receiver images never prove generic conformance.
 use super::*;
+#[path = "world_callable_views.rs"]
+mod callable_views;
 #[path = "world_invocation.rs"]
 mod invocation;
 fn recipe_type(
@@ -490,6 +492,7 @@ pub(super) fn evaluate(
                 *argument,
                 &actual,
                 &expected,
+                values,
                 locals,
                 implicit,
             )?;
@@ -789,8 +792,31 @@ pub(super) fn callable(
         scope: SemanticScopeRef::Ancestor(0),
         source: SemanticOriginalTypeSource::Expression(scheme.callee_node),
     };
-    let expected = world.ty(instance.id, &callee_query, World::type_of(raw_value)?)?;
-    world.same(instance.id, raw_value, &expected, implicit)?;
+    let expected = recipe_type(world, instance.id, &callee_query)?;
+    if World::type_of(raw_value)? == World::type_of(&expected)? {
+        world.same(instance.id, raw_value, &expected, implicit)?;
+    } else if matches!(World::type_of(raw_value)?, Type::Address { inner, .. }
+        if inner.as_ref() == World::type_of(&expected)? && matches!(inner.as_ref(), Type::Closure(_)))
+    {
+        // The Source name still denotes the complete owning environment. The
+        // actual call borrows that exact place; authenticate this view before
+        // comparing its entire pointee domain with the original occurrence.
+        callable_views::check(
+            world,
+            instance,
+            original,
+            site,
+            scheme.callee_node,
+            raw_value,
+            values,
+            locals,
+        )?;
+        world.same(instance.id, closure_value, &expected, implicit)?;
+    } else {
+        return Err(bad(
+            "actual callable view changes its complete original callee constructor",
+        ));
+    }
     let signature = &scheme.signature;
     if arguments.len() != signature.parameters.len()
         || function.parameters.len() != arguments.len()
@@ -840,12 +866,13 @@ pub(super) fn callable(
             *argument,
             &actual,
             &expected,
+            values,
             locals,
             implicit,
         )?;
         expected_parameters.push(expected);
     }
-    let invocation = invocation_inputs(
+    let mut invocation = invocation_inputs(
         world,
         instance,
         child,
@@ -892,6 +919,16 @@ pub(super) fn callable(
         &function.return_type,
     )?;
     let target = world.result_value(child.id, &function.return_type)?;
+    result_invocation(
+        world,
+        instance,
+        child,
+        site,
+        header,
+        &target,
+        &expected,
+        &mut invocation,
+    )?;
     let target = invocation::map(
         world,
         &target,
@@ -901,6 +938,115 @@ pub(super) fn callable(
     )?;
     world.same(instance.id, &target, &expected, implicit)?;
     Ok(Some(expected))
+}
+
+fn result_invocation(
+    world: &mut World<'_, '_>,
+    caller: &SemanticInstance,
+    callee: &SemanticInstance,
+    site: &SemanticSite,
+    header: &StorageLifeContract,
+    target: &SemanticTypeValue,
+    expected: &SemanticTypeValue,
+    mapping: &mut invocation::Inputs,
+) -> R<()> {
+    let (
+        SemanticTypeValue::Resolved { ty, life, classes },
+        SemanticTypeValue::Resolved {
+            ty: expected_ty,
+            life: expected_life,
+            classes: expected_classes,
+        },
+    ) = (target, expected)
+    else {
+        return Err(bad(
+            "result invocation retains an unresolved complete value",
+        ));
+    };
+    world.pay(header.classes.len().saturating_add(expected_classes.len()))?;
+    if !header.classes.iter().any(|row| {
+        row.position.base == StorageBase::Result
+            && row.position.path.is_empty()
+            && matches!(row.binder, StorageBinder::Invocation(_))
+    }) || !expected_classes.iter().any(|image| {
+        matches!(image, SemanticClassExpr::IntrinsicClass {
+            operand: SemanticOperand::Value(_), path, .. } if path.is_empty())
+    }) {
+        return Ok(());
+    }
+    crate::dyn_metadata::semantic_operand_snapshot(target, world.limits, world.left, 1)?;
+    crate::dyn_metadata::semantic_operand_snapshot(expected, world.limits, world.left, 1)?;
+    if ty != expected_ty || life != expected_life || classes.len() != expected_classes.len() {
+        return Err(bad(
+            "result invocation changes its complete original class domain",
+        ));
+    }
+    for row in &header.classes {
+        if row.position.base != StorageBase::Result || !row.position.path.is_empty() {
+            continue;
+        }
+        let StorageBinder::Invocation(ordinal) = row.binder else {
+            continue;
+        };
+        if ordinal >= header.invocation_binder_count {
+            return Err(bad("result invocation is outside its complete directory"));
+        }
+        world.pay(header.bindings.len().saturating_add(header.classes.len()))?;
+        if header.bindings.iter().any(|input| {
+            input.binder == row.binder && matches!(input.position.base, StorageBase::Parameter(_))
+        }) || header.classes.iter().any(|input| {
+            input.binder == row.binder && matches!(input.position.base, StorageBase::Parameter(_))
+        }) {
+            continue;
+        }
+        let source = world.binding(callee, row.binder)?;
+        let actual = classes
+            .get(row.position.class as usize)
+            .ok_or_else(|| bad("result invocation exceeds its original full N"))?;
+        world.same_class(callee.id, &source, actual, &BTreeMap::new())?;
+        let image = expected_classes
+            .get(row.position.class as usize)
+            .ok_or_else(|| bad("result invocation omits a caller class"))?;
+        let SemanticSiteAddress::Typed {
+            block,
+            instruction,
+            edge: SemanticSiteEdge::After,
+        } = site.at
+        else {
+            return Err(bad("result invocation has no exact actual call boundary"));
+        };
+        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) =
+            caller.target
+        else {
+            return Err(bad("result invocation caller has no actual function"));
+        };
+        let function = world.function(function)?;
+        world.pay(function.blocks.len())?;
+        let output = function
+            .blocks
+            .iter()
+            .find(|row| row.id == block)
+            .and_then(|row| row.instructions.get(instruction as usize))
+            .and_then(|op| op.result)
+            .ok_or_else(|| bad("result invocation has no exact emitted result SSA"))?;
+        if image
+            != &(SemanticClassExpr::IntrinsicClass {
+                operand: SemanticOperand::Value(output),
+                path: Vec::new(),
+                class: row.position.class,
+            })
+        {
+            continue;
+        }
+        world.pay(mapping.classes.len().saturating_add(1))?;
+        if mapping.classes.iter().any(|(old, _)| old == &source) {
+            return Err(bad(
+                "result-only invocation repeats an existing boundary image",
+            ));
+        }
+        mapping.classes.push((source, image.clone()));
+    }
+    Ok(())
 }
 
 pub(super) fn direct(
@@ -992,12 +1138,13 @@ pub(super) fn direct(
                 *argument,
                 &actual,
                 &expected,
+                values,
                 locals,
                 implicit,
             )?;
             parameters.push(expected);
         }
-        let invocation = match &function.storage_life {
+        let mut invocation = match &function.storage_life {
             Some(header) => {
                 invocation_inputs(world, instance, callee, header, &parameters, implicit)?
             }
@@ -1031,6 +1178,18 @@ pub(super) fn direct(
             &function.return_type,
         )?;
         let target = world.result_value(callee.id, &function.return_type)?;
+        if let Some(header) = &function.storage_life {
+            result_invocation(
+                world,
+                instance,
+                callee,
+                site,
+                header,
+                &target,
+                &expected,
+                &mut invocation,
+            )?;
+        }
         let target = invocation::map(world, &target, actuals, None, &invocation)?;
         world.same(instance.id, &target, &expected, implicit)?;
         selected = Some(expected);

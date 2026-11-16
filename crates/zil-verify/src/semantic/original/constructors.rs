@@ -17,11 +17,11 @@ impl CheckedOriginal{
         if fields.len()!=arguments.len(){return Err(bad("original enum constructor does not supply every declared field"));}
         let contextual=expected.map(|ty|self.resolved(ty,b)).transpose()?;
         let contextual=match contextual{Some(Ty::Nominal(actual,values))if actual==id=>Some(values),_=>None};
-        let written=written_types.map_or_else(||written_mixed.map_or(0,<[CoreGenericArgument<SemanticTypeRecipe>]>::len),<[SemanticTypeRecipe]>::len);
-        if written>definition.parameters.len(){return Err(bad("original enum constructor has excess mixed actuals"));}
+        let written_slots=Self::written_original_slots(&definition.parameters,written_types,written_mixed,b)?;
         let mut actuals=Vec::new();
         for(ordinal,formal)in definition.parameters.iter().enumerate(){
-            let explicit=if let Some(types)=written_types{types.get(ordinal).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(values)=written_mixed{match values.get(ordinal){Some(CoreGenericArgument::Type(ty))=>Some(Arg::Type(self.ty(module,context,ty,env,active,b)?)),Some(CoreGenericArgument::Lifetime(name))=>{let value=self.named(module,context,env.current()?,name,SemanticOriginalNamespace::Lifetime,b)?.ok_or_else(||bad("enum constructor lifetime has no original name binding"))?;let SemanticOriginalNameValue::Recipe(recipe @ SemanticActualRecipe::Life(_))=value else{return Err(bad("enum constructor lifetime selects another formal kind"));};Some(self.actual(module,context,recipe,env,active,b)?)},Some(CoreGenericArgument::Const(_))=>return Err(unsupported("original enum written Const needs its complete original expression/carrier solution",None)),None=>None}}else{None};
+            let written_slot=written_slots[ordinal];
+            let explicit=if let Some(types)=written_types{written_slot.and_then(|index|types.get(index)).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(values)=written_mixed{match written_slot.and_then(|index|values.get(index)){Some(CoreGenericArgument::Type(ty))=>Some(Arg::Type(self.ty(module,context,ty,env,active,b)?)),Some(CoreGenericArgument::Lifetime(name))=>{let value=self.named(module,context,env.current()?,name,SemanticOriginalNamespace::Lifetime,b)?.ok_or_else(||bad("enum constructor lifetime has no original name binding"))?;let SemanticOriginalNameValue::Recipe(recipe @ SemanticActualRecipe::Life(_))=value else{return Err(bad("enum constructor lifetime selects another formal kind"));};Some(self.actual(module,context,recipe,env,active,b)?)},Some(CoreGenericArgument::Const(_))=>return Err(unsupported("original enum written Const needs its complete original expression/carrier solution",None)),None=>None}}else{None};
             let value=match explicit.or_else(||alias.as_ref().and_then(|values|values.get(ordinal)).cloned()).or_else(||contextual.as_ref().and_then(|values|values.get(ordinal)).cloned()){Some(value)=>value,None=>match formal{SemanticFormal::Type{..}=>Arg::Type(self.fresh(b)?),SemanticFormal::Lifetime=>Arg::Life(self.fresh_life(b)?),_=>return Err(unsupported("original enum Const inference has no complete caller constraint",None))}};
             if !matches!((formal,&value),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Lifetime,Arg::Life(_))|(SemanticFormal::Const{..},Arg::Const(_))){return Err(bad("original enum constructor changes a full-ordinal formal kind"));}
             if let Some(old)=alias.as_ref().and_then(|values|values.get(ordinal)){self.same_argument(old,&value,b)?;}
@@ -29,7 +29,7 @@ impl CheckedOriginal{
             actuals.push(value);
         }
         let mut selected=self.environment(module,context,id,active,b)?;selected.lexical[0].actuals=actuals.clone();
-        for(field,value)in fields.iter().zip(arguments){let parameter=self.ty(module,context,field,&selected,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&parameter),active,b)?;self.unify(&actual,&parameter,b)?;}
+        for(field,value)in fields.iter().zip(arguments){let parameter=self.ty(module,context,field,&selected,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&parameter),active,b)?;self.relate_value(&actual,&parameter,b)?;}
         let actuals=self.resolve_arguments(&actuals,0,b)?;
         for value in &actuals{match value{Arg::Type(ty)if usage::has_inference(ty,&self.substitutions,b)?=>return Err(bad("original enum Type actual is not uniquely determined")),Arg::Life(Life::Infer(_))=>return Err(bad("original enum lifetime actual is not uniquely determined")),_=>{}}}
         selected.lexical[0].actuals=actuals.clone();
@@ -102,11 +102,11 @@ impl CheckedOriginal {
         let frame=selected.lexical.iter_mut().find(|row|row.definition==scope.id).ok_or_else(||bad("original static member omits its trait parent"))?;
         frame.actuals=self.resolve_arguments(&trait_arguments,0,b)?;
         selected.self_type=Some((scope.id,self.resolved(&receiver,b)?));
-        let written=written_types.map_or_else(||written_mixed.map_or(0,<[CoreGenericArgument<SemanticTypeRecipe>]>::len),<[SemanticTypeRecipe]>::len);
-        if written>original.parameters.len(){return Err(bad("original static member has excess written mixed actuals"));}
+        let written_slots=Self::written_original_slots(&original.parameters,written_types,written_mixed,b)?;
         let mut actuals=Vec::new();
         for(ordinal,formal)in original.parameters.iter().enumerate(){
-            let written=if let Some(types)=written_types{types.get(ordinal).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(mixed)=written_mixed{match mixed.get(ordinal){
+            let written_slot=written_slots[ordinal];
+            let written=if let Some(types)=written_types{written_slot.and_then(|index|types.get(index)).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(mixed)=written_mixed{match written_slot.and_then(|index|mixed.get(index)){
                 Some(CoreGenericArgument::Type(ty))=>Some(Arg::Type(self.ty(module,context,ty,env,active,b)?)),
                 Some(CoreGenericArgument::Lifetime(name))=>{let value=self.named(module,context,env.current()?,name,SemanticOriginalNamespace::Lifetime,b)?.ok_or_else(||bad("original static member lifetime is unresolved"))?;let SemanticOriginalNameValue::Recipe(recipe @ SemanticActualRecipe::Life(_))=value else{return Err(bad("original static member lifetime has another kind"));};Some(self.actual(module,context,recipe,env,active,b)?)},
                 Some(CoreGenericArgument::Const(_))=>return Err(unsupported("original static method Const requires its exact declared carrier",None)),None=>None,
@@ -115,11 +115,16 @@ impl CheckedOriginal {
             if !matches!((formal,&actual),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Lifetime,Arg::Life(_))|(SemanticFormal::Const{..},Arg::Const(_))){return Err(bad("original static method changes a full-ordinal actual kind"));}actuals.push(actual);
         }
         selected.lexical[0].actuals=actuals;
+        let outer_floor=self.next_inference;
         let prototype=self.call_signature(module,context,target,signature,&selected,active,b)?;
+        let outer_heads=self.defer_call_heads(&prototype,&selected.lexical[0].actuals,outer_floor,b)?;
         if prototype.parameters.len()!=arguments.len(){return Err(bad("original static method argument arity differs"));}
         self.execute_effect(env,prototype.call_kind,b)?;
         if let Some(expected)=expected{if !associated::has_projection(&prototype.result,b)?{self.unify(&prototype.result,expected,b)?;}}
-        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.unify(&actual,&parameter,b)?;}
+        b.spend(prototype.parameters.len())?;let mut region_parameters=Vec::with_capacity(prototype.parameters.len());
+        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.relate_value(&actual,&parameter,b)?;region_parameters.push(parameter);}
+        self.finish_call_heads(&outer_heads,call.id,b)?;
+        self.remember_call_region_parameters(&region_parameters,call.id,env,b)?;
         for definition in [scope,original]{
             let depth=selected.lexical.iter().position(|frame|frame.definition==definition.id).ok_or_else(||bad("original static method obligation loses its declaration scope"))?;
             let mut obligation_env=selected.clone();obligation_env.lexical=obligation_env.lexical[depth..].to_vec();
@@ -127,13 +132,14 @@ impl CheckedOriginal {
             for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{for requirement in requirements{self.obligation(module,context,requirement,&obligation_env,env,active,b)?;}}}
         }
         let result=self.normalize_original_type(module,context,&prototype.result,env,active,b)?;
-        if let Some(expected)=expected{self.unify(&result,expected,b)?;}
+        if let Some(expected)=expected{self.relate_value(&result,expected,b)?;}
         let caller=context.definition(module,env.current()?,b)?;let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&caller.body else{return Err(bad("original static method has no caller body"));};
         b.spend(site_nodes.len().saturating_mul(sites.len().saturating_add(1)))?;
         let mut rows=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).filter(|site|matches!(site.kind,SemanticSiteRecipeKind::OriginalCall));
         let site=rows.next().ok_or_else(||bad("original static member requires its exact BodyCall occurrence"))?;
         if rows.next().is_some(){return Err(bad("original static member Call occurrence is ambiguous"));}
         let actuals=self.resolve_arguments(&selected.lexical[0].actuals,0,b)?;
+        self.remember_inferred_type_sources(module,env.current()?,site.id,original,signature,arguments,0,&written_slots,&actuals,b)?;
         self.trait_calls.insert((env.current()?,site.id),super::trait_calls::TraitCall{receiver,declaration:*declaration,arguments:trait_arguments,member:ordinal,actuals,node:call.id,receiver_mode:None});
         if prototype.result_mode==PassingMode::Create{b.spend(1)?;self.created.insert((env.current()?,call.id));}
         Ok(Some(result))
@@ -162,13 +168,22 @@ impl CheckedOriginal {
 impl CheckedOriginal {
     /// An implicit description's head belongs to the exact adapted argument
     /// occurrence. Its underlying manager still comes from the original Place.
-    pub(in crate::semantic) fn original_description_source(&self,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<intrinsics::BufferSource>> {
+    pub(in crate::semantic) fn original_description_source(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<intrinsics::BufferSource>> {
         let SemanticOriginalTypeSource::Expression(node)=source else{return Ok(None);};
         let ty=self.original_type(definition,source,b)?;
-        let Ty::Desc{life,..}=ty else{return Ok(None);};
+        let Ty::Desc{life,inner}=ty else{return Ok(None);};
         if self.resolved_life(&life,b)?!=Life::Local(definition,*node){return Ok(None);}
-        if !self.value_places.contains_key(&(definition,*node)){return Err(unsupported("original implicit description requires its complete checked manager Place",None));}
-        Ok(Some(intrinsics::BufferSource::Place{definition,node:*node}))
+        if self.value_places.contains_key(&(definition,*node)){
+            return Ok(Some(intrinsics::BufferSource::Place{definition,node:*node}));
+        }
+        // A managed field observed through a borrowed product has no owned
+        // local Place. Keep the independently checked pre-adaptation category
+        // and follow its exact original address projection instead.
+        let manager=self.place_types.get(&(definition,*node)).ok_or_else(||bad("implicit description has no checked original manager category"))?;
+        let Ty::Managed(payload)=self.resolved(manager,b)? else{return Err(bad("implicit description original projection is not a complete Managed value"));};
+        if !self.same(&payload,&inner,b)?{return Err(bad("implicit description changes its original complete manager payload"));}
+        self.address_place(module,definition,*node,b)?;
+        Ok(Some(intrinsics::BufferSource::Address{definition,node:*node}))
     }
 }
 

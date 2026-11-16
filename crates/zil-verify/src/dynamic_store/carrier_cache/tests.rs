@@ -171,6 +171,12 @@ fn pod_carrier_cache_cold_errors_preserve_complete_old_diagnostics() {
         },
         teardown: None,
     });
+    // This complete zero-domain shape retains a pending worker/result-source
+    // obligation (§12.1.3), rather than being an invalid carrier declaration.
+    old_carrier(&m,ty,None,&mut budget(1_000_000)).unwrap();
+    check_carrier(&m,ty,None,&mut budget(1_000_000)).unwrap();
+    let Type::Task{retained_life,..}=&mut m.resources.last_mut().unwrap().payload else{unreachable!()};
+    retained_life.ports.push(zil_ir::RetainedBorrowPort{leaf:Type::Address{mutable:false,inner:Box::new(Type::I32)},mode:StoredBorrowMode::SharedAddress,binder:0});
     cases.push(m);
     for m in cases {
         let span = Some(a.functions[0].span);

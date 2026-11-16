@@ -923,6 +923,12 @@ fn stale_capture_description_cannot_revive_after_replace() {
 #[test]
 fn complete_package_factory_input_and_owned_cleanup_contract_are_checked() {
     let mut m = read_candidate(CallableKind::FnMut);
+    // Pair contains two actual Managed<PackageToken{code:i32}> owners and
+    // one scalar. Its complete intrinsic domain is zero, independently of
+    // the nonempty owned-capture cleanup obligation tested below.
+    let closed=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],static_bindings:vec![],classes:vec![]};
+    m.closures[0].storage_life=Some(closed.clone());
+    m.functions[1].storage_life=Some(closed);
     let mut factory = Body::new(Type::Closure(ClosureId(0)));
     let input = factory.parameter(package());
     let moved = factory.value(package(), InstructionKind::TakeLocal { local: input });

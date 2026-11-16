@@ -7,8 +7,19 @@ use original::intrinsics::{BufferSource, Intrinsic};
 mod owner_fields;
 #[path = "owner_sources.rs"]
 mod owner_sources;
+#[path = "assignments.rs"]
+mod assignments;
 
 impl CheckedContext {
+    pub(super) fn call_input_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,node:zil_base::NodeId,source:Option<BufferSource>,b:&mut Budget)->Check<()>{
+        match source{
+            // An argument observes the pointer/description value at this
+            // exact original Place. This does not turn it into movable data.
+            Some(BufferSource::Place{definition,node})=>self.original_projection_source(module,caller,f,value,definition,node,true,b),
+            Some(source)=>self.intrinsic_buffer_source(module,caller,f,value,source,b),
+            None=>self.exact_expression_value(module,caller,f,value,node,b),
+        }
+    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn actual_intrinsic(
         &self,
@@ -216,6 +227,9 @@ impl CheckedContext {
         if let BufferSource::Place { definition, node } = source {
             return self.projected_buffer_source(module, caller, f, value, definition, node, b);
         }
+        if let BufferSource::Address { definition, node } = source {
+            return self.address_place_source(module, caller, f, value, definition, node, b);
+        }
         let local = self.buffer_source_local(module, caller, f, source, b)?;
         let mut value = value;
         let mut seen = std::collections::BTreeSet::new();
@@ -283,30 +297,20 @@ impl CheckedContext {
                         "intrinsic description uses another original local scope",
                     ));
                 }
-                let definition = self.definition(module, definition, b)?;
-                let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body
-                else {
-                    return Err(bad("intrinsic local has no original body"));
-                };
-                let program = module
-                    .semantic
-                    .as_ref()
-                    .ok_or_else(|| bad("intrinsic local has no semantic ledger"))?;
-                b.spend(
-                    site_nodes
-                        .len()
-                        .saturating_mul(program.sites.len().saturating_add(1)),
-                )?;
+                let range=self.original.borrow().as_ref().ok_or_else(||bad("range local lacks its complete original proof"))?.range_statement(module,definition,node,b)?;
+                if let Some(range)=range {
+                    b.spend(f.locals.len())?;
+                    let mut locals=f.locals.iter().filter(|local|local.name==range.name&&local.span==range.span&&!local.mutable&&local.ty.is_integer());
+                    let local=locals.next().ok_or_else(||bad("range binder has no actual iteration storage"))?;
+                    if locals.next().is_some(){return Err(bad("range binder has several actual iteration storages"));}
+                    self.range_local_root(module,caller,f,local.id,&range,b)?;
+                    return Ok(local.id);
+                }
+                if !matches!(caller.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==f.id){return Err(bad("intrinsic local selects another actual caller function"));}
+                let recipes=self.original.borrow().as_ref().ok_or_else(||bad("intrinsic local has no complete original proof"))?.original_declaration_sites(definition,node,b)?;
                 let mut local = None;
-                for node in site_nodes
-                    .iter()
-                    .filter(|row| row.node == SemanticOriginalNode::Statement(node))
-                {
-                    for site in program
-                        .sites
-                        .iter()
-                        .filter(|site| site.instance == caller.id && site.recipe == node.site)
-                    {
+                for recipe in recipes {
+                    for site in self.actual_declarations(module,caller.id,recipe,b)? {
                         if let SemanticSiteAction::DeclareLocal {
                             local: SemanticLocalTarget::Typed(id),
                             ..
@@ -324,7 +328,7 @@ impl CheckedContext {
                     bad("intrinsic original buffer has no exact actual local declaration")
                 })?
             }
-            BufferSource::Place { .. } => {
+            BufferSource::Place { .. } | BufferSource::Address { .. } => {
                 return Err(bad(
                     "projected buffer source was reduced to an unqualified local",
                 ));

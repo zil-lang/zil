@@ -1083,9 +1083,12 @@ struct CallRewrite<'a> {
     receiver: Option<&'a str>,
 }
 
+// This hygienic binding is minted only when an actual original receiver is
+// lifted into an ordinary helper. Header elision retains that receiver role.
+pub(crate) const LOWERED_RECEIVER_NAME: &str = "$trait_default_self";
 pub(crate) fn rename_default_receiver(item: &mut Item, budget: &mut Budget<'_>) -> R<()> {
     use super::super::ct_selection::Visitor;
-    const NAME: &str = "$trait_default_self";
+    const NAME: &str = LOWERED_RECEIVER_NAME;
     struct Prepay<'a, 'l>(&'a mut Budget<'l>);
     impl Visitor for Prepay<'_, '_> {
         fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {

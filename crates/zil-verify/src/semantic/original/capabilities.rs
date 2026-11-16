@@ -35,7 +35,12 @@ impl CheckedOriginal {
             Ok(match self.resolved(ty,b)?{
                 Ty::SealedError(_)=>true,
             Ty::Atom(ty)=>ty.is_b0_scalar()||matches!(ty,Type::ByteBuffer|Type::ForeignHandle|Type::CWideString),
-                Ty::Address{..}|Ty::Desc{..}|Ty::Slice(_)|Ty::Variable(..)|Ty::SelfType(_)|Ty::Projection{..}|Ty::Opaque(..)|Ty::Infer(_)=>false,
+                Ty::Address{..}|Ty::Desc{..}|Ty::Slice(_)|Ty::Variable(..)|Ty::SelfType(_)|Ty::Projection{..}|Ty::Infer(_)=>false,
+                Ty::Opaque(owner,arguments)=>{
+                    for argument in &arguments{match argument{Arg::Life(_)=>return Ok(false),Arg::Type(ty)=>if !self.closed_value(module,context,ty,env,active,b)?{return Ok(false);},Arg::Const(_)=>{}}}
+                    let hidden=self.opaque_hidden(module,context,owner,&arguments,active,b)?;
+                    self.closed_value(module,context,&hidden,env,active,b)?
+                },
                 Ty::Tuple(fields)=>{for field in fields{if !self.closed_value(module,context,&field,env,active,b)?{return Ok(false);}}true},
                 Ty::Array(child,_)|Ty::Store(child)|Ty::Managed(child)=>self.closed_value(module,context,&child,env,active,b)?,
                 Ty::Carrier{child,retained,..}=>{if !retained.domain.is_empty()||!retained.ports.is_empty()||!retained.retained.is_empty()||!retained.nominal.is_empty(){return Ok(false);}self.closed_value(module,context,&child,env,active,b)?},
@@ -45,9 +50,10 @@ impl CheckedOriginal {
                 Ty::Code{bound_lifetimes,invocation_lifetimes,parameters,result,..}=>{if bound_lifetimes!=0||invocation_lifetimes!=0{return Ok(false);}for parameter in parameters{if !self.closed_value(module,context,&parameter,env,active,b)?{return Ok(false);}}self.closed_value(module,context,&result,env,active,b)?},
                 Ty::Closure(definition,arguments,sealed)=>{
                     for argument in arguments.iter().chain(&sealed){match argument{Arg::Life(_)=>return Ok(false),Arg::Type(ty)=>if !self.closed_value(module,context,ty,env,active,b)?{return Ok(false);},Arg::Const(_)=>{}}}
-                    if !self.checked.contains(&definition){return Ok(false);}let used=self.used.get(&definition).cloned().unwrap_or_default();let free=self.free_values.get(&definition).cloned().unwrap_or_default();
-                    if !self.creator_moves.get(&definition).copied().unwrap_or(false)&&free.values().any(|binding|used.contains(&Binder::Capture{definition,source:Box::new(binding.identity.clone())})){return Ok(false);}
-                    for binding in free.values(){if used.contains(&Binder::Capture{definition,source:Box::new(binding.identity.clone())})&&!self.closed_value(module,context,&binding.ty,env,active,b)?{return Ok(false);}}true
+                    if !self.checked.contains(&definition){return Ok(false);}
+                    let captures=self.closure_capture_types(module,context,definition,&arguments,&sealed,b)?;
+                    if !self.creator_moves.get(&definition).copied().unwrap_or(false)&&!captures.is_empty(){return Ok(false);}
+                    for capture in captures{if !self.closed_value(module,context,&capture,env,active,b)?{return Ok(false);}}true
                 },
                 Ty::Nominal(id,arguments)=>self.nominal_capability(module,context,id,&arguments,SemanticBuiltinTrait::ClosedEnvironment,env,active,b)?,
             })
@@ -65,8 +71,13 @@ impl CheckedOriginal {
             Ty::Closure(definition,arguments,sealed)=>{
                 if !self.checked.contains(&definition)||!self.creator_moves.get(&definition).copied().unwrap_or(false){return Ok(false);}
                 for argument in arguments.iter().chain(&sealed){match argument{Arg::Life(_)=>return Ok(false),Arg::Type(ty)=>if !self.transfer_value(module,context,ty,env,active,b)?{return Ok(false);},Arg::Const(_)=>{}}}
-                let used=self.used.get(&definition).cloned().unwrap_or_default();let free=self.free_values.get(&definition).cloned().unwrap_or_default();
-                for binding in free.values(){if used.contains(&Binder::Capture{definition,source:Box::new(binding.identity.clone())})&&!self.transfer_value(module,context,&binding.ty,env,active,b)?{return Ok(false);}}true
+                let captures=self.closure_capture_types(module,context,definition,&arguments,&sealed,b)?;
+                for capture in captures{if !self.transfer_value(module,context,&capture,env,active,b)?{return Ok(false);}}true
+            },
+            Ty::Opaque(owner,arguments)=>{
+                for argument in &arguments{match argument{Arg::Life(_)=>return Ok(false),Arg::Type(ty)=>if !self.transfer_value(module,context,ty,env,active,b)?{return Ok(false);},Arg::Const(_)=>{}}}
+                let hidden=self.opaque_hidden(module,context,owner,&arguments,active,b)?;
+                self.transfer_value(module,context,&hidden,env,active,b)?
             },
             // Concrete callback cleanup and remote-entry obligations belong to
             // the actual entry graph; do not infer them from capture spelling.

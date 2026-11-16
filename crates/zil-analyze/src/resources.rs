@@ -1027,12 +1027,16 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
     a.into_iter().chain(b).chain(rest.iter().copied())
 }
 // Immutable type/operand classification for one actual instruction. This
-// inventory is constructed anew per afters_reserved invocation; it contains no
+// inventory is shared only for identical immutable operands and shape filters; it contains no
 // liveness, target, epoch, permission, tag or resource-state conclusion.
 struct DescriptionTransfer {
     result: Option<ValueId>,
     kill_local: Option<LocalId>,
     reads: Vec<Place>,
+}
+#[derive(Default)]
+pub(super) struct DescriptionInventories {
+    rows: BTreeMap<(usize, Vec<Place>), std::sync::Arc<Vec<Vec<DescriptionTransfer>>>>,
 }
 impl DescriptionTransfer {
     fn read(&mut self, place: Place, shapes: &Shapes, budget: &mut Budget) -> CompileResult<()> {
@@ -1109,13 +1113,28 @@ fn description_inventory(
     reachable: &[bool],
     shapes: &Shapes,
     budget: &mut Budget,
-) -> CompileResult<Vec<Vec<DescriptionTransfer>>> {
+) -> CompileResult<std::sync::Arc<Vec<Vec<DescriptionTransfer>>>> {
     budget.spend(f.blocks.len(), "description readonly CFG inventory")?;
     if reachable.len() != f.blocks.len() {
         return Err(error(
             "description inventory differs from actual CFG reachability",
         ));
     }
+    let address = f as *const TypedFunction as usize;
+    let scoped = budget.initialization.as_ref().is_some_and(|cache| cache.functions.contains_key(&address));
+    let key = if scoped {
+        budget.spend(shapes.len(), "description immutable filter inventory")?;
+        let filter = shapes.iter().filter_map(|(place, shape)| shape.description.then_some(*place)).collect::<Vec<_>>();
+        let width = budget.initialization.as_ref().unwrap().description_transfers.rows.len();
+        budget.lookup(width, "description immutable transfer query")?;
+        budget.spend(filter.len().saturating_mul(width.checked_ilog2().map_or(1, |n| n as usize + 2)),
+            "description immutable filter equality")?;
+        let key = (address, filter);
+        if let Some(rows) = budget.initialization.as_ref().unwrap().description_transfers.rows.get(&key) {
+            return Ok(std::sync::Arc::clone(rows));
+        }
+        Some(key)
+    } else { None };
     let mut inventory = Vec::with_capacity(f.blocks.len());
     for (block, reachable) in f.blocks.iter().zip(reachable) {
         budget.spend(
@@ -1133,6 +1152,14 @@ fn description_inventory(
             rows.push(DescriptionTransfer::collect(instruction, shapes, budget)?);
         }
         inventory.push(rows);
+    }
+    let inventory = std::sync::Arc::new(inventory);
+    if let Some(key) = key {
+        let width = budget.initialization.as_ref().unwrap().description_transfers.rows.len();
+        budget.lookup(width, "description immutable transfer publication")?;
+        budget.spend(key.1.len().saturating_mul(width.checked_ilog2().map_or(1, |n| n as usize + 2)),
+            "description immutable filter publication")?;
+        budget.initialization.as_mut().unwrap().description_transfers.rows.insert(key, std::sync::Arc::clone(&inventory));
     }
     Ok(inventory)
 }
@@ -2540,7 +2567,9 @@ impl Flow<'_> {
                             } else {
                                 false
                             };
-                            if budget.owned_store_package_type(ty)?
+                            if product::admit_callback_head(self.module, ty, budget)? {
+                                // This is a borrow of the existing complete State.
+                            } else if budget.owned_store_package_type(ty)?
                                 || address_owner
                                 || matches!(ty, Type::BorrowedStorage { .. })
                                 || budget.ordinary_pod_store_type(ty)?
@@ -2764,7 +2793,9 @@ impl Flow<'_> {
                     } else {
                         false
                     };
-                    if matches!(ty, Type::BorrowedStorage { .. })
+                    if product::admit_callback_head(self.module, ty, budget)? {
+                        // Actual completeness and target loans are checked below.
+                    } else if matches!(ty, Type::BorrowedStorage { .. })
                         || budget.owned_store_package_type(ty)?
                         || address_owner
                         || budget.ordinary_pod_store_type(ty)?
@@ -4185,6 +4216,34 @@ fn analyze_function_program(
     dependencies: Option<&summary_graph::Dependencies>,
     replacements: Option<&replacements::Program>,
 ) -> CompileResult<Effect> {
+    let before = budget.remaining();
+    analyze_function_program_inner(module, f, reachable, effects, check, budget, dependencies, replacements)
+        .map_err(|mut errors| {
+            if budget.cost_profiling() {
+                for error in &mut errors {
+                    if error.category == zil_base::ResultCategory::ResourceLimit {
+                        error.notes.push(format!(
+                            "resource flow function {} {:?} of {} actual functions, validation={}, invocation work={}, blocks={}, locals={}, values={}",
+                            f.id.0, f.name, module.functions.len(), check,
+                            before.saturating_sub(budget.remaining()), f.blocks.len(), f.locals.len(), f.values.len(),
+                        ));
+                    }
+                }
+            }
+            errors
+        })
+}
+#[allow(clippy::too_many_arguments)]
+fn analyze_function_program_inner(
+    module: &TypedModule,
+    f: &TypedFunction,
+    reachable: &[bool],
+    effects: &[Effect],
+    check: bool,
+    budget: &mut Budget,
+    dependencies: Option<&summary_graph::Dependencies>,
+    replacements: Option<&replacements::Program>,
+) -> CompileResult<Effect> {
     if f.foreign.is_some() {
         return Ok(Effect::default());
     }
@@ -4308,7 +4367,8 @@ fn analyze_function_program(
     input[f.entry.0 as usize] = Some(initial);
     let mut stack = vec![f.entry.0 as usize];
     let ranks =
-        if budget.pod_stores || (budget.store_option_results && budget.ordinary_error_places) {
+        if budget.pod_stores || (budget.store_option_results && budget.ordinary_error_places)
+            || f.locals.len().saturating_add(f.values.len()) >= 64 && f.blocks.len() > 1 {
             pod_resource_ranks(f, budget)?
         } else {
             Vec::new()

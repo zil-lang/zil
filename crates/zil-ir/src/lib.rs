@@ -448,6 +448,73 @@ pub fn life_inventory_fingerprint(
     bytes.finish()
 }
 
+/// Exact byte count of the same versioned identity encoder. Callers bound the
+/// raw trees first, then reserve the measured encoding/hash work. This uses no
+/// temporary encoding buffer and confers no nominal or lifetime authority.
+pub fn life_inventory_encoded_len(
+    declarations: &[LifeNominalDeclaration],
+    instances: &[LifeNominalInstance],
+) -> Option<usize> {
+    struct Length(Option<usize>);
+    impl FingerprintSink for Length {
+        fn push(&mut self, _: u8) {
+            self.0 = self.0.and_then(|length| length.checked_add(1));
+        }
+        fn extend_from_slice(&mut self, bytes: &[u8]) {
+            self.0 = self.0.and_then(|length| length.checked_add(bytes.len()));
+        }
+    }
+    let mut length = Length(Some(0));
+    length.extend_from_slice(b"ZIL-LIFE-INVENTORY-V48\0");
+    encode_life_inventory(&mut length, declarations, instances);
+    length.0
+}
+
+#[cfg(test)]
+mod life_inventory_encoding_tests {
+    use super::*;
+
+    #[test]
+    fn measured_inventory_uses_the_exact_versioned_identity_encoding() {
+        let id = LifeDeclarationId {
+            module: ModuleId(7), declaration: zil_base::NodeId(11), compiler: false,
+        };
+        let declarations = vec![LifeNominalDeclaration {
+            id,
+            identity: LifeDeclarationIdentity {
+                package: "p".into(), module_path: vec!["模块".into()],
+                declaration_path: vec!["Record".into()], generation_path: vec![0, 9],
+            },
+            kind: LifeNominalKind::Record,
+            parameters: vec![LifeParameterKind::Type, LifeParameterKind::Lifetime,
+                LifeParameterKind::Const(Type::CWideString)],
+        }];
+        // Raw identity data exercises all actual kinds and phantom metadata;
+        // this encoder test does not assert any formation or permission fact.
+        let instances = vec![LifeNominalInstance {
+            declaration: id,
+            ty: Type::Record { name: "Record<长>".into(), fields: vec![
+                ("bytes".into(), Type::Array { element: Box::new(Type::U8), length: 3 }),
+            ] },
+            arguments: vec![
+                LifeNominalActual::Type(Type::I64),
+                LifeNominalActual::Lifetime(1),
+                LifeNominalActual::Const(Constant::WideString(vec![0, 0x20ac, 0xffff])),
+                LifeNominalActual::QualifiedType { ty: Type::I32, life: StorageLifeShape {
+                    binder_count: 2, slots: vec![], retained: vec![], nominal_arguments: vec![],
+                } },
+            ],
+        }];
+        for (declarations, instances) in [(&[][..], &[][..]),
+            (declarations.as_slice(), instances.as_slice())] {
+            let mut bytes = b"ZIL-LIFE-INVENTORY-V48\0".to_vec();
+            encode_life_inventory(&mut bytes, declarations, instances);
+            assert_eq!(life_inventory_encoded_len(declarations, instances), Some(bytes.len()));
+            assert_eq!(life_inventory_fingerprint(declarations, instances), Fingerprint::of(&bytes));
+        }
+    }
+}
+
 /// Scalar B0 checking is deliberately a subset of this raw schema. All other
 /// variants must be diagnosed as Unsupported until their checker is implemented.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -4999,3 +5066,6 @@ fn encode_callable_exit(b: &mut impl FingerprintSink, exit: CallableExit) {
         CallableExit::Trap => 1,
     });
 }
+
+#[cfg(test)]
+mod dynamic_recipe_stack;

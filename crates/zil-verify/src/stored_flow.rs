@@ -82,11 +82,12 @@ pub(super) fn qualified_package_borrow(
 }
 
 pub(super) fn ordinary_error_borrow(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    pure_copy::ordinary_error_borrow(f, i, b)
+    pure_copy::ordinary_error_borrow(module,f, i, b)
 }
 
 pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<bool> {
@@ -807,6 +808,7 @@ fn copy_payload(p: &Payload, b: &mut Budget) -> Check<Payload> {
 }
 fn copy_frame(f: &Frame, b: &mut Budget) -> Check<Frame> {
     frame_work(f, b)?;
+    if let Some(progress)=&mut b.diagnostic_progress{progress.stored_frame_clones=progress.stored_frame_clones.saturating_add(1);}
     Ok(f.clone())
 }
 
@@ -895,6 +897,7 @@ fn sort_loan_ids(to: &mut [usize], b: &mut Budget) -> Check<()> {
     Ok(())
 }
 fn add_loans(to: &mut Vec<usize>, from: &[usize], b: &mut Budget) -> Check<bool> {
+    if let Some(progress)=&mut b.diagnostic_progress{progress.loan_unions=progress.loan_unions.saturating_add(1);if from.is_empty(){progress.empty_loan_unions=progress.empty_loan_unions.saturating_add(1);}}
     b.spend(1)?;
     sort_loan_ids(to, b)?;
     let mut changed = false;
@@ -983,10 +986,10 @@ fn take_package_field_leaves(holder: &mut Payload, index: u32, b: &mut Budget) -
 }
 fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool> {
     let mut changed = join_permission(&mut to.address, &from.address, b)?;
-    // Only the Option profile creates this private description ledger.
-    if b.masked_stored_tasks() {
-        changed |= join_permission(&mut to.store_description, &from.store_description, b)?;
-    }
+    // Description transfers independently establish the real manager root.
+    // Ordinary Store/ByteBuffer requests need the same fixed-point channel as
+    // Option and Task requests, including every existing parent loan.
+    changed |= join_permission(&mut to.store_description, &from.store_description, b)?;
     changed |= task_address::join(to, from, b)?;
     changed |= dyn_ports::join(to, from, b)?;
     if let Some(complete) = from.creation_complete {
@@ -1002,6 +1005,7 @@ fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool>
     Ok(changed)
 }
 fn join_frame(to: &mut Frame, from: &Frame, b: &mut Budget) -> Check<()> {
+    if let Some(progress)=&mut b.diagnostic_progress{progress.stored_frame_joins=progress.stored_frame_joins.saturating_add(1);}
     to.pending_external_update |= from.pending_external_update;
     if let Some(head) = from.receiver {
         b.spend(1)?;
@@ -1184,6 +1188,16 @@ fn vt(f: &TypedFunction, v: ValueId) -> Check<&Type> {
 }
 
 pub(super) fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()> {
+    type_visit(ty,limits,true,b)
+}
+/// Bounds-only traversal does not copy or compare name bytes. Completed pure
+/// walks may be retained only for exact live immutable module/owned nodes.
+pub(super) fn type_bounds(ty:&Type,limits:&Limits,b:&mut Budget)->Check<()>{
+    if dynamic_metadata::stored_type_known(ty,limits,b)?{return Ok(());}
+    type_visit(ty,limits,false,b)?;
+    dynamic_metadata::stored_type_success(ty,limits,b)
+}
+fn type_visit(ty:&Type,limits:&Limits,copy_or_compare:bool,b:&mut Budget)->Check<()>{
     b.spend(1)?;
     let mut stack = vec![(ty, 0usize)];
     while let Some((t, depth)) = stack.pop() {
@@ -1212,9 +1226,9 @@ pub(super) fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()>
                 stack.push((storage, depth + 1));
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
-                b.spend(name.len().saturating_add(fields.len()))?;
+                b.spend((if copy_or_compare{name.len()}else{1}).saturating_add(fields.len()))?;
                 for (n, t) in fields {
-                    b.spend(n.len())?;
+                    b.spend(if copy_or_compare{n.len()}else{1})?;
                     stack.push((t, depth + 1));
                 }
             }
@@ -1225,9 +1239,9 @@ pub(super) fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()>
                 }
             }
             Type::Enum { name, variants } => {
-                b.spend(name.len().saturating_add(variants.len()))?;
+                b.spend((if copy_or_compare{name.len()}else{1}).saturating_add(variants.len()))?;
                 for (n, fs) in variants {
-                    b.spend(n.len().saturating_add(fs.len()))?;
+                    b.spend((if copy_or_compare{n.len()}else{1}).saturating_add(fs.len()))?;
                     for t in fs {
                         stack.push((t, depth + 1));
                     }
@@ -1276,7 +1290,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
     let Some((storage, shape)) = qualified(ty) else {
         return Ok(false);
     };
-    type_work(ty, limits, b)?;
+    type_bounds(ty, limits, b)?;
     if anonymous_tuple::layout(ty, b)?.is_some() {
         return Ok(true);
     }
@@ -1307,8 +1321,9 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         b.spend(1)?;
         match t {
             Type::Address { mutable, inner } => {
-                type_work(inner, limits, b)?;
-                if !inner.is_address_pointee() {
+                type_bounds(inner, limits, b)?;
+                if !inner.is_address_pointee()
+                    && !(qualified(inner).is_some()&&physical(inner,limits,b)?){
                     return Err(err("stored shared leaf has invalid actual pointee"));
                 }
                 b.spend(path.len().saturating_add(1))?;
@@ -1426,7 +1441,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                 }
             }
             Type::Managed(payload) if matches!(storage, Type::Package { .. }) => {
-                type_work(payload, limits, b)?;
+                type_bounds(payload, limits, b)?;
                 if !matches!(
                     payload.as_ref(),
                     Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }
@@ -1437,7 +1452,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                 }
             }
             child => {
-                type_work(child, limits, b)?;
+                type_bounds(child, limits, b)?;
                 if !child.is_copy_value() {
                     return Err(unsupported(
                         "nonshared actual stored leaf needs its physical consumer",
@@ -1527,8 +1542,7 @@ pub(super) fn qualification(
     limits: &Limits,
     b: &mut Budget,
 ) -> Check<()> {
-    type_work(ty, limits, b)?;
-    type_work(ty, limits, b)?;
+    type_bounds(ty, limits, b)?;
     physical(ty, limits, b)?;
     let (storage, _) =
         qualified(ty).ok_or_else(|| err("expected an actual qualified stored type"))?;
@@ -1563,7 +1577,7 @@ pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Chec
         return Ok(false);
     }
     let limits = b.limits.clone();
-    type_work(ty, &limits, b)?;
+    type_bounds(ty, &limits, b)?;
     if !retained::pure(ty, b)? {
         return Ok(false);
     }
@@ -1583,7 +1597,7 @@ pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Ch
         return Ok(false);
     }
     let limits = b.limits.clone();
-    type_work(ty, &limits, b)?;
+    type_bounds(ty, &limits, b)?;
     let mut pending = vec![ty];
     while let Some(current) = pending.pop() {
         b.spend(1)?;
@@ -1627,9 +1641,34 @@ pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Ch
             | Type::U32
             | Type::F32
             | Type::F64 => {}
+            Type::FunctionPointer{..}|Type::ForeignCallback{..}=>if !pure_copy::code_atom(current,b)?{return Ok(false);},
             _ => return Ok(false),
         }
     }
+    Ok(true)
+}
+
+/// An ordinary owner has no stored data targets, but its borrowed head still
+/// has the real Address origin and loan. This predicate concerns only the
+/// pointee: it never makes the owner Copy or discharges its cleanup debt.
+fn ordinary_owner_address(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    let Type::Address { inner, .. } = ty else {
+        return Ok(false);
+    };
+    if !(matches!(inner.as_ref(), Type::Package { .. })
+        && pure_copy::complete_owned_value(module,inner, b)?
+        || super::stored_owned::owner(inner))
+    {
+        return Ok(false);
+    }
+    let (classes, _pending_sources) = crate::dynamic_witness::intrinsic_domain(module, inner, b)?;
+    if classes != 0 {
+        return Ok(false);
+    }
+    // This selects the ordinary pointee lane only. A complete Known0 domain
+    // may still owe a real closure creation, owner transfer or cleanup proof;
+    // the head's source, active loan and actual CFG remain independently due.
+    crate::dynamic_witness::structural_actual(module, inner, DynStructuralBound::Value, b)?;
     Ok(true)
 }
 
@@ -1649,6 +1688,25 @@ pub(super) fn qualifications(
                 b.spend(1)?;
                 // Type/mode authentication is independent of dispatch flags.
                 anonymous_tuple::operation(f, i, b)?;
+                if matches!(i.kind, InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. }) {
+                    let (local, mutable) = match i.kind {
+                        InstructionKind::BorrowLocal { local } => (local, false),
+                        InstructionKind::BorrowLocalMut { local } => (local, true),
+                        _ => unreachable!(),
+                    };
+                    let source = f.locals.get(local.0 as usize).ok_or_else(||
+                        reject("E-VERIFY-TYPE", Some(i.span), "borrow source local is absent"))?;
+                    let actual = i.result.and_then(|id| f.values.get(id.0 as usize)).ok_or_else(||
+                        reject("E-VERIFY-TYPE", Some(i.span), "borrow result type is absent"))?;
+                    type_work(&source.ty, limits, b)?;
+                    type_work(actual, limits, b)?;
+                    if !matches!(actual, Type::Address { mutable: mode, inner }
+                        if *mode == mutable && inner.as_ref() == &source.ty)
+                    {
+                        return Err(reject("E-VERIFY-TYPE", Some(i.span),
+                            "borrow result differs from its exact actual local type or mode"));
+                    }
+                }
                 if let InstructionKind::Load(local) = i.kind
                     && f.locals
                         .get(local.0 as usize)
@@ -1670,16 +1728,17 @@ pub(super) fn qualifications(
                     }),
                     _ => false,
                 };
+                let ordinary_store_operation=super::stored_owned::ordinary_store_instruction(module,f,i,b)?||super::stored_owned::ordinary_byte_instruction(module,f,i,b)?;
                 let enum_operation = enum_address::instruction(module, f, i, b)?;
                 let task_capture_operation = task_address::capture_instruction(module, f, i, b)?;
-                let owned_operation = !task_capture_operation
+                let owned_operation = !ordinary_store_operation && !task_capture_operation
                     && ((!mixed_package
                         && !b.masked_stored_tasks()
                         && super::stored_owned::instruction(f, &i.kind))
                         || scalar_owner_operation)
                     && !owned_byte_views::owner_instruction(module, f, i, b)?
                     && !(b.task_sources() && task_address::owner_instruction(f, &i.kind));
-                if !super::class_flow::pointer_instruction(f, i)
+                if !ordinary_store_operation && !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
                     && !foreign_calls::operation(module, f, i, b)?
                     && !returned_environment::borrowed_child(module, f, i, b)?
@@ -1719,12 +1778,12 @@ pub(super) fn qualifications(
                         && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. }))
                     && !replacements::operation(&i.kind)
                     && !pure_copy::operation(&i.kind)
-                    && !pure_copy::ordinary_owned_union(f, i, b)?
+                    && !pure_copy::ordinary_owned_union(module,f, i, b)?
                     && !pure_copy::ordinary_copy_field_borrow(f, i, b)?
                     && !pure_copy::ordinary_package_borrow(f, i, b)?
                     && !pure_copy::ordinary_package_read(f, i, b)?
                     && !pure_copy::qualified_package_description(f, i, b)?
-                    && !ordinary_error_borrow(f, i, b)?
+                    && !ordinary_error_borrow(module,f, i, b)?
                     && !matches!(
                         &i.kind,
                         InstructionKind::StaticUtf8 { .. }
@@ -1825,8 +1884,8 @@ pub(super) fn qualifications(
                             "borrowed Enum operation has no authenticated complete nominal instance",
                         ));
                     }
-                    if !pure_copy::ordinary_owned_union(f, i, b)? {
-                        pure_copy::types(f, i, b)?;
+                    if !pure_copy::ordinary_owned_union(module,f, i, b)? {
+                        pure_copy::types(module,f, i, b)?;
                     }
                 }
                 if let InstructionKind::TakePackageField { local, .. }
@@ -2195,16 +2254,20 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     };
     crate::signature_life::charge(c, b)?;
     b.spend(f.parameters.len())?;
-    if f.reference_return_bound.is_some()
-        || f.foreign.is_some() && !foreign_calls::declaration(module, f, b)?
-    {
+    // The direct root upper and the complete class relation are independent
+    // constraints. Authenticate both headers; final actual returns below must
+    // satisfy both, without replacing this canonical relation at a call site.
+    if f.reference_return_bound.is_some() {
+        super::check_reference_return_bound(f, b)?;
+    }
+    if f.foreign.is_some() && !foreign_calls::declaration(module, f, b)? {
         return Err(err("stored signature contradicts another active profile"));
     }
     let mut parameters = Vec::with_capacity(f.parameters.len());
     let mut has_fixed_environment = false;
     for p in &f.parameters {
         let ty = &f.locals[p.0 as usize].ty;
-        type_work(ty, &b.limits.clone(), b)?;
+        type_bounds(ty, &b.limits.clone(), b)?;
         type_work(ty, &b.limits.clone(), b)?;
         let new_nominal = |ty: &Type| {
             matches!(ty, Type::BorrowedStorage { storage, life }
@@ -2218,7 +2281,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
                 if (matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
                     || new_nominal(inner))
         {
-            type_work(ty, &b.limits.clone(), b)?;
+            type_bounds(ty, &b.limits.clone(), b)?;
         }
         if f.callable_contract.is_some()
             && let Type::Managed(payload) = ty
@@ -2227,9 +2290,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             b.spend(fields.len().saturating_mul(2))?;
         }
         has_fixed_environment |= fixed_environment(module, ty, b);
-        parameters.push(ty.clone());
+        parameters.push(ty);
     }
-    type_work(&f.return_type, &b.limits.clone(), b)?;
+    type_bounds(&f.return_type, &b.limits.clone(), b)?;
     type_work(&f.return_type, &b.limits.clone(), b)?;
     let new_nominal = |ty: &Type| {
         matches!(ty, Type::BorrowedStorage { storage, life }
@@ -2243,7 +2306,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             if (matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
                 || new_nominal(inner))
     {
-        type_work(&f.return_type, &b.limits.clone(), b)?;
+        type_bounds(&f.return_type, &b.limits.clone(), b)?;
     }
     if let Some(id) = f.environment {
         let d = module
@@ -2254,7 +2317,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             return Err(err("captured Fixed entry and definition relation differ"));
         }
         super::stored_callables::captured_profile(module, d, b)?;
-        return super::signature_life::closure_relation(
+        return super::signature_life::closure_relation_resource_views(
             module,
             &parameters,
             &d.captures,
@@ -2262,17 +2325,21 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             super::stored_callables::life_result(d),
             c,
             Some(f.span),
+            b,
         );
     }
     if has_fixed_environment {
         b.spend(parameters.len())?;
         for ty in &parameters {
             if !fixed_environment(module, ty, b)
-                && !super::stored_callables::shared_input(ty)
+                && !super::stored_callables::borrowed_capture_input(ty)
+                && !super::stored_callables::complete_value_input(module,ty,b)?
                 && !super::stored_owned::owner(ty)
+                && !super::stored_owned::ordinary_byte_value(ty,b)?
+                && !super::stored_owned::ordinary_store_value(module,ty,b)?
             {
                 return Err(unsupported(
-                    "captured Fixed helper requires shared finite data parameters",
+                    "captured Fixed helper requires complete supported input domains",
                     Some(f.span),
                 ));
             }
@@ -2288,8 +2355,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         b.spend(parameters.len())?;
     }
     // Actual Capture sources prove targets separately. If a factory publishes
-    // output class rows, authenticate its complete Fixed class relation as well:
-    // the result can only refer to classes already supplied by actual inputs.
+    // output class rows, authenticate its complete Fixed class relation as well.
+    // A separately proved local result role retains all its input/static
+    // dependencies without equating independent input classes.
     let factory = matches!(f.return_type, Type::Closure(_)) && f.callable_return_contract.is_some();
     b.spend(c.classes.len())?;
     let output_classes = c
@@ -2301,9 +2369,15 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     } else {
         &f.return_type
     };
-    let pending = dyn_returns::pending::register(module, f, b)?;
+    let mut pending = dyn_returns::pending::register(module, f, b)?;
+    for transfer in crate::dynamic_witness::semantic_patterns::local_role_transfers(module,f,b)?{
+        for output in transfer.outputs{
+            b.spend(pending.iter().fold(output.position.path.len().saturating_add(1),|fee,row|fee.saturating_add(row.path.len().saturating_add(output.position.path.len()).saturating_add(1))))?;
+            if !pending.contains(&output.position){pending.push(output.position);}
+        }
+    }
     if !pending.is_empty() {
-        return crate::signature_life::function_relation_pending(
+        return crate::signature_life::function_relation_pending_views(
             module,
             &parameters,
             result,
@@ -2314,7 +2388,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             &pending,
         );
     }
-    super::signature_life::function_relation_resource_scopes(
+    super::signature_life::function_relation_resource_views(
         module,
         &parameters,
         result,
@@ -2710,7 +2784,7 @@ fn seed_payload(
                 heap_element: None,
             });
         }
-        if replacements::heads(b)
+        if (replacements::heads(b)||super::stored_owned::ordinary_store_value(module,ty,b)?||super::stored_owned::ordinary_byte_value(ty,b)?)
             && matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))
         {
             b.spend(1)?;
@@ -2934,6 +3008,151 @@ fn clear_local_holes(state: &mut Frame, local: LocalId, b: &mut Budget) -> Check
         .retain(|slot| slot.base != HoldRoot::Local(local));
     Ok(())
 }
+
+/// Only exact SSA loads whose *every* use observes a projection's address
+/// head can defer the whole-pointee reborrow. The projection itself creates
+/// and checks its real narrower loan. A stored, passed, returned or otherwise
+/// consumed head retains the ordinary whole reborrow, even if it also has a
+/// projection use. Unreachable uses participate in this classification too.
+fn projection_head_loads(f: &TypedFunction, b: &mut Budget) -> Check<Vec<bool>> {
+    b.spend(f.values.len().saturating_mul(2).saturating_add(f.blocks.len()))?;
+    let mut marks = vec![0u8; f.values.len()];
+    for block in &f.blocks {
+        for i in &block.instructions {
+            b.spend(1)?;
+            if let InstructionKind::Load(local) = i.kind
+                && let Some(result) = i.result
+                && matches!(vt(f, result)?, Type::Address { mutable: true, .. })
+            {
+                let actual = f.locals.get(local.0 as usize)
+                    .ok_or_else(|| err("projected head load has no actual local"))?;
+                type_work(&actual.ty, &b.limits.clone(), b)?;
+                type_work(vt(f, result)?, &b.limits.clone(), b)?;
+                if actual.ty != *vt(f, result)? {
+                    return Err(err("projected head load changes its complete local type"));
+                }
+                marks[result.0 as usize] = 1;
+            }
+        }
+    }
+    for block in &f.blocks {
+        for i in &block.instructions {
+            b.spend(1)?;
+            let head = match i.kind {
+                InstructionKind::AddressField { address, .. }
+                | InstructionKind::AddressIndex { address, .. }
+                | InstructionKind::AddressSlice { address, .. } => Some(address),
+                _ => None,
+            };
+            for operand in instruction_operands(&i.kind) {
+                b.spend(1)?;
+                let mark = marks.get_mut(operand.0 as usize)
+                    .ok_or_else(|| err("projected head use has no actual SSA value"))?;
+                if *mark & 1 != 0 {
+                    *mark |= if head == Some(operand) { 2 } else { 4 };
+                }
+            }
+        }
+        b.spend(1)?;
+        let value = match block.terminator {
+            Terminator::Return(value) => value,
+            Terminator::Branch { condition, .. } => Some(condition),
+            _ => None,
+        };
+        if let Some(value) = value {
+            let mark = marks.get_mut(value.0 as usize)
+                .ok_or_else(|| err("projected head escapes through an absent actual value"))?;
+            if *mark & 1 != 0 { *mark |= 4; }
+        }
+    }
+    Ok(marks.into_iter().map(|mark| mark == 3).collect())
+}
+
+fn is_deferred_address(i: &Instruction, heads: &[bool]) -> bool {
+    i.result.and_then(|id| heads.get(id.0 as usize)).copied().unwrap_or(false)
+}
+
+/// Only a completely matched original assignment may reserve its lvalue
+/// address until the actual WriteAddress. Every intermediate SSA head has one
+/// use in that same nonescaping projection chain; explicit borrows, calls,
+/// stores and returns are never reservations. The original parent loans and
+/// exact roots remain on every view and are checked at the actual write.
+fn assignment_reservations(f:&TypedFunction,writes:&[ValueId],b:&mut Budget)->Check<Vec<bool>> {
+    let count=f.values.len();
+    b.spend(count.saturating_mul(5).saturating_add(f.blocks.len()))?;
+    let mut candidate=vec![false;count];
+    let mut uses=vec![0u8;count];
+    let mut next=vec![usize::MAX;count];
+    let mut state=vec![0u8;count];
+    for block in &f.blocks {for instruction in &block.instructions {
+        b.spend(1)?;
+        if matches!(instruction.kind,InstructionKind::Load(_)|InstructionKind::AddressField{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..})
+            && let Some(result)=instruction.result
+            && matches!(vt(f,result)?,Type::Address{mutable:true,..})
+        {candidate[result.0 as usize]=true;}
+    }}
+    for block in &f.blocks {
+        for instruction in &block.instructions {
+            b.spend(1)?;
+            for operand in instruction_operands(&instruction.kind) {
+                b.spend(1)?;
+                let index=operand.0 as usize;
+                if !candidate.get(index).copied().ok_or_else(||err("assignment reservation operand is absent"))?{continue;}
+                uses[index]=uses[index].saturating_add(1).min(2);
+                if uses[index]!=1 {next[index]=usize::MAX;continue;}
+                next[index]=match instruction.kind {
+                    InstructionKind::AddressField{address,..}|InstructionKind::AddressIndex{address,..}|InstructionKind::AddressSlice{address,..}if address==operand=>
+                        instruction.result.filter(|value|candidate[value.0 as usize]).map_or(usize::MAX,|value|value.0 as usize),
+                    InstructionKind::WriteAddress{address,..}if address==operand=>{
+                        b.spend(writes.len().saturating_add(1))?;
+                        if writes.contains(&address){count}else{usize::MAX}
+                    },
+                    _=>usize::MAX,
+                };
+            }
+        }
+        b.spend(1)?;
+        let value=match block.terminator{Terminator::Return(value)=>value,Terminator::Branch{condition,..}=>Some(condition),_=>None};
+        if let Some(value)=value {
+            let use_count=uses.get_mut(value.0 as usize).ok_or_else(||err("assignment reservation terminator operand is absent"))?;
+            *use_count=2;next[value.0 as usize]=usize::MAX;
+        }
+    }
+    for start in 0..count {
+        b.spend(1)?;
+        if state[start]!=0{continue;}
+        let mut path=Vec::new();let mut current=start;
+        let valid=loop {
+            b.spend(1)?;
+            if state[current]!=0{break state[current]==3;}
+            if !candidate[current]||uses[current]!=1||next[current]==usize::MAX{state[current]=2;break false;}
+            state[current]=1;
+            if path.len()==path.capacity(){b.spend(path.len().saturating_add(1))?;}
+            path.push(current);
+            if next[current]==count{break true;}
+            current=next[current];
+        };
+        for value in path {b.spend(1)?;state[value]=if valid{3}else{2};}
+    }
+    Ok(state.into_iter().map(|state|state==3).collect())
+}
+
+fn deferred_addresses(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->Check<Vec<bool>> {
+    let mut heads=projection_head_loads(f,b)?;
+    if module.semantic.is_none(){return Ok(heads);}
+    b.spend(f.blocks.len())?;
+    let mut has_write=false;
+    for block in &f.blocks{b.spend(block.instructions.len())?;has_write|=block.instructions.iter().any(|instruction|matches!(instruction.kind,InstructionKind::WriteAddress{..}));}
+    if has_write {
+        let writes=crate::dynamic_witness::semantic_patterns::assignment_writes(module,f,b)?;
+        if !writes.is_empty(){
+            let reservations=assignment_reservations(f,&writes,b)?;
+            b.spend(heads.len())?;for(head,reservation)in heads.iter_mut().zip(reservations){*head|=reservation;}
+        }
+    }
+    Ok(heads)
+}
+
 fn projection_only_load(
     f: &TypedFunction,
     instruction: &Instruction,
@@ -3015,8 +3234,7 @@ fn instantiate(
                 )?
             }
         }
-    } else if replacements::heads(b)
-        && source.leaf.is_empty()
+    } else if source.leaf.is_empty()
         && !v.store_description.sources.is_empty()
     {
         permission_work(&v.store_description, b)?;
@@ -3207,6 +3425,7 @@ fn step(
     sites: &WriteSites,
     dyn_sites: &mut dyn_leases::Sites,
     loans: &mut Vec<Loan>,
+    deferred_projection: bool,
     b: &mut Budget,
 ) -> Check<Payload> {
     b.spend(1)?;
@@ -3350,7 +3569,7 @@ fn step(
             }
         }
         InstructionKind::BorrowPlaceLocal { local, path, .. }
-            if ordinary_error_borrow(f, i, b)? =>
+            if ordinary_error_borrow(module,f, i, b)? =>
         {
             b.spend(path.len().saturating_add(1))?;
             out.address.sources.push(Source {
@@ -3451,7 +3670,7 @@ static_dependency: StaticProvenance::NotStatic,
                     heap_element: None,
                 });
             }
-            if replacements::heads(b)
+            if (replacements::heads(b)||super::stored_owned::ordinary_store_value(module,&f.locals[local.0 as usize].ty,b)?||super::stored_owned::ordinary_byte_value(&f.locals[local.0 as usize].ty,b)?)
                 && f.locals.get(local.0 as usize).is_some_and(|local| matches!(&local.ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. })))
             {
                 b.spend(1)?;
@@ -3467,7 +3686,7 @@ static_dependency: StaticProvenance::NotStatic,
             }
         }
         InstructionKind::DescribePackageField { local, index }
-            if replacements::heads(b) && i.result.is_some_and(|id|
+            if (replacements::heads(b)||super::stored_owned::ordinary_store_value(module,vt(f,i.result.ok_or_else(||err("ordinary Store field description has no result"))?)?,b)?||super::stored_owned::ordinary_byte_value(vt(f,i.result.ok_or_else(||err("ordinary byte field description has no result"))?)?,b)?) && i.result.is_some_and(|id|
                 matches!(&f.values[id.0 as usize], Type::Desc(payload)
                     if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))) => {
             b.spend(2)?;
@@ -3482,6 +3701,9 @@ static_dependency: StaticProvenance::NotStatic,
             });
         }
         InstructionKind::DescribeCapture { index } => {
+            if super::stored_owned::ordinary_store_value(module,vt(f,i.result.ok_or_else(||err("ordinary Store capture description has no result"))?)?,b)?||super::stored_owned::ordinary_byte_value(vt(f,i.result.ok_or_else(||err("ordinary byte capture description has no result"))?)?,b)?{
+                b.spend(1)?;out.store_description.sources.push(Source{static_dependency:StaticProvenance::NotStatic,retained_port:None,base:HoldRoot::Capture(*index),leaf:vec![],inline:vec![],heap_parents:vec![],heap_element:None});
+            }
             b.spend(1)?;
             out.address.sources.push(Source {
 static_dependency: StaticProvenance::NotStatic,
@@ -3519,11 +3741,11 @@ static_dependency: StaticProvenance::NotStatic,
             clear_local_holes(state, *local, b)?;
         }
         InstructionKind::DescribeAddress { address }
-            if b.masked_stored_tasks() || b.replacements || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
+            if b.masked_stored_tasks() || b.replacements || super::stored_owned::ordinary_store_value(module,vt(f,i.result.ok_or_else(||err("ordinary Store address description has no result"))?)?,b)? || super::stored_owned::ordinary_byte_value(vt(f,i.result.ok_or_else(||err("ordinary byte address description has no result"))?)?,b)? || b.shared_byte_borrow && i.result.is_some_and(|result| matches!(f.values[result.0 as usize], Type::Desc(ref payload) if payload.as_ref() == &Type::ByteBuffer)) => {
             join_permission(&mut out.store_description, &val(*address)?.address, b)?;
         }
         InstructionKind::OwnedStoreBorrow { store, .. } | InstructionKind::OwnedStoreBorrowMut { store, .. }
-            if b.masked_stored_tasks() && (b.store_descriptions() || matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })) => {
+            if super::stored_owned::ordinary_store_value(module,vt(f,*store)?,b)? || b.masked_stored_tasks() && (b.store_descriptions() || matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. })) => {
             let description = &val(*store)?.store_description;
             // The reverse-batch solver may see bottom before a predecessor's
             // description arrives. Its final grounded-value check rejects a
@@ -4228,7 +4450,8 @@ static_dependency: StaticProvenance::NotStatic,
         _ if option_transfer.is_some() => {
             out = option_transfer.unwrap();
         }
-        _ if pure_copy::ordinary_owned_union(f, i, b)? => {}
+        InstructionKind::DropEnum{local}|InstructionKind::DropErrorUnion{local}if pure_copy::ordinary_owned_union(module,f,i,b)?=>{state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;},
+        _ if pure_copy::ordinary_owned_union(module,f, i, b)? => {}
         InstructionKind::BorrowPackageField { local, index, .. }
             if pure_copy::ordinary_copy_field_borrow(f, i, b)? =>
         {
@@ -4252,8 +4475,8 @@ static_dependency: StaticProvenance::NotStatic,
             out.address = array_index::transfer(f, i, val(*aggregate)?, b)?;
         }
         _ if pure_copy::operation(&i.kind) => {
-            if !pure_copy::ordinary_owned_union(f, i, b)? {
-                pure_copy::types(f, i, b)?;
+            if !pure_copy::ordinary_owned_union(module,f, i, b)? {
+                pure_copy::types(module,f, i, b)?;
             }
             for input in instruction_operands(&i.kind) {
                 let payload = val(input)?;
@@ -4410,16 +4633,12 @@ static_dependency: StaticProvenance::NotStatic,
                     | InstructionKind::MakeDynBorrow { .. }
                     | InstructionKind::CallDynSlot { .. }
             )
-            || b.store_descriptions()
-                && matches!(
-                    i.kind,
-                    InstructionKind::OwnedStoreBorrow { .. }
-                        | InstructionKind::OwnedStoreBorrowMut { .. }
-                )
-            || ordinary_error_borrow(f, i, b)?
+            || match &i.kind{InstructionKind::OwnedStoreBorrow{store,..}|InstructionKind::OwnedStoreBorrowMut{store,..}=>b.store_descriptions()||super::stored_owned::ordinary_store_value(module,vt(f,*store)?,b)?,_=>false}
+            || ordinary_error_borrow(module,f, i, b)?
             || pure_copy::ordinary_copy_field_borrow(f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(vt(f, id)?, Type::Address { .. })
+        && !deferred_projection
     {
         let row = &mut loans[id.0 as usize];
         add_sources(&mut row.sources, &out.address.sources, b)?;
@@ -4432,6 +4651,7 @@ static_dependency: StaticProvenance::NotStatic,
     if let Some(id) = i.result
         && matches!(i.kind, InstructionKind::Load(_))
         && matches!(vt(f, id)?, Type::Address { mutable: true, .. })
+        && !deferred_projection
     {
         let row = &mut loans[id.0 as usize];
         add_sources(&mut row.sources, &out.address.sources, b)?;
@@ -4538,7 +4758,11 @@ fn solve(
     summaries: &[Summary],
     b: &mut Budget,
 ) -> Check<Solution> {
+    solve_mode(module,f,g,summaries,b,true)
+}
+fn solve_mode(module:&TypedModule,f:&TypedFunction,g:&FunctionGraph,summaries:&[Summary],b:&mut Budget,use_dag:bool)->Check<Solution>{
     replacements::prepare(module, f, g, b)?;
+    let projection_heads = deferred_addresses(module, f, b)?;
     // Each reverse-batch solve creates a new function-local loan arena.
     // Its paid seed/site/step writes record every possible exclusive loan,
     // including constructor sites that are not currently active.
@@ -4573,17 +4797,16 @@ fn solve(
     for _ in &f.blocks {
         outputs.push(empty_frame(module, f, b)?);
     }
-    // The Task/Option and ordinary Copy error-place domains use this DAG path.
-    // Keep historical
-    // requests on their existing solver and request-cost path. In a DAG every
+    // The structural verifier checked SSA dominance before this kernel. For
+    // every independently proved DAG, every
     // predecessor frame and dominating SSA definition is final before its user;
     // join_payload still records all sources and loan growth, including values
     // whose creation does not change a local frame.
-    if (b.task_sources() || b.ordinary_error_places)
-        && b.masked_stored_tasks()
-        && let Some(order) = acyclic_order(g, b)?
+    if use_dag&&let Some(order) = acyclic_order(g, b)?
     {
+        if let Some(progress)=&mut b.diagnostic_progress{progress.cfg_round=1;}
         for bi in order {
+            if let Some(progress)=&mut b.diagnostic_progress{progress.block_visits=progress.block_visits.saturating_add(1);}
             b.spend(1)?;
             let mut state = if bi == f.entry.0 as usize {
                 copy_frame(&entry, b)?
@@ -4607,6 +4830,7 @@ fn solve(
                     &sites,
                     &mut dyn_sites,
                     &mut loans,
+                    is_deferred_address(instruction, &projection_heads),
                     b,
                 )?;
                 if let Some(value) = instruction.result {
@@ -4625,17 +4849,20 @@ fn solve(
         });
     }
     loop {
+        if let Some(progress)=&mut b.diagnostic_progress{progress.cfg_round=progress.cfg_round.saturating_add(1);}
         let mut changed = false;
         // Reverse batches differ from the candidate's forward in-place walk.
-        let mut replacement = Vec::new();
-        for block in &outputs {
-            replacement.push(copy_frame(block, b)?);
-        }
+        // Old predecessor frames stay read-only for the complete reverse
+        // batch. Every reachable block is reconstructed below; retaining a
+        // second deep copy of its old frame adds no information.
+        b.spend(outputs.len())?;
+        let mut replacement:Vec<Option<Frame>>=(0..outputs.len()).map(|_|None).collect();
         for bi in (0..f.blocks.len()).rev() {
             b.spend(1)?;
             if !g.reachable[bi] {
                 continue;
             }
+            if let Some(progress)=&mut b.diagnostic_progress{progress.block_visits=progress.block_visits.saturating_add(1);}
             let mut state = if bi == f.entry.0 as usize {
                 copy_frame(&entry, b)?
             } else {
@@ -4657,6 +4884,7 @@ fn solve(
                     &sites,
                     &mut dyn_sites,
                     &mut loans,
+                    is_deferred_address(i, &projection_heads),
                     b,
                 )?;
                 if let Some(v) = i.result {
@@ -4666,11 +4894,14 @@ fn solve(
             frame_work(&state, b)?;
             frame_work(&outputs[bi], b)?;
             if state != outputs[bi] {
-                replacement[bi] = state;
                 changed = true;
             }
+            replacement[bi]=Some(state);
         }
-        outputs = replacement;
+        // Unreachable states are moved unchanged. The computed states move
+        // into the same actual coordinates, including the stable final round.
+        b.spend(outputs.len())?;
+        outputs=outputs.into_iter().zip(replacement).map(|(old,new)|new.unwrap_or(old)).collect();
         if !changed {
             break;
         }
@@ -4970,7 +5201,7 @@ fn live_loans(
             &state.locals[id - solution.values.len()]
         };
         loans.add(&payload.address.loans, b)?;
-        if b.store_descriptions() {
+        if b.store_descriptions()||!payload.store_description.loans.is_empty(){
             loans.add(&payload.store_description.loans, b)?;
         }
         if b.task_sources() {
@@ -5066,7 +5297,7 @@ fn live_loans_main_fullscan(
             &state.locals[id - solution.values.len()]
         };
         add_loans_by_scan(&mut loans, &payload.address.loans, b)?;
-        if b.store_descriptions() {
+        if b.store_descriptions()||!payload.store_description.loans.is_empty(){
             add_loans_by_scan(&mut loans, &payload.store_description.loans, b)?;
         }
         if b.task_sources() {
@@ -5291,6 +5522,7 @@ fn windows(
     dyn_accesses: &mut Vec<(Source, bool)>,
     b: &mut Budget,
 ) -> Check<()> {
+    let projection_heads = deferred_addresses(module, f, b)?;
     // A module marker only schedules this actual per-function inventory.
     let mut ordinary_error_places = false;
     if b.ordinary_error_places {
@@ -5298,7 +5530,7 @@ fn windows(
         for block in &f.blocks {
             b.spend(block.instructions.len())?;
             for instruction in &block.instructions {
-                ordinary_error_places |= ordinary_error_borrow(f, instruction, b)?;
+                ordinary_error_places |= ordinary_error_borrow(module,f, instruction, b)?;
             }
         }
     }
@@ -5511,7 +5743,7 @@ fn windows(
                         }
                     }
                     InstructionKind::BorrowPlaceLocal { local, path, .. }
-                        if ordinary_error_borrow(f, i, b)? =>
+                        if ordinary_error_borrow(module,f, i, b)? =>
                     {
                         b.spend(path.len().saturating_add(1))?;
                         let actual = Permission {
@@ -5681,13 +5913,29 @@ fn windows(
                         if matches!(
                             f.locals[local.0 as usize].ty,
                             Type::Address { mutable: true, .. }
-                        ) {
+                        ) && !is_deferred_address(i, &projection_heads) {
                             checks.check(
                                 &state.locals[local.0 as usize].address,
                                 true,
                                 requirements,
                                 b,
                             )?;
+                        }
+                        if matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) {
+                            // Loading the pointer local reads its storage,
+                            // not the pointee. A loan of the pointer storage
+                            // itself still prevents even this head observation.
+                            b.spend(1)?;
+                            let head = Permission {
+                                sources: vec![Source {
+                                    static_dependency: StaticProvenance::NotStatic,
+                                    retained_port: None,
+                                    base: HoldRoot::Local(*local),
+                                    leaf: vec![], inline: vec![], heap_parents: vec![], heap_element: None,
+                                }],
+                                loans: vec![],
+                            };
+                            checks.check(&head, false, requirements, b)?;
                         }
                     }
                     InstructionKind::BorrowCapture { index, mutable } => {
@@ -5711,6 +5959,8 @@ fn windows(
                     | InstructionKind::EndPackageCapture { local, .. }
                     | InstructionKind::TakeLocal { local }
                     | InstructionKind::DropClosure { local }
+                    | InstructionKind::DropManaged { local }
+                    | InstructionKind::DropPackage { local }
                     | InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => {
                         if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
@@ -5767,7 +6017,7 @@ fn windows(
                         address,
                         mutable: false,
                     } => checks.check(pointer(*address)?, false, requirements, b)?,
-                    InstructionKind::AddressField { address, .. } if b.dyn_contexts => {
+                    InstructionKind::AddressField { address, .. } => {
                         let result = i
                             .result
                             .ok_or_else(|| err("field view lacks its actual result"))?;
@@ -5783,15 +6033,18 @@ fn windows(
                             loans: original.loans.clone(),
                         };
                         let write = matches!(vt(f, result)?, Type::Address { mutable: true, .. });
-                        checks.check(&actual, write, requirements, b)?;
+                        if is_deferred_address(i,&projection_heads){access_head(&actual,write,b)?;}
+                        else{checks.check(&actual, write, requirements, b)?;}
                     }
-                    InstructionKind::AddressField { address, .. }
-                    | InstructionKind::AddressIndex { address, .. }
+                    InstructionKind::AddressIndex { address, .. }
                     | InstructionKind::AddressSlice { address, .. } => {
                         let write = i.result.is_some_and(|v| {
                             matches!(f.values[v.0 as usize], Type::Address { mutable: true, .. })
                         });
-                        checks.check(pointer(*address)?, write, requirements, b)?;
+                        if is_deferred_address(i,&projection_heads){
+                            let result=i.result.ok_or_else(||err("reserved projection has no actual result"))?;
+                            access_head(pointer(result)?,write,b)?;
+                        }else{checks.check(pointer(*address)?, write, requirements, b)?;}
                     }
                     InstructionKind::WriteAddress { address, .. }
                     | InstructionKind::ReborrowAddress {
@@ -6230,6 +6483,7 @@ fn windows(
                 &solution.sites,
                 &mut solution.dyn_sites,
                 &mut solution.loans,
+                is_deferred_address(i, &projection_heads),
                 b,
             )?;
             if let Some(flow) = &byte_flow {
@@ -6856,6 +7110,7 @@ fn check_with_mask(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
+    b.diagnostic_stage("actual stored type qualification");
     let mixed_package = b.stored_package_instance;
     let compound_profile = compound::profile(module, b)?;
     let closed_dyn_profile = dyn_closed::related_resources(module, b)?;
@@ -6882,6 +7137,7 @@ fn check_with_mask(
         if mask.is_some_and(|mask| !mask[index]) {
             continue;
         }
+        b.diagnostic_actual("actual stored header and type qualification",f.id,0);
         check_exclusive_transfers(f, &graphs[f.id.0 as usize], b)?;
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].reachable, b)?;
         if !module.resources.is_empty() && matches!(f.return_type, Type::Desc(_)) {
@@ -6923,6 +7179,10 @@ fn check_with_mask(
             .chain(std::iter::once(&f.return_type))
         {
             type_work(ty, &b.limits.clone(), b)?;
+            let ordinary_value = super::stored_owned::ordinary_store_value(module,ty, b)?
+                || super::stored_owned::ordinary_byte_value(ty, b)?
+                || pure_copy::complete_owned_value(module,ty, b)?
+                || ordinary_owner_address(module, ty, b)?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let closed_dyn_value =
                 dyn_closed::value(module, ty, b)? || dyn_ports::value(module, ty, b)?;
@@ -6936,6 +7196,7 @@ fn check_with_mask(
                 && !closed_dyn_value
                 && !neutral_owner
                 && !compound_profile
+                && !ordinary_value
             {
                 super::stored_owned::value_type(ty, b)?;
             }
@@ -6949,7 +7210,8 @@ fn check_with_mask(
             } else {
                 false
             };
-            if !(byte_value
+            if !(ordinary_value
+                || byte_value
                 || closed_dyn_value
                 || super::stored_callables::value(module, ty)
                 || b.task_sources() && task_address::admitted_value(ty)
@@ -7039,6 +7301,7 @@ fn solve_check(
                 continue;
             }
             let f = &module.functions[index];
+            b.diagnostic_actual("actual stored CFG",f.id,round);
             let mut solution =
                 solve(module, f, &graphs[index], &summaries, b).map_err(|mut failure| {
                     failure.notes.push(format!(
@@ -7047,6 +7310,7 @@ fn solve_check(
                     ));
                     failure
                 })?;
+            b.diagnostic_label("actual stored summary");
             let mut summary = summarize(
                 module,
                 f,
@@ -7204,7 +7468,7 @@ fn solve_check(
         b.spend(module.functions.len())?;
     }
     let mut checked_option_sources = b
-        .store_option_results
+        .masked_stored_tasks()
         .then(|| Vec::with_capacity(module.functions.len()));
     let mut package_calls = if b.qualified_package_returns {
         b.spend(std::mem::size_of::<BTreeMap<(FunctionId, ValueId), u32>>())?;
@@ -7505,7 +7769,7 @@ fn solve_check(
                 let mut sources = value.address.sources.clone();
                 if (b.shared_byte_borrow
                     && matches!(&f.values[index], Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer))
-                    || b.store_descriptions() && matches!(&f.values[index], Type::Desc(_))
+                    || (b.store_descriptions()||!value.store_description.sources.is_empty()) && matches!(&f.values[index], Type::Desc(_))
                 {
                     add_sources(&mut sources, &value.store_description.sources, b)?;
                 }
@@ -7635,6 +7899,372 @@ mod tests {
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
     }
+
+    #[test]
+    fn direct_root_upper_and_complete_class_relation_both_constrain_actual_returns() {
+        let mut base = fixture::module();
+        let mut f = base.functions[4].clone();
+        f.id = FunctionId(0);
+        let mut second = f.locals[0].clone();
+        second.id = LocalId(1);
+        second.name = "second".into();
+        f.locals.push(second);
+        f.parameters.push(LocalId(1));
+        f.reference_return_bound = Some(vec![0, 1]);
+        f.storage_life = Some(StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 1,
+            bindings: [StorageBase::Parameter(0), StorageBase::Parameter(1), StorageBase::Result]
+                .into_iter()
+                .map(|base| StorageLifeBinding {
+                    position: StoragePosition { base, path: vec![] },
+                    binder: StorageBinder::Invocation(0),
+                })
+                .collect(),
+            static_bindings: vec![],
+            classes: vec![],
+        });
+        base.functions = vec![f];
+        base.life_declarations.clear();
+        base.life_instances.clear();
+        for attack in 0..4 {
+            let mut m = base.clone();
+            match attack {
+                0 => {}
+                // Same full class, but the declared root upper omits the
+                // independently reconstructed actual return Parameter(0).
+                1 => m.functions[0].reference_return_bound = Some(vec![1]),
+                // The root upper contains Parameter(0), but the complete
+                // header requires the unrelated second input class instead.
+                2 => {
+                    let life = m.functions[0].storage_life.as_mut().unwrap();
+                    life.invocation_binder_count = 2;
+                    life.bindings[1].binder = StorageBinder::Invocation(1);
+                    life.bindings[2].binder = StorageBinder::Invocation(1);
+                }
+                _ => m.functions[0].reference_return_bound = Some(vec![1, 0]),
+            }
+            let candidate = fixture::class_candidate(&m);
+            let limits = Limits::default();
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &candidate, &limits).unwrap();
+            for result in [
+                super::super::verify_module(m.clone(), candidate, &m.target, &limits),
+                super::super::verify_module_bytes(&bytes, &m.target, &limits),
+            ] {
+                if attack == 0 {
+                    result.unwrap();
+                    continue;
+                }
+                let errors = result.unwrap_err();
+                let (code, message) = match attack {
+                    1 => ("E-VERIFY-STORED", "actual returned target exceeds the existing direct reference upper"),
+                    2 => ("E-VERIFY-CLASS-EQUATION", "actual retained class equality is not universally valid"),
+                    _ => ("E-VERIFY-LIFE", "invalid address direct return-life upper bound"),
+                };
+                assert!(errors.iter().any(|d| d.category == zil_base::ResultCategory::SafeReject
+                    && d.code == code && d.message.ends_with(message)), "attack {attack}: {errors:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn complete_dag_transfer_matches_reverse_fixed_point_and_cycles_keep_the_fallback(){
+        let module=fixture::module();
+        for cyclic in [false,true]{
+            let mut f=module.functions[0].clone();
+            let code=std::mem::take(&mut f.blocks[0].instructions);
+            let terminal=f.blocks[0].terminator.clone();let count=code.len();
+            f.blocks=code.into_iter().enumerate().map(|(index,instruction)|BasicBlock{id:BlockId(index as u32),instructions:vec![instruction],terminator:if index+1<count{Terminator::Jump(BlockId(index as u32+1))}else if cyclic{Terminator::Jump(BlockId(0))}else{terminal.clone()}}).collect();
+            let mut successors=vec![vec![];count];let mut predecessors=vec![vec![];count];
+            for index in 0..count{if index+1<count||cyclic{let target=(index+1)%count;successors[index].push(target);predecessors[target].push(index);}}
+            let graph=FunctionGraph{successors,predecessors,reachable:vec![true;count],package_views:packages::CaptureViews::default(),role_data_uses:vec![]};
+            let source=Source{static_dependency:StaticProvenance::NotStatic,retained_port:None,base:HoldRoot::Parameter(0),leaf:vec![],inline:vec![],heap_parents:vec![],heap_element:None};
+            let mut summaries=vec![Summary::default();module.functions.len()];summaries[4].complete=true;summaries[4].result=vec![(vec![],vec![source])];
+            let limits=Limits::default();let mut fast_budget=Budget::new(&limits);let mut reverse_budget=Budget::new(&limits);
+            let fast=solve_mode(&module,&f,&graph,&summaries,&mut fast_budget,true).unwrap();
+            let reverse=solve_mode(&module,&f,&graph,&summaries,&mut reverse_budget,false).unwrap();
+            assert_eq!(fast.entry,reverse.entry);assert_eq!(fast.outputs,reverse.outputs);assert_eq!(fast.values,reverse.values);assert_eq!(fast.sites,reverse.sites);
+            assert_eq!(fast.loans.len(),reverse.loans.len());
+            for(actual,expected)in fast.loans.iter().zip(&reverse.loans){assert_eq!((&actual.sources,&actual.parents,actual.exclusive,actual.receiver_head),(&expected.sources,&expected.parents,expected.exclusive,expected.receiver_head));}
+            if !cyclic{assert!(fast_budget.remaining>reverse_budget.remaining,"a true multi-block DAG executes fewer real transfers and frame copies");}
+        }
+    }
+
+    #[test]
+    fn assignment_reservations_require_source_and_nonescaping_unique_write_chains() {
+        let module=fixture::module();
+        assert!(module.semantic.is_none());
+        let mut function=module.functions[0].clone();
+        let array=Type::Array{element:Box::new(Type::I64),length:4};
+        let pair=Type::Package{name:"Buffer".into(),fields:vec![("bytes".into(),array.clone())]};
+        function.environment=None;
+        function.parameters=vec![LocalId(0)];function.locals.truncate(1);
+        function.locals[0].ty=fixture::address(pair,true);
+        function.values=vec![function.locals[0].ty.clone(),fixture::address(array.clone(),true),Type::I64,fixture::address(Type::I64,true),Type::I64];
+        function.blocks.truncate(1);
+        function.blocks[0].instructions=vec![
+            fixture::instruction(Some(0),InstructionKind::Load(LocalId(0))),
+            fixture::instruction(Some(1),InstructionKind::AddressField{address:ValueId(0),index:0}),
+            fixture::instruction(Some(2),InstructionKind::Constant(Constant::I64(0))),
+            fixture::instruction(Some(3),InstructionKind::AddressIndex{address:ValueId(1),index:ValueId(2)}),
+            fixture::instruction(Some(4),InstructionKind::Constant(Constant::I64(1))),
+            fixture::instruction(None,InstructionKind::WriteAddress{address:ValueId(3),value:ValueId(4)}),
+        ];
+        function.blocks[0].terminator=Terminator::Return(None);
+        let limits=Limits::default();
+        let raw=deferred_addresses(&module,&function,&mut Budget::new(&limits)).unwrap();
+        assert!(raw[0]);assert!(!raw[1]&&!raw[3],"raw heads are not source assignment receipts");
+        assert!(assignment_reservations(&function,&[],&mut Budget::new(&limits)).unwrap().iter().all(|reserved|!*reserved));
+        // Here the private kernel receives the source match already proved by
+        // the separate original assignment consumer, never a raw claim.
+        let marked=assignment_reservations(&function,&[ValueId(3)],&mut Budget::new(&limits)).unwrap();
+        assert!(marked[0]&&marked[1]&&marked[3]);
+        for escape in 0..5 {
+            let mut forged=function.clone();
+            match escape {
+                0=>forged.blocks[0].instructions.push(fixture::instruction(None,InstructionKind::Store{local:LocalId(0),value:ValueId(3)})),
+                1=>forged.blocks[0].instructions.push(fixture::instruction(None,InstructionKind::Call{function:FunctionId(1),arguments:vec![ValueId(3)]})),
+                2=>forged.blocks[0].terminator=Terminator::Return(Some(ValueId(3))),
+                3=>forged.blocks[0].instructions.push(fixture::instruction(None,InstructionKind::WriteAddress{address:ValueId(3),value:ValueId(4)})),
+                _=>{
+                    let mut block=forged.blocks[0].clone();block.id=BlockId(1);
+                    block.instructions=vec![fixture::instruction(None,InstructionKind::Store{local:LocalId(0),value:ValueId(3)})];
+                    forged.blocks.push(block);
+                },
+            }
+            let marked=assignment_reservations(&forged,&[ValueId(3)],&mut Budget::new(&limits)).unwrap();
+            assert!(!marked[0]&&!marked[1]&&!marked[3],"escape {escape}");
+        }
+        let source=Source{static_dependency:StaticProvenance::NotStatic,retained_port:None,base:HoldRoot::Parameter(0),leaf:vec![],inline:vec![PlaceProjection::Field(0)],heap_parents:vec![],heap_element:None};
+        let parent=Loan{receiver_head:false,sources:vec![source.clone()],parents:vec![],exclusive:true};
+        let child=Loan{receiver_head:false,sources:vec![source.clone()],parents:vec![0],exclusive:true};
+        let permission=Permission{sources:vec![source],loans:vec![0]};
+        assert!(access(&permission,true,&[0,1],&[parent.clone(),child],&mut vec![],&mut Budget::new(&limits)).unwrap_err().message.contains("loan"));
+        access(&permission,true,&[0],&[parent],&mut vec![],&mut Budget::new(&limits)).unwrap();
+    }
+
+    #[test]
+    fn projected_head_reads_do_not_delegate_a_live_child_to_parent_accesses() {
+        // Two disjoint fields may coexist. Selecting the same field, reading
+        // or writing the whole parent, reborrowing it, passing it, or copying its mutable
+        // capability to another local must still conflict with the live child.
+        for case in 0..7 {
+            let mut module = fixture::module();
+            let pair = Type::Record {
+                name: "Pair".into(),
+                fields: vec![("left".into(), Type::I64), ("right".into(), Type::I64)],
+            };
+            let whole = fixture::address(pair.clone(), true);
+            let field = fixture::address(Type::I64, true);
+            let mut function = module.functions[0].clone();
+            function.id = FunctionId(0);
+            function.environment = None;
+            function.parameters = vec![LocalId(0)];
+            function.locals.truncate(1);
+            function.locals[0].ty = whole.clone();
+            function.locals[0].mutable = false;
+            let mut alias = function.locals[0].clone();
+            alias.id = LocalId(1);
+            alias.mutable = true;
+            function.locals.push(alias);
+            function.return_type = Type::I64;
+            function.values = vec![whole.clone(), field.clone(), whole.clone(), field, Type::I64];
+            let mut instructions = vec![
+                fixture::instruction(Some(0), InstructionKind::Load(LocalId(0))),
+                fixture::instruction(Some(1), InstructionKind::AddressField { address: ValueId(0), index: 0 }),
+            ];
+            match case {
+                0 | 1 => instructions.extend([
+                    fixture::instruction(Some(2), InstructionKind::Load(LocalId(0))),
+                    fixture::instruction(Some(3), InstructionKind::AddressField { address: ValueId(2), index: if case == 0 { 1 } else { 0 } }),
+                ]),
+                2 => {
+                    function.values[2] = pair;
+                    instructions.push(fixture::instruction(Some(2), InstructionKind::ReadAddress { address: ValueId(0) }));
+                }
+                3 => instructions.push(fixture::instruction(Some(2), InstructionKind::ReborrowAddress { address: ValueId(0), mutable: true })),
+                4 => {
+                    let mut callee = function.clone();
+                    callee.id = FunctionId(1);
+                    callee.locals.truncate(1);
+                    callee.return_type = Type::Unit;
+                    callee.values.clear();
+                    callee.blocks.truncate(1);
+                    callee.blocks[0].instructions.clear();
+                    callee.blocks[0].terminator = Terminator::Return(None);
+                    module.functions[1] = callee;
+                    instructions.push(fixture::instruction(None, InstructionKind::Call { function: FunctionId(1), arguments: vec![ValueId(0)] }));
+                }
+                5 => instructions.extend([
+                    fixture::instruction(Some(2), InstructionKind::Load(LocalId(0))),
+                    fixture::instruction(None, InstructionKind::Store { local: LocalId(1), value: ValueId(2) }),
+                ]),
+                _ => {
+                    function.values[2] = pair;
+                    instructions.insert(1, fixture::instruction(Some(2), InstructionKind::ReadAddress { address: ValueId(0) }));
+                    instructions.push(fixture::instruction(None, InstructionKind::WriteAddress { address: ValueId(0), value: ValueId(2) }));
+                }
+            }
+            instructions.push(fixture::instruction(Some(4), InstructionKind::ReadAddress { address: ValueId(1) }));
+            if case <= 1 {
+                instructions.push(fixture::instruction(None, InstructionKind::WriteAddress { address: ValueId(3), value: ValueId(4) }));
+            }
+            function.blocks.truncate(1);
+            function.blocks[0].instructions = instructions;
+            function.blocks[0].terminator = Terminator::Return(Some(ValueId(4)));
+            let graph = FunctionGraph {
+                successors: vec![vec![]], predecessors: vec![vec![]], reachable: vec![true],
+                package_views: packages::CaptureViews::default(), role_data_uses: vec![],
+            };
+            let limits = Limits::default();
+            let mut budget = Budget::new(&limits);
+            let heads = projection_head_loads(&function, &mut budget).unwrap();
+            assert_eq!(heads[0], case <= 1 || case == 5);
+            if case <= 1 { assert!(heads[2]); }
+            if case == 5 { assert!(!heads[2]); }
+            let summaries = vec![Summary::default(); module.functions.len()];
+            let mut solution = solve(&module, &function, &graph, &summaries, &mut budget).unwrap();
+            let result = windows(&module, &function, &graph, &mut solution, &summaries,
+                &mut vec![], &mut vec![], &mut vec![], &mut vec![], &mut budget);
+            if case == 0 { result.unwrap(); }
+            else { assert!(result.unwrap_err().message.contains("loan"), "case {case}"); }
+        }
+    }
+
+    #[test]
+    fn projected_head_load_requires_all_uses_including_unreachable_and_return() {
+        let module = fixture::module();
+        let mut function = module.functions[0].clone();
+        function.parameters = vec![LocalId(0)];
+        function.locals.truncate(1);
+        let pair = Type::Record { name: "Pair".into(), fields: vec![("id".into(), Type::I64)] };
+        function.locals[0].ty = fixture::address(pair, true);
+        function.values = vec![function.locals[0].ty.clone(), fixture::address(Type::I64, true)];
+        function.blocks.truncate(1);
+        function.blocks[0].instructions = vec![
+            fixture::instruction(Some(0), InstructionKind::Load(LocalId(0))),
+            fixture::instruction(Some(1), InstructionKind::AddressField { address: ValueId(0), index: 0 }),
+        ];
+        function.blocks[0].terminator = Terminator::Return(None);
+        let limits = Limits::default();
+        assert!(projection_head_loads(&function, &mut Budget::new(&limits)).unwrap()[0]);
+        let mut escaped = function.clone();
+        escaped.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
+        assert!(!projection_head_loads(&escaped, &mut Budget::new(&limits)).unwrap()[0]);
+        let mut unreachable = function.blocks[0].clone();
+        unreachable.id = BlockId(1);
+        unreachable.instructions = vec![fixture::instruction(None, InstructionKind::Store { local: LocalId(0), value: ValueId(0) })];
+        function.blocks.push(unreachable);
+        assert!(!projection_head_loads(&function, &mut Budget::new(&limits)).unwrap()[0]);
+    }
+
+    #[test]
+    fn affine_pointee_and_option_actual_keep_their_distinct_domains() {
+        let module = fixture::module();
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let owner = Type::Package {
+            name: "Item".into(),
+            fields: vec![("id".into(), Type::I64)],
+        };
+        let address = fixture::address(owner.clone(), false);
+        assert!(!owner.is_copy_value());
+        assert!(ordinary_owner_address(&module, &address, &mut budget).unwrap());
+        let mut hidden = owner;
+        let Type::Package { fields, .. } = &mut hidden else { unreachable!() };
+        fields.push(("borrow".into(), fixture::address(Type::I64, false)));
+        assert!(!ordinary_owner_address(&module, &fixture::address(hidden, false), &mut budget).unwrap());
+        let mut instance = LifeNominalInstance {
+            declaration: zil_ir::builtin_life::OPTION,
+            ty: Type::BorrowedStorage {
+                storage: Box::new(Type::Enum {
+                    name: "OptionItem".into(),
+                    variants: vec![("None".into(), vec![]), ("Some".into(), vec![address.clone()])],
+                }),
+                life: StorageLifeShape {
+                    binder_count: 1,
+                    slots: vec![zil_ir::StorageLifeSlot {
+                        path: vec![PlaceProjection::Variant(zil_ir::VariantProjection { variant: 1, index: 0 })],
+                        binder: 0,
+                        mode: StoredBorrowMode::SharedAddress,
+                    }],
+                    retained: vec![zil_ir::StorageRetainedBinding {
+                        path: vec![LifeTypeProjection::TypeArgument(0)], class: 0, binder: 0,
+                    }],
+                    nominal_arguments: vec![],
+                },
+            },
+            arguments: vec![LifeNominalActual::QualifiedType {
+                ty: address,
+                life: StorageLifeShape {
+                    binder_count: 1,
+                    slots: vec![zil_ir::StorageLifeSlot {
+                        path: vec![], binder: 0, mode: StoredBorrowMode::SharedAddress,
+                    }],
+                    retained: vec![], nominal_arguments: vec![],
+                },
+            }],
+        };
+        option_address::instance(&module, &instance, &limits, &mut budget).unwrap();
+        for wrong in 0..5 {
+            let mut forged = instance.clone();
+            let LifeNominalActual::QualifiedType { ty, life } = &mut forged.arguments[0] else { unreachable!() };
+            match wrong {
+                0 => { life.binder_count = 0; life.slots.clear(); }
+                1 => life.slots[0].binder = 1,
+                2 => life.slots[0].mode = StoredBorrowMode::ExclusiveAddress,
+                3 => life.slots[0].path.push(PlaceProjection::Field(0)),
+                _ => *ty = fixture::address(Type::I64, false),
+            }
+            assert!(option_address::instance(&module, &forged, &limits, &mut budget).is_err());
+        }
+        let Type::BorrowedStorage { life, .. } = &mut instance.ty else { unreachable!() };
+        life.retained[0].path = vec![LifeTypeProjection::TypeArgument(1)];
+        assert!(option_address::instance(&module, &instance, &limits, &mut budget).is_err());
+    }
+
+    #[test]
+    fn owning_package_cleanup_conflicts_with_its_live_field_borrow() {
+        let module = fixture::module();
+        for premature in [false, true] {
+            let mut function = module.functions[0].clone();
+            function.environment = None;
+            function.parameters.clear();
+            function.locals.truncate(1);
+            function.locals[0].ty = Type::Package {
+                name: "Item".into(), fields: vec![("id".into(), Type::I64)],
+            };
+            function.return_type = Type::I64;
+            function.values = vec![
+                fixture::address(function.locals[0].ty.clone(), false),
+                fixture::address(Type::I64, false), Type::I64,
+            ];
+            let mut instructions = vec![
+                fixture::instruction(Some(0), InstructionKind::BorrowLocal { local: LocalId(0) }),
+                fixture::instruction(Some(1), InstructionKind::AddressField { address: ValueId(0), index: 0 }),
+                fixture::instruction(Some(2), InstructionKind::ReadAddress { address: ValueId(1) }),
+            ];
+            instructions.insert(if premature { 2 } else { 3 },
+                fixture::instruction(None, InstructionKind::DropPackage { local: LocalId(0) }));
+            function.blocks.truncate(1);
+            function.blocks[0].instructions = instructions;
+            function.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
+            let graph = FunctionGraph {
+                successors: vec![vec![]], predecessors: vec![vec![]], reachable: vec![true],
+                package_views: packages::CaptureViews::default(), role_data_uses: vec![],
+            };
+            let limits = Limits::default();
+            let mut budget = Budget::new(&limits);
+            let mut solution = solve(&module, &function, &graph, &[], &mut budget).unwrap();
+            let result = windows(&module, &function, &graph, &mut solution, &[],
+                &mut vec![], &mut vec![], &mut vec![], &mut vec![], &mut budget);
+            if premature {
+                assert!(result.unwrap_err().message.contains("loan"));
+            } else {
+                result.unwrap();
+            }
+        }
+    }
     #[test]
     fn optional_byte_addresses_reject_relocation_in_actual_transfer() {
         let module = fixture::module();
@@ -7711,6 +8341,7 @@ mod tests {
                     &sites,
                     &mut dyn_leases::Sites::default(),
                     &mut Vec::new(),
+                    false,
                     &mut budget,
                 );
                 if byte {
@@ -7751,6 +8382,7 @@ mod tests {
             &sites,
             &mut dyn_leases::Sites::default(),
             &mut Vec::new(),
+            false,
             &mut Budget::new(&limits),
         )
         .unwrap_err();
@@ -8022,7 +8654,7 @@ mod tests {
                 let expected = match variant {
                     0 => "entry and definition relation differ",
                     1 | 7 | 8 => "signature class relation",
-                    2 => "actual capture mapping",
+                    2 => "callable role changes an actual persistent class or constant occurrence",
                     3 => "requires complete class relation",
                     4 | 5 => "class equality",
                     _ => unreachable!(),
@@ -8031,6 +8663,10 @@ mod tests {
                     error.iter().any(|d| d.message.contains(expected)),
                     "variant{variant}: {error:?}"
                 );
+                if variant == 2 {
+                    assert!(error.iter().any(|d| d.category == zil_base::ResultCategory::SafeReject
+                        && d.code == "E-VERIFY-SIGNATURE-CLASS"), "variant{variant}: {error:?}");
+                }
                 if matches!(variant, 4 | 5) {
                     assert!(
                         error.iter().any(|d| d.message.contains("class equality")),
@@ -8383,6 +9019,45 @@ mod tests {
         }
     }
     #[test]
+    fn owning_fixed_complete_unused_definitions_and_owner_heads_keep_real_ledger_checks() {
+        for unused_head in [false, true] {
+            let mut m = fixture::captured_owned_fixed(false);
+            if unused_head {
+                let f = &mut m.functions[0];
+                let id = f.values.len() as u32;
+                f.values.push(Type::Address {
+                    mutable: false,
+                    inner: Box::new(f.values[7].clone()),
+                });
+                // The actual owner has been taken and stored by these two
+                // instructions. This unused head has no pointee access and no
+                // escape; the later owner cleanup is independently checked.
+                f.blocks[0].instructions.insert(2, fixture::instruction(
+                    Some(id), InstructionKind::BorrowLocal { local: LocalId(1) },
+                ));
+            } else {
+                // A complete class-free resource definition need not be used
+                // by this closure. It supplies no cleanup or capture authority.
+                m.resources.push(ResourceDefinition {
+                    name: "Other".into(),
+                    payload: Type::Record {
+                        name: "Other".into(),
+                        fields: vec![("n".into(), Type::I32)],
+                    },
+                    teardown: None,
+                });
+            }
+            let c = captured_candidate(&m);
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+            for result in [
+                super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
+                super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+            ] {
+                result.unwrap();
+            }
+        }
+    }
+    #[test]
     fn owning_fixed_actual_owner_epochs_and_metadata_never_come_from_classes() {
         for case in 0..14 {
             let mut m = fixture::captured_owned_fixed(false);
@@ -8467,14 +9142,9 @@ mod tests {
                         .result = Some(ValueId(id));
                 }
                 8 => {
-                    m.resources.push(ResourceDefinition {
-                        name: "Other".into(),
-                        payload: Type::Record {
-                            name: "Other".into(),
-                            fields: vec![("n".into(), Type::I32)],
-                        },
-                        teardown: None,
-                    });
+                    // Extra complete declarations are legal (near control
+                    // above); duplicating a sealed identity is not.
+                    m.resources.push(m.resources[0].clone());
                 }
                 9 => {
                     let f = &mut m.functions[0];
@@ -8483,13 +9153,13 @@ mod tests {
                         mutable: false,
                         inner: Box::new(f.values[7].clone()),
                     });
-                    // A real well-typed but unused owner-head address must not
-                    // bypass the finite profile through Copy-value fallback.
+                    // Keep the same claimed owner-head type while selecting
+                    // the scalar parameter local instead of the owner local.
                     f.blocks[0].instructions.insert(
                         2,
                         fixture::instruction(
                             Some(id),
-                            InstructionKind::BorrowLocal { local: LocalId(1) },
+                            InstructionKind::BorrowLocal { local: LocalId(0) },
                         ),
                     );
                 }
@@ -8515,8 +9185,8 @@ mod tests {
                 super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
                 super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
             ] {
-                let error = result.unwrap_err();
-                if case <= 2 {
+                let error = result.expect_err(&format!("hostile owner case {case} must fail"));
+                if case <= 2 || case == 8 {
                     assert!(
                         error.iter().any(|d| d.code == "E-VERIFY-RESOURCE"),
                         "case{case}: {error:?}"
@@ -8531,6 +9201,11 @@ mod tests {
                         error.iter().any(|d| d.code == "E-VERIFY-STORED-OWNER"),
                         "case{case}: {error:?}"
                     );
+                } else if case == 9 {
+                    assert!(error.iter().any(|d| d.category == zil_base::ResultCategory::SafeReject
+                        && d.code == "E-VERIFY-TYPE"
+                        && d.message == "borrow result differs from its exact actual local type or mode"),
+                        "case{case}: {error:?}");
                 } else if case == 10 {
                     assert!(
                         error.iter().any(|d| d.code == "E-VERIFY-STORED-OWNER"

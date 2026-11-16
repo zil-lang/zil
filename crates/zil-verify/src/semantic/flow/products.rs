@@ -6,6 +6,49 @@ impl CheckedContext{
     pub(super) fn product_instruction(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,instruction:&Instruction,sites:&[&SemanticSite],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
         crate::check_instruction(module,f,instruction,b)?;
         match &instruction.kind{
+            InstructionKind::LoadStoredBorrow{storage,path,mode}=>{
+                let parent=value_at(values,*storage)?;
+                let selected=path.iter().copied().map(LifeTypeProjection::Place).collect::<Vec<_>>();
+                let holder=self.child_value(module,parent,&[LifeTypeProjection::Pointee],b)?;
+                let outer=holder.life.slots.iter().find(|row|row.path==*path).map(|row|row.mode);
+                let mut child=self.child_value_mode(module,&holder,&selected,outer,b)?;
+                // Loading a saved pointer selects its Life image. The outer
+                // head is not the holder nominal's κ. Every inner intrinsic
+                // occurrence keeps the exact child projection above.
+                for slot in child.life.slots.iter().filter(|slot|slot.path.is_empty()){
+                    let key=child.classes.get(slot.binder as usize).ok_or_else(||bad("stored child outer class is absent"))?.clone();
+                    *child.origins.get_mut(slot.binder as usize).ok_or_else(||bad("stored child outer origin is absent"))?=IntrinsicOrigin::DerivedClass{source:key};
+                }
+                match mode{
+                    StoredBorrowLoad::CopyShared|StoredBorrowLoad::CopyDescription|StoredBorrowLoad::Take=>Ok(Some(child)),
+                    StoredBorrowLoad::Reborrow{mutable}=>{
+                        let inner=self.child_value(module,&child,&[LifeTypeProjection::Pointee],b)?;
+                        let Type::Address{mutable:parent_mutable,..}=&parent.ty else{return Err(bad("stored reborrow has no actual parent Address"));};
+                        let parent_mode=if *parent_mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
+                        let mut heads=parent.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==parent_mode);
+                        let outer=if let Some(head)=heads.next(){if heads.next().is_some(){return Err(bad("stored reborrow has ambiguous actual carrier heads"));}Some(parent.classes.get(head.binder as usize).cloned().ok_or_else(||bad("stored reborrow parent head class is absent"))?)}else{
+                            let mut statics=parent.statics.iter().filter(|row|matches!(row,StaticOccurrence::Direct{path,leaf,mode:StoredBorrowMode::SharedAddress}if path.is_empty()&&leaf==&parent.ty));
+                            if *mutable||statics.next().is_none()||statics.next().is_some(){return Err(bad("stored reborrow lacks one bounded or shared Static actual carrier head"));}None
+                        };
+                        let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
+                        dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer},&[inner],active,b).map(Some)
+                    },
+                }
+            },
+            InstructionKind::StoreStoredBorrow{storage,path,value}=>{
+                let parent=value_at(values,*storage)?;let holder=self.child_value(module,parent,&[LifeTypeProjection::Pointee],b)?;
+                let outer=holder.life.slots.iter().find(|row|row.path==*path).map(|row|row.mode);
+                let selected=path.iter().copied().map(LifeTypeProjection::Place).collect::<Vec<_>>();
+                let mut child=self.child_value_mode(module,&holder,&selected,outer,b)?;
+                for slot in child.life.slots.iter().filter(|slot|slot.path.is_empty()){
+                    let key=child.classes.get(slot.binder as usize).ok_or_else(||bad("stored replacement outer class is absent"))?.clone();
+                    *child.origins.get_mut(slot.binder as usize).ok_or_else(||bad("stored replacement outer origin is absent"))?=IntrinsicOrigin::DerivedClass{source:key};
+                }
+                if !self.compatible(environment,value_at(values,*value)?,&child,b)?{return Err(bad("stored replacement changes its complete declared child domain or head bound"));}
+                // The storage's declared type stays fixed. Target sets, slot
+                // vacancy/epochs and parent loans update in the actual ledger.
+                Ok(None)
+            },
             InstructionKind::MakeVariant{variant,fields}=>{
                 let calls=sites.iter().copied().filter(|site|matches!(site.action,SemanticSiteAction::BodyCall{..})).collect::<Vec<_>>();
                 let sites=if calls.is_empty(){sites.iter().copied().filter(|site|matches!(site.action,SemanticSiteAction::Construct{..})).collect::<Vec<_>>()}else{calls};
@@ -39,14 +82,25 @@ impl CheckedContext{
                 let parent=value_at(values,*aggregate)?;if !value_at(values,*index)?.ty.is_integer(){return Err(bad("actual array index lacks its full integer carrier"));}
                 self.child_value(module,parent,&[LifeTypeProjection::Element],b).map(Some)
             },
+            InstructionKind::UpdateIndex{aggregate,index,value}=>{
+                let parent=value_at(values,*aggregate)?;if !value_at(values,*index)?.ty.is_integer(){return Err(bad("actual array update index lacks its complete integer carrier"));}
+                let child=self.child_value(module,parent,&[LifeTypeProjection::Element],b)?;
+                if !self.compatible(environment,value_at(values,*value)?,&child,b)?{return Err(bad("actual array update changes an independent element type/class/source occurrence"));}
+                // Updating a runtime element preserves the whole array's
+                // intrinsic partition and all zero-length/phantom metadata.
+                Ok(Some(parent.clone()))
+            },
             InstructionKind::AddressIndex{address,index}=>{
                 let parent=value_at(values,*address)?;if !value_at(values,*index)?.ty.is_integer(){return Err(bad("actual address index lacks an integer carrier"));}
                 let Type::Address{mutable,inner}=&parent.ty else{return Err(bad("actual indexed address has no complete parent head"));};let storage=match inner.as_ref(){Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};
                 if !matches!(storage,Type::Array{..}|Type::Slice{..}){return Err(bad("actual indexed address has another full child type"));}
                 let child=self.child_value(module,parent,&[LifeTypeProjection::Pointee,LifeTypeProjection::Element],b)?;
-                let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};let mut slots=parent.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==mode);let row=slots.next().ok_or_else(||bad("actual index address has no variable parent head occurrence"))?;if slots.next().is_some(){return Err(bad("actual index parent head is ambiguous"));}
-                let key=parent.classes.get(row.binder as usize).cloned().ok_or_else(||bad("actual index parent class is absent"))?;
-                dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(key)},&[child],active,b).map(Some)
+                let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};let mut slots=parent.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==mode);
+                let outer=if let Some(row)=slots.next(){if slots.next().is_some(){return Err(bad("actual index parent head is ambiguous"));}Some(parent.classes.get(row.binder as usize).cloned().ok_or_else(||bad("actual index parent class is absent"))?)}else{
+                    let mut statics=parent.statics.iter().filter(|row|matches!(row,StaticOccurrence::Direct{path,leaf,mode:StoredBorrowMode::SharedAddress}if path.is_empty()&&leaf==&parent.ty));
+                    if *mutable||statics.next().is_none()||statics.next().is_some(){return Err(bad("actual index has neither a bounded head nor one exact shared static source"));}None
+                };
+                dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer},&[child],active,b).map(Some)
             },
             InstructionKind::AddressSlice{address,start,end}=>{
                 let parent=value_at(values,*address)?;
@@ -55,7 +109,7 @@ impl CheckedContext{
                 let storage=match inner.as_ref(){Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};
                 if !matches!(storage,Type::Array{..}|Type::Slice{..}){return Err(bad("actual slice changes its original array/slice carrier"));}
                 let child=self.child_value(module,parent,&[LifeTypeProjection::Pointee,LifeTypeProjection::Element],b)?;
-                let mut slice=CheckedType{ty:Type::Slice{element:Box::new(child.ty.clone())},life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
+                let mut slice=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Slice{element:Box::new(child.raw_type_copy(b)?)}),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
                 self.attach_child(environment,&mut slice,&child,vec![LifeTypeProjection::Element],None,b)?;slice.life.binder_count=slice.classes.len() as u32;
                 let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
                 let mut heads=parent.life.slots.iter().filter(|row|row.path.is_empty()&&row.mode==mode);

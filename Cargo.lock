@@ -226,4 +226,5 @@ version = "0.1.0"
 dependencies = [
  "zil-base",
  "zil-ir",
+ "zil-syntax",
 ]

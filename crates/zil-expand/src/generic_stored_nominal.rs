@@ -311,6 +311,7 @@ impl<'a> Engine<'a> {
             }
         }
     }
+    #[track_caller]
     pub(super) fn stored_lookup_fee(&mut self, entries: usize, bytes: usize, span: Span) -> R<()> {
         self.budget.identity_work(
             entries
@@ -323,8 +324,7 @@ impl<'a> Engine<'a> {
     }
 
     pub(super) fn stored_declaration(&mut self, name: &str, span: Span) -> R<bool> {
-        self.stored_lookup_fee(self.templates.len(), name.len(), span)?;
-        let Some(item) = self.templates.get(name) else {
+        let Some(item) = self.template_directory.get(name, &mut self.budget, span)? else {
             return Ok(false);
         };
         if let ItemKind::Aggregate(_) | ItemKind::Enum(_) = &item.kind {
@@ -342,10 +342,7 @@ impl<'a> Engine<'a> {
         name: &str,
         span: Span,
     ) -> R<Option<(&'a Item, bool)>> {
-        if self.stored_nominals {
-            self.stored_lookup_fee(self.templates.len(), name.len(), span)?;
-        }
-        let Some(item) = self.templates.get(name).copied() else {
+        let Some(item) = self.template_directory.get(name, &mut self.budget, span)? else {
             return Ok(None);
         };
         let ItemKind::Aggregate(aggregate) = &item.kind else {
@@ -800,6 +797,37 @@ impl<'a> Engine<'a> {
                     life,
                     fixed_input: false,
                 });
+                // A nested address is the complete semantic pointee domain,
+                // not a second borrow of the outer pointer slot. Its own outer
+                // occurrence and all child indices remain distinct even when
+                // their enclosing lexical lifetime images happen to coincide.
+                let mut pointee = inner.as_ref();
+                while let TypeKind::Group(group) = &pointee.kind {
+                    self.budget.node(pointee.span, depth + 1)?;
+                    pointee = group;
+                }
+                if matches!(pointee.kind, TypeKind::Reference { .. }) {
+                    let mut child = Vec::new();
+                    let mut child_stored = false;
+                    self.storage_header(inner, base, &mut Vec::new(), &mut Vec::new(),
+                        &mut child, &mut child_stored, next_elided, depth + 1)?;
+                    type_path.push(zil_ir::LifeTypeProjection::Pointee);
+                    for (class, occurrence) in child.into_iter().enumerate() {
+                        self.budget.identity_work(type_path.len().saturating_add(1), ty.span)?;
+                        self.budget.lineage_bytes(type_path.len().saturating_mul(std::mem::size_of::<zil_ir::LifeTypeProjection>()), ty.span)?;
+                        self.budget.lineage_push(occurrences, stored_types::Occurrence {
+                            position: stored_types::OccurrencePosition::Class(zil_ir::SignatureLifeClass {
+                                base, path: type_path.clone(), class: u32::try_from(class)
+                                    .map_err(|_| error(ty.span, "nested address class ordinal overflow"))?,
+                            }),
+                            life: occurrence.life,
+                            fixed_input: !matches!(base, zil_ir::StorageBase::Result),
+                        }, ty.span)?;
+                    }
+                    type_path.pop();
+                    *stored = true;
+                    return Ok(false);
+                }
                 // StoragePosition paths are relative to the receiver's actual
                 // pointee; crossing this outer Address is not a byte selector.
                 type_path.push(zil_ir::LifeTypeProjection::Pointee);
@@ -837,16 +865,15 @@ impl<'a> Engine<'a> {
                     TypeKind::Tuple(fields) => fields.as_slice(),
                     _ => std::slice::from_ref(context),
                 };
-                if sources.is_empty() {
-                    return Err(error(
-                        context.span,
-                        "Task retained context needs an actual port",
-                    ));
-                }
                 let mut classes = Vec::new();
+                let mut next_port = 0u32;
                 let fixed_input = !matches!(base, zil_ir::StorageBase::Result);
-                for (port, source) in sources.iter().enumerate() {
+                for source in sources {
                     self.budget.node(source.span, depth + 1)?;
+                    self.budget.ty(source)?;
+                    if crate::type_ref(source).is_b0_scalar() {
+                        continue;
+                    }
                     let TypeKind::Reference {
                         lifetime: Some(name),
                         ..
@@ -861,10 +888,13 @@ impl<'a> Engine<'a> {
                     if !classes.contains(&life) {
                         classes.push(life);
                     }
-                    path.push(zil_ir::ContractProjection::RetainedPort(
-                        u32::try_from(port)
-                            .map_err(|_| error(source.span, "Task port overflow"))?,
-                    ));
+                    // Physical port numbering is compact; the complete
+                    // Context input ordinals remain in Task's retained map.
+                    let port = next_port;
+                    next_port = next_port
+                        .checked_add(1)
+                        .ok_or_else(|| error(source.span, "Task port overflow"))?;
+                    path.push(zil_ir::ContractProjection::RetainedPort(port));
                     occurrences.push(stored_types::Occurrence {
                         position: stored_types::OccurrencePosition::Borrow(
                             zil_ir::StoragePosition {
@@ -1261,11 +1291,9 @@ impl<'a> Engine<'a> {
     ) -> R<(String, Vec<LexicalLife>)> {
         self.budget.node(span, depth)?;
         self.budget.text(template, span)?;
-        self.stored_lookup_fee(self.templates.len(), template.len(), span)?;
         let item = self
-            .templates
-            .get(template)
-            .copied()
+            .template_directory
+            .get(template, &mut self.budget, span)?
             .ok_or_else(|| error(span, "stored nominal declaration is absent"))?;
         let formals = match &item.kind {
             ItemKind::Aggregate(a) => a.generics.as_slice(),
@@ -1479,18 +1507,7 @@ impl<'a> Engine<'a> {
         // Reconstructing classes on every use is deliberate: the cached shape
         // does not bind a new caller's lexical lifetime numbers.
         let key = (template.to_owned(), keys);
-        let key_bytes = key.1.iter().try_fold(template.len(), |size, part| {
-            size.checked_add(part.len().saturating_add(1))
-                .ok_or_else(|| {
-                    Diagnostic::limit(
-                        Phase::Expand,
-                        "stored instance key size overflow",
-                        Some(span),
-                    )
-                })
-        })?;
-        self.stored_lookup_fee(self.instances.len(), key_bytes, span)?;
-        let existing = self.instances.get(&key);
+        let existing = self.instances.get(&key, &mut self.budget, span)?;
         if let Some(name) = existing {
             self.budget.text(name, span)?;
         }
@@ -1791,9 +1808,9 @@ impl<'a> Engine<'a> {
             }
             self.traits
                 .register_copy_shape(&instance, &mut self.budget)?;
-            self.stored_lookup_fee(self.instances.len(), key_bytes, span)?;
             self.budget.text(&generated, span)?;
-            self.instances.insert(key, generated.clone());
+            self.instances
+                .insert(key, generated.clone(), &mut self.budget, span)?;
             self.products
                 .storage
                 .instances

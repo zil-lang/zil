@@ -9,6 +9,7 @@ pub(super) struct LocalDomain {
     scope: ScopeKey,
     rows: Vec<(ClassKey, ClassKey, IntrinsicOrigin)>,
 }
+pub(super) fn empty_domain(proofs:&Proofs)->bool{proofs.original_domain.as_ref().is_none_or(|domain|domain.rows.is_empty())}
 impl LocalDomain {
     pub(super) fn new(scope: ScopeKey) -> Self {
         Self {
@@ -199,16 +200,18 @@ pub(super) fn scope<'a>(
         .semantic
         .as_ref()
         .ok_or_else(|| bad("original static query has no semantic scopes"))?;
-    b.spend(program.dyn_scopes.len())?;
     let owner = SemanticDynOwner::Declaration(id);
-    let mut rows = program.dyn_scopes.iter().filter(|r| r.owner == owner);
-    let row = rows
-        .next()
-        .ok_or_else(|| bad("original declaration has no lexical scope binding"))?;
-    if rows.next().is_some() {
-        return Err(bad("original declaration has duplicate lexical scopes"));
-    }
-    bridge::owner(module, &owner, row.scope, b)
+    let scope=if let Some(rows)=dynamic_metadata::lexical_scopes(module,&owner,b)?{
+        let [scope]=rows.as_slice()else{return Err(bad(if rows.is_empty(){"original declaration has no lexical scope binding"}else{"original declaration has duplicate lexical scopes"}));};*scope
+    }else{
+        b.spend(program.dyn_scopes.len())?;
+        let mut rows=program.dyn_scopes.iter().filter(|row|row.owner==owner);
+        let row=rows.next().ok_or_else(||bad("original declaration has no lexical scope binding"))?;
+        if rows.next().is_some(){return Err(bad("original declaration has duplicate lexical scopes"));}row.scope
+    };
+    // This location is only an untrusted structural claim. Every query still
+    // proves its complete original owner, kinds, mixed formals and scope.
+    bridge::owner(module, &owner, scope, b)
 }
 
 fn actual_equal(
@@ -433,7 +436,7 @@ impl Inference<'_> {
                 if !self.outer(lifetime, value, mode, b)? {
                     return Ok(false);
                 }
-                let child = child(self.module, value, ty, LifeTypeProjection::Pointee, b)?;
+                let child = child(self.module,self.context, value, ty, LifeTypeProjection::Pointee, b)?;
                 self.ty(inner, &child, b, depth + 1)
             }
             SemanticTypeRecipe::Desc { lifetime, inner } => {
@@ -443,7 +446,7 @@ impl Inference<'_> {
                 if !self.outer(lifetime, value, StoredBorrowMode::ReadOnlyDescription, b)? {
                     return Ok(false);
                 }
-                let child = child(self.module, value, ty, LifeTypeProjection::Pointee, b)?;
+                let child = child(self.module,self.context, value, ty, LifeTypeProjection::Pointee, b)?;
                 self.ty(inner, &child, b, depth + 1)
             }
             SemanticTypeRecipe::Managed(inner) => {
@@ -452,7 +455,7 @@ impl Inference<'_> {
                 };
                 self.ty(
                     inner,
-                    &child(self.module, value, ty, LifeTypeProjection::Pointee, b)?,
+                    &child(self.module,self.context, value, ty, LifeTypeProjection::Pointee, b)?,
                     b,
                     depth + 1,
                 )
@@ -467,8 +470,7 @@ impl Inference<'_> {
                 for (index, (p, v)) in patterns.iter().zip(fields).enumerate() {
                     if !self.ty(
                         p,
-                        &child(
-                            self.module,
+                        &child(self.module,self.context,
                             value,
                             v,
                             LifeTypeProjection::Place(PlaceProjection::Field(index as u32)),
@@ -491,9 +493,9 @@ impl Inference<'_> {
                 else {
                     return Ok(false);
                 };
-                let carrier = closed(self.module, &Type::Usize, b)?;
+                let carrier = closed(self.module,self.context, &Type::Usize, b)?;
                 Ok(
-                    self.ty(element, &closed(self.module, ty, b)?, b, depth + 1)?
+                    self.ty(element, &closed(self.module,self.context, ty, b)?, b, depth + 1)?
                         && self.constant(length, &carrier, &Constant::Usize(u64::from(*n)), b)?,
                 )
             }
@@ -503,7 +505,7 @@ impl Inference<'_> {
                     | (Type::OwnedStore { element }, SemanticTypeRecipe::OwnedStore(_)) => element,
                     _ => return Ok(false),
                 };
-                self.ty(p, &closed(self.module, ty, b)?, b, depth + 1)
+                self.ty(p, &closed(self.module,self.context, ty, b)?, b, depth + 1)
             }
             // Deferred equations/qualified shapes do not determine a provider.
             // They must independently agree with the complete reconstructed key.
@@ -535,10 +537,9 @@ impl Inference<'_> {
     }
 }
 
-fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<CheckedType> {
+fn closed(module: &TypedModule, context:&semantic::CheckedContext, ty: &Type, b: &mut Budget) -> Check<CheckedType> {
     values::closed(module, ty, b)?;
-    Ok(CheckedType {
-        ty: ty.clone(),
+    Ok(CheckedType {type_cell: context.shared_type_cell(ty,b)?,
         life: StorageLifeShape {
             binder_count: 0,
             slots: vec![],
@@ -555,11 +556,13 @@ fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<CheckedType>
 /// images coincide. Full child occurrences select each class exactly once.
 fn child(
     module: &TypedModule,
+    context:&semantic::CheckedContext,
     parent: &CheckedType,
     ty: &Type,
     path: LifeTypeProjection,
     b: &mut Budget,
 ) -> Check<CheckedType> {
+    dynamic_metadata::adopt_type_cell(&parent.type_cell,b)?;
     let count = values::intrinsic(module, ty, b)?.count;
     b.spend(count as usize)?;
     let mut indices = vec![];
@@ -622,6 +625,7 @@ fn child(
     // Stored child metadata is authoritative for its own intrinsic selectors;
     // their outside images still come solely from the parent's whole child map.
     if let Type::BorrowedStorage { life: original, .. } = ty {
+        dynamic_metadata::life_shape(original,b)?;
         life = original.clone();
         if life.binder_count != count {
             return Err(bad("provider child intrinsic domain differs"));
@@ -654,6 +658,7 @@ fn child(
         } = row
         {
             if prefix.first() == Some(&path) {
+                b.spend(prefix.len().saturating_add(1))?;dynamic_metadata::ty(leaf,b)?;
                 statics.push(StaticOccurrence::Direct {
                     path: prefix[1..].to_vec(),
                     leaf: leaf.clone(),
@@ -662,8 +667,7 @@ fn child(
             }
         }
     }
-    Ok(CheckedType {
-        ty: ty.clone(),
+    Ok(CheckedType {type_cell: context.shared_type_cell(ty,b)?,
         life,
         classes,
         origins,
@@ -680,10 +684,9 @@ fn nominal_arguments(
     value: &CheckedType,
     b: &mut Budget,
 ) -> Check<Option<Vec<CheckedActual>>> {
-    b.spend(module.life_instances.len())?;
     let mut selected = None;
-    for instance in &module.life_instances {
-        if instance.declaration != declaration || instance.ty != value.ty {
+    for instance in dynamic_metadata::nominal_instances(module,declaration,b)? {
+        if instance.ty != value.ty {
             continue;
         }
         let mut actuals = vec![];
@@ -691,8 +694,7 @@ fn nominal_arguments(
             b.spend(1)?;
             actuals.push(match actual {
                 LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. } => {
-                    CheckedActual::Type(child(
-                        module,
+                    CheckedActual::Type(child(module,context,
                         value,
                         ty,
                         LifeTypeProjection::TypeArgument(ordinal as u32),
@@ -700,7 +702,7 @@ fn nominal_arguments(
                     )?)
                 }
                 LifeNominalActual::Const(v) => CheckedActual::Const {
-                    carrier: closed(module, &v.ty(), b)?,
+                    carrier: closed(module,context, &v.ty(), b)?,
                     value: v.clone(),
                 },
                 LifeNominalActual::Lifetime(class) => {
@@ -731,16 +733,8 @@ fn nominal_arguments(
         retain_actuals(context, env, &mut selected, actuals, b)?;
     }
     if value.life.binder_count == 0 {
-        let program = module
-            .semantic
-            .as_ref()
-            .ok_or_else(|| bad("provider nominal semantic inventory is absent"))?;
-        b.spend(program.instances.len())?;
-        for instance in &program.instances {
-            if instance.definition != definition || instance.target != SemanticInstanceTarget::Scope
-            {
-                continue;
-            }
+        if module.semantic.is_none(){return Err(bad("provider nominal semantic inventory is absent"));}
+        for instance in dynamic_metadata::nominal_scope_instances(module,definition,b)? {
             let Some(claim) = &instance.self_type else {
                 continue;
             };
@@ -758,7 +752,7 @@ fn nominal_arguments(
                                 "zero nominal actual retains an unanchored intrinsic domain",
                             ));
                         }
-                        CheckedActual::Type(closed(module, ty, b)?)
+                        CheckedActual::Type(closed(module,context, ty, b)?)
                     }
                     SemanticActual::Const { ty, value } => {
                         let (carrier, life, classes) = semantic::resolved(ty)?;
@@ -766,7 +760,7 @@ fn nominal_arguments(
                             return Err(bad("provider nominal constant carrier differs"));
                         }
                         CheckedActual::Const {
-                            carrier: closed(module, carrier, b)?,
+                            carrier: closed(module,context, carrier, b)?,
                             value: value.clone(),
                         }
                     }
@@ -1009,11 +1003,8 @@ fn scoped_type_recipe(
         }
         DynTypePattern::Nominal(p) => {
             let id = nominal_definition(module, p.declaration, b)?;
-            b.spend(module.life_declarations.len())?;
-            let mut rows = module
-                .life_declarations
-                .iter()
-                .filter(|r| r.id == p.declaration);
+            let declarations=dynamic_metadata::nominal_declarations(module,p.declaration,b)?;
+            let mut rows=declarations.into_iter();
             let d = rows
                 .next()
                 .ok_or_else(|| bad("nominal recipe has no original formal directory"))?;
@@ -1641,6 +1632,8 @@ pub(super) fn query(
     context: &semantic::CheckedContext,
     caller: &EvalEnv,
     request: &ExternalRequest,
+    completed: &mut Vec<(ExternalRequest,ExternalValue)>,
+    collect: bool,
     active: &mut semantic::ActiveQueries,
     b: &mut Budget,
 ) -> Check<ExternalValue> {
@@ -1708,7 +1701,16 @@ pub(super) fn query(
                 member,
             },
         };
-        let value = query_inner(proofs, module, context, caller, &request, active, b)?;
+        let mut members=Vec::new();
+        let value = query_inner(proofs, module, context, caller, &request, &mut members, collect, active, b)?;
+        for(request,value)in members {
+            let value=match value {
+                ExternalValue::Type(value)=>ExternalValue::Type(map_type(proofs,context,caller,&value,wants_local,b)?),
+                ExternalValue::Const{carrier,value}=>ExternalValue::Const{carrier:map_type(proofs,context,caller,&carrier,wants_local,b)?,value},
+                ExternalValue::Proved=>ExternalValue::Proved,
+            };
+            b.spend(1)?;completed.push((request,value));
+        }
         Ok(match value {
             ExternalValue::Type(value) => {
                 ExternalValue::Type(map_type(proofs, context, caller, &value, wants_local, b)?)
@@ -1732,6 +1734,8 @@ fn query_inner(
     context: &semantic::CheckedContext,
     caller: &EvalEnv,
     request: &ExternalRequest,
+    completed: &mut Vec<(ExternalRequest,ExternalValue)>,
+    collect: bool,
     active: &mut semantic::ActiveQueries,
     b: &mut Budget,
 ) -> Check<ExternalValue> {
@@ -1787,7 +1791,7 @@ fn query_inner(
         for (ordinal, member) in trait_decl.members.iter().enumerate() {
             match member.kind {
                 DynMemberKind::Type => {
-                    associated(
+                    let value=associated(
                         proofs,
                         module,
                         context,
@@ -1800,9 +1804,10 @@ fn query_inner(
                         active,
                         b,
                     )?;
+                    if collect {charge_type(receiver,b)?;for actual in &application.arguments{charge_actual(actual,b)?;}b.spend(1)?;completed.push((ExternalRequest::AssociatedType{receiver:receiver.clone(),application:application.clone(),member:ordinal as u32},value));}
                 }
                 DynMemberKind::Constant => {
-                    associated(
+                    let value=associated(
                         proofs,
                         module,
                         context,
@@ -1815,6 +1820,7 @@ fn query_inner(
                         active,
                         b,
                     )?;
+                    if collect {charge_type(receiver,b)?;for actual in &application.arguments{charge_actual(actual,b)?;}b.spend(1)?;completed.push((ExternalRequest::AssociatedConst{receiver:receiver.clone(),application:application.clone(),member:ordinal as u32},value));}
                 }
                 DynMemberKind::Method(_) => {}
             }
@@ -2938,4 +2944,29 @@ fn associated(
     proofs.available_original.pop();
     checked?;
     Ok(value)
+}
+
+#[cfg(test)]
+mod shared_provider_projection_tests{
+    use super::*;
+    #[test]
+    fn repeated_provider_actuals_and_children_borrow_their_exact_input_nodes(){
+        let limits=Limits::default();
+        let(mut module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../semantic/fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        module.functions[0].values.push(Type::Managed(Box::new(Type::Record{name:"provider_payload_".repeat(32),fields:vec![("value".into(),Type::I32)]})));
+        let ty=module.functions[0].values.last().unwrap();
+        let mut b=Budget::new(&limits);b.structural=Some(dynamic_metadata::Structure::register(&module,&mut b).unwrap());
+        let context=semantic::CheckedContext::catalogue(&module,&mut b).unwrap();
+        let first=closed(&module,&context,ty,&mut b).unwrap();
+        let second=closed(&module,&context,ty,&mut b).unwrap();
+        assert!(std::rc::Rc::ptr_eq(&first.type_cell,&second.type_cell));
+        let Type::Managed(inner)=&first.ty else{unreachable!()};
+        let a=child(&module,&context,&first,inner,LifeTypeProjection::Pointee,&mut b).unwrap();
+        let z=child(&module,&context,&first,inner,LifeTypeProjection::Pointee,&mut b).unwrap();
+        assert!(std::rc::Rc::ptr_eq(&a.type_cell,&z.type_cell));
+        assert_eq!(a.life,z.life);assert_eq!(a.classes,z.classes);assert_eq!(a.origins,z.origins);
+        // A new same-shaped temporary remains cold, independent of the source.
+        let detached=ty.clone();let copy=closed(&module,&context,&detached,&mut b).unwrap();
+        assert!(!std::rc::Rc::ptr_eq(&first.type_cell,&copy.type_cell));
+    }
 }

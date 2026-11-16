@@ -108,14 +108,113 @@ pub(crate) enum StaticOccurrence {
     },
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct CheckedType {
+pub(crate) struct CheckedTypeData {
     pub(crate) ty: Type,
+}
+impl CheckedTypeData {
+    pub(crate) fn new(ty: Type) -> std::rc::Rc<Self> {std::rc::Rc::new(Self{ty})}
+}
+/// Only immutable physical type structure is shared. Every value continues to
+/// own its current class image, intrinsic origins and pending source directory.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct CheckedType {
+    pub(crate) type_cell: std::rc::Rc<CheckedTypeData>,
     pub(crate) life: StorageLifeShape,
     pub(crate) classes: Vec<ClassKey>,
     /// Intrinsic domains survive many-to-one external images unchanged.
     pub(crate) origins: Vec<IntrinsicOrigin>,
     /// Pending actual-source obligations, not literal or Known0 evidence.
     pub(crate) statics: Vec<StaticOccurrence>,
+}
+impl std::ops::Deref for CheckedType {
+    type Target=CheckedTypeData;
+    fn deref(&self)->&Self::Target{&self.type_cell}
+}
+impl CheckedType {
+    pub(crate) fn same_raw_type(&self,other:&Self,b:&mut crate::Budget)->crate::Check<bool>{
+        b.spend(1)?;
+        if std::rc::Rc::ptr_eq(&self.type_cell,&other.type_cell){return Ok(true);}
+        crate::dynamic_metadata::ty(&self.ty,b)?;
+        crate::dynamic_metadata::ty(&other.ty,b)?;
+        Ok(self.ty==other.ty)
+    }
+    pub(crate) fn charge_clone(&self,b:&mut crate::Budget)->crate::Check<()>{
+        b.spend(1)?;
+        crate::dynamic_metadata::life_shape(&self.life,b)?;
+        b.spend(self.classes.len().saturating_add(self.origins.len()).saturating_add(self.statics.len()))?;
+        for key in &self.classes{if let ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=key{b.spend(path.len())?;}}
+        for origin in &self.origins{
+            // NominalOrigin is already an immutable Rc. A value clone copies
+            // that reference, not its actual Type trees. Equality/normalization
+            // still use the complete independent origin traversal.
+            b.spend(1)?;
+            match origin{
+                IntrinsicOrigin::Existing{path,..}=>b.spend(path.len())?,
+                IntrinsicOrigin::DerivedClass{source:ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}}=>b.spend(path.len())?,
+                _=>{},
+            }
+        }
+        for row in &self.statics{match row{
+            StaticOccurrence::Direct{path,leaf,..}=>{b.spend(path.len())?;crate::dynamic_metadata::ty(leaf,b)?;},
+            StaticOccurrence::Logical{position,leaf,..}=>{crate::dynamic_metadata::position(position,b)?;crate::dynamic_metadata::ty(leaf,b)?;},
+        }}Ok(())
+    }
+    pub(crate) fn replace_type(&mut self,ty:Type){self.type_cell=CheckedTypeData::new(ty);}
+    pub(crate) fn raw_type_copy(&self,b:&mut crate::Budget)->crate::Check<Type>{
+        crate::dynamic_metadata::ty(&self.ty,b)?;Ok(self.ty.clone())
+    }
+    pub(crate) fn into_raw_type(self,b:&mut crate::Budget)->crate::Check<Type>{
+        b.spend(1)?;
+        match std::rc::Rc::try_unwrap(self.type_cell){
+            Ok(value)=>Ok(value.ty),
+            Err(shared)=>{crate::dynamic_metadata::ty(&shared.ty,b)?;Ok(shared.ty.clone())},
+        }
+    }
+}
+#[cfg(test)]
+mod shared_type_tests {
+    use super::*;
+    fn value()->CheckedType{
+        CheckedType{type_cell:CheckedTypeData::new(Type::Record{name:"shared_immutable_payload_".repeat(128),fields:vec![("whole".repeat(32),Type::I32)]}),life:StorageLifeShape{binder_count:0,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:vec![],origins:vec![],statics:vec![]}
+    }
+    #[test]
+    fn shared_storage_keeps_temporary_nodes_cold_and_rechecks_changed_bounds(){
+        let limits=Limits::default();
+        let(mut module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        module.functions[0].values.push(value().into_raw_type(&mut crate::Budget::new(&limits)).unwrap());
+        let raw=module.functions[0].values.last().unwrap();
+        let mut b=crate::Budget::new(&limits);
+        b.structural=Some(crate::dynamic_metadata::Structure::register(&module,&mut b).unwrap());
+        let context=super::super::CheckedContext::catalogue(&module,&mut b).unwrap();
+        let first=context.shared_type_cell(raw,&mut b).unwrap();
+        let second=context.shared_type_cell(raw,&mut b).unwrap();
+        let owned=context.shared_type_cell(&first.ty,&mut b).unwrap();
+        assert!(std::rc::Rc::ptr_eq(&first,&second));assert!(std::rc::Rc::ptr_eq(&first,&owned));
+        let temporary=raw.clone();
+        let a=context.shared_type_cell(&temporary,&mut b).unwrap();
+        let z=context.shared_type_cell(&temporary,&mut b).unwrap();
+        assert!(!std::rc::Rc::ptr_eq(&a,&z),"equal temporary shapes are not allocation identities");
+        b.limits.max_nodes=1;
+        assert!(context.shared_type_cell(&first.ty,&mut b).is_err());
+        assert!(context.shared_type_cell(raw,&mut b).is_err());
+        b.limits.max_nodes=limits.max_nodes;
+        assert!(std::rc::Rc::ptr_eq(&first,&context.shared_type_cell(&first.ty,&mut b).unwrap()));
+    }
+    #[test]
+    fn checked_value_shares_only_type_storage_and_raw_export_pays_real_copy(){
+        let original=value();let mut copied=original.clone();
+        assert!(std::rc::Rc::ptr_eq(&original.type_cell,&copied.type_cell));
+        copied.life.binder_count=1;copied.classes.push(ClassKey::Formal{scope:ScopeKey::Instance(SemanticInstanceId { module: zil_base::ModuleId(0), index: 0 }),ordinal:0});
+        assert_eq!(original.life.binder_count,0);assert!(original.classes.is_empty());
+        let mut b=crate::Budget::new(&Limits::default());
+        assert!(original.same_raw_type(&copied,&mut b).unwrap());
+        assert_ne!(original,copied,"sharing type bytes does not identify current class domains");
+        let before=b.remaining;original.charge_clone(&mut b).unwrap();let reference=before-b.remaining;
+        let before=b.remaining;let raw=original.clone().into_raw_type(&mut b).unwrap();let deep=before-b.remaining;
+        assert_eq!(raw,original.ty);assert!(deep>reference);
+        let unique=value();let before=b.remaining;unique.into_raw_type(&mut b).unwrap();assert_eq!(before-b.remaining,1);
+        copied.replace_type(Type::Bool);assert!(!original.same_raw_type(&copied,&mut b).unwrap());
+    }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum CheckedActual {

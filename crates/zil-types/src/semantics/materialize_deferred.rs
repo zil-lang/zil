@@ -28,7 +28,7 @@ impl Eval<'_, '_, '_> {
                 },
                 _,
             ) => {
-                let recipe = self.original_type(scope, *selector, source, depth + 1)?;
+                let recipe = self.original_type_view(scope, *selector, source, depth + 1)?;
                 self.deferred_nominal(scope, &recipe, hint, depth + 1, pending)
             }
             (
@@ -326,8 +326,12 @@ pub(crate) fn populate(
                         eval.deferred_nominal(*scope, recipe, hint, 0, &mut pending)?;
                     }
                     SemanticCoreTypeSource::OriginalExpression { source, .. } => {
-                        let recipe =
-                            eval.original_type(*scope, SemanticScopeRef::Ancestor(0), source, 0)?;
+                        let recipe = eval.original_type_view(
+                            *scope,
+                            SemanticScopeRef::Ancestor(0),
+                            source,
+                            0,
+                        )?;
                         eval.deferred_nominal(*scope, &recipe, hint, 0, &mut pending)?;
                     }
                 }

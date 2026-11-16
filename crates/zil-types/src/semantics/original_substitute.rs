@@ -33,9 +33,9 @@ struct Apply<'a, 'b> {
     template_implicit: bool,
     scopes: Option<&'a BTreeMap<u32, u32>>,
     allow_root_invocation: bool,
-    forall: Option<(u32, u32)>,
+    forall: Option<(u32, u32, u32)>,
     inference_seen: Option<&'b mut bool>,
-    nominal_filter: Option<SemanticDefinitionId>,
+    nominal_filter: Option<Option<SemanticDefinitionId>>,
 }
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-ORIGINAL", Span::default(), message)
@@ -231,10 +231,14 @@ impl<'a> Apply<'a, '_> {
     }
     fn life(&mut self, life: &mut SemanticLifeRecipe, depth: usize) -> R<()> {
         self.pay(depth)?;
-        if let (Some((count, offset)), SemanticLifeRecipe::Bound { depth, index }) =
+        if let (Some((count, offset, frame)), SemanticLifeRecipe::Bound { depth, index }) =
             (self.forall, &mut *life)
         {
-            if *depth == self.bound_depth {
+            let selected_depth = self
+                .bound_depth
+                .checked_add(frame)
+                .ok_or_else(|| bad("original universal callable frame depth overflows"))?;
+            if *depth == selected_depth {
                 if *index >= count {
                     return Err(bad(
                         "original universal callable lifetime exceeds its binder",
@@ -248,7 +252,7 @@ impl<'a> Apply<'a, '_> {
                 };
                 return Ok(());
             }
-            if *depth > self.bound_depth {
+            if *depth > selected_depth {
                 *depth -= 1;
             }
         }
@@ -707,7 +711,7 @@ impl<'a> Apply<'a, '_> {
     fn ty(&mut self, ty: &mut SemanticTypeRecipe, depth: usize) -> R<()> {
         self.pay(depth)?;
         if self.nominal_filter.is_some_and(|target|
-            matches!(ty, SemanticTypeRecipe::Nominal { definition, .. } if *definition == target))
+            matches!(ty, SemanticTypeRecipe::Nominal { definition, .. } if target.is_none_or(|target| *definition == target)))
             && self.bound_depth == 0 && self.invocation_depth == 0
         {
             crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
@@ -1126,14 +1130,15 @@ pub(crate) fn signature_template(
 /// Instantiate one independently declared universal lifetime frame for this
 /// invocation. Its roles are fresh solver variables, disjoint from the called
 /// signature's own Invocation roles; all nested Bound frames are preserved.
-pub(crate) fn universal_callable(
+fn universal_callable_at(
     value: &SemanticSignatureRecipe,
     lifetimes: u32,
+    frame_depth: u32,
     limits: &Limits,
     left: &mut usize,
 ) -> R<SemanticSignatureRecipe> {
     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
-    value
+    let invocation_lifetimes = value
         .invocation_lifetimes
         .checked_add(lifetimes)
         .ok_or_else(|| bad("original universal callable role count overflows"))?;
@@ -1163,11 +1168,43 @@ pub(crate) fn universal_callable(
         template_implicit: false,
         scopes: None,
         allow_root_invocation: true,
-        forall: Some((lifetimes, value.invocation_lifetimes)),
+        forall: Some((lifetimes, value.invocation_lifetimes, frame_depth)),
         inference_seen: None,
         nominal_filter: None,
     }
     .signature(&mut result, 1)?;
+    result.invocation_lifetimes = invocation_lifetimes;
+    Ok(result)
+}
+/// Eliminate only the signature's own real nonzero Bound frame at a call.
+/// The body remains checked with its original rigid Bound coordinates.
+pub(crate) fn universal_callable_own(
+    value: &SemanticSignatureRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticSignatureRecipe> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut opened = value.clone();
+    let count = opened.bound_lifetimes;
+    opened.bound_lifetimes = 0;
+    universal_callable_at(&opened, count, 0, limits, left)
+}
+/// Eliminate the real outer-to-inner frames in their declaration order. Each
+/// frame keeps its complete (including phantom) role block after the original
+/// Invocation prefix; unrelated nested binders keep their own coordinates.
+pub(crate) fn universal_callable_frames(
+    value: &SemanticSignatureRecipe,
+    frames: &[u32],
+    limits: &Limits,
+    left: &mut usize,
+) -> R<SemanticSignatureRecipe> {
+    crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
+    let mut result = value.clone();
+    for (index, count) in frames.iter().enumerate() {
+        let depth = u32::try_from(frames.len() - index - 1)
+            .map_err(|_| bad("original universal callable frame directory overflows"))?;
+        result = universal_callable_at(&result, *count, depth, limits, left)?;
+    }
     Ok(result)
 }
 /// A contextual operand may enter caller Gamma only after substitution has
@@ -1426,9 +1463,11 @@ pub(crate) fn delayed_types(
 }
 /// Find declaration uses in the current original lexical domain. Quantified
 /// code domains and an opaque's callee-owned hidden body are not caller uses.
+/// `None` collects all declarations in one traversal of the immutable input;
+/// `Some` keeps the exact declaration filter. Neither mode establishes a bound.
 pub(crate) fn nominal_types(
     value: &SemanticTypeRecipe,
-    definition: SemanticDefinitionId,
+    definition: Option<SemanticDefinitionId>,
     limits: &Limits,
     left: &mut usize,
 ) -> R<Vec<SemanticTypeRecipe>> {

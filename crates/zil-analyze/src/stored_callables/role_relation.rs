@@ -62,14 +62,14 @@ pub(crate) fn check(
         budget,
     )?;
     for relation in [actual, role] {
-        super::super::signature_life::closure_relation(
-            &module.closures,
-            &module.dyn_interfaces,
+        super::super::signature_life::closure_relation_resource_scopes(
+            module,
             definition.kind,
             &definition.parameters,
             &definition.captures,
             super::life_result(definition),
             relation,
+            budget,
         )?;
     }
     Ok(())

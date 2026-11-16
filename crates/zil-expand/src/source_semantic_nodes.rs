@@ -1,7 +1,6 @@
 //! Index only the actual minted nodes requested by the consumed emission log.
 //! This is a bounded immutable Core inventory, not a permission cache.
 use super::*;
-use std::collections::BTreeMap;
 use zil_base::NodeId;
 #[derive(Clone, Copy)]
 pub(crate) enum Node<'a> {
@@ -10,29 +9,68 @@ pub(crate) enum Node<'a> {
 }
 pub(crate) type Key = (ModuleId, NodeId, NodeId, bool);
 pub(crate) struct Inventory<'a> {
-    pub nodes: BTreeMap<Key, Option<Node<'a>>>,
+    nodes: Vec<(Key, Option<Node<'a>>)>,
 }
 impl<'a> Inventory<'a> {
-    pub(crate) fn new(wanted: impl Iterator<Item = Key>, budget: &mut Budget<'_>) -> R<Self> {
-        let mut nodes = BTreeMap::new();
+    pub(crate) fn new(
+        wanted: impl ExactSizeIterator<Item = Key>,
+        budget: &mut Budget<'_>,
+    ) -> R<Self> {
+        let span = Span::default();
+        let count = wanted.len();
+        let bytes = count
+            .checked_mul(std::mem::size_of::<(Key, Option<Node<'a>>)>())
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Expand,
+                    "actual node directory allocation overflow",
+                    Some(span),
+                )
+            })?;
+        budget.lineage_bytes(bytes, span)?;
+        let mut nodes = Vec::new();
+        nodes.try_reserve_exact(count).map_err(|_| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "actual node directory allocation failed",
+                Some(span),
+            )
+        })?;
         for key in wanted {
-            budget.node(Span::default(), 0)?;
-            budget.identity_work(
-                nodes.len().checked_ilog2().unwrap_or(0) as usize + 1,
-                Span::default(),
-            )?;
-            budget.lineage_bytes(
-                12 * std::mem::size_of::<(Key, Option<Node<'a>>)>(),
-                Span::default(),
-            )?;
-            if nodes.insert(key, None).is_some() {
+            budget.node(span, 0)?;
+            nodes.push((key, None));
+        }
+        budget.identity_work(
+            count
+                .saturating_mul(count.checked_ilog2().map_or(1, |n| n as usize + 1))
+                .saturating_mul(12),
+            span,
+        )?;
+        nodes.sort_unstable_by_key(|(key, _)| *key);
+        for pair in nodes.windows(2) {
+            budget.identity_work(1, span)?;
+            if pair[0].0 == pair[1].0 {
                 return Err(error(
-                    Span::default(),
+                    span,
                     "actual semantic emission identity was recorded twice",
                 ));
             }
         }
         Ok(Self { nodes })
+    }
+    pub(crate) fn get(&self, key: &Key, budget: &mut Budget<'_>) -> R<Option<Node<'a>>> {
+        budget.identity_work(
+            self.nodes
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2),
+            Span::default(),
+        )?;
+        Ok(self
+            .nodes
+            .binary_search_by_key(key, |(key, _)| *key)
+            .ok()
+            .and_then(|index| self.nodes[index].1))
     }
     fn enter(
         &mut self,
@@ -44,11 +82,14 @@ impl<'a> Inventory<'a> {
     ) -> R<()> {
         budget.node(span, depth)?;
         budget.identity_work(
-            self.nodes.len().checked_ilog2().unwrap_or(0) as usize + 1,
+            self.nodes
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2),
             span,
         )?;
-        if let Some(slot) = self.nodes.get_mut(&key) {
-            if slot.replace(node).is_some() {
+        if let Ok(index) = self.nodes.binary_search_by_key(&key, |(key, _)| *key) {
+            if self.nodes[index].1.replace(node).is_some() {
                 return Err(error(span, "actual Core node identity is reused"));
             }
         }
@@ -279,5 +320,43 @@ impl<'a> Inventory<'a> {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn flat_directory_preserves_creator_kind_and_duplicate_rejection() {
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let a = (ModuleId(0), NodeId(1), NodeId(7), false);
+        let b = (ModuleId(0), NodeId(2), NodeId(7), false);
+        let expression = CoreExpr {
+            id: NodeId(7),
+            span: Span::default(),
+            kind: CoreExprKind::Unit,
+        };
+        let mut inventory = Inventory::new([b, a].into_iter(), &mut budget).unwrap();
+        for creator in [NodeId(1), NodeId(2)] {
+            inventory
+                .expression(ModuleId(0), creator, &expression, &mut budget, 0)
+                .unwrap();
+        }
+        assert!(
+            matches!(inventory.get(&a, &mut budget).unwrap(), Some(Node::Expression(node)) if std::ptr::eq(node, &expression))
+        );
+        assert!(
+            inventory
+                .get(&(ModuleId(0), NodeId(1), NodeId(7), true), &mut budget)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            inventory
+                .expression(ModuleId(0), NodeId(1), &expression, &mut budget, 0)
+                .is_err()
+        );
+        assert!(Inventory::new([a, a].into_iter(), &mut budget).is_err());
     }
 }

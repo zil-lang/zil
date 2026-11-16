@@ -2,6 +2,79 @@
 //! never rewrites a declaration, an intrinsic child class or a retained life.
 use super::*;
 impl Solver<'_, '_> {
+    // Solve only Type variables exposed by a real input's complete original
+    // constructor/argument directory before forming a dependent nominal or
+    // associated output. This is inference, never a provider/where proof.
+    pub(super) fn input_recipe_hint(&mut self, frame: &Frame, recipe: &SemanticTypeRecipe, actual: Term,
+        b: &mut Budget, depth: usize) -> CompileResult<()> {
+        self.step(depth, b)?;
+        let actual = self.type_root(actual, b)?;
+        match recipe {
+            SemanticTypeRecipe::Formal(reference) if reference.scope == SemanticScopeRef::Ancestor(0) => {
+                if matches!(self.inventory.definition(frame.definition, b)?.parameters.get(reference.ordinal as usize),
+                    Some(SemanticFormal::Type { .. }))
+                {
+                    let target = *frame.formals.get(reference.ordinal as usize)
+                        .ok_or_else(|| fail("input inference omits its exact Type formal"))?;
+                    self.input_hint(target, actual, b, depth + 1)?;
+                }
+            }
+            SemanticTypeRecipe::Nominal { definition, arguments } => {
+                if let Kind::Nominal { definition: source, arguments: actuals, .. } = &self.state.arena[actual]
+                    && source == definition && actuals.len() == arguments.len()
+                {
+                    b.spend(actuals.len(), WORK)?;
+                    let actuals = actuals.clone();
+                    for (recipe, actual) in arguments.iter().zip(actuals) {
+                        if let SemanticActualRecipe::Type(recipe) = recipe {
+                            self.input_recipe_hint(frame, recipe, actual, b, depth + 1)?;
+                        }
+                    }
+                }
+            }
+            SemanticTypeRecipe::Address { inner, .. } => {
+                if let Kind::Address { inner: actual, .. } = self.state.arena[actual] {
+                    self.input_recipe_hint(frame, inner, actual, b, depth + 1)?;
+                }
+            }
+            SemanticTypeRecipe::Desc { inner, .. } => {
+                if let Kind::Desc { inner: actual, .. } = self.state.arena[actual] {
+                    self.input_recipe_hint(frame, inner, actual, b, depth + 1)?;
+                }
+            }
+            SemanticTypeRecipe::Managed(inner) | SemanticTypeRecipe::OwnedStore(inner)
+            | SemanticTypeRecipe::Mutex(inner) | SemanticTypeRecipe::Registration(inner)
+            | SemanticTypeRecipe::AsyncRegistration(inner) => {
+                if let Kind::Wrapped(wrapper, actual) = self.state.arena[actual] {
+                    let same = matches!((recipe, wrapper),
+                        (SemanticTypeRecipe::Managed(_), Wrapper::Managed)
+                        | (SemanticTypeRecipe::OwnedStore(_), Wrapper::Store)
+                        | (SemanticTypeRecipe::Mutex(_), Wrapper::Mutex)
+                        | (SemanticTypeRecipe::Registration(_), Wrapper::Registration)
+                        | (SemanticTypeRecipe::AsyncRegistration(_), Wrapper::AsyncRegistration));
+                    if same { self.input_recipe_hint(frame, inner, actual, b, depth + 1)?; }
+                }
+            }
+            SemanticTypeRecipe::Tuple(fields) => {
+                if let Kind::Tuple(actuals) = &self.state.arena[actual] && actuals.len() == fields.len() {
+                    b.spend(actuals.len(), WORK)?;
+                    let actuals = actuals.clone();
+                    for (field, actual) in fields.iter().zip(actuals) {
+                        self.input_recipe_hint(frame, field, actual, b, depth + 1)?;
+                    }
+                }
+            }
+            SemanticTypeRecipe::Array { element, .. } => {
+                if let Kind::Array { element: actual, .. } = self.state.arena[actual] {
+                    self.input_recipe_hint(frame, element, actual, b, depth + 1)?;
+                }
+            }
+            SemanticTypeRecipe::Qualified { storage, .. } => self.input_recipe_hint(frame, storage, actual, b, depth + 1)?,
+            _ => {}
+        }
+        Ok(())
+    }
+
     pub(super) fn invocation_actuals(
         &mut self,
         count: u32,
@@ -9,8 +82,8 @@ impl Solver<'_, '_> {
     ) -> CompileResult<Vec<Term>> {
         b.spend(count as usize, WORK)?;
         let mut actuals = Vec::new();
-        for _ in 0..count {
-            let life = self.term(Kind::LifeVariable(None), b)?;
+        for ordinal in 0..count {
+            let life = self.call_variable(call_regions::Role::Invocation(ordinal), b)?;
             Self::push(&mut actuals, life, b)?;
         }
         Ok(actuals)
@@ -199,8 +272,146 @@ impl Solver<'_, '_> {
             _ => Ok(term),
         }
     }
+    /// Propagate only inference variables through identical result structure.
+    /// Concrete lifetimes still meet at the ordinary argument/return checks;
+    /// an expected result supplies no outlives or ownership premise.
+    pub(super) fn call_result_context(
+        &mut self,
+        result: Term,
+        expected: Term,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
+        let result = self.type_root(result, b)?;
+        let expected = self.type_root(expected, b)?;
+        if result == expected {
+            return Ok(());
+        }
+        if matches!(
+            self.state.arena[result],
+            Kind::Infer(None) | Kind::LifeVariable(None)
+        ) {
+            return self.unify(result, expected, depth + 1, b);
+        }
+        let mut children = Vec::new();
+        match (&self.state.arena[result], &self.state.arena[expected]) {
+            (
+                Kind::Nominal {
+                    definition: a,
+                    arguments: aa,
+                    fields: af,
+                },
+                Kind::Nominal {
+                    definition: z,
+                    arguments: za,
+                    fields: zf,
+                },
+            ) if a == z && aa.len() == za.len() && af.len() == zf.len() => {
+                for pair in aa
+                    .iter()
+                    .copied()
+                    .zip(za.iter().copied())
+                    .chain(af.iter().copied().zip(zf.iter().copied()))
+                {
+                    Self::push(&mut children, pair, b)?;
+                }
+            }
+            (
+                Kind::Address {
+                    mutable: a,
+                    life: al,
+                    inner: ai,
+                },
+                Kind::Address {
+                    mutable: z,
+                    life: zl,
+                    inner: zi,
+                },
+            ) if a == z => {
+                Self::push(&mut children, (*al, *zl), b)?;
+                Self::push(&mut children, (*ai, *zi), b)?;
+            }
+            (
+                Kind::Desc {
+                    life: al,
+                    inner: ai,
+                },
+                Kind::Desc {
+                    life: zl,
+                    inner: zi,
+                },
+            ) => {
+                Self::push(&mut children, (*al, *zl), b)?;
+                Self::push(&mut children, (*ai, *zi), b)?;
+            }
+            (Kind::Wrapped(a, ai), Kind::Wrapped(z, zi)) if a == z => {
+                Self::push(&mut children, (*ai, *zi), b)?;
+            }
+            (Kind::Slice(a), Kind::Slice(z)) => Self::push(&mut children, (*a, *z), b)?,
+            (
+                Kind::Array {
+                    element: a,
+                    length: an,
+                },
+                Kind::Array {
+                    element: z,
+                    length: zn,
+                },
+            ) => {
+                let (a, z, an, zn) = (*a, *z, *an, *zn);
+                if self.same_original(an, zn, b, depth + 1)? {
+                    Self::push(&mut children, (a, z), b)?;
+                }
+            }
+            (Kind::Tuple(a), Kind::Tuple(z)) if a.len() == z.len() => {
+                for pair in a.iter().copied().zip(z.iter().copied()) {
+                    Self::push(&mut children, pair, b)?;
+                }
+            }
+            (
+                Kind::ErrorUnion {
+                    error: ae,
+                    result: ar,
+                },
+                Kind::ErrorUnion {
+                    error: ze,
+                    result: zr,
+                },
+            ) => {
+                Self::push(&mut children, (*ae, *ze), b)?;
+                Self::push(&mut children, (*ar, *zr), b)?;
+            }
+            // Different rigid heads and implicit union injections are checked
+            // at their actual operation, never selected by a contextual guess.
+            _ => {}
+        }
+        for (result, expected) in children {
+            self.call_result_context(result, expected, b, depth + 1)?;
+        }
+        Ok(())
+    }
     /// Source Name expressions denote the original address value. Reborrowing
     /// it for one call does not consume that reference or equate a new SSA head.
+    pub(super) fn borrowed_argument_expected(
+        &mut self,
+        frame: &mut Frame,
+        value: &SemanticOriginalExpr,
+        expected: Term,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Term> {
+        Self::push(
+            &mut self.receiving,
+            (frame.definition, value.id, expected),
+            b,
+        )?;
+        let result = self.borrowed_argument(frame, value, b, depth);
+        self.receiving
+            .pop()
+            .ok_or_else(|| fail("original borrowed argument loses its exact receiving frame"))?;
+        result
+    }
     pub(super) fn borrowed_argument(
         &mut self,
         frame: &mut Frame,
@@ -212,7 +423,16 @@ impl Solver<'_, '_> {
         if let CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } =
             &value.kind
         {
-            let term = self.borrowed_argument(frame, inner, b, depth + 1)?;
+            let wanted = match &value.kind {
+                CoreExprKind::Ascribed { ty, .. } => Some(self.recipe(frame, ty, b, depth + 1)?),
+                _ => self.receiving_for(frame, value.id, b)?,
+            };
+            let term = match wanted {
+                Some(expected) => {
+                    self.borrowed_argument_expected(frame, inner, expected, b, depth + 1)?
+                }
+                None => self.borrowed_argument(frame, inner, b, depth + 1)?,
+            };
             if let CoreExprKind::Ascribed { ty, .. } = &value.kind {
                 let expected = self.recipe(frame, ty, b, depth + 1)?;
                 self.unify(term, expected, depth + 1, b)?;
@@ -222,6 +442,20 @@ impl Solver<'_, '_> {
                 return Err(fail("original reborrowed argument node is reused"));
             }
             return Ok(term);
+        }
+        if matches!(value.kind, CoreExprKind::Member { .. })
+            && let Some(place) = self.place(frame, value, false, b, depth + 1)?
+            && matches!(
+                self.state.arena[self.type_root(place.selected, b)?],
+                Kind::Address { .. }
+            )
+        {
+            // A head stored in an inline field is observed in its real place.
+            // Selecting it for an access is not a Copy or an owning move.
+            let place = self
+                .place(frame, value, true, b, depth + 1)?
+                .ok_or_else(|| fail("original address observation loses its exact field place"))?;
+            return Ok(place.selected);
         }
         if let CoreExprKind::Name(name) = &value.kind {
             b.spend(
@@ -260,6 +494,7 @@ impl Solver<'_, '_> {
             ) {
                 return self.expression(frame, value, b, depth + 1);
             }
+            self.record_environment_read(frame, index, value.id, b)?;
             if index < frame.inherited {
                 b.lookup(frame.captured.len(), WORK)?;
                 frame.captured.insert(index, term);
@@ -272,6 +507,14 @@ impl Solver<'_, '_> {
         }
         self.expression(frame, value, b, depth + 1)
     }
+    pub(super) fn call_input_value(&mut self, frame: &mut Frame, value: &SemanticOriginalExpr,
+        expected: Term, b: &mut Budget, depth: usize) -> CompileResult<Term> {
+        let deferred = self.deferred_call_type(expected, b)?;
+        self.call_argument(frame, value, deferred, b, depth + 1)?;
+        b.lookup(frame.expressions.len(), WORK)?;
+        frame.expressions.get(&value.id).copied()
+            .ok_or_else(|| fail("original call argument has no checked expression occurrence"))
+    }
     pub(super) fn call_argument(
         &mut self,
         frame: &mut Frame,
@@ -282,7 +525,10 @@ impl Solver<'_, '_> {
     ) -> CompileResult<()> {
         self.step(depth, b)?;
         let expected_root = self.type_root(expected, b)?;
-        if let Kind::Desc { inner: payload, .. } = self.state.arena[expected_root]
+        if let Kind::Desc {
+            life: wanted_life,
+            inner: payload,
+        } = self.state.arena[expected_root]
             && let Some(place) = self.place(frame, value, false, b, depth + 1)?
             && let Kind::Wrapped(Wrapper::Managed, actual_payload) =
                 self.state.arena[self.type_root(place.selected, b)?]
@@ -297,15 +543,28 @@ impl Solver<'_, '_> {
                 unknown("original description needs its complete owning source anchor")
             })?;
             let _ = anchor;
-            let described =
-                self.describe_argument(frame, value, &place, place.selected, b, depth + 1)?;
+            let described = self.describe_argument_role(
+                frame,
+                value,
+                &place,
+                place.selected,
+                Some(wanted_life),
+                b,
+                depth + 1,
+            )?;
             return self.unify(described, expected, depth + 1, b);
         }
         let actual = if matches!(self.state.arena[expected_root], Kind::Address { .. }) {
-            self.borrowed_argument(frame, value, b, depth + 1)?
+            self.borrowed_argument_expected(frame, value, expected, b, depth + 1)?
         } else {
             self.expression_expected(frame, value, expected, b, depth + 1)?
         };
+        self.call_argument_value(actual, expected, b, depth + 1)
+    }
+    pub(super) fn call_argument_value(&mut self, actual: Term, expected: Term,
+        b: &mut Budget, depth: usize) -> CompileResult<()> {
+        self.step(depth, b)?;
+        let expected_root = self.type_root(expected, b)?;
         let actual_root = self.type_root(actual, b)?;
         if self.static_byte_role(actual, expected, b, depth + 1)? {
             return Ok(());

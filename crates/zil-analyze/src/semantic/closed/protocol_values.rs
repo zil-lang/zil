@@ -14,7 +14,6 @@ impl Check<'_, '_> {
                 "actual protocol carrier exceeds its complete type depth",
             ));
         }
-        crate::dyn_metadata::ty(ty, b)?;
         let storage = match ty {
             Type::BorrowedStorage { storage, .. } => storage.as_ref(),
             ty => ty,
@@ -22,6 +21,7 @@ impl Check<'_, '_> {
         let Type::Enum { variants, .. } = storage else {
             return Ok(false);
         };
+        crate::dyn_metadata::ty(ty, b)?;
         let mut declared = false;
         for instance in &self.module.life_instances {
             b.spend(1, WORK)?;

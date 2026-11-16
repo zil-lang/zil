@@ -68,8 +68,28 @@ impl CheckedOriginal {
                 let mut source=expression;loop{b.spend(1)?;match &source.kind{CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::Unary{op:UnaryOp::Give,operand:inner}=>source=inner,CoreExprKind::Name(_)=>{if let Some(binding)=self.value_bindings.get(&(env.current()?,source.id)){self.creation_returns.push(binding.clone());}break;},_=>break,}}
                 Ok(())
             },
-            PassingMode::Give=>if matches!(expression.kind,CoreExprKind::Unary{op:UnaryOp::Give,..}){Ok(())}else{Err(bad("original give result omits explicit ownership transfer"))},
+            PassingMode::Give=>if self.transfer_operand(env.current()?,expression,b)?{Ok(())}else{Err(bad("original give result omits explicit ownership transfer"))},
             _=>Err(bad("original resource Return lacks its owning result mode")),
+        }
+    }
+    /// A checked owning rvalue already carries the duty produced by its
+    /// operation. A Place, even a recently created local, still requires give.
+    pub(super) fn transfer_operand(&self,owner:SemanticDefinitionId,expression:&SemanticOriginalExpr,b:&mut Budget)->Check<bool>{
+        b.spend(1)?;
+        match &expression.kind{
+            CoreExprKind::Unary{op:UnaryOp::Give,..}=>Ok(true),
+            CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::Try(inner)=>self.transfer_operand(owner,inner,b),
+            CoreExprKind::Sequence{value,..}=>self.transfer_operand(owner,value,b),
+            CoreExprKind::If{then_value,else_value,..}=>Ok(self.transfer_operand(owner,then_value,b)?&&self.transfer_operand(owner,else_value,b)?),
+            CoreExprKind::Call{..}=>{
+                let mut ty=self.original_type(owner,&SemanticOriginalTypeSource::Expression(expression.id),b)?;
+                while let Ty::ErrorUnion(_,result)=ty{ty=self.resolved(&result,b)?;}
+                if !matches!(ty,Ty::Managed(_)){return Ok(false);}
+                let(_,site)=self.original_call_site(owner,expression.id,b)?;
+                Ok(self.call_targets.contains_key(&(owner,site))||self.trait_calls.contains_key(&(owner,site))||self.callable_nodes.contains_key(&(owner,expression.id))||self.intrinsic_calls.contains_key(&(owner,site)))
+            },
+            CoreExprKind::Record{..}|CoreExprKind::RecordConstructor{..}=>Ok(self.created.contains(&(owner,expression.id))&&matches!(self.original_type(owner,&SemanticOriginalTypeSource::Expression(expression.id),b)?,Ty::Managed(_))),
+            _=>Ok(false),
         }
     }
     pub(super) fn creation(&self,definition:SemanticDefinitionId,expression:&SemanticOriginalExpr,bindings:&BTreeMap<String,Binding>,b:&mut Budget)->Check<bool>{

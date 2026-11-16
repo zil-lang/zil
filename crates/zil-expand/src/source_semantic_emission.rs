@@ -48,17 +48,21 @@ struct Pending {
 #[derive(Default)]
 pub(crate) struct Ledger {
     entries: Vec<Option<Pending>>,
-    emitted: Vec<(SemanticInstanceId, NodeId, u32, SemanticEmissionRole)>,
-    completed: Vec<(
-        SemanticInstanceId,
-        NodeId,
-        NodeId,
-        SemanticSiteId,
-        SemanticEmissionRole,
-    )>,
+    // One coordinate bucket per actual owner/node. Role and occurrence are
+    // still exact within the bucket; no type or recipe chooses an owner.
+    emitted: Vec<((SemanticInstanceId, NodeId), Vec<Completed>)>,
     injection_payloads: Vec<(SemanticInstanceId, NodeId, NodeId, Injection)>,
     owners: Vec<OriginalOwner>,
     templates: Vec<OriginalTemplate>,
+}
+struct Completed {
+    creator: NodeId,
+    occurrence: u32,
+    recipe: SemanticSiteId,
+    role: SemanticEmissionRole,
+}
+fn lookup_work(entries: usize, budget: &mut Budget<'_>, span: Span) -> R<()> {
+    budget.identity_work(entries.checked_ilog2().map_or(1, |n| n as usize + 2), span)
 }
 struct OriginalTemplate {
     injection: Option<Injection>,
@@ -89,6 +93,70 @@ fn deferred(
     })
 }
 impl Ledger {
+    /// The complete actual mint log is available before its first event is
+    /// consumed. Prebuild coordinates only; each token/creator/role still has
+    /// to pass `take`, and every completed occurrence retains its own receipt.
+    pub(crate) fn prepare_emissions(
+        &mut self,
+        wanted: impl ExactSizeIterator<Item = (u32, NodeId, NodeId)>,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        let span = Span::default();
+        if !self.emitted.is_empty() {
+            return Err(unavailable(
+                "actual emission directory was already prepared or consumed",
+            ));
+        }
+        let count = wanted.len();
+        budget.lineage_bytes(
+            count
+                .checked_mul(std::mem::size_of::<(
+                    (SemanticInstanceId, NodeId),
+                    Vec<Completed>,
+                )>())
+                .ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Expand,
+                        "actual emission directory allocation overflow",
+                        Some(span),
+                    )
+                })?,
+            span,
+        )?;
+        self.emitted.try_reserve_exact(count).map_err(|_| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "actual emission directory allocation failed",
+                Some(span),
+            )
+        })?;
+        for (marker, creator, node) in wanted {
+            budget.identity_work(1, span)?;
+            let pending = self
+                .entries
+                .get(marker as usize)
+                .and_then(Option::as_ref)
+                .ok_or_else(|| unavailable("actual emission directory has no unconsumed token"))?;
+            if pending.creator != Some(creator) {
+                return Err(unavailable(
+                    "actual emission directory changes its Core creator",
+                ));
+            }
+            self.emitted.push(((pending.instance, node), Vec::new()));
+        }
+        budget.identity_work(
+            count
+                .saturating_mul(count.checked_ilog2().map_or(1, |n| n as usize + 1))
+                .saturating_mul(12),
+            span,
+        )?;
+        self.emitted.sort_unstable_by_key(|(key, _)| *key);
+        budget.identity_work(count, span)?;
+        // Only empty lookup coordinates coalesce. No actual occurrence,
+        // recipe, creator or role has been consumed or discarded here.
+        self.emitted.dedup_by_key(|(key, _)| *key);
+        Ok(())
+    }
     fn clone_events(events: &[Event], budget: &mut Budget<'_>, span: Span) -> R<Vec<Event>> {
         budget.lineage_bytes(
             events
@@ -709,13 +777,7 @@ impl Ledger {
         let token = marker
             .raw_index()
             .ok_or_else(|| unavailable("actual emission has no source semantic production"))?;
-        budget.identity_work(
-            self.entries
-                .len()
-                .saturating_add(self.emitted.len())
-                .saturating_add(1),
-            span,
-        )?;
+        budget.identity_work(1, span)?;
         let pending = self
             .entries
             .get(token as usize)
@@ -736,38 +798,41 @@ impl Ledger {
             .ok_or_else(|| {
                 unavailable("source semantic bundle has no unconsumed event for this actual role")
             })?;
-        if self
-            .emitted
-            .iter()
-            .any(|old| *old == (instance, node, occurrence, role))
-        {
-            return Err(unavailable(
-                "source semantic actual emission identity is reused",
-            ));
+        let key = (instance, node);
+        lookup_work(self.emitted.len(), budget, span)?;
+        let position = self.emitted.binary_search_by_key(&key, |(key, _)| *key);
+        if let Ok(index) = position {
+            let rows = &self.emitted[index].1;
+            for old in rows {
+                budget.identity_work(1, span)?;
+                if old.occurrence == occurrence && old.role == role {
+                    return Err(unavailable(
+                        "source semantic actual emission identity is reused",
+                    ));
+                }
+            }
         }
-        if self.emitted.len() == self.emitted.capacity() {
-            let growth = self.emitted.capacity().max(4);
-            budget.lineage_bytes(
-                growth
-                    .checked_mul(std::mem::size_of::<(
-                        SemanticInstanceId,
-                        NodeId,
-                        u32,
-                        SemanticEmissionRole,
-                    )>())
-                    .ok_or_else(|| unavailable("emission inventory allocation overflow"))?,
-                span,
-            )?;
-            self.emitted
-                .try_reserve_exact(growth)
-                .map_err(|_| unavailable("emission inventory allocation failed"))?;
+        let completed = Completed {
+            creator,
+            occurrence,
+            recipe: pending.events[event].recipe,
+            role,
+        };
+        match position {
+            Ok(index) => budget.lineage_push(&mut self.emitted[index].1, completed, span)?,
+            Err(index) => {
+                // Direct incremental users do not supply a complete mint log.
+                // Insert into the same exact sorted directory and pay moves.
+                let row_bytes =
+                    std::mem::size_of::<((SemanticInstanceId, NodeId), Vec<Completed>)>();
+                budget
+                    .identity_work((self.emitted.len() - index).saturating_mul(row_bytes), span)?;
+                let mut rows = Vec::new();
+                budget.lineage_push(&mut rows, completed, span)?;
+                budget.lineage_push(&mut self.emitted, (key, rows), span)?;
+                self.emitted[index..].rotate_right(1);
+            }
         }
-        self.emitted.push((instance, node, occurrence, role));
-        budget.lineage_push(
-            &mut self.completed,
-            (instance, creator, node, pending.events[event].recipe, role),
-            span,
-        )?;
         let pending = self.entries[token as usize]
             .as_mut()
             .expect("actual source production checked");
@@ -1044,14 +1109,22 @@ impl Ledger {
         }
         for (instance, creator, payload, injection) in &self.injection_payloads {
             for (site, role) in &injection.payload {
-                budget.identity_work(self.completed.len(), span)?;
-                if self
-                    .completed
-                    .iter()
-                    .filter(|row| **row == (*instance, *creator, *payload, *site, *role))
-                    .count()
-                    != 1
+                lookup_work(self.emitted.len(), budget, span)?;
+                let mut count = 0usize;
+                if let Ok(index) = self
+                    .emitted
+                    .binary_search_by_key(&(*instance, *payload), |(key, _)| *key)
                 {
+                    for row in &self.emitted[index].1 {
+                        budget.identity_work(1, span)?;
+                        // Occurrence deliberately does not collapse here:
+                        // exactly one physical payload must select this role.
+                        if row.creator == *creator && row.recipe == *site && row.role == *role {
+                            count += 1;
+                        }
+                    }
+                }
+                if count != 1 {
                     return Err(unavailable(
                         "injection payload event does not select its exact original operation",
                     ));
@@ -1108,6 +1181,102 @@ mod tests {
             },
         }
     }
+    #[test]
+    fn actual_coordinate_index_keeps_occurrences_roles_and_payload_uniqueness() {
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut ledger = Ledger::default();
+        let span = Span::default();
+        let role = SemanticEmissionRole::Construct;
+        let mut pending = Vec::new();
+        for (owner, occurrence) in [(instance(0), 0), (instance(0), 1), (instance(1), 0)] {
+            let marker = ledger
+                .record_bundle(
+                    owner,
+                    NodeId(4),
+                    vec![event(
+                        7,
+                        role,
+                        Action::Construct(SemanticTypeRecipe::Tuple(vec![])),
+                    )],
+                    &mut budget,
+                    span,
+                )
+                .unwrap();
+            pending.push((owner, occurrence, marker));
+        }
+        ledger
+            .prepare_emissions(
+                pending
+                    .iter()
+                    .map(|(_, _, marker)| (marker.raw_index().unwrap(), NodeId(4), NodeId(12))),
+                &mut budget,
+            )
+            .unwrap();
+        for (owner, occurrence, marker) in pending {
+            ledger
+                .take(
+                    marker,
+                    owner,
+                    NodeId(4),
+                    NodeId(12),
+                    occurrence,
+                    role,
+                    &mut budget,
+                    span,
+                )
+                .unwrap();
+        }
+        ledger.finish(&mut budget, span).unwrap();
+        ledger.injection_payloads.push((
+            instance(0),
+            NodeId(4),
+            NodeId(12),
+            Injection {
+                is_error: false,
+                payload: vec![(SemanticSiteId(7), role)],
+            },
+        ));
+        // Distinct occurrences were valid emissions, but cannot both stand in
+        // for one exact payload receipt. A set must not silently deduplicate.
+        assert!(ledger.finish(&mut budget, span).is_err());
+        let index = ledger
+            .emitted
+            .binary_search_by_key(&(instance(0), NodeId(12)), |(key, _)| *key)
+            .unwrap();
+        ledger.emitted[index].1.pop();
+        ledger.finish(&mut budget, span).unwrap();
+        ledger.injection_payloads[0].1 = NodeId(99);
+        assert!(ledger.finish(&mut budget, span).is_err());
+        let duplicate = ledger
+            .record_bundle(
+                instance(0),
+                NodeId(4),
+                vec![event(
+                    8,
+                    role,
+                    Action::Construct(SemanticTypeRecipe::Tuple(vec![])),
+                )],
+                &mut budget,
+                span,
+            )
+            .unwrap();
+        assert!(
+            ledger
+                .take(
+                    duplicate,
+                    instance(0),
+                    NodeId(4),
+                    NodeId(12),
+                    0,
+                    role,
+                    &mut budget,
+                    span
+                )
+                .is_err()
+        );
+    }
+
     #[test]
     fn injection_fragments_survive_actual_and_template_cloning_without_replaying_roles() {
         let limits = Limits::default();

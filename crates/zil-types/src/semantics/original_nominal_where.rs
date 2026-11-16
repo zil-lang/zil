@@ -9,6 +9,9 @@ pub(in crate::semantics) struct NominalRequest {
 pub(in crate::semantics) struct NominalWhere<'a> {
     program: &'a SemanticModule,
     proof: &'a Proof,
+    requests: std::cell::RefCell<
+        Option<BTreeMap<SemanticDefinitionId, std::rc::Rc<Vec<NominalRequest>>>>,
+    >,
     // Bound to this immutable original proof and its declaration forest.
     proved: std::cell::RefCell<
         BTreeMap<(SemanticDefinitionId, zil_base::Fingerprint), Vec<SemanticTypeRecipe>>,
@@ -42,6 +45,7 @@ pub(super) fn borrowed_check<'a, 'b>(
         stage_depth: 0,
         cleanup_depth: 0,
         requested_snapshot: None,
+        snapshot_sources: None,
         escape_active: Vec::new(),
     })
 }
@@ -50,6 +54,7 @@ impl<'a> NominalWhere<'a> {
         Self {
             program,
             proof,
+            requests: Default::default(),
             proved: Default::default(),
             proved_count: Default::default(),
         }
@@ -59,52 +64,116 @@ impl<'a> NominalWhere<'a> {
         definition: SemanticDefinitionId,
         limits: &Limits,
         left: &mut usize,
-    ) -> R<Vec<NominalRequest>> {
-        *left = left
-            .checked_sub(self.proof.types.len().saturating_add(1))
-            .ok_or_else(|| {
-                Diagnostic::limit(
-                    Phase::Types,
-                    "original nominal request lookup exceeded",
-                    None,
-                )
-            })?;
-        let mut result: Vec<NominalRequest> = Vec::new();
+    ) -> R<std::rc::Rc<Vec<NominalRequest>>> {
+        if self.requests.borrow().is_none() {
+            let indexed = self.index_requests(limits, left)?;
+            *self.requests.borrow_mut() = Some(indexed);
+        }
+        let requests = self.requests.borrow();
+        let requests = requests
+            .as_ref()
+            .expect("completed original request directory");
+        Self::fee(left, requests.len().saturating_add(1).ilog2() as usize + 2)?;
+        Ok(requests.get(&definition).cloned().unwrap_or_default())
+    }
+    fn fee(left: &mut usize, amount: usize) -> R<()> {
+        *left = left.checked_sub(amount).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "original nominal request directory work exceeded",
+                None,
+            )
+        })?;
+        Ok(())
+    }
+    fn index_requests(
+        &self,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<BTreeMap<SemanticDefinitionId, std::rc::Rc<Vec<NominalRequest>>>> {
+        // One complete original scan for the immutable proof, rather than a
+        // deep-copy traversal of every type again for each nominal target.
+        // The existing substitution walker retains all Bound/Invocation and
+        // opaque-owner boundaries, including complete mixed Const/Life parts.
+        let mut result: BTreeMap<SemanticDefinitionId, Vec<NominalRequest>> = BTreeMap::new();
+        let mut seen: BTreeMap<
+            (SemanticDefinitionId, zil_base::Fingerprint),
+            Vec<(SemanticDefinitionId, usize)>,
+        > = BTreeMap::new();
+        let mut count = 0usize;
         for ((caller, _), value) in &self.proof.types {
+            Self::fee(
+                left,
+                self.proof.complete.len().saturating_add(1).ilog2() as usize + 2,
+            )?;
             if !self.proof.complete.contains(caller) {
                 continue;
             }
-            for recipe in substitute::nominal_types(value, definition, limits, left)? {
+            for recipe in substitute::nominal_types(value, None, limits, left)? {
+                let SemanticTypeRecipe::Nominal { definition, .. } = &recipe else {
+                    return Err(bad(
+                        "original nominal request collector changed its recipe kind",
+                    ));
+                };
+                let definition = *definition;
+                let digest = protocol::recipe_key(&recipe, limits, left)?;
+                let key = (*caller, digest);
+                Self::fee(left, seen.len().saturating_add(1).ilog2() as usize + 2)?;
                 let mut duplicate = false;
-                for previous in &result {
-                    if previous.caller != *caller {
-                        continue;
+                if let Some(bucket) = seen.get(&key) {
+                    for (target, index) in bucket {
+                        let previous = &result[target][*index];
+                        crate::dyn_metadata::semantic_operand_snapshot(
+                            &previous.recipe,
+                            limits,
+                            left,
+                            1,
+                        )?;
+                        crate::dyn_metadata::semantic_operand_snapshot(&recipe, limits, left, 1)?;
+                        if previous.caller == *caller && previous.recipe == recipe {
+                            duplicate = true;
+                            break;
+                        }
                     }
-                    crate::dyn_metadata::semantic_operand_snapshot(
-                        &previous.recipe,
-                        limits,
-                        left,
-                        1,
-                    )?;
-                    crate::dyn_metadata::semantic_operand_snapshot(&recipe, limits, left, 1)?;
-                    duplicate |= previous.recipe == recipe;
                 }
-                if !duplicate {
-                    *left = left.checked_sub(1).ok_or_else(|| {
-                        Diagnostic::limit(
-                            Phase::Types,
-                            "original nominal request allocation exceeded",
-                            None,
-                        )
-                    })?;
-                    result.push(NominalRequest {
-                        caller: *caller,
-                        recipe,
-                    });
+                if duplicate {
+                    continue;
                 }
+                if count >= limits.max_nodes {
+                    return Err(Diagnostic::limit(
+                        Phase::Types,
+                        "original nominal request directory node limit exceeded",
+                        None,
+                    ));
+                }
+                Self::fee(
+                    left,
+                    std::mem::size_of::<NominalRequest>()
+                        + std::mem::size_of::<(SemanticDefinitionId, usize)>()
+                        + result.len().saturating_add(1).ilog2() as usize
+                        + seen.len().saturating_add(1).ilog2() as usize
+                        + 2,
+                )?;
+                let rows = result.entry(definition).or_default();
+                let index = rows.len();
+                rows.push(NominalRequest {
+                    caller: *caller,
+                    recipe,
+                });
+                seen.entry(key).or_default().push((definition, index));
+                count += 1;
             }
         }
-        Ok(result)
+        Self::fee(
+            left,
+            result.len().saturating_mul(
+                2 * std::mem::size_of::<usize>() + std::mem::size_of::<Vec<NominalRequest>>(),
+            ),
+        )?;
+        Ok(result
+            .into_iter()
+            .map(|(definition, rows)| (definition, std::rc::Rc::new(rows)))
+            .collect())
     }
     pub(in crate::semantics) fn prove(
         &self,
@@ -150,35 +219,47 @@ impl<'a> NominalWhere<'a> {
                 "original nominal obligation has no true nominal declaration",
             ));
         }
+        let before_mapping = *check.left;
+        let mapped = super::super::instantiate::requirements(
+            self.program,
+            self.proof,
+            declaration
+                .requirements
+                .iter()
+                .chain(
+                    declaration
+                        .parameters
+                        .iter()
+                        .flat_map(|formal| match formal {
+                            SemanticFormal::Type { requirements } => requirements.as_slice(),
+                            _ => &[],
+                        }),
+                ),
+            super::super::instantiate::DomainMapping {
+                source: *definition,
+                use_definition: caller,
+                arguments,
+                parent_call: None,
+            },
+            limits,
+            check.left,
+        )
+        .map_err(|mut error| {
+            error.notes.push(format!(
+                "original nominal obligation mapping work {}",
+                before_mapping.saturating_sub(*check.left)
+            ));
+            error
+        })?;
+        let mapping_work = before_mapping.saturating_sub(*check.left);
+        let before_proof = *check.left;
         let result = (|| {
-            for requirement in
-                declaration
-                    .requirements
-                    .iter()
-                    .chain(
-                        declaration
-                            .parameters
-                            .iter()
-                            .flat_map(|formal| match formal {
-                                SemanticFormal::Type { requirements } => requirements.as_slice(),
-                                _ => &[],
-                            }),
-                    )
-            {
-                let mapped = super::super::instantiate::requirement(
-                    self.program,
-                    self.proof,
-                    requirement,
-                    super::super::instantiate::DomainMapping {
-                        source: *definition,
-                        use_definition: caller,
-                        arguments,
-                        parent_call: None,
-                    },
-                    limits,
-                    check.left,
-                )?;
-                check.satisfy_requirement(caller, &mapped, 0)?;
+            for (ordinal, requirement) in mapped.iter().enumerate() {
+                check.satisfy_requirement(caller, requirement, 0).map_err(|mut error| {
+                    error.notes.push(format!("original nominal obligation {ordinal}/{}; mapping work {mapping_work}; requirement proof work {}",
+                        mapped.len(), before_proof.saturating_sub(*check.left)));
+                    error
+                })?;
             }
             Ok(())
         })();
@@ -337,42 +418,41 @@ impl Proof {
                 return Err(bad("where call changes an original mixed argument kind"));
             }
         }
-        for requirement in original
-            .requirements
-            .iter()
-            .chain(original.parameters.iter().flat_map(|formal| match formal {
-                SemanticFormal::Type { requirements } => requirements.as_slice(),
-                _ => &[],
-            }))
-        {
-            if matches!(
-                requirement,
-                SemanticRequirementRecipe::Callable {
-                    ty: SemanticTypeRecipe::OriginalType {
-                        scope: SemanticScopeRef::Ancestor(0),
-                        source: SemanticOriginalTypeSource::Result,
-                    },
-                    ..
-                }
-            ) {
-                // This is an exit obligation of the independently checked
-                // callee body, never a caller assumption about an arbitrary F.
-                continue;
-            }
-            let mapped = super::super::instantiate::requirement(
-                program,
-                self,
-                requirement,
-                super::super::instantiate::DomainMapping {
-                    source: target,
-                    use_definition: caller,
-                    arguments,
-                    parent_call: self.method_calls.contains_key(&key).then_some(site),
-                },
-                limits,
-                check.left,
-            )?;
-            check.satisfy_requirement(caller, &mapped, 0)?;
+        let mapped = super::super::instantiate::requirements(
+            program,
+            self,
+            original
+                .requirements
+                .iter()
+                .chain(original.parameters.iter().flat_map(|formal| match formal {
+                    SemanticFormal::Type { requirements } => requirements.as_slice(),
+                    _ => &[],
+                }))
+                .filter(|requirement| {
+                    !matches!(
+                        requirement,
+                        // Exit obligations belong to the independently checked
+                        // callee body; they are not premises in the caller Gamma.
+                        SemanticRequirementRecipe::Callable {
+                            ty: SemanticTypeRecipe::OriginalType {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                source: SemanticOriginalTypeSource::Result,
+                            },
+                            ..
+                        }
+                    )
+                }),
+            super::super::instantiate::DomainMapping {
+                source: target,
+                use_definition: caller,
+                arguments,
+                parent_call: self.method_calls.contains_key(&key).then_some(site),
+            },
+            limits,
+            check.left,
+        )?;
+        for requirement in &mapped {
+            check.satisfy_requirement(caller, requirement, 0)?;
         }
         for argument in arguments {
             crate::dyn_metadata::semantic_operand_snapshot(argument, limits, check.left, 1)?;
@@ -533,5 +613,110 @@ impl Proof {
             )?;
         }
         Ok(actuals)
+    }
+}
+
+#[cfg(test)]
+mod request_tests {
+    use super::*;
+    fn id(index: u32) -> SemanticDefinitionId {
+        SemanticDefinitionId {
+            module: zil_base::ModuleId(0),
+            index,
+        }
+    }
+    fn nominal(definition: u32, lifetime: u32, constant: i32) -> SemanticTypeRecipe {
+        SemanticTypeRecipe::Nominal {
+            definition: id(definition),
+            arguments: vec![
+                SemanticActualRecipe::Type(SemanticTypeRecipe::Atom(Type::I32)),
+                SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(SemanticFormalRef {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    ordinal: lifetime,
+                })),
+                SemanticActualRecipe::Const {
+                    carrier: SemanticTypeRecipe::Atom(Type::I32),
+                    value: SemanticConstRecipe::Value(Constant::I32(constant)),
+                },
+            ],
+        }
+    }
+    #[test]
+    fn request_directory_keeps_callers_and_full_mixed_arguments() {
+        let program = SemanticModule {
+            definitions: vec![],
+            instances: vec![],
+            sites: vec![],
+            dyn_scopes: vec![],
+        };
+        let mut proof = Proof::default();
+        proof.complete.extend([id(0), id(1)]);
+        for (owner, node, recipe) in [
+            (0, 0, nominal(7, 0, 1)),
+            (0, 1, nominal(7, 0, 1)),
+            (0, 2, nominal(7, 1, 1)),
+            (0, 3, nominal(7, 0, 2)),
+            (1, 0, nominal(7, 0, 1)),
+            (0, 4, nominal(8, 0, 1)),
+        ] {
+            proof
+                .types
+                .insert((id(owner), Query::Expression(NodeId(node))), recipe);
+        }
+        let limits = Limits::default();
+        let mut left = limits.max_analysis_steps;
+        let session = NominalWhere::new(&program, &proof);
+        let first = session.requests(id(7), &limits, &mut left).unwrap();
+        assert_eq!(first.len(), 4);
+        assert_eq!(first.iter().filter(|row| row.caller == id(0)).count(), 3);
+        let before = left;
+        let repeated = session.requests(id(7), &limits, &mut left).unwrap();
+        assert!(std::rc::Rc::ptr_eq(&first, &repeated));
+        assert!(before - left < 16);
+        assert_eq!(
+            session.requests(id(8), &limits, &mut left).unwrap().len(),
+            1
+        );
+        // Indexing occurrences does not establish their where requirements.
+        assert!(
+            session
+                .prove(id(0), &first[0].recipe, &limits, &mut left)
+                .is_err()
+        );
+    }
+    #[test]
+    fn all_nominal_collection_preserves_code_and_opaque_owner_boundaries() {
+        let outer = nominal(7, 0, 1);
+        let hidden = nominal(8, 0, 1);
+        let code = SemanticTypeRecipe::Code {
+            kind: SemanticCodeKind::BorrowedFunctionPointer,
+            signature: Box::new(SemanticSignatureRecipe {
+                bound_lifetimes: 1,
+                invocation_lifetimes: 1,
+                parameters: vec![],
+                result: hidden.clone(),
+                result_mode: PassingMode::Copy,
+                call_kind: CallKind::Direct,
+            }),
+        };
+        let opaque = SemanticTypeRecipe::Opaque {
+            definition: id(9),
+            arguments: vec![SemanticActualRecipe::Type(outer.clone())],
+            hidden: Box::new(hidden),
+        };
+        let value = SemanticTypeRecipe::Tuple(vec![code, opaque]);
+        let limits = Limits::default();
+        let mut left = limits.max_analysis_steps;
+        let all = substitute::nominal_types(&value, None, &limits, &mut left).unwrap();
+        assert_eq!(all, vec![outer.clone()]);
+        assert_eq!(
+            substitute::nominal_types(&value, Some(id(7)), &limits, &mut left).unwrap(),
+            vec![outer]
+        );
+        assert!(
+            substitute::nominal_types(&value, Some(id(8)), &limits, &mut left)
+                .unwrap()
+                .is_empty()
+        );
     }
 }

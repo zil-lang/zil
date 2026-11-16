@@ -150,6 +150,7 @@ pub(super) fn check_definitions(
         return Err(limit("closure count exceeds the function bound"));
     }
     check_layouts(module, limits, budget)?;
+    retained::check_self_contained_sources(module, limits, budget)?;
     budget.spend(module.functions.len())?;
     let mut entries = vec![None; module.functions.len()];
     for (index, closure) in module.closures.iter().enumerate() {
@@ -170,7 +171,7 @@ pub(super) fn check_definitions(
         if let Some(life) = &closure.storage_life {
             stored_callables::captured_profile(module, closure, budget)?;
             signature_life::charge(life, budget)?;
-            signature_life::closure_relation(
+            signature_life::closure_relation_resource_scopes(
                 module,
                 &closure.parameters,
                 &closure.captures,
@@ -178,6 +179,7 @@ pub(super) fn check_definitions(
                 stored_callables::life_result(closure),
                 life,
                 None,
+                budget,
             )?;
             let entry = module
                 .functions

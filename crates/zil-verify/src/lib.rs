@@ -81,6 +81,7 @@ mod closures;
 mod ct_artifact;
 mod ct_program;
 mod ct_frozen_context;
+mod ct_original;
 #[cfg(test)]
 mod defer_tests;
 mod defers;
@@ -143,6 +144,7 @@ pub use ct_artifact::{
 };
 pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_bytes};
 pub use ct_frozen_context::verify_ct_program_in_context;
+pub use ct_original::{CtOriginalImport, CtOriginalImportTarget, CtOriginalModule, verify_ct_original_definitions};
 
 /// A checked, immutable scalar/readonly-closure CFG, including independently
 /// reconstructed local shared-address provenance and lifetime constraints.
@@ -365,8 +367,37 @@ fn limit(message: impl Into<String>) -> Diagnostic {
     Diagnostic::limit(Phase::Verify, message, None)
 }
 
+#[derive(Clone,Copy,Debug,Default)]
+struct DiagnosticProgress{
+    stage:&'static str,
+    original:Option<(usize,usize,SemanticDefinitionId)>,
+    world:Option<(usize,usize,SemanticInstanceId,FunctionId)>,
+    recipes_started:usize,
+    recipes_completed:usize,
+    frame_hits:usize,
+    frames_built:usize,
+    frame_cache_entries:usize,
+    resource_hits:usize,
+    resource_registered_cold:usize,
+    resource_unregistered_cold:usize,
+    actual_function:Option<FunctionId>,
+    summary_round:usize,
+    cfg_round:usize,
+    block_visits:usize,
+    stored_frame_clones:usize,
+    stored_frame_joins:usize,
+    loan_unions:usize,
+    empty_loan_unions:usize,
+    resource_state_clones:usize,
+    resource_state_joins:usize,
+    recipe:Option<(usize,std::mem::Discriminant<SemanticTypeRecipe>,Option<SemanticDefinitionId>,Option<semantic::ScopeKey>,Option<semantic::SitePoint>)>,
+}
 struct Budget {
     remaining: usize,
+    structural: Option<dynamic_metadata::Structure>,
+    diagnostic_costs: Option<BTreeMap<(&'static str, u32), (usize, usize)>>,
+    diagnostic_metadata_caller: Option<&'static std::panic::Location<'static>>,
+    diagnostic_progress:Option<DiagnosticProgress>,
     callable_source_functions: Vec<FunctionId>,
     pending_callable_sources: Vec<FunctionId>,
     returned_environment_sources: bool,
@@ -411,6 +442,7 @@ struct Budget {
     stored_replacement_functions: BTreeSet<FunctionId>,
     stored_replacements: Vec<Option<std::rc::Rc<stored_flow::replacements::Context>>>,
     semantic_callables: Vec<semantic::callable_obligations::PendingCallable>,
+    semantic_checked: Option<std::rc::Rc<dynamic_witness::semantic_patterns::Session>>,
     proven_static_occurrences: BTreeSet<(ClosureId,StoragePosition)>,
     semantic_constructor_classes: BTreeMap<semantic::constructor_classes::Key,semantic::constructor_classes::Source>,
     task_frames: BTreeMap<semantic::task_domains::FrameKey,semantic::task_domains::FrameState>,
@@ -495,6 +527,10 @@ impl Budget {
     fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            structural: None,
+            diagnostic_costs: std::env::var_os("ZIL_VERIFY_PROFILE_COSTS").map(|_| BTreeMap::new()),
+            diagnostic_metadata_caller: None,
+            diagnostic_progress:std::env::var_os("ZIL_VERIFY_PROFILE_COSTS").map(|_|DiagnosticProgress::default()),
             callable_source_functions: Vec::new(),
             pending_callable_sources: Vec::new(),
             returned_environment_sources: false,
@@ -532,6 +568,7 @@ impl Budget {
             stored_replacement_functions: BTreeSet::new(),
             stored_replacements: Vec::new(),
             semantic_callables: Vec::new(),
+            semantic_checked: None,
             proven_static_occurrences: BTreeSet::new(),
             semantic_constructor_classes: BTreeMap::new(),
             task_frames: BTreeMap::new(),
@@ -586,13 +623,36 @@ impl Budget {
             stored_context: false,
         }
     }
+    #[track_caller]
     fn spend(&mut self, amount: usize) -> Check<()> {
-        self.remaining = self
-            .remaining
-            .checked_sub(amount)
-            .ok_or_else(|| limit("independent verification work budget exhausted"))?;
+        let location = std::panic::Location::caller();
+        if let Some(costs) = &mut self.diagnostic_costs {
+            let attributed=self.diagnostic_metadata_caller.unwrap_or(location);
+            let row = costs.entry((attributed.file(), attributed.line())).or_default();
+            row.0 = row.0.saturating_add(amount);
+            row.1 = row.1.saturating_add(1);
+        }
+        self.remaining = self.remaining.checked_sub(amount).ok_or_else(|| {
+            let mut message = "independent verification work budget exhausted".to_owned();
+            if let Some(costs) = &self.diagnostic_costs {
+                message.push_str(&format!(
+                    " [requested {amount}, remaining {}, function {:?}, callsite {location}]",
+                    self.remaining, self.current_function
+                ));
+                if let Some(progress)=self.diagnostic_progress{message.push_str(&format!(" [progress {progress:?}]"));}
+                let mut rows: Vec<_> = costs.iter().collect();
+                rows.sort_by_key(|(_, (work, calls))| std::cmp::Reverse((*work, *calls)));
+                for ((file, line), (work, calls)) in rows.into_iter().take(20) {
+                    message.push_str(&format!(" [cost {file}:{line}: work {work}, calls {calls}]"));
+                }
+            }
+            limit(message)
+        })?;
         Ok(())
     }
+    fn diagnostic_stage(&mut self,stage:&'static str){if let Some(progress)=&mut self.diagnostic_progress{progress.stage=stage;progress.actual_function=None;progress.summary_round=0;progress.cfg_round=0;}}
+    fn diagnostic_actual(&mut self,stage:&'static str,function:FunctionId,summary_round:usize){if let Some(progress)=&mut self.diagnostic_progress{progress.stage=stage;progress.actual_function=Some(function);progress.summary_round=summary_round;progress.cfg_round=0;}}
+    fn diagnostic_label(&mut self,stage:&'static str){if let Some(progress)=&mut self.diagnostic_progress{progress.stage=stage;}}
     // Callers pass immutable local Type trees from the checked module; their
     // nodes keep these addresses for this verification request. The first
     // query pays for the complete tree walk, and each lookup pays for the map.
@@ -864,20 +924,29 @@ fn check_module_budget(
     }
 
     budget.function_count = module.functions.len();
+    let prior_structure = budget.structural.take();
+    let prior_progress=budget.diagnostic_progress;
+    let result = (|| {
+    budget.diagnostic_stage("immutable registration");
+    budget.structural = Some(dynamic_metadata::Structure::register(module, budget)?);
     if module.semantic.is_none(){semantic::task_domains::prepare_raw_task_contexts(module,&mut budget)?;}
     budget.stored_context = true;
+    budget.diagnostic_stage("semantic program");
     if let Some(frozen)=frozen {
         frozen.check_executable(module,&mut budget)?;
     }else if module.semantic.is_some() {
         semantic::check_program(module, &mut budget)?;
     }
+    budget.diagnostic_stage("dynamic inventory");
     if has_dyn {
         dynamic_dispatch::inventory(module, &mut budget)?;
     }
+    budget.diagnostic_stage("stored inventory");
     if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
         stored_flow::inventory(module, limits, &mut budget)?;
         budget.stored_borrows = true;
     }
+    budget.diagnostic_stage("resource definitions");
     resources::check_definitions(module, limits, &mut budget)?;
     for text in [
         &module.target.id,
@@ -889,6 +958,7 @@ fn check_module_budget(
     }
     // Bound every aggregate shape before definitions, equality, cloning or
     // fingerprinting. Raw APIs receive no protection from a source producer.
+    budget.diagnostic_stage("typed shape preflight");
     for (index, function) in module.functions.iter().enumerate() {
         if function.resume_bound == zil_ir::TaskResumeBound::Transfer {
             budget.spend(1)?;
@@ -1012,6 +1082,7 @@ fn check_module_budget(
         }
     }
     registration::storage(module, &mut budget)?;
+    budget.diagnostic_stage("actual closure and executable definitions");
     closures::check_definitions(module, limits, &mut budget)?;
     if (budget.task_sources() || budget.task_origin_roots) && budget.task_input_scopes.is_none() && !module.closures.is_empty() {
         budget.task_input_scopes = Some(tasks::input_scope::build(module, limits, &mut budget)?);
@@ -1328,6 +1399,7 @@ fn check_module_budget(
             "candidate plan is bound to different module or target bytes",
         ));
     }
+    budget.diagnostic_stage("actual CFG structure and retained bodies");
     let mut graphs = Vec::with_capacity(module.functions.len());
     for (function, function_plan) in module.functions.iter().zip(&plan.functions) {
         if function_plan.function != function.id {
@@ -1348,6 +1420,7 @@ fn check_module_budget(
         retained::check_body(module, function, &graph, &mut budget)?;
         graphs.push(graph);
     }
+    budget.diagnostic_stage("actual retained sources and task interfaces");
     retained::check_sources(module, &graphs, limits, &mut budget)?;
     tasks::module(module, &mut budget)?;
     let mut task_input_fingerprint = fingerprint;
@@ -1356,6 +1429,7 @@ fn check_module_budget(
         task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
+    budget.diagnostic_stage("actual stored and borrow CFG");
     let guard_sources = if budget.task_sources() || budget.store_option_results {
         for (index, f) in module.functions.iter().enumerate() {
             if store_option_mask.as_ref().is_none_or(|mask| mask[index]) {
@@ -1367,6 +1441,7 @@ fn check_module_budget(
         } else {
             stored_flow::check(module, &graphs, plan, &mut budget)?;
         }
+        budget.diagnostic_stage("actual borrow CFG");
         borrows::check_module(module, plan, &graphs, &mut budget)?
     } else if budget.stored_borrows && stored_partition.is_none() {
         for f in &module.functions {
@@ -1381,6 +1456,7 @@ fn check_module_budget(
             }
         }
         stored_flow::check_mixed(module, &graphs, plan, mask, &mut budget)?;
+        budget.diagnostic_stage("actual mixed borrow CFG");
         borrows::check_mixed(module, plan, &graphs, mask, &mut budget)?
     } else if budget.nested_callable_sources {
         // The actual stored-target ledger carries complete nested environment
@@ -1392,8 +1468,10 @@ fn check_module_budget(
         stored_flow::check(module, &graphs, plan, &mut budget)?;
         Vec::new()
     } else {
+        budget.diagnostic_stage("actual borrow CFG");
         borrows::check_module(module, plan, &graphs, &mut budget)?
     };
+    budget.diagnostic_stage("actual deferred sources and head access");
     if !budget.pending_callable_sources.is_empty() {
         return Err(reject(
             "E-VERIFY-CALLABLE-SOURCE",
@@ -1434,7 +1512,9 @@ fn check_module_budget(
     }
     budget.guard_return_sources = guard_sources;
     head_access::check(module, &graphs, &mut budget)?;
+    budget.diagnostic_stage("actual resource effects and CFG");
     resources::check_module(module, &graphs, &mut budget)?;
+    budget.diagnostic_stage("actual task transfer and exit protocols");
     tasks::transfer::finish(module, &mut budget)?;
     registration::check_phase(module, &mut budget)?;
     semantic::task_domains::drain(module,&mut budget)?;
@@ -1452,6 +1532,10 @@ fn check_module_budget(
         task_input_fingerprint,
         task_ownership: std::mem::take(&mut budget.task_ownership),
     })
+    })();
+    budget.structural = prior_structure;
+    budget.diagnostic_progress=prior_progress;
+    result
 }
 
 fn add_count(before: usize, add: usize, maximum: usize, kind: &str) -> Check<usize> {

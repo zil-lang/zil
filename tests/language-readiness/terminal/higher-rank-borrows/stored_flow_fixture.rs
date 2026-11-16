@@ -133,11 +133,20 @@ pub(super) fn module() -> TypedModule {
         static_bindings: Vec::new(),
         fixed_binder_count: 0,
         invocation_binder_count: 1,
-        bindings: vec![row(
-            StorageBase::Parameter(0),
-            vec![],
-            StorageBinder::Invocation(0),
-        )],
+        bindings: vec![
+            row(
+                StorageBase::Parameter(0),
+                vec![],
+                StorageBinder::Invocation(0),
+            ),
+            // Returning the carrier transfers this physical borrowed slot;
+            // the separate Result class row preserves its complete domain.
+            row(
+                StorageBase::Result,
+                vec![PlaceProjection::Field(0)],
+                StorageBinder::Invocation(0),
+            ),
+        ],
         classes: vec![SignatureLifeClassBinding {
             position: SignatureLifeClass {
                 base: StorageBase::Result,
@@ -474,6 +483,16 @@ pub(super) fn shared_two_slots() -> TypedModule {
         mode: StoredBorrowMode::SharedAddress,
     });
     replace_carrier(&mut module, &old, &new);
+    module.functions[0]
+        .storage_life
+        .as_mut()
+        .unwrap()
+        .bindings
+        .push(row(
+            StorageBase::Result,
+            vec![PlaceProjection::Field(1)],
+            StorageBinder::Invocation(0),
+        ));
     let InstructionKind::MakeAggregate { fields } =
         &mut module.functions[0].blocks[0].instructions[2].kind
     else {
@@ -1018,14 +1037,13 @@ pub(super) fn unbound_fixed_pointer() -> TypedModule {
 pub(super) fn qualified_fn_role(wrong_actual: bool, wrong_role: bool) -> TypedModule {
     let mut m = rich_marker_pointer(false, false);
     let target = &mut m.functions[0];
-    target.storage_life = None;
     target.environment = Some(ClosureId(0));
     let parameters = target
         .parameters
         .iter()
         .map(|p| target.locals[p.0 as usize].ty.clone())
         .collect::<Vec<_>>();
-    let definition = ClosureDefinition {
+    let mut definition = ClosureDefinition {
         storage_life: None,
         id: ClosureId(0),
         function: FunctionId(0),
@@ -1061,6 +1079,15 @@ pub(super) fn qualified_fn_role(wrong_actual: bool, wrong_role: bool) -> TypedMo
             binder: StorageBinder::Invocation(if wrong_role { 0 } else { 1 }),
         }],
     };
+    // This concrete environment has no captures and no free Fixed classes.
+    // Its two invocation parameters still carry the complete relation:
+    // &Tag<'b> has an outer Invocation(0), while its real nominal class and
+    // the second Address share Invocation(1). Keep the actual entry relation
+    // independent of the hostile role mutation below; None is not Known0.
+    let mut concrete_life = role_life.clone();
+    concrete_life.classes[0].binder = StorageBinder::Invocation(1);
+    m.functions[0].storage_life = Some(concrete_life.clone());
+    definition.storage_life = Some(concrete_life);
     let mut helper = function(
         1,
         vec![env.clone(), parameters[0].clone(), parameters[1].clone()],
@@ -1244,7 +1271,15 @@ pub(super) fn qualified_fn_exclusive_call(alias: bool) -> TypedModule {
     let d = &mut m.closures[0];
     d.parameters[1] = mutable.clone();
     d.parameters.push(mutable.clone());
+    let life = d.storage_life.as_mut().unwrap();
+    life.invocation_binder_count = 3;
+    life.bindings.push(row(
+        StorageBase::Parameter(2),
+        vec![],
+        StorageBinder::Invocation(2),
+    ));
     let entry = &mut m.functions[0];
+    entry.storage_life = d.storage_life.clone();
     entry.locals[1].ty = mutable.clone();
     entry.locals.push(LocalDecl {
         id: LocalId(2),

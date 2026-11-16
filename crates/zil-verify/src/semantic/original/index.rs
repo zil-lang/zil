@@ -41,32 +41,7 @@ pub(super) fn build<'a>(module: &'a TypedModule, b: &mut Budget) -> Check<Index<
         if !ids.insert(definition.id) {
             return Err(bad("duplicate original definition identity in body index"));
         }
-        let (signature, sites, parameters, receiver_parameter, site_nodes, body) = match &definition.body {
-            SemanticDefinitionBody::Function { .. } => return Err(bad("original function inventory omits its complete body")),
-            SemanticDefinitionBody::FunctionWithBody { signature, sites, parameters, receiver_parameter, site_nodes, body, .. } =>
-                (signature, sites.as_slice(), parameters.as_slice(), *receiver_parameter, site_nodes.as_slice(), body),
-            SemanticDefinitionBody::Nominal { .. } | SemanticDefinitionBody::Scope(_) => {
-                if matches!(definition.kind, SemanticDefinitionKind::Function | SemanticDefinitionKind::Method | SemanticDefinitionKind::Closure | SemanticDefinitionKind::TaskEntry) {
-                    return Err(bad("original callable definition has a nonfunction body"));
-                }
-                continue;
-            }
-        };
-        if !matches!(definition.kind, SemanticDefinitionKind::Function | SemanticDefinitionKind::Method | SemanticDefinitionKind::Closure | SemanticDefinitionKind::TaskEntry) {
-            return Err(bad("original function body has a noncallable definition kind"));
-        }
-        if receiver_parameter.is_some_and(|ordinal| ordinal as usize >= parameters.len()) {
-            return Err(bad("original receiver selects no actual parameter ordinal"));
-        }
-        b.spend(parameters.len().saturating_add(1))?;
-        let mut function = Function {
-            definition, signature, sites, parameters, receiver_parameter, site_nodes, body,
-            expressions: BTreeMap::new(), statements: BTreeMap::new(), bindings: BTreeMap::new(),
-            nodes: BTreeMap::new(), closures: BTreeMap::new(),
-        };
-        if let SemanticOriginalFunctionBody::Defined(body) = body {
-            function.walk(body, b)?;
-        }
+        let Some(mut function)=function(definition,b)? else {continue;};
         function.bind_sites(b)?;
         result.definitions.insert(definition.id, function);
     }
@@ -96,6 +71,133 @@ pub(super) fn build<'a>(module: &'a TypedModule, b: &mut Budget) -> Check<Index<
         }
     }
     Ok(result)
+}
+
+fn function<'a>(definition:&'a SemanticDefinition,b:&mut Budget)->Check<Option<Function<'a>>> {
+    let (signature, sites, parameters, receiver_parameter, site_nodes, body) = match &definition.body {
+        SemanticDefinitionBody::Function { .. } => return Err(bad("original function inventory omits its complete body")),
+        SemanticDefinitionBody::FunctionWithBody { signature, sites, parameters, receiver_parameter, site_nodes, body, .. } =>
+            (signature, sites.as_slice(), parameters.as_slice(), *receiver_parameter, site_nodes.as_slice(), body),
+        SemanticDefinitionBody::Nominal { .. } | SemanticDefinitionBody::Scope(_) => {
+            if matches!(definition.kind, SemanticDefinitionKind::Function | SemanticDefinitionKind::Method | SemanticDefinitionKind::Closure | SemanticDefinitionKind::TaskEntry) {
+                return Err(bad("original callable definition has a nonfunction body"));
+            }
+            return Ok(None);
+        }
+    };
+    if !matches!(definition.kind, SemanticDefinitionKind::Function | SemanticDefinitionKind::Method | SemanticDefinitionKind::Closure | SemanticDefinitionKind::TaskEntry) {
+        return Err(bad("original function body has a noncallable definition kind"));
+    }
+    if receiver_parameter.is_some_and(|ordinal| ordinal as usize >= parameters.len()) {
+        return Err(bad("original receiver selects no actual parameter ordinal"));
+    }
+    b.spend(parameters.len().saturating_add(1))?;
+    let mut function = Function {
+        definition, signature, sites, parameters, receiver_parameter, site_nodes, body,
+        expressions: BTreeMap::new(), statements: BTreeMap::new(), bindings: BTreeMap::new(),
+        nodes: BTreeMap::new(), closures: BTreeMap::new(),
+    };
+    if let SemanticOriginalFunctionBody::Defined(body) = body {
+        function.walk(body, b)?;
+    }
+    Ok(Some(function))
+}
+
+
+/// Immutable structural cursors after the complete build above. This directory
+/// is request-local, not an IR receipt and not a type/source/loan certificate.
+pub(super) struct SourceIndex {
+    // Keeping this exact source tree alive binds every structural cursor and
+    // returned expression to the grammar checked by this original Γ.
+    program:std::sync::Arc<SemanticModule>,
+    directory:Directory,
+    limits:Limits,
+}
+struct Directory {
+    definitions:BTreeMap<SemanticDefinitionId,DefinitionCursor>,
+}
+struct DefinitionCursor {
+    ordinal:usize,
+    nodes:BTreeMap<SemanticSiteId,SemanticOriginalNode>,
+    closures:BTreeMap<NodeId,SemanticDefinitionId>,
+    recipes:BTreeMap<(bool,NodeId,Role),Vec<(usize,SemanticSiteId)>>,
+}
+#[derive(Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
+pub(super) enum Role{Construct,Call,CallableCall,OriginalCall,TypeUse,DeclareLocal,Closure}
+impl Role{fn of(recipe:&SemanticSiteRecipeKind)->Self{match recipe{
+    SemanticSiteRecipeKind::Construct{..}=>Self::Construct,SemanticSiteRecipeKind::Call{..}=>Self::Call,
+    SemanticSiteRecipeKind::CallableCall{..}=>Self::CallableCall,SemanticSiteRecipeKind::OriginalCall=>Self::OriginalCall,
+    SemanticSiteRecipeKind::TypeUse{..}=>Self::TypeUse,SemanticSiteRecipeKind::DeclareLocal{..}=>Self::DeclareLocal,
+    SemanticSiteRecipeKind::Closure{..}=>Self::Closure,
+}}}
+impl SourceIndex{
+    fn bounds(&self,b:&mut Budget)->Check<()>{b.spend(12)?;if self.limits!=b.limits{dynamic_metadata::recipe(self.program.as_ref(),b)?;}Ok(())}
+    pub(super) fn recipes(&self,definition:SemanticDefinitionId,node:SemanticOriginalNode,roles:&[Role],b:&mut Budget)->Check<Vec<(usize,SemanticSiteId)>>{
+        self.bounds(b)?;
+        b.spend(self.directory.definitions.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+        let cursor=self.directory.definitions.get(&definition).ok_or_else(||bad("original reverse site owner has no fully checked body"))?;
+        let(statement,node)=match node{SemanticOriginalNode::Expression(node)=>(false,node),SemanticOriginalNode::Statement(node)=>(true,node)};
+        let mut result=Vec::new();
+        for role in roles{b.spend(cursor.recipes.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+            if let Some(rows)=cursor.recipes.get(&(statement,node,*role)){b.spend(rows.len().saturating_add(if result.capacity().saturating_sub(result.len())<rows.len(){result.len()}else{0}))?;result.extend_from_slice(rows);}
+        }Ok(result)
+    }
+}
+pub(super) fn snapshot(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Check<SourceIndex>{
+    let program=module.semantic.as_ref().ok_or_else(||bad("original index directory has no complete programme"))?;
+    let mut definitions=BTreeMap::new();
+    for(ordinal,definition)in program.definitions.iter().enumerate(){
+        b.spend(index.definitions.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+        let Some(function)=index.definitions.get(&definition.id)else{continue;};
+        let rows=function.nodes.len().saturating_add(function.closures.len());
+        b.spend(rows.saturating_mul(rows.checked_ilog2().map_or(1,|n|n as usize+2)).saturating_add(index.definitions.len().checked_ilog2().map_or(1,|n|n as usize+2)))?;
+        let nodes=function.nodes.iter().map(|(site,node)|(*site,match node{
+            Node::Expression(expression)=>SemanticOriginalNode::Expression(expression.id),
+            Node::Statement(statement)=>SemanticOriginalNode::Statement(statement.id),
+        })).collect();
+        let mut recipes=BTreeMap::<_,Vec<_>>::new();
+        for(position,recipe)in function.sites.iter().enumerate(){
+            b.spend(function.nodes.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+            let node=function.nodes.get(&recipe.id).ok_or_else(||bad("reverse original site has no checked node correspondence"))?;
+            let(statement,node)=match node{Node::Expression(node)=>(false,node.id),Node::Statement(node)=>(true,node.id)};
+            b.spend(recipes.len().checked_ilog2().map_or(1,|n|n as usize+3))?;
+            let rows=recipes.entry((statement,node,Role::of(&recipe.kind))).or_default();
+            b.spend(1usize.saturating_add(if rows.len()==rows.capacity(){rows.len()}else{0}))?;
+            rows.push((position,recipe.id));
+        }
+        definitions.insert(definition.id,DefinitionCursor{ordinal,nodes,closures:function.closures.clone(),recipes});
+    }
+    // Prepay the complete immutable snapshot copy, including all unused
+    // definitions, annotations and quote payloads. No address/digest/ID key
+    // can claim another transient module's grammar receipt.
+    dynamic_metadata::recipe(program,b)?;
+    b.spend(12)?;
+    Ok(SourceIndex{program:std::sync::Arc::new(program.clone()),directory:Directory{definitions},limits:b.limits.clone()})
+}
+pub(super) fn select<'a>(source:&'a SourceIndex,requested:&[SemanticDefinitionId],b:&mut Budget)->Check<Index<'a>>{
+    source.bounds(b)?;
+    let program=source.program.as_ref();
+    let directory=&source.directory;
+    let mut definitions=BTreeMap::new();
+    for id in requested{
+        b.spend(directory.definitions.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+        if definitions.contains_key(id){continue;}
+        let cursor=directory.definitions.get(id).ok_or_else(||bad("original local cursor selects no fully checked function definition"))?;
+        let definition=program.definitions.get(cursor.ordinal).filter(|definition|definition.id==*id).ok_or_else(||bad("original local cursor changes its immutable definition identity"))?;
+        let mut function=function(definition,b)?.ok_or_else(||bad("original local cursor changes its checked function kind"))?;
+        let rows=function.expressions.len().saturating_add(function.statements.len()).saturating_add(cursor.nodes.len());
+        b.spend(cursor.nodes.len().saturating_mul(rows.checked_ilog2().map_or(1,|n|n as usize+2)).saturating_add(cursor.closures.len()))?;
+        for(site,node)in &cursor.nodes{
+            let node=match node{
+                SemanticOriginalNode::Expression(id)=>Node::Expression(*function.expressions.get(id).ok_or_else(||bad("checked original cursor expression is absent from its exact body"))?),
+                SemanticOriginalNode::Statement(id)=>Node::Statement(*function.statements.get(id).ok_or_else(||bad("checked original cursor statement is absent from its exact body"))?),
+            };
+            function.nodes.insert(*site,node);
+        }
+        function.closures=cursor.closures.clone();
+        definitions.insert(*id,function);
+    }
+    Ok(Index{definitions})
 }
 
 enum Work<'a> {
@@ -305,5 +407,24 @@ fn compatible(recipe: &SemanticSiteRecipeKind, node: Node<'_>) -> bool {
         (SemanticSiteRecipeKind::Call { .. } | SemanticSiteRecipeKind::CallableCall { .. } | SemanticSiteRecipeKind::OriginalCall, Node::Expression(expression)) => matches!(expression.kind, SemanticOriginalExprKind::Call { .. } | SemanticOriginalExprKind::CallDynSlot { .. } | SemanticOriginalExprKind::Pipeline { .. }),
         (SemanticSiteRecipeKind::Construct { .. }, Node::Expression(expression)) => matches!(expression.kind, SemanticOriginalExprKind::Tuple(_) | SemanticOriginalExprKind::Array(_) | SemanticOriginalExprKind::Record { .. } | SemanticOriginalExprKind::RecordUpdate { .. } | SemanticOriginalExprKind::RecordConstructor { .. } | SemanticOriginalExprKind::MakeDynOwned { .. } | SemanticOriginalExprKind::Call { .. } | SemanticOriginalExprKind::Member { owner: None, .. } | SemanticOriginalExprKind::Literal(_)),
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod reverse_tests{
+    use super::*;
+    #[test]
+    fn reverse_source_directory_preserves_all_roles_ambiguity_and_owned_grammar(){
+        let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
+        let definition=SemanticDefinitionId{module:module.module_id,index:0};let node=NodeId(1);
+        let call=CoreExpr{id:node,span,kind:CoreExprKind::Call{callee:Box::new(CoreExpr{id:NodeId(2),span,kind:CoreExprKind::Name("target".into())}),arguments:vec![]}};
+        let sites=(0..3).map(|index|SemanticSiteRecipe{id:SemanticSiteId(index),occurrence_path:vec![index],kind:if index==1{SemanticSiteRecipeKind::TypeUse{expected:SemanticTypeRecipe::Atom(Type::I32)}}else{SemanticSiteRecipeKind::OriginalCall}}).collect();
+        module.semantic=Some(SemanticModule{definitions:vec![SemanticDefinition{id:definition,identity:LifeDeclarationIdentity{package:"test".into(),module_path:vec![],declaration_path:vec!["caller".into()],generation_path:vec![]},parent:None,kind:SemanticDefinitionKind::Function,parameters:vec![],implicit_lifetimes:vec![],requirements:vec![],environment:vec![],body:SemanticDefinitionBody::FunctionWithBody{signature:SemanticSignatureRecipe{bound_lifetimes:0,invocation_lifetimes:0,parameters:vec![],result:SemanticTypeRecipe::Atom(Type::I32),result_mode:PassingMode::Move,call_kind:CallKind::Direct},protocol_contracts:vec![],foreign:None,resume_bound:TaskResumeBound::Local,sites,parameters:vec![],receiver_parameter:None,names:vec![],site_nodes:(0..3).map(|index|SemanticOriginalSiteNode{site:SemanticSiteId(index),node:SemanticOriginalNode::Expression(node)}).collect(),body:SemanticOriginalFunctionBody::Defined(CoreBlock{span,statements:vec![CoreStatement{id:NodeId(0),span,kind:CoreStatementKind::Expression(call)}]})}}],instances:vec![],sites:vec![],dyn_scopes:vec![]});
+        let mut b=Budget::new(&Limits::default());let index=build(&module,&mut b).unwrap();let source=snapshot(&module,&index,&mut b).unwrap();drop(index);drop(module);
+        assert_eq!(source.recipes(definition,SemanticOriginalNode::Expression(node),&[Role::Call,Role::CallableCall,Role::OriginalCall],&mut b).unwrap(),vec![(0,SemanticSiteId(0)),(2,SemanticSiteId(2))]);
+        assert_eq!(source.recipes(definition,SemanticOriginalNode::Expression(node),&[Role::TypeUse],&mut b).unwrap(),vec![(1,SemanticSiteId(1))]);
+        assert!(source.recipes(definition,SemanticOriginalNode::Statement(node),&[Role::OriginalCall],&mut b).unwrap().is_empty());
+        assert!(source.recipes(SemanticDefinitionId{index:1,..definition},SemanticOriginalNode::Expression(node),&[Role::OriginalCall],&mut b).is_err());
+        b.limits.max_nodes=1;assert!(source.recipes(definition,SemanticOriginalNode::Expression(node),&[Role::OriginalCall],&mut b).is_err());
     }
 }

@@ -126,15 +126,20 @@ impl Engine<'_> {
                         | BinaryOp::GreaterEqual
                 )
             });
-            let float_hint = if hint.is_none()
+            let peer_hint = if hint.is_none()
                 && check::uncontextual_float(left, &mut self.budget, depth + 1)?
             {
                 self.value_hint(right, env, depth + 1, false)?
                     .filter(check::floating)
+            } else if hint.is_none()
+                && check::uncontextual_integer(left, &mut self.budget, depth + 1)?
+            {
+                self.value_hint(right, env, depth + 1, false)?
+                    .filter(check::integer)
             } else {
                 None
             };
-            let hint = hint.or(float_hint.as_ref());
+            let hint = hint.or(peer_hint.as_ref());
             let left_type = self.expr_expected(left, env, hint, depth + 1)?;
             self.expr_expected(right, env, hint.or(left_type.as_ref()), depth + 1)?;
             if matches!(
@@ -334,6 +339,18 @@ impl Engine<'_> {
         };
         let result = {
             self.expr(condition, env, depth + 1)?;
+            let numeric_hint =
+                if expected.is_none() && error_context.is_none() && anonymous_context.is_none() {
+                    let first = self.value_hint(then_value, env, depth + 1, false)?;
+                    let hint = match first {
+                        Some(value) => Some(value),
+                        None => self.value_hint(else_value, env, depth + 1, false)?,
+                    };
+                    hint.filter(|ty| check::integer(ty) || check::floating(ty))
+                } else {
+                    None
+                };
+            let expected = expected.or(numeric_hint.as_ref());
             let ty = self.expr_expected(then_value, env, expected.or(error_context), depth + 1)?;
             // The erased E!R expectation does not make its first payload
             // the expected nominal type of a distinct enum alternative.

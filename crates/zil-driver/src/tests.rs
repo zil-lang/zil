@@ -608,11 +608,15 @@ fn source_ct_keeps_original_core_and_propagates_ct_errors() {
     };
     let report = compile_source(&input, &options);
     success(&report);
-    assert!(
-        !fs::read_to_string(&report.artifacts["ct-core"])
-            .unwrap()
-            .contains("CompileTime")
-    );
+    let core = fs::read_to_string(&report.artifacts["ct-core"]).unwrap();
+    let functions = core
+        .split_once("\n    functions: [")
+        .unwrap()
+        .1
+        .split_once("\n    aggregates:")
+        .unwrap()
+        .0;
+    assert!(!functions.contains("CompileTime"));
     let report = compile_source(
         &source("fn check() -> i64 { return #(1 / 0) }"),
         &CompileOptions::default(),

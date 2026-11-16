@@ -2,6 +2,7 @@
 //! Empty metadata never selects a proof: the complete type, original signature,
 //! creator, occurrence and operation inventories must independently agree.
 use super::*;
+mod call_regions;
 mod abstract_calls;
 mod borrow_places;
 mod borrows;
@@ -18,6 +19,7 @@ mod descriptions;
 mod dyn_owners;
 mod dyn_tables;
 mod function_values;
+mod local_reference_roles;
 mod mutex;
 mod nominal_fields;
 mod operations;
@@ -56,9 +58,59 @@ struct Check<'a, 'i> {
     inventory: &'i Inventory<'a>,
     original: &'i original::Checked,
     scope_queries: std::cell::RefCell<BTreeSet<ClosureId>>,
-    trait_queries: std::cell::RefCell<Vec<traits::Query>>,
+    value_queries: std::cell::RefCell<BTreeSet<(SemanticInstanceId, ValueId)>>,
+    trait_queries: std::cell::RefCell<Vec<traits::ActiveQuery>>,
+    nominal_definitions: std::cell::RefCell<BTreeMap<LifeDeclarationId, SemanticDefinitionId>>,
 }
 impl Check<'_, '_> {
+    fn sealed_byte_buffer(&self, b: &mut Budget) -> CompileResult<()> {
+        let key = (
+            self.module as *const TypedModule as usize,
+            b.partial_depth,
+            b.helper_nodes,
+        );
+        b.lookup(self.inventory.sealed_byte_buffers.borrow().len(), WORK)?;
+        if self.inventory.sealed_byte_buffers.borrow().contains(&key) {
+            return b.spend(1, WORK);
+        }
+        b.spend(self.module.resources.len(), WORK)?;
+        let mut count = 0;
+        for resource in &self.module.resources {
+            crate::dyn_metadata::ty(&resource.payload, b)?;
+            b.spend(
+                resource
+                    .name
+                    .len()
+                    .saturating_add(zil_ir::BYTE_BUFFER_RESOURCE_NAME.len())
+                    .saturating_add(1),
+                WORK,
+            )?;
+            if resource.payload == Type::ByteBuffer
+                || resource.name == zil_ir::BYTE_BUFFER_RESOURCE_NAME
+            {
+                if resource.payload != Type::ByteBuffer
+                    || resource.name != zil_ir::BYTE_BUFFER_RESOURCE_NAME
+                    || resource.teardown.is_some()
+                {
+                    return Err(fail(
+                        "semantic ByteBuffer carrier has another sealed allocator or cleanup definition",
+                    ));
+                }
+                count += 1;
+            }
+        }
+        if count != 1 {
+            return Err(fail(
+                "semantic ByteBuffer carrier lacks its exact unique sealed definition",
+            ));
+        }
+        b.lookup(self.inventory.sealed_byte_buffers.borrow().len(), WORK)?;
+        self.inventory
+            .sealed_byte_buffers
+            .borrow_mut()
+            .insert(key);
+        Ok(())
+    }
     fn ordinary_type(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
         self.ordinary_type_at(ty, b, 0)
     }
@@ -84,43 +136,18 @@ impl Check<'_, '_> {
             Type::Managed(inner) | Type::Desc(inner) => match inner.as_ref() {
                 Type::Mutex { payload } => return self.mutex_payload(payload, b),
                 Type::ByteBuffer => {
-                    b.spend(self.module.resources.len(), WORK)?;
-                    let mut count = 0;
-                    for resource in &self.module.resources {
-                        crate::dyn_metadata::ty(&resource.payload, b)?;
-                        if resource.payload == Type::ByteBuffer
-                            || resource.name == zil_ir::BYTE_BUFFER_RESOURCE_NAME
-                        {
-                            if resource.payload != Type::ByteBuffer
-                                || resource.name != zil_ir::BYTE_BUFFER_RESOURCE_NAME
-                                || resource.teardown.is_some()
-                            {
-                                return Err(fail(
-                                    "semantic ByteBuffer carrier has another sealed allocator or cleanup definition",
-                                ));
-                            }
-                            count += 1;
-                        }
-                    }
-                    if count != 1 {
-                        return Err(fail(
-                            "semantic ByteBuffer carrier lacks its exact unique sealed definition",
-                        ));
-                    }
-                    return Ok(());
+                    return self.sealed_byte_buffer(b);
                 }
                 Type::OwnedStore { element } => {
                     self.ordinary_type_at(element, b, depth + 1)?;
-                    crate::dyn_metadata::ty(inner, b)?;
-                    let owner = Type::Managed(inner.clone());
-                    return crate::ownership_store::ordinary_owned(self.module, &owner, b);
+                    geometry::retain_payload(ty, inner, b)?;
+                    return crate::ownership_store::payload_definition(self.module, inner, b);
                 }
                 Type::Registration { .. } | Type::AsyncRegistration { .. } => {
-                    crate::dyn_metadata::ty(inner, b)?;
-                    return self.resource_zero(&Type::Managed(inner.clone()), b, depth + 1);
+                    return self.borrowed_resource_scope(ty, b, depth + 1);
                 }
                 Type::Task { .. } => {
-                    return self.resource_zero(&Type::Managed(inner.clone()), b, depth + 1);
+                    return self.borrowed_resource_scope(ty, b, depth + 1);
                 }
                 Type::Record { .. } | Type::BorrowedStorage { .. } => {
                     return self.resource_nominal(inner, b, depth + 1);
@@ -239,20 +266,30 @@ impl Check<'_, '_> {
         if classes.len() != life.binder_count as usize {
             return Err(fail("semantic value omits a complete class occurrence"));
         }
+        if let Some(domain) = self.dyn_value_domain(ty, b, 0)? {
+            crate::dyn_metadata::shape(&domain.life, b)?;
+            if domain.life != *life {
+                return Err(fail("semantic Dyn value changes its complete Context, sum or pointer domain"));
+            }
+            self.actual_type(ty, b)?;
+            crate::dyn_metadata::ty(ty, b)?;
+            return Ok(ty.clone());
+        }
         match ty {
             Type::Address { .. } if original::strings::is_byte_type(ty) && empty(life) => {}
             Type::BorrowedStorage {
                 life: intrinsic, ..
             } if intrinsic == life => {}
-            Type::Address { .. } if life.binder_count == 1 => {}
+            Type::Address { inner, .. } if !matches!(inner.as_ref(), Type::MutexGuard { .. }) => {
+                value::check_address_domain(ty, life, self.inventory, b)?;
+            }
             Type::MutexGuard { .. }
                 if life.binder_count == 1
                     && life.slots.is_empty()
                     && life.retained.is_empty()
                     && life.nominal_arguments.is_empty() => {}
-            Type::Desc(inner) => {
-                crate::dyn_metadata::ty(inner, b)?;
-                self.resource_zero(&Type::Managed(inner.clone()), b, 0)?;
+            Type::Desc(_) => {
+                self.borrowed_resource_scope(ty, b, 0)?;
                 if life.binder_count != 1
                     || !life.retained.is_empty()
                     || !life.nominal_arguments.is_empty()
@@ -284,16 +321,12 @@ impl Check<'_, '_> {
                 let expected = value::address(
                     *mutable,
                     value::Class::Local(0),
-                    value::Value {
-                        ty: inner.as_ref().clone(),
-                        life: StorageLifeShape {
+                    value::Value::new(inner.as_ref().clone(), StorageLifeShape {
                             binder_count: 1,
                             slots: Vec::new(),
                             retained: Vec::new(),
                             nominal_arguments: Vec::new(),
-                        },
-                        classes: vec![value::Class::Local(row.binder)],
-                    },
+                        }, vec![value::Class::Local(row.binder)]),
                     b,
                 )?;
                 if expected.life != *life {
@@ -372,7 +405,7 @@ impl Check<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Type> {
-        Ok(self.recipe_value(instance, recipe, b, depth)?.ty)
+        self.recipe_value(instance, recipe, b, depth)?.into_type(b)
     }
     fn ty_closed(
         &self,
@@ -567,7 +600,11 @@ impl Check<'_, '_> {
                     ));
                 }
             };
-            if self.actual_value(context, actual, b, depth + 1)? != expected {
+            if !self.capture_arguments_equal(
+                &self.actual_value(context, actual, b, depth + 1)?,
+                &expected,
+                b,
+            )? {
                 return Ok(false);
             }
         }
@@ -602,14 +639,15 @@ impl Check<'_, '_> {
                     result?;
                 }
                 SemanticRequirementRecipe::Structural { ty, bound } => {
-                    let ty = self.ty(context, ty, b, 0)?;
+                    let value = self.recipe_value(context, ty, b, 0)?;
+                    let ty = &value.ty;
                     let predicate = match bound {
                         DynStructuralBound::Copy => original::Predicate::Copy,
                         DynStructuralBound::Value => original::Predicate::Value,
                         DynStructuralBound::SyncDrop => original::Predicate::SyncDrop,
                         DynStructuralBound::StoreElement => original::Predicate::StoreElement,
                     };
-                    if !self.structural_actual(&ty, predicate, b, 0)? {
+                    if !self.structural_actual(ty, predicate, b, 0)? {
                         return Err(fail(
                             "actual type fails its original structural requirement",
                         ));
@@ -626,7 +664,8 @@ impl Check<'_, '_> {
                         self.capability_requirement(context, ty, *trait_kind, b)?;
                         continue;
                     }
-                    let ty = self.ty(context, ty, b, 0)?;
+                    let value = self.recipe_value(context, ty, b, 0)?;
+                    let ty = &value.ty;
                     let predicate = match trait_kind {
                         SemanticBuiltinTrait::Copy => original::Predicate::Copy,
                         SemanticBuiltinTrait::Value => original::Predicate::Value,
@@ -638,7 +677,7 @@ impl Check<'_, '_> {
                             ));
                         }
                     };
-                    if !self.structural_actual(&ty, predicate, b, 0)? {
+                    if !self.structural_actual(ty, predicate, b, 0)? {
                         return Err(fail("actual type fails its original sealed requirement"));
                     }
                 }
@@ -685,6 +724,7 @@ impl Check<'_, '_> {
     }
     fn instances(&self, b: &mut Budget) -> CompileResult<()> {
         for instance in &self.program.instances {
+            self.inventory.profile_instance(instance, b);
             let definition = self.inventory.definition(instance.definition, b)?;
             if matches!(instance.target, SemanticInstanceTarget::Scope)
                 && matches!(definition.body, SemanticDefinitionBody::Scope(_))
@@ -932,12 +972,13 @@ impl Check<'_, '_> {
                     .locals
                     .get(parameter.0 as usize)
                     .ok_or_else(|| fail("actual parameter local is absent"))?;
-                let expected = self.ty(instance, &parameter_recipe.ty, b, 0)?;
+                let expected_value = self.recipe_value(instance, &parameter_recipe.ty, b, 0)?;
+                let expected = &expected_value.ty;
                 if !matches!(
                     parameter_recipe.mode,
                     PassingMode::Infer | PassingMode::Copy
                 ) && !matches!(
-                    (&expected, parameter_recipe.mode),
+                    (expected, parameter_recipe.mode),
                     (Type::Address { mutable: false, .. }, PassingMode::Borrow)
                         | (Type::Address { mutable: true, .. }, PassingMode::BorrowMut)
                         | (Type::Managed(_), PassingMode::Give | PassingMode::Move)
@@ -947,14 +988,15 @@ impl Check<'_, '_> {
                         "semantic parameter mode needs an independently checked resource relation",
                     ));
                 }
-                self.actual_type(&expected, b)?;
-                if actual.ty != expected {
+                self.actual_type(expected, b)?;
+                if !geometry::same_type(&actual.ty, expected, b)? {
                     return Err(fail(
                         "actual parameter changes its complete original nominal substitution",
                     ));
                 }
             }
-            if function.return_type != self.ty(instance, &signature.result, b, 0)?
+            let expected_result = self.recipe_value(instance, &signature.result, b, 0)?;
+            if !geometry::same_type(&function.return_type, &expected_result.ty, b)?
                 || !(function.result_mode == signature.result_mode
                     || signature.result_mode == PassingMode::Infer)
             {
@@ -998,12 +1040,19 @@ pub(super) fn check(
         inventory,
         original,
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
+        value_queries: std::cell::RefCell::new(BTreeSet::new()),
         trait_queries: std::cell::RefCell::new(Vec::new()),
+        nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),
     };
+    inventory.profile_stage("dyn_tables", b);
     checker.dyn_tables(b)?;
+    inventory.profile_stage("instances", b);
     checker.instances(b)?;
+    inventory.profile_stage("sites", b);
     checker.sites(b)?;
+    inventory.profile_stage("constructor class sources", b);
     checker.constructor_class_sources(b)?;
+    inventory.profile_stage("completed world publication", b);
     // Publish only a completed intrinsic-domain result. Raw Some(0), an
     // absent environment, or scalar-looking entry ABI alone is not evidence.
     let mut zero = BTreeSet::new();
@@ -1072,6 +1121,27 @@ pub(super) fn check(
             if !b.semantic_dyn_functions_proven.insert(function.id) {
                 return Err(fail("completed original method specialization is repeated"));
             }
+        }
+    }
+    for function in &module.functions {
+        b.spend(1, WORK)?;
+        if !matches!(function.return_type, Type::Closure(_)) { continue; }
+        let Some(header) = &function.storage_life else { continue; };
+        for row in &header.classes {
+            b.spend(row.position.path.len().saturating_add(1), WORK)?;
+            if row.position.base != StorageBase::Result || !row.position.path.is_empty()
+                || !matches!(row.binder, StorageBinder::Invocation(_)) { continue; }
+            if checker.reference_result_role(function, row.position.class, b, 0)? == Some(row.binder)
+                || checker.input_reference_result_role(function, row.position.class, row.binder, b)? {
+                b.lookup(b.semantic_reference_results.len(), WORK)?;
+                b.semantic_reference_results.insert((function.id, row.position.class, row.binder));
+            }
+        }
+    }
+    for function in &module.functions {
+        for local in checker.reference_local_regions(function, b)? {
+            b.lookup(b.semantic_reference_locals.len(), WORK)?;
+            b.semantic_reference_locals.insert((function.id, local));
         }
     }
     // Actual operation/SSA/cleanup checks still run in the ordinary kernels.

@@ -59,7 +59,20 @@ fn native(text: &str, expected: i64) {
         report.to_json()
     );
     let core = fs::read_to_string(&report.artifacts["ct-core"]).unwrap();
-    assert!(!core.contains("CompileTime"), "CT did not finish: {core}");
+    // The immutable semantic source ledger deliberately keeps the original
+    // CompileTime occurrences. Only executable Core functions must be free
+    // of them; the native oracle below then checks their actual results.
+    let functions = core
+        .split_once("\n    functions: [")
+        .unwrap()
+        .1
+        .split_once("\n    aggregates:")
+        .unwrap()
+        .0;
+    assert!(
+        !functions.contains("CompileTime"),
+        "CT did not finish: {functions}"
+    );
     run(&report.artifacts["executable"], expected);
     let optimized = temp.0.join("optimized");
     let out = Command::new("clang")

@@ -4,6 +4,51 @@ use super::*;
 #[derive(Clone)]
 pub(super) struct Cleanup {definition:SemanticDefinitionId,binding:Binding,path:Vec<String>,capture_exit:bool,uses:Uses,environment:Env}
 impl CheckedOriginal {
+    /// A closure's stored captures are its exact sealed environment values,
+    /// not the rigid types recorded while checking its creator generically.
+    /// Resolve each used free binder through its original NameAt row; neither
+    /// equal physical types nor the order of the free-value map is evidence.
+    pub(super) fn closure_capture_types(&self,module:&TypedModule,context:&CheckedContext,definition:SemanticDefinitionId,arguments:&[Arg],sealed:&[Arg],b:&mut Budget)->Check<Vec<Ty>>{
+        let original=context.definition(module,definition,b)?;
+        if original.kind!=SemanticDefinitionKind::Closure||!self.checked.contains(&definition){return Err(bad("closure cleanup lacks a completely checked original closure"));}
+        if original.parameters.len()!=arguments.len()||original.environment.len()!=sealed.len(){return Err(bad("closure cleanup changes its complete mixed argument/environment domains"));}
+        for(formal,actual)in original.parameters.iter().zip(arguments).chain(original.environment.iter().map(|row|&row.kind).zip(sealed)){
+            b.spend(1)?;
+            if !matches!((formal,actual),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Const{..},Arg::Const(_))|(SemanticFormal::Lifetime,Arg::Life(_))){return Err(bad("closure cleanup changes an original mixed formal kind"));}
+        }
+        let parent=original.parent.ok_or_else(||bad("closure cleanup has no original creator"))?;
+        let index=self.source_index(module,&[parent,definition],b)?;
+        let creator=index.definitions.get(&parent).ok_or_else(||bad("closure cleanup creator has no original body"))?;
+        b.spend(creator.closures.len())?;
+        let mut sites=creator.closures.iter().filter(|(_,child)|**child==definition);
+        let(node,_)=sites.next().ok_or_else(||bad("closure cleanup has no exact original creation"))?;
+        if sites.next().is_some(){return Err(bad("closure cleanup has ambiguous original creations"));}
+        let free=self.free_values.get(&definition).ok_or_else(||bad("closure cleanup has no original free-value inventory"))?;
+        let used=self.used.get(&definition);
+        let mut captures=Vec::new();
+        for(name,binding)in free{
+            b.spend(name.len().saturating_add(original.environment.len()))?;
+            binding.identity.charge_clone(b)?;
+            let child=Binder::Capture{definition,source:Box::new(binding.identity.clone())};
+            if !used.is_some_and(|rows|rows.contains(&child)){continue;}
+            let mut selected=None;
+            for(ordinal,formal)in original.environment.iter().enumerate(){
+                let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::NameAt{at:SemanticOriginalNode::Expression(at),name:source}})=&formal.source else{continue;};
+                if source!=name{continue;}
+                if at!=node{return Err(bad("closure cleanup environment selects another original creation occurrence"));}
+                if self.name_binders_at.get(&(parent,false,*at,source.clone()))!=Some(&binding.identity){return Err(bad("closure cleanup environment selects another original free binder"));}
+                let Arg::Type(ty)=&sealed[ordinal] else{return Err(bad("closure cleanup value capture has no sealed Type"));};
+                if selected.replace(ty).is_some(){return Err(bad("closure cleanup duplicates an original free binder"));}
+            }
+            // Some concrete captures (for example a local i32) introduce no
+            // sealed formal at all. Their independently checked original
+            // type remains the subject. Absence grants no substitution or
+            // capability to an abstract creator type such as F.
+            let ty=selected.unwrap_or(&binding.ty);
+            captures.push(self.resolved(ty,b)?);
+        }
+        Ok(captures)
+    }
     pub(super) fn declare(&mut self,env:&Env,binding:&Binding,b:&mut Budget)->Check<()> {b.spend(1)?;self.live.entry(env.current()?).or_default().insert(binding.identity.clone(),binding.clone());Ok(())}
     pub(super) fn live_keys(&self,env:&Env,b:&mut Budget)->Check<BTreeSet<Binder>>{let rows=self.live.get(&env.current()?);b.spend(rows.map_or(0,BTreeMap::len))?;Ok(rows.into_iter().flat_map(BTreeMap::keys).cloned().collect())}
     pub(super) fn queue_cleanup(&mut self,env:&Env,only:Option<&BTreeSet<Binder>>,b:&mut Budget)->Check<()> {
@@ -64,10 +109,11 @@ impl CheckedOriginal {
                     match body{SemanticNominalBody::Product{fields}=>for field in fields{let field=self.ty(module,context,&field.ty,&selected,active,b)?;if !self.sync_drop(module,context,&field,env,active,b)?{return Ok(false);}},SemanticNominalBody::Enum{variants}=>for variant in variants{for field in &variant.fields{let field=self.ty(module,context,field,&selected,active,b)?;if !self.sync_drop(module,context,&field,env,active,b)?{return Ok(false);}}}}true
                 },
                 Ty::Opaque(owner,arguments)=>{let hidden=self.opaque_hidden(module,context,owner,&arguments,active,b)?;self.sync_drop(module,context,&hidden,env,active,b)?},
-                Ty::Closure(definition,..)=>{
-                    if !self.creator_moves.get(&definition).copied().unwrap_or(false){return Ok(true);}
-                    let used=self.used.get(&definition).cloned().unwrap_or_default();let free=self.free_values.get(&definition).cloned().unwrap_or_default();
-                    for binding in free.values(){let child=Binder::Capture{definition,source:Box::new(binding.identity.clone())};if used.contains(&child)&&!self.sync_drop(module,context,&binding.ty,env,active,b)?{return Ok(false);}}true
+                Ty::Closure(definition,arguments,sealed)=>{
+                    let captures=self.closure_capture_types(module,context,definition,&arguments,&sealed,b)?;
+                    let moves=*self.creator_moves.get(&definition).ok_or_else(||bad("closure cleanup lacks its original capture mode"))?;
+                    if !moves{return Ok(true);}
+                    for capture in captures{if !self.sync_drop(module,context,&capture,env,active,b)?{return Ok(false);}}true
                 },
                 _=>self.has_sync_drop_premise(module,context,&ty,env,active,b)?,
             })
@@ -83,5 +129,39 @@ impl CheckedOriginal {
         let definition=env.current()?;let uses=self.use_snapshot(env,b)?;
         let (identity,path)=match place{Some(place)=>{b.spend(place.fields.len())?;(place.binder.clone(),place.fields.clone())},None=>(Binder::Local{definition,node,name:"$original_overwrite".into()},vec![])};
         self.cleanups.push(Cleanup{definition,binding:Binding{ty:ty.clone(),mutable:true,identity},path,capture_exit:false,uses,environment:env.clone()});Ok(())
+    }
+}
+
+#[cfg(test)]
+mod capture_subject_tests{
+    use super::*;
+    #[test]
+    fn cleanup_subject_uses_exact_sealed_capture_and_preserves_borrow_identity(){
+        let limits=Limits::default();
+        let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/phantom-closure-complete-creator.wire"),&limits).unwrap();
+        let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();let mut active=ActiveQueries::new();
+        let mut checked=CheckedOriginal::check(&module,&context,&mut active,&mut b).unwrap();
+        let original=module.semantic.as_ref().unwrap().definitions.iter().find(|row|row.kind==SemanticDefinitionKind::Closure&&!row.environment.is_empty()).unwrap();
+        let id=original.id;let env=checked.environment(&module,&context,id,&mut active,&mut b).unwrap();
+        let frame=&env.lexical[0];let arguments=frame.actuals.clone();let mut sealed=frame.environment.clone();
+        let(ordinal,at,name)=original.environment.iter().enumerate().find_map(|(ordinal,row)|match &row.source{
+            SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::NameAt{at:SemanticOriginalNode::Expression(at),name}})=>Some((ordinal,*at,name.clone())),_=>None,
+        }).unwrap();
+        checked.current=Some(original.parent.unwrap());let caller=checked.prototypes[&original.parent.unwrap()].environment.clone();
+        let head=Life::Local(original.parent.unwrap(),NodeId(8123));
+        let capture=Ty::Address{mutable:false,life:head.clone(),inner:Box::new(Ty::Atom(Type::I32))};
+        sealed[ordinal]=Arg::Type(capture.clone());
+        let subjects=checked.closure_capture_types(&module,&context,id,&arguments,&sealed,&mut b).unwrap();
+        assert!(subjects.contains(&capture));
+        assert!(checked.sync_drop(&module,&context,&capture,&caller,&mut active,&mut b).unwrap());
+        assert!(!checked.closed_value(&module,&context,&capture,&caller,&mut active,&mut b).unwrap());
+        assert_eq!(checked.resolved_life(&head,&mut b).unwrap(),head);
+        let mut wrong=sealed.clone();wrong[ordinal]=Arg::Life(Life::Static);
+        assert!(checked.closure_capture_types(&module,&context,id,&arguments,&wrong,&mut b).is_err());
+        assert!(checked.closure_capture_types(&module,&context,id,&arguments,&sealed[..sealed.len()-1],&mut b).is_err());
+        // Equal types at another binder cannot stand in for the source of
+        // this original environment entry.
+        checked.name_binders_at.insert((original.parent.unwrap(),false,at,name),Binder::Local{definition:original.parent.unwrap(),node:NodeId(8124),name:"other".into()});
+        assert!(checked.closure_capture_types(&module,&context,id,&arguments,&sealed,&mut b).is_err());
     }
 }

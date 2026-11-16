@@ -9,6 +9,58 @@ pub(super) enum Life {
     Invocation(SemanticDefinitionId, u32),
     Role(SemanticDefinitionId, u32, u32),
     Receiver(SemanticDefinitionId, NodeId),
+    // A returned local region is fresh at this original call, with all of its
+    // sources proved separately. It is not an inferred input life equation.
+    CallResult(SemanticDefinitionId, NodeId, SemanticDefinitionId, u32),
+}
+
+/// Written call arguments and full declaration ordinals are separate domains.
+/// Omitting all written lives leaves fresh inference slots in the full vector;
+/// writing any life requires the complete mixed order. Type/Const slots are
+/// never silently omitted, shifted past another kind or inferred from a length.
+pub(super) fn written_call_actuals<'a>(
+    formals: &[SemanticFormal],
+    written: &'a [CoreGenericArgument<SemanticTypeRecipe>],
+    b: &mut Budget,
+) -> CompileResult<Vec<Option<&'a CoreGenericArgument<SemanticTypeRecipe>>>> {
+    b.spend(formals.len().saturating_add(written.len()), WORK)?;
+    let explicit_lives = written
+        .iter()
+        .any(|actual| matches!(actual, CoreGenericArgument::Lifetime(_)));
+    let required = formals
+        .iter()
+        .filter(|formal| explicit_lives || !matches!(formal, SemanticFormal::Lifetime))
+        .count();
+    if !written.is_empty() && written.len() != required {
+        return Err(fail(
+            "original written call omits a Type/Const or explicit lifetime position",
+        ));
+    }
+    let mut supplied = written.iter();
+    let mut actuals = Vec::new();
+    for formal in formals {
+        let actual = if written.is_empty()
+            || !explicit_lives && matches!(formal, SemanticFormal::Lifetime)
+        {
+            None
+        } else {
+            supplied.next()
+        };
+        if let Some(actual) = actual {
+            if !matches!(
+                (formal, actual),
+                (SemanticFormal::Lifetime, CoreGenericArgument::Lifetime(_))
+                    | (SemanticFormal::Type { .. }, CoreGenericArgument::Type(_))
+                    | (SemanticFormal::Const { .. }, CoreGenericArgument::Const(_))
+            ) {
+                return Err(fail(
+                    "original written call changes its complete mixed formal kind",
+                ));
+            }
+        }
+        Solver::push(&mut actuals, actual, b)?;
+    }
+    Ok(actuals)
 }
 
 impl Solver<'_, '_> {
@@ -296,10 +348,11 @@ impl Solver<'_, '_> {
         };
         let mut selected = None;
         for link in site_nodes {
-            b.spend(sites.len().saturating_add(1), WORK)?;
+            b.spend(1, WORK)?;
             if link.node != SemanticOriginalNode::Expression(node) {
                 continue;
             }
+            b.spend(sites.len(), WORK)?;
             for site in sites {
                 if site.id != link.site
                     || !matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. })
@@ -407,6 +460,17 @@ impl Solver<'_, '_> {
                 let life = self.instantiate(life, owner, actuals, b, depth + 1)?;
                 self.term(Kind::MutexGuard { payload, life }, b)
             }
+            Kind::Life(Life::Implicit(target, ordinal)) if target == owner => {
+                for role in self.role_frames.iter().rev() {
+                    b.lookup(role.implicits.len(), WORK)?;
+                    if role.owner == owner
+                        && let Some(actual) = role.implicits.get(&ordinal)
+                    {
+                        return Ok(*actual);
+                    }
+                }
+                Ok(term)
+            }
             Kind::Rigid(target, ordinal) | Kind::Life(Life::Formal(target, ordinal))
                 if target == owner =>
             {
@@ -429,14 +493,19 @@ impl Solver<'_, '_> {
                 hidden,
             } => {
                 let hidden = self.instantiate(hidden, owner, actuals, b, depth + 1)?;
-                self.term(
-                    Kind::CallResult {
-                        caller,
-                        node,
-                        hidden,
-                    },
-                    b,
-                )
+                if caller == owner {
+                    // This operation remains checked in its declaration's
+                    // complete body. Transport its instantiated result, not
+                    // its callee-local executable receipt into the caller's
+                    // lexical ancestry. The outer call keeps its own receipt.
+                    b.lookup(self.state.calls.len(), WORK)?;
+                    if !self.state.calls.contains_key(&(caller, node)) {
+                        return Err(fail("transported original result has no checked declaration call"));
+                    }
+                    Ok(hidden)
+                } else {
+                    self.term(Kind::CallResult { caller, node, hidden }, b)
+                }
             }
             Kind::Associated {
                 receiver,
@@ -670,4 +739,91 @@ pub(in crate::semantic) fn integer_constant(
         Type::Usize => Constant::Usize(value),
         _ => return Err(fail("original integer constant has a noninteger carrier")),
     })
+}
+
+#[cfg(test)]
+mod written_call_tests {
+    use super::*;
+
+    fn ty() -> SemanticFormal {
+        SemanticFormal::Type {
+            requirements: Vec::new(),
+        }
+    }
+    fn constant() -> SemanticFormal {
+        SemanticFormal::Const {
+            carrier: SemanticTypeRecipe::Atom(Type::I64),
+        }
+    }
+    fn const_actual() -> CoreGenericArgument<SemanticTypeRecipe> {
+        CoreGenericArgument::Const(CoreExpr {
+            id: NodeId(0),
+            kind: CoreExprKind::Integer("7".into()),
+            span: zil_base::Span::default(),
+        })
+    }
+
+    #[test]
+    fn omitted_lives_keep_every_original_type_const_and_life_ordinal() {
+        let formals = [
+            SemanticFormal::Lifetime,
+            ty(),
+            SemanticFormal::Lifetime,
+            constant(),
+            ty(),
+            SemanticFormal::Lifetime,
+        ];
+        let written = [
+            CoreGenericArgument::Type(SemanticTypeRecipe::Atom(Type::I32)),
+            const_actual(),
+            CoreGenericArgument::Type(SemanticTypeRecipe::Atom(Type::U8)),
+        ];
+        let mut budget = Budget::new(&zil_base::Limits::default());
+        let actuals = written_call_actuals(&formals, &written, &mut budget).unwrap();
+        assert_eq!(
+            actuals,
+            vec![
+                None,
+                Some(&written[0]),
+                None,
+                Some(&written[1]),
+                Some(&written[2]),
+                None
+            ]
+        );
+        assert!(written_call_actuals(&formals, &written[..2], &mut budget).is_err());
+        let reordered = [written[0].clone(), written[2].clone(), written[1].clone()];
+        assert!(written_call_actuals(&formals, &reordered, &mut budget).is_err());
+        assert!(
+            written_call_actuals(&formals, &[], &mut budget)
+                .unwrap()
+                .iter()
+                .all(Option::is_none)
+        );
+    }
+
+    #[test]
+    fn explicit_lives_require_the_full_mixed_vector_in_declaration_order() {
+        let formals = [
+            ty(),
+            SemanticFormal::Lifetime,
+            constant(),
+            SemanticFormal::Lifetime,
+        ];
+        let written = [
+            CoreGenericArgument::Type(SemanticTypeRecipe::Atom(Type::I32)),
+            CoreGenericArgument::Lifetime("a".into()),
+            const_actual(),
+            CoreGenericArgument::Lifetime("b".into()),
+        ];
+        let mut budget = Budget::new(&zil_base::Limits::default());
+        assert_eq!(
+            written_call_actuals(&formals, &written, &mut budget).unwrap(),
+            written.iter().map(Some).collect::<Vec<_>>()
+        );
+        assert!(written_call_actuals(&formals, &written[..3], &mut budget).is_err());
+        let mut reordered = written.clone();
+        reordered.swap(0, 1);
+        assert!(written_call_actuals(&formals, &reordered, &mut budget).is_err());
+    }
 }

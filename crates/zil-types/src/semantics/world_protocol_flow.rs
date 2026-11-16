@@ -513,11 +513,17 @@ fn instruction(
         | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
             let value = state.get(*registration, world)?;
             let root = state.root(&value)?;
-            if state.phases[&root] != CLOSED {
+            if matches!(
+                instruction.kind,
+                InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
+            ) && state.phases[&root] != CLOSED
+            {
                 return Err(bad(
                     "actual registration reclamation lacks a dominating Closed fact for this generation",
                 ));
             }
+            // Unchecked finish can return only through its runtime CLOSED
+            // guard. A failed guard traps without freeing or continuing.
             state.change(world, root, CLOSED, true)?;
             Value::Plain
         }

@@ -143,7 +143,7 @@ pub enum SemanticOriginalFunctionBody {
     Declaration,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticOriginalTypeSource {
     Expression(NodeId),
     Binding(NodeId),
@@ -189,7 +189,7 @@ pub enum SemanticOriginalNameValue {
     Definition(SemanticDefinitionId),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticOriginalNode {
     Expression(NodeId),
     Statement(NodeId),
@@ -435,7 +435,7 @@ pub enum SemanticTypeValue {
     },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticScopeRef {
     /// Zero is self; otherwise follow this many real lexical parent links.
     Ancestor(u32),
@@ -614,7 +614,7 @@ pub enum SemanticLocalTarget {
 }
 
 /// Recipe operands cannot select runtime SSA or a mutable local occupant.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticRecipeOperand {
     TypeFormal(SemanticFormalRef),
     Environment {
@@ -625,13 +625,13 @@ pub enum SemanticRecipeOperand {
     Receiver,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SemanticFormalRef {
     pub scope: SemanticScopeRef,
     pub ordinal: u32,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticLifeRecipe {
     Formal(SemanticFormalRef),
     Implicit {
@@ -659,7 +659,7 @@ pub enum SemanticLifeRecipe {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticOuterLifeRecipe {
     Class(SemanticLifeRecipe),
     /// An actual constant-source obligation; never a binder or proof.
@@ -668,7 +668,7 @@ pub enum SemanticOuterLifeRecipe {
 
 /// Complete original type expressions. Atom is restricted to true atomic
 /// leaves. Exact retains the full domain, and cannot erase a generic subtree.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticTypeRecipe {
     Atom(Type),
     Exact(Box<SemanticExactTypeRecipe>),
@@ -755,21 +755,21 @@ pub enum SemanticTypeRecipe {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SemanticExactTypeRecipe {
     pub ty: Type,
     pub life: StorageLifeShape,
     pub classes: Vec<SemanticLifeRecipe>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticCodeKind {
     FunctionPointer,
     BorrowedFunctionPointer,
     ForeignCallback,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticActualRecipe {
     Type(SemanticTypeRecipe),
     Const {
@@ -782,12 +782,12 @@ pub enum SemanticActualRecipe {
     Infer,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SemanticClassSequenceRecipe {
     pub parts: Vec<SemanticClassSequencePart>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticClassSequencePart {
     One(SemanticLifeRecipe),
     /// Expand the actual complete child domain; never deduplicate its images.
@@ -797,7 +797,7 @@ pub enum SemanticClassSequencePart {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SemanticStorageShapeRecipe {
     pub domain: SemanticClassSequenceRecipe,
     pub slots: Vec<SemanticSlotRecipe>,
@@ -805,14 +805,14 @@ pub struct SemanticStorageShapeRecipe {
     pub nominal: Vec<SemanticNominalPart>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SemanticSlotRecipe {
     pub path: Vec<PlaceProjection>,
     pub mode: StoredBorrowMode,
     pub class: SemanticLifeRecipe,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticRetainedPart {
     One {
         path: Vec<LifeTypeProjection>,
@@ -825,7 +825,7 @@ pub enum SemanticRetainedPart {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticNominalPart {
     One {
         path: Vec<LifeTypeProjection>,
@@ -840,7 +840,7 @@ pub enum SemanticNominalPart {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SemanticRetainedShapeRecipe {
     pub domain: SemanticClassSequenceRecipe,
     pub ports: Vec<SemanticPortPart>,
@@ -848,7 +848,7 @@ pub struct SemanticRetainedShapeRecipe {
     pub nominal: Vec<SemanticNominalPart>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticPortPart {
     One {
         leaf: Box<SemanticTypeRecipe>,
@@ -861,7 +861,7 @@ pub enum SemanticPortPart {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticConstRecipe {
     Value(Constant),
     IntegerLiteral(String),
@@ -894,7 +894,7 @@ pub enum SemanticConstRecipe {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SemanticTraitRecipe {
     pub declaration: LifeDeclarationId,
     pub arguments: Vec<SemanticActualRecipe>,
@@ -943,7 +943,7 @@ pub enum SemanticRequirementRecipe {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SemanticSignatureRecipe {
     pub bound_lifetimes: u32,
     pub invocation_lifetimes: u32,
@@ -953,13 +953,13 @@ pub struct SemanticSignatureRecipe {
     pub call_kind: CallKind,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SemanticParameterRecipe {
     pub ty: SemanticTypeRecipe,
     pub mode: PassingMode,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticDynContextRecipe {
     Closed,
     Type(Box<SemanticTypeRecipe>),
@@ -968,21 +968,21 @@ pub enum SemanticDynContextRecipe {
     Shape(Box<SemanticRetainedShapeRecipe>),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SemanticDynInterfaceRecipe {
     pub application: SemanticTraitRecipe,
     pub context: SemanticDynContextRecipe,
     pub associated: Vec<SemanticAssociatedBindingRecipe>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SemanticAssociatedBindingRecipe {
     pub application: SemanticTraitRecipe,
     pub member: u32,
     pub value: SemanticAssociatedRecipe,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SemanticAssociatedRecipe {
     Type(SemanticTypeRecipe),
     Const {

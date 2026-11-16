@@ -45,13 +45,141 @@ impl Context for Find<'_> {
         Ok(())
     }
 }
+struct ComparisonText<'a> {
+    text: String,
+    left: &'a mut usize,
+}
+impl std::fmt::Write for ComparisonText<'_> {
+    fn write_str(&mut self, value: &str) -> std::fmt::Result {
+        let growth = if value.len() > self.text.capacity().saturating_sub(self.text.len()) {
+            self.text.len()
+        } else {
+            0
+        };
+        *self.left = self
+            .left
+            .checked_sub(value.len().saturating_add(growth))
+            .ok_or(std::fmt::Error)?;
+        self.text
+            .try_reserve(value.len())
+            .map_err(|_| std::fmt::Error)?;
+        self.text.push_str(value);
+        Ok(())
+    }
+}
 struct Normalize<'a> {
+    proof: &'a Proof,
+    definition: &'a SemanticDefinition,
     shift: u32,
     next: u32,
     limits: &'a Limits,
     left: &'a mut usize,
 }
 impl Context for Normalize<'_> {
+    fn rewrite_expression(&mut self, value: &mut SemanticOriginalExpr, depth: usize) -> R<()> {
+        // These are exactly the transparent nodes removed by CT's strip_expr.
+        // S itself, including every branch and nested stage, was checked first.
+        while matches!(
+            value.kind,
+            CoreExprKind::Group(_) | CoreExprKind::CompileTime(_)
+        ) {
+            spend(self.left, 1, depth, self.limits)?;
+            let kind = std::mem::replace(&mut value.kind, CoreExprKind::Unit);
+            let (CoreExprKind::Group(inner) | CoreExprKind::CompileTime(inner)) = kind else {
+                unreachable!()
+            };
+            *value = *inner;
+        }
+        if !matches!(value.kind, CoreExprKind::Call { .. }) {
+            return Ok(());
+        }
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &self.definition.body
+        else {
+            return Err(bad(
+                "normalized frozen expression loses its checked original body",
+            ));
+        };
+        spend(self.left, site_nodes.len(), depth, self.limits)?;
+        let mut selected = None;
+        for link in site_nodes {
+            if link.node != SemanticOriginalNode::Expression(value.id) {
+                continue;
+            }
+            spend(
+                self.left,
+                self.proof.call_targets.len().saturating_add(1).ilog2() as usize + 1,
+                depth,
+                self.limits,
+            )?;
+            if let Some(target) = self
+                .proof
+                .call_targets
+                .get(&(self.definition.id, link.site))
+            {
+                if selected.replace((link.site, *target)).is_some() {
+                    return Err(bad(
+                        "frozen call expression has several original direct targets",
+                    ));
+                }
+            }
+        }
+        let Some((site, target)) = selected else {
+            return Ok(());
+        };
+        spend(
+            self.left,
+            self.proof.calls.len().saturating_add(1).ilog2() as usize + 1,
+            depth,
+            self.limits,
+        )?;
+        let arguments = self
+            .proof
+            .calls
+            .get(&(self.definition.id, site))
+            .ok_or_else(|| bad("frozen direct call lacks its complete original mixed vector"))?;
+        spend(self.left, arguments.len(), depth, self.limits)?;
+        let empty = BTreeMap::new();
+        let substitution = substitute::Substitution {
+            frames: &[],
+            selves: &[],
+            environments: &[],
+            implicit: &empty,
+            invocation: &empty,
+            shift: self.shift,
+        };
+        let mut actuals = Vec::with_capacity(arguments.len());
+        for argument in arguments {
+            actuals.push(substitute::actual(
+                argument,
+                &substitution,
+                self.limits,
+                self.left,
+            )?);
+        }
+        // A comparison-only marker carries the checked declaration and entire
+        // mixed vector. It is never published, emitted or accepted as code.
+        let mut marker = ComparisonText {
+            text: String::new(),
+            left: self.left,
+        };
+        std::fmt::Write::write_fmt(
+            &mut marker,
+            format_args!("CT checked direct target {target:?}; full mixed arguments {actuals:?}"),
+        )
+        .map_err(|_| {
+            Diagnostic::limit(
+                Phase::Types,
+                "frozen complete call identity text exceeded",
+                None,
+            )
+        })?;
+        let marker = marker.text;
+        let CoreExprKind::Call { callee, .. } = &mut value.kind else {
+            unreachable!()
+        };
+        callee.kind = CoreExprKind::Unsupported(marker);
+        Ok(())
+    }
     fn node(&mut self, depth: usize) -> R<()> {
         spend(self.left, 1, depth, self.limits)
     }
@@ -91,6 +219,8 @@ impl Context for Normalize<'_> {
 }
 fn normalized_expression(
     expression: SemanticOriginalExpr,
+    proof: &Proof,
+    definition: &SemanticDefinition,
     shift: u32,
     limits: &Limits,
     left: &mut usize,
@@ -107,6 +237,8 @@ fn normalized_expression(
     original_walk::block(
         &mut block,
         &mut Normalize {
+            proof,
+            definition,
             shift,
             next: 0,
             limits,
@@ -137,6 +269,7 @@ fn clone_proof(
             .saturating_add(source.capture_candidates.len())
             .saturating_add(source.view_bounds.len())
             .saturating_add(source.borrow_roles.len())
+            .saturating_add(source.return_borrows.len())
             .saturating_add(source.field_reborrows.len())
             .saturating_add(source.calls.len())
             .saturating_add(source.complete.len())
@@ -261,10 +394,32 @@ fn clone_proof(
             0,
             limits,
         )?;
-        crate::dyn_metadata::semantic_operand_snapshot(&bound.lifetime, limits, left, 1)?;
+        if let Some(lifetime) = &bound.lifetime {
+            crate::dyn_metadata::semantic_operand_snapshot(lifetime, limits, left, 1)?;
+        }
     }
-    for role in source.borrow_roles.values() {
+    for role in source
+        .borrow_roles
+        .values()
+        .chain(source.return_borrows.values())
+    {
         spend(left, role.steps.len(), 0, limits)?;
+        for step in &role.steps {
+            match &step.kind {
+                ViewBorrowStepKind::Capture { name } => spend(left, name.len(), 0, limits)?,
+                ViewBorrowStepKind::ProjectedLocal { pattern, .. } => {
+                    if pattern.len() > limits.max_call_depth {
+                        return Err(Diagnostic::limit(
+                            Phase::Types,
+                            "frozen projected loan path depth exceeded",
+                            None,
+                        ));
+                    }
+                    spend(left, pattern.len(), 0, limits)?;
+                }
+                _ => {}
+            }
+        }
         for lifetime in [
             &role.source_lifetime,
             &role.target_lifetime,
@@ -324,6 +479,7 @@ fn clone_proof(
         stage_depth: 0,
         cleanup_depth: 0,
         requested_snapshot: None,
+        snapshot_sources: None,
         escape_active: Vec::new(),
     };
     for environment in source.frozen_environments.values() {
@@ -458,17 +614,9 @@ pub(crate) fn check_with_frozen(
         ));
     };
     crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
-    let expected = normalized_expression(original, 1, limits, left)?;
-    let actual = normalized_expression(actual.clone(), 0, limits, left)?;
-    crate::dyn_metadata::semantic_operand_snapshot(&expected, limits, left, 1)?;
-    crate::dyn_metadata::semantic_operand_snapshot(&actual, limits, left, 1)?;
-    if expected != actual {
-        return Err(bad(
-            "generated wrapper body differs from the selected original query after true parent relocation",
-        ));
-    }
     let mut proof = clone_proof(&source.original, program, limits, left)?;
     proof.pure_queries_ready = false;
+    proof.premises = source_cache::Premises::default();
     proof.declarations = declarations;
     proof.definition_positions = definition_positions(program, limits, left)?;
     let mut check = Check {
@@ -485,6 +633,7 @@ pub(crate) fn check_with_frozen(
         stage_depth: 0,
         cleanup_depth: 0,
         requested_snapshot: None,
+        snapshot_sources: None,
         escape_active: Vec::new(),
     };
     check.associated_inventory(0)?;
@@ -502,6 +651,23 @@ pub(crate) fn check_with_frozen(
         variable.ty = substitute::ty(&variable.ty, &substitution, limits, check.left)?;
     }
     check.function(wrapper, Some(variables))?;
+    let expected = normalized_expression(
+        original,
+        &source.original,
+        parent_definition,
+        1,
+        limits,
+        check.left,
+    )?;
+    let actual =
+        normalized_expression(actual.clone(), &check.proof, wrapper, 0, limits, check.left)?;
+    crate::dyn_metadata::semantic_operand_snapshot(&expected, limits, check.left, 1)?;
+    crate::dyn_metadata::semantic_operand_snapshot(&actual, limits, check.left, 1)?;
+    if expected != actual {
+        return Err(bad(
+            "generated wrapper body differs from the selected original query after true parent relocation",
+        ));
+    }
     for definition in &program.definitions {
         if matches!(
             definition.body,
@@ -527,6 +693,7 @@ pub(crate) fn check_with_frozen(
     check.finish_effects()?;
     check.associated_obligations(0)?;
     check.cache_closed_opaque_domains()?;
+    check.proof.premises.enable(check.left)?;
     protocol::check(program, check.proof.proof_mut()?, check.limits, check.left)?;
     check.proof.proof_mut()?.pure_queries_ready = true;
     check.proof.into_owned()

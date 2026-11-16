@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "purpose": "Frozen bounded compiler work quotas for language Alpha calibration; a quota is software policy, not a safety theorem or a semantic feature fix.",
+  "cli_option": "--work-profile standard|alpha",
+  "cli_default": "standard",
+  "library_default": "standard",
+  "profiles": {
+    "standard": {
+      "revision": "standard-10m-v1",
+      "effective_limits": {
+        "max_source_bytes": 16777216,
+        "max_tokens": 1000000,
+        "max_nodes": 1000000,
+        "max_functions": 10000,
+        "max_blocks": 100000,
+        "max_instructions": 1000000,
+        "max_locals": 100000,
+        "max_values": 1000000,
+        "max_analysis_steps": 10000000,
+        "max_ct_steps": 1000000,
+        "max_call_depth": 256
+      }
+    },
+    "alpha": {
+      "revision": "alpha-25m-v1",
+      "effective_limits": {
+        "max_source_bytes": 16777216,
+        "max_tokens": 1000000,
+        "max_nodes": 1000000,
+        "max_functions": 10000,
+        "max_blocks": 100000,
+        "max_instructions": 1000000,
+        "max_locals": 100000,
+        "max_values": 1000000,
+        "max_analysis_steps": 25000000,
+        "max_ct_steps": 1000000,
+        "max_call_depth": 256
+      }
+    }
+  },
+  "automatic_raise": false,
+  "automatic_retry": false,
+  "verification_requirements": [
+    "Every successful complete compilation runs current independent Verify exactly once, including cached and resident requests.",
+    "Analyze and Verify independently establish their existing obligations; neither borrows acceptance from the other.",
+    "Source, Types, Analyze, Verify, lowering, machine verification, native execution, failure cleanup and semantic negative controls retain their existing acceptance requirements.",
+    "ResourceLimit, Unsupported, cancellation, infrastructure failure, missing execution or zero assertions never count as a positive pass or a semantic-negative pass.",
+    "All accepted language and native results must identify the exact source/compiler revision, input identity, selected work profile and all effective Limits.",
+    "Standard 10M pressure results and explicit higher-quota historical runs keep separate identities; no historical 50M result becomes a default-policy pass.",
+    "Alpha acceptance requires the complete declared positive project set and negative controls on one frozen compiler revision; this profile declaration makes no acceptance claim."
+  ],
+  "report_fields": [
+    "work_profile",
+    "work_profile_revision",
+    "effective_limits"
+  ]
+}

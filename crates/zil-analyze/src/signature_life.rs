@@ -199,6 +199,7 @@ pub(super) fn relation(
         &[],
         None,
         &[],
+        &[],
     )
 }
 pub(super) fn function_relation(
@@ -322,6 +323,7 @@ fn function_relation_scopes_inner(
         interfaces,
         None,
         zero_resources,
+        &[],
     )
 }
 
@@ -344,6 +346,49 @@ pub(super) fn closure_relation(
         false,
         interfaces,
         Some(kind),
+        &[],
+        &[],
+    )
+}
+/// Module-aware resource domains do not confer an owning capture or call.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn closure_relation_resource_scopes(
+    module: &TypedModule,
+    kind: CallableKind,
+    parameters: &[Type],
+    captures: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let mut roots = Vec::new();
+    for (base, ty) in parameters
+        .iter()
+        .enumerate()
+        .map(|(index, ty)| (StorageBase::Parameter(index as u32), ty))
+        .chain(
+            captures
+                .iter()
+                .enumerate()
+                .map(|(index, ty)| (StorageBase::Capture(index as u32), ty)),
+        )
+        .chain(std::iter::once((StorageBase::Result, result)))
+    {
+        if let Some(root) = resource_signature_root(module, base, ty, b)? {
+            roots.push(root);
+        }
+    }
+    relation_inner(
+        parameters,
+        Some(captures),
+        result,
+        c,
+        true,
+        &module.closures,
+        false,
+        &module.dyn_interfaces,
+        Some(kind),
+        &roots,
         &[],
     )
 }
@@ -372,6 +417,67 @@ pub(super) fn function_relation_in_module(
 struct ZeroResourceRoot<'a> {
     base: StorageBase,
     whole_type: &'a Type,
+}
+fn store_resource_root<'a>(
+    module: &TypedModule,
+    base: StorageBase,
+    ty: &'a Type,
+    b: &mut Budget,
+) -> CompileResult<Option<ZeroResourceRoot<'a>>> {
+    b.spend(1, "resource signature complete root category")?;
+    // A descriptor itself has a head class. An Address<Desc<...>> therefore
+    // cannot claim a zero child domain by peeling both boundaries.
+    let carrier = match ty {
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)) => inner.as_ref(),
+        Type::Managed(_) | Type::Desc(_) => ty,
+        _ => return Ok(None),
+    };
+    let (Type::Managed(payload) | Type::Desc(payload)) = carrier else {
+        unreachable!()
+    };
+    if !matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+        return Ok(None);
+    }
+    crate::ownership_store::payload_definition(module, payload, b)?;
+    if !crate::tasks::input_scope::known_zero(module, payload, b)? {
+        return Ok(None);
+    }
+    b.type_work(ty, false, "actual zero Store signature occurrence")?;
+    b.spend(1, "actual zero Store signature root")?;
+    Ok(Some(ZeroResourceRoot {
+        base,
+        whole_type: ty,
+    }))
+}
+fn resource_signature_root<'a>(
+    module: &TypedModule,
+    base: StorageBase,
+    ty: &'a Type,
+    b: &mut Budget,
+) -> CompileResult<Option<ZeroResourceRoot<'a>>> {
+    if let Some(root) = store_resource_root(module, base, ty, b)? {
+        return Ok(Some(root));
+    }
+    let target = match ty {
+        Type::Address { inner, .. } => inner.as_ref(),
+        other => other,
+    };
+    if !matches!(
+        target,
+        Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+    ) || !crate::resources::sums::owned(target)
+        || !crate::tasks::input_scope::known_zero(module, target, b)?
+    {
+        return Ok(None);
+    }
+    // Prove every possible arm and the full callback Product before recording
+    // its zero free domain. This does not prove a move, target or cleanup edge.
+    crate::resources::sums::admit(module, target, b)?;
+    b.spend(1, "complete ordinary resource signature root")?;
+    Ok(Some(ZeroResourceRoot {
+        base,
+        whole_type: ty,
+    }))
 }
 fn opaque_resource(ty: &Type) -> Option<&Type> {
     let ty = if let Type::Address { inner, .. } = ty {
@@ -404,12 +510,16 @@ pub(super) fn function_relation_resource_scopes(
     b: &mut Budget,
 ) -> CompileResult<()> {
     let mut roots = Vec::new();
+    let mut opaque_roots = false;
     for (base, ty) in parameters
         .iter()
         .enumerate()
         .map(|(index, ty)| (StorageBase::Parameter(index as u32), ty))
         .chain(std::iter::once((StorageBase::Result, result)))
     {
+        if let Some(root) = resource_signature_root(module, base, ty, b)? {
+            roots.push(root);
+        }
         if let Some(resource) = opaque_resource(ty) {
             if matches!(resource, Type::Task { .. }) {
                 crate::tasks::require_closed_context(resource)?;
@@ -422,13 +532,82 @@ pub(super) fn function_relation_resource_scopes(
                     base,
                     whole_type: ty,
                 });
+                opaque_roots = true;
             }
         }
     }
-    if !roots.is_empty() && !c.static_bindings.is_empty() {
+    if opaque_roots && !c.static_bindings.is_empty() {
         return Err(bad(
             "opaque resource header requires its complete static occurrence consumer",
         ));
+    }
+    let mut result_roles = Vec::new();
+    if matches!(result, Type::Closure(_))
+        && !b.semantic_reference_results.is_empty()
+        && b.initialization
+            .as_ref()
+            .is_some_and(|cache| cache.module == module as *const TypedModule as usize)
+    {
+        b.spend(
+            module.functions.len(),
+            "original result-role header identity",
+        )?;
+        for function in &module.functions {
+            if !function
+                .storage_life
+                .as_ref()
+                .is_some_and(|header| std::ptr::eq(header, c))
+            {
+                continue;
+            }
+            b.type_work(result, true, "original result-role complete result")?;
+            if function.return_type != *result || function.parameters.len() != parameters.len() {
+                return Err(bad(
+                    "original result role changes its actual function signature",
+                ));
+            }
+            for (id, ty) in function.parameters.iter().zip(parameters) {
+                b.type_work(ty, true, "original result-role complete input")?;
+                if function
+                    .locals
+                    .get(id.0 as usize)
+                    .filter(|local| local.id == *id)
+                    .map(|local| &local.ty)
+                    != Some(ty)
+                {
+                    return Err(bad("original result role changes an actual parameter"));
+                }
+            }
+            b.spend(
+                b.semantic_reference_results.len(),
+                "original result-role complete directory",
+            )?;
+            for (owner, child, binder) in &b.semantic_reference_results {
+                if *owner == function.id {
+                    result_roles.push((*child, *binder));
+                }
+            }
+            break;
+        }
+    }
+    if !result_roles.is_empty() {
+        b.spend(
+            result_roles.len().saturating_add(c.classes.len()),
+            "original result-role directory",
+        )?;
+        return relation_inner(
+            parameters,
+            None,
+            result,
+            c,
+            allow_callback,
+            &module.closures,
+            allow_byte_input,
+            &module.dyn_interfaces,
+            None,
+            &roots,
+            &result_roles,
+        );
     }
     if roots.is_empty() {
         return function_relation_in_module(
@@ -463,6 +642,7 @@ fn relation_inner(
     interfaces: &[DynInterface],
     receiver_kind: Option<CallableKind>,
     zero_resources: &[ZeroResourceRoot<'_>],
+    result_roles: &[(u32, StorageBinder)],
 ) -> CompileResult<()> {
     if c.classes
         .iter()
@@ -506,6 +686,7 @@ fn relation_inner(
         closures: &'a [ClosureDefinition],
         interfaces: &'a [DynInterface],
         zero_resources: &'a [ZeroResourceRoot<'a>],
+        result_roles: &'a [(u32, StorageBinder)],
     }
     impl Cursor<'_> {
         fn binder(&mut self, b: StorageBinder, retained: bool) -> CompileResult<()> {
@@ -534,6 +715,50 @@ fn relation_inner(
             }
             Ok(())
         }
+        fn qualified_slots(
+            &mut self,
+            life: &zil_ir::StorageLifeShape,
+            base: StorageBase,
+            prefix: &[LifeTypeProjection],
+        ) -> CompileResult<()> {
+            for slot in &life.slots {
+                if slot.binder >= life.binder_count {
+                    return Err(bad(
+                        "qualified physical slot leaves its complete class domain",
+                    ));
+                }
+                let row = self
+                    .c
+                    .bindings
+                    .get(self.borrow)
+                    .ok_or_else(|| bad("qualified signature omits its actual physical slot"))?;
+                let class = self
+                    .c
+                    .classes
+                    .get(self.class + slot.binder as usize)
+                    .ok_or_else(|| {
+                        bad("qualified physical slot leaves its complete class domain")
+                    })?;
+                let path_matches = row.position.path.len() == prefix.len() + slot.path.len()
+                    && prefix.iter().zip(&row.position.path).all(|(a, z)|
+                        matches!((a, z), (LifeTypeProjection::Place(a), zil_ir::ContractProjection::Place(z)) if a == z))
+                    && slot.path.iter().zip(&row.position.path[prefix.len()..]).all(|(a, z)|
+                        matches!(z, zil_ir::ContractProjection::Place(z) if a == z));
+                if row.position.base != base
+                    || !path_matches
+                    || class.position.base != base
+                    || class.position.path != prefix
+                    || class.position.class != slot.binder
+                    || row.binder != class.binder
+                {
+                    return Err(bad(
+                        "qualified physical slot changes its exact class relation",
+                    ));
+                }
+                self.borrow += 1;
+            }
+            Ok(())
+        }
         fn compound_child(
             &mut self,
             ty: &Type,
@@ -552,6 +777,7 @@ fn relation_inner(
                     }
                 }
                 Type::BorrowedStorage { life, .. } => {
+                    self.qualified_slots(life, base, path)?;
                     if life.binder_count as usize > self.c.classes.len().saturating_sub(self.class)
                     {
                         return Err(bad("compound signature omits child classes"));
@@ -592,6 +818,7 @@ fn relation_inner(
         fn ty(&mut self, ty: &Type, base: StorageBase) -> CompileResult<()> {
             if matches!(ty, Type::Desc(inner)
                 if class_free_owned_tree(inner)
+                    || self.zero_resources.iter().any(|root| root.base == base && root.whole_type == ty)
                     || matches!(inner.as_ref(), Type::Mutex { payload } if **payload == Type::I32))
             {
                 // A complete closed weak head has one outer occurrence and
@@ -842,6 +1069,9 @@ fn relation_inner(
                 {
                     return Err(bad("signature omits qualified class domain"));
                 }
+                if !pointed {
+                    self.qualified_slots(life, base, &[])?;
+                }
                 for local in 0..life.binder_count {
                     let row = &self.c.classes[self.class];
                     if row.position.base != base
@@ -930,7 +1160,18 @@ fn relation_inner(
                             return Err(bad("captured child Closure class must be Fixed"));
                         }
                         self.class += 1;
-                        self.binder(row.binder, self.inputs.is_none())?;
+                        let local_result = base == StorageBase::Result
+                            && !pointed
+                            && matches!(row.binder, StorageBinder::Invocation(_))
+                            && self.result_roles.contains(&(class as u32, row.binder));
+                        if local_result {
+                            let inputs = self.inputs;
+                            self.inputs = None;
+                            self.binder(row.binder, false)?;
+                            self.inputs = inputs;
+                        } else {
+                            self.binder(row.binder, self.inputs.is_none())?;
+                        }
                     }
                 } else {
                     return Err(bad(
@@ -1014,6 +1255,7 @@ fn relation_inner(
         closures,
         interfaces,
         zero_resources,
+        result_roles,
     };
     for (i, p) in parameters.iter().enumerate() {
         let i = u32::try_from(i).map_err(|_| bad("signature parameter ordinal overflow"))?;
@@ -1216,6 +1458,195 @@ mod tests {
             }],
         }
     }
+    #[test]
+    fn qualified_value_consumes_physical_slots_and_complete_classes() {
+        let holder = Type::BorrowedStorage {
+            storage: Box::new(Type::Record {
+                name: "Holder".into(),
+                fields: vec![("pointer".into(), address(Type::I32))],
+            }),
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: vec![zil_ir::StorageLifeSlot {
+                    path: vec![PlaceProjection::Field(0)],
+                    binder: 0,
+                    mode: StoredBorrowMode::SharedAddress,
+                }],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        };
+        let mut header = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 1,
+            static_bindings: vec![],
+            bindings: vec![
+                StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Parameter(0),
+                        path: vec![],
+                    },
+                    binder: StorageBinder::Invocation(0),
+                },
+                StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Result,
+                        path: vec![zil_ir::ContractProjection::Place(PlaceProjection::Field(0))],
+                    },
+                    binder: StorageBinder::Invocation(0),
+                },
+            ],
+            classes: vec![SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base: StorageBase::Result,
+                    path: vec![],
+                    class: 0,
+                },
+                binder: StorageBinder::Invocation(0),
+            }],
+        };
+        let check = |header: &StorageLifeContract| {
+            function_relation(&[address(Type::I32)], &holder, header, false, &[])
+        };
+        check(&header).unwrap();
+        header.bindings[1].position.path =
+            vec![zil_ir::ContractProjection::Place(PlaceProjection::Field(1))];
+        assert!(check(&header).is_err());
+        header.bindings[1].position.path =
+            vec![zil_ir::ContractProjection::Place(PlaceProjection::Field(0))];
+        header.bindings[1].binder = StorageBinder::Invocation(1);
+        assert!(check(&header).is_err());
+        header.bindings.pop();
+        assert!(check(&header).is_err());
+        // A reference to the carrier has one outer physical occurrence and
+        // the complete pointee class; it does not inline the carrier's fields.
+        let pointed = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 2,
+            static_bindings: vec![],
+            bindings: vec![StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Parameter(0),
+                    path: vec![],
+                },
+                binder: StorageBinder::Invocation(0),
+            }],
+            classes: vec![SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base: StorageBase::Parameter(0),
+                    path: vec![LifeTypeProjection::Pointee],
+                    class: 0,
+                },
+                binder: StorageBinder::Invocation(1),
+            }],
+        };
+        function_relation(&[address(holder)], &Type::Unit, &pointed, false, &[]).unwrap();
+    }
+    #[test]
+    fn proved_local_result_role_is_exact_and_never_an_outer_address_permission() {
+        let closure = ClosureDefinition {
+            storage_life: Some(StorageLifeContract {
+                fixed_binder_count: 1,
+                invocation_binder_count: 0,
+                bindings: vec![StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Capture(0),
+                        path: vec![],
+                    },
+                    binder: StorageBinder::Fixed(0),
+                }],
+                static_bindings: vec![],
+                classes: vec![],
+            }),
+            id: ClosureId(0),
+            function: FunctionId(0),
+            captures: vec![address(Type::I32)],
+            parameters: vec![],
+            result: Type::I32,
+            kind: CallableKind::Fn,
+            lending_captures: vec![],
+        };
+        let mut header = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 3,
+            bindings: (0..2)
+                .map(|index| StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Parameter(index),
+                        path: vec![],
+                    },
+                    binder: StorageBinder::Invocation(index),
+                })
+                .collect(),
+            static_bindings: vec![],
+            classes: vec![SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base: StorageBase::Result,
+                    path: vec![],
+                    class: 0,
+                },
+                binder: StorageBinder::Invocation(2),
+            }],
+        };
+        let parameters = [address(Type::I32), address(Type::I32)];
+        let closures = [closure];
+        let check =
+            |header: &StorageLifeContract, result: &Type, roles: &[(u32, StorageBinder)]| {
+                relation_inner(
+                    &parameters,
+                    None,
+                    result,
+                    header,
+                    true,
+                    &closures,
+                    false,
+                    &[],
+                    None,
+                    &[],
+                    roles,
+                )
+            };
+        assert!(check(&header, &Type::Closure(ClosureId(0)), &[]).is_err());
+        assert!(
+            check(
+                &header,
+                &Type::Closure(ClosureId(0)),
+                &[(1, StorageBinder::Invocation(2))]
+            )
+            .is_err()
+        );
+        assert!(
+            check(
+                &header,
+                &Type::Closure(ClosureId(0)),
+                &[(0, StorageBinder::Invocation(1))]
+            )
+            .is_err()
+        );
+        check(
+            &header,
+            &Type::Closure(ClosureId(0)),
+            &[(0, StorageBinder::Invocation(2))],
+        )
+        .unwrap();
+        header.classes.clear();
+        header.bindings.push(StorageLifeBinding {
+            position: StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            },
+            binder: StorageBinder::Invocation(2),
+        });
+        assert!(
+            check(
+                &header,
+                &address(Type::I32),
+                &[(0, StorageBinder::Invocation(2))]
+            )
+            .is_err()
+        );
+    }
+
     #[test]
     fn impossible_domain_is_rejected_before_allocating_claimed_class_storage() {
         let impossible = StorageLifeContract {

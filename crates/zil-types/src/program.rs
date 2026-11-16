@@ -201,7 +201,7 @@ fn check_resolved_program_in_context(
             .install_frozen(source)
             .map_err(|error| vec![error])?;
     }
-    if program
+    let input_lease = if program
         .modules
         .iter()
         .any(|module| module.core.semantic.is_some())
@@ -212,7 +212,7 @@ fn check_resolved_program_in_context(
             .checked_sub(program.modules.len().saturating_add(1))
             .ok_or_else(limit)?;
         let cores: Vec<_> = program.modules.iter().map(|module| &module.core).collect();
-        semantics::abi::prepare(
+        let lease = semantics::abi::prepare(
             &mut closure_state.semantic_emission,
             &cores,
             limits,
@@ -222,7 +222,10 @@ fn check_resolved_program_in_context(
         closure_state
             .snapshot(before - remaining, Span::default())
             .map_err(|error| vec![error])?;
-    }
+        lease
+    } else {
+        None
+    };
     mark_cost(
         "program: original ABI and universal source",
         closure_state.remaining_work(),
@@ -738,6 +741,7 @@ fn check_resolved_program_in_context(
             &cores,
             &mut module,
             &semantic_emission,
+            input_lease.as_ref(),
             limits,
             &mut remaining,
         )
@@ -747,10 +751,32 @@ fn check_resolved_program_in_context(
         // discharge when no original semantic program was supplied.
         stored::ordinary_inventory(&module, limits, &mut remaining).map_err(|e| vec![e])?;
     }
+    // Materialization and origin discovery finalize complete callable headers.
+    // Publish the same headers the executable carries before computing any
+    // interface identity; early emission snapshots are not final contracts.
+    for export in &mut root_functions {
+        finalize_export_header(export, &module, &mut remaining, limits)?;
+    }
+    for interface in &mut interfaces {
+        for export in &mut interface.exports {
+            finalize_export_header(export, &module, &mut remaining, limits)?;
+        }
+    }
+    let stored_context = if interfaces.is_empty() {
+        None
+    } else {
+        interface_context_fingerprint(&module, &mut remaining, limits)?
+    };
     for interface in &mut interfaces {
         interface.exports.sort_by(|a, b| a.name.cmp(&b.name));
-        interface.signature_fingerprint =
-            interface_fingerprint(&interface.exports, target, &module, &mut remaining, limits)?;
+        interface.signature_fingerprint = interface_fingerprint(
+            &interface.exports,
+            target,
+            &module,
+            stored_context.as_ref(),
+            &mut remaining,
+            limits,
+        )?;
     }
     Ok(TypedProgram {
         task_interfaces,
@@ -793,15 +819,111 @@ fn imports_for<'a>(
     Ok(imports)
 }
 
-fn interface_fingerprint(
-    exports: &[ScalarFunction],
-    target: &TargetProfile,
+fn finalize_export_header(
+    export: &mut ScalarFunction,
     module: &TypedModule,
     remaining: &mut usize,
     limits: &Limits,
-) -> CompileResult<Fingerprint> {
-    let closures = &module.closures;
-    let functions = &module.functions;
+) -> CompileResult<()> {
+    let invalid = || {
+        vec![Diagnostic::error(
+            Phase::Types,
+            "E-INTERFACE-IDENTITY",
+            None,
+            "final interface does not select its exact environment-free function",
+        )]
+    };
+    let function = module
+        .functions
+        .get(export.function.0 as usize)
+        .filter(|function| function.id == export.function)
+        .ok_or_else(invalid)?;
+    if function.environment.is_some() || function.parameters.len() != export.parameters.len() {
+        return Err(invalid());
+    }
+    *remaining = remaining
+        .checked_sub(function.parameters.len().saturating_add(1))
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Types,
+                "final interface header inventory exceeded",
+                None,
+            )]
+        })?;
+    for ((_, published), local) in export.parameters.iter_mut().zip(&function.parameters) {
+        let actual = &function
+            .locals
+            .get(local.0 as usize)
+            .filter(|declaration| declaration.id == *local)
+            .ok_or_else(invalid)?
+            .ty;
+        inference::charge_type_snapshot(actual, function.span, limits, remaining, 1)
+            .map_err(|error| vec![error])?;
+        *published = actual.clone();
+    }
+    inference::charge_type_snapshot(&function.return_type, function.span, limits, remaining, 1)
+        .map_err(|error| vec![error])?;
+    if let Some(contract) = &function.storage_life {
+        borrowed_fp::charge_contract(
+            contract,
+            |work| {
+                *remaining = remaining.checked_sub(work).ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Types,
+                        "final interface class relation snapshot exceeded",
+                        None,
+                    )
+                })?;
+                Ok(())
+            },
+            1,
+        )
+        .map_err(|error| vec![error])?;
+    }
+    if let Some(instance) = &function.dyn_instance {
+        dyn_metadata::semantic_operand_snapshot(instance, limits, remaining, 1)
+            .map_err(|error| vec![error])?;
+    }
+    if let Some(sources) = &function.retained_return_sources {
+        *remaining = remaining
+            .checked_sub(sources.len().saturating_add(1))
+            .ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Types,
+                    "final interface retained source inventory exceeded",
+                    None,
+                )]
+            })?;
+        for source in sources {
+            dyn_metadata::semantic_operand_snapshot(source, limits, remaining, 1)
+                .map_err(|error| vec![error])?;
+        }
+    }
+    if let Some(bound) = &function.reference_return_bound {
+        *remaining = remaining
+            .checked_sub(bound.len().saturating_add(1))
+            .ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Types,
+                    "final interface result bound snapshot exceeded",
+                    None,
+                )]
+            })?;
+    }
+    export.result = function.return_type.clone();
+    export.result_mode = function.result_mode;
+    export.dyn_instance = function.dyn_instance.clone();
+    export.storage_life = function.storage_life.clone();
+    export.reference_return_bound = function.reference_return_bound.clone();
+    export.retained_return_sources = function.retained_return_sources.clone();
+    Ok(())
+}
+
+fn interface_context_fingerprint(
+    module: &TypedModule,
+    remaining: &mut usize,
+    limits: &Limits,
+) -> CompileResult<Option<Fingerprint>> {
     let stored = !module.life_declarations.is_empty() || !module.life_instances.is_empty();
     if stored {
         let work = inference::life_table_snapshot_work(
@@ -813,16 +935,41 @@ fn interface_fingerprint(
             },
         )
         .map_err(|e| vec![e])?;
+        let exhausted = || {
+            vec![Diagnostic::limit(
+                Phase::Types,
+                "stored interface context identity budget exceeded",
+                None,
+            )]
+        };
+        // Prepay the complete bounded structural planning pass. The shared
+        // encoder then measures the real identity, instead of charging every
+        // metadata byte as sixty-four encoded bytes or an owned snapshot.
+        *remaining = remaining.checked_sub(work).ok_or_else(exhausted)?;
+        let encoded = life_inventory_encoded_len(&module.life_declarations, &module.life_instances)
+            .ok_or_else(exhausted)?;
+        let encoding_and_hash = encoded
+            .checked_mul(2)
+            .and_then(|work| work.checked_add(128))
+            .ok_or_else(exhausted)?;
         *remaining = remaining
-            .checked_sub(work.saturating_mul(64).saturating_add(128))
-            .ok_or_else(|| {
-                vec![Diagnostic::limit(
-                    Phase::Types,
-                    "stored interface context identity budget exceeded",
-                    None,
-                )]
-            })?;
+            .checked_sub(encoding_and_hash)
+            .ok_or_else(exhausted)?;
     }
+    Ok(stored
+        .then(|| life_inventory_fingerprint(&module.life_declarations, &module.life_instances)))
+}
+
+fn interface_fingerprint(
+    exports: &[ScalarFunction],
+    target: &TargetProfile,
+    module: &TypedModule,
+    stored_context: Option<&Fingerprint>,
+    remaining: &mut usize,
+    limits: &Limits,
+) -> CompileResult<Fingerprint> {
+    let closures = &module.closures;
+    let functions = &module.functions;
     let mut bytes = b"ZIL-SCALAR-INTERFACE-4\0".to_vec();
     bytes.extend_from_slice(&target.fingerprint().0);
     bytes.extend_from_slice(&(exports.len() as u64).to_le_bytes());
@@ -909,26 +1056,27 @@ fn interface_fingerprint(
         })?;
         bytes.push(u8::from(export.retained_return_sources.is_some()));
         if let Some(bindings) = &export.retained_return_sources {
-            let mut work = bindings.len().saturating_add(1);
-            for binding in bindings {
-                work = work
-                    .saturating_add(binding.position.path.len())
-                    .saturating_add(binding.sources.len())
-                    .saturating_add(1);
-                for atom in &binding.sources {
-                    let source = crate::exact_storage_source(atom).map_err(|error| vec![error])?;
-                    work = work.saturating_add(source.path.len()).saturating_add(1);
+            inference::charge_return_sources(bindings, limits, Span::default(), |charge| {
+                match charge {
+                    inference::ReturnSourceCharge::Work(work) => {
+                        *remaining =
+                            remaining
+                                .checked_sub(work.saturating_mul(8))
+                                .ok_or_else(|| {
+                                    Diagnostic::limit(
+                                        Phase::Types,
+                                        "retained result export source budget exceeded",
+                                        None,
+                                    )
+                                })?;
+                        Ok(())
+                    }
+                    inference::ReturnSourceCharge::Type(ty) => {
+                        inference::charge_type_snapshot(ty, Span::default(), limits, remaining, 8)
+                    }
                 }
-            }
-            *remaining = remaining
-                .checked_sub(work.saturating_mul(64))
-                .ok_or_else(|| {
-                    vec![Diagnostic::limit(
-                        Phase::Types,
-                        "retained result export source budget exceeded",
-                        None,
-                    )]
-                })?;
+            })
+            .map_err(|error| vec![error])?;
             bytes.extend_from_slice(&retained_return_sources_fingerprint(bindings).0);
         }
         bytes.push(u8::from(export.reference_return_bound.is_some()));
@@ -946,11 +1094,12 @@ fn interface_fingerprint(
             None,
         )]
     };
-    if stored {
+    if let Some(context) = stored_context {
+        *remaining = remaining
+            .checked_sub(b"STORED-CONTEXT-2\0".len() + context.0.len())
+            .ok_or_else(exhausted)?;
         bytes.extend_from_slice(b"STORED-CONTEXT-2\0");
-        bytes.extend_from_slice(
-            &life_inventory_fingerprint(&module.life_declarations, &module.life_instances).0,
-        );
+        bytes.extend_from_slice(&context.0);
     }
     for export in exports {
         if let Some(contract) = &export.storage_life {

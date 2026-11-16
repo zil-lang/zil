@@ -7,13 +7,23 @@ const PROGRAM: &str = include_str!("mutex-worker-helpers.zil");
 fn typed(program: &str) -> zil_ir::TypedModule {
     let input = source(program);
     let ast = zil_syntax::parse(&input).into_result().unwrap();
-    let core = zil_expand::expand(&input, &ast).unwrap();
-    zil_types::check(
-        &core,
-        &zil_base::TargetProfile::host_llvm(),
-        &Limits::default(),
-    )
-    .unwrap()
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let aliases = std::collections::BTreeMap::new();
+    let context = zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+        root: input.module_id,
+        aliases: &aliases,
+        declarations: zil_expand::source_context::DeclarationPlacement::Original,
+    };
+    let mut expanded = zil_expand::expand_program_with_semantics(
+        &[input], &[&ast], &[Vec::new()], &limits, &target, context,
+    ).unwrap();
+    assert_eq!(expanded.len(), 1);
+    let core = expanded.remove(0).0.core;
+    assert!(core.semantic.is_some(), "the raw control keeps its complete original Source domain");
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    assert!(typed.semantic.is_some(), "Types must preserve original Source authority");
+    typed
 }
 fn reject_raw(raw: zil_ir::TypedModule, mut candidate: zil_ir::CandidatePlan) {
     let limits = Limits::default();
@@ -24,9 +34,19 @@ fn reject_raw(raw: zil_ir::TypedModule, mut candidate: zil_ir::CandidatePlan) {
         zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap_err();
     let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
     let w = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
-    for errors in [a, v, w] {
+    for (errors, original_gate) in [(a, "E-SEMANTIC-"), (v, "E-VERIFY-SEMANTIC"), (w, "E-VERIFY-SEMANTIC")] {
+        // With complete Source authority, changing an actual target may be
+        // rejected by its exact original operation/definition correspondence
+        // before the thread execution kernel. Both are real safety failures;
+        // Unsupported or a missing/empty original scope is never a control.
         assert!(
-            errors.iter().any(|d| d.code == "E-THREAD-WORKER"),
+            errors.iter().any(|d| d.category == ResultCategory::SafeReject
+                && (d.code == "E-THREAD-WORKER"
+                    || if original_gate == "E-SEMANTIC-" {
+                        d.code.starts_with(original_gate)
+                    } else {
+                        d.code == original_gate
+                    })),
             "{errors:?}"
         );
     }

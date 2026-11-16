@@ -72,12 +72,12 @@ fn empty() -> StorageLifeShape {
         nominal_arguments: Vec::new(),
     }
 }
-struct World<'a, 'b> {
-    program: &'a SemanticModule,
-    module: &'a TypedModule,
-    ledger: &'a Ledger,
-    limits: &'b Limits,
-    left: &'b mut usize,
+pub(super) struct World<'a, 'b> {
+    pub(super) program: &'a SemanticModule,
+    pub(super) module: &'a TypedModule,
+    pub(super) ledger: &'a Ledger,
+    pub(super) limits: &'b Limits,
+    pub(super) left: &'b mut usize,
     vacant_captures: std::collections::BTreeSet<(SemanticInstanceId, u32)>,
     stale_values: std::collections::BTreeSet<ValueId>,
     stale_locals: std::collections::BTreeSet<LocalId>,
@@ -92,6 +92,7 @@ struct World<'a, 'b> {
     receiver_adaptations: Vec<receiver::Adaptation>,
     index: index::Index,
     types: types::Table,
+    cfg_shapes: BTreeMap<FunctionId, Rc<flow::Shape>>,
     view: super::materialize::ActualDirectory<'a>,
     snapshots: usize,
     snapshot_work: usize,
@@ -101,6 +102,10 @@ struct World<'a, 'b> {
     canonical_work: usize,
     key_work: usize,
     where_work: usize,
+    same_calls: usize,
+    same_work: usize,
+    direct_work: BTreeMap<(&'static str, u32), (usize, usize)>,
+    last_point: Option<((SemanticInstanceId, BlockId, usize), Vec<usize>)>,
     current_point: Option<(
         SemanticInstanceId,
         FunctionId,
@@ -110,15 +115,39 @@ struct World<'a, 'b> {
     )>,
 }
 impl<'a> World<'a, '_> {
+    #[track_caller]
     fn pay(&mut self, n: usize) -> R<()> {
+        let location = std::panic::Location::caller();
         *self.left = self.left.checked_sub(n).ok_or_else(|| {
-            Diagnostic::limit(
+            let mut diagnostic = Diagnostic::limit(
                 Phase::Types,
                 "original world class-flow work exceeded",
                 None,
-            )
+            );
+            diagnostic.notes.push(format!(
+                "actual direct work at {}:{}; requested {}; remaining {}",
+                location.file(),
+                location.line(),
+                n,
+                *self.left
+            ));
+            diagnostic
         })?;
+        let row = self
+            .direct_work
+            .entry((location.file(), location.line()))
+            .or_default();
+        row.0 = row.0.saturating_add(1);
+        row.1 = row.1.saturating_add(n);
         Ok(())
+    }
+    fn work_note(&self) -> String {
+        let mut rows: Vec<_> = self.direct_work.iter().collect();
+        rows.sort_by_key(|(_, (_, work))| std::cmp::Reverse(*work));
+        format!(
+            "actual direct work by call site (calls, paid work): {:?}",
+            &rows[..rows.len().min(16)]
+        )
     }
     fn instance(&mut self, id: SemanticInstanceId) -> R<&'a SemanticInstance> {
         self.pay(index::search(self.index.instances.len()))?;
@@ -226,6 +255,10 @@ impl<'a> World<'a, '_> {
         self.zero_at(ty, 0)
     }
     fn zero_at(&mut self, ty: &Type, depth: usize) -> R<SharedType> {
+        let shape = self.zero_shape_at(ty, depth)?;
+        self.resolved(ty, shape, Vec::new())
+    }
+    fn zero_shape_at(&mut self, ty: &Type, depth: usize) -> R<StorageLifeShape> {
         self.pay(1)?;
         if depth > self.limits.max_call_depth {
             return Err(Diagnostic::limit(
@@ -235,13 +268,13 @@ impl<'a> World<'a, '_> {
             ));
         }
         match ty {
-            ty if ty.is_b0_scalar() => self.resolved(ty, empty(), Vec::new()),
+            ty if ty.is_b0_scalar() => Ok(empty()),
             Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => {
                 self.view
                     .ordinary_zero(ty, self.limits, self.left, &self.ledger.ordinary_stats)?;
-                self.resolved(ty, empty(), Vec::new())
+                Ok(empty())
             }
-            Type::ByteBuffer => self.resolved(ty, empty(), Vec::new()),
+            Type::ByteBuffer => Ok(empty()),
             Type::Task { .. } | Type::MutexGuard { .. } => {
                 let shape = projection::type_shape_at(self, ty, depth + 1)?;
                 if shape.binder_count != 0 {
@@ -249,35 +282,35 @@ impl<'a> World<'a, '_> {
                         "actual zero carrier retains a nonzero complete class domain",
                     ));
                 }
-                self.resolved(ty, shape, Vec::new())
+                Ok(shape)
             }
             Type::FunctionPointer { parameters, result } => {
                 for parameter in parameters {
-                    self.zero_at(parameter, depth + 1)?;
+                    self.zero_shape_at(parameter, depth + 1)?;
                 }
-                self.zero_at(result, depth + 1)?;
-                self.resolved(ty, empty(), Vec::new())
+                self.zero_shape_at(result, depth + 1)?;
+                Ok(empty())
             }
             Type::Managed(inner)
             | Type::Mutex { payload: inner }
             | Type::OwnedStore { element: inner } => {
-                self.zero_at(inner, depth + 1)?;
-                self.resolved(ty, empty(), Vec::new())
+                self.zero_shape_at(inner, depth + 1)?;
+                Ok(empty())
             }
             Type::ErrorUnion { error, result } => {
-                self.zero_at(error, depth + 1)?;
-                self.zero_at(result, depth + 1)?;
-                self.resolved(ty, empty(), Vec::new())
+                self.zero_shape_at(error, depth + 1)?;
+                self.zero_shape_at(result, depth + 1)?;
+                Ok(empty())
             }
             Type::Tuple(fields) => {
                 for field in fields {
-                    self.zero_at(field, depth + 1)?;
+                    self.zero_shape_at(field, depth + 1)?;
                 }
-                self.resolved(ty, empty(), Vec::new())
+                Ok(empty())
             }
             Type::Array { element, .. } | Type::Slice { element } => {
-                self.zero_at(element, depth + 1)?;
-                self.resolved(ty, empty(), Vec::new())
+                self.zero_shape_at(element, depth + 1)?;
+                Ok(empty())
             }
             _ => Err(pending(
                 "actual zero-domain type requires its complete original whole-type equation",
@@ -312,10 +345,22 @@ impl<'a> World<'a, '_> {
             .frames
             .get(&function.id)
             .ok_or_else(|| bad("actual result has no private emission owner"))?;
-        self.pay(frame.expressions.len())?;
+        self.pay(index::search(self.index.expressions.len()))?;
+        let nodes = match self.index.expressions.get(&(function.id, result)) {
+            Some(nodes) => {
+                index::pay(self.left, nodes.len())?;
+                nodes.clone()
+            }
+            None => return Ok(None),
+        };
         let original = self.definition(instance.definition)?;
         let mut selected: Option<SharedType> = None;
-        for expression in frame.expressions.values() {
+        for node in nodes {
+            self.pay(index::search(frame.expressions.len()))?;
+            let expression = frame
+                .expressions
+                .get(&node)
+                .ok_or_else(|| bad("actual expression index changes its emitter owner"))?;
             self.pay(expression.instructions.len())?;
             if expression.value != Some(result)
                 || !expression
@@ -328,8 +373,37 @@ impl<'a> World<'a, '_> {
             let Some(end) = expression.end else {
                 continue;
             };
-            self.pay(self.program.sites.len())?;
-            for site in &self.program.sites {
+            self.pay(index::search(self.index.points.len()))?;
+            let positions = match self
+                .index
+                .points
+                .get(&(instance.id, end.block, end.instruction))
+            {
+                Some(positions) => {
+                    index::pay(self.left, positions.len())?;
+                    positions.clone()
+                }
+                None => continue,
+            };
+            self.pay(index::search(self.index.sites.len()))?;
+            let sites = self
+                .index
+                .sites
+                .get(&instance.id)
+                .ok_or_else(|| bad("actual expression index lost its instance sites"))?;
+            let offsets = positions
+                .into_iter()
+                .map(|position| {
+                    sites.get(position).copied().ok_or_else(|| {
+                        bad("actual expression point index leaves its instance sites")
+                    })
+                })
+                .collect::<R<Vec<_>>>()?;
+            self.pay(offsets.len())?;
+            for offset in offsets {
+                let site = self.program.sites.get(offset).ok_or_else(|| {
+                    bad("actual expression site index leaves its complete directory")
+                })?;
                 if site.instance != instance.id
                     || !matches!(site.at, SemanticSiteAddress::Typed {
                     block: actual_block, instruction, edge: SemanticSiteEdge::Before,
@@ -612,29 +686,31 @@ impl<'a> World<'a, '_> {
         self.pay(classes.len().saturating_mul(2))?;
         let mut images = vec![image];
         images.extend(classes.iter().cloned());
-        self.resolved(
-            ty,
-            StorageLifeShape {
-                binder_count: child
-                    .binder_count
-                    .checked_add(1)
-                    .ok_or_else(|| bad("address domain overflows"))?,
-                slots: vec![StorageLifeSlot {
-                    path: Vec::new(),
-                    mode,
-                    binder: 0,
-                }],
-                retained: (0..child.binder_count)
-                    .map(|class| StorageRetainedBinding {
-                        path: vec![LifeTypeProjection::Pointee],
-                        class,
-                        binder: class + 1,
-                    })
-                    .collect(),
-                nominal_arguments: Vec::new(),
-            },
-            images,
-        )
+        let mut life = StorageLifeShape {
+            binder_count: child
+                .binder_count
+                .checked_add(1)
+                .ok_or_else(|| bad("address domain overflows"))?,
+            slots: vec![StorageLifeSlot {
+                path: Vec::new(),
+                mode,
+                binder: 0,
+            }],
+            ..empty()
+        };
+        // This map comes from the actual image vector just constructed. Child
+        // nominal occurrences follow it even when an outside image is equal
+        // to the new outer image; child intrinsic indices remain distinct.
+        let map = (1..life.binder_count).collect::<Vec<_>>();
+        super::materialize::inherit_child_shape(
+            &mut life,
+            child,
+            LifeTypeProjection::Pointee,
+            &map,
+            self.limits,
+            self.left,
+        )?;
+        self.resolved(ty, life, images)
     }
     fn address_projection(
         &mut self,
@@ -677,21 +753,20 @@ impl<'a> World<'a, '_> {
             return Err(bad("static projection changes its complete child type"));
         }
         self.pay(classes.len().saturating_mul(2))?;
-        self.resolved(
-            ty,
-            StorageLifeShape {
-                binder_count: life.binder_count,
-                retained: (0..life.binder_count)
-                    .map(|class| StorageRetainedBinding {
-                        path: vec![LifeTypeProjection::Pointee],
-                        class,
-                        binder: class,
-                    })
-                    .collect(),
-                ..empty()
-            },
-            classes.clone(),
-        )
+        let mut shape = StorageLifeShape {
+            binder_count: life.binder_count,
+            ..empty()
+        };
+        let map = (0..life.binder_count).collect::<Vec<_>>();
+        super::materialize::inherit_child_shape(
+            &mut shape,
+            life,
+            LifeTypeProjection::Pointee,
+            &map,
+            self.limits,
+            self.left,
+        )?;
+        self.resolved(ty, shape, classes.clone())
     }
     fn pointee(&mut self, value: &SemanticTypeValue) -> R<SharedType> {
         if !matches!(Self::type_of(value)?, Type::Address { .. } | Type::Desc(_)) {
@@ -735,50 +810,95 @@ impl<'a> World<'a, '_> {
                 *image = actual.clone();
                 continue;
             }
-            if matches!(
-                image,
-                SemanticClassExpr::Implicit {
-                    scope: SemanticScopeRef::Ancestor(0),
+            // Resolve a sealed proxy and its ancestor spelling in the child's
+            // original Gamma before selecting a real Fixed image. Concrete
+            // caller coincidences never select or merge captured classes.
+            let captured = match image {
+                SemanticClassExpr::Formal {
+                    scope: SemanticScopeRef::Ancestor(hops),
+                    ..
+                } => *hops != 0,
+                SemanticClassExpr::Implicit { .. } => true,
+                SemanticClassExpr::IntrinsicClass {
+                    operand:
+                        SemanticOperand::TypeArgument {
+                            scope: SemanticScopeRef::Ancestor(hops),
+                            ..
+                        },
+                    ..
+                } => *hops != 0,
+                SemanticClassExpr::Environment { .. }
+                | SemanticClassExpr::IntrinsicClass {
+                    operand: SemanticOperand::Environment(_),
                     ..
                 }
-            ) {
-                if let Some((
+                | SemanticClassExpr::OuterOccurrence {
+                    operand: SemanticOperand::Environment(_),
+                    ..
+                } => true,
+                _ => false,
+            };
+            if captured
+                && let Some((
                     header,
                     child,
                     SemanticTypeValue::Resolved {
+                        life,
                         classes: actual_images,
                         ..
                     },
                 )) = environment
+            {
+                if actual_images.len() != life.binder_count as usize
+                    || life.binder_count != header.fixed_binder_count
                 {
-                    self.pay(child.header_embedding.len())?;
-                    let mut rows = child.header_embedding.iter().filter(|row| {
-                        row.actual == *image && matches!(row.header, StorageBinder::Fixed(_))
-                    });
-                    if let Some(row) = rows.next() {
-                        if rows.next().is_some() {
-                            return Err(bad("implicit capture has ambiguous actual Fixed images"));
-                        }
-                        let StorageBinder::Fixed(fixed) = row.header else {
-                            unreachable!()
-                        };
-                        if fixed >= header.fixed_binder_count {
-                            return Err(bad(
-                                "implicit capture Fixed image exceeds complete environment domain",
-                            ));
-                        }
-                        let actual = actual_images
-                            .get(fixed as usize)
-                            .ok_or_else(|| bad("call omits an implicit captured Fixed image"))?;
-                        crate::dyn_metadata::semantic_operand_snapshot(
-                            actual,
-                            self.limits,
-                            self.left,
-                            1,
-                        )?;
-                        *image = actual.clone();
+                    return Err(bad(
+                        "call environment loses its complete persistent class domain",
+                    ));
+                }
+                let original = self.class(child.id, image, &BTreeMap::new())?;
+                let mut selected = None;
+                for row in &child.header_embedding {
+                    self.pay(1)?;
+                    let StorageBinder::Fixed(fixed) = row.header else {
                         continue;
+                    };
+                    if fixed >= header.fixed_binder_count {
+                        return Err(bad(
+                            "captured header image is outside its complete Fixed domain",
+                        ));
                     }
+                    let source = self.class(child.id, &row.actual, &BTreeMap::new())?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        &source,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        &original,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    if source == original && selected.replace(fixed).is_some() {
+                        return Err(bad(
+                            "captured original class has ambiguous actual Fixed images",
+                        ));
+                    }
+                }
+                if let Some(fixed) = selected {
+                    let actual = actual_images
+                        .get(fixed as usize)
+                        .ok_or_else(|| bad("call truncates the actual captured class image"))?;
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        actual,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    *image = actual.clone();
+                    continue;
                 }
             }
             match image {
@@ -826,40 +946,14 @@ impl<'a> World<'a, '_> {
                 | SemanticClassExpr::IntrinsicClass {
                     operand: SemanticOperand::Environment(_),
                     ..
+                }
+                | SemanticClassExpr::OuterOccurrence {
+                    operand: SemanticOperand::Environment(_),
+                    ..
                 } => {
-                    let Some((
-                        header,
-                        child,
-                        SemanticTypeValue::Resolved {
-                            classes: actual_images,
-                            ..
-                        },
-                    )) = environment
-                    else {
-                        return Err(bad("call reads an unsealed child environment class"));
-                    };
-                    let mut selected = None;
-                    for row in &child.header_embedding {
-                        self.pay(1)?;
-                        if row.actual == *image {
-                            let StorageBinder::Fixed(fixed) = row.header else {
-                                continue;
-                            };
-                            if fixed >= header.fixed_binder_count
-                                || selected.replace(fixed).is_some()
-                            {
-                                return Err(bad("environment class has ambiguous Fixed images"));
-                            }
-                        }
-                    }
-                    *image = actual_images
-                        .get(
-                            selected
-                                .ok_or_else(|| bad("environment class has no actual Fixed image"))?
-                                as usize,
-                        )
-                        .ok_or_else(|| bad("call truncates an environment's complete domain"))?
-                        .clone();
+                    return Err(bad(
+                        "call environment class has no exact original Fixed image",
+                    ));
                 }
                 _ => {
                     crate::dyn_metadata::semantic_operand_snapshot(
@@ -942,10 +1036,16 @@ impl World<'_, '_> {
                 self.left,
             )?,
             SemanticClassExpr::OuterOccurrence {
-                operand: SemanticOperand::Environment(ordinal),
-                path,
-                mode,
-            } => roles::environment_outer(self, scope, *ordinal, path, *mode)?,
+                operand: SemanticOperand::Environment(_),
+                ..
+            }
+            | SemanticClassExpr::IntrinsicClass {
+                operand: SemanticOperand::Environment(_),
+                ..
+            }
+            | SemanticClassExpr::Environment { .. } => {
+                roles::environment_class(self, scope, image)?
+            }
             _ => image.clone(),
         })
     }
@@ -963,6 +1063,22 @@ impl World<'_, '_> {
         }
         Ok(())
     }
+    fn normalized_images(
+        &mut self,
+        scope: SemanticInstanceId,
+        classes: &[SemanticClassExpr],
+        implicit: &BTreeMap<u32, SemanticClassExpr>,
+    ) -> R<(Vec<SemanticClassExpr>, bool)> {
+        self.pay(classes.len().saturating_add(1))?;
+        let mut mapped = Vec::with_capacity(classes.len());
+        let mut changed = false;
+        for image in classes {
+            let actual = self.class(scope, image, implicit)?;
+            changed |= actual != *image;
+            mapped.push(actual);
+        }
+        Ok((mapped, changed))
+    }
     fn normalized<'v>(
         &mut self,
         scope: SemanticInstanceId,
@@ -972,14 +1088,7 @@ impl World<'_, '_> {
         let SemanticTypeValue::Resolved { classes, .. } = value else {
             return Err(bad("Core value survives normalization"));
         };
-        self.pay(classes.len().saturating_add(1))?;
-        let mut mapped = Vec::with_capacity(classes.len());
-        let mut changed = false;
-        for image in classes {
-            let actual = self.class(scope, image, implicit)?;
-            changed |= actual != *image;
-            mapped.push(actual);
-        }
+        let (mapped, changed) = self.normalized_images(scope, classes, implicit)?;
         if !changed {
             return Ok(std::borrow::Cow::Borrowed(value));
         }
@@ -1005,6 +1114,7 @@ impl World<'_, '_> {
             }
         }
     }
+    #[track_caller]
     fn same(
         &mut self,
         scope: SemanticInstanceId,
@@ -1012,9 +1122,49 @@ impl World<'_, '_> {
         b: &SemanticTypeValue,
         implicit: &BTreeMap<u32, SemanticClassExpr>,
     ) -> R<()> {
-        let a = self.normalized(scope, a, implicit)?;
-        let b = self.normalized(scope, b, implicit)?;
-        self.equal(&a, &b)
+        let location = std::panic::Location::caller();
+        let before = *self.left;
+        self.same_calls = self.same_calls.saturating_add(1);
+        let result = (|| {
+            let (
+                SemanticTypeValue::Resolved {
+                    ty: a_ty,
+                    life: a_life,
+                    classes: a_classes,
+                },
+                SemanticTypeValue::Resolved {
+                    ty: b_ty,
+                    life: b_life,
+                    classes: b_classes,
+                },
+            ) = (a, b)
+            else {
+                return Err(bad("Core value survives normalization"));
+            };
+            // Rebuild only the class images in this exact live world. The
+            // physical type and complete intrinsic domain are immutable and
+            // borrowed; an equation never needs two cloned whole values.
+            let (a_images, _) = self.normalized_images(scope, a_classes, implicit)?;
+            let (b_images, _) = self.normalized_images(scope, b_classes, implicit)?;
+            self.pay(1)?;
+            if std::ptr::eq(a, b) {
+                return Ok(());
+            }
+            crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
+            if a_ty != b_ty || a_life != b_life || a_images != b_images {
+                crate::dyn_metadata::semantic_operand_snapshot(a, self.limits, self.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(b, self.limits, self.left, 1)?;
+                let mut diagnostic = bad("actual whole type or rigid original classes disagree");
+                diagnostic.notes.push(format!("actual class equation at {}:{}; actual point {:?}; left complete value {:?}; right complete value {:?}; current left images {:?}; current right images {:?}", location.file(), location.line(), self.current_point, a, b, a_images, b_images));
+                return Err(diagnostic);
+            }
+            Ok(())
+        })();
+        self.same_work = self
+            .same_work
+            .saturating_add(before.saturating_sub(*self.left));
+        result
     }
     fn original_recipe<'a>(
         &mut self,
@@ -1026,11 +1176,19 @@ impl World<'_, '_> {
         else {
             return Err(bad("operation is outside its original function"));
         };
-        self.pay(sites.len())?;
-        sites
-            .iter()
-            .find(|r| r.id == id)
-            .ok_or_else(|| bad("actual operation has no original recipe"))
+        self.pay(index::search(self.index.recipes.len()))?;
+        let offset = self
+            .index
+            .recipes
+            .get(&(original.id, id))
+            .ok_or_else(|| bad("actual operation has no original recipe"))?;
+        let recipe = sites
+            .get(*offset)
+            .ok_or_else(|| bad("actual recipe index leaves its original definition"))?;
+        if recipe.id != id {
+            return Err(bad("actual recipe index changes its original identity"));
+        }
+        Ok(recipe)
     }
     fn point_sites<'a>(
         &mut self,
@@ -1041,10 +1199,22 @@ impl World<'_, '_> {
         let Some(first) = sites.first() else {
             return Ok(Vec::new());
         };
-        self.pay(index::search(self.index.points.len()))?;
-        let Some(positions) = self.index.points.get(&(first.instance, block, instruction)) else {
-            return Ok(Vec::new());
-        };
+        let key = (first.instance, block, instruction);
+        self.pay(1)?;
+        if !self
+            .last_point
+            .as_ref()
+            .is_some_and(|(point, _)| *point == key)
+        {
+            self.pay(index::search(self.index.points.len()))?;
+            let positions = self.index.points.get(&key);
+            index::pay(self.left, positions.map_or(0, Vec::len))?;
+            self.last_point = Some((key, positions.cloned().unwrap_or_default()));
+        }
+        let (_, positions) = self
+            .last_point
+            .as_ref()
+            .ok_or_else(|| bad("actual point cache lost its selected directory"))?;
         index::pay(self.left, positions.len())?;
         let mut result = Vec::with_capacity(positions.len());
         for position in positions {
@@ -1083,6 +1253,18 @@ impl World<'_, '_> {
             }
             let recipe = self.original_recipe(original, site.recipe)?;
             match (&site.action, &recipe.kind) {
+                (SemanticSiteAction::BodyCall { .. }, SemanticSiteRecipeKind::OriginalCall)
+                    if edge == SemanticSiteEdge::After =>
+                {
+                    if let Some((operand, value, source)) = borrow_roles::call_result(
+                        self, instance, original, function, site, values, locals, implicit,
+                    )? {
+                        *values.get_mut(operand.0 as usize).ok_or_else(|| {
+                            bad("call loan result leaves its actual SSA directory")
+                        })? = Some(value);
+                        self.value_role_sources.insert(operand, source);
+                    }
+                }
                 (
                     SemanticSiteAction::DeclareLocal {
                         local: SemanticLocalTarget::Typed(local),
@@ -1163,28 +1345,45 @@ impl World<'_, '_> {
                         },
                     ) = (original_value.as_ref(), value.as_ref())
                     {
-                        self.pay(
-                            images
-                                .len()
-                                .saturating_add(original.implicit_lifetimes.len()),
-                        )?;
                         for (expected, actual) in images.iter().zip(actual_images) {
+                            self.pay(1)?;
                             if let SemanticClassExpr::Implicit {
                                 scope: SemanticScopeRef::Ancestor(0),
                                 ordinal,
                             } = expected
-                            {
-                                if original.implicit_lifetimes.iter().any(|i| {
-                                    i.ordinal == *ordinal
-                                        && i.occurrence_path == recipe.occurrence_path
-                                }) && matches!(
+                                && matches!(
                                     actual,
                                     SemanticClassExpr::OuterOccurrence {
                                         operand: SemanticOperand::Value(_),
                                         ..
                                     }
-                                ) {
+                                )
+                            {
+                                let mut found = false;
+                                for occurrence in &original.implicit_lifetimes {
+                                    self.pay(occurrence.occurrence_path.len().saturating_add(1))?;
+                                    if occurrence.ordinal == *ordinal
+                                        && occurrence.occurrence_path == recipe.occurrence_path
+                                    {
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                                if found {
+                                    crate::dyn_metadata::semantic_operand_snapshot(
+                                        actual,
+                                        self.limits,
+                                        self.left,
+                                        1,
+                                    )?;
+                                    self.pay(index::search(implicit.len()).saturating_add(1))?;
                                     if let Some(old) = implicit.insert(*ordinal, actual.clone()) {
+                                        crate::dyn_metadata::semantic_operand_snapshot(
+                                            &old,
+                                            self.limits,
+                                            self.left,
+                                            1,
+                                        )?;
                                         if old != *actual {
                                             return Err(bad(
                                                 "one original occurrence selects different emitted class heads",
@@ -1392,7 +1591,13 @@ impl World<'_, '_> {
                             };
                             let expected_field = self.ty(instance.id, &recipe, ty)?;
                             let value = self.get(values, *field)?;
-                            self.same(instance.id, &value, &expected_field, implicit)?;
+                            self.constructor_field_source(
+                                instance.id,
+                                *field,
+                                &value,
+                                &expected_field,
+                                implicit,
+                            )?;
                         }
                     }
                     (
@@ -2083,7 +2288,7 @@ impl World<'_, '_> {
                     }
                     _ => None,
                 };
-                let propagated_role = propagated_role
+                let mut propagated_role = propagated_role
                     .map(|source| roles::snapshot_source(source, self.limits, self.left))
                     .transpose()?;
                 let mut propagated_roots = std::collections::BTreeSet::new();
@@ -3904,6 +4109,149 @@ impl World<'_, '_> {
                             let value = self.get(&values, *aggregate)?;
                             Some(self.field_value(&value, *index)?)
                         }
+                        InstructionKind::LoadStoredBorrow {
+                            storage: source_storage,
+                            path,
+                            mode,
+                        } => {
+                            let storage = self.get(&values, *source_storage)?;
+                            if !matches!(Self::type_of(&storage)?, Type::Address { .. }) {
+                                return Err(bad("stored leaf read has no actual storage address"));
+                            }
+                            let mut selected = self.pointee(&storage)?;
+                            for step in path {
+                                selected = projection::place(self, &selected, *step)?;
+                            }
+                            let mut leaf_roots = std::collections::BTreeSet::new();
+                            for mut root in arguments::roots(self, *source_storage, &storage)? {
+                                self.pay(root.path.len().saturating_add(path.len()))?;
+                                root.path.extend_from_slice(path);
+                                if root.path.len() > self.limits.max_call_depth
+                                    || self.stale_locals.contains(&root.local)
+                                    || locals
+                                        .get(root.local.0 as usize)
+                                        .and_then(Option::as_ref)
+                                        .is_none()
+                                {
+                                    return Err(bad(
+                                        "stored leaf read has an inactive or excessive actual root",
+                                    ));
+                                }
+                                self.pay(
+                                    self.vacant
+                                        .len()
+                                        .saturating_mul(root.path.len().saturating_add(1)),
+                                )?;
+                                if self.vacant.iter().any(|(local, vacant)| {
+                                    *local == root.local
+                                        && (root.path.starts_with(vacant)
+                                            || vacant.starts_with(&root.path))
+                                }) {
+                                    return Err(bad(
+                                        "stored leaf read uses a vacant actual projection",
+                                    ));
+                                }
+                                leaf_roots.insert(root);
+                            }
+                            match (mode, Self::type_of(&selected)?) {
+                                (
+                                    StoredBorrowLoad::CopyShared,
+                                    Type::Address { mutable: false, .. },
+                                )
+                                | (StoredBorrowLoad::CopyDescription, Type::Desc(_))
+                                | (StoredBorrowLoad::Take, Type::Address { .. } | Type::Desc(_)) => {
+                                }
+                                (
+                                    StoredBorrowLoad::Reborrow { mutable },
+                                    Type::Address {
+                                        mutable: available, ..
+                                    },
+                                ) if !*mutable || *available => {
+                                    let inner = self.pointee(&selected)?;
+                                    propagated_role = Some(roles::outer(self, &selected)?);
+                                    places::borrow_mode(ty, *mutable)?;
+                                    let result = instruction.result.ok_or_else(|| {
+                                        bad("stored reborrow has no actual result")
+                                    })?;
+                                    let image = self.occurrence(f, result)?;
+                                    selected = self.address(
+                                        ty.ok_or_else(|| {
+                                            bad("stored reborrow has no actual type")
+                                        })?,
+                                        image,
+                                        &inner,
+                                    )?;
+                                    propagated_roots = leaf_roots.clone();
+                                }
+                                _ => {
+                                    return Err(bad(
+                                        "stored leaf read changes its exact access mode",
+                                    ));
+                                }
+                            }
+                            if *mode == StoredBorrowLoad::Take {
+                                for root in leaf_roots {
+                                    self.vacant.insert((root.local, root.path));
+                                }
+                            }
+                            // The complete selected leaf carries the retained
+                            // input class, independently of the storage loan.
+                            Some(selected)
+                        }
+                        InstructionKind::StoreStoredBorrow {
+                            storage,
+                            path,
+                            value,
+                        } => {
+                            let parent = self.get(&values, *storage)?;
+                            places::address_mutable(self, &parent, true)?;
+                            let mut selected = self.pointee(&parent)?;
+                            for step in path {
+                                selected = projection::place(self, &selected, *step)?;
+                            }
+                            if !matches!(
+                                Self::type_of(&selected)?,
+                                Type::Address { .. } | Type::Desc(_)
+                            ) {
+                                return Err(bad(
+                                    "stored leaf write does not select an actual borrowed leaf",
+                                ));
+                            }
+                            let actual = self.get(&values, *value)?;
+                            self.same(instance.id, &actual, &selected, &implicit)?;
+                            for mut root in arguments::roots(self, *storage, &parent)? {
+                                self.pay(root.path.len().saturating_add(path.len()))?;
+                                root.path.extend_from_slice(path);
+                                if root.path.len() > self.limits.max_call_depth
+                                    || self.stale_locals.contains(&root.local)
+                                    || locals
+                                        .get(root.local.0 as usize)
+                                        .and_then(Option::as_ref)
+                                        .is_none()
+                                {
+                                    return Err(bad(
+                                        "stored leaf write has an inactive or excessive actual root",
+                                    ));
+                                }
+                                self.pay(
+                                    self.vacant
+                                        .len()
+                                        .saturating_mul(root.path.len().saturating_add(1)),
+                                )?;
+                                if self.vacant.iter().any(|(local, vacant)| {
+                                    *local == root.local
+                                        && vacant != &root.path
+                                        && (root.path.starts_with(vacant)
+                                            || vacant.starts_with(&root.path))
+                                }) {
+                                    return Err(bad(
+                                        "stored leaf write changes a different vacant parent projection",
+                                    ));
+                                }
+                                self.vacant.remove(&(root.local, root.path));
+                            }
+                            None
+                        }
                         InstructionKind::ReadPackageField { local, index } => {
                             Some(self.projected_local(
                                 &locals,
@@ -4082,7 +4430,21 @@ impl World<'_, '_> {
                     reservations::exit(self)?;
                     places::capture_exit(self, instance, f)?;
                     let value = self.get(&values, result)?;
-                    self.same(instance.id, &value, &expected_result, &implicit)?;
+                    if !borrow_roles::return_view(
+                        self,
+                        instance,
+                        original,
+                        f,
+                        &sites,
+                        result,
+                        &value,
+                        &expected_result,
+                        &values,
+                        &locals,
+                        &implicit,
+                    )? {
+                        self.same(instance.id, &value, &expected_result, &implicit)?;
+                    }
                     Vec::new()
                 }
                 Terminator::Return(None) if f.return_type == Type::Unit => {
@@ -4221,6 +4583,7 @@ fn program_at(
         receiver_adaptations: Vec::new(),
         index,
         types: types::Table::default(),
+        cfg_shapes: BTreeMap::new(),
         view,
         snapshots: 0,
         snapshot_work: 0,
@@ -4230,6 +4593,10 @@ fn program_at(
         canonical_work: 0,
         key_work: 0,
         where_work: 0,
+        same_calls: 0,
+        same_work: 0,
+        direct_work: BTreeMap::new(),
+        last_point: None,
         current_point: None,
     };
     world.pay(
@@ -4418,7 +4785,18 @@ fn program_at(
             );
             let before = *world.left;
             if let Err(mut diagnostic) = world.run(instance) {
-                diagnostic.notes.push(format!("actual world work: entry allowance {}, failing instance {:?}/definition {:?} began {}, consumed {}, remaining {}; type cache hits {}, misses {}, lookup work {}, evaluation work {}; state snapshots {} work {}, comparisons {} work {}; unreachable correspondence entries retired {}; canonical work {}, digest work {}, immutable where work {}", entered, instance.id, instance.definition, before, before.saturating_sub(*world.left), *world.left, world.types.hits, world.types.misses, world.types.lookup_work, world.types.evaluation_work, world.snapshots, world.snapshot_work, world.comparisons, world.compare_work, world.retired_metadata, world.canonical_work, world.key_work, world.where_work));
+                diagnostic.notes.push(world.work_note());
+                diagnostic.notes.push(format!(
+                    "actual instance directory position {:?} of {}; immutable CFG structures {}",
+                    world
+                        .index
+                        .instances
+                        .get(&instance.id)
+                        .map(|offset| offset + 1),
+                    program.instances.len(),
+                    world.cfg_shapes.len()
+                ));
+                diagnostic.notes.push(format!("actual world work: entry allowance {}, failing instance {:?}/definition {:?} began {}, consumed {}, remaining {}; type cache hits {}, misses {}, lookup work {}, evaluation work {}; state snapshots {} work {}, comparisons {} work {}; unreachable correspondence entries retired {}; canonical work {}, digest work {}, immutable where work {}; live normalized equations {} work {}", entered, instance.id, instance.definition, before, before.saturating_sub(*world.left), *world.left, world.types.hits, world.types.misses, world.types.lookup_work, world.types.evaluation_work, world.snapshots, world.snapshot_work, world.comparisons, world.compare_work, world.retired_metadata, world.canonical_work, world.key_work, world.where_work, world.same_calls, world.same_work));
                 return Err(diagnostic);
             }
         }

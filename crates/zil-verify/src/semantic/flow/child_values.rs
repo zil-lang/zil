@@ -3,9 +3,22 @@
 //! intrinsic identities survive. This supplies no runtime pointer or loan.
 use super::*;
 impl CheckedContext {
-    pub(super) fn child_value(&self,module:&TypedModule,parent:&CheckedType,path:&[LifeTypeProjection],b:&mut Budget)->Check<CheckedType>{
+    pub(in crate::semantic) fn child_value(&self,module:&TypedModule,parent:&CheckedType,path:&[LifeTypeProjection],b:&mut Budget)->Check<CheckedType>{
+        self.child_value_mode(module,parent,path,None,b)
+    }
+    pub(in crate::semantic) fn child_value_mode(&self,module:&TypedModule,parent:&CheckedType,path:&[LifeTypeProjection],outer_mode:Option<StoredBorrowMode>,b:&mut Budget)->Check<CheckedType>{
+        if path.is_empty(){
+            b.spend(parent.classes.len().saturating_add(parent.origins.len()))?;
+            return Ok(parent.clone());
+        }
         let ty=lifetimes::select(&parent.ty,path,b)?;
         let mut life=crate::tasks::frame_shape::declared_life(module,ty,b)?;
+        if let Some(mode)=outer_mode{
+            if !matches!((ty,mode),(Type::Address{mutable:false,..},StoredBorrowMode::SharedAddress)|(Type::Address{mutable:true,..},StoredBorrowMode::ExclusiveAddress)|(Type::Desc(_),StoredBorrowMode::ReadOnlyDescription|StoredBorrowMode::WritableDescription)){return Err(bad("stored child mode changes its complete actual Address/Desc kind"));}
+            let mut rows=life.slots.iter_mut().filter(|row|row.path.is_empty());
+            let row=rows.next().ok_or_else(||bad("stored child has no declared outer occurrence"))?;row.mode=mode;
+            if rows.next().is_some(){return Err(bad("stored child repeats its outer occurrence"));}
+        }
         let physical=path.iter().map(|step|match step{LifeTypeProjection::Place(step)=>Some(*step),_=>None}).collect::<Option<Vec<_>>>();
         let mut statics=Vec::new();
         for row in &parent.statics {

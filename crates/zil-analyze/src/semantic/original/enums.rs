@@ -304,7 +304,7 @@ impl Solver<'_, '_> {
             ));
         }
         for (argument, expected) in arguments.iter().zip(&payload) {
-            let actual = self.expression(frame, argument, b, depth + 1)?;
+            let actual = self.expression_expected(frame, argument, *expected, b, depth + 1)?;
             self.unify(actual, *expected, depth + 1, b)?;
         }
         let Kind::Nominal {

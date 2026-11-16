@@ -16,7 +16,7 @@ pub(super) fn available_before(
     value: ValueId,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    let initialization = crate::initialize(function, b)?;
+    let initialization = crate::shared_initialization(function, b)?;
     let block = function
         .blocks
         .get(at.0.0 as usize)
@@ -30,6 +30,21 @@ pub(super) fn available_before(
         initialization: &initialization,
     }
     .value(value, b)?;
+    Ok(())
+}
+
+pub(super) fn initialized_local_before(
+    function: &TypedFunction,
+    at: (BlockId, usize),
+    local: LocalId,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let initialization = crate::shared_initialization(function, b)?;
+    let block = function.blocks.get(at.0.0 as usize)
+        .filter(|block| block.id == at.0 && at.1 <= block.instructions.len())
+        .ok_or_else(|| fail("resource source has no exact initialized local boundary"))?;
+    Point { function, block, instruction: at.1, edge: SemanticSiteEdge::Before,
+        initialization: &initialization }.local(local, b)?;
     Ok(())
 }
 
@@ -100,21 +115,8 @@ impl Point<'_> {
             .values
             .get(value.0 as usize)
             .ok_or_else(|| fail("semantic operand selects an absent actual SSA value"))?;
-        let mut definition = None;
-        for block in &self.function.blocks {
-            b.spend(block.instructions.len().saturating_add(1), WORK)?;
-            for (index, instruction) in block.instructions.iter().enumerate() {
-                if instruction.result == Some(value)
-                    && definition.replace((block.id, index)).is_some()
-                {
-                    return Err(fail(
-                        "semantic SSA operand has competing actual definitions",
-                    ));
-                }
-            }
-        }
-        let (block, ordinal) =
-            definition.ok_or_else(|| fail("semantic SSA operand has no actual definition"))?;
+        let definition = crate::shared_definition(self.function, value, b)?;
+        let (block, ordinal) = (definition.block, definition.instruction);
         if block == self.block.id {
             if ordinal < self.instruction
                 || (ordinal == self.instruction && self.edge == SemanticSiteEdge::After)
@@ -342,6 +344,56 @@ impl Check<'_, '_> {
         Ok(())
     }
 
+    fn body_call_actual(
+        &self,
+        target: &SemanticInstance,
+        ordinal: usize,
+        formal: &SemanticFormal,
+        expected: &crate::semantic::value::Argument,
+        actual: &crate::semantic::value::Argument,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        use crate::semantic::value::{Argument, Class};
+        b.spend(1, WORK)?;
+        let ordinal =
+            u32::try_from(ordinal).map_err(|_| fail("original call mixed ordinal overflows"))?;
+        Ok(match (formal, expected, actual) {
+            (
+                SemanticFormal::Lifetime,
+                Argument::Life(_),
+                Argument::Life(Class::Formal(owner, index)),
+            ) => *owner == target.id && *index == ordinal,
+            (SemanticFormal::Type { .. }, Argument::Type(expected), Argument::Type(actual)) => {
+                // The target is checked in its own rigid declaration frame.
+                // Reconstruct every intrinsic coordinate, including phantom
+                // classes; caller images never become target premises.
+                b.spend(
+                    expected.classes.len().saturating_add(actual.classes.len()),
+                    WORK,
+                )?;
+                if expected.classes.len() != expected.life.binder_count as usize
+                    || actual.classes.len() != expected.classes.len()
+                {
+                    return Ok(false);
+                }
+                let mut classes = Vec::new();
+                for child in 0..expected.life.binder_count {
+                    self.push_value(
+                        &mut classes,
+                        Class::TypeArgument(target.id, ordinal, child),
+                        b,
+                    )?;
+                }
+                let rigid = expected.with_classes(classes, b)?;
+                actual.equal_paid(&rigid, b)?
+            }
+            (SemanticFormal::Const { .. }, Argument::Const { .. }, Argument::Const { .. }) => {
+                self.capture_arguments_equal(expected, actual, b)?
+            }
+            _ => false,
+        })
+    }
+
     fn original_claim(
         &self,
         instance: &SemanticInstance,
@@ -350,7 +402,7 @@ impl Check<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<()> {
         let actual = self.resolved(instance, claim, b, 0)?;
-        if actual == *original {
+        if self.capture_values_equal(&actual, original, b)? {
             return Ok(());
         }
         crate::dyn_metadata::recipe(claim, b)?;
@@ -387,14 +439,14 @@ impl Check<'_, '_> {
                     value,
                 },
             ) => {
-                let expected = self.ty(instance, recipe, b, 0)?;
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
+                let expected = &original_value.ty;
                 if self.uses_full_value(&original_value.ty, b)? {
                     self.original_claim(instance, value, &original_value, b)?;
                 }
 
                 self.image_operands(instance, value, point, Some(*result), b)?;
-                if self.captured_value(
+                if &self.captured_value(
                     instance,
                     value,
                     &SemanticOperand::Value(*result),
@@ -411,17 +463,17 @@ impl Check<'_, '_> {
                 self.result(
                     instruction.ok_or_else(|| fail("actual construction instruction is absent"))?,
                     point.function,
-                    &expected,
+                    expected,
                 )?;
             }
             (
                 SemanticSiteRecipeKind::TypeUse { expected: recipe },
                 SemanticSiteAction::TypeUse { subject, expected },
             ) => {
-                let expected_type = self.ty(instance, recipe, b, 0)?;
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
+                let expected_type = &original_value.ty;
                 let actual_operand = self.operand(instance, subject, point, b)?;
-                if actual_operand != expected_type
+                if &actual_operand != expected_type
                     && let Some((whole, error)) = self.original.return_injection(
                         instance,
                         site.recipe,
@@ -441,7 +493,9 @@ impl Check<'_, '_> {
                     };
                     if is_error != error
                         || actual_operand != whole.ty
-                        || self.resolved(instance, expected, b, 0)? != whole
+                        || !self.capture_values_equal(
+                            &self.resolved(instance, expected, b, 0)?, &whole, b,
+                        )?
                         || point.function.values.get(value.0 as usize) != Some(&original_value.ty)
                     {
                         return Err(fail(
@@ -455,7 +509,10 @@ impl Check<'_, '_> {
                         b,
                     )?;
                     if self.uses_full_value(&original_value.ty, b)?
-                        && self.ssa_value(instance, point.function, value, b, 0)? != original_value
+                        && !self.capture_values_equal(
+                            &self.ssa_value(instance, point.function, value, b, 0)?,
+                            &original_value, b,
+                        )?
                     {
                         return Err(fail(
                             "implicit return injection changes its original payload classes",
@@ -517,7 +574,7 @@ impl Check<'_, '_> {
                     site.recipe,
                     point.function,
                     subject,
-                    &expected_type,
+                    expected_type,
                     b,
                 )?;
                 if let Some(constructor) = self.original.enum_constructor(
@@ -533,7 +590,7 @@ impl Check<'_, '_> {
                     };
                     let (_, _, actual) = self.defining(point.function, *value, b)?;
                     if !constructor.payload.is_empty()
-                        || constructor.result.ty != expected_type
+                        || &constructor.result.ty != expected_type
                         || !matches!(&actual.kind, InstructionKind::MakeVariant { variant, fields }
                             if *variant == constructor.variant && fields.is_empty())
                     {
@@ -570,7 +627,7 @@ impl Check<'_, '_> {
                     false,
                     b,
                 )?;
-                if expected_type != captured || actual_operand != expected_type {
+                if expected_type != &captured || &actual_operand != expected_type {
                     crate::dyn_metadata::ty(&actual_operand, b)?;
                     crate::dyn_metadata::ty(&captured, b)?;
                     crate::dyn_metadata::recipe(expected, b)?;
@@ -596,14 +653,14 @@ impl Check<'_, '_> {
                     expected,
                 },
             ) => {
-                let expected_type = self.ty(instance, recipe, b, 0)?;
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
+                let expected_type = &original_value.ty;
                 if self.uses_full_value(&original_value.ty, b)? {
                     self.original_claim(instance, expected, &original_value, b)?;
                 }
 
                 self.image_operands(instance, expected, point, None, b)?;
-                if self.captured_value(
+                if &self.captured_value(
                     instance,
                     expected,
                     &SemanticOperand::Local(*local),
@@ -617,13 +674,14 @@ impl Check<'_, '_> {
                         .get(local.0 as usize)
                         .filter(|actual| actual.id == *local)
                         .map(|actual| &actual.ty)
-                        != Some(&expected_type)
+                        != Some(expected_type)
                     || !matches!(instruction.map(|actual| &actual.kind), Some(InstructionKind::StorageLive(actual)) if actual == local)
                 {
                     return Err(fail(
                         "actual local declaration changes its complete original constraint",
                     ));
                 }
+                self.check_reference_declaration(instance, point.function, *local, b)?;
             }
             (SemanticSiteRecipeKind::OriginalCall, SemanticSiteAction::BodyCall { actuals }) => {
                 if self
@@ -699,7 +757,7 @@ impl Check<'_, '_> {
                         }
                         if self.uses_full_value(&expected.ty, b)? {
                             let value = self.ssa_value(instance, point.function, *actual, b, 0)?;
-                            if value != *expected {
+                            if !self.capture_values_equal(&value, expected, b)? {
                                 return Err(fail(
                                     "actual enum payload changes its original intrinsic class occurrence",
                                 ));
@@ -707,7 +765,9 @@ impl Check<'_, '_> {
                         }
                     }
                     for (actual, expected) in actuals.iter().zip(&constructor.arguments) {
-                        if self.actual_value(instance, actual, b, 0)? != *expected {
+                        if !self.capture_arguments_equal(
+                            &self.actual_value(instance, actual, b, 0)?, expected, b,
+                        )? {
                             return Err(fail(
                                 "actual enum construction changes its ordered original mixed arguments",
                             ));
@@ -1110,11 +1170,13 @@ impl Check<'_, '_> {
                     | InstructionKind::CallClosureOnce { .. }
                     | InstructionKind::CallClosureShared { .. }
                     | InstructionKind::CallClosureMut { .. }
+                    | InstructionKind::CallClosureBorrowed { .. }
                         if closure =>
                     {
                         let (operand, arguments) = match &instruction.kind {
                             InstructionKind::CallClosure { callee, arguments }
-                            | InstructionKind::CallClosureOnce { callee, arguments } => {
+                            | InstructionKind::CallClosureOnce { callee, arguments }
+                            | InstructionKind::CallClosureBorrowed { callee, arguments, .. } => {
                                 (SemanticOperand::Value(*callee), arguments)
                             }
                             InstructionKind::CallClosureShared { callee, arguments }
@@ -1127,10 +1189,32 @@ impl Check<'_, '_> {
                                 ));
                             }
                         };
-                        let Type::Closure(id) = self.operand(instance, &operand, point, b)? else {
-                            return Err(fail(
-                                "original closure callee has another complete actual type",
-                            ));
+                        let receiver = self.operand(instance, &operand, point, b)?;
+                        let id = if let InstructionKind::CallClosureBorrowed { callee, kind, .. } = instruction.kind {
+                            let Type::Address { mutable, inner } = &receiver else {
+                                return Err(fail("borrowed known closure has no actual environment address"));
+                            };
+                            let Type::Closure(id) = inner.as_ref() else {
+                                return Err(fail("borrowed known closure changes its complete pointee type"));
+                            };
+                            if !matches!(kind, CallableKind::Fn | CallableKind::FnMut)
+                                || kind == CallableKind::FnMut && !*mutable {
+                                return Err(fail("borrowed known closure changes its original invocation mode"));
+                            }
+                            let original = self.original.borrowed_closure_receiver(instance, site.recipe,
+                                self.program, self.inventory, b)?;
+                            self.checked_borrow_place(instance, point.function, callee, &original,
+                                false, false, b, 0)?;
+                            let whole = self.ssa_value(instance, point.function, callee, b, 0)?;
+                            if !self.pointee(&whole, b)?.equal_paid(&original.root, b)? {
+                                return Err(fail("borrowed known closure changes its complete original environment value"));
+                            }
+                            *id
+                        } else {
+                            let Type::Closure(id) = receiver else {
+                                return Err(fail("original closure callee has another complete actual type"));
+                            };
+                            id
                         };
                         let callee = self
                             .module
@@ -1138,6 +1222,13 @@ impl Check<'_, '_> {
                             .get(id.0 as usize)
                             .filter(|callee| callee.id == id)
                             .ok_or_else(|| fail("original closure call has no actual entry"))?;
+                        if let InstructionKind::CallClosureBorrowed { kind, .. } = instruction.kind
+                            && !matches!((callee.kind, kind),
+                                (CallableKind::Fn, CallableKind::Fn)
+                                | (CallableKind::Fn | CallableKind::FnMut, CallableKind::FnMut))
+                        {
+                            return Err(fail("borrowed known closure entry has another complete callable role"));
+                        }
                         b.spend(callee.parameters.len(), WORK)?;
                         for parameter in &callee.parameters {
                             crate::dyn_metadata::ty(parameter, b)?;
@@ -1159,6 +1250,7 @@ impl Check<'_, '_> {
                 // invocation worlds. Check this boundary against every one;
                 // no global representative identifies their local classes.
                 let worlds = self.function_worlds(callee, b)?;
+                let formals = &self.inventory.definition(original, b)?.parameters;
                 if worlds.is_empty() {
                     return Err(fail(
                         "actual BodyCall has no complete original target world",
@@ -1168,47 +1260,28 @@ impl Check<'_, '_> {
                     if target.definition != original
                         || actuals.len() != expected_actuals.len()
                         || target.actuals.len() != expected_actuals.len()
+                        || formals.len() != expected_actuals.len()
                     {
                         return Err(fail(
                             "actual BodyCall changes its independently inferred original target or mixed arity",
                         ));
                     }
-                    for (ordinal, ((proposed, callee), expected)) in actuals
+                    for (ordinal, (((proposed, callee), expected), formal)) in actuals
                         .iter()
                         .zip(&target.actuals)
                         .zip(&expected_actuals)
+                        .zip(formals)
                         .enumerate()
                     {
                         let proposed = self.actual_value(instance, proposed, b, 0)?;
-                        if proposed != *expected {
+                        if !self.capture_arguments_equal(&proposed, expected, b)? {
                             return Err(fail(
                                 "actual BodyCall differs from original caller-domain mixed inference",
                             ));
                         }
                         let callee = self.actual_value(target, callee, b, 0)?;
-                        let valid = match (expected, callee) {
-                            (
-                                crate::semantic::value::Argument::Life(_),
-                                crate::semantic::value::Argument::Life(
-                                    crate::semantic::value::Class::Formal(owner, index),
-                                ),
-                            ) => owner == target.id && index as usize == ordinal,
-                            (
-                                crate::semantic::value::Argument::Type(expected),
-                                crate::semantic::value::Argument::Type(actual),
-                            ) => actual.ty == expected.ty && actual.life == expected.life,
-                            (
-                                crate::semantic::value::Argument::Const {
-                                    carrier: expected,
-                                    value,
-                                },
-                                crate::semantic::value::Argument::Const {
-                                    carrier: actual,
-                                    value: actual_value,
-                                },
-                            ) => *expected == actual && *value == actual_value,
-                            _ => false,
-                        };
+                        let valid =
+                            self.body_call_actual(target, ordinal, formal, expected, &callee, b)?;
                         if !valid {
                             return Err(fail(
                                 "actual BodyCall target changes its independent original rigid mixed context",
@@ -1230,13 +1303,14 @@ impl Check<'_, '_> {
                         "actual call loses its independently inferred original input roles",
                     ));
                 }
-                for (actual, expected) in arguments.iter().zip(&expected_inputs) {
+                for (ordinal, (actual, expected)) in arguments.iter().zip(&expected_inputs).enumerate() {
                     if self.uses_full_value(&expected.ty, b)? {
-                        let actual = self.ssa_value(instance, point.function, *actual, b, 0)?;
-                        let valid = if matches!(expected.ty, Type::Address { .. }) {
-                            self.outer_role(instance, point.function, &actual, expected, b, 0)?
+                        let operand = *actual;
+                        let actual = self.ssa_value(instance, point.function, operand, b, 0)?;
+                        let valid = if matches!(expected.ty, Type::Address { .. } | Type::Desc(_)) {
+                            self.outer_call_role(instance, point.function, (point.block.id, point.instruction), ordinal, operand, &actual, expected, b, 0)?
                         } else {
-                            actual == *expected
+                            self.capture_values_equal(&actual, expected, b)?
                         };
                         if !valid {
                             return Err(fail(
@@ -1405,7 +1479,31 @@ impl Check<'_, '_> {
     }
 
     pub(super) fn sites(&self, b: &mut Budget) -> CompileResult<()> {
+        // These directories contain only references to the complete immutable
+        // event table. They answer presence/location queries; every original
+        // recipe, actual event, duplicate and state obligation is still checked.
+        let mut emitted_recipes = BTreeSet::new();
+        let mut operation_sites: BTreeMap<
+            (SemanticInstanceId, BlockId, usize), Vec<&SemanticSite>,
+        > = BTreeMap::new();
+        self.inventory.profile_step("event directory", b);
+        for site in &self.program.sites {
+            self.inventory.profile_site(site, b);
+            b.spend(1, WORK)?;
+            b.lookup(emitted_recipes.len(), WORK)?;
+            emitted_recipes.insert((site.instance, site.recipe));
+            if let SemanticSiteAddress::Typed { block, instruction, .. } = site.at {
+                b.lookup(operation_sites.len(), WORK)?;
+                let rows = operation_sites.entry((site.instance, block, instruction as usize)).or_default();
+                let relocation = if rows.len() == rows.capacity() { rows.len() } else { 0 };
+                b.spend(relocation.saturating_add(1), WORK)?;
+                rows.try_reserve(1).map_err(|_| fail("actual semantic event directory allocation failed"))?;
+                rows.push(site);
+            }
+        }
         for instance in &self.program.instances {
+            self.inventory.profile_step("world entry", b);
+            self.inventory.profile_instance(instance, b);
             let SemanticInstanceTarget::Function(target) = &instance.target else {
                 continue;
             };
@@ -1446,10 +1544,12 @@ impl Check<'_, '_> {
                 // have no executable CFG to initialize here.
                 continue;
             }
-            let initialization = crate::initialize(function, b)?;
+            let initialization = crate::shared_initialization(function, b)?;
             let mut declared = BTreeMap::new();
             let mut declared_values = BTreeMap::new();
+            self.inventory.profile_step("local declarations", b);
             for site in &self.program.sites {
+                self.inventory.profile_site(site, b);
                 b.spend(1, WORK)?;
                 if site.instance != instance.id {
                     continue;
@@ -1489,7 +1589,9 @@ impl Check<'_, '_> {
                     ));
                 }
             }
+            self.inventory.profile_step("original operations", b);
             for site in &self.program.sites {
+                self.inventory.profile_site(site, b);
                 b.spend(1, WORK)?;
                 if site.instance != instance.id {
                     continue;
@@ -1529,6 +1631,11 @@ impl Check<'_, '_> {
                     b,
                 );
                 if let Err(mut errors) = checked {
+                    if errors.iter().any(|error| error.category == zil_base::ResultCategory::ResourceLimit) {
+                        // Optional contextual formatting must not replace the
+                        // actual exhausted proof's category, caller or ledger.
+                        return Err(errors);
+                    }
                     b.spend(192, WORK)?;
                     for error in &mut errors {
                         error.notes.push(format!("actual semantic instance {}:{} original definition {}:{} function {} recipe {} at block {} instruction {} {:?}",
@@ -1537,15 +1644,12 @@ impl Check<'_, '_> {
                     return Err(errors);
                 }
             }
-            let original_nodes = super::super::original_index::index(definition, b)?;
+            let original_nodes = self.inventory.original_index(definition.id, b)?;
+            self.inventory.profile_step("recipe coverage", b);
             for recipe in recipes {
-                b.spend(self.program.sites.len(), WORK)?;
-                if !self
-                    .program
-                    .sites
-                    .iter()
-                    .any(|site| site.instance == instance.id && site.recipe == recipe.id)
-                {
+                self.inventory.profile_recipe(recipe.id, b);
+                b.lookup(emitted_recipes.len(), WORK)?;
+                if !emitted_recipes.contains(&(instance.id, recipe.id)) {
                     let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
                         &definition.body
                     else {
@@ -1589,9 +1693,11 @@ impl Check<'_, '_> {
                     return Err(errors);
                 }
             }
+            self.inventory.profile_step("actual CFG coverage", b);
             for block in &function.blocks {
                 for (index, instruction) in block.instructions.iter().enumerate() {
-                    b.spend(self.program.sites.len().saturating_add(1), WORK)?;
+                    self.inventory.profile_operation(block.id, index, b);
+                    b.spend(1, WORK)?;
                     if let InstructionKind::Store { local, value } = instruction.kind {
                         if !function
                             .locals
@@ -1608,8 +1714,12 @@ impl Check<'_, '_> {
                         }
                         b.lookup(declared_values.len(), WORK)?;
                         if let Some(expected) = declared_values.get(&local) {
-                            let actual = self.ssa_value(instance, function, value, b, 0)?;
-                            if actual != *expected {
+                            let actual =
+                                match self.reference_store_value(instance, function, local, b)? {
+                                    Some(role) => role,
+                                    None => self.ssa_value(instance, function, value, b, 0)?,
+                                };
+                            if !actual.equal_paid(expected, b)? {
                                 return Err(fail(
                                     "actual Store changes its complete original local class constraint",
                                 ));
@@ -1663,7 +1773,10 @@ impl Check<'_, '_> {
                         _ => None,
                     };
                     if let Some(kind) = requires {
-                        let count = self.program.sites.iter().filter(|site| site.instance == instance.id
+                        b.lookup(operation_sites.len(), WORK)?;
+                        let rows = operation_sites.get(&(instance.id, block.id, index)).map(Vec::as_slice).unwrap_or(&[]);
+                        b.spend(rows.len(), WORK)?;
+                        let count = rows.iter().copied().filter(|site| site.instance == instance.id
                             && matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, .. } if actual == block.id && instruction as usize == index)
                             && matches!((&site.action, kind), (SemanticSiteAction::Call { .. }, 0) | (SemanticSiteAction::CallableCall { .. }, 1) | (SemanticSiteAction::Closure { .. }, 2) | (SemanticSiteAction::BodyCall { .. }, 0 | 1 | 3))).count();
                         if count != 1 {
@@ -1674,6 +1787,7 @@ impl Check<'_, '_> {
                     }
                 }
                 if let Terminator::Return(value) = block.terminator {
+                    self.inventory.profile_operation(block.id, block.instructions.len(), b);
                     b.spend(1, WORK)?;
                     if self.uses_full_value(&function.return_type, b)? {
                         let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
@@ -1688,7 +1802,7 @@ impl Check<'_, '_> {
                             return Err(fail("class-bearing actual Return omits its result SSA"));
                         };
                         let actual = self.ssa_value(instance, function, value, b, 0)?;
-                        if actual != expected {
+                        if !self.capture_values_equal(&actual, &expected, b)? {
                             return Err(fail(
                                 "actual Return changes its complete original result class/source role",
                             ));
@@ -1720,6 +1834,7 @@ impl Check<'_, '_> {
         }
         // A hidden environment cannot authenticate itself. Every concrete
         // entry is sealed at its actual creator's MakeClosure, even if unused.
+        self.inventory.profile_stage("closure creation coverage", b);
         for closure in &self.module.closures {
             b.spend(self.program.sites.len(), WORK)?;
             if !self.program.sites.iter().any(|site| matches!(site.action, SemanticSiteAction::Closure { closure: SemanticClosureTarget::Typed(id), .. } if id == closure.id)) {

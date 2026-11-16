@@ -1179,7 +1179,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
     if !active && !context_returns {
         return Ok(());
     }
-    receiver_contracts::prepare_creators(module, left)?;
+    receiver_contracts::prepare_creators(module, left, limits)?;
     spend(left, module.functions.len(), Span::default())?;
     let mut summaries = (0..module.functions.len())
         .map(|_| Summary::default())
@@ -1576,6 +1576,70 @@ fn source_class(
         Type::Address { inner, .. } => (inner.as_ref(), true),
         ty => (ty, false),
     };
+    if pointer && !source.path.is_empty() {
+        let mut selected = Some(ty);
+        for step in &source.path {
+            spend(left, 1, f.span)?;
+            let Some(parent) = selected else {
+                break;
+            };
+            selected = match (stored::physical(parent), step) {
+                (
+                    Type::Record { fields, .. } | Type::Package { fields, .. },
+                    ContractProjection::Place(PlaceProjection::Field(field)),
+                ) => fields.get(*field as usize).map(|(_, ty)| ty),
+                (Type::Tuple(fields), ContractProjection::Place(PlaceProjection::Field(field))) => {
+                    fields.get(*field as usize)
+                }
+                (
+                    Type::Array { element, length },
+                    ContractProjection::Place(PlaceProjection::Field(field)),
+                ) if field < length => Some(element.as_ref()),
+                (
+                    Type::Enum { variants, .. },
+                    ContractProjection::Place(PlaceProjection::Variant(field)),
+                ) => variants
+                    .get(field.variant as usize)
+                    .and_then(|(_, fields)| fields.get(field.index as usize)),
+                (
+                    Type::ErrorUnion { error, result },
+                    ContractProjection::Place(PlaceProjection::ErrorArm(error_arm)),
+                ) => Some(if *error_arm {
+                    error.as_ref()
+                } else {
+                    result.as_ref()
+                }),
+                _ => None,
+            };
+        }
+        if selected.is_some_and(|ty| !matches!(ty, Type::Address { .. } | Type::Desc(_))) {
+            // A loan of inline scalar/product storage is a subview of this
+            // input Address. Reading a pointer stored at that path instead
+            // uses its separately qualified leaf domain below.
+            let root = StoragePosition {
+                base: source.base,
+                path: Vec::new(),
+            };
+            spend(left, life.bindings.len(), f.span)?;
+            let mut rows = life.bindings.iter().filter(|row| row.position == root);
+            let binder = rows
+                .next()
+                .ok_or_else(|| {
+                    unsupported(
+                        f.span,
+                        "projected input loan has no actual outer header occurrence",
+                    )
+                })?
+                .binder;
+            if rows.next().is_some() {
+                return Err(unsupported(
+                    f.span,
+                    "projected input loan has ambiguous actual outer header occurrences",
+                ));
+            }
+            return Ok(binder);
+        }
+    }
     if let Type::Closure(id) = ty {
         let class = capture_class(module, *id, &source.path, 0, left, f.span)?;
         return header_class(
@@ -1999,9 +2063,17 @@ fn relative_capture<'a>(
     };
     Some((*index, tail))
 }
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum CreatorClass {
+    Input(StorageBinder),
+    // One actual retained class whose dynamic source has several input
+    // alternatives. It is a new result coordinate, never input equality.
+    Result { capture: u32, class: u32 },
+}
 fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &Limits) -> R<bool> {
     let limit = limits.max_call_depth;
     let mut updates = Vec::new();
+    let mut invocation_counts = BTreeMap::new();
     for f in &module.functions {
         let Some(contract) = &f.callable_return_contract else {
             continue;
@@ -2117,6 +2189,7 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &L
                 };
                 for class in 0..count {
                     let mut actual = None;
+                    let mut alternatives = false;
                     for row in rows {
                         spend(
                             left,
@@ -2189,12 +2262,7 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &L
                             } else {
                                 source_class(module, f, source, left)?
                             };
-                            if actual.replace(key).is_some_and(|old| old != key) {
-                                return Err(unsupported(
-                                    f.span,
-                                    "captured class has no single proved creator relation",
-                                ));
-                            }
+                            alternatives |= actual.replace(key).is_some_and(|old| old != key);
                         }
                     }
                     let actual = if let Some(actual) = actual {
@@ -2215,7 +2283,15 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &L
                     };
                     spend(left, keys.len().saturating_add(1), f.span)?;
                     let next = keys.len() as u32;
-                    let fixed = *keys.entry(actual).or_insert(next);
+                    let key = if alternatives {
+                        CreatorClass::Result {
+                            capture: index as u32,
+                            class,
+                        }
+                    } else {
+                        CreatorClass::Input(actual)
+                    };
+                    let fixed = *keys.entry(key).or_insert(next);
                     if matches!(ty, Type::Address { .. }) && class == 0 {
                         proposed.bindings.push(StorageLifeBinding {
                             position: StoragePosition {
@@ -2289,6 +2365,26 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &L
             let mut result_classes = Vec::new();
             spend(left, keys.len(), f.span)?;
             for (creator, fixed) in keys {
+                let creator = match creator {
+                    CreatorClass::Input(binder) => binder,
+                    CreatorClass::Result { .. } => {
+                        if !prefix.is_empty() {
+                            // This row is not a function result occurrence;
+                            // the enclosing returned class is formed separately.
+                            continue;
+                        }
+                        let next = invocation_counts.entry(f.id).or_insert_with(|| {
+                            f.storage_life
+                                .as_ref()
+                                .map_or(0, |header| header.invocation_binder_count)
+                        });
+                        let binder = StorageBinder::Invocation(*next);
+                        *next = next.checked_add(1).ok_or_else(|| {
+                            unsupported(f.span, "creator result class count overflow")
+                        })?;
+                        binder
+                    }
+                };
                 result_classes.push(SignatureLifeClassBinding {
                     position: SignatureLifeClass {
                         base: StorageBase::Result,
@@ -2341,6 +2437,18 @@ fn populate_creator_fixed(module: &mut TypedModule, left: &mut usize, limits: &L
             ));
         }
         header.classes.extend(result_classes);
+    }
+    for (function, count) in invocation_counts {
+        let header = module.functions[function.0 as usize]
+            .storage_life
+            .as_mut()
+            .ok_or_else(|| {
+                unsupported(
+                    Span::default(),
+                    "creator result class has no complete header",
+                )
+            })?;
+        header.invocation_binder_count = count;
     }
     Ok(changed)
 }

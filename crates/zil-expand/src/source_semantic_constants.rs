@@ -23,6 +23,15 @@ impl Builder<'_, '_, '_, '_> {
     ) -> R<SemanticTypeRecipe> {
         self.budget.node(value.span, depth)?;
         if let s::ExprKind::Name(name) = &value.kind {
+            if let Some(actual) = self.alias_actual(name, value.span)? {
+                return match actual {
+                    SemanticActualRecipe::Const { carrier, .. } => Ok(carrier),
+                    _ => Err(error(
+                        value.span,
+                        "alias Const formal has another actual kind",
+                    )),
+                };
+            }
             if let Some(reference) = self.formal(name, 1, value.span)? {
                 let SemanticScopeRef::Ancestor(distance) = reference.scope;
                 let saved = self.owner;
@@ -113,15 +122,25 @@ impl Builder<'_, '_, '_, '_> {
             .lineage_bytes(std::mem::size_of::<SemanticConstRecipe>(), value.span)?;
         match &value.kind {
             s::ExprKind::Group(inner) => self.constant(inner, expected, path, depth + 1),
-            s::ExprKind::Name(name) => self
-                .formal(name, 1, value.span)?
-                .map(SemanticConstRecipe::Formal)
-                .ok_or_else(|| {
-                    error(
-                        value.span,
-                        "Const expression has no original formal or associated declaration",
-                    )
-                }),
+            s::ExprKind::Name(name) => {
+                if let Some(actual) = self.alias_actual(name, value.span)? {
+                    return match actual {
+                        SemanticActualRecipe::Const { value, .. } => Ok(value),
+                        _ => Err(error(
+                            value.span,
+                            "alias Const formal has another actual kind",
+                        )),
+                    };
+                }
+                self.formal(name, 1, value.span)?
+                    .map(SemanticConstRecipe::Formal)
+                    .ok_or_else(|| {
+                        error(
+                            value.span,
+                            "Const expression has no original formal or associated declaration",
+                        )
+                    })
+            }
             s::ExprKind::Literal(s::Literal::Integer(text)) => Ok(
                 SemanticConstRecipe::IntegerLiteral(self.text(text, value.span)?),
             ),

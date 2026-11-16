@@ -22,14 +22,14 @@ pub(super) fn check(
         .ok_or_else(|| bad("return life omits actual complete environment relation"))?;
     super::super::signature_life::charge(expected, b)?;
     super::super::signature_life::charge(actual, b)?;
-    super::super::signature_life::closure_relation(
-        &module.closures,
-        &module.dyn_interfaces,
+    super::super::signature_life::closure_relation_resource_scopes(
+        module,
         d.kind,
         &d.parameters,
         &d.captures,
         &d.result,
         actual,
+        b,
     )?;
     b.spend(
         expected

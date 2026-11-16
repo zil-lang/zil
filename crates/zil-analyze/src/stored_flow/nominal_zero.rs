@@ -3,16 +3,30 @@
 use super::*;
 use std::hash::{Hash, Hasher};
 
-fn type_hash(ty: &Type, limits: &Limits, b: &mut Budget) -> CompileResult<u64> {
-    shape_work(ty, limits, b)?;
-    let before = b.remaining();
-    crate::dyn_metadata::ty(ty, b)?;
+// This key only selects candidates. It deliberately does not hash child
+// Types, domains or fields; every candidate still compares the complete Type.
+fn candidate_hash(mut ty: &Type, b: &mut Budget) -> CompileResult<u64> {
+    while let Type::BorrowedStorage { storage, .. } = ty {
+        fee(b, 1)?;
+        ty = storage;
+    }
+    let (kind, name) = match ty {
+        Type::Record { name, .. } => (0u8, name),
+        Type::Package { name, .. } => (1u8, name),
+        Type::Enum { name, .. } => (2u8, name),
+        _ => {
+            return Err(failure(
+                "zero nominal lookup requires an actual nominal type",
+            ));
+        }
+    };
     b.spend(
-        before - b.remaining(),
-        "zero nominal complete structural hash",
+        name.len().saturating_add(1),
+        "zero nominal candidate identity hash",
     )?;
     let mut hash = std::collections::hash_map::DefaultHasher::new();
-    ty.hash(&mut hash);
+    kind.hash(&mut hash);
+    name.hash(&mut hash);
     Ok(hash.finish())
 }
 
@@ -22,7 +36,6 @@ pub(super) fn validate(
     limits: &Limits,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    crate::dyn_metadata::ty(&instance.ty, b)?;
     instance_zero(module, instance, limits, b, &mut Vec::new(), 0)
 }
 
@@ -35,28 +48,55 @@ pub(super) fn validate_type(
     type_zero(module, ty, limits, b, &mut Vec::new(), 0)
 }
 
-fn exact<'a>(
-    module: &'a TypedModule,
+pub(super) fn exact_index(
+    module: &TypedModule,
     ty: &Type,
     limits: &Limits,
     b: &mut Budget,
-) -> CompileResult<&'a LifeNominalInstance> {
+) -> CompileResult<usize> {
     let module_key = module as *const TypedModule as usize;
+    let raw_work = crate::semantic::geometry::bounded_work(ty, b)?;
+    let geometry_key = ty as *const Type as usize;
+    if raw_work.is_some()
+        && let Some(entry) = b.geometry_types.get(&geometry_key)
+        && let Some((owner, depth, position)) = entry.nominal
+        && owner == module_key
+        && depth == limits.max_call_depth
+    {
+        return Ok(position);
+    }
+    // Bound the entire query before key selection, including unmatched input.
+    // An exact immutable owned root already has a complete raw certificate.
+    shape_work(ty, limits, b)?;
+    let query_work = if let Some(work) = raw_work {
+        work
+    } else {
+        let before = b.remaining();
+        crate::dyn_metadata::ty(ty, b)?;
+        before - b.remaining()
+    };
     if b.nominal_zero_instances
         .as_ref()
         .is_none_or(|(owner, _)| *owner != module_key)
     {
-        let mut index = BTreeMap::<u64, Vec<usize>>::new();
+        let mut index = BTreeMap::<u64, Vec<(usize, usize)>>::new();
         fee(b, module.life_instances.len())?;
         for (position, instance) in module.life_instances.iter().enumerate() {
-            let hash = type_hash(&instance.ty, limits, b)?;
+            shape_work(&instance.ty, limits, b)?;
+            let before = b.remaining();
+            crate::dyn_metadata::ty(&instance.ty, b)?;
+            let comparison_work = before - b.remaining();
+            let hash = candidate_hash(&instance.ty, b)?;
             b.lookup(index.len(), "zero nominal exact identity index")?;
             fee(b, 1)?;
-            index.entry(hash).or_default().push(position);
+            index
+                .entry(hash)
+                .or_default()
+                .push((position, comparison_work));
         }
         b.nominal_zero_instances = Some((module_key, index));
     }
-    let hash = type_hash(ty, limits, b)?;
+    let hash = candidate_hash(ty, b)?;
     let (_, index) = b.nominal_zero_instances.as_ref().unwrap();
     let index_len = index.len();
     b.lookup(index_len, "zero nominal exact identity lookup")?;
@@ -67,7 +107,7 @@ fn exact<'a>(
         .1
         .get(&hash)
         .map_or(0, Vec::len);
-    fee(b, width)?;
+    fee(b, width.saturating_mul(2))?;
     let candidates = b
         .nominal_zero_instances
         .as_ref()
@@ -77,19 +117,43 @@ fn exact<'a>(
         .cloned()
         .unwrap_or_default();
     let mut selected = None;
-    for position in candidates {
+    for (position, comparison_work) in candidates {
         let instance = &module.life_instances[position];
-        shape_work(ty, limits, b)?;
-        shape_work(&instance.ty, limits, b)?;
-        crate::dyn_metadata::ty(ty, b)?;
-        crate::dyn_metadata::ty(&instance.ty, b)?;
-        if instance.ty == *ty && selected.replace(instance).is_some() {
+        // Immutable candidates were fully bounded when the directory formed.
+        // Pay a complete paired Eq traversal, even if this comparison stops
+        // early. The larger complete metadata tree bounds every compared node,
+        // path, name and string; no successful domain/permission is reused.
+        b.spend(
+            query_work.max(comparison_work),
+            "zero nominal complete identity comparison",
+        )?;
+        if instance.ty == *ty && selected.replace(position).is_some() {
             return Err(failure(
                 "zero nominal type has ambiguous complete instances",
             ));
         }
     }
-    selected.ok_or_else(|| failure("zero nominal type lacks its complete instance"))
+    let position =
+        selected.ok_or_else(|| failure("zero nominal type lacks its complete instance"))?;
+    if raw_work.is_some() {
+        b.lookup(
+            b.geometry_types.len(),
+            "zero nominal immutable query publication",
+        )?;
+        if let Some(entry) = b.geometry_types.get_mut(&geometry_key) {
+            entry.nominal = Some((module_key, limits.max_call_depth, position));
+        }
+    }
+    Ok(position)
+}
+
+fn exact<'a>(
+    module: &'a TypedModule,
+    ty: &Type,
+    limits: &Limits,
+    b: &mut Budget,
+) -> CompileResult<&'a LifeNominalInstance> {
+    Ok(&module.life_instances[exact_index(module, ty, limits, b)?])
 }
 
 fn empty(life: &StorageLifeShape) -> bool {
@@ -115,6 +179,42 @@ fn instance_zero(
     if active.contains(&key) {
         return Err(failure("cyclic complete zero nominal domain"));
     }
+    // A deep occurrence still runs its own depth-bounded proof. Reusing only
+    // depth-zero successes cannot hide a longer current dependency path.
+    let cache = if depth == 0 && active.is_empty() {
+        fee(b, module.life_instances.len().saturating_add(8))?;
+        let root = module
+            .life_instances
+            .iter()
+            .position(|actual| std::ptr::eq(actual, instance));
+        let phase = [
+            b.semantic_zero_closures.len(),
+            b.semantic_closures_proven.len(),
+            b.semantic_declarations_proven.len(),
+            b.semantic_dyn_tables_proven.len(),
+            b.semantic_dyn_functions_proven.len(),
+            limits.max_call_depth,
+            b.partial_depth,
+            b.helper_nodes,
+        ];
+        root.map(|root| (module as *const TypedModule as usize, phase, root))
+    } else {
+        None
+    };
+    if let Some((module, phase, root)) = cache {
+        if b.nominal_zero_formed
+            .as_ref()
+            .is_none_or(|(owner, prior, _)| *owner != module || *prior != phase)
+        {
+            b.nominal_zero_formed = Some((module, phase, BTreeSet::new()));
+        }
+        let count = b.nominal_zero_formed.as_ref().unwrap().2.len();
+        b.lookup(count, "complete zero nominal root formation lookup")?;
+        if b.nominal_zero_formed.as_ref().unwrap().2.contains(&root) {
+            return Ok(());
+        }
+    }
+    crate::dyn_metadata::ty(&instance.ty, b)?;
     fee(b, 1)?;
     active.push(key);
     let storage = match &instance.ty {
@@ -224,6 +324,17 @@ fn instance_zero(
     }
     physical_zero(module, storage, limits, b, active, depth + 1)?;
     active.pop();
+    if let Some((module, phase, root)) = cache {
+        // No partial/negative/Pending result reaches this publication.
+        if b.nominal_zero_formed
+            .as_ref()
+            .is_some_and(|(owner, prior, _)| *owner == module && *prior == phase)
+        {
+            let count = b.nominal_zero_formed.as_ref().unwrap().2.len();
+            b.lookup(count, "complete zero nominal root formation insertion")?;
+            b.nominal_zero_formed.as_mut().unwrap().2.insert(root);
+        }
+    }
     Ok(())
 }
 
@@ -352,7 +463,9 @@ fn type_zero(
     }
     // Prepay complete recursive identity work, including opaque/retained data,
     // before any structural comparison or directory lookup.
-    crate::dyn_metadata::ty(ty, b)?;
+    if crate::semantic::geometry::bounded_work(ty, b)?.is_none() {
+        crate::dyn_metadata::ty(ty, b)?;
+    }
     // This is intrinsic-domain formation, before runtime interface/permission
     // qualification. The bounded visitor above pays the full type identity;
     // type_work would incorrectly require already published Dyn interfaces.

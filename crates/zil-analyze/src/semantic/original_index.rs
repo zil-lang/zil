@@ -15,8 +15,27 @@ pub(super) struct Index<'a> {
     nodes: BTreeMap<NodeId, Node<'a>>,
     erased: BTreeSet<NodeId>,
     navigation: BTreeSet<NodeId>,
+    declarations: BTreeMap<NodeId, SemanticSiteId>,
+    recipes: BTreeMap<u32, &'a SemanticSiteRecipe>,
 }
 impl<'a> Index<'a> {
+    pub(super) fn recipe(&self, id: SemanticSiteId, b: &mut Budget) -> CompileResult<&'a SemanticSiteRecipe> {
+        b.lookup(self.recipes.len(), WORK)?;
+        self.recipes.get(&id.0).copied()
+            .ok_or_else(|| bad("actual emission site has no exact original recipe"))
+    }
+    pub(super) fn declaration_site(
+        &self,
+        node: NodeId,
+        b: &mut Budget,
+    ) -> CompileResult<SemanticSiteId> {
+        b.lookup(self.declarations.len(), WORK)?;
+        self.declarations
+            .get(&node)
+            .copied()
+            .ok_or_else(|| bad("original binding has no complete declaration event"))
+    }
+
     pub(super) fn erased(&self, id: NodeId, b: &mut Budget) -> CompileResult<bool> {
         b.lookup(self.erased.len(), WORK)?;
         Ok(self.erased.contains(&id))
@@ -362,6 +381,8 @@ fn walk<'a>(body: &'a SemanticOriginalBlock, b: &mut Budget) -> CompileResult<In
         nodes,
         erased,
         navigation,
+        declarations: BTreeMap::new(),
+        recipes: BTreeMap::new(),
     })
 }
 
@@ -760,13 +781,15 @@ pub(super) fn index<'a>(
         ));
     };
     names(bindings, b)?;
-    let output = match body {
+    let mut output = match body {
         SemanticOriginalFunctionBody::Defined(body) => walk(body, b)?,
         SemanticOriginalFunctionBody::External | SemanticOriginalFunctionBody::Declaration => {
             Index {
                 nodes: BTreeMap::new(),
                 erased: BTreeSet::new(),
                 navigation: BTreeSet::new(),
+                declarations: BTreeMap::new(),
+                recipes: BTreeMap::new(),
             }
         }
     };
@@ -793,6 +816,12 @@ pub(super) fn index<'a>(
             SemanticOriginalNode::Statement(id) => (id, Node::Statement(output.get_stmt(id, b)?)),
         };
         event(&recipe.kind, node)?;
+        if matches!(recipe.kind, SemanticSiteRecipeKind::DeclareLocal { .. }) {
+            b.lookup(output.declarations.len(), WORK)?;
+            if output.declarations.insert(id, binding.site).is_some() {
+                return Err(bad("original binding has competing declaration events"));
+            }
+        }
         b.lookup(events.len(), WORK)?;
         if !events.insert((id, role(&recipe.kind))) {
             return Err(bad("original node repeats the same event role"));
@@ -801,5 +830,6 @@ pub(super) fn index<'a>(
     if bound.len() != recipes.len() {
         return Err(bad("original recipe is missing its unique node binding"));
     }
+    output.recipes = recipes;
     Ok(output)
 }

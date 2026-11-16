@@ -1,5 +1,7 @@
 //! One address layer. Pointer bytes and execution permission are separate.
 use super::*;
+mod prepared;
+pub(super) use prepared::PreparedRead;
 impl Builder<'_, '_> {
     /// Extract the actual stored address, rather than a child reborrow. The
     /// independent flow kernels prove occupancy and required refill at exits.
@@ -1045,78 +1047,45 @@ impl Builder<'_, '_> {
         }
     }
     pub(super) fn assign_address(&mut self, target: &CoreExpr, rhs: &CoreExpr) -> R<()> {
-        if self.owning_address_assignment(target, rhs)? {
-            return Ok(());
-        }
-        let (address, ty) = self.address_place(target, true)?;
-        let Type::Address {
-            mutable: true,
-            inner,
-        } = ty
-        else {
-            return Err(error(
-                "E-ADDRESS-PERMISSION",
+        // A nested assignment owns its own preparation scope. Neither its LHS
+        // nor an owning replacement can inherit the surrounding RHS read rule.
+        let previous = self.prepared_copy_read.take();
+        let result = (|| {
+            if self.owning_address_assignment(target, rhs)? {
+                return Ok(());
+            }
+            let (address, ty) = self.address_place(target, true)?;
+            let Type::Address {
+                mutable: true,
+                inner,
+            } = ty
+            else {
+                return Err(error(
+                    "E-ADDRESS-PERMISSION",
+                    target.span,
+                    "indirect write requires an exclusive address",
+                ));
+            };
+            if matches!(inner.as_ref(), Type::Closure(_)) {
+                return Err(unsupported(
+                    target.span,
+                    "Store windows cannot replace an owning callback field",
+                ));
+            }
+            self.prepare_copy_read(target, address, &inner)?;
+            let prepared = self.expr(rhs, Some(&inner));
+            self.prepared_copy_read = None;
+            let (value, actual) = prepared?;
+            self.same(&actual, &inner, rhs.span)?;
+            self.emit(
+                InstructionKind::WriteAddress { address, value },
+                None,
                 target.span,
-                "indirect write requires an exclusive address",
-            ));
-        };
-        if matches!(inner.as_ref(), Type::Closure(_)) {
-            return Err(unsupported(
-                target.span,
-                "Store windows cannot replace an owning callback field",
-            ));
-        }
-        let prepared = if let CoreExprKind::Binary { op, left, right } = &rhs.kind
-            && inner.is_integer()
-            && !matches!(
-                op,
-                BinaryOp::Equal
-                    | BinaryOp::NotEqual
-                    | BinaryOp::Less
-                    | BinaryOp::LessEqual
-                    | BinaryOp::Greater
-                    | BinaryOp::GreaterEqual
-                    | BinaryOp::And
-                    | BinaryOp::Or
-            )
-            && self.same_stable_place(target, left, 0)?
-        {
-            // The old value is read through the actual prepared target. A
-            // second projected child would conflict with the pending write.
-            let old = self.value(
-                InstructionKind::ReadAddress { address },
-                inner.as_ref().clone(),
-                left.span,
             )?;
-            let (right, ty) = self.expr(right, Some(&inner))?;
-            self.same(&ty, &inner, rhs.span)?;
-            Some((
-                self.value(
-                    InstructionKind::Binary {
-                        op: *op,
-                        left: old,
-                        right,
-                    },
-                    inner.as_ref().clone(),
-                    rhs.span,
-                )?,
-                inner.as_ref().clone(),
-            ))
-        } else {
-            None
-        };
-        let (value, actual) = if let Some(value) = prepared {
-            value
-        } else {
-            self.expr(rhs, Some(&inner))?
-        };
-        self.same(&actual, &inner, rhs.span)?;
-        self.emit(
-            InstructionKind::WriteAddress { address, value },
-            None,
-            target.span,
-        )?;
-        Ok(())
+            Ok(())
+        })();
+        self.prepared_copy_read = previous;
+        result
     }
 
     pub(super) fn assign_stored_slot(&mut self, target: &CoreExpr, rhs: &CoreExpr) -> R<bool> {

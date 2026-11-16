@@ -87,6 +87,7 @@ pub(super) fn satisfy(
     operand: ValueId,
     actual: &SemanticTypeValue,
     expected: &SemanticTypeValue,
+    values: &[Option<SharedType>],
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<()> {
@@ -120,10 +121,11 @@ pub(super) fn satisfy(
             .saturating_mul(world.vacant.len().saturating_add(1)),
     )?;
     for root in &actual_roots {
-        if locals
-            .get(root.local.0 as usize)
-            .and_then(|value| value.as_ref())
-            .is_none()
+        if world.stale_locals.contains(&root.local)
+            || locals
+                .get(root.local.0 as usize)
+                .and_then(|value| value.as_ref())
+                .is_none()
         {
             return Err(bad(
                 "call outer-role adapter has an inactive actual parent storage root",
@@ -138,15 +140,101 @@ pub(super) fn satisfy(
             ));
         }
     }
+    if matches!(actual_ty, Type::Address { mutable: false, .. })
+        && (matches!(source, roles::Source::Static)
+            || matches!(
+                world.value_role_sources.get(&operand),
+                Some(roles::Source::Static)
+            ))
+    {
+        // The actual SSA retains a proved program-static source, including
+        // through a checked local role. It may satisfy this call's shorter
+        // shared outer region. The whole pointee was independently compared
+        // above, and the witness audit still pins the exact call/parameter/SSA.
+        // No class identity, root, epoch or exclusive permission is invented.
+        let SemanticSiteAddress::Typed {
+            block, instruction, ..
+        } = site.at
+        else {
+            return Err(bad("static argument has no exact actual Typed call site"));
+        };
+        let parameter = u32::try_from(parameter)
+            .map_err(|_| bad("static argument parameter ordinal overflows"))?;
+        world.pay(actual_roots.len().saturating_add(1))?;
+        world.argument_witnesses.push(Witness {
+            caller: caller.id,
+            callee: callee.map(|callee| callee.id),
+            recipe: site.recipe,
+            block,
+            instruction,
+            parameter,
+            operand,
+            parents: Vec::new(),
+            roots: actual_roots,
+        });
+        return Ok(());
+    }
     if super::receiver::permits(world, caller.id, site.recipe, operand, &source, &target)? {
         // This exact source binding/field path and actual producer establish
         // only this receiver loan. Its whole pointee domain was checked above.
+        return Ok(());
+    }
+    if super::borrow_roles::call_region_argument(
+        world, caller, site, parameter, operand, &expected, values, locals, implicit,
+    )? {
+        // The exact original input and reaching actual read/projection/borrow
+        // were checked; no source type or class image is replaced here.
+        let SemanticSiteAddress::Typed {
+            block, instruction, ..
+        } = site.at
+        else {
+            return Err(bad("call region has no exact actual Typed call site"));
+        };
+        let mut parents = Vec::new();
+        let mut cursor = operand;
+        let mut seen = BTreeSet::new();
+        loop {
+            world.pay(index::search(world.reborrows.len()).saturating_add(1))?;
+            if let Some(edge) = world.reborrows.get(&cursor) {
+                if parents.len() >= world.limits.max_call_depth || !seen.insert(cursor) {
+                    return Err(bad(
+                        "call region has a cyclic or excessive real reborrow chain",
+                    ));
+                }
+                parents.push(edge.parent);
+                cursor = edge.parent;
+            } else {
+                break;
+            }
+        }
+        world.argument_witnesses.push(Witness {
+            caller: caller.id,
+            callee: callee.map(|row| row.id),
+            recipe: site.recipe,
+            block,
+            instruction,
+            parameter: parameter as u32,
+            operand,
+            parents,
+            roots: actual_roots,
+        });
         return Ok(());
     }
     let mut parents = Vec::new();
     let mut visited = BTreeSet::new();
     while source != target {
         world.pay(1)?;
+        if !parents.is_empty()
+            && matches!(actual_ty, Type::Address { mutable: false, .. })
+            && matches!(source, roles::Source::Static)
+        {
+            // An actual ReborrowAddress can hide the static endpoint behind
+            // one or more child occurrences. The paid reaching edges above
+            // establish that endpoint just as the direct Static case does;
+            // Static outlives this shared call region without being equal to
+            // it. Keep every actual parent in the same call/operand witness.
+            break;
+        }
         if parents.len() >= world.limits.max_call_depth {
             return Err(Diagnostic::limit(
                 Phase::Types,
@@ -171,11 +259,27 @@ pub(super) fn satisfy(
                 "call outer-role adapter contains a cyclic or non-root occurrence",
             ));
         }
-        let edge = world.reborrows.get(head).ok_or_else(|| {
-            bad("call outer-role adapter is not a real reaching ReborrowAddress edge")
-        })?;
+        let Some(edge) = world.reborrows.get(head) else {
+            world.pay(256)?;
+            let mut diagnostic =
+                bad("call outer-role adapter is not a real reaching ReborrowAddress edge");
+            diagnostic.notes.push(format!("exact outer-role boundary: point {:?}, caller {:?}, callee {:?}, original site {:?}, parameter {}, argument {:?}, mint {:?}; source {:?}, target {:?}",
+                world.current_point, caller.id, callee.map(|row| row.id), site.recipe, parameter, operand, head, source, target));
+            return Err(diagnostic);
+        };
         parents.push(edge.parent);
-        source = roles::snapshot_source(&edge.source, world.limits, world.left)?;
+        let incoming = roles::snapshot_source(&edge.source, world.limits, world.left)?;
+        source = match incoming {
+            // The edge keeps the source occupant's original role. A checked
+            // contextual loan can name that role symbolically, while the call
+            // target above has already been normalized in this same Gamma.
+            // Normalize each real edge's image before comparing; this never
+            // creates an edge or identifies either actual storage root.
+            roles::Source::Class(image) => {
+                roles::Source::Class(world.class(caller.id, &image, implicit)?)
+            }
+            roles::Source::Static => roles::Source::Static,
+        };
     }
     if parents.is_empty() {
         return Err(bad(

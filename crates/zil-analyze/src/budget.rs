@@ -31,11 +31,36 @@ pub(super) type TaskRetainedSources =
     std::collections::BTreeMap<Vec<zil_ir::ContractProjection>, Vec<TaskPortSource>>;
 pub(super) struct Budget {
     remaining: usize,
+    // Request-local immutable function CFG/initialization successes only.
+    pub(super) initialization: Option<super::InitializationCache>,
+    pub(super) product_store_definitions: Option<crate::dynamic_store::CanonicalDefinitions>,
+    pub(super) geometry_types: BTreeMap<usize, crate::semantic::geometry::TypeEntry>,
+    // Pure complete Type/domain identity only. Each raw-limit/module partition
+    // retains its real immutable owners; no class, where or live loan enters.
+    pub(super) geometry_epoch: std::sync::Arc<()>,
+    pub(super) geometry_module: Option<usize>,
+    pub(super) geometry_type_catalog:
+        BTreeMap<(Option<usize>, (usize, usize), u64), Vec<crate::semantic::geometry::TypeRecord>>,
+    pub(super) geometry_catalog: BTreeMap<
+        (Option<usize>, (usize, usize), u64),
+        Vec<crate::semantic::geometry::GeometryRecord>,
+    >,
+    pub(super) geometry_next_type: usize,
+    pub(super) geometry_next_value: usize,
+    // Exact child Type identity and its complete bounded comparison work.
+    pub(super) geometry_child_types:
+        BTreeMap<(usize, crate::semantic::geometry::Child), (usize, usize)>,
+    cost_profiling: bool,
     costs: BTreeMap<String, (usize, usize)>,
     metadata_costs: BTreeMap<(&'static str, &'static str, u32), (usize, usize)>,
-    // Complete immutable request-local Type lookup only; no domain or runtime
-    // qualification is retained here. Hash collisions still compare full IR.
-    pub(super) nominal_zero_instances: Option<(usize, BTreeMap<u64, Vec<usize>>)>,
+    semantic_cost_sites: BTreeMap<(&'static str, u32), (usize, usize)>,
+    // Immutable nominal candidate directory plus complete comparison bounds.
+    // Keys only filter candidates; all collisions still compare the full IR.
+    // No domain, class or runtime qualification is retained here.
+    pub(super) nominal_zero_instances: Option<(usize, BTreeMap<u64, Vec<(usize, usize)>>)>,
+    // Successful zero-domain formation at registered immutable roots only.
+    // No classes, images or access/cleanup qualifications are cached.
+    pub(super) nominal_zero_formed: Option<(usize, [usize; 8], BTreeSet<usize>)>,
     // Only shape nodes borrowed from this request's immutable module enter.
     // The result indexes raw slots; no qualification or semantic flow is cached.
     physical_slot_paths: BTreeMap<usize, BTreeMap<Vec<zil_ir::PlaceProjection>, (u32, bool)>>,
@@ -71,6 +96,12 @@ pub(super) struct Budget {
     // Exact actual method specializations whose original definition, every
     // full world and CFG correspondence completed. No vtable/effect authority.
     pub(super) semantic_dyn_functions_proven: BTreeSet<FunctionId>,
+    // Exact original declaration regions exported through actual closure
+    // results after all worlds, assignments and escaping source uppers check.
+    // This is a class-role fact, never a loan or terminal cleanup proof.
+    pub(super) semantic_reference_results: BTreeSet<(FunctionId, u32, zil_ir::StorageBinder)>,
+    pub(super) semantic_reference_locals: BTreeSet<(FunctionId, zil_ir::LocalId)>,
+    pub(super) semantic_reborrow_regions: BTreeSet<(FunctionId, zil_ir::ValueId)>,
     // Exact constructor occurrences whose complete original class value and
     // actual header embedding have both been proved. No target/loan facts.
     pub(super) semantic_aggregate_classes:
@@ -220,9 +251,25 @@ impl Budget {
     pub(super) fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            initialization: None,
+            product_store_definitions: None,
+            geometry_types: BTreeMap::new(),
+            geometry_epoch: std::sync::Arc::new(()),
+            geometry_module: None,
+            geometry_type_catalog: BTreeMap::new(),
+            geometry_catalog: BTreeMap::new(),
+            geometry_next_type: 0,
+            geometry_next_value: 0,
+            geometry_child_types: BTreeMap::new(),
+            cost_profiling: matches!(
+                std::env::var("ZIL_ANALYZE_PROFILE_COSTS").as_deref(),
+                Ok("1")
+            ),
             costs: BTreeMap::new(),
             metadata_costs: BTreeMap::new(),
+            semantic_cost_sites: BTreeMap::new(),
             nominal_zero_instances: None,
+            nominal_zero_formed: None,
             physical_slot_paths: BTreeMap::new(),
             addressed_copy_sums: BTreeMap::new(),
             large_tag_layout: false,
@@ -238,6 +285,9 @@ impl Budget {
             semantic_declarations_proven: BTreeSet::new(),
             semantic_dyn_tables_proven: BTreeSet::new(),
             semantic_dyn_functions_proven: BTreeSet::new(),
+            semantic_reference_results: BTreeSet::new(),
+            semantic_reference_locals: BTreeSet::new(),
+            semantic_reborrow_regions: BTreeSet::new(),
             semantic_aggregate_classes: BTreeMap::new(),
             stored_synchronous_abis: BTreeSet::new(),
             partial_depth: limits.max_call_depth,
@@ -435,43 +485,81 @@ impl Budget {
         Ok(copy)
     }
 
+    #[track_caller]
     pub(super) fn spend(&mut self, amount: usize, context: &str) -> CompileResult<()> {
-        let category =
-            if self.costs.contains_key(context) || self.costs.len() < 255 && context.len() <= 128 {
+        if self.cost_profiling {
+            if context == "original semantic program inventory" {
+                let caller = std::panic::Location::caller();
+                let key = (caller.file(), caller.line());
+                let key = if self.semantic_cost_sites.contains_key(&key)
+                    || self.semantic_cost_sites.len() < 4095
+                {
+                    key
+                } else {
+                    ("", 0)
+                };
+                let row = self.semantic_cost_sites.entry(key).or_default();
+                row.0 = row.0.saturating_add(1);
+                row.1 = row.1.saturating_add(amount);
+            }
+            let category = if self.costs.contains_key(context)
+                || self.costs.len() < 255 && context.len() <= 128
+            {
                 context
             } else {
                 "other analysis charges"
             };
-        if let Some((calls, work)) = self.costs.get_mut(category) {
-            *calls = calls.saturating_add(1);
-            *work = work.saturating_add(amount);
-        } else {
-            self.costs.insert(category.to_owned(), (1, amount));
+            if let Some((calls, work)) = self.costs.get_mut(category) {
+                *calls = calls.saturating_add(1);
+                *work = work.saturating_add(amount);
+            } else {
+                self.costs.insert(category.to_owned(), (1, amount));
+            }
         }
         let Some(remaining) = self.remaining.checked_sub(amount) else {
             let mut errors = exhausted(context);
-            errors[0].notes.push(format!(
-                "remaining {}; attempted charge {}",
-                self.remaining, amount
-            ));
-            let mut costs = self.costs.iter().collect::<Vec<_>>();
-            costs.sort_by(|left, right| right.1.1.cmp(&left.1.1).then_with(|| left.0.cmp(right.0)));
-            let total = costs
-                .iter()
-                .fold(0usize, |sum, (_, (_, work))| sum.saturating_add(*work));
-            let omitted = costs
-                .iter()
-                .skip(24)
-                .fold(0usize, |sum, (_, (_, work))| sum.saturating_add(*work));
-            errors[0].notes.push(format!(
-                "analysis requested work {total}; omitted category work {omitted}"
-            ));
-            for (name, (calls, work)) in costs.into_iter().take(24) {
+            if self.cost_profiling {
                 errors[0].notes.push(format!(
-                    "analysis charge {name}: {work} work in {calls} calls"
+                    "remaining {}; attempted charge {}",
+                    self.remaining, amount
                 ));
+                let mut costs = self.costs.iter().collect::<Vec<_>>();
+                costs.sort_by(|left, right| {
+                    right.1.1.cmp(&left.1.1).then_with(|| left.0.cmp(right.0))
+                });
+                let total = costs
+                    .iter()
+                    .fold(0usize, |sum, (_, (_, work))| sum.saturating_add(*work));
+                let omitted = costs
+                    .iter()
+                    .skip(24)
+                    .fold(0usize, |sum, (_, (_, work))| sum.saturating_add(*work));
+                errors[0].notes.push(format!(
+                    "analysis requested work {total}; omitted category work {omitted}"
+                ));
+                for (name, (calls, work)) in costs.into_iter().take(24) {
+                    errors[0].notes.push(format!(
+                        "analysis charge {name}: {work} work in {calls} calls"
+                    ));
+                }
+                errors[0].notes.extend(self.metadata_cost_notes());
+                let mut sites = self.semantic_cost_sites.iter().collect::<Vec<_>>();
+                sites.sort_by(|left, right| {
+                    right.1.1.cmp(&left.1.1).then_with(|| left.0.cmp(right.0))
+                });
+                let omitted = sites
+                    .iter()
+                    .skip(32)
+                    .fold(0usize, |sum, (_, (_, work))| sum.saturating_add(*work));
+                errors[0]
+                    .notes
+                    .push(format!("semantic caller omitted work {omitted}"));
+                for ((file, line), (calls, work)) in sites.into_iter().take(32) {
+                    errors[0].notes.push(format!(
+                        "semantic charge caller {file}:{line}: {work} work in {calls} calls"
+                    ));
+                }
             }
-            errors[0].notes.extend(self.metadata_cost_notes());
             return Err(errors);
         };
         self.remaining = remaining;
@@ -484,8 +572,11 @@ impl Budget {
         caller: &'static std::panic::Location<'static>,
         before: usize,
     ) {
+        if !self.cost_profiling {
+            return;
+        }
         let key = (kind, caller.file(), caller.line());
-        let key = if self.metadata_costs.contains_key(&key) || self.metadata_costs.len() < 511 {
+        let key = if self.metadata_costs.contains_key(&key) || self.metadata_costs.len() < 4095 {
             key
         } else {
             ("other", "", 0)
@@ -495,6 +586,9 @@ impl Budget {
         row.1 = row.1.saturating_add(before.saturating_sub(self.remaining));
     }
     pub(super) fn metadata_cost_notes(&self) -> Vec<String> {
+        if !self.cost_profiling {
+            return Vec::new();
+        }
         let mut rows = self.metadata_costs.iter().collect::<Vec<_>>();
         rows.sort_by(|left, right| right.1.1.cmp(&left.1.1).then_with(|| left.0.cmp(right.0)));
         rows.into_iter()
@@ -504,7 +598,28 @@ impl Budget {
             })
             .collect()
     }
+    pub(super) fn cost_profiling(&self) -> bool {
+        self.cost_profiling
+    }
+    pub(super) fn geometry_cost_notes(&self) -> Vec<String> {
+        if !self.cost_profiling { return Vec::new(); }
+        // A fixed small selection exposes cold/hot constructor work even when
+        // those categories fall below the generic top-24 diagnostic cutoff.
+        [
+            "semantic geometry constructor operands",
+            "semantic geometry constructor query",
+            "semantic geometry constructor candidates",
+            "semantic geometry constructor identity",
+            "semantic geometry constructor owned copy",
+            "semantic geometry constructor record allocation",
+            "semantic geometry owned copy",
+            "semantic geometry immutable receipt",
+        ].into_iter().filter_map(|name| self.costs.get(name).map(|(calls, work)| {
+            format!("analysis geometry charge {name}: {work} work in {calls} calls")
+        })).collect()
+    }
 
+    #[track_caller]
     pub(super) fn product(
         &mut self,
         left: usize,
@@ -529,6 +644,7 @@ impl Budget {
         self.spend(right.len(), context)
     }
 
+    #[track_caller]
     pub(super) fn lookup(&mut self, size: usize, context: &str) -> CompileResult<()> {
         // A bounded tree lookup/insertion visits logarithmically many levels.
         self.spend(size.checked_ilog2().map_or(1, |n| n as usize + 2), context)

@@ -11,8 +11,14 @@ pub(crate) enum Domain {
     Known(u32),
 }
 pub(crate) struct Table {
+    identity: std::sync::Arc<()>,
     definitions: Vec<ClosureDefinition>,
     domains: Vec<Domain>,
+}
+impl Table {
+    pub(super) fn identity(&self) -> std::sync::Arc<()> {
+        std::sync::Arc::clone(&self.identity)
+    }
 }
 
 fn conjunction(domains: impl IntoIterator<Item = Domain>) -> Domain {
@@ -306,6 +312,7 @@ pub(crate) fn build(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Co
         )?;
     }
     Ok(Table {
+        identity: std::sync::Arc::new(()),
         definitions,
         domains,
     })
@@ -343,6 +350,23 @@ pub(crate) fn domain(ty: &Type, b: &mut Budget) -> CompileResult<Domain> {
             .copied()
             .unwrap_or(Domain::Unknown))
     })
+}
+
+/// Query the complete immutable data domain in this actual module. The
+/// existing builder uses only these two raw bounds from the current request;
+/// scope formation grants no target, ownership, call mode or cleanup right.
+pub(crate) fn known_zero(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    let mut answer = domain(ty, b)?;
+    if answer == Domain::Unknown && b.task_input_scopes.is_none() && !module.closures.is_empty() {
+        let limits = Limits {
+            max_nodes: b.helper_nodes,
+            max_call_depth: b.partial_depth,
+            ..Limits::default()
+        };
+        b.task_input_scopes = Some(build(module, &limits, b)?);
+        answer = domain(ty, b)?;
+    }
+    Ok(answer == Domain::Known(0))
 }
 
 /// Dispatch only a complete, explicitly empty relation. This is no source,

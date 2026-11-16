@@ -1,6 +1,6 @@
 //! Author source-to-machine coverage for stable ordinary Product replacement.
-#[path = "../../zil-ir/test-support/schema40_fixture.rs"]
-mod schema40_fixture;
+#[path = "../../zil-ir/test-support/current_raw_fixtures.rs"]
+mod current_raw_fixtures;
 
 use std::{
     fs,
@@ -162,7 +162,7 @@ fn tuple_ownership_nested_missing_child_and_same_root_raw_attacks() {
 fn tuple_ownership_frozen_product_parameter_has_real_exclusive_authority() {
     let bytes = include_bytes!("product_store_wire_replay_fixtures/v40/mutable-product.wire");
     let limits = Limits::default();
-    let migrated = schema40_fixture::migrate(bytes, &limits);
+    let migrated = current_raw_fixtures::rebuild(bytes, &limits);
     let (module, plan) = zil_ir::wire::decode_module_candidate(&migrated, &limits).unwrap();
     let write = module.functions.iter().find(|f| f.name == "write").unwrap();
     let zil_ir::Type::Address {

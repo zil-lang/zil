@@ -2375,7 +2375,14 @@ pub(crate) fn type_ref_with_resources(
                 };
                 let mut classes = std::collections::BTreeMap::new();
                 let mut ports = Vec::new();
-                for source in context {
+                let mut retained = Vec::new();
+                for (ordinal, source) in context.iter().enumerate() {
+                    // Context ordinals are the declared complete input Tuple,
+                    // not the compact port list. Known scalar inputs consume
+                    // their position while contributing no persistent class.
+                    if lower(source).is_b0_scalar() {
+                        continue;
+                    }
                     let s::TypeKind::Reference {
                         lifetime: Some(life),
                         mutable,
@@ -2389,7 +2396,9 @@ pub(crate) fn type_ref_with_resources(
                     let binder = if let Some(binder) = classes.get(life) {
                         *binder
                     } else {
-                        let binder = classes.len() as u32;
+                        let Ok(binder) = u32::try_from(classes.len()) else {
+                            return Type::Unsupported("Task input class domain overflow".into());
+                        };
                         classes.insert(life.clone(), binder);
                         binder
                     };
@@ -2406,11 +2415,15 @@ pub(crate) fn type_ref_with_resources(
                         },
                         binder,
                     });
+                    let Ok(ordinal) = u32::try_from(ordinal) else {
+                        return Type::Unsupported("Task input Context ordinal overflow".into());
+                    };
+                    retained.push(zil_ir::StorageRetainedBinding {
+                        path: vec![zil_ir::LifeTypeProjection::Parameter(ordinal)],
+                        class: 0,
+                        binder,
+                    });
                 }
-                if ports.is_empty() {
-                    return Type::Unsupported("Task retained context needs an actual port".into());
-                }
-                let mut retained = Vec::new();
                 if let s::TypeKind::Reference {
                     lifetime: Some(life),
                     mutable: false,
@@ -2439,10 +2452,13 @@ pub(crate) fn type_ref_with_resources(
                     },
                     _ => lower(result),
                 };
+                let Ok(binder_count) = u32::try_from(classes.len()) else {
+                    return Type::Unsupported("Task input class domain overflow".into());
+                };
                 Type::Desc(Box::new(Type::Task {
                     result: Box::new(actual_result),
                     retained_life: zil_ir::RetainedLifeShape {
-                        binder_count: classes.len() as u32,
+                        binder_count,
                         ports,
                         retained,
                         nominal_arguments: vec![],

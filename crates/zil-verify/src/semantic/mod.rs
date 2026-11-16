@@ -11,6 +11,8 @@ use std::cell::{RefCell,Cell};
 mod lifetimes;
 mod relations;
 mod evaluate;
+mod type_storage;
+pub(crate) use type_storage::PhysicalConstructor;
 mod dyn_types;
 mod requirements;
 mod constants;
@@ -20,9 +22,12 @@ pub(crate) use nominal_origins::charge_origin as charge_intrinsic_origin;
 mod closures;
 mod opaque;
 mod method_obligations;
+mod static_members;
+pub(crate) mod local_roles;
 pub(crate) mod callable_obligations;
 pub(crate) mod task_domains;
 mod catalogue;
+mod sites;
 mod instances;
 mod flow;
 mod capture_heads;
@@ -53,7 +58,14 @@ pub(crate) struct CheckedContext {
     pub(super) domain_only:Cell<bool>,
     definitions: BTreeMap<SemanticDefinitionId, usize>,
     instances: BTreeMap<SemanticInstanceId, usize>,
+    site_index:sites::Index,
     premises: RefCell<BTreeMap<ScopeKey, Premises>>,
+    premises_epoch:Cell<u64>,
+    static_identity:std::rc::Rc<()>,
+    static_members:RefCell<Vec<static_members::StaticMember>>,
+    local_role_writes:RefCell<BTreeMap<(SemanticInstanceId,LocalId),local_roles::Writes>>,
+    local_role_transfers:RefCell<BTreeMap<FunctionId,Vec<local_roles::Transfer>>>,
+    closed_frames:RefCell<BTreeMap<(usize,SemanticInstanceId,u64,bool,bool),instances::ClosedFrames>>,
     occurrences: RefCell<BTreeMap<(ScopeKey, OperandKey), CheckedType>>,
     seals: RefCell<BTreeMap<SemanticInstanceId, Vec<CheckedActual>>>,
     pending_closures: RefCell<Vec<ClosureCursor>>,
@@ -61,6 +73,8 @@ pub(crate) struct CheckedContext {
     original: RefCell<Option<original::CheckedOriginal>>,
     closure_boundaries: RefCell<Vec<ClosureBoundary>>,
     frozen_functions: BTreeMap<SemanticInstanceId,frozen::FrozenFunction>,
+    shared_types: RefCell<BTreeMap<usize,(std::rc::Weak<CheckedTypeData>,(usize,usize))>>,
+    constructed_types:RefCell<BTreeMap<type_storage::ConstructionKey,type_storage::ConstructedType>>,
 }
 
 /// A provisional constructor fact. It becomes trusted only when every actual
@@ -104,6 +118,7 @@ pub(crate) struct ActiveQueries {
     next_token: u64,
 }
 impl ActiveQueries {
+    pub(crate) fn depth(&self)->usize { self.frames.len() }
     pub(crate) fn new() -> Self {
         Self {
             frames: Vec::new(),
@@ -139,8 +154,41 @@ impl ActiveQueries {
 }
 
 impl CheckedContext {
+    pub(crate) fn static_identity(&self)->std::rc::Rc<()>{self.static_identity.clone()}
+    pub(crate) fn same_static_identity(&self,identity:&std::rc::Rc<()>)->bool{std::rc::Rc::ptr_eq(&self.static_identity,identity)}
+    /// A reentrant source-method proof must continue cold.
+    pub(crate) fn completed_original_epoch(&self)->Option<u64>{
+        if self.domain_only.get(){return None;}
+        self.original.try_borrow().ok().and_then(|original|original.as_ref().map(|_|self.premises_epoch.get()))
+    }
+    fn invalidate_closed_frames(&self){
+        if let Some(next)=self.premises_epoch.get().checked_add(1){self.premises_epoch.set(next);}else{self.closed_frames.borrow_mut().clear();self.premises_epoch.set(0);}
+    }
+
+    /// Share only an exact live allocation, or an exact registered immutable
+    /// module node. A fresh temporary Type is always copied and paid cold.
+    pub(crate) fn shared_type_cell(&self,ty:&Type,b:&mut Budget)->Check<std::rc::Rc<CheckedTypeData>>{
+        let ptr=ty as *const Type as usize;
+        let profile=(b.limits.max_nodes,b.limits.max_call_depth.min(128));
+        let fee=self.shared_types.borrow().len().checked_ilog2().map_or(1,|n|n as usize+2);
+        b.spend(fee)?;
+        let known=self.shared_types.borrow().get(&ptr).and_then(|(cell,checked)|cell.upgrade().map(|cell|(cell,*checked)));
+        if let Some((cell,checked))=known{
+            if checked!=profile{dynamic_metadata::bounds_type(ty,b)?;}
+            return Ok(cell);
+        }
+        dynamic_metadata::bounds_type(ty,b)?;
+        let cell=if let Some(cell)=dynamic_metadata::shared_type(ty,b)?{cell}else{
+            dynamic_metadata::ty(ty,b)?;
+            CheckedTypeData::new(ty.clone())
+        };
+        b.spend(fee.saturating_add(2))?;
+        self.shared_types.borrow_mut().insert(&cell.ty as *const Type as usize,(std::rc::Rc::downgrade(&cell),profile));
+        Ok(cell)
+    }
+
     pub(crate) fn register_closure_cursor(&self,instance:SemanticInstanceId,environment:&EvalEnv,arguments:&[CheckedActual],sealed:&[CheckedActual],expected:&CheckedType,b:&mut Budget)->Check<()> {
-        dynamic_metadata::ty(&expected.ty,b)?;
+        expected.charge_clone(b)?;
         b.spend(arguments.len().saturating_add(sealed.len()).saturating_add(expected.classes.len()).saturating_add(environment.lexical.len()))?;
         self.pending_closures.borrow_mut().push(ClosureCursor{instance,environment:environment.clone(),arguments:arguments.to_vec(),sealed:sealed.to_vec(),expected:expected.clone()});
         Ok(())
@@ -206,11 +254,8 @@ pub(crate) fn resolved(
     }
 }
 
-fn empty_life() -> StorageLifeShape {
+pub(crate) fn empty_life() -> StorageLifeShape {
     StorageLifeShape { binder_count:0, slots:vec![], retained:vec![], nominal_arguments:vec![] }
-}
-fn intrinsic_count(module:&TypedModule, ty:&Type,b:&mut Budget)->Check<u32> {
-    dynamic_witness::intrinsic_domain(module,ty,b).map(|(count,_)|count)
 }
 
 #[cfg(test)]

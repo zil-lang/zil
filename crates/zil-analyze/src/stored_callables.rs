@@ -418,6 +418,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
                     || owned_capture(t, b)?
                     || semantic_owned_capture(module, d, t, b)?
                     || ordinary_capture(module, t, b)?
+                    || super::forward::nested_capture(module, d, t, b)?
                     || matches!(t,Type::Closure(child) if b.returned_borrowed_environments.contains(child) && finite(module,*child))
             } else {
                 scalar(t)
@@ -479,14 +480,14 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
             }
             super::borrowed_fp::qualified_array_relation_work(&d.parameters, &d.result, b)?;
             super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
-            super::signature_life::closure_relation(
-                &module.closures,
-                &module.dyn_interfaces,
+            super::signature_life::closure_relation_resource_scopes(
+                module,
                 d.kind,
                 &d.parameters,
                 &d.captures,
                 life_result(d),
                 life,
+                b,
             )?;
         } else if f.storage_life.is_some() {
             return Err(bad("closure definition omits actual entry relation"));
@@ -745,9 +746,10 @@ pub(super) fn types(
         && let Some(definition) = f
             .environment
             .and_then(|id| module.closures.get(id.0 as usize))
-        && b.returned_borrowed_environments.contains(&definition.id)
         && let Some(Type::Closure(child)) = definition.captures.get(index as usize)
-        && b.returned_borrowed_environments.contains(child)
+        && (b.returned_borrowed_environments.contains(&definition.id)
+            && b.returned_borrowed_environments.contains(child)
+            || super::forward::nested_entry_capture(module, f, index, b)?)
     {
         if mutable && definition.kind == zil_ir::CallableKind::Fn {
             return Err(bad(
@@ -767,9 +769,10 @@ pub(super) fn types(
         && let Some(definition) = f
             .environment
             .and_then(|id| module.closures.get(id.0 as usize))
-        && b.returned_borrowed_environments.contains(&definition.id)
         && let Some(Type::Closure(child)) = definition.captures.get(index as usize)
-        && b.returned_borrowed_environments.contains(child)
+        && (b.returned_borrowed_environments.contains(&definition.id)
+            && b.returned_borrowed_environments.contains(child)
+            || super::forward::nested_entry_capture(module, f, index, b)?)
     {
         if definition.kind != zil_ir::CallableKind::FnOnce
             || i.result.and_then(|value| f.values.get(value.0 as usize))
@@ -922,69 +925,80 @@ pub(super) fn role<'a>(
     let Some(contract) = &f.callable_contract else {
         return Ok(None);
     };
-    let local = match kind {
-        InstructionKind::CallClosureShared { callee, .. }
-        | InstructionKind::CallClosureMut { callee, .. } => *callee,
-        InstructionKind::CallClosureBorrowed { callee, .. }
-        | InstructionKind::CallClosure { callee, .. }
-        | InstructionKind::CallClosureOnce { callee, .. } => {
-            let mut current = *callee;
-            let mut answer = None;
-            b.spend(f.values.len(), "callback receiver chain bound")?;
-            for _ in 0..f.values.len() {
-                let mut found = None;
-                b.spend(f.blocks.len(), "callback receiver block inventory")?;
-                for block in &f.blocks {
-                    b.spend(
-                        block.instructions.len(),
-                        "actual callback receiver definition scan",
-                    )?;
-                    for i in &block.instructions {
-                        if i.result == Some(current) && found.replace(&i.kind).is_some() {
-                            return Err(bad("callback receiver has duplicate definition"));
+    // The helper CFG proof also follows actual Parameter-return calls. Such
+    // a receiver is an SSA result rather than a Load/TakeLocal chain. Its
+    // proved site relation belongs to this exact instruction, not a closure
+    // type or an untrusted return-source tag.
+    b.lookup(
+        b.callable_receiver_roles.len(),
+        "proved callback receiver role site",
+    )?;
+    let proved = b
+        .callable_receiver_roles
+        .get(&(f.id, kind as *const InstructionKind as usize))
+        .copied();
+    let position = if let Some(position) = proved {
+        position as usize
+    } else {
+        let local = match kind {
+            InstructionKind::CallClosureShared { callee, .. }
+            | InstructionKind::CallClosureMut { callee, .. } => *callee,
+            InstructionKind::CallClosureBorrowed { callee, .. }
+            | InstructionKind::CallClosure { callee, .. }
+            | InstructionKind::CallClosureOnce { callee, .. } => {
+                let mut current = *callee;
+                let mut answer = None;
+                b.spend(f.values.len(), "callback receiver chain bound")?;
+                for _ in 0..f.values.len() {
+                    let mut found = None;
+                    b.spend(f.blocks.len(), "callback receiver block inventory")?;
+                    for block in &f.blocks {
+                        b.spend(
+                            block.instructions.len(),
+                            "actual callback receiver definition scan",
+                        )?;
+                        for i in &block.instructions {
+                            if i.result == Some(current) && found.replace(&i.kind).is_some() {
+                                return Err(bad("callback receiver has duplicate definition"));
+                            }
                         }
                     }
-                }
-                match found {
-                    Some(InstructionKind::Load(local))
-                    | Some(InstructionKind::TakeLocal { local }) => {
-                        answer = Some(*local);
-                        break;
+                    match found {
+                        Some(InstructionKind::Load(local))
+                        | Some(InstructionKind::TakeLocal { local }) => {
+                            answer = Some(*local);
+                            break;
+                        }
+                        Some(InstructionKind::ReborrowAddress { address, .. }) => {
+                            current = *address
+                        }
+                        _ => break,
                     }
-                    Some(InstructionKind::ReborrowAddress { address, .. }) => current = *address,
-                    _ => break,
                 }
+                answer.ok_or_else(|| {
+                    bad("callback receiver role has no exact actual parameter origin")
+                })?
             }
-            answer
-                .ok_or_else(|| bad("callback receiver role has no exact actual parameter origin"))?
-        }
-        _ => return Ok(None),
-    };
-    b.spend(
-        f.parameters.len().saturating_add(contract.roles.len()),
-        "callback role actual parameter position",
-    )?;
-    let position = match f.parameters.iter().position(|p| *p == local) {
-        Some(position) => position,
-        None => {
-            b.lookup(
-                b.callable_receiver_roles.len(),
-                "proved callback receiver role site",
-            )?;
-            if let Some(position) = b
-                .callable_receiver_roles
-                .get(&(f.id, kind as *const InstructionKind as usize))
-            {
-                *position as usize
-            } else if matches!(
-                kind,
-                InstructionKind::CallClosureShared { .. } | InstructionKind::CallClosureMut { .. }
-            ) || (matches!(kind, InstructionKind::CallClosureOnce { .. })
-                && f.call_kind == CallKind::Suspend)
-            {
-                super::helpers::moved_receiver_parameter(module, f, local, b)?
-            } else {
-                staged::parameter(module, f, kind, b)?
+            _ => return Ok(None),
+        };
+        b.spend(
+            f.parameters.len().saturating_add(contract.roles.len()),
+            "callback role actual parameter position",
+        )?;
+        match f.parameters.iter().position(|p| *p == local) {
+            Some(position) => position,
+            None => {
+                if matches!(
+                    kind,
+                    InstructionKind::CallClosureShared { .. }
+                        | InstructionKind::CallClosureMut { .. }
+                ) || (matches!(kind, InstructionKind::CallClosureOnce { .. })
+                    && f.call_kind == CallKind::Suspend)
+                {
+                    super::helpers::moved_receiver_parameter(module, f, local, b)?
+                } else {
+                    staged::parameter(module, f, kind, b)?
+                }
             }
         }
     };

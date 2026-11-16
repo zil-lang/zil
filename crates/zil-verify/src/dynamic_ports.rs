@@ -203,7 +203,10 @@ pub(super) fn validate_cleanup(iface: &DynInterface, b: &mut Budget) -> Check<()
             previous = Some(*port);
         }
     }
-    if c.effects.iter().any(|effect| {
+    let mut effects=BTreeSet::new();
+    if c.effects.len()>6 || c.effects.iter().any(|effect| {
+        let rank=match effect{DynEffect::Alloc=>0,DynEffect::Io=>1,DynEffect::Block=>2,DynEffect::Ffi=>3,DynEffect::Reenter=>4,DynEffect::Panic=>5,_=>6};
+        !effects.insert(rank) ||
         !matches!(
             effect,
             DynEffect::Alloc
@@ -493,7 +496,7 @@ pub(super) fn validate_interface(
                 ));
             }
         }
-        validate_contract(iface, slot, b)?;
+        validate_contract(module,iface, slot, b)?;
     }
     validate_cleanup(iface, b)
 }
@@ -556,7 +559,20 @@ fn position_leaf(
         )),
     }
 }
-fn validate_contract(iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Check<()> {
+fn source_inner(module:&TypedModule,iface:&DynInterface,slot:&DynSlot,source:&StoragePosition,b:&mut Budget)->Check<Vec<(u32,StorageBinder)>>{
+    if let(StorageBase::Parameter(0),[ContractProjection::RetainedPort(port)])=(source.base,source.path.as_slice()){
+        return crate::dynamic_witness::context_port_inner(module,iface,*port,b).map(|rows|rows.into_iter().map(|(class,binder)|(class,StorageBinder::Fixed(binder))).collect());
+    }
+    let life=slot.storage_life.as_ref().ok_or_else(||bad("method inner source relation is Unknown"))?;
+    b.spend(life.classes.len().saturating_mul(3).saturating_add(1))?;
+    Ok(life.classes.iter().filter(|row|row.position.base==source.base&&row.position.path==[LifeTypeProjection::Pointee]).map(|row|(row.position.class,row.binder)).collect())
+}
+fn same_inner(life:&StorageLifeContract,base:StorageBase,expected:&[(u32,StorageBinder)],b:&mut Budget)->Check<bool>{
+    b.spend(life.classes.len().saturating_mul(expected.len().saturating_add(1)).saturating_add(1))?;
+    let rows=life.classes.iter().filter(|row|row.position.base==base&&row.position.path==[LifeTypeProjection::Pointee]).collect::<Vec<_>>();
+    Ok(rows.len()==expected.len()&&expected.iter().all(|(class,binder)|rows.iter().filter(|row|row.position.class==*class&&row.binder==*binder).count()==1))
+}
+fn validate_contract(module:&TypedModule,iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Check<()> {
     let c = &slot.contract;
     let requires = c
         .requires
@@ -572,10 +588,10 @@ fn validate_contract(iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Ch
                 ));
             }
         };
-        let (leaf, _, head) = position_leaf(iface, slot, position, b)?;
+        let (leaf, _, _head) = position_leaf(iface, slot, position, b)?;
         if writing
             && !(matches!(leaf, Type::Address { mutable: true, .. })
-                && (!head || slot.receiver.mutable))
+                && (!matches!(position.base,StorageBase::Parameter(0)) || slot.receiver.mutable))
         {
             return Err(bad("method requirement writes a shared actual target"));
         }
@@ -586,10 +602,10 @@ fn validate_contract(iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Ch
         .ok_or_else(|| bad("method call access upper is Unknown"))?;
     for (writing, positions) in [(false, &call.reads), (true, &call.writes)] {
         for position in positions {
-            let (leaf, _, head) = position_leaf(iface, slot, position, b)?;
+            let (leaf, _, _head) = position_leaf(iface, slot, position, b)?;
             if writing
                 && !(matches!(leaf, Type::Address { mutable: true, .. })
-                    && (!head || slot.receiver.mutable))
+                    && (!matches!(position.base,StorageBase::Parameter(0)) || slot.receiver.mutable))
             {
                 return Err(bad("method call writes a shared actual target"));
             }
@@ -643,7 +659,11 @@ fn validate_contract(iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Ch
             let source = crate::exact_storage_source(atom)?;
             let (leaf, binder, head) = position_leaf(iface, slot, source, b)?;
             dynamic_metadata::ty(&port.leaf, b)?;
-            if head || binder != StorageBinder::Fixed(port.binder) || leaf != port.leaf {
+            let destination_inner=crate::dynamic_witness::context_port_inner(module,iface,index as u32,b)?.into_iter().map(|(class,binder)|(class,StorageBinder::Fixed(binder))).collect::<Vec<_>>();
+            let source_inner=source_inner(module,iface,slot,source,b)?;
+            b.spend(source_inner.len().saturating_mul(destination_inner.len()).saturating_add(1))?;
+            let same_inner=source_inner.len()==destination_inner.len()&&source_inner.iter().all(|row|destination_inner.iter().filter(|other|*other==row).count()==1);
+            if head || binder != StorageBinder::Fixed(port.binder) || leaf != port.leaf || !same_inner {
                 return Err(bad(
                     "receiver-after source has a different full leaf, mode or persistent class",
                 ));
@@ -664,12 +684,28 @@ fn validate_contract(iface: &DynInterface, slot: &DynSlot, b: &mut Budget) -> Ch
             let result = crate::signature_life::outer(life, StorageBase::Result)
                 .ok_or_else(|| bad("method borrowed result has no class binding"))?;
             for atom in sources {
-                let source = crate::exact_storage_source(atom)?;
-                let (leaf, binder, _) = position_leaf(iface, slot, source, b)?;
-                if leaf != slot.result || binder != result {
-                    return Err(bad(
-                        "method result source has a different full leaf, mode or class",
-                    ));
+                dynamic_metadata::source(atom,b)?;
+                match atom{
+                    StorageSource::Exact(source)=>{
+                        let(leaf,binder,_)=position_leaf(iface,slot,source,b)?;
+                        if leaf!=slot.result||binder!=result||!same_inner(life,StorageBase::Result,&source_inner(module,iface,slot,source,b)?,b)?{return Err(bad("method result source has a different full leaf, mode or complete class relation"));}
+                    },
+                    StorageSource::Static{leaf,mode}=>if leaf!=&slot.result||*mode!=StoredBorrowMode::SharedAddress||*mutable{return Err(bad("method static result upper changes its full type or grants mutable storage"));},
+                    StorageSource::ReborrowedLeaf{source,head}=>{
+                        if source.base!=head.base||head.base!=StorageBase::Parameter(0)||!head.path.is_empty()||source.path.is_empty(){return Err(bad("method child source is not held by its exact receiver head"));}
+                        let(leaf,_,data_head)=position_leaf(iface,slot,source,b)?;let(_,head_binder,is_head)=position_leaf(iface,slot,head,b)?;
+                        let(Type::Address{mutable:input,inner},Type::Address{mutable:output,inner:wanted})=(&leaf,&slot.result)else{return Err(bad("method child result lacks complete address leaves"));};
+                        if data_head||!is_head||result!=head_binder||(*output&&(!*input||!slot.receiver.mutable))||inner!=wanted||!same_inner(life,StorageBase::Result,&source_inner(module,iface,slot,source,b)?,b)?{return Err(bad("method child source changes its data domain, receiver role or access mode"));}
+                    },
+                    StorageSource::OwnedView{head,leaf,mode}=>{
+                        let(_,binder,is_head)=position_leaf(iface,slot,head,b)?;
+                        if head.base!=StorageBase::Parameter(0)||!head.path.is_empty()||!is_head||binder!=result||leaf!=&slot.result||!matches!((&slot.result,mode),(Type::Address{mutable:false,..},StoredBorrowMode::SharedAddress)|(Type::Address{mutable:true,..},StoredBorrowMode::ExclusiveAddress))||(*mutable&&!slot.receiver.mutable){return Err(bad("method owning view changes its actual receiver role, full type or access mode"));}
+                        // Persistent classes of an inline Self field come from
+                        // the complete Context, never a fresh invocation class.
+                        b.spend(life.classes.len())?;
+                        if life.classes.iter().any(|row|row.position.base==StorageBase::Result&&!matches!(row.binder,StorageBinder::Fixed(index)if index<iface.retained_life.binder_count)){return Err(bad("method owning view loses a persistent inner Context class"));}
+                    },
+                    StorageSource::PlaceAddress{..}=>return Err(unsupported("erased place source requires its actual initialized-place consumer",None)),
                 }
             }
         }

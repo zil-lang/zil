@@ -4,6 +4,11 @@ use super::*;
 use crate::semantic::{self, api::*};
 #[path = "semantic_associated.rs"]
 mod associated;
+#[path = "semantic_completed.rs"]
+mod completed;
+#[path = "semantic_member_instance.rs"]
+mod member_instance;
+pub(crate) use member_instance::check as check_static_member_instance;
 
 pub(crate) fn original_scope<'a>(
     module: &'a TypedModule,
@@ -79,59 +84,12 @@ pub(crate) struct OriginalMethodRelation {
     pub(crate) source: DynDefinitionScope,
 }
 
-fn charge_type(value: &CheckedType, b: &mut Budget) -> Check<()> {
-    dynamic_metadata::ty(&value.ty, b)?;
-    if value.classes.len() > b.limits.max_nodes
-        || value.origins.len() > b.limits.max_nodes
-        || value.statics.len() > b.limits.max_nodes
-    {
-        return Err(limit(
-            "checked original member value exceeds selected bound",
-        ));
-    }
-    b.spend(
-        value
-            .classes
-            .len()
-            .saturating_add(value.origins.len())
-            .saturating_add(value.life.slots.len())
-            .saturating_add(value.life.retained.len())
-            .saturating_add(value.life.nominal_arguments.len())
-            .saturating_add(value.statics.len()),
-    )?;
-    for row in &value.life.slots {
-        b.spend(row.path.len())?;
-    }
-    for row in &value.life.retained {
-        b.spend(row.path.len())?;
-    }
-    for row in &value.life.nominal_arguments {
-        b.spend(row.path.len())?;
-    }
-    for key in &value.classes {
-        charge_key(key, b)?;
-    }
-    for origin in &value.origins {
-        match origin {
-            IntrinsicOrigin::Existing { path, .. } => b.spend(path.len())?,
-            IntrinsicOrigin::DerivedClass { source } => charge_key(source, b)?,
-            IntrinsicOrigin::Nominal { .. } => semantic::charge_intrinsic_origin(origin,b)?,
-        }
-    }
-    for row in &value.statics {
-        match row {
-            StaticOccurrence::Direct { path, leaf, .. } => {
-                b.spend(path.len())?;
-                dynamic_metadata::ty(leaf, b)?;
-            }
-            StaticOccurrence::Logical { position, leaf, .. } => {
-                b.spend(position.path.len())?;
-                dynamic_metadata::ty(leaf, b)?;
-            }
-        }
-    }
-    Ok(())
+fn charge_type(value:&CheckedType,b:&mut Budget)->Check<()>{
+    dynamic_metadata::bounds_type(&value.ty,b)?;
+    if value.classes.len()>b.limits.max_nodes||value.origins.len()>b.limits.max_nodes||value.statics.len()>b.limits.max_nodes{return Err(limit("checked original member value exceeds selected bound"));}
+    value.charge_clone(b)
 }
+
 fn charge_key(key: &ClassKey, b: &mut Budget) -> Check<()> {
     b.spend(1)?;
     if let ClassKey::Intrinsic { path, .. } | ClassKey::Outer { path, .. } = key {
@@ -159,6 +117,37 @@ struct OriginalMemberKey {
     application: CheckedApplication,
     member: u32,
     method_actuals: Vec<CheckedActual>,
+}
+// Cycle identity is exact, rigid equality. It does not use caller premises or
+// identify distinct intrinsic domains through equal outside class images.
+fn member_key_equal(a:&OriginalMemberKey,z:&OriginalMemberKey,b:&mut Budget)->Check<bool>{
+    b.spend(1)?;
+    if a.member!=z.member||a.application.declaration!=z.application.declaration||a.application.arguments.len()!=z.application.arguments.len()||a.method_actuals.len()!=z.method_actuals.len(){return Ok(false);}
+    for(a,z)in a.application.arguments.iter().zip(&z.application.arguments).chain(a.method_actuals.iter().zip(&z.method_actuals)){
+        if !member_actual_equal(a,z,b)?{return Ok(false);}
+    }
+    member_value_equal(&a.receiver,&z.receiver,b)
+}
+fn member_actual_equal(a:&CheckedActual,z:&CheckedActual,b:&mut Budget)->Check<bool>{
+    b.spend(1)?;
+    match(a,z){
+        (CheckedActual::Life(a),CheckedActual::Life(z))=>{charge_key(a,b)?;charge_key(z,b)?;Ok(a==z)},
+        (CheckedActual::Type(a),CheckedActual::Type(z))=>member_value_equal(a,z,b),
+        (CheckedActual::Const{carrier:a,value:x},CheckedActual::Const{carrier:z,value:y})=>{
+            dynamic_metadata::constant(x,b)?;dynamic_metadata::constant(y,b)?;
+            if x!=y{return Ok(false);}member_value_equal(a,z,b)
+        },
+        _=>Ok(false),
+    }
+}
+fn member_value_equal(a:&CheckedType,z:&CheckedType,b:&mut Budget)->Check<bool>{
+    a.charge_clone(b)?;z.charge_clone(b)?;
+    if a.life!=z.life||a.classes!=z.classes||a.origins.len()!=z.origins.len()||a.statics!=z.statics{return Ok(false);}
+    for(a,z)in a.origins.iter().zip(&z.origins){
+        semantic::charge_intrinsic_origin(a,b)?;semantic::charge_intrinsic_origin(z,b)?;
+        if a!=z{return Ok(false);}
+    }
+    a.same_raw_type(z,b)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -199,8 +188,10 @@ pub(crate) fn select_original_member(
         member,
         method_actuals: method_actuals.to_vec(),
     };
-    if proofs.active_members.contains(&key) {
-        return Err(bad("complete original member selection forms a cycle"));
+    for previous in &proofs.active_members{
+        if member_key_equal(previous,&key,b)?{
+            return Err(bad("complete original member selection forms a cycle"));
+        }
     }
     let token = active.fresh(b)?;
     proofs.active_members.push(key);
@@ -231,6 +222,7 @@ pub(crate) fn select_original_member(
 
 #[derive(Default)]
 pub(crate) struct Proofs {
+    completed_original: completed::Completed,
     pub(crate) callable_shapes: Vec<requests::CallableShapeRequest>,
     pub(crate) pending_statics: Vec<(StorageBase, StaticOccurrence)>,
     pub(crate) pending_original_methods: Vec<SemanticDefinitionId>,
@@ -239,6 +231,10 @@ pub(crate) struct Proofs {
     available_original: Vec<(ExternalRequest, ExternalValue)>,
     original_domain: Option<associated::LocalDomain>,
     active_members: Vec<OriginalMemberKey>,
+}
+impl Proofs{
+    pub(crate) fn original_relation_completed(&self,module:&TypedModule,context:&semantic::CheckedContext,relation:&OriginalMethodRelation,active:&semantic::ActiveQueries,b:&mut Budget)->Check<bool>{self.completed_original.relation_known(module,context,relation,active,b)}
+    pub(crate) fn remember_original_relation(&mut self,module:&TypedModule,context:&semantic::CheckedContext,relation:&OriginalMethodRelation,active:&semantic::ActiveQueries,b:&mut Budget)->Check<()>{self.completed_original.relation_success(module,context,relation,active,b)}
 }
 
 /// One request-local representation of already checked semantic identities.
@@ -369,7 +365,7 @@ pub(crate) fn construct(
     b.spend(children.len())?;
     let mut normalized_children=Vec::with_capacity(children.len());
     for child in children{
-        charge_type(child,b)?;
+        child.charge_clone(b)?;
         let mut child=child.clone();
         for origin in &mut child.origins{*origin=context.normalized_origin(environment,origin,b)?;}
         normalized_children.push(child);
@@ -385,11 +381,11 @@ pub(crate) fn construct(
     {
         domain.key(key, false, b)?;
     }
-    let mut values = Vec::with_capacity(children.len());
+    let mut terms = Vec::with_capacity(children.len());
     let mut statics = Vec::new();
     for (index, child) in children.iter().enumerate() {
-        let (value, pending) = domain.symbols.incoming_pending(child, b)?;
-        values.push(value);
+        let (value, pending) = domain.symbols.incoming_pending_terms(child, b)?;
+        terms.push(value);
         for row in pending {
             let prefix = match kind {
                 Constructor::Tuple => {
@@ -411,44 +407,27 @@ pub(crate) fn construct(
             });
         }
     }
-    let one = |values: &mut Vec<terms::Value>| -> Check<terms::Value> {
-        if values.len() != 1 {
-            return Err(bad("unary semantic constructor has another child count"));
-        }
-        Ok(values.pop().unwrap())
+    b.spend(children.len().saturating_add(terms.iter().map(Vec::len).sum::<usize>()))?;
+    let classes:Vec<Vec<StorageBinder>>=terms.iter().map(|terms|terms.iter().map(|term|term.image).collect()).collect();
+    let values:Vec<constructors::View<'_>>=children.iter().zip(&terms).zip(&classes).map(|((child,terms),classes)|constructors::View{ty:&child.ty,life:&child.life,terms,classes}).collect();
+    use semantic::PhysicalConstructor as K;
+    let(physical,head,mode,is_static)=match kind{
+        Constructor::Managed=>(K::Managed,None,None,false),
+        Constructor::Tuple=>(K::Tuple,None,None,false),
+        Constructor::Address{mode,outer}=>{
+            let physical=match mode{StoredBorrowMode::SharedAddress=>K::SharedAddress,StoredBorrowMode::ExclusiveAddress=>K::ExclusiveAddress,_=>K::Description};
+            let is_static=outer.is_none();
+            let head=match outer{Some(key)=>Some(domain.symbols.class(&key,b)?),None=>None};
+            (physical,head,Some(mode),is_static)
+        },
     };
-    let value = match kind {
-        Constructor::Tuple => constructors::tuple(&values, b)?,
-        Constructor::Managed => constructors::managed(&one(&mut values)?, b)?,
-        Constructor::Address {
-            mode,
-            outer: Some(key),
-        } => constructors::address(&one(&mut values)?, domain.symbols.class(&key, b)?, mode, b)?,
-        Constructor::Address { mode, outer: None } => {
-            if !matches!(
-                mode,
-                StoredBorrowMode::SharedAddress | StoredBorrowMode::ReadOnlyDescription
-            ) {
-                return Err(bad("static type constructor cannot invent mutable storage"));
-            }
-            let child = one(&mut values)?;
-            let mut value = constructors::managed(&child, b)?;
-            value.raw.ty = match mode {
-                StoredBorrowMode::SharedAddress => Type::Address {
-                    mutable: false,
-                    inner: Box::new(child.raw.ty),
-                },
-                _ => Type::Desc(Box::new(child.raw.ty)),
-            };
-            statics.push(StaticOccurrence::Direct {
-                path: vec![],
-                leaf: value.raw.ty.clone(),
-                mode,
-            });
-            value
-        }
-    };
-    domain.symbols.constructed(value, statics, b)
+    let shape=constructors::shape_views(physical,&values,head,mode,b)?;
+    let type_cell=context.physical_constructor(physical,children,&shape.life,b)?;
+    if is_static{
+        dynamic_metadata::ty(&type_cell.ty,b)?;
+        statics.push(StaticOccurrence::Direct{path:vec![],leaf:type_cell.ty.clone(),mode:mode.unwrap()});
+    }
+    domain.symbols.constructed_shared(type_cell,shape,statics,b)
 }
 
 impl ExternalProofs for Proofs {
@@ -503,30 +482,30 @@ impl ExternalProofs for Proofs {
                 };
                 let mut domain = Domain::new(context, environment, active, b)?;
                 domain.value(receiver, b)?;
-                let (receiver, pending_statics) = domain.symbols.incoming_pending(receiver, b)?;
-                b.spend(pending_statics.len())?;
-                self.pending_statics.extend(
-                    pending_statics
-                        .into_iter()
-                        .map(|row| (StorageBase::Receiver, row)),
-                );
-                if let Some(bound)=bound{structural::check(module,&receiver,bound,b)?;}
-                else{super::semantic_capabilities::check(module,&receiver,*trait_kind,b)?;}
+                if let Some(bound)=bound{
+                    let(terms,pending_statics)=domain.symbols.incoming_pending_terms(receiver,b)?;
+                    b.spend(terms.len().saturating_add(pending_statics.len()))?;
+                    self.pending_statics.extend(pending_statics.into_iter().map(|row|(StorageBase::Receiver,row)));
+                    let classes:Vec<_>=terms.iter().map(|term|term.image).collect();
+                    structural::parts(module,&receiver.ty,&receiver.life,&classes,bound,b)?;
+                }else{
+                    let(receiver,pending_statics)=domain.symbols.incoming_pending(receiver,b)?;
+                    b.spend(pending_statics.len())?;
+                    self.pending_statics.extend(pending_statics.into_iter().map(|row|(StorageBase::Receiver,row)));
+                    super::semantic_capabilities::check(module,&receiver,*trait_kind,b)?;
+                }
                 Ok(ExternalValue::Proved)
             }
             ExternalRequest::Structural { receiver, bound } => {
                 let mut domain = Domain::new(context, environment, active, b)?;
                 domain.value(receiver, b)?;
-                let (receiver, pending_statics) = domain.symbols.incoming_pending(receiver, b)?;
-                b.spend(pending_statics.len())?;
-                self.pending_statics.extend(
-                    pending_statics
-                        .into_iter()
-                        .map(|row| (StorageBase::Receiver, row)),
-                );
+                let(terms,pending_statics)=domain.symbols.incoming_pending_terms(receiver,b)?;
+                b.spend(terms.len().saturating_add(pending_statics.len()))?;
+                self.pending_statics.extend(pending_statics.into_iter().map(|row|(StorageBase::Receiver,row)));
+                let classes:Vec<_>=terms.iter().map(|term|term.image).collect();
                 // Structural qualification neither promises empty Context nor
                 // discharges any Static constructor/return provenance.
-                structural::check(module, &receiver, *bound, b)?;
+                structural::parts(module,&receiver.ty,&receiver.life,&classes,*bound,b)?;
                 Ok(ExternalValue::Proved)
             }
             ExternalRequest::Callable {
@@ -607,8 +586,15 @@ impl ExternalProofs for Proofs {
                 if self.active_original.contains(request) {
                     return Err(bad("original trait/associated query forms a cycle"));
                 }
+                let epoch=context.completed_original_epoch();
+                let reusable=associated::empty_domain(self)&&self.available_original.is_empty()
+                    &&epoch.is_some()&&completed::pure_environment(environment,b)?&&completed::pure_request(request,b)?;
+                if reusable {
+                    if let Some(value)=self.completed_original.get(module,context,environment,request,active,b)?{return Ok(value);}
+                }
                 let token = active.fresh(b)?;
                 self.active_original.push(request.clone());
+                let mut members=Vec::new();
                 let result = active.with_query(
                     semantic::DependencyKey {
                         kind: semantic::QueryKind::External,
@@ -616,15 +602,56 @@ impl ExternalProofs for Proofs {
                     },
                     b,
                     |active, b| {
-                        associated::query(self, module, context, environment, request, active, b)
+                        associated::query(self, module, context, environment, request, &mut members, reusable, active, b)
                     },
                 );
                 self.active_original.pop();
-                result
+                let value=result?;
+                if reusable&&associated::empty_domain(self)&&epoch==context.completed_original_epoch()&&self.callable_shapes.is_empty()&&self.pending_statics.is_empty(){
+                    context.finish_external_methods(module,self,active,b)?;
+                    if associated::empty_domain(self)&&epoch==context.completed_original_epoch()&&self.callable_shapes.is_empty()&&self.pending_statics.is_empty()
+                        &&self.pending_original_methods.is_empty()&&self.pending_original_method_relations.is_empty(){
+                        self.completed_original.insert(module,context,environment,request,&value,active,b)?;
+                        for(request,value)in members{
+                            self.completed_original.insert(module,context,environment,&request,&value,active,b)?;
+                        }
+                    }
+                }
+                Ok(value)
             }
             ExternalRequest::Dyn { .. } => Err(bad(
                 "semantic external query requires the complete original FullW instance graph",
             )),
+        }
+    }
+}
+
+#[cfg(test)]
+mod member_identity_tests{
+    use super::*;
+    fn key()->OriginalMemberKey{
+        let class=ClassKey::Bound{frame:semantic::FrameToken(4),index:0};
+        let value=CheckedType{type_cell:semantic::CheckedTypeData::new(Type::Closure(ClosureId(0))),life:StorageLifeShape{binder_count:1,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:vec![class.clone()],origins:vec![IntrinsicOrigin::DerivedClass{source:class}],statics:vec![]};
+        OriginalMemberKey{receiver:value.clone(),application:CheckedApplication{declaration:LifeDeclarationId{module:zil_base::ModuleId(0),declaration:zil_base::NodeId(90),compiler:false},arguments:vec![CheckedActual::Type(value)]},member:0,method_actuals:vec![CheckedActual::Life(ClassKey::Invocation{frame:semantic::FrameToken(8),index:0})]}
+    }
+    #[test]
+    fn paid_member_cycle_identity_matches_complete_rigid_equality(){
+        let original=key();
+        for attack in 0..8{
+            let mut changed=original.clone();
+            match attack{
+                0=>{},
+                1=>changed.member+=1,
+                2=>changed.application.declaration.declaration=zil_base::NodeId(91),
+                3=>changed.receiver.classes[0]=ClassKey::Bound{frame:semantic::FrameToken(5),index:0},
+                4=>changed.receiver.origins[0]=IntrinsicOrigin::DerivedClass{source:ClassKey::Invocation{frame:semantic::FrameToken(4),index:0}},
+                5=>changed.receiver.replace_type(Type::Closure(ClosureId(1))),
+                6=>changed.method_actuals[0]=CheckedActual::Life(ClassKey::Invocation{frame:semantic::FrameToken(9),index:0}),
+                7=>changed.receiver.type_cell=semantic::CheckedTypeData::new(original.receiver.ty.clone()),
+                _=>unreachable!(),
+            }
+            let expected=original==changed;
+            assert_eq!(member_key_equal(&original,&changed,&mut Budget::new(&Limits::default())).unwrap(),expected,"rigid identity attack {attack}");
         }
     }
 }

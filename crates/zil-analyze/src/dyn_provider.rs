@@ -178,9 +178,9 @@ pub(super) fn prove(
     }
     b.lookup(b.semantic_dyn_tables_proven.len(), WORK)?;
     let original_proven = b.semantic_dyn_tables_proven.contains(&table.id);
-    let (storage, life) = match &table.self_type {
-        Type::BorrowedStorage { storage, life } => (storage.as_ref(), Some(life)),
-        other => (other, None),
+    let life = match &table.self_type {
+        Type::BorrowedStorage { life, .. } => Some(life),
+        _ => None,
     };
     if !original_proven {
         if let Some(life) = life {
@@ -276,6 +276,22 @@ pub(super) fn prove(
             pattern_actual(p, a, implementation, table, b)?;
         }
     }
+    ports(module, table, interface, b)
+}
+
+/// Validate the actual Context transport independently of the original Self
+/// recipe interpreter. Semantic callers must first prove that recipe in its
+/// real lexical domain; this function grants no declaration qualification.
+pub(super) fn ports(
+    _module: &TypedModule,
+    table: &DynVtable,
+    interface: &DynInterface,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let (storage, life) = match &table.self_type {
+        Type::BorrowedStorage { storage, life } => (storage.as_ref(), Some(life)),
+        other => (other, None),
+    };
     if table.ports.len() != interface.retained_life.ports.len() {
         return Err(bad("provider opaque port table is incomplete"));
     }

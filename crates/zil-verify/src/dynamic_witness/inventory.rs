@@ -513,10 +513,10 @@ impl Walk<'_> {
                 let classes = self.capture_classes(owner, ty, header, base, semantic, b)?;
                 let life = match ty {
                     Type::BorrowedStorage { life, .. } => life.clone(),
+                    Type::Dyn { .. } | Type::OwnedDyn { .. } =>
+                        crate::tasks::frame_shape::declared_life(self.module,ty,b)?,
                     Type::Closure(_)
-                    | Type::Task { .. }
-                    | Type::Dyn { .. }
-                    | Type::OwnedDyn { .. } => StorageLifeShape {
+                    | Type::Task { .. } => StorageLifeShape {
                         binder_count: domain.count,
                         ..zero()
                     },

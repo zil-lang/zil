@@ -17,6 +17,16 @@ impl CheckedContext {
             InstructionKind::VariantTagLocal{local:source,..}|InstructionKind::PlaceTagLocal{local:source,..}=>{local(*source)?;Ok(Some(atomic(&Type::I32,b)?))},
             InstructionKind::ReadErrorUnion{value,is_error}|InstructionKind::TakeErrorUnion{value,is_error}=>project(value_at(values,*value)?,&[PlaceProjection::ErrorArm(*is_error)],b).map(Some),
             InstructionKind::TakeVariantField{local:source,path}|InstructionKind::TakeTupleField{local:source,path}=>project(local(*source)?,path,b).map(Some),
+            InstructionKind::BorrowPlaceLocal{local:source,path,mutable}=>{
+                let child=project(local(*source)?,path,b)?;
+                let result=instruction.result.ok_or_else(||bad("actual selected-place borrow has no SSA result"))?;
+                let scope=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
+                let mode=if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
+                let outer=ClassKey::Outer{scope,operand:OperandKey::Value(result),path:vec![],mode};
+                // The typed place kernel independently proves actual active
+                // tags, initialization and parent loans along every path step.
+                dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode,outer:Some(outer)},&[child],active,b).map(Some)
+            },
             InstructionKind::ReadVariantLocal{local:source,path}=>{
                 b.spend(path.len())?;
                 let path=path.iter().copied().map(PlaceProjection::Variant).collect::<Vec<_>>();

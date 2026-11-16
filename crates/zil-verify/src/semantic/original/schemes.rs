@@ -88,7 +88,7 @@ impl CheckedOriginal {
     }
     pub(super) fn scheme_requirement(&mut self,module:&TypedModule,context:&CheckedContext,recipe:&SemanticRequirementRecipe,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Requirement,token},b,|active,b|{
-            dynamic_metadata::recipe(recipe,b)?;
+            dynamic_metadata::bounds_recipe(recipe,b)?;
             match recipe {
                 SemanticRequirementRecipe::Structural{ty,..}|SemanticRequirementRecipe::Builtin{ty,..}=>{let ty=self.ty(module,context,ty,env,active,b)?;self.scheme_term(module,context,&ty,env,active,b)?;},
                 SemanticRequirementRecipe::Trait{ty,application}=>{let ty=self.ty(module,context,ty,env,active,b)?;self.scheme_term(module,context,&ty,env,active,b)?;self.scheme_application(module,context,application,env,active,b)?;},

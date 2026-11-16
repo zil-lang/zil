@@ -17,12 +17,29 @@ impl CheckedContext{
         dynamic_metadata::ty(&result.ty,b)?;
         self.checked_value(module,&Type::ForeignCallback{parameters,result:Box::new(result.ty.clone())},&empty_life(),vec![],b)
     }
+    pub(super) fn ordinary_code(&self,module:&TypedModule,kind:SemanticCodeKind,signature:&CheckedSignature,b:&mut Budget)->Check<CheckedType>{
+        if kind!=SemanticCodeKind::FunctionPointer||signature.call_kind!=CallKind::Direct||signature.result_mode!=PassingMode::Infer||!signature.bound.is_empty()||!signature.invocation.is_empty(){return Err(unsupported("ordinary code requires its exact complete pointer ABI and binder header",None));}
+        let mut parameters=Vec::new();b.spend(signature.parameters.len().saturating_add(1))?;
+        for(value,mode)in &signature.parameters{
+            ghost_code_value(module,value,b)?;
+            if *mode!=PassingMode::Infer{return Err(bad("ordinary code changes an encoded parameter responsibility mode"));}parameters.push(value.ty.clone());
+        }
+        ghost_code_value(module,&signature.result,b)?;
+        self.checked_value(module,&Type::FunctionPointer{parameters,result:Box::new(signature.result.ty.clone())},&empty_life(),vec![],b)
+    }
+
+}
+
+fn ghost_code_value(module:&TypedModule,value:&CheckedType,b:&mut Budget)->Check<()>{
+    dynamic_metadata::ty(&value.ty,b)?;dynamic_metadata::life_shape(&value.life,b)?;
+    if value.life!=empty_life()||!value.classes.is_empty()||!value.origins.is_empty()||!value.statics.is_empty(){return Err(unsupported("plain code cannot erase a complete borrowed or intrinsic parameter/result domain",None));}
+    dynamic_witness::check_type_parts(module,&value.ty,&value.life,&[],DynInstantiationScope{fixed_binder_count:0,invocation_binder_count:0},b)
 }
 
 #[cfg(test)]
 mod tests{
     use super::*;
-    fn value(ty:Type)->CheckedType{CheckedType{ty,life:empty_life(),classes:vec![],origins:vec![],statics:vec![]}}
+    fn value(ty:Type)->CheckedType{CheckedType{type_cell: crate::semantic::CheckedTypeData::new(ty),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]}}
     #[test]
     fn c_code_geometry_keeps_all_numeric_widths_and_excludes_borrowed_or_suspend_roles(){
         let limits=Limits::default();let bytes=include_bytes!("fixtures/ordinary-identity-complete-head.wire");

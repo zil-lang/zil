@@ -156,13 +156,7 @@ impl Check<'_, '_> {
                 }
                 self.push_value(&mut classes, source.clone(), b)?;
             }
-            crate::dyn_metadata::ty(&stored.ty, b)?;
-            crate::dyn_metadata::shape(&stored.life, b)?;
-            return Ok(Value {
-                ty: stored.ty.clone(),
-                life: stored.life.clone(),
-                classes,
-            });
+            return stored.with_classes(classes, b);
         }
         self.zero_data(ty, b, depth + 1)?;
         crate::dyn_metadata::ty(ty, b)?;

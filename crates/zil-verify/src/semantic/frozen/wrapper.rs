@@ -30,18 +30,34 @@ impl FrozenContext<'_> {
     }
 }
 fn depth(depth:usize,b:&mut Budget)->Check<()> {b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("frozen query/wrapper structural depth exceeded"));}Ok(())}
-fn expression_pair<'a>(mut source:&'a CoreExpr,actual:&'a SemanticOriginalExpr,annotations:&mut Vec<(&'a Type,&'a SemanticTypeRecipe)>,level:usize,b:&mut Budget)->Check<()> {
+fn expression_pair<'a>(source:&'a CoreExpr,actual:&'a SemanticOriginalExpr,annotations:&mut Vec<(&'a Type,&'a SemanticTypeRecipe)>,level:usize,b:&mut Budget)->Check<()> {
     depth(level,b)?;
-    while let CoreExprKind::CompileTime(value)=&source.kind{b.spend(1)?;source=value;}
     if source.id!=actual.id{return Err(bad("CT wrapper expression identity differs from the actual frozen query payload"));}
     use CoreExprKind as K;
-    match (&source.kind,&actual.kind) {
+    // The public pure-stage wrapper rewrite splices only a nested marker's
+    // kind, retaining that marker's own NodeId. No evaluation/substitution is
+    // authorized here: every operation, child identity and mixed argument
+    // below must still match the actual frozen source subtree exactly.
+    let mut source_kind=&source.kind;
+    let mut stages=0usize;
+    while let K::CompileTime(inner)=source_kind{
+        if matches!(actual.kind,K::CompileTime(_)){break;}
+        stages=stages.checked_add(1).ok_or_else(||limit("nested frozen stage depth exceeded"))?;
+        depth(level.saturating_add(stages),b)?;
+        source_kind=&inner.kind;
+    }
+    match (source_kind,&actual.kind) {
         (K::Unit,K::Unit)=>{},
         (K::Bool(a),K::Bool(c)) if a==c=>{},
         (K::Literal(a),K::Literal(c)) if a==c=>{},
         (K::Integer(a),K::Integer(c))|(K::Float(a),K::Float(c))|(K::String(a),K::String(c))|(K::Name(a),K::Name(c))|(K::Character(a),K::Character(c)) if a==c=>b.spend(a.len())?,
         (K::Unary{op:a,operand:x},K::Unary{op:c,operand:y}) if a==c=>expression_pair(x,y,annotations,level+1,b)?,
         (K::Binary{op:a,left:x,right:y},K::Binary{op:c,left:z,right:w}) if a==c=>{expression_pair(x,z,annotations,level+1,b)?;expression_pair(y,w,annotations,level+1,b)?;},
+        (K::Range{start:a,end:x},K::Range{start:c,end:y})=>{expression_pair(a,c,annotations,level+1,b)?;expression_pair(x,y,annotations,level+1,b)?;},
+        // FrozenContext has already selected the one actual outer query's
+        // payload. Nested stage markers retain their own original occurrence
+        // identity and complete subtree; they are not stripped a second time.
+        (K::CompileTime(x),K::CompileTime(y))=>expression_pair(x,y,annotations,level+1,b)?,
         (K::Group(x),K::Group(y))|(K::Try(x),K::Try(y))|(K::Spread(x),K::Spread(y))=>expression_pair(x,y,annotations,level+1,b)?,
         (K::Ascribed{ty:a,value:x},K::Ascribed{ty:c,value:y})|(K::NumericConvert{target:a,value:x},K::NumericConvert{target:c,value:y})|(K::IntegerConvert{target:a,value:x},K::IntegerConvert{target:c,value:y})=>{annotations.push((a,c));expression_pair(x,y,annotations,level+1,b)?;},
         (K::Call{callee:a,arguments:x},K::Call{callee:c,arguments:y})=>{expression_pair(a,c,annotations,level+1,b)?;expressions_pair(x,y,annotations,level+1,b)?;},
@@ -74,6 +90,11 @@ fn statement_pair<'a>(source:&'a CoreStatement,actual:&'a SemanticOriginalStatem
         (K::If{condition:a,then_body:x,else_body:p},K::If{condition:c,then_body:y,else_body:q})=>{expression_pair(a,c,out,level+1,b)?;block_pair(x,y,out,level+1,b)?;match(p,q){(Some(a),Some(c))=>block_pair(a,c,out,level+1,b)?,(None,None)=>{},_=>return Err(bad("CT wrapper changes original branch inventory"))}},
         (K::While{condition:a,body:x},K::While{condition:c,body:y})=>{expression_pair(a,c,out,level+1,b)?;block_pair(x,y,out,level+1,b)?;},
         (K::ForRange{name:a,start:x,end:p,body:r},K::ForRange{name:c,start:y,end:q,body:s})if a==c=>{expression_pair(x,y,out,level+1,b)?;expression_pair(p,q,out,level+1,b)?;block_pair(r,s,out,level+1,b)?;},
+        (K::ForEach{pattern:a,iterator:x,body:p},K::ForEach{pattern:c,iterator:y,body:q})=>{
+            if a.span!=c.span{return Err(bad("CT wrapper changes its exact original range pattern occurrence"));}
+            match(&a.kind,&c.kind){(CorePatternKind::Name(a),CorePatternKind::Name(c))if a==c=>b.spend(a.len())?,(CorePatternKind::Wildcard,CorePatternKind::Wildcard)=>{},_=>return Err(bad("CT wrapper changes its original irrefutable range binding"))}
+            expression_pair(x,y,out,level+1,b)?;block_pair(p,q,out,level+1,b)?;
+        },
         (K::Block(a),K::Block(c))|(K::Loop(a),K::Loop(c))=>block_pair(a,c,out,level+1,b)?,
         (K::Break,K::Break)|(K::Continue,K::Continue)=>{},
         _=>return Err(unsupported("CT query/wrapper requires complete matching for this statement family",None)),

@@ -40,20 +40,8 @@ impl Check<'_, '_> {
             crate::dyn_metadata::ty(&binding.ty, b)?;
             b.spend(1, WORK)?;
         }
-        if interface.context.is_some()
-            || interface.retained_life.binder_count != 0
-            || !interface.retained_life.ports.is_empty()
-            || !interface.retained_life.retained.is_empty()
-            || !interface.retained_life.nominal_arguments.is_empty()
-            || !interface.application.actuals.is_empty()
-            || !interface.inherited.is_empty()
-            || !interface.associated_types.is_empty()
-            || !interface.associated_constants.is_empty()
-        {
-            return Err(unknown(
-                "owning Dyn formation needs its complete original mixed, inherited, associated and Context class domain",
-            ));
-        }
+        crate::dyn_context::validate(self.module, interface, b)?;
+        crate::dyn_provider::application(self.module, interface, b)?;
         let scope = original::declaration_scope(
             self.program,
             interface.application.declaration,
@@ -66,7 +54,7 @@ impl Check<'_, '_> {
             .original_dyn(interface.application.declaration, b)?;
         if raw.kind != DynDeclarationKind::Trait
             || !matches!(declaration.body,SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration:id }) if id==interface.application.declaration)
-            || !declaration.parameters.is_empty()
+            || declaration.parameters.len() != interface.application.actuals.len()
         {
             return Err(fail(
                 "owning Dyn formation changes its full original trait kind, scope or application arity",
@@ -116,193 +104,304 @@ impl Check<'_, '_> {
         }
         Ok(true)
     }
+    /// Reconstruct the whole physical domain, using local class labels only
+    /// to form its shape. These labels never escape as occurrence evidence.
+    pub(super) fn dyn_value_domain(
+        &self,
+        ty: &Type,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Value>> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown("Dyn value domain exceeds its complete type depth"));
+        }
+        match ty {
+            Type::Dyn { .. } | Type::OwnedDyn { .. } => {
+                self.dyn_value_type(ty, b, depth + 1)?;
+                let life = value::dyn_domain(ty, self.inventory, b)?;
+                let mut classes = Vec::new();
+                for ordinal in 0..life.binder_count {
+                    self.push_value(&mut classes, value::Class::Local(ordinal), b)?;
+                }
+                crate::dyn_metadata::ty(ty, b)?;
+                Ok(Some(Value::new(ty.clone(), life, classes)))
+            }
+            Type::ErrorUnion { error, result } => {
+                let Some(result) = self.dyn_value_domain(result, b, depth + 1)? else {
+                    return Ok(None);
+                };
+                self.zero_data(error, b, depth + 1)?;
+                crate::dyn_metadata::ty(error, b)?;
+                Ok(Some(value::error_union(value::scalar(error.as_ref().clone()), result, b)?))
+            }
+            Type::Address { mutable, inner } => {
+                let Some(inner) = self.dyn_value_domain(inner, b, depth + 1)? else {
+                    return Ok(None);
+                };
+                let outer = value::Class::Local(inner.life.binder_count);
+                Ok(Some(value::address(*mutable, outer, inner, b)?))
+            }
+            _ => Ok(None),
+        }
+    }
     fn dyn_owner_arguments(
         &self,
         actuals: &[DynGenericActual],
         expected: &[Argument],
+        context: &[value::Class],
         b: &mut Budget,
     ) -> CompileResult<()> {
         if actuals.len() != expected.len() {
-            return Err(fail(
-                "owning Dyn table changes its provider's complete original mixed arity",
-            ));
+            return Err(fail("owning Dyn changes its original full mixed arity"));
         }
+        let class = |binder: StorageBinder| -> CompileResult<&value::Class> {
+            let StorageBinder::Fixed(index) = binder else {
+                return Err(fail("owning Dyn stored actual escapes its fixed Context"));
+            };
+            context
+                .get(index as usize)
+                .ok_or_else(|| fail("owning Dyn class leaves its complete Context"))
+        };
         for (actual, expected) in actuals.iter().zip(expected) {
             crate::dyn_metadata::recipe(actual, b)?;
             match (actual, expected) {
                 (DynGenericActual::Type(ty), Argument::Type(expected)) => {
                     crate::dyn_metadata::ty(&expected.ty, b)?;
                     crate::dyn_metadata::shape(&expected.life, b)?;
-                    b.spend(expected.classes.len(), WORK)?;
-                    if !empty(&expected.life) || !expected.classes.is_empty() {
-                        return Err(unknown(
-                            "owning Dyn plain Type actual requires its full original nonzero intrinsic domain",
-                        ));
-                    }
-                    self.zero_data(ty, b, 0)?;
-                    if *ty != expected.ty {
+                    if *ty != expected.ty || !empty(&expected.life) || !expected.classes.is_empty()
+                    {
                         return Err(fail(
-                            "owning Dyn table changes a complete original provider Type actual",
+                            "owning Dyn plain Type loses its complete original domain",
                         ));
                     }
+                    self.actual_type(ty, b)?;
                 }
                 (DynGenericActual::QualifiedType(actual), Argument::Type(expected)) => {
-                    if !empty(&expected.life)
-                        || !expected.classes.is_empty()
-                        || !actual.classes.is_empty()
+                    crate::dyn_metadata::ty(&expected.ty, b)?;
+                    crate::dyn_metadata::shape(&expected.life, b)?;
+                    if actual.ty != expected.ty
+                        || actual.life != expected.life
+                        || actual.classes.len() != expected.classes.len()
+                        || actual.classes.len() != actual.life.binder_count as usize
                     {
-                        return Err(unknown(
-                            "owning Dyn qualified Type actual requires its full original class-to-Context embedding",
+                        return Err(fail(
+                            "owning Dyn qualified Type changes its full original domain",
                         ));
                     }
-                    self.zero_data(&actual.ty, b, 0)?;
-                    if actual.ty != expected.ty || actual.life != expected.life {
-                        return Err(fail(
-                            "owning Dyn table changes its complete original qualified Type actual",
-                        ));
+                    self.actual_type(&actual.ty, b)?;
+                    for (binder, expected) in actual.classes.iter().zip(&expected.classes) {
+                        b.spend(1, WORK)?;
+                        if class(*binder)? != expected {
+                            return Err(fail(
+                                "owning Dyn Type changes its exact original Context class",
+                            ));
+                        }
                     }
                 }
                 (DynGenericActual::Const(actual), Argument::Const { carrier, value }) => {
                     crate::dyn_metadata::ty(carrier, b)?;
                     if actual.ty() != *carrier || actual != value {
                         return Err(fail(
-                            "owning Dyn table changes an original Const carrier or exact scalar bits",
+                            "owning Dyn Const changes its full carrier or scalar bits",
                         ));
                     }
                 }
-                (DynGenericActual::Life(_), Argument::Life(_)) => {
-                    return Err(unknown(
-                        "owning Dyn lifetime actual needs its full original private-to-Context scope embedding",
-                    ));
-                }
+                (DynGenericActual::Life(actual), Argument::Life(expected))
+                    if class(*actual)? == expected => {}
                 _ => {
                     return Err(fail(
-                        "owning Dyn table changes a full-ordinal original mixed actual kind",
+                        "owning Dyn changes its original mixed actual kind or class",
                     ));
                 }
             }
         }
         Ok(())
     }
-    fn dyn_owner_shape(&self, ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<usize> {
+    pub(super) fn dyn_sum_type(&self, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         b.spend(1, WORK)?;
-        if depth > b.partial_depth {
+        Ok(matches!(ty, Type::ErrorUnion { result, .. }
+            if matches!(result.as_ref(), Type::Dyn { .. } | Type::OwnedDyn { .. })))
+    }
+    pub(super) fn dyn_owned_result(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        block: BlockId,
+        index: usize,
+        b: &mut Budget,
+    ) -> CompileResult<Value> {
+        let mut result = None;
+        for site in &self.program.sites {
+            b.spend(1, WORK)?;
+            if site.instance != instance.id
+                || !matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After }
+                    if actual == block && instruction as usize == index)
+            {
+                continue;
+            }
+            let SemanticSiteAction::BodyCall { actuals } = &site.action else {
+                continue;
+            };
+            if !matches!(
+                self.original
+                    .intrinsic(instance, site.recipe, self.inventory, b)?,
+                Some(original::sealed::Intrinsic::OwnedDyn)
+            ) {
+                continue;
+            }
+            let value = self.dyn_owned_operation(
+                instance,
+                site.recipe,
+                function,
+                block,
+                index,
+                actuals,
+                b,
+            )?;
+            if result.replace(value).is_some() {
+                return Err(fail(
+                    "owning Dyn result has competing original source occurrences",
+                ));
+            }
+        }
+        result.ok_or_else(|| fail("owning Dyn SSA lacks its original full construction recipe"))
+    }
+    pub(super) fn dyn_owned_projection(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        result: ValueId,
+        parent: ValueId,
+        error_arm: bool,
+        at: (BlockId, usize),
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        operations::available_before(function, (at.0, at.1, SemanticSiteEdge::Before), parent, b)?;
+        let parent = self.ssa_value(instance, function, parent, b, depth + 1)?;
+        self.dyn_owned_sum_child(function, result, parent, error_arm, b, depth + 1)
+    }
+    pub(super) fn dyn_owned_local_projection(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        result: ValueId,
+        local: LocalId,
+        path: &[PlaceProjection],
+        at: (BlockId, usize),
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        let [PlaceProjection::ErrorArm(error_arm)] = path else {
             return Err(unknown(
-                "owning Dyn concrete source exceeds its complete cleanup/type depth",
+                "Dyn local projection needs its exact complete sum arm",
+            ));
+        };
+        operations::initialized_local_before(function, at, local, b)?;
+        let parent = self.local_value(instance, function, local, at, b, depth + 1)?;
+        // The actual resource CFG separately proves the selected active arm,
+        // consuming slot, outstanding loans and subsequent partial cleanup.
+        self.dyn_owned_sum_child(function, result, parent, *error_arm, b, depth + 1)
+    }
+    fn dyn_owned_sum_child(
+        &self,
+        function: &TypedFunction,
+        result: ValueId,
+        parent: Value,
+        error_arm: bool,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        let Type::ErrorUnion {
+            error,
+            result: success,
+        } = &parent.ty
+        else {
+            return Err(fail("Dyn arm projection has no actual complete sum"));
+        };
+        let child = if error_arm { error } else { success };
+        if function.values.get(result.0 as usize) != Some(child.as_ref()) {
+            return Err(fail(
+                "Dyn arm projection changes its complete physical child",
             ));
         }
-        crate::dyn_metadata::ty(ty, b)?;
-        if ty.is_b0_scalar() {
-            return Ok(0);
+        self.zero_data(error, b, depth + 1)?;
+        let life = value::dyn_domain(success, self.inventory, b)?;
+        let mut classes = Vec::new();
+        for child in 0..life.binder_count {
+            let mut selected = None;
+            for row in &parent.life.retained {
+                b.spend(row.path.len().saturating_add(1), WORK)?;
+                if row.path.as_slice()
+                    == [LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))]
+                    && row.class == child
+                    && selected.replace(row.binder).is_some()
+                {
+                    return Err(fail("Dyn sum repeats an intrinsic success child"));
+                }
+            }
+            let binder =
+                selected.ok_or_else(|| fail("Dyn sum omits an intrinsic success child"))?;
+            self.push_value(
+                &mut classes,
+                parent
+                    .classes
+                    .get(binder as usize)
+                    .ok_or_else(|| fail("Dyn success child leaves its complete sum domain"))?
+                    .clone(),
+                b,
+            )?;
         }
-        match ty {
-            Type::Named(_) => Err(fail(
-                "owning Dyn source retains an unresolved Named declaration",
-            )),
-            Type::BorrowedStorage { storage, life } => {
-                self.nominal_inventory(ty, b)?;
-                if !empty(life) {
-                    return Err(unknown(
-                        "owning Dyn source requires its full original retained target and class relation",
-                    ));
-                }
-                self.dyn_owner_shape(storage, b, depth + 1)
-            }
-            Type::Managed(payload) => {
-                self.actual_type(ty, b)?;
-                match payload.as_ref() {
-                    Type::ByteBuffer => Ok(1),
-                    Type::OwnedStore { element } => {
-                        self.dyn_owner_shape(element, b, depth + 1)?;
-                        Ok(1)
-                    }
-                    Type::Record { fields, .. } => {
-                        // The resource's payload is not a separate nominal
-                        // application. actual_type above reconstructs its
-                        // original Resource definition and full payload; only
-                        // genuine nested field applications need an inventory.
-                        for (_, field) in fields {
-                            if self.dyn_owner_shape(field, b, depth + 1)? != 0 {
-                                return Err(unknown(
-                                    "owning Dyn resource payload needs its complete nested cleanup theorem",
-                                ));
-                            }
-                        }
-                        Ok(1)
-                    }
-                    _ => Err(unknown(
-                        "owning Dyn source has no complete original synchronous concrete resource cleanup family",
-                    )),
-                }
-            }
-            Type::Record { fields, .. } => {
-                self.nominal_inventory(ty, b)?;
-                for (_, field) in fields {
-                    if self.dyn_owner_shape(field, b, depth + 1)? != 0 {
-                        return Err(unknown(
-                            "owning Dyn Copy record companion contains an owning cleanup leaf",
-                        ));
-                    }
-                }
-                Ok(0)
-            }
-            Type::Package { fields, .. } => {
-                self.nominal_inventory(ty, b)?;
-                let mut owners = 0usize;
-                for (_, field) in fields {
-                    owners = owners
-                        .checked_add(self.dyn_owner_shape(field, b, depth + 1)?)
-                        .ok_or_else(|| fail("owning Dyn concrete cleanup leaf count overflows"))?;
-                }
-                if owners == 0 {
-                    return Err(unknown(
-                        "owning Dyn Package source lacks a complete real managed cleanup leaf",
-                    ));
-                }
-                Ok(owners)
-            }
-            Type::Tuple(fields) => {
-                for field in fields {
-                    if self.dyn_owner_shape(field, b, depth + 1)? != 0 {
-                        return Err(unknown(
-                            "owning Dyn tuple companion needs its complete owning aggregate cleanup profile",
-                        ));
-                    }
-                }
-                Ok(0)
-            }
-            Type::Enum { variants, .. } => {
-                self.nominal_inventory(ty, b)?;
-                for (_, fields) in variants {
-                    for field in fields {
-                        if self.dyn_owner_shape(field, b, depth + 1)? != 0 {
-                            return Err(unknown(
-                                "owning Dyn sum companion needs its complete selected-tag cleanup profile",
-                            ));
-                        }
-                    }
-                }
-                Ok(0)
-            }
-            Type::Array { element, length } => {
-                if *length == 0 || *length as u128 > b.helper_nodes as u128 {
-                    return Err(unknown(
-                        "owning Dyn array companion needs its complete original finite extent cleanup profile",
-                    ));
-                }
-                if self.dyn_owner_shape(element, b, depth + 1)? != 0 {
-                    return Err(unknown(
-                        "owning Dyn array companion contains an owning element outside its complete cleanup profile",
-                    ));
-                }
-                Ok(0)
-            }
-            _ => Err(unknown(
-                "owning Dyn source requires its complete original self-contained storage and synchronous cleanup theorem",
-            )),
+        crate::dyn_metadata::ty(error, b)?;
+        crate::dyn_metadata::ty(success, b)?;
+        let success = Value::new(success.as_ref().clone(), life, classes);
+        let expected =
+            value::error_union(value::scalar(error.as_ref().clone()), success.copy(b)?, b)?;
+        if !expected.equal_paid(&parent, b)? {
+            return Err(fail(
+                "Dyn projection changes the complete original sum occurrence relation",
+            ));
+        }
+        if error_arm {
+            crate::dyn_metadata::ty(error, b)?;
+            Ok(value::scalar(error.as_ref().clone()))
+        } else {
+            Ok(success)
         }
     }
-    #[allow(clippy::too_many_arguments)]
+    pub(super) fn dyn_owned_borrow(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        id: ValueId,
+        local: LocalId,
+        mutable: bool,
+        at: (BlockId, usize),
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        operations::initialized_local_before(function, at, local, b)?;
+        let owner = self.local_value(instance, function, local, at, b, depth + 1)?;
+        let Type::OwnedDyn { interface } = owner.ty else {
+            return Err(fail("Dyn owned view changes its real owning local"));
+        };
+        self.dyn_value_type(&owner.ty, b, depth + 1)?;
+        let (_, life, classes) = owner.into_parts(b)?;
+        let borrowed = Value::new(Type::Dyn { interface }, life, classes);
+        let value = value::address(
+            mutable,
+            value::Class::Reborrow(function.id, id),
+            borrowed,
+            b,
+        )?;
+        if function.values.get(id.0 as usize) != Some(&value.ty) {
+            return Err(fail(
+                "Dyn owner view changes its full actual borrowed interface",
+            ));
+        }
+        Ok(value)
+    }
     pub(super) fn dyn_owned_operation(
         &self,
         instance: &SemanticInstance,
@@ -334,19 +433,8 @@ impl Check<'_, '_> {
                 "original owning Dyn construction has another successful carrier",
             ));
         };
-        if !empty(&original.output.life)
-            || !original.output.classes.is_empty()
-            || !empty(&original.source.life)
-            || !original.source.classes.is_empty()
-        {
-            return Err(unknown(
-                "owning Dyn construction needs its complete original nonzero Self/Context class and retained-target embedding",
-            ));
-        }
         self.dyn_value_type(result, b, 0)?;
-        let expected_borrowed = value::scalar(Type::Dyn {
-            interface: *expected_interface,
-        });
+        let expected_borrowed = &original.interface;
         let [
             SemanticActual::Type(written),
             SemanticActual::Type(source_claim),
@@ -356,7 +444,7 @@ impl Check<'_, '_> {
                 "owning Dyn construction changes its complete interface and inferred Self Type actuals",
             ));
         };
-        if self.resolved(instance, written, b, 0)? != expected_borrowed
+        if self.resolved(instance, written, b, 0)? != *expected_borrowed
             || self.resolved(instance, source_claim, b, 0)? != original.source
         {
             return Err(fail(
@@ -410,50 +498,113 @@ impl Check<'_, '_> {
         let life = table.self_life.as_ref().ok_or_else(|| {
             unknown("owning Dyn vtable omits its complete independently checked Self domain")
         })?;
-        if !empty(life) || !table.self_classes.is_empty() || !table.ports.is_empty() {
-            return Err(unknown(
-                "owning Dyn table needs its complete original Self-to-Context domain and retained target transport",
+        if table.self_type != original.source.ty
+            || *life != original.source.life
+            || table.self_classes.len() != original.source.classes.len()
+        {
+            return Err(fail(
+                "owning Dyn vtable changes its complete original Self domain",
             ));
         }
-        if table.self_type != original.source.ty {
-            return Err(fail(
-                "owning Dyn vtable changes the independently checked original complete Self type",
-            ));
+        for (binder, source_class) in table.self_classes.iter().zip(&original.source.classes) {
+            b.spend(1, WORK)?;
+            let StorageBinder::Fixed(index) = binder else {
+                return Err(fail(
+                    "owning Dyn Self uses an invocation outside the stored Context",
+                ));
+            };
+            if original.interface.classes.get(*index as usize) != Some(source_class) {
+                return Err(fail(
+                    "owning Dyn Self changes its original class-to-Context relation",
+                ));
+            }
         }
-        let provider = self.actual_provider(
-            &original.source,
-            interface.application.declaration,
-            &[],
-            b,
-            0,
-        )?;
-        let definition = self.inventory.definition(provider.definition, b)?;
-        let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl { declaration, .. }) =
-            &definition.body
-        else {
-            return Err(fail(
-                "owning Dyn actual provider has no real original implementation scope",
-            ));
+        // The constructor and the implementation have distinct rigid worlds.
+        // The table's full Context is the explicit application map, not an
+        // equation between caller and provider classes.
+        let scope = DynInstantiationScope {
+            fixed_binder_count: interface.retained_life.binder_count,
+            invocation_binder_count: 0,
         };
-        if provider.definition != original.provider || *declaration != table.implementation {
-            return Err(fail(
-                "owning Dyn construction selects another original provider scope or implementation declaration",
+        let raw_self = DynTypeValue {
+            ty: table.self_type.clone(),
+            life: life.clone(),
+            classes: table.self_classes.clone(),
+        };
+        let mut worlds_checked = 0usize;
+        for entry in &table.entries {
+            let worlds = self.function_worlds(entry.function, b)?;
+            if worlds.is_empty() {
+                return Err(fail("owning Dyn provider has no complete method world"));
+            }
+            for world in worlds {
+                let mut parent = world.parent;
+                let mut provider = None;
+                for _ in 0..=b.partial_depth {
+                    let Some(id) = parent else {
+                        break;
+                    };
+                    let current = self.inventory.instance(id, b)?;
+                    if current.definition == original.provider {
+                        provider = Some(current);
+                        break;
+                    }
+                    parent = current.parent;
+                }
+                let provider = provider.ok_or_else(|| {
+                    unknown("owning Dyn method omits its exact original provider ancestry")
+                })?;
+                let definition = self.inventory.definition(provider.definition, b)?;
+                let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {
+                    declaration,
+                    trait_application,
+                    ..
+                }) = &definition.body
+                else {
+                    return Err(fail(
+                        "owning Dyn provider is not its original implementation scope",
+                    ));
+                };
+                if *declaration != table.implementation
+                    || trait_application.declaration != interface.application.declaration
+                {
+                    return Err(fail(
+                        "owning Dyn provider changes its original implementation or trait",
+                    ));
+                }
+                self.scope_arguments(provider, b)?;
+                let self_value = self.original_scope_self(provider, b, 0)?;
+                let mut images = BTreeMap::new();
+                self.standalone_value(scope, &raw_self, &self_value, &mut images, b)?;
+                self.standalone_actuals(scope, &table.actuals, provider, &mut images, b)?;
+                let trait_actuals = self.trait_actuals(provider, trait_application, b, 0)?;
+                let applied =
+                    self.dyn_context_arguments(&interface.application.actuals, &images, b)?;
+                if !super::traits::arguments_equal(&trait_actuals, &applied, b)? {
+                    return Err(fail(
+                        "owning Dyn Context changes its complete provider trait application",
+                    ));
+                }
+                worlds_checked += 1;
+            }
+        }
+        if worlds_checked == 0 {
+            return Err(unknown(
+                "owning Dyn needs a complete original provider world",
             ));
         }
-        let mut provider_actuals = Vec::new();
-        for actual in &provider.actuals {
-            self.push_value(
-                &mut provider_actuals,
-                self.actual_value(provider, actual, b, 0)?,
-                b,
-            )?;
-        }
-        if provider_actuals != original.actuals {
-            return Err(fail(
-                "owning Dyn provider changes its complete independent original mixed specialization",
-            ));
-        }
-        self.dyn_owner_arguments(&table.actuals, &original.actuals, b)?;
+        self.dyn_owner_arguments(
+            &table.actuals,
+            &original.actuals,
+            &original.interface.classes,
+            b,
+        )?;
+        self.dyn_owner_arguments(
+            &interface.application.actuals,
+            &original.trait_actuals,
+            &original.interface.classes,
+            b,
+        )?;
         operations::available_before(
             function,
             (block, index, SemanticSiteEdge::Before),
@@ -466,18 +617,11 @@ impl Check<'_, '_> {
                 "owning Dyn actual source changes its complete original Self type or class occurrence relation",
             ));
         }
-        // A closed source must be a real complete owning Package with an
-        // independently checked managed leaf, not a same-sized tuple or claim.
-        let physical = match &original.source.ty {
-            Type::BorrowedStorage { storage, .. } => storage.as_ref(),
-            ty => ty,
-        };
-        if !matches!(physical, Type::Package { .. }) {
-            return Err(unknown(
-                "owning Dyn closed construction requires its complete original owning Package profile",
-            ));
-        }
-        self.dyn_owner_shape(&original.source.ty, b, 0)?;
+        // The original constructor has independently proved Self:Value and
+        // Self:SyncDrop. Reconstruct actual formation and the concrete cleanup;
+        // a borrowing Copy record is a valid erased owner just as a Package is.
+        self.actual_type(&original.source.ty, b)?;
+        self.nominal_inventory(&original.source.ty, b)?;
         crate::dyn_cleanup::metadata(interface.owning_cleanup.as_ref(), b)?;
         let bound = crate::dyn_cleanup::bound(interface, b)?;
         crate::dyn_cleanup::prove(self.module, &original.source.ty, bound, b)?;

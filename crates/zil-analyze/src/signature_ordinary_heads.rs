@@ -89,7 +89,7 @@ fn head_value(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<
     }
 }
 
-pub(super) fn relation(
+pub(crate) fn relation(
     module: &TypedModule,
     f: &TypedFunction,
     b: &mut Budget,
@@ -166,13 +166,14 @@ pub(super) fn relation(
         .iter()
         .map(|local| f.locals[local.0 as usize].ty.clone())
         .collect::<Vec<_>>();
-    function_relation_in_module(
+    function_relation_resource_scopes(
         &parameters,
         &f.return_type,
         c,
         !module.closures.is_empty(),
         module,
         false,
+        b,
     )?;
     Ok(true)
 }
@@ -195,20 +196,33 @@ pub(crate) fn module(module: &TypedModule, limits: &Limits, b: &mut Budget) -> C
         || b.store_option_results
         || b.stored_slot_updates
         || b.stored_enum_addresses
-        || b.borrowed_function_pointers
     {
         return Ok(false);
     }
     if !module.closures.is_empty() && b.task_input_scopes.is_none() {
         b.task_input_scopes = Some(input_scope::build(module, limits, b)?);
     }
+    // Presence of a callback role is not a stored data domain. Every actual
+    // closure must still have a complete known-zero environment; real borrowed
+    // function pointer types are independently rejected by head_value below.
+    for closure in &module.closures {
+        if input_scope::domain(&Type::Closure(closure.id), b)? != Domain::Known(0) {
+            return Ok(false);
+        }
+    }
     for function in &module.functions {
+        if let Some(claim) = &function.callable_contract
+            && crate::helpers::requires_stored_capture_cfg(module, function, claim, b)?
+        { return Ok(false); }
         // A returned borrow needs the corresponding result/source kernel;
         // an input-only directory cannot certify it by omitting a result row.
         if matches!(function.return_type, Type::Address { .. } | Type::Desc(_)) {
             return Ok(false);
         }
-        if function.storage_life.is_some() && !relation(module, function, b)? {
+        if function.storage_life.is_some()
+            && !input_scope::checked_empty_function(function, b)?
+            && !relation(module, function, b)?
+        {
             return Ok(false);
         }
         for ty in function

@@ -32,11 +32,13 @@ impl CheckedContext {
                         SemanticRequirementRecipe::LifeEqual{left,right}=>{
                             let left=self.life(module,left,environment,b)?;let right=self.life(module,right,environment,b)?;
                             b.spend(1)?;
+                            b.spend(1)?;self.invalidate_closed_frames();
                             self.premises.borrow_mut().entry(key).or_default().relations.equalities.push((left,right));
                         }
                         SemanticRequirementRecipe::Outlives{longer,shorter}=>{
                             let longer=self.life(module,longer,environment,b)?;let shorter=self.life(module,shorter,environment,b)?;
                             b.spend(1)?;
+                            b.spend(1)?;self.invalidate_closed_frames();
                             self.premises.borrow_mut().entry(key).or_default().relations.outlives.push((longer,shorter));
                         }
                         _=>{}
@@ -47,13 +49,14 @@ impl CheckedContext {
             Ok(())
         })();
         if result.is_err()&&mode==RequirementMode::DeclarationPremise {
+            self.invalidate_closed_frames();
             let mut graph=self.premises.borrow_mut();
             if let Some(previous)=previous {graph.insert(key,previous);}else{graph.remove(&key);}
         }
         result
     }
     fn requirement(&self,module:&TypedModule,recipe:&SemanticRequirementRecipe,environment:&EvalEnv,mode:RequirementMode,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
-        dynamic_metadata::recipe(recipe,b)?;
+        dynamic_metadata::bounds_recipe(recipe,b)?;
         match recipe {
             SemanticRequirementRecipe::LifeEqual{left,right}=>{
                 let left=self.life(module,left,environment,b)?;let right=self.life(module,right,environment,b)?;
@@ -110,6 +113,7 @@ impl CheckedContext {
         let key=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
         if mode==RequirementMode::DeclarationPremise {
             b.spend(1)?;
+            b.spend(1)?;self.invalidate_closed_frames();
             self.premises.borrow_mut().entry(key).or_default().external.push(request);
             return Ok(());
         }

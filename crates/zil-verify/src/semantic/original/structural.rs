@@ -4,6 +4,23 @@
 use super::*;
 
 impl CheckedOriginal {
+    pub(super) fn proof_environment(&self,fallback:&Env,b:&mut Budget)->Check<Env>{
+        let source=self.premise_environment.as_ref().unwrap_or(fallback);
+        self.copy_environment(source,b)
+    }
+    pub(super) fn copy_environment(&self,source:&Env,b:&mut Budget)->Check<Env>{
+        b.spend(source.lexical.len().saturating_add(source.bounds.len()).saturating_add(source.invocation.len()))?;
+        let empty=Env{lexical:vec![],bounds:vec![],invocation:vec![],self_type:None};
+        for frame in &source.lexical{
+            // Pay for complete terms before copying; preserve the actual
+            // mixed ordinals, declaration identities and lifetime frames.
+            self.apply_arguments(&frame.actuals,&empty,0,b)?;
+            self.apply_arguments(&frame.environment,&empty,0,b)?;
+        }
+        for bound in &source.bounds{b.spend(bound.len())?;}
+        if let Some((_,ty))=&source.self_type{self.apply_type(ty,&empty,b)?;}
+        Ok(source.clone())
+    }
     pub(super) fn structural_premise(
         &mut self,
         module: &TypedModule,
@@ -16,7 +33,7 @@ impl CheckedOriginal {
     ) -> Check<bool> {
         let caller = env.current()?;
         if self.current != Some(caller) {
-            return Err(bad("structural premise query has no actual original caller context"));
+            return Err(bad(&format!("structural premise query has no actual original caller context [active {:?}, environment {caller:?}, bound {bound:?}, receiver {}]",self.current,type_category(ty))));
         }
         let ty = self.resolved(ty, b)?;
         if has_infer(&ty, &self.substitutions, b)? {
@@ -222,4 +239,45 @@ fn has_infer(ty: &Ty, substitutions: &BTreeMap<u64, Ty>, b: &mut Budget) -> Chec
         }
     }
     Ok(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn selected_provider_constraints_are_not_original_caller_premises() {
+        let limits=Limits::default();
+        let (original,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        for (has_bound,wrong_scope,accept) in [(true,false,true),(false,false,false),(true,true,false)] {
+            let mut module=original.clone();
+            let program=module.semantic.as_mut().unwrap();
+            let provider=program.definitions.iter_mut().find(|row|row.kind==SemanticDefinitionKind::Function&&matches!(row.parameters.as_slice(),[SemanticFormal::Type{..}])).unwrap();
+            let provider_id=provider.id;
+            let formal=SemanticTypeRecipe::Formal(SemanticFormalRef{scope:SemanticScopeRef::Ancestor(0),ordinal:0});
+            let requirement=SemanticRequirementRecipe::Structural{ty:formal,bound:DynStructuralBound::StoreElement};
+            provider.parameters=vec![SemanticFormal::Type{requirements:vec![requirement.clone()]}];
+            provider.requirements.clear();
+            let mut caller=provider.clone();
+            caller.id.index=program.definitions.iter().filter(|row|row.id.module==provider_id.module).map(|row|row.id.index).max().unwrap()+1;
+            caller.identity.declaration_path.push("independent_provider_caller".into());
+            caller.parameters=vec![SemanticFormal::Type{requirements:if has_bound{vec![requirement.clone()]}else{vec![]}}];
+            let caller_id=caller.id;
+            program.definitions.push(caller);
+            let mut budget=Budget::new(&limits);
+            let context=CheckedContext::catalogue(&module,&mut budget).unwrap();
+            let mut active=ActiveQueries::new();
+            let mut checked=CheckedOriginal::default();
+            checked.current=Some(caller_id);
+            let caller=checked.environment(&module,&context,caller_id,&mut active,&mut budget).unwrap();
+            let mut selected=checked.environment(&module,&context,provider_id,&mut active,&mut budget).unwrap();
+            selected.lexical[0].actuals=vec![Arg::Type(Ty::Variable(if wrong_scope{provider_id}else{caller_id},0))];
+            for nested in [false,true] {
+                checked.premise_environment=if nested{Some(caller.clone())}else{None};
+                let result=checked.obligation(&module,&context,&requirement,&selected,if nested{&selected}else{&caller},&mut active,&mut budget);
+                assert_eq!(result.is_ok(),accept,"bound={has_bound}, wrong_scope={wrong_scope}, nested={nested}: {result:?}");
+                assert_eq!(checked.premise_environment.is_some(),nested);
+            }
+        }
+    }
 }

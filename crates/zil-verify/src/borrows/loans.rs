@@ -433,9 +433,11 @@ fn reconstruct(
                                 ) {
                                     flow.roots[id] = vec![Root::Local(*local)];
                                 }
-                                if matches!(f.locals[local.0 as usize].ty, Type::Closure(_)) {
-                                    // The new loan qualifies the environment position.
-                                    // Its captured loans retain their own permissions.
+                                if matches!(f.locals[local.0 as usize].ty, Type::Closure(_)|Type::MutexGuard{..}) {
+                                    // The fresh loan qualifies this real local
+                                    // head. Captured/guard-retained manager loans
+                                    // keep their own existing permissions; Hold
+                                    // provenance cannot upgrade their mode.
                                     flow.roots[id] = vec![Root::Local(*local)];
                                     if let Some(held) = state.get(local) {
                                         join(&mut row, held, budget)?;

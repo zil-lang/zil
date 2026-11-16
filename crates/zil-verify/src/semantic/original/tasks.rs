@@ -42,7 +42,7 @@ impl CheckedOriginal {
                 let actual = self.argument(
                     module, context, argument, &parameter, *mode, env, bindings, active, b,
                 )?;
-                self.unify(&actual, &parameter, b)?;
+                self.relate_value(&actual, &parameter, b)?;
                 let actual = self.resolved(&actual, b)?;
                 self.structural_obligation(
                     module,
@@ -297,21 +297,15 @@ impl CheckedOriginal {
                 "static Task worker cannot manufacture a sealed closure environment",
             ));
         }
-        let written = types.map_or_else(
-            || mixed.map_or(0, <[CoreGenericArgument<SemanticTypeRecipe>]>::len),
-            <[SemanticTypeRecipe]>::len,
-        );
-        if written > definition.parameters.len() {
-            return Err(bad("Task worker has excess full-ordinal actuals"));
-        }
+        let written_slots = Self::written_original_slots(&definition.parameters, types, mixed, b)?;
         let mut selected = self.environment(module, context, worker, active, b)?;
         let mut arguments = Vec::new();
         for (ordinal, formal) in definition.parameters.iter().enumerate() {
             b.spend(1)?;
-            let value = if let Some(ty) = types.and_then(|types| types.get(ordinal)) {
+            let value = if let Some(ty) = types.and_then(|types| written_slots[ordinal].and_then(|index| types.get(index))) {
                 Some(Arg::Type(self.ty(module, context, ty, caller, active, b)?))
             } else {
-                match mixed.and_then(|mixed| mixed.get(ordinal)) {
+                match mixed.and_then(|mixed| written_slots[ordinal].and_then(|index| mixed.get(index))) {
                     Some(CoreGenericArgument::Type(ty)) => {
                         Some(Arg::Type(self.ty(module, context, ty, caller, active, b)?))
                     }

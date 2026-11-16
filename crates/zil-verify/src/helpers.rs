@@ -1134,7 +1134,7 @@ pub(super) fn check_module(
                 borrowed_fp::signature_work(&definition.parameters, &definition.result, budget)?;
                 if let Some(actual) = &definition.storage_life {
                     crate::signature_life::charge(actual, budget)?;
-                    crate::signature_life::closure_relation(
+                    crate::signature_life::closure_relation_resource_scopes(
                         module,
                         &definition.parameters,
                         &definition.captures,
@@ -1142,13 +1142,12 @@ pub(super) fn check_module(
                         super::stored_callables::life_result(definition),
                         life,
                         Some(f.span),
+                        budget,
                     )?;
-                    if life != actual {
-                        return Err(unsupported(
-                            "captured Fixed helper role needs its actual capture mapping",
-                            Some(f.span),
-                        ));
-                    }
+                    // Persistent captures remain rigid; each concrete call
+                    // independently checks the role's private invocation
+                    // equations against this entry and its actual operands.
+                    crate::signature_life::role_relation(module,definition,life,Some(f.span),budget)?;
                 } else {
                     borrowed_fp::relation(
                         &definition.parameters,

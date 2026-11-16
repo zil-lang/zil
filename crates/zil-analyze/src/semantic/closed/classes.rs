@@ -141,7 +141,7 @@ impl Check<'_, '_> {
             SemanticTypeRecipe::Atom(ty)
                 if ty.is_b0_scalar() || matches!(ty, Type::ForeignHandle | Type::ByteBuffer) =>
             {
-                Ok(value::scalar(ty.clone()))
+                value::borrowed_scalar(ty, self.inventory, b)
             }
             SemanticTypeRecipe::Exact(exact)
                 if (exact.ty == crate::generic_mutex::error_type()
@@ -149,8 +149,7 @@ impl Check<'_, '_> {
                     && empty(&exact.life)
                     && exact.classes.is_empty() =>
             {
-                crate::dyn_metadata::ty(&exact.ty, b)?;
-                Ok(value::scalar(exact.ty.clone()))
+                value::borrowed_scalar(&exact.ty, self.inventory, b)
             }
             SemanticTypeRecipe::Slice(element) => {
                 let element = self.recipe_value(instance, element, b, depth + 1)?;
@@ -159,9 +158,7 @@ impl Check<'_, '_> {
                         "original Slice needs its complete element occurrence embedding",
                     ));
                 }
-                Ok(value::scalar(Type::Slice {
-                    element: Box::new(element.ty),
-                }))
+                value::unary(geometry::Unary::Slice, element, b)
             }
             SemanticTypeRecipe::Formal(reference) => {
                 let context = self.ancestor(instance, reference.scope, b)?;
@@ -216,7 +213,7 @@ impl Check<'_, '_> {
                 let child = self.recipe_value(instance, inner, b, depth + 1)?;
                 if !empty(&child.life)
                     || !child.classes.is_empty()
-                    || !matches!(child.ty,Type::Slice{element} if element.as_ref()==&Type::U8)
+                    || !matches!(&child.ty,Type::Slice{element} if element.as_ref()==&Type::U8)
                 {
                     return Err(unknown(
                         "original static address needs its complete inner occurrence proof",
@@ -261,27 +258,19 @@ impl Check<'_, '_> {
                         "semantic resource constructor needs complete child retained and phantom class transport",
                     ));
                 }
-                let ty = match recipe {
-                    SemanticTypeRecipe::Managed(_) => Type::Managed(Box::new(child.ty)),
-                    SemanticTypeRecipe::OwnedStore(_) => Type::OwnedStore {
-                        element: Box::new(child.ty),
-                    },
-                    SemanticTypeRecipe::Mutex(_) => Type::Mutex {
-                        payload: Box::new(child.ty),
-                    },
-                    SemanticTypeRecipe::Registration(_) => Type::Registration {
-                        environment: Box::new(child.ty),
-                    },
-                    SemanticTypeRecipe::AsyncRegistration(_) => Type::AsyncRegistration {
-                        environment: Box::new(child.ty),
-                    },
+                let kind = match recipe {
+                    SemanticTypeRecipe::Managed(_) => geometry::Unary::Managed,
+                    SemanticTypeRecipe::OwnedStore(_) => geometry::Unary::OwnedStore,
+                    SemanticTypeRecipe::Mutex(_) => geometry::Unary::Mutex,
+                    SemanticTypeRecipe::Registration(_) => geometry::Unary::Registration,
+                    SemanticTypeRecipe::AsyncRegistration(_) => geometry::Unary::AsyncRegistration,
                     _ => {
                         return Err(fail(
                             "semantic resource constructor changed its original family",
                         ));
                     }
                 };
-                Ok(value::scalar(ty))
+                value::unary(kind, child, b)
             }
             SemanticTypeRecipe::Desc {
                 lifetime: SemanticOuterLifeRecipe::Class(life),
@@ -289,31 +278,12 @@ impl Check<'_, '_> {
             } => {
                 let child = self.recipe_value(instance, inner, b, depth + 1)?;
                 let class = self.life(instance, life, b, depth + 1)?;
-                let mut result = value::address(false, class, child, b)?;
-                let Type::Address { inner, .. } = result.ty else {
-                    return Err(fail("semantic description loses its exact payload"));
-                };
-                result.ty = Type::Desc(inner);
-                result
-                    .life
-                    .slots
-                    .get_mut(0)
-                    .ok_or_else(|| fail("semantic description loses its weak outer occurrence"))?
-                    .mode = StoredBorrowMode::WritableDescription;
-                Ok(result)
+                value::description(class, child, b)
             }
             SemanticTypeRecipe::ErrorUnion { error, result } => {
                 let error = self.recipe_value(instance, error, b, depth + 1)?;
                 let result = self.recipe_value(instance, result, b, depth + 1)?;
-                if !error.classes.is_empty() || !result.classes.is_empty() {
-                    return Err(unknown(
-                        "original ErrorUnion requires complete active-arm class transport",
-                    ));
-                }
-                Ok(value::scalar(Type::ErrorUnion {
-                    error: Box::new(error.ty),
-                    result: Box::new(result.ty),
-                }))
+                value::error_union(error, result, b)
             }
             SemanticTypeRecipe::Code { kind, signature } => {
                 if signature.bound_lifetimes != 0
@@ -341,7 +311,7 @@ impl Check<'_, '_> {
                             "original Code parameter requires complete scoped class transport",
                         ));
                     }
-                    self.push_value(&mut parameters, parameter.ty, b)?;
+                    self.push_value(&mut parameters, parameter.into_type(b)?, b)?;
                 }
                 let result = self.recipe_value(instance, &signature.result, b, depth + 1)?;
                 if !result.classes.is_empty() {
@@ -352,11 +322,11 @@ impl Check<'_, '_> {
                 Ok(value::scalar(match kind {
                     SemanticCodeKind::FunctionPointer => Type::FunctionPointer {
                         parameters,
-                        result: Box::new(result.ty),
+                        result: Box::new(result.into_type(b)?),
                     },
                     SemanticCodeKind::ForeignCallback => Type::ForeignCallback {
                         parameters,
-                        result: Box::new(result.ty),
+                        result: Box::new(result.into_type(b)?),
                     },
                     SemanticCodeKind::BorrowedFunctionPointer => {
                         return Err(unknown(
@@ -379,10 +349,7 @@ impl Check<'_, '_> {
                 let length = u32::try_from(length).map_err(|_| {
                     original::resource("original array length exceeds its physical representation")
                 })?;
-                Ok(value::scalar(Type::Array {
-                    element: Box::new(element.ty),
-                    length,
-                }))
+                value::unary(geometry::Unary::Array(length), element, b)
             }
             SemanticTypeRecipe::Tuple(fields) => {
                 if fields.is_empty() {
@@ -396,9 +363,9 @@ impl Check<'_, '_> {
                             "original tuple requires its complete retained class embedding",
                         ));
                     }
-                    self.push_value(&mut types, field.ty, b)?;
+                    self.push_value(&mut types, field, b)?;
                 }
-                Ok(value::scalar(Type::Tuple(types)))
+                value::tuple(types, b)
             }
             SemanticTypeRecipe::Opaque {
                 definition,
@@ -454,13 +421,19 @@ impl Check<'_, '_> {
             }
         }
     }
+    #[track_caller]
     pub(super) fn push_value<T>(
         &self,
         out: &mut Vec<T>,
         value: T,
         b: &mut Budget,
     ) -> CompileResult<()> {
-        b.spend(out.len().saturating_add(1), WORK)?;
+        let relocation = if out.len() == out.capacity() {
+            out.len()
+        } else {
+            0
+        };
+        b.spend(relocation.saturating_add(1), WORK)?;
         out.try_reserve(1)
             .map_err(|_| fail("complete original value allocation failed"))?;
         out.push(value);
@@ -496,7 +469,7 @@ impl Check<'_, '_> {
                     return Err(fail("semantic constant has another complete carrier"));
                 }
                 Ok(Argument::Const {
-                    carrier: carrier.ty,
+                    carrier: carrier.into_type(b)?,
                     value: constant.clone(),
                 })
             }
@@ -587,7 +560,7 @@ impl Check<'_, '_> {
                     return Err(fail("original constant recipe has another actual carrier"));
                 }
                 Ok(Argument::Const {
-                    carrier: carrier.ty,
+                    carrier: carrier.into_type(b)?,
                     value: constant.clone(),
                 })
             }
@@ -647,28 +620,65 @@ impl Check<'_, '_> {
     /// external image or generating a memory root. Each local class receives
     /// its own token while reconstructing the original application.
     pub(super) fn nominal_inventory(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
-        let mut selected = None;
-        for (index, instance) in self.module.life_instances.iter().enumerate() {
-            crate::dyn_metadata::ty(&instance.ty, b)?;
-            crate::dyn_metadata::ty(ty, b)?;
-            if instance.ty == *ty && selected.replace((index, instance)).is_some() {
-                return Err(fail("nominal type has duplicate exact inventory entries"));
-            }
+        self.nominal_inventory_source(ty, b).map(|_| ())
+    }
+    pub(super) fn nominal_inventory_source(
+        &self,
+        ty: &Type,
+        b: &mut Budget,
+    ) -> CompileResult<(SemanticDefinitionId, Vec<Argument>)> {
+        self.nominal_inventory_source_at(ty, b, 0)
+    }
+    pub(super) fn nominal_inventory_source_at(
+        &self,
+        ty: &Type,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<(SemanticDefinitionId, Vec<Argument>)> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "actual nominal exceeds its complete substitution depth",
+            ));
         }
-        let (index, instance) =
-            selected.ok_or_else(|| fail("nominal type has no complete actual inventory"))?;
+        let source_life = match ty { Type::BorrowedStorage { life, .. } => Some(life), _ => None };
+        let geometry = self.inventory.geometry.type_value(ty, source_life, b)?;
+        let index =
+            crate::stored_flow::nominal_instance_index(self.module, &geometry.ty, self.inventory.limits, b)?;
+        let instance = &self.module.life_instances[index];
         let index = u32::try_from(index).map_err(|_| fail("nominal inventory ordinal overflow"))?;
-        let mut definition = None;
-        for candidate in self.inventory.definitions.values() {
-            b.spend(1, WORK)?;
-            if matches!(candidate.body,SemanticDefinitionBody::Nominal {declaration,..} if declaration==instance.declaration)
-                && definition.replace(candidate.id).is_some()
-            {
-                return Err(fail("nominal type has ambiguous original definitions"));
+        let cached = {
+            let cache = self.nominal_definitions.borrow();
+            b.lookup(cache.len(), WORK)?;
+            cache.get(&instance.declaration).copied()
+        };
+        let definition = if let Some(definition) = cached {
+            definition
+        } else {
+            let mut selected = None;
+            for candidate in self.inventory.definitions.values() {
+                b.spend(1, WORK)?;
+                if matches!(candidate.body,SemanticDefinitionBody::Nominal {declaration,..} if declaration==instance.declaration)
+                    && selected.replace(candidate.id).is_some()
+                {
+                    return Err(fail("nominal type has ambiguous original definitions"));
+                }
             }
+            let definition =
+                selected.ok_or_else(|| fail("nominal type has no full original definition"))?;
+            let mut cache = self.nominal_definitions.borrow_mut();
+            b.lookup(cache.len(), WORK)?;
+            cache.insert(instance.declaration, definition);
+            definition
+        };
+        // Only identity lookup was reused. Every current scope, complete
+        // argument image and intrinsic N/kappa is reconstructed below.
+        if !matches!(self.inventory.definition(definition, b)?.body, SemanticDefinitionBody::Nominal { declaration, .. } if declaration == instance.declaration)
+        {
+            return Err(fail(
+                "nominal inventory changes its exact original declaration",
+            ));
         }
-        let definition =
-            definition.ok_or_else(|| fail("nominal type has no full original definition"))?;
         let life = match ty {
             Type::BorrowedStorage { life, .. } => life.clone(),
             _ => value::empty(),
@@ -686,13 +696,12 @@ impl Check<'_, '_> {
                     value: constant.clone(),
                 },
                 LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. } => {
-                    let shape = match argument {
-                        LifeNominalActual::QualifiedType { life, .. } => life.clone(),
-                        _ => match ty {
-                            Type::BorrowedStorage { life, .. } => life.clone(),
-                            _ => value::empty(),
-                        },
+                    let source_life = match argument {
+                        LifeNominalActual::QualifiedType { life, .. } => Some(life),
+                        _ => match ty { Type::BorrowedStorage { life, .. } => Some(life), _ => None },
                     };
+                    let geometry = self.inventory.geometry.type_value(ty, source_life, b)?;
+                    let shape = &geometry.life;
                     let mut classes = Vec::new();
                     for child in 0..shape.binder_count {
                         let mut mapped = None;
@@ -715,38 +724,39 @@ impl Check<'_, '_> {
                         }
                         self.push_value(&mut classes, Class::Nominal(index, binder), b)?;
                     }
-                    Argument::Type(Value {
-                        ty: ty.clone(),
-                        life: shape,
-                        classes,
-                    })
+                    Argument::Type(Value::from_geometry(geometry, classes))
                 }
                 _ => return Err(fail("nominal actual has no complete local domain")),
             };
             self.push_value(&mut args, argument, b)?;
         }
-        if self.nominal_value(definition, &args, b, 0)?.ty != *ty {
+        if self.nominal_value(definition, &args, b, depth)?.ty != *ty {
             return Err(fail(
                 "nominal inventory differs from full original substitution",
             ));
         }
-        Ok(())
+        Ok((definition, args))
     }
     pub(super) fn has_ghost_capture(&self, id: ClosureId, b: &mut Budget) -> CompileResult<bool> {
         b.spend(self.module.closures.len().saturating_add(1), WORK)?;
-        Ok(self
-            .module
-            .closures
-            .get(id.0 as usize)
+        let definition = self.module.closures.get(id.0 as usize)
             .filter(|definition| definition.id == id)
-            .is_some_and(|definition| {
-                definition
-                    .captures
-                    .iter()
-                    // This only selects the stronger complete source-environment
-                    // proof; it supplies no class count or memory permission.
-                    .any(|ty| !ty.is_b0_scalar()&&!matches!(ty,Type::Address {mutable:false,inner} if inner.is_b0_scalar()))
-            }))
+            .ok_or_else(|| fail("capture transport has no actual closure definition"))?;
+        b.spend(definition.captures.len(), WORK)?;
+        if definition.captures.iter().any(|ty| !ty.is_b0_scalar()
+            && !matches!(ty, Type::Address { mutable: false, inner } if inner.is_b0_scalar()))
+        { return Ok(true); }
+        // A moved reference has the complete class of the original lexical
+        // value. It is not an extra implicit Address borrowing a scalar slot.
+        // Metadata only selects the stronger all-creators proof; it cannot
+        // establish either mode, the source class or a captured permission.
+        for world in self.function_worlds(definition.function, b)? {
+            b.spend(world.header_embedding.len(), WORK)?;
+            if world.header_embedding.iter().any(|row| matches!(row.header, StorageBinder::Fixed(_))
+                && !matches!(row.actual, SemanticClassExpr::Implicit { scope: SemanticScopeRef::Ancestor(0), .. }))
+            { return Ok(true); }
+        }
+        Ok(false)
     }
     pub(super) fn defining<'a>(
         &self,
@@ -754,18 +764,15 @@ impl Check<'_, '_> {
         value: ValueId,
         b: &mut Budget,
     ) -> CompileResult<(BlockId, usize, &'a Instruction)> {
-        let mut selected = None;
-        for block in &function.blocks {
-            for (index, instruction) in block.instructions.iter().enumerate() {
-                b.spend(1, WORK)?;
-                if instruction.result == Some(value)
-                    && selected.replace((block.id, index, instruction)).is_some()
-                {
-                    return Err(fail("semantic SSA value has multiple definitions"));
-                }
-            }
-        }
-        selected.ok_or_else(|| fail("semantic SSA value has no actual definition"))
+        let definition = crate::shared_definition(function, value, b)?;
+        let instruction = function
+            .blocks
+            .get(definition.block.0 as usize)
+            .filter(|block| block.id == definition.block)
+            .and_then(|block| block.instructions.get(definition.instruction))
+            .filter(|instruction| instruction.result == Some(value))
+            .ok_or_else(|| fail("semantic SSA definition differs from its actual instruction"))?;
+        Ok((definition.block, definition.instruction, instruction))
     }
     pub(super) fn capture_value_origin(
         &self,
@@ -964,7 +971,10 @@ impl Check<'_, '_> {
                 && !matches!(ty,Type::BorrowedStorage {life,..} if life.slots.is_empty())
                 && !matches!(ty, Type::Address { .. } | Type::Desc(_))
             {
-                self.zero_data(ty, b, 0)?;
+                // Complete capture rows above already retain nonzero child
+                // domains. Classify that exact child without reinterpreting
+                // an opaque Closure/Package as a zero-domain environment.
+                self.ordinary_type(ty, b)?;
             }
         }
         if used_slots.len()
@@ -1124,9 +1134,13 @@ impl Check<'_, '_> {
                 }
                 let header = self.header_class(instance, binder, b)?;
                 if header != *class {
-                    return Err(fail(
-                        "captured class differs from the sealed original environment",
-                    ));
+                    b.spend(192, WORK)?;
+                    let mut errors = fail("captured class differs from the sealed original environment");
+                    errors[0].notes.push(format!(
+                        "capture world {}:{} definition {}:{} entry {} capture {} child {} binder {:?}: original {:?}, actual header {:?}",
+                        instance.id.module.0, instance.id.index, instance.definition.module.0,
+                        instance.definition.index, closure.function.0, capture, child, binder, class, header));
+                    return Err(errors);
                 }
                 let slot = directory
                     .get_mut(index as usize)
@@ -1230,7 +1244,7 @@ impl Check<'_, '_> {
             .values
             .get(id.0 as usize)
             .ok_or_else(|| fail("semantic value transport selects an absent SSA"))?;
-        crate::dyn_metadata::ty(ty, b)?;
+        self.inventory.geometry.check_type(ty, b)?;
         if ty.is_b0_scalar() {
             return Ok(value::scalar(ty.clone()));
         }
@@ -1249,7 +1263,7 @@ impl Check<'_, '_> {
                 // The count selects a proof obligation, never proves it:
                 // reconstruct every real capture and original environment.
                 self.zero_data(ty, b, 0)?;
-                return Ok(value::scalar(ty.clone()));
+                return value::borrowed_scalar(ty, self.inventory, b);
             }
         }
         if matches!(
@@ -1263,14 +1277,14 @@ impl Check<'_, '_> {
                 | Type::Package { .. }
                 | Type::Enum { .. }
                 | Type::ErrorUnion { .. }
-        ) {
+        ) && !self.dyn_sum_type(ty, b)? {
             // A complete independent zero-domain reconstruction needs no
             // predecessor SSA class equation. Actual initialization, source,
             // loans and cleanup remain obligations of each operation/kernel.
             // This is not an empty-shape shortcut: zero_data walks the full
             // nominal/opaque inventory and rejects nonzero or Unknown scopes.
             self.zero_data(ty, b, 0)?;
-            return Ok(value::scalar(ty.clone()));
+            return value::borrowed_scalar(ty, self.inventory, b);
         }
         if depth > b.partial_depth {
             let mut errors =
@@ -1288,6 +1302,11 @@ impl Check<'_, '_> {
             return Ok(value);
         }
         match &instruction.kind {
+            InstructionKind::CallDynSlot { .. } => self.trait_result(instance, function, block, index, b)?
+                .ok_or_else(|| fail("dynamic result has no exact original member call receipt")),
+            InstructionKind::MakeDynOwned { .. } => self.dyn_owned_result(instance, function, block, index, b),
+            InstructionKind::BorrowDynOwned { local, mutable } => self.dyn_owned_borrow(
+                instance, function, id, *local, *mutable, (block, index), b, depth + 1),
             InstructionKind::StaticUtf8 { bytes } => {
                 b.spend(bytes.len().saturating_add(1), WORK)?;
                 if !original::strings::is_byte_type(ty) {
@@ -1295,7 +1314,7 @@ impl Check<'_, '_> {
                         "actual UTF8 literal changes its complete immutable byte-view type",
                     ));
                 }
-                Ok(value::scalar(ty.clone()))
+                value::borrowed_scalar(ty, self.inventory, b)
             }
             InstructionKind::OwnedStoreNew { .. }
             | InstructionKind::OwnedStoreReserve { .. }
@@ -1322,11 +1341,83 @@ impl Check<'_, '_> {
             | InstructionKind::WithScopedThread { .. } => {
                 self.synchronization_result(instance, function, block, index, b)
             }
-            InstructionKind::CallClosureBorrowed { .. } => self
-                .abstract_operation(instance, function, block, index, b)?
-                .ok_or_else(|| {
-                    unknown("borrowed callable result has no complete original invocation role")
-                }),
+            InstructionKind::CallClosure { callee, .. }
+            | InstructionKind::CallClosureOnce { callee, .. } => {
+                let receiver = self.ssa_value(instance, function, *callee, b, depth + 1)?;
+                self.static_closure_result(instance, block, index, &receiver.ty, ty, b)
+            }
+            InstructionKind::CallClosureShared { callee, .. }
+            | InstructionKind::CallClosureMut { callee, .. } => {
+                let receiver = self.local_value(instance, function, *callee,
+                    (block, index), b, depth + 1)?;
+                self.static_closure_result(instance, block, index, &receiver.ty, ty, b)
+            }
+            InstructionKind::CallClosureBorrowed { callee, .. } => {
+                if let Some(result) = self.abstract_operation(instance, function, block, index, b)? {
+                    return Ok(result);
+                }
+                let receiver = self.ssa_value(instance, function, *callee, b, depth + 1)?;
+                let Type::Address { inner, .. } = &receiver.ty else {
+                    return Err(fail("borrowed known callable result has no actual environment address"));
+                };
+                if !matches!(inner.as_ref(), Type::Closure(_)) {
+                    return Err(fail("borrowed known callable result changes its actual closure identity"));
+                }
+                // BodyCall separately proves the exact original lexical place,
+                // requested mode, fresh borrow and whole pointee class value.
+                self.static_closure_result(instance, block, index, inner, ty, b)
+            },
+            InstructionKind::LoadStoredBorrow { storage, path, mode } => {
+                operations::available_before(function, (block, index, SemanticSiteEdge::Before), *storage, b)?;
+                let root = self.ssa_value(instance, function, *storage, b, depth + 1)?;
+                let mut selected = if matches!(root.ty, Type::Address { .. }) {
+                    self.pointee(&root, b)?
+                } else { return Err(fail("stored reference read has no actual addressed aggregate source")); };
+                for projection in path {
+                    let PlaceProjection::Field(field) = projection else {
+                        return Err(unknown("stored reference read needs its complete active Sum/array child source"));
+                    };
+                    selected = self.actual_nominal_field(&selected, *field, b, depth + 1)?;
+                }
+                let valid = match mode {
+                    StoredBorrowLoad::CopyShared => matches!(selected.ty, Type::Address { mutable: false, .. }),
+                    StoredBorrowLoad::CopyDescription => matches!(selected.ty, Type::Desc(_)),
+                    StoredBorrowLoad::Take => matches!(selected.ty, Type::Address { .. } | Type::Desc(_)),
+                    StoredBorrowLoad::Reborrow { .. } => false,
+                };
+                if !valid || !geometry::same_type(&selected.ty, ty, b)? {
+                    return Err(unknown("stored reference read changes its full original type or requires its exact reborrow role"));
+                }
+                // Full actual stored-flow retains current cells, parent loans,
+                // shared/exclusive mode and consuming state independently.
+                Ok(selected)
+            }
+            InstructionKind::TakeVariantField { local, path }
+                if self.dyn_sum_type(&function.locals.get(local.0 as usize)
+                    .ok_or_else(|| fail("Dyn arm extraction has no actual local"))?.ty, b)? =>
+            {
+                self.dyn_owned_local_projection(instance, function, id, *local, path,
+                    (block, index), b, depth + 1)
+            }
+            InstructionKind::ReadVariant { value: parent, variant, index: field } => {
+                self.projected_shared_value(instance, function, id, *parent,
+                    PlaceProjection::Variant(zil_ir::VariantProjection { variant: *variant, index: *field }),
+                    (block, index), b, depth + 1)
+            }
+            InstructionKind::ReadErrorUnion { value: parent, is_error }
+            | InstructionKind::TakeErrorUnion { value: parent, is_error } => {
+                if self.dyn_sum_type(function.values.get(parent.0 as usize)
+                    .ok_or_else(|| fail("actual sum projection has no parent type"))?, b)? {
+                    return self.dyn_owned_projection(instance, function, id, *parent, *is_error,
+                        (block, index), b, depth + 1);
+                }
+                self.projected_shared_value(instance, function, id, *parent,
+                    PlaceProjection::ErrorArm(*is_error), (block, index), b, depth + 1)
+            }
+            InstructionKind::ExtractField { aggregate, index: field } => {
+                self.projected_shared_value(instance, function, id, *aggregate,
+                    PlaceProjection::Field(*field), (block, index), b, depth + 1)
+            }
             InstructionKind::ReborrowAddress { address, mutable } => {
                 if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
                     return Ok(value);
@@ -1391,10 +1482,61 @@ impl Check<'_, '_> {
             InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                 self.local_value(instance, function, *local, (block, index), b, depth + 1)
             }
+            InstructionKind::BorrowCapture { index: capture, mutable } => {
+                if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
+                    return Ok(value);
+                }
+                let closure = function.environment
+                    .and_then(|id| self.module.closures.get(id.0 as usize))
+                    .filter(|entry| entry.function == function.id)
+                    .ok_or_else(|| fail("actual capture borrow has another complete environment entry"))?;
+                if *mutable && closure.kind == CallableKind::Fn {
+                    return Err(fail("actual shared environment cannot mutably borrow a capture"));
+                }
+                let whole = self.capture_whole_value(instance, function, *capture, b, depth + 1)?;
+                if !matches!(ty, Type::Address { mutable: output, inner }
+                    if output == mutable && inner.as_ref() == &whole.ty)
+                {
+                    return Err(fail("actual capture borrow changes its complete child type or mode"));
+                }
+                // A genuine per-operation head is separate from the captured
+                // child's full Fixed domain and grants no access/cleanup fact.
+                value::address(*mutable, Class::Reborrow(function.id, id), whole, b)
+            }
             InstructionKind::ReadCapture { index: capture } | InstructionKind::TakeCapture { index: capture } => {
                 self.capture_whole_value(instance, function, *capture, b, depth + 1)
             }
-            InstructionKind::MakeAggregate { .. } => {
+            InstructionKind::MakeVariant { variant, fields } => {
+                let mut selected = None;
+                for site in &self.program.sites {
+                    b.spend(1, WORK)?;
+                    if site.instance != instance.id
+                        || !matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After }
+                            if actual == block && instruction as usize == index)
+                    { continue; }
+                    let Some(constructor) = self.original.enum_constructor(instance, site.recipe,
+                        self.program, self.inventory, b)? else { continue; };
+                    if constructor.variant != *variant || constructor.payload.len() != fields.len()
+                        || !geometry::same_type(&constructor.result.ty, ty, b)?
+                    { return Err(fail("actual Sum construction changes its complete original variant or result domain")); }
+                    for (operand, expected) in fields.iter().zip(&constructor.payload) {
+                        operations::available_before(function, (block, index, SemanticSiteEdge::Before), *operand, b)?;
+                        if !geometry::same_type(function.values.get(operand.0 as usize)
+                            .ok_or_else(|| fail("actual Sum payload is absent"))?, &expected.ty, b)?
+                            || !self.ssa_value(instance, function, *operand, b, depth + 1)?.equal_paid(expected, b)?
+                        { return Err(fail("actual Sum payload changes its independently checked complete original class value")); }
+                    }
+                    if selected.as_ref().is_some_and(|old| old != &constructor.result) {
+                        return Err(fail("actual Sum constructor has competing original domain occurrences"));
+                    }
+                    selected = Some(constructor.result);
+                }
+                // Inactive alternatives still retain the complete original
+                // phantom/type-argument domain. This transports no payload
+                // address, active tag, owner or permission for an empty arm.
+                selected.ok_or_else(|| fail("class-bearing Sum constructor lacks its exact original occurrence"))
+            }
+            InstructionKind::MakeAggregate { fields } => {
                 let definition = self.inventory.definition(instance.definition, b)?;
                 let SemanticDefinitionBody::FunctionWithBody { sites: recipes, .. } =
                     &definition.body
@@ -1425,13 +1567,48 @@ impl Check<'_, '_> {
                 let expected = selected.ok_or_else(|| {
                     fail("actual constructor has no exact original value occurrence")
                 })?;
-                if expected.ty != *ty
-                    || !expected.life.slots.is_empty()
-                    || !expected.life.retained.is_empty()
-                {
-                    return Err(unknown(
-                        "actual aggregate requires its complete retained child/data class transport",
-                    ));
+                if !geometry::same_type(&expected.ty, ty, b)? {
+                    return Err(fail("actual aggregate changes its complete original physical type"));
+                }
+                let storage = match &expected.ty {
+                    Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                    ty => ty,
+                };
+                let (count, nominal) = match storage {
+                    Type::Record { fields, .. } | Type::Package { fields, .. } => (fields.len(), true),
+                    Type::Tuple(fields) => (fields.len(), false),
+                    Type::Array { length, .. } => (*length as usize, false),
+                    _ => return Err(fail("actual aggregate has another complete constructor layout")),
+                };
+                if count != fields.len() {
+                    return Err(fail("actual aggregate omits an original physical field"));
+                }
+                // The original whole value retains every mixed/phantom class.
+                // Each physical child is proved separately; field equality is
+                // never inferred from a shared image or the parent's head.
+                for (ordinal, operand) in fields.iter().enumerate() {
+                    operations::available_before(function,
+                        (block, index, SemanticSiteEdge::Before), *operand, b)?;
+                    let field = if nominal {
+                        self.actual_nominal_field(&expected, u32::try_from(ordinal)
+                            .map_err(|_| fail("actual aggregate field ordinal overflow"))?, b, depth + 1)?
+                    } else {
+                        let field = match storage {
+                            Type::Tuple(fields) => &fields[ordinal],
+                            Type::Array { element, .. } => element.as_ref(),
+                            _ => unreachable!(),
+                        };
+                        // Class-bearing structural tuples/arrays require their
+                        // own original embedding, rather than invented rows.
+                        self.zero_data(field, b, depth + 1)?;
+                        value::borrowed_scalar(field, self.inventory, b)?
+                    };
+                    let actual = self.ssa_value(instance, function, *operand, b, depth + 1)?;
+                    if !actual.equal_paid(&field, b)?
+                        && !self.outer_role(instance, function, &actual, &field, b, depth + 1)?
+                    {
+                        return Err(fail("actual aggregate child changes its complete original data or directed outer role"));
+                    }
                 }
                 Ok(expected)
             }
@@ -1485,12 +1662,11 @@ impl Check<'_, '_> {
                 closure: id,
                 captures,
             } => {
-                if !self.has_ghost_capture(*id, b)? {
-                    return Err(unknown(
-                        "closure result needs its complete actual borrowed-head transport",
-                    ));
+                if self.has_ghost_capture(*id, b)? {
+                    self.ghost_creator(instance, *id, captures, b)?;
+                } else {
+                    self.creator_heads(instance, *id, captures, b)?;
                 }
-                self.ghost_creator(instance, *id, captures, b)?;
                 if *ty != Type::Closure(*id) {
                     return Err(fail(
                         "actual closure result changes its real constructed identity",
@@ -1547,25 +1723,32 @@ impl Check<'_, '_> {
                         b,
                     )?;
                 }
-                Ok(Value {
-                    ty: ty.clone(),
-                    life: StorageLifeShape {
+                value::borrowed_full(ty, &StorageLifeShape {
                         binder_count: contract.fixed_binder_count,
                         slots: Vec::new(),
                         retained: Vec::new(),
                         nominal_arguments: Vec::new(),
-                    },
-                    classes: complete,
-                })
+                    }, complete, self.inventory, b)
             }
             InstructionKind::Call {
                 function: callee,
                 arguments,
+            }
+            | InstructionKind::SuspendCall {
+                function: callee,
+                arguments,
             } => {
+                let suspend = matches!(instruction.kind, InstructionKind::SuspendCall { .. });
+                let entry = self.inventory.function(&SemanticFunctionTarget::Typed(*callee), b)?;
+                if entry.call_kind != (if suspend { CallKind::Suspend } else { CallKind::Direct })
+                    || entry.foreign.is_some()
+                    || (suspend && function.call_kind != CallKind::Suspend)
+                {
+                    return Err(fail("actual call result changes its original execution convention"));
+                }
                 if let Some(value) = self.trait_result(instance, function, block, index, b)? {
                     return Ok(value);
                 }
-                let target = self.function_instance(*callee, b)?;
                 let expected_parameters =
                     self.static_call_values(instance, function, block, index, *callee, b)?;
                 if expected_parameters.len() != arguments.len() {
@@ -1576,163 +1759,14 @@ impl Check<'_, '_> {
                 let callee = self
                     .inventory
                     .function(&SemanticFunctionTarget::Typed(*callee), b)?;
-                let contract = callee.storage_life.as_ref().ok_or_else(|| {
-                    unknown("class-bearing call result has no complete callee header")
-                })?;
-                let count = match ty {
-                    Type::Closure(id) => {
-                        self.module
-                            .closures
-                            .get(id.0 as usize)
-                            .and_then(|closure| closure.storage_life.as_ref())
-                            .ok_or_else(|| {
-                                unknown("call result closure has no complete intrinsic domain")
-                            })?
-                            .fixed_binder_count
-                    }
-                    Type::BorrowedStorage { life, .. } => life.binder_count,
-                    _ => {
-                        return Err(unknown(
-                            "call result requires its complete outer/static class transport",
-                        ));
-                    }
-                };
-                let mut classes = Vec::new();
-                for child in 0..count {
-                    let mut result = None;
-                    for row in &contract.classes {
-                        b.spend(row.position.path.len() + 1, WORK)?;
-                        if row.position.base == StorageBase::Result
-                            && row.position.path.is_empty()
-                            && row.position.class == child
-                            && result.replace(row.binder).is_some()
-                        {
-                            return Err(fail(
-                                "callee result repeats an intrinsic class occurrence",
-                            ));
-                        }
-                    }
-                    let binder = result
-                        .ok_or_else(|| fail("callee result omits an intrinsic class occurrence"))?;
-                    let mut source = None;
-                    for row in &contract.bindings {
-                        b.spend(row.position.path.len() + 1, WORK)?;
-                        if row.binder != binder {
-                            continue;
-                        }
-                        let StorageBase::Parameter(parameter) = row.position.base else {
-                            continue;
-                        };
-                        if !row.position.path.is_empty() {
-                            return Err(unknown(
-                                "call result requires its complete projected input class transport",
-                            ));
-                        }
-                        let actual = *arguments
-                            .get(parameter as usize)
-                            .ok_or_else(|| fail("callee class input omits an actual argument"))?;
-                        let value = self.ssa_value(instance, function, actual, b, depth + 1)?;
-                        let expected = expected_parameters
-                            .get(parameter as usize)
-                            .ok_or_else(|| fail("callee outer role omits an original input"))?;
-                        if !matches!(expected.ty, Type::Address { .. })
-                            || expected.life.slots.len() != 1
-                            || !expected.life.slots[0].path.is_empty()
-                            || !self.outer_role(
-                                instance,
-                                function,
-                                &value,
-                                expected,
-                                b,
-                                depth + 1,
-                            )?
-                        {
-                            return Err(fail(
-                                "actual input does not satisfy its original outer call role",
-                            ));
-                        }
-                        let class = expected
-                            .classes
-                            .get(expected.life.slots[0].binder as usize)
-                            .cloned()
-                            .ok_or_else(|| fail("original call outer input omits a whole class"))?;
-                        if source.as_ref().is_some_and(|old| old != &class) {
-                            return Err(unknown(
-                                "callee lifetime input needs its complete local role dependency union",
-                            ));
-                        }
-                        source = Some(class);
-                    }
-                    if source.is_none() {
-                        // Fixed/input-class sources require the same exact
-                        // real header occurrence; no result class self-proof.
-                        for row in &contract.classes {
-                            b.spend(row.position.path.len() + 1, WORK)?;
-                            if row.binder != binder {
-                                continue;
-                            }
-                            let StorageBase::Parameter(parameter) = row.position.base else {
-                                continue;
-                            };
-                            let actual = *arguments.get(parameter as usize).ok_or_else(|| {
-                                fail("callee class input omits an actual argument")
-                            })?;
-                            let mut input = self.ssa_value(instance, function, actual, b, depth + 1)?;
-                            let expected = expected_parameters
-                                .get(parameter as usize)
-                                .ok_or_else(|| fail("callee class role omits an original input"))?;
-                            let child;
-                            let expected = if row.position.path.is_empty() {
-                                expected
-                            } else if row.position.path.as_slice() == [LifeTypeProjection::Pointee] {
-                                if !self.outer_role(instance, function, &input, expected, b, depth + 1)? {
-                                    return Err(fail("callee child class input changes its independently proved outer call role"));
-                                }
-                                input = self.pointee(&input, b)?;
-                                child = self.pointee(expected, b)?;
-                                &child
-                            } else {
-                                return Err(unknown("call result child requires its full projected input relation"));
-                            };
-                            if input != *expected {
-                                return Err(fail(
-                                    "actual intrinsic input changes its complete original class domain",
-                                ));
-                            }
-                            let class = expected.classes.get(row.position.class as usize).cloned()
-                                .ok_or_else(|| fail("callee class input is absent from its original whole value"))?;
-                            if source.as_ref().is_some_and(|old| old != &class) {
-                                return Err(unknown(
-                                    "callee class input needs its complete role dependency union",
-                                ));
-                            }
-                            source = Some(class);
-                        }
-                    }
-                    let class=source.ok_or_else(||unknown("callee result class has no independently proved input/static/role source"))?;
-                    self.push_value(&mut classes, class, b)?;
-                }
-                let shape = match ty {
-                    Type::BorrowedStorage { life, .. } => life.clone(),
-                    _ => StorageLifeShape {
-                        binder_count: count,
-                        slots: Vec::new(),
-                        retained: Vec::new(),
-                        nominal_arguments: Vec::new(),
-                    },
-                };
-                // Target context is checked separately; it cannot be replaced
-                // by a same-shaped function or caller's lifetime coincidence.
-                if target.definition != self.inventory.definition(target.definition, b)?.id {
-                    return Err(fail(
-                        "callee class transport changes its original definition",
-                    ));
-                }
-                Ok(Value {
-                    ty: ty.clone(),
-                    life: shape,
-                    classes,
-                })
+                let original_output = if matches!(ty, Type::Address { .. } | Type::Desc(_)
+                    | Type::Closure(_) | Type::Dyn { .. } | Type::OwnedDyn { .. }) || self.dyn_sum_type(ty, b)? {
+                    let output = self.static_call_result(instance, block, index, b)?;
+                    if !geometry::same_type(&output.ty, ty, b)? { return Err(fail("call output changes its complete original head Type")); }
+                    Some(output)
+                } else { None };
+                self.call_output_from_entry(instance, function, (block, index), callee,
+                    arguments, &expected_parameters, ty, original_output, b, depth)
             }
             _ => {
                 let mut errors =
@@ -1761,6 +1795,9 @@ impl Check<'_, '_> {
             .filter(|item| item.id == local)
             .ok_or_else(|| fail("semantic class query selects no actual local type"))?
             .ty;
+        if let Some(value) = self.reference_local_value(instance, function, local, at, b, depth + 1)? {
+            return Ok(value);
+        }
         if let Type::Closure(id) = ty {
             let closure = self
                 .module
@@ -1774,8 +1811,7 @@ impl Check<'_, '_> {
                 .is_some_and(|life| life.fixed_binder_count == 0)
             {
                 self.zero_data(ty, b, 0)?;
-                crate::dyn_metadata::ty(ty, b)?;
-                return Ok(value::scalar(ty.clone()));
+                return value::borrowed_scalar(ty, self.inventory, b);
             }
         }
         if ty.is_b0_scalar()
@@ -1790,14 +1826,17 @@ impl Check<'_, '_> {
                     | Type::ErrorUnion { .. }
                     | Type::FunctionPointer { .. }
                     | Type::ForeignCallback { .. }
-            )
+            ) && !self.dyn_sum_type(ty, b)?
         {
             // A zero-class fact does not depend on which loop iteration last
             // initialized the occupant. Actual initialization and resources
             // are still checked at every consuming operation.
             self.zero_data(ty, b, 0)?;
-            crate::dyn_metadata::ty(ty, b)?;
-            return Ok(value::scalar(ty.clone()));
+            if ty.is_b0_scalar() {
+                crate::dyn_metadata::ty(ty, b)?;
+                return Ok(value::scalar(ty.clone()));
+            }
+            return value::borrowed_scalar(ty, self.inventory, b);
         }
         if depth > b.partial_depth {
             return Err(unknown(
@@ -1807,10 +1846,10 @@ impl Check<'_, '_> {
         // Solve the finite set of reaching local definitions. A CFG backedge
         // does not add type depth or mint a new class; every concrete incoming
         // origin must still produce the same complete value in this world.
-        let initialized = crate::initialize(function, b)?;
+        let initialized = crate::shared_initialization(function, b)?;
         let mut pending = vec![(local, at.0, at.1)];
         let mut seen = BTreeSet::new();
-        let mut selected = None;
+        let mut selected: Option<Value> = None;
         while let Some((local, at_block, end)) = pending.pop() {
             b.lookup(seen.len(), WORK)?;
             if !seen.insert((local, at_block, end)) {
@@ -1908,13 +1947,14 @@ impl Check<'_, '_> {
                 );
             }
             if let Some(value) = origin {
-                crate::dyn_metadata::ty(&value.ty, b)?;
-                crate::dyn_metadata::shape(&value.life, b)?;
+                value.check_geometry(b)?;
                 b.spend(value.classes.len().saturating_add(1), WORK)?;
-                if selected.as_ref().is_some_and(|old| old != &value) {
-                    return Err(unknown(
-                        "semantic local needs its complete joined role/source dependency relation",
-                    ));
+                if let Some(old) = &selected {
+                    if !old.equal_paid(&value, b)? {
+                        return Err(unknown(
+                            "semantic local needs its complete joined role/source dependency relation",
+                        ));
+                    }
                 }
                 selected = Some(value);
             }
@@ -1941,6 +1981,95 @@ impl Check<'_, '_> {
 }
 
 impl Check<'_, '_> {
+    fn static_closure_result(&self, instance: &SemanticInstance,
+        block: BlockId, index: usize, receiver: &Type, ty: &Type,
+        b: &mut Budget) -> CompileResult<Value> {
+        let Type::Closure(id) = receiver else {
+            return Err(fail("concrete closure result has another actual receiver type"));
+        };
+        let closure = self.module.closures.get(id.0 as usize).filter(|row| row.id == *id)
+            .ok_or_else(|| fail("concrete closure result has no actual closure definition"))?;
+        let output = self.static_call_result(instance, block, index, b)?;
+        if !original::strings::is_byte_type(&output.ty) || !empty(&output.life)
+            || !output.classes.is_empty() || !geometry::same_type(&output.ty, ty, b)?
+            || !geometry::same_type(&closure.result, ty, b)?
+        {
+            return Err(unknown("concrete closure result needs its complete non-Static class boundary"));
+        }
+        let target = self.inventory.function(&SemanticFunctionTarget::Typed(closure.function), b)?;
+        let position = StoragePosition { base: StorageBase::Result, path: Vec::new() };
+        let life = target.storage_life.as_ref()
+            .ok_or_else(|| fail("Static closure result has no complete actual header"))?;
+        crate::signature_life::charge(life, b)?;
+        if !life.static_bindings.contains(&position) {
+            return Err(fail("Static closure result loses its exact actual header occurrence"));
+        }
+        let sources = target.retained_return_sources.as_ref()
+            .ok_or_else(|| fail("Static closure result omits its actual source upper"))?;
+        let mut found = false;
+        for row in sources {
+            crate::dyn_metadata::recipe(row, b)?;
+            if row.position == position {
+                if found || !matches!(row.sources.as_slice(), [StorageSource::Static { leaf, mode: StoredBorrowMode::SharedAddress }]
+                    if leaf == ty) {
+                    return Err(fail("Static closure result changes its complete actual source upper"));
+                }
+                found = true;
+            }
+        }
+        if !found { return Err(fail("Static closure result lacks its exact actual source upper")); }
+        // This is a byte-view producer, not a callable factory. Its actual
+        // reachable returns must derive from literal storage; a factory's
+        // capture_sources contract cannot stand in for this result relation.
+        let initialization = crate::shared_initialization(target, b)?;
+        let mut returned = false;
+        for (block, reachable) in target.blocks.iter().zip(&initialization.reachable) {
+            b.spend(1, WORK)?;
+            if !*reachable { continue; }
+            match block.terminator {
+                Terminator::Return(Some(value)) => {
+                    crate::retained::check_dyn_static_return(self.module, target, value, &[], b)?;
+                    returned = true;
+                }
+                Terminator::Return(None) => return Err(fail("Static byte producer omits its actual returned SSA")),
+                _ => {}
+            }
+        }
+        if !returned { return Err(fail("Static byte producer has no grounded actual return")); }
+        Ok(output)
+    }
+
+    pub(super) fn original_static_header(&self, parameters: &[Value], result: &Value,
+        contract: &StorageLifeContract, b: &mut Budget) -> CompileResult<()> {
+        // A class-free byte view is reconstructed here only from an
+        // independently checked Static original type/body, never from N = 0
+        // on the proposed executable header. Actual literal/return provenance
+        // is checked separately by the instruction and retained-source flows.
+        let mut static_positions = BTreeSet::new();
+        for (base, value) in parameters.iter().enumerate()
+            .map(|(index, value)| (StorageBase::Parameter(index as u32), value))
+            .chain(std::iter::once((StorageBase::Result, result)))
+        {
+            if original::strings::is_byte_type(&value.ty) && empty(&value.life)
+                && value.classes.is_empty()
+            {
+                b.lookup(static_positions.len(), WORK)?;
+                static_positions.insert(StoragePosition { base, path: Vec::new() });
+            }
+        }
+        if contract.static_bindings.len() != static_positions.len() {
+            return Err(fail("actual header changes its complete original Static occurrences"));
+        }
+        for position in &contract.static_bindings {
+            b.spend(position.path.len().saturating_add(1), WORK)?;
+            b.lookup(static_positions.len(), WORK)?;
+            if !static_positions.remove(position) {
+                return Err(fail("actual header repeats or invents an original Static occurrence"));
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn header_relation(
         &self,
         instance: &SemanticInstance,
@@ -1973,11 +2102,7 @@ impl Check<'_, '_> {
             return Ok(());
         };
         crate::signature_life::charge(contract, b)?;
-        if !contract.static_bindings.is_empty() {
-            return Err(unknown(
-                "original header static occurrences need their complete actual constant-source proof",
-            ));
-        }
+        self.original_static_header(&parameters, &result, contract, b)?;
         let total = (contract.fixed_binder_count as usize)
             .checked_add(contract.invocation_binder_count as usize)
             .ok_or_else(|| fail("actual header domain count overflow"))?;
@@ -1990,7 +2115,29 @@ impl Check<'_, '_> {
         for row in &instance.header_embedding {
             b.lookup(seen.len(), WORK)?;
             let valid = match row.header {
-                StorageBinder::Fixed(index) => captures && index < contract.fixed_binder_count,
+                StorageBinder::Fixed(index) => {
+                    if index >= contract.fixed_binder_count { false }
+                    else if captures { true }
+                    else {
+                        // A nongeneric invocation cannot invent a Fixed class.
+                        // A complete lexical Type/life formal remains Fixed
+                        // under its actual method/function specialization.
+                        let class = self.header_class(instance, row.header, b)?;
+                        let owner = match class {
+                            Class::Formal(owner, _) | Class::TypeArgument(owner, _, _) => Some(owner),
+                            _ => None,
+                        };
+                        let mut context = Some(instance);
+                        let mut found = false;
+                        for _ in 0..=b.partial_depth {
+                            let Some(current) = context else { break; };
+                            b.spend(1, WORK)?;
+                            if Some(current.id) == owner { found = true; break; }
+                            context = match current.parent { Some(parent) => Some(self.inventory.instance(parent, b)?), None => None };
+                        }
+                        found
+                    }
+                },
                 StorageBinder::Invocation(index) => index < contract.invocation_binder_count,
             };
             if !valid || !seen.insert(row.header) {
@@ -2034,7 +2181,8 @@ impl Check<'_, '_> {
                 }
                 used_bindings += 1;
             }
-            if matches!(value.ty, Type::BorrowedStorage { .. } | Type::Closure(_)) {
+            if matches!(value.ty, Type::BorrowedStorage { .. } | Type::Closure(_)
+                | Type::Dyn { .. } | Type::OwnedDyn { .. }) {
                 for (child, expected) in value.classes.iter().enumerate() {
                     let mut selected = None;
                     for row in &contract.classes {
@@ -2060,9 +2208,11 @@ impl Check<'_, '_> {
                     used_classes += 1;
                 }
             }
-            if matches!(value.ty, Type::Address { .. } | Type::Desc(_)) {
+            if matches!(value.ty, Type::Address { .. } | Type::Desc(_)) || self.dyn_sum_type(&value.ty, b)? {
                 for child in &value.life.retained {
-                    if child.path.as_slice() != [LifeTypeProjection::Pointee] {
+                    if child.path.as_slice() != [LifeTypeProjection::Pointee]
+                        && !(self.dyn_sum_type(&value.ty, b)? && child.path.as_slice() ==
+                            [LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))]) {
                         return Err(unknown(
                             "outer header requires its complete child occurrence path",
                         ));
@@ -2184,6 +2334,9 @@ impl Check<'_, '_> {
             Type::BorrowedStorage { life, .. } => Ok(life.binder_count != 0),
             Type::Address { .. } | Type::Desc(_) => Ok(true),
             Type::MutexGuard { .. } => Ok(true),
+            Type::Dyn { .. } | Type::OwnedDyn { .. } => Ok(value::dyn_domain(ty, self.inventory, b)?.binder_count != 0),
+            Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Dyn { .. } | Type::OwnedDyn { .. }) =>
+                Ok(value::dyn_domain(result, self.inventory, b)?.binder_count != 0),
             Type::Closure(id) => self.has_ghost_capture(*id, b),
             _ => Ok(false),
         }

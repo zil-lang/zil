@@ -78,6 +78,9 @@ fn metadata_cost(
     before: usize,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    if !b.cost_profiling() {
+        return result;
+    }
     b.metadata_cost(kind, caller, before);
     result.map_err(|mut errors| {
         for error in &mut errors {
@@ -244,8 +247,14 @@ pub(super) fn guarantees(values: Option<&[DynGuarantee]>, b: &mut Budget) -> Com
                     path(b, &mut nodes, cap, depth, binding.position.path.len())?;
                     pay(b, &mut nodes, cap, binding.sources.len())?;
                     for atom in &binding.sources {
-                        let source = crate::exact_storage_source(atom)?;
-                        path(b, &mut nodes, cap, depth, source.path.len())?;
+                        if let StorageSource::Static { leaf, .. } = atom {
+                            // Structural preflight only: the actual guarantee
+                            // consumer still proves its mode, leaf and source.
+                            ty(leaf, b)?;
+                        } else {
+                            let source = crate::exact_storage_source(atom)?;
+                            path(b, &mut nodes, cap, depth, source.path.len())?;
+                        }
                     }
                 }
                 DynGuarantee::State {

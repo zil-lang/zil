@@ -501,7 +501,7 @@ fn dyn_type(
                 .any(|mode| *mode != PassingMode::Infer)
             || slot.result_mode != PassingMode::Infer
             || slot.call_kind != CallKind::Direct
-            || !dyn_dispatch::valid_scalar_contract(slot)
+            || !dyn_dispatch::valid_slot_contract(slot, interface)
             || slot.storage_life.as_ref() != Some(&dyn_dispatch::slot_life(slot))
         {
             return Err(invalid(
@@ -519,7 +519,14 @@ fn dyn_type(
         }
         dyn_scalar(&slot.result, bytes, left)?;
         fee(left, 128)?;
-        bytes.extend_from_slice(b"BORROW-DIRECT-INFER-READ0-VALUE-LOCAL-NOTHREAD-1\0");
+        bytes.extend_from_slice(if dyn_dispatch::valid_scalar_contract(slot) {
+            b"BORROW-DIRECT-INFER-READ0-VALUE-LOCAL-NOTHREAD-1\0"
+        } else {
+            // This independently checked closed declaration upper has the
+            // explicit Static/OwnedView source alternatives. It is a distinct
+            // interface contract, including when all physical types agree.
+            b"BORROW-DIRECT-INFER-READ0-VALUE-LOCAL-NOTHREAD-2\0"
+        });
         bytes.push(u8::from(slot.receiver.mutable));
         bytes.push(u8::from(dyn_dispatch::borrowed_result(&slot.result)));
         let effects = slot

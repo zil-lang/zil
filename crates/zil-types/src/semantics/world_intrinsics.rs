@@ -132,7 +132,8 @@ pub(super) fn evaluate(
         let actual = world.get(values, *operand)?;
         let expected = world.ty(instance.id, parameter, World::type_of(&actual)?)?;
         arguments::satisfy(
-            world, instance, None, site, ordinal, *operand, &actual, &expected, locals, implicit,
+            world, instance, None, site, ordinal, *operand, &actual, &expected, values, locals,
+            implicit,
         )?;
         parameters.push(expected);
     }
@@ -495,17 +496,7 @@ fn identity(
                     "owned dyn opcode changes its exact actual result interface",
                 ));
             }
-            super::super::materialize::dynamic::owned_provider(
-                world.program,
-                world.module,
-                world.ledger,
-                *interface,
-                *vtable,
-                source_type,
-                *route,
-                world.limits,
-                world.left,
-            )?;
+            world.check_owned_provider(*interface, *vtable, source_type, *route)?;
         }
         (
             IntrinsicKind::NominalConstructor {

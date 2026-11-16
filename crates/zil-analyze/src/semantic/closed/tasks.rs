@@ -103,7 +103,7 @@ impl Check<'_, '_> {
                 "actual Task operation changes its complete ordered inputs",
             ));
         }
-        for (argument, expected) in arguments.iter().zip(&inputs) {
+        for (ordinal, (argument, expected)) in arguments.iter().zip(&inputs).enumerate() {
             operations::available_before(
                 function,
                 (block, index, SemanticSiteEdge::Before),
@@ -117,8 +117,8 @@ impl Check<'_, '_> {
             }
             if self.uses_full_value(&expected.ty, b)? {
                 let value = self.ssa_value(instance, function, *argument, b, 0)?;
-                let equal = if matches!(expected.ty, Type::Address { .. }) {
-                    self.outer_role(instance, function, &value, expected, b, 0)?
+                let equal = if matches!(expected.ty, Type::Address { .. } | Type::Desc(_)) {
+                    self.outer_call_role(instance, function, (block, index), ordinal, *argument, &value, expected, b, 0)?
                 } else {
                     value == *expected
                 };
@@ -134,7 +134,7 @@ impl Check<'_, '_> {
             self.original
                 .intrinsic_output(instance, site, self.program, self.inventory, b)?;
         self.actual_type(&output.ty, b)?;
-        Ok(output.ty)
+        output.into_type(b)
     }
 
     pub(super) fn task_head(

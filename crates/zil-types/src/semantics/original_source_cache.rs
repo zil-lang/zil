@@ -2,10 +2,79 @@
 //! contains emitted targets, actual class images, loans or execution facts.
 use super::*;
 use std::cell::RefCell;
-use std::fmt::Write;
 use std::rc::Rc;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+// Declared lexical premises have a narrower readiness boundary than the
+// general pure query cache. A frozen E delta resets both rows and readiness.
+#[derive(Default)]
+pub(super) struct Premises {
+    ready: std::cell::Cell<bool>,
+    rows: RefCell<BTreeMap<SemanticDefinitionId, Rc<Vec<SemanticRequirementRecipe>>>>,
+    nodes: std::cell::Cell<usize>,
+}
+impl Clone for Premises {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+impl Premises {
+    pub(super) fn enable(&self, left: &mut usize) -> R<()> {
+        fee(left, 1)?;
+        self.ready.set(true);
+        Ok(())
+    }
+    pub(super) fn lookup(
+        &self,
+        owner: SemanticDefinitionId,
+        left: &mut usize,
+    ) -> R<Option<Rc<Vec<SemanticRequirementRecipe>>>> {
+        if !self.ready.get() {
+            return Ok(None);
+        }
+        let rows = self.rows.borrow();
+        fee(left, rows.len().saturating_add(1).ilog2() as usize + 2)?;
+        Ok(rows.get(&owner).cloned())
+    }
+    pub(super) fn remember(
+        &self,
+        owner: SemanticDefinitionId,
+        value: &Rc<Vec<SemanticRequirementRecipe>>,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<()> {
+        if !self.ready.get() {
+            return Ok(());
+        }
+        let nodes = self
+            .nodes
+            .get()
+            .saturating_add(value.len())
+            .saturating_add(1);
+        if nodes > limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "original declared premise cache node limit exceeded",
+                None,
+            ));
+        }
+        let mut rows = self.rows.borrow_mut();
+        fee(
+            left,
+            rows.len().saturating_add(1).ilog2() as usize
+                + std::mem::size_of::<(SemanticDefinitionId, Rc<Vec<SemanticRequirementRecipe>>)>()
+                + 2,
+        )?;
+        if rows.insert(owner, value.clone()).is_some() {
+            return Err(bad(
+                "original declared premise cache repeats its immutable owner",
+            ));
+        }
+        self.nodes.set(nodes);
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Query {
     Type(SemanticTypeRecipe),
     WhereEntry,
@@ -82,17 +151,6 @@ impl Query {
         }
     }
 }
-struct Sink<'a> {
-    digest: zil_base::FingerprintBuilder,
-    left: &'a mut usize,
-}
-impl Write for Sink<'_> {
-    fn write_str(&mut self, value: &str) -> std::fmt::Result {
-        *self.left = self.left.checked_sub(value.len()).ok_or(std::fmt::Error)?;
-        self.digest.update(value.as_bytes());
-        Ok(())
-    }
-}
 impl Cache {
     pub(super) fn lookup(
         &self,
@@ -102,18 +160,9 @@ impl Cache {
         left: &mut usize,
     ) -> R<(Key, Option<Value>)> {
         query.snapshot(limits, left)?;
-        let mut sink = Sink {
-            digest: zil_base::FingerprintBuilder::new(),
-            left,
-        };
-        write!(&mut sink, "{query:?}").map_err(|_| {
-            Diagnostic::limit(
-                Phase::Types,
-                "original pure source query digest work exceeded",
-                None,
-            )
-        })?;
-        let key = (owner, sink.digest.digest());
+        let mut digest = zil_base::FingerprintBuilder::new();
+        protocol::hash_into(&mut digest, left, query)?;
+        let key = (owner, digest.digest());
         let rows = self.0.borrow();
         fee(left, rows.rows.len().saturating_add(1).ilog2() as usize + 1)?;
         if let Some(bucket) = rows.rows.get(&key) {
@@ -160,6 +209,30 @@ impl Cache {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn declared_premises_require_their_own_phase_and_reset_on_delta_clone() {
+        let limits = Limits::default();
+        let mut left = limits.max_analysis_steps;
+        let cache = Premises::default();
+        let values = Rc::new(Vec::new());
+        cache
+            .remember(owner(0), &values, &limits, &mut left)
+            .unwrap();
+        assert!(cache.lookup(owner(0), &mut left).unwrap().is_none());
+        cache.enable(&mut left).unwrap();
+        cache
+            .remember(owner(0), &values, &limits, &mut left)
+            .unwrap();
+        assert!(Rc::ptr_eq(
+            &values,
+            &cache.lookup(owner(0), &mut left).unwrap().unwrap()
+        ));
+        assert!(cache.lookup(owner(1), &mut left).unwrap().is_none());
+        let delta = cache.clone();
+        assert!(delta.lookup(owner(0), &mut left).unwrap().is_none());
+        delta.enable(&mut left).unwrap();
+        assert!(delta.lookup(owner(0), &mut left).unwrap().is_none());
+    }
     fn owner(module: u32) -> SemanticDefinitionId {
         SemanticDefinitionId {
             module: zil_base::ModuleId(module),

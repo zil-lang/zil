@@ -26,6 +26,7 @@ pub(crate) struct Products {
     templates: Vec<(Aggregate, Span)>,
     applications: Vec<Application>,
     pub(crate) allowance: Option<Limits>,
+    pub(crate) cost_profile: Option<budget::CostProfile>,
     pub(crate) trait_signatures: trait_instances::Signatures,
     pub(crate) trait_instances: bool,
     pub(crate) record_variants: bool,
@@ -560,19 +561,18 @@ fn recipe(
     {
         let mut ports = Vec::new();
         let mut classes = BTreeMap::new();
+        let mut retained = Vec::new();
         if let [GenericArg::Type(context)] = rest {
             let sources = match &grouped(context).kind {
                 TypeKind::Tuple(fields) => fields.as_slice(),
                 _ => std::slice::from_ref(context),
             };
-            if sources.is_empty() {
-                return Err(unsupported(
-                    ty.span,
-                    "Task retained recipe has no actual ports",
-                ));
-            }
-            for source in sources {
+            for (ordinal, source) in sources.iter().enumerate() {
                 budget.node(source.span, depth + 1)?;
+                budget.ty(source)?;
+                if crate::type_ref(source).is_b0_scalar() {
+                    continue;
+                }
                 let TypeKind::Reference {
                     lifetime: Some(life),
                     mutable,
@@ -588,7 +588,8 @@ fn recipe(
                 let binder = if let Some(existing) = classes.get(life) {
                     *existing
                 } else {
-                    let next = classes.len() as u32;
+                    let next = u32::try_from(classes.len())
+                        .map_err(|_| error(source.span, "Task input class domain overflow"))?;
                     classes.insert(life.clone(), next);
                     next
                 };
@@ -597,9 +598,20 @@ fn recipe(
                     mutable: *mutable,
                     binder,
                 });
+                let ordinal = u32::try_from(ordinal)
+                    .map_err(|_| error(source.span, "Task input Context ordinal overflow"))?;
+                budget.lineage_bytes(
+                    std::mem::size_of::<StorageRetainedBinding>()
+                        .saturating_add(std::mem::size_of::<LifeTypeProjection>()),
+                    source.span,
+                )?;
+                retained.push(StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::Parameter(ordinal)],
+                    class: 0,
+                    binder,
+                });
             }
         }
-        let mut retained = Vec::new();
         if let TypeKind::Reference {
             lifetime: Some(life),
             mutable: false,
@@ -621,7 +633,8 @@ fn recipe(
         }
         return Ok(CoreAggregateTypeRecipe::Task {
             result: Box::new(recipe(result, formals, families, budget, depth + 1)?),
-            binder_count: classes.len() as u32,
+            binder_count: u32::try_from(classes.len())
+                .map_err(|_| error(ty.span, "Task input class domain overflow"))?,
             ports,
             retained,
         });

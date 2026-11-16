@@ -215,8 +215,7 @@ impl CheckedContext {
                     mode,
                 });
             }
-            let value = CheckedType {
-                ty,
+            let value = CheckedType {type_cell: crate::semantic::CheckedTypeData::new(ty),
                 life: StorageLifeShape {
                     binder_count: count,
                     slots: vec![],

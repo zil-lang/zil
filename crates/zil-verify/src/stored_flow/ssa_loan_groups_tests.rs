@@ -22,6 +22,9 @@ fn live_loans_full_scan(
             &state.locals[id - solution.values.len()]
         };
         loans.add(&payload.address.loans, b)?;
+        if b.store_descriptions()||!payload.store_description.loans.is_empty(){
+            loans.add(&payload.store_description.loans,b)?;
+        }
         if b.task_borrowed_results {
             for (_, p) in &payload.task_ports {
                 loans.add(&p.loans, b)?;
@@ -243,8 +246,8 @@ fn representatives_preserve_complete_fullscan_ancestry_flags_and_excluded_aliase
                             .unwrap()
                             .unwrap();
                         assert!(
-                            !selected.as_slice().contains(&7),
-                            "weak descriptions are not direct loan contributors"
+                            selected.as_slice().contains(&7)==(flags[7]&&definition!=Some(ValueId(7))),
+                            "real description loans contribute even with the legacy flag disabled"
                         );
                         assert!(
                             !selected.as_slice().contains(&8),
@@ -493,5 +496,60 @@ fn repeated_actual_contributions_reduce_total_work_and_prepay_atomic_fresh_bound
             before,
             "failed selection never mutates or publishes a partial index"
         );
+    }
+}
+
+#[test]
+fn descriptions_keep_all_loans_across_grouping_flags_and_excluded_definitions() {
+    let limit=Limits::default().max_analysis_steps;
+    for collected_with_descriptions in [false,true] {
+        for malformed in 0..4 {
+            let mut values=vec![Payload::default();513];
+            for payload in &mut values[..512]{payload.address=permission(&[1]);}
+            values[64].store_description=permission(&[2,2]);
+            values[65].address=Permission::default();
+            values[65].store_description=permission(&[3]);
+            if malformed==1{values[65].store_description.loans.push(usize::MAX);}
+            // A dead unrelated description cannot donate an invalid loan.
+            if malformed==3{values[66].store_description=permission(&[usize::MAX]);}
+            let mut arena=vec![Loan::default();5];
+            arena[1].parents=vec![0];
+            arena[2].parents=vec![1];
+            arena[3].parents=vec![1];
+            let mut solution=solution(values,arena);
+            let mut frame=Frame{locals:vec![Payload::default()],..Frame::default()};
+            frame.locals[0].store_description=permission(&[4]);
+            let mut setup=budget(limit);
+            setup.nested_store_windows=collected_with_descriptions;
+            let sources=Sources::collect(&solution.values,&mut setup).unwrap().expect("sparse description sources have a useful indexed lane");
+            // Loan ancestry stays dynamic even after source groups are built.
+            if malformed==2{solution.loans[2].parents.push(usize::MAX);}
+            let mut flags=vec![false;514];
+            for id in [0,64,65,513]{flags[id]=true;}
+            let live=WordRow::from_bools(&flags);
+            for descriptions in [false,true] {
+                for definition in [None,Some(ValueId(0)),Some(ValueId(64)),Some(ValueId(65))] {
+                    let mut b=budget(limit);b.nested_store_windows=descriptions;
+                    let selected=sources.select(&live,definition,&mut b).unwrap().unwrap();
+                    assert_eq!(selected.as_slice().contains(&64),definition!=Some(ValueId(64)));
+                    assert_eq!(selected.as_slice().contains(&65),definition!=Some(ValueId(65)));
+                    let mut expected_live=flags.clone();
+                    if let Some(id)=definition{expected_live[id.0 as usize]=false;}
+                    let mut original=budget(limit);original.nested_store_windows=descriptions;
+                    let expected=live_loans_main_fullscan(None,&solution,&frame,&expected_live,&mut original);
+                    for indexed in [None,Some(selected.as_slice())] {
+                        let mut actual_budget=budget(limit);actual_budget.nested_store_windows=descriptions;
+                        let actual=live_loans(None,&solution,&frame,&live,definition,indexed,&mut actual_budget);
+                        assert_eq!(actual,expected,"collect={collected_with_descriptions} descriptions={descriptions} malformed={malformed} definition={definition:?} indexed={}",indexed.is_some());
+                        if malformed==0{
+                            let loans=actual.unwrap();
+                            assert!(loans.contains(&4),"live local descriptions retain their own loans");
+                            assert_eq!(loans.contains(&2),definition!=Some(ValueId(64)));
+                            assert_eq!(loans.contains(&3),definition!=Some(ValueId(65)));
+                        }
+                    }
+                }
+            }
+        }
     }
 }

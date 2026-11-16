@@ -405,6 +405,15 @@ fn link(
     if let Type::BorrowedStorage { .. } = ty {
         return Ok(DropPlan::Leaf(symbol(ty)));
     }
+    // Complete aggregates own their callable/dynamic leaves in the same
+    // pointer representation as an ordinary Package field. Their existing
+    // helpers release the whole environment/owner exactly once.
+    if let Type::Closure(id) = ty {
+        return Ok(DropPlan::Leaf(format!("zil.closure.drop.{}", id.0)));
+    }
+    if let Type::OwnedDyn { interface } = ty {
+        return Ok(DropPlan::Leaf(dyn_dispatch::owner_drop_symbol(*interface)));
+    }
     if matches!(
         ty,
         Type::Tuple(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -498,7 +507,9 @@ fn plan(
         }
         Type::Address { .. } | Type::Desc(_) => DropPlan::Empty,
         t if t.is_copy_value() => DropPlan::Empty,
-        Type::Managed(_) => return link(ty, resources, budget, depth),
+        Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. } => {
+            return link(ty, resources, budget, depth);
+        }
         Type::Package { fields, .. } | Type::Record { fields, .. } => {
             return product_plan(
                 ty,

@@ -1,11 +1,13 @@
 use super::*;
-pub(in crate::semantic) enum MethodActualRecipe{Recipe(SemanticActualRecipe),ReceiverRole(SemanticClassExpr)}
+pub(in crate::semantic) enum MethodActualRecipe{Recipe(SemanticActualRecipe),ReceiverRole(SemanticClassExpr),SourceType(Vec<(SemanticTypeRecipe,bool)>)}
 pub(in crate::semantic) struct TraitCallRecipes{pub receiver:SemanticTypeRecipe,pub application:SemanticTraitRecipe,pub member:u32,pub actuals:Vec<MethodActualRecipe>}
 impl CheckedOriginal {
     pub(in crate::semantic) fn trait_call_recipes(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,environment:&EvalEnv,b:&mut Budget)->Check<Option<TraitCallRecipes>>{
         let Some(call)=self.trait_calls.get(&(definition,site))else{return Ok(None);};
         let mut arguments=Vec::new();for actual in &call.arguments{arguments.push(self.reify_argument(module,actual,environment,b)?);}
-        let mut actuals=Vec::new();for actual in &call.actuals{
+        let mut actuals=Vec::new();for(ordinal,actual)in call.actuals.iter().enumerate(){
+            let sources=self.call_type_sources(definition,site,ordinal as u32,b)?;
+            if !sources.is_empty(){if !matches!(actual,Arg::Type(_)){return Err(bad("method whole Type source selects another original actual kind"));}actuals.push(MethodActualRecipe::SourceType(sources));continue;}
             let role=match actual{Arg::Life(life)=>match self.resolved_life(life,b)?{Life::ReceiverRole(definition,node,mode)=>Some(self.receiver_role(module,definition,node,mode,environment,b)?),_=>None},_=>None};
             actuals.push(match role{Some(role)=>MethodActualRecipe::ReceiverRole(role),None=>MethodActualRecipe::Recipe(self.reify_argument(module,actual,environment,b)?)});
         }

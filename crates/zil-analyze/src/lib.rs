@@ -139,6 +139,13 @@ fn analyze_budgeted_context(
     mut reuse: Option<&mut incremental::Reuse<'_>>,
     context: Option<(&CoreProgram, &CtFrozenContext)>,
 ) -> CompileResult<CandidatePlan> {
+    bind_initialization(module, budget)?;
+    // These declaration-role facts belong to this complete analysis run, even
+    // if a caller reuses Budget storage or a previous module address.
+    budget.semantic_reference_results.clear();
+    budget.semantic_reference_locals.clear();
+    budget.semantic_reborrow_regions.clear();
+    budget.stored_synchronous_abis.clear();
     // The common incremental/reuse entry cannot bypass the public raw entry's
     // semantic-program gate. No partial ghost model enters fingerprinting.
     match context {
@@ -205,6 +212,18 @@ fn analyze_budgeted_context(
     let mut stored_holds = None;
     let ordinary_input_heads =
         budget.stored_borrows && signature_life::ordinary_heads::module(module, limits, budget)?;
+    if ordinary_input_heads && !module.closures.is_empty() {
+        // Input-only heads keep the whole ordinary resource/Hold solution.
+        // Their concrete callback definitions, caller roles and exact current
+        // class flow remain independent mandatory proofs before that routing.
+        stored_callables::definitions(module, budget)?;
+        stored_callables::roles(module, &hold_graphs, budget)?;
+        for function in &module.functions {
+            if function.storage_life.is_some() {
+                class_flow::check(module, function, &hold_graphs[function.id.0 as usize].1, budget)?;
+            }
+        }
+    }
     if !ordinary_input_heads
         && (budget.stored_borrows || budget.task_sources() || budget.masked_stored_tasks())
     {
@@ -490,6 +509,184 @@ struct Initialization {
     blocks: Vec<BlockPlan>,
     predecessors: Vec<Vec<usize>>,
     reachable: Vec<bool>,
+}
+
+// All entries borrow identity from this one immutable analysis request. The
+// shared value contains only the complete CFG and its instruction-derived
+// initialization sets; it contains no current class, loan or access state.
+#[derive(Clone, Copy)]
+struct SsaDefinition {
+    block: BlockId,
+    instruction: usize,
+}
+struct InitializationCache {
+    module: usize,
+    // Completed immutable helper-frame graphs, partitioned by every helper
+    // traversal limit and by the caller's actual driver mode. Live resource,
+    // class, loan and cleanup ledgers never enter this directory.
+    task_helper_graphs: std::collections::BTreeMap<([usize; 5], FunctionId, bool), [bool; 3]>,
+    task_helper_scope: Option<std::sync::Arc<()>>,
+    description_transfers: resources::DescriptionInventories,
+    definitions: std::collections::BTreeMap<usize, std::sync::Arc<Vec<Option<SsaDefinition>>>>,
+    functions:
+        std::collections::BTreeMap<usize, (FunctionId, Option<std::sync::Arc<Initialization>>)>,
+}
+
+fn bind_initialization(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
+    let owner = module as *const TypedModule as usize;
+    if budget
+        .initialization
+        .as_ref()
+        .is_some_and(|cache| cache.module == owner)
+    {
+        return Ok(());
+    }
+    budget.spend(
+        module.functions.len(),
+        "initialization request function registry",
+    )?;
+    let mut functions = std::collections::BTreeMap::new();
+    for function in &module.functions {
+        budget.lookup(functions.len(), "initialization request function registry")?;
+        functions.insert(
+            function as *const TypedFunction as usize,
+            (function.id, None),
+        );
+    }
+    budget.initialization = Some(InitializationCache {
+        module: owner,
+        task_helper_graphs: std::collections::BTreeMap::new(),
+        task_helper_scope: None,
+        description_transfers: resources::DescriptionInventories::default(),
+        functions,
+        definitions: std::collections::BTreeMap::new(),
+    });
+    Ok(())
+}
+
+fn shared_initialization(
+    function: &TypedFunction,
+    budget: &mut Budget,
+) -> CompileResult<std::sync::Arc<Initialization>> {
+    let key = function as *const TypedFunction as usize;
+    let width = budget
+        .initialization
+        .as_ref()
+        .map_or(0, |cache| cache.functions.len());
+    budget.lookup(width, "initialization request query")?;
+    budget.spend(1, "initialization request shared result")?;
+    if let Some((id, Some(initialization))) = budget
+        .initialization
+        .as_ref()
+        .and_then(|cache| cache.functions.get(&key))
+        && *id == function.id
+    {
+        return Ok(std::sync::Arc::clone(initialization));
+    }
+    // A failed computation publishes nothing. Unregistered temporary functions
+    // can be checked, but their reusable result is never retained by address.
+    let result = initialize(function, budget)?;
+    let result = std::sync::Arc::new(result);
+    budget.lookup(width, "initialization request publication")?;
+    budget.spend(1, "initialization request publication")?;
+    if let Some((id, entry)) = budget
+        .initialization
+        .as_mut()
+        .and_then(|cache| cache.functions.get_mut(&key))
+        && *id == function.id
+    {
+        *entry = Some(std::sync::Arc::clone(&result));
+    }
+    Ok(result)
+}
+
+fn shared_definitions(
+    function: &TypedFunction,
+    budget: &mut Budget,
+) -> CompileResult<std::sync::Arc<Vec<Option<SsaDefinition>>>> {
+    let key = function as *const TypedFunction as usize;
+    let count = budget
+        .initialization
+        .as_ref()
+        .map_or(0, |cache| cache.functions.len());
+    budget.lookup(count, "actual SSA immutable function lookup")?;
+    let registered = budget
+        .initialization
+        .as_ref()
+        .and_then(|cache| cache.functions.get(&key))
+        .is_some_and(|(id, _)| *id == function.id);
+    if registered {
+        budget.lookup(count, "actual SSA definition directory lookup")?;
+        budget.spend(1, "actual SSA shared directory")?;
+        if let Some(directory) = budget
+            .initialization
+            .as_ref()
+            .and_then(|cache| cache.definitions.get(&key))
+        {
+            return Ok(std::sync::Arc::clone(directory));
+        }
+    }
+    if function.values.len() > budget.helper_nodes {
+        return Err(vec![Diagnostic::limit(
+            Phase::Analyze,
+            "actual SSA directory exceeds its complete node limit",
+            None,
+        )]);
+    }
+    budget.spend(function.values.len(), "actual SSA directory allocation")?;
+    let mut directory = vec![None; function.values.len()];
+    for (position, block) in function.blocks.iter().enumerate() {
+        budget.spend(
+            block.instructions.len().saturating_add(1),
+            "actual SSA definition scan",
+        )?;
+        if block.id.0 as usize != position {
+            return Err(bad(
+                "actual SSA directory has a noncanonical block identity",
+            ));
+        }
+        for (instruction, operation) in block.instructions.iter().enumerate() {
+            if let Some(value) = operation.result {
+                let slot = directory.get_mut(value.0 as usize).ok_or_else(|| {
+                    bad("actual SSA definition leaves its complete value directory")
+                })?;
+                if slot
+                    .replace(SsaDefinition {
+                        block: block.id,
+                        instruction,
+                    })
+                    .is_some()
+                {
+                    return Err(bad("actual SSA value has multiple definitions"));
+                }
+            }
+        }
+    }
+    budget.spend(1, "actual SSA shared directory")?;
+    let directory = std::sync::Arc::new(directory);
+    if registered {
+        budget.lookup(count, "actual SSA directory publication")?;
+        budget.spend(1, "actual SSA shared directory")?;
+        if let Some(cache) = &mut budget.initialization {
+            cache
+                .definitions
+                .insert(key, std::sync::Arc::clone(&directory));
+        }
+    }
+    Ok(directory)
+}
+fn shared_definition(
+    function: &TypedFunction,
+    value: ValueId,
+    budget: &mut Budget,
+) -> CompileResult<SsaDefinition> {
+    let directory = shared_definitions(function, budget)?;
+    budget.spend(1, "actual SSA definition query")?;
+    directory
+        .get(value.0 as usize)
+        .copied()
+        .flatten()
+        .ok_or_else(|| bad("actual SSA value has no complete definition"))
 }
 
 fn initialize(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Initialization> {
@@ -839,6 +1036,89 @@ mod tests {
         let mut m = module(true);
         m.functions[0].blocks[0].terminator = Terminator::Jump(BlockId(200));
         assert!(analyze(&m, &Limits::default()).is_err());
+    }
+
+    #[test]
+    fn initialization_request_shares_registered_function_only() {
+        let m = module(true);
+        let mut budget = Budget::new(&Limits::default());
+        bind_initialization(&m, &mut budget).unwrap();
+        let first = shared_initialization(&m.functions[0], &mut budget).unwrap();
+        let second = shared_initialization(&m.functions[0], &mut budget).unwrap();
+        assert!(std::sync::Arc::ptr_eq(&first, &second));
+        let expected = initialize(&m.functions[0], &mut budget).unwrap();
+        assert_eq!(first.blocks, expected.blocks);
+        assert_eq!(first.predecessors, expected.predecessors);
+        assert_eq!(first.reachable, expected.reachable);
+
+        // Same FunctionId and similar contents are no proof of request identity.
+        let changed = module(false);
+        assert_eq!(
+            shared_initialization(&changed.functions[0], &mut budget)
+                .err()
+                .unwrap()[0]
+                .code,
+            "E-UNINITIALIZED"
+        );
+        bind_initialization(&changed, &mut budget).unwrap();
+        assert!(shared_initialization(&changed.functions[0], &mut budget).is_err());
+        assert!(
+            budget
+                .initialization
+                .as_ref()
+                .unwrap()
+                .functions
+                .values()
+                .all(|(_, result)| result.is_none())
+        );
+    }
+
+    #[test]
+    fn initialization_request_cannot_publish_failed_computation() {
+        let m = module(true);
+        let mut budget = Budget::new(&Limits {
+            max_analysis_steps: 20,
+            ..Limits::default()
+        });
+        bind_initialization(&m, &mut budget).unwrap();
+        assert!(shared_initialization(&m.functions[0], &mut budget).is_err());
+        assert!(
+            budget
+                .initialization
+                .as_ref()
+                .unwrap()
+                .functions
+                .values()
+                .all(|(_, result)| result.is_none())
+        );
+        let mut fresh = Budget::new(&Limits::default());
+        bind_initialization(&m, &mut fresh).unwrap();
+        assert!(
+            fresh
+                .initialization
+                .as_ref()
+                .unwrap()
+                .functions
+                .values()
+                .all(|(_, result)| result.is_none())
+        );
+        assert!(shared_initialization(&m.functions[0], &mut fresh).is_ok());
+    }
+
+    #[test]
+    fn ssa_directory_is_bound_to_the_actual_function_and_rejects_duplicates() {
+        let m = module(true);
+        let mut budget = Budget::new(&Limits::default());
+        bind_initialization(&m, &mut budget).unwrap();
+        let first = shared_definitions(&m.functions[0], &mut budget).unwrap();
+        let second = shared_definitions(&m.functions[0], &mut budget).unwrap();
+        assert!(std::sync::Arc::ptr_eq(&first, &second));
+        let mut other = m.functions[0].clone();
+        let first_value = other.blocks[0].instructions[0].result;
+        other.blocks[0].instructions.last_mut().unwrap().result = first_value;
+        assert!(shared_definitions(&other, &mut budget).is_err());
+        let same = shared_definitions(&m.functions[0], &mut budget).unwrap();
+        assert!(std::sync::Arc::ptr_eq(&first, &same));
     }
 
     #[test]

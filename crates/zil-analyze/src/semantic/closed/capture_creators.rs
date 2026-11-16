@@ -1,7 +1,7 @@
 //! Original lexical values are bound at each real environment construction.
 //! Navigation need not fabricate an executable whole-name read in the child.
 use super::*;
-use crate::semantic::value::{Class, Value};
+use crate::semantic::value::{Argument, Class, Value};
 pub(super) struct CreatorBinding {
     pub(super) capture: u32,
     pub(super) lexical: Value,
@@ -20,6 +20,45 @@ impl Check<'_, '_> {
             *class = self.capture_class_image(class.clone(), b)?;
         }
         Ok(value)
+    }
+    /// Compare complete values after applying only exact creator-bound
+    /// captured-head equations. No geometry, class or occurrence is omitted.
+    pub(super) fn capture_values_equal(
+        &self,
+        left: &Value,
+        right: &Value,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        if left.equal_paid(right, b)? {
+            return Ok(true);
+        }
+        let left = self.capture_class_value(left.copy(b)?, b)?;
+        let right = self.capture_class_value(right.copy(b)?, b)?;
+        left.equal_paid(&right, b)
+    }
+    /// A call's complete ordered actuals stay in its original caller domain.
+    /// Only the same independently checked creator equations may transport
+    /// their class images; no actual kind, carrier or Type field is erased.
+    pub(super) fn capture_arguments_equal(
+        &self,
+        left: &Argument,
+        right: &Argument,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        b.spend(1, WORK)?;
+        match (left, right) {
+            (Argument::Type(left), Argument::Type(right)) => {
+                self.capture_values_equal(left, right, b)
+            }
+            (Argument::Life(left), Argument::Life(right)) => Ok(self
+                .capture_class_image(left.clone(), b)?
+                == self.capture_class_image(right.clone(), b)?),
+            _ => super::traits::arguments_equal(
+                std::slice::from_ref(left),
+                std::slice::from_ref(right),
+                b,
+            ),
+        }
     }
     pub(super) fn capture_class_image(
         &self,
@@ -196,7 +235,7 @@ impl Check<'_, '_> {
         };
         let function = self.inventory.function(target, b)?;
         let parent_definition = self.inventory.definition(parent.definition, b)?;
-        let source_index = super::super::original_index::index(parent_definition, b)?;
+        let source_index = self.inventory.original_index(parent_definition.id, b)?;
         let SemanticDefinitionBody::FunctionWithBody {
             sites, site_nodes, ..
         } = &parent_definition.body

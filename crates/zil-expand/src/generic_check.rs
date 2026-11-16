@@ -811,6 +811,31 @@ pub(super) fn uncontextual_float(
         _ => Ok(false),
     }
 }
+/// A contextual width may come from the other operand, before either operand
+/// executes. Explicit suffixes retain their own width and still must agree.
+pub(super) fn uncontextual_integer(
+    expression: &Expr,
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<bool> {
+    budget.node(expression.span, depth)?;
+    match &expression.kind {
+        ExprKind::Literal(Literal::Integer(text)) => {
+            budget.text(text, expression.span)?;
+            Ok(![
+                "usize", "isize", "u64", "i64", "u32", "i32", "u16", "i16", "u8", "i8",
+            ]
+            .iter()
+            .any(|suffix| text.ends_with(suffix)))
+        }
+        ExprKind::Group(inner)
+        | ExprKind::Unary {
+            op: UnaryOp::Negate,
+            operand: inner,
+        } => uncontextual_integer(inner, budget, depth + 1),
+        _ => Ok(false),
+    }
+}
 pub(super) fn floating(ty: &TypeRef) -> bool {
     matches!(&group(ty).kind, TypeKind::Named { path, args } if args.is_empty() && matches!(path.as_slice(), [name] if matches!(name.as_str(), "f32" | "f64")))
 }
@@ -1356,6 +1381,18 @@ impl Check<'_, '_, '_> {
                 self.life_expression(value, state)
             }
             ExprKind::Group(inner) => self.life_expression(inner, state),
+            ExprKind::Member { .. } | ExprKind::Index { .. }
+                if self.value_hint(expression, state, 0, false)?.as_ref()
+                    .is_some_and(|ty| matches!(group(ty).kind, TypeKind::Reference { mutable: false, .. })) =>
+            {
+                // Loading a stored shared address is a value projection, not
+                // borrowing its pointer slot. This old parameter-index check
+                // supplies only an input upper candidate; the complete original
+                // type/domain and CFG consumers retain the actual field's Fixed
+                // lifetime, target and parents independently. No class equality
+                // or permission is obtained from this coarse input selector.
+                self.life_place(expression, state)
+            }
             ExprKind::Call { callee, arguments }
                 if super::enums::constructor(callee).is_some_and(|(name, variant, _)| {
                     name == super::options::TEMPLATE && matches!(variant, "Some" | "None")
@@ -2305,7 +2342,7 @@ impl Check<'_, '_, '_> {
         let expected = self.result.clone();
         let actual = self.expr(expression, state, Some(&expected), false)?;
         if matches!(group(&actual).kind, TypeKind::Reference { .. }) {
-            self.alias_return(state, expression.span)?;
+            self.alias_return(state, expression, &actual)?;
         }
         if self
             .callable
@@ -3579,9 +3616,42 @@ impl Check<'_, '_, '_> {
         expected: Option<&TypeRef>,
         borrowing: bool,
     ) -> R<TypeRef> {
+        fn reference_local(expression: &Expr, budget: &mut Budget<'_>, depth: usize) -> R<bool> {
+            budget.node(expression.span, depth)?;
+            match &expression.kind {
+                ExprKind::Name(_) => Ok(true),
+                ExprKind::Group(inner) | ExprKind::Ascribed { value: inner, .. } => reference_local(inner, budget, depth + 1),
+                _ => Ok(false),
+            }
+        }
+        let shared_view = if !borrowing
+            && let Some(expected) = expected
+            && let TypeKind::Reference { mutable: false, inner: wanted, .. } = &group(expected).kind
+            && reference_local(e, self.budget, 0)?
+            && let Some(available) = self.value_hint(e, state, 0, false)?
+            && let TypeKind::Reference { mutable: true, inner, .. } = &group(&available).kind
+        {
+            if source_unification_key(wanted, Some(self.source_definition), self.budget)?
+                != source_unification_key(inner, Some(self.source_definition), self.budget)?
+            {
+                return Err(error(e.span, "shared view changes its complete invariant pointee type"));
+            }
+            true
+        } else { false };
         self.aliases.result.clear();
         let base = self.alias_call_start();
-        let ty = self.expr_inner(e, state, expected, borrowing)?;
+        let mut ty = self.expr_inner(e, state, expected, borrowing || shared_view)?;
+        if shared_view {
+            self.budget.ty(&ty)?;
+            ty = group(&ty).clone();
+            let TypeKind::Reference { mutable, .. } = &mut ty.kind else {
+                return Err(error(e.span, "shared view expression changed its original reference constructor"));
+            };
+            *mutable = false;
+            // This is a child window of the actual input reference, not a
+            // copy of its exclusive value or a borrow of its pointer slot.
+            self.alias_borrow(e, state, false)?;
+        }
         self.finish_expr(e, state, base, ty)
     }
 
@@ -3750,12 +3820,14 @@ impl Check<'_, '_, '_> {
         } else {
             expected
         };
-        let float_hint = if operand_hint.is_none() && uncontextual_float(left, self.budget, 0)? {
+        let peer_hint = if operand_hint.is_none() && uncontextual_float(left, self.budget, 0)? {
             self.value_hint(right, state, 1, false)?.filter(floating)
+        } else if operand_hint.is_none() && uncontextual_integer(left, self.budget, 0)? {
+            self.value_hint(right, state, 1, false)?.filter(integer)
         } else {
             None
         };
-        let lhs = self.expr(left, state, operand_hint.or(float_hint.as_ref()), false)?;
+        let lhs = self.expr(left, state, operand_hint.or(peer_hint.as_ref()), false)?;
         let rhs = self.expr(right, state, Some(&lhs), false)?;
         if dependent(&lhs, &self.variables) || dependent(&rhs, &self.variables) {
             return Err(needs_bound());
@@ -5785,6 +5857,17 @@ impl Check<'_, '_, '_> {
                 )?;
                 let mut a = self.clone_state(state)?;
                 let mut b = self.clone_state(state)?;
+                let numeric_hint = if expected.is_none() {
+                    let first = self.value_hint(then_value, state, 0, false)?;
+                    let hint = match first {
+                        Some(value) => Some(value),
+                        None => self.value_hint(else_value, state, 0, false)?,
+                    };
+                    hint.filter(|ty| integer(ty) || floating(ty))
+                } else {
+                    None
+                };
+                let expected = expected.or(numeric_hint.as_ref());
                 let lhs = self.expr(then_value, &mut a, expected, borrowing)?;
                 let aliases_a = self.alias_result_copy(e.span)?;
                 let rhs = self.expr(else_value, &mut b, Some(&lhs), borrowing)?;

@@ -544,24 +544,18 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
                         ));
                     }
                     for source in actuals {
-                        let position = selected(table, source, b)?
-                            .ok_or_else(|| bad("provider returned activation-local storage"))?;
-                        b.spend(
-                            sources
-                                .len()
-                                .saturating_mul(position.path.len().saturating_add(1)),
-                        )?;
-                        for atom in sources {
-                            crate::exact_storage_source(atom)?;
-                        }
-                        if !sources.contains(&StorageSource::Exact(position)) {
-                            return Err(bad(
-                                "provider actual borrowed result exceeds its public source upper",
-                            ));
-                        }
+                        let actual=&module.functions[entry.function.0 as usize];
+                        let output=StoragePosition{base:StorageBase::Result,path:vec![]};
+                        b.spend(slot.storage_life.as_ref().map_or(0,|life|life.bindings.len().saturating_add(life.static_bindings.len())).saturating_add(actual.storage_life.as_ref().map_or(0,|life|life.bindings.len().saturating_add(life.static_bindings.len()))))?;
+                        let variable=slot.storage_life.as_ref().is_some_and(|life|life.bindings.iter().any(|row|row.position==output)&&!life.static_bindings.contains(&output))&&actual.storage_life.as_ref().is_some_and(|life|life.bindings.iter().any(|row|row.position==output)&&!life.static_bindings.contains(&output));
+                        super::dyn_contracts::table_source_upper(table,source,sources,&actual.return_type,variable,b)?;
                     }
                 }
             }
+            // Every actual non-target parent must already be carried by the
+            // public data/head selectors that dispatch really transports.
+            // Matching only the returned data target is insufficient.
+            super::dyn_contracts::table_parent_upper(table,summary,slot,b)?;
             let guarantees = slot
                 .contract
                 .guarantees
@@ -718,6 +712,28 @@ pub(in crate::stored_flow) fn cleanup_proof(
 #[cfg(test)]
 mod access_tests {
     use super::*;
+    #[test]
+    fn whole_provider_cleanup_consumes_owners_but_not_external_port_targets() {
+        let (mut module,_)=crate::tests::baseline();
+        let claim=DynCleanupContract{environment:true,positions:vec![],access:DynCallAccess{reads:vec![],writes:vec![]},effects:vec![]};
+        let shared=|inner|Type::Address{mutable:false,inner:Box::new(inner)};
+        // Even a borrowed head to an asynchronous owner is only a dependency.
+        // Destruction of the provider never destroys the borrowed target.
+        let borrowed=Type::Record{name:"cleanup.Provider".into(),fields:vec![("pointer".into(),shared(Type::Managed(Box::new(Type::TaskI32))))]};
+        assert!(cleanup_proof(&module,&borrowed,&claim,&mut Budget::new(&Limits::default())).is_ok());
+        let leaf=shared(Type::I32);
+        let product=Type::Record{name:"cleanup.Product".into(),fields:vec![("pointer".into(),leaf.clone()),("text".into(),shared(Type::Slice{element:Box::new(Type::U8)}))]};
+        let sum=Type::ErrorUnion{error:Box::new(Type::I32),result:Box::new(Type::Array{element:Box::new(product),length:2})};
+        assert!(cleanup_proof(&module,&sum,&claim,&mut Budget::new(&Limits::default())).is_ok());
+        let owned=Type::Managed(Box::new(Type::TaskI32));
+        assert!(cleanup_proof(&module,&owned,&claim,&mut Budget::new(&Limits::default())).is_err());
+        for kind in [CallableKind::Fn,CallableKind::FnMut,CallableKind::FnOnce]{
+            module.closures=vec![ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![owned.clone()],parameters:vec![],result:Type::I32,kind,storage_life:Some(StorageLifeContract{static_bindings:vec![],fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],classes:vec![]}),lending_captures:vec![]}];
+            assert!(cleanup_proof(&module,&Type::Closure(ClosureId(0)),&claim,&mut Budget::new(&Limits::default())).is_err(),"a callable bound cannot turn a captured asynchronous owner into SyncDrop");
+            module.closures[0].captures=vec![leaf.clone()];
+            assert!(cleanup_proof(&module,&Type::Closure(ClosureId(0)),&claim,&mut Budget::new(&Limits::default())).is_ok());
+        }
+    }
     #[test]
     fn stored_pointer_access_observes_the_target_instead_of_the_pointer_slot() {
         let (module, _) = zil_ir::wire::decode_module_candidate(

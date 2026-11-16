@@ -944,6 +944,60 @@ impl Check<'_, '_> {
                 "original associated definitions form a cyclic equation",
             ));
         }
+        // Only a finalized, immutable original Gamma may reuse a completed
+        // associated equation. In particular, provider candidates have not
+        // installed their own pending requirements as assumptions here. The
+        // complete receiver, application and member belong to this owner;
+        // actual worlds, caller class images and runtime access are absent.
+        let query = if self.proof.pure_queries_ready
+            && matches!(self.proof, ProofAccess::Borrowed(_))
+            && !matches!(
+                receiver,
+                SemanticTypeRecipe::Formal(_)
+                    | SemanticTypeRecipe::SelfType { .. }
+                    | SemanticTypeRecipe::AssociatedType { .. }
+                    | SemanticTypeRecipe::Environment { .. }
+                    | SemanticTypeRecipe::OriginalType { .. }
+                    | SemanticTypeRecipe::Opaque { .. }
+            ) {
+            // A solved caller operand may contain arbitrary rigid formal or
+            // protected Bound roles. Target-private inference variables must
+            // stay cold, even when their numeric ordinals happen to match.
+            let empty = BTreeMap::new();
+            substitute::caller_context(
+                &projection,
+                &substitute::Substitution {
+                    frames: &[],
+                    selves: &[],
+                    environments: &[],
+                    implicit: &empty,
+                    invocation: &empty,
+                    shift: 0,
+                },
+                self.limits,
+                self.left,
+            )?
+            .map(source_cache::Query::Type)
+        } else {
+            None
+        };
+        let cached_key = if let Some(query) = &query {
+            let (key, cached) =
+                self.proof
+                    .pure_queries
+                    .lookup(owner, query, self.limits, self.left)?;
+            if let Some(cached) = cached {
+                let source_cache::Value::Type(value) = cached else {
+                    return Err(bad(
+                        "original associated query changes its exact result kind",
+                    ));
+                };
+                return copy_recipe(&value, self.limits, self.left);
+            }
+            Some(key)
+        } else {
+            None
+        };
         let active = copy_recipe(&projection, self.limits, self.left)?;
         self.predicate_active.push((owner, 10, active));
         let result = self.resolve_associated_inner(
@@ -955,8 +1009,35 @@ impl Check<'_, '_> {
             depth + 1,
         );
         self.predicate_active.pop();
-        result
+        let result = result?;
+        if let (Some(key), Some(query)) = (cached_key, query) {
+            let empty = BTreeMap::new();
+            if let Some(value) = substitute::caller_context(
+                &result,
+                &substitute::Substitution {
+                    frames: &[],
+                    selves: &[],
+                    environments: &[],
+                    implicit: &empty,
+                    invocation: &empty,
+                    shift: 0,
+                },
+                self.limits,
+                self.left,
+            )? {
+                self.pay(2, depth)?;
+                self.proof.pure_queries.insert(
+                    key,
+                    query,
+                    source_cache::Value::Type(std::rc::Rc::new(value)),
+                    self.limits,
+                    self.left,
+                )?;
+            }
+        }
+        Ok(result)
     }
+
     fn resolve_associated_inner(
         &mut self,
         owner: SemanticDefinitionId,
@@ -980,12 +1061,12 @@ impl Check<'_, '_> {
         let declared = self.associated_member(&input, member, depth + 1)?;
         // An explicit caller equation remains an original premise; concrete
         // equality of a later instance supplies no such equation.
-        for requirement in self.original_requirements(owner, depth + 1)? {
+        for requirement in self.original_requirements(owner, depth + 1)?.iter() {
             if let SemanticRequirementRecipe::TypeEqual { left, right } = requirement {
-                if &left == projection {
+                if left == projection {
                     return self.resolve(owner, &right, depth + 1);
                 }
-                if &right == projection {
+                if right == projection {
                     return self.resolve(owner, &left, depth + 1);
                 }
             }
@@ -1330,5 +1411,122 @@ impl Check<'_, '_> {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod completed_query_tests {
+    use super::*;
+    #[test]
+    fn associated_hits_require_final_owner_full_projection_and_no_active_cycle() {
+        let owner = SemanticDefinitionId {
+            module: zil_base::ModuleId(0),
+            index: 0,
+        };
+        let other_owner = SemanticDefinitionId { index: 1, ..owner };
+        let application = SemanticTraitRecipe {
+            declaration: LifeDeclarationId {
+                module: zil_base::ModuleId(0),
+                declaration: NodeId(2),
+                compiler: false,
+            },
+            arguments: vec![SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(
+                SemanticFormalRef {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    ordinal: 0,
+                },
+            ))],
+        };
+        let receiver = SemanticTypeRecipe::Nominal {
+            definition: owner,
+            arguments: vec![SemanticActualRecipe::Const {
+                carrier: SemanticTypeRecipe::Atom(Type::I32),
+                value: SemanticConstRecipe::Value(Constant::I32(3)),
+            }],
+        };
+        let projection = SemanticTypeRecipe::AssociatedType {
+            receiver: Box::new(receiver.clone()),
+            application: Box::new(application.clone()),
+            member: 0,
+        };
+        let query = source_cache::Query::Type(projection.clone());
+        let program = SemanticModule {
+            definitions: vec![],
+            instances: vec![],
+            sites: vec![],
+            dyn_scopes: vec![],
+        };
+        let limits = Limits::default();
+        let mut left = limits.max_analysis_steps;
+        let mut proof = Proof::default();
+        proof.complete.extend([owner, other_owner]);
+        proof.pure_queries_ready = true;
+        // Model an already completed immutable query; the empty declaration
+        // directory ensures a cold path cannot accidentally satisfy this test.
+        let (key, _) = proof
+            .pure_queries
+            .lookup(owner, &query, &limits, &mut left)
+            .unwrap();
+        proof
+            .pure_queries
+            .insert(
+                key,
+                query,
+                source_cache::Value::Type(std::rc::Rc::new(SemanticTypeRecipe::Atom(Type::I32))),
+                &limits,
+                &mut left,
+            )
+            .unwrap();
+        {
+            let mut check = super::super::nominal_where::borrowed_check(
+                &program, &proof, owner, &limits, &mut left,
+            )
+            .unwrap();
+            assert_eq!(
+                check
+                    .resolve_associated(owner, &receiver, &application, 0, 0)
+                    .unwrap(),
+                SemanticTypeRecipe::Atom(Type::I32)
+            );
+            assert!(
+                check
+                    .resolve_associated(other_owner, &receiver, &application, 0, 0)
+                    .is_err()
+            );
+            assert!(
+                check
+                    .resolve_associated(owner, &receiver, &application, 1, 0)
+                    .is_err()
+            );
+            let mut other_application = application.clone();
+            other_application.arguments[0] =
+                SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(SemanticFormalRef {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    ordinal: 1,
+                }));
+            assert!(
+                check
+                    .resolve_associated(owner, &receiver, &other_application, 0, 0)
+                    .is_err()
+            );
+            check.predicate_active.push((owner, 10, projection));
+            assert!(
+                check
+                    .resolve_associated(owner, &receiver, &application, 0, 0)
+                    .unwrap_err()
+                    .message
+                    .contains("cyclic")
+            );
+        }
+        proof.pure_queries_ready = false;
+        let mut check = super::super::nominal_where::borrowed_check(
+            &program, &proof, owner, &limits, &mut left,
+        )
+        .unwrap();
+        assert!(
+            check
+                .resolve_associated(owner, &receiver, &application, 0, 0)
+                .is_err()
+        );
     }
 }

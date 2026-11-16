@@ -4,6 +4,32 @@ use super::*;
 use crate::semantic::value::{self, Argument, Class, Value};
 
 impl Checked {
+    pub(in crate::semantic) fn call_output(&self, context: &SemanticInstance, site: SemanticSiteId,
+        program: &SemanticModule, inventory: &Inventory<'_>, b: &mut Budget) -> CompileResult<Value> {
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
+            &inventory.definition(context.definition, b)?.body else {
+                return Err(fail("call output omits its complete original body"));
+            };
+        let mut node = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site != site { continue; }
+            let SemanticOriginalNode::Expression(actual) = link.node else {
+                return Err(fail("call output changes its original expression role"));
+            };
+            if node.replace(actual).is_some() { return Err(fail("call output repeats its original anchor")); }
+        }
+        let node = node.ok_or_else(|| fail("call output has no original expression"))?;
+        b.lookup(self.calls.len(), WORK)?;
+        let ordinary = self.calls.contains_key(&(context.definition, node));
+        b.lookup(self.trait_calls.len(), WORK)?;
+        if !ordinary && !self.trait_calls.contains_key(&(context.definition, node)) {
+            return Err(fail("call output has no independently checked original call"));
+        }
+        self.source_value(context, SemanticScopeRef::Ancestor(0),
+            &SemanticOriginalTypeSource::Expression(node), program, inventory, b)
+    }
+
     pub(in crate::semantic) fn description_source(
         &self,
         context: &SemanticInstance,
@@ -31,6 +57,12 @@ impl Checked {
             };
             b.spend(source.path.len(), WORK)?;
             let source = descriptions::Source {
+                role: (
+                    self.life_value(source.role.occurrence, context, inventory, b)?,
+                    source.role.upper.map(|upper| self.life_value(upper, context, inventory, b)).transpose()?,
+                    self.life_value(source.role.selected, context, inventory, b)?,
+                    source.role.local,
+                ),
                 anchor: source.anchor,
                 root: self.value(source.root, context, program, inventory, b, 0)?,
                 source: self.value(source.source, context, program, inventory, b, 0)?,
@@ -100,6 +132,95 @@ impl Checked {
                     0,
                 )
             }
+            Kind::Life(Life::CallResult(owner, node, target, ordinal)) => {
+                let scope = self.context(*owner, context, inventory, b)?;
+                b.lookup(self.calls.len(), WORK)?;
+                let call = self
+                    .calls
+                    .get(&(*owner, *node))
+                    .ok_or_else(|| fail("returned region has no checked original call"))?;
+                if call.target != *target {
+                    return Err(fail("returned region changes its exact original callee"));
+                }
+                let mut declared = false;
+                for (_, role) in self
+                    .reference_roles
+                    .range((*target, NodeId(0))..=(*target, NodeId(u32::MAX)))
+                {
+                    b.spend(1, WORK)?;
+                    if role.ordinal == *ordinal {
+                        if declared {
+                            return Err(fail("returned region repeats its original declaration"));
+                        }
+                        declared = true;
+                    }
+                }
+                if !declared {
+                    return Err(fail(
+                        "returned region has no independently checked original local role",
+                    ));
+                }
+                if inventory.source.is_none() {
+                    let program = inventory.module.semantic.as_ref().ok_or_else(|| {
+                        fail("returned region has no executable semantic program")
+                    })?;
+                    let recipe = inventory.call_anchor(*owner, *node, b)?;
+                    let site = inventory.emitted_site(program, scope.id, recipe, b)?;
+                    let SemanticSiteAddress::Typed {
+                        block,
+                        instruction,
+                        edge: SemanticSiteEdge::After,
+                    } = site.at
+                    else {
+                        return Err(fail("returned region has another actual call boundary"));
+                    };
+                    let SemanticInstanceTarget::Function(function) = &scope.target else {
+                        return Err(fail("returned region is not in its actual function world"));
+                    };
+                    let function = inventory.function(function, b)?;
+                    let actual = function
+                        .blocks
+                        .get(block.0 as usize)
+                        .filter(|row| row.id == block)
+                        .and_then(|row| row.instructions.get(instruction as usize))
+                        .ok_or_else(|| fail("returned region has no actual call instruction"))?;
+                    let declaration = inventory.definition(*target, b)?;
+                    let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
+                        &declaration.body
+                    else {
+                        return Err(fail("returned region lacks the original callee signature"));
+                    };
+                    let callee = match &actual.kind {
+                        InstructionKind::Call { function, .. }
+                            if signature.call_kind == CallKind::Direct =>
+                        {
+                            *function
+                        }
+                        InstructionKind::SuspendCall {
+                            function: callee, ..
+                        } if signature.call_kind == CallKind::Suspend
+                            && function.call_kind == CallKind::Suspend =>
+                        {
+                            *callee
+                        }
+                        _ => {
+                            return Err(fail("returned region changes its exact original call ABI"));
+                        }
+                    };
+                    if actual.result.is_none() {
+                        return Err(fail("returned region has no actual result SSA"));
+                    }
+                    let worlds = inventory.worlds(program, callee, b)?;
+                    if worlds.is_empty() || worlds.iter().any(|world| world.definition != *target) {
+                        return Err(fail(
+                            "returned region selects another actual callee definition",
+                        ));
+                    }
+                }
+                // This names only the region. The closed result consumer still
+                // proves every world's complete Store and escaping-source graph.
+                Ok(Class::CallResult(scope.id, *node, *target, *ordinal))
+            }
             Kind::Life(Life::Receiver(owner, node)) => {
                 let scope = self.context(*owner, context, inventory, b)?;
                 // The source-only universe has a distinct call-local symbol.
@@ -124,65 +245,122 @@ impl Checked {
                     return Err(fail("receiver role has no actual function world"));
                 };
                 let function = inventory.function(target, b)?;
-                let mut selected = None;
+                b.lookup(self.trait_calls.len(), WORK)?;
+                let call = self
+                    .trait_calls
+                    .get(&(*owner, *node))
+                    .ok_or_else(|| fail("receiver role has no independently checked trait call"))?;
+                if call.receiver_anchor.is_none() {
+                    return Err(fail(
+                        "receiver role changes its original borrowed method kind",
+                    ));
+                }
+                let mut recipe = None;
                 for link in site_nodes {
-                    b.spend(sites.len().saturating_add(1), WORK)?;
-                    if link.node != SemanticOriginalNode::Expression(*node)
-                        || !sites.iter().any(|site| {
-                            site.id == link.site
-                                && matches!(site.kind, SemanticSiteRecipeKind::Call { .. })
-                        })
-                    {
+                    b.spend(1, WORK)?;
+                    if link.node != SemanticOriginalNode::Expression(*node) {
                         continue;
                     }
-                    for site in &program.sites {
-                        b.spend(1, WORK)?;
-                        if site.instance != scope.id
-                            || site.recipe != link.site
-                            || !matches!(site.action, SemanticSiteAction::BodyCall { .. })
-                        {
-                            continue;
-                        }
-                        let SemanticSiteAddress::Typed {
-                            block,
-                            instruction,
-                            edge: SemanticSiteEdge::After,
-                        } = site.at
-                        else {
-                            return Err(fail("receiver role changes its original call occurrence"));
-                        };
-                        let operation = function
-                            .blocks
-                            .get(block.0 as usize)
-                            .filter(|row| row.id == block)
-                            .and_then(|row| row.instructions.get(instruction as usize))
-                            .ok_or_else(|| fail("receiver role has no actual call operation"))?;
-                        let arguments = match &operation.kind {
-                            InstructionKind::Call { arguments, .. }
-                            | InstructionKind::SuspendCall { arguments, .. } => arguments,
-                            _ => {
-                                return Err(fail(
-                                    "receiver role is replaced by another actual operation",
-                                ));
-                            }
-                        };
-                        let head = *arguments
-                            .first()
-                            .ok_or_else(|| fail("receiver role omits its actual receiver"))?;
-                        if !matches!(
-                            function.values.get(head.0 as usize),
-                            Some(Type::Address { .. })
-                        ) {
-                            return Err(fail("receiver role has no actual borrowed head"));
-                        }
-                        if selected
-                            .replace(Class::Reborrow(function.id, head))
-                            .is_some()
-                        {
-                            return Err(fail("receiver role has competing actual call bindings"));
-                        }
+                    b.spend(sites.len(), WORK)?;
+                    let source = sites
+                        .iter()
+                        .find(|site| site.id == link.site)
+                        .ok_or_else(|| fail("receiver role points to an absent original site"))?;
+                    // Trait member calls retain their original syntax until
+                    // the actual provider is selected. Both recipe forms bind
+                    // this same independently checked call-local receiver.
+                    if matches!(
+                        source.kind,
+                        SemanticSiteRecipeKind::OriginalCall | SemanticSiteRecipeKind::Call { .. }
+                    ) && recipe.replace(link.site).is_some()
+                    {
+                        return Err(fail("receiver role has competing original call recipes"));
                     }
                 }
+                let recipe = recipe
+                    .ok_or_else(|| fail("receiver role has no exact original call recipe"))?;
+                let mut selected = None;
+                for site in &program.sites {
+                    b.spend(1, WORK)?;
+                    if site.instance != scope.id || site.recipe != recipe {
+                        continue;
+                    }
+                    if !matches!(site.action, SemanticSiteAction::BodyCall { .. }) {
+                        return Err(fail("receiver role changes its actual call action"));
+                    }
+                    let SemanticSiteAddress::Typed {
+                        block,
+                        instruction,
+                        edge: SemanticSiteEdge::After,
+                    } = site.at
+                    else {
+                        return Err(fail("receiver role changes its original call occurrence"));
+                    };
+                    let operation = function
+                        .blocks
+                        .get(block.0 as usize)
+                        .filter(|row| row.id == block)
+                        .and_then(|row| row.instructions.get(instruction as usize))
+                        .ok_or_else(|| fail("receiver role has no actual call operation"))?;
+                    let head = match &operation.kind {
+                        InstructionKind::Call { arguments, .. }
+                            if call.dynamic.is_none() && call.call_kind == CallKind::Direct =>
+                        {
+                            *arguments.first().ok_or_else(|| fail("receiver role omits its actual receiver"))?
+                        }
+                        InstructionKind::SuspendCall { arguments, .. }
+                            if call.dynamic.is_none() && call.call_kind == CallKind::Suspend
+                                && function.call_kind == CallKind::Suspend =>
+                        {
+                            *arguments.first().ok_or_else(|| fail("receiver role omits its actual receiver"))?
+                        }
+                        InstructionKind::CallDynSlot { callee, interface, slot, .. }
+                            if call.dynamic.is_some() && call.call_kind == CallKind::Direct =>
+                        {
+                            let receiver = self.value(call.receiver, scope, program, inventory, b, 0)?;
+                            if !matches!(receiver.ty, Type::Dyn { interface: original } if original == *interface) {
+                                return Err(fail("dynamic receiver role changes its complete original interface"));
+                            }
+                            let mut found = None;
+                            for candidate in &inventory.module.dyn_interfaces {
+                                b.spend(1, WORK)?;
+                                if candidate.id == *interface && found.replace(candidate).is_some() {
+                                    return Err(fail("dynamic receiver role repeats its actual interface"));
+                                }
+                            }
+                            let directory = found.ok_or_else(|| fail("dynamic receiver role has no complete actual interface"))?;
+                            let member = directory.slots.get(*slot as usize)
+                                .ok_or_else(|| fail("dynamic receiver role selects an absent method slot"))?;
+                            if directory.application.declaration != call.declaration
+                                || member.member.application != directory.application
+                                || member.member.ordinal != call.member
+                                || member.call_kind != call.call_kind
+                                || !matches!(function.values.get(callee.0 as usize),
+                                    Some(Type::Address { mutable: false, inner })
+                                    if matches!(inner.as_ref(), Type::Dyn { interface: actual } if actual == interface))
+                            {
+                                return Err(fail("dynamic receiver role changes its original member, application or actual head"));
+                            }
+                            *callee
+                        }
+                        _ => return Err(fail("receiver role changes its original call ABI or operation")),
+                    };
+                    if !matches!(
+                        function.values.get(head.0 as usize),
+                        Some(Type::Address { .. })
+                    ) {
+                        return Err(fail("receiver role has no actual borrowed head"));
+                    }
+                    if selected
+                        .replace(Class::Reborrow(function.id, head))
+                        .is_some()
+                    {
+                        return Err(fail("receiver role has competing actual call bindings"));
+                    }
+                }
+                // This only names the call's outer class. The trait operation
+                // still checks the complete provider/member, actual vector,
+                // receiver place and type; memory flow proves the real loan.
                 selected.ok_or_else(|| fail("receiver role has no exact actual call binding"))
             }
             Kind::Life(Life::Invocation(owner, ordinal)) => {
@@ -278,7 +456,7 @@ impl Checked {
                     ));
                 }
                 let class = self.life_value(*life, context, inventory, b)?;
-                let payload = payload.ty;
+                let payload = payload.into_type(b)?;
                 let ty = Type::MutexGuard {
                     payload: Box::new(payload.clone()),
                     retained_life: RetainedLifeShape {
@@ -294,16 +472,12 @@ impl Checked {
                         nominal_arguments: Vec::new(),
                     },
                 };
-                Ok(Value {
-                    ty,
-                    life: StorageLifeShape {
+                Ok(Value::new(ty, StorageLifeShape {
                         binder_count: 1,
                         slots: Vec::new(),
                         retained: Vec::new(),
                         nominal_arguments: Vec::new(),
-                    },
-                    classes: vec![class],
-                })
+                    }, vec![class]))
             }
             Kind::CallResult {
                 caller,
@@ -390,46 +564,31 @@ impl Checked {
             Kind::Wrapped(wrapper, inner) => {
                 let inner = self.value(*inner, context, program, inventory, b, depth + 1)?;
                 if *wrapper == Wrapper::Managed && matches!(inner.ty, Type::Task { .. }) {
-                    return Ok(Value {
-                        ty: Type::Managed(Box::new(inner.ty)),
-                        life: inner.life,
-                        classes: inner.classes,
-                    });
+                    return value::unary(geometry::Unary::Managed, inner, b);
                 }
                 if !inner.classes.is_empty() {
                     return Err(unknown(
                         "original opaque resource constructor needs its complete retained and phantom child occurrence transport",
                     ));
                 }
-                Ok(value::scalar(wrapper.ty(inner.ty)))
+                let kind = match wrapper {
+                    Wrapper::Managed => geometry::Unary::Managed,
+                    Wrapper::Store => geometry::Unary::OwnedStore,
+                    Wrapper::Mutex => geometry::Unary::Mutex,
+                    Wrapper::Registration => geometry::Unary::Registration,
+                    Wrapper::AsyncRegistration => geometry::Unary::AsyncRegistration,
+                };
+                value::unary(kind, inner, b)
             }
             Kind::Desc { life, inner } => {
                 let inner = self.value(*inner, context, program, inventory, b, depth + 1)?;
                 let class = self.life_value(*life, context, inventory, b)?;
-                let mut value = value::address(false, class, inner, b)?;
-                let Type::Address { inner, .. } = value.ty else {
-                    return Err(fail("original description loses its complete payload"));
-                };
-                value.ty = Type::Desc(inner);
-                let slot =
-                    value.life.slots.get_mut(0).ok_or_else(|| {
-                        fail("original description omits its outer weak occurrence")
-                    })?;
-                slot.mode = StoredBorrowMode::WritableDescription;
-                Ok(value)
+                value::description(class, inner, b)
             }
             Kind::ErrorUnion { error, result } => {
                 let error = self.value(*error, context, program, inventory, b, depth + 1)?;
                 let result = self.value(*result, context, program, inventory, b, depth + 1)?;
-                if !error.classes.is_empty() || !result.classes.is_empty() {
-                    return Err(unknown(
-                        "original ErrorUnion needs complete active-arm class occurrence transport",
-                    ));
-                }
-                Ok(value::scalar(Type::ErrorUnion {
-                    error: Box::new(error.ty),
-                    result: Box::new(result.ty),
-                }))
+                value::error_union(error, result, b)
             }
             Kind::Code {
                 kind,
@@ -446,7 +605,7 @@ impl Checked {
                             "original code pointer needs its complete input scope relation",
                         ));
                     }
-                    Solver::push(&mut physical, value.ty, b)?;
+                    Solver::push(&mut physical, value.into_type(b)?, b)?;
                 }
                 let result = self.value(*result, context, program, inventory, b, depth + 1)?;
                 if !result.classes.is_empty() {
@@ -457,11 +616,11 @@ impl Checked {
                 let ty = match kind {
                     SemanticCodeKind::FunctionPointer => Type::FunctionPointer {
                         parameters: physical,
-                        result: Box::new(result.ty),
+                        result: Box::new(result.into_type(b)?),
                     },
                     SemanticCodeKind::ForeignCallback => Type::ForeignCallback {
                         parameters: physical,
-                        result: Box::new(result.ty),
+                        result: Box::new(result.into_type(b)?),
                     },
                     SemanticCodeKind::BorrowedFunctionPointer => {
                         return Err(unknown(
@@ -490,10 +649,7 @@ impl Checked {
                 let length = u32::try_from(length).map_err(|_| {
                     fail("original Array length exceeds its represented finite domain")
                 })?;
-                Ok(value::scalar(Type::Array {
-                    element: Box::new(element.ty),
-                    length,
-                }))
+                value::unary(geometry::Unary::Array(length), element, b)
             }
             Kind::Slice(element) => {
                 let element = self.value(*element, context, program, inventory, b, depth + 1)?;
@@ -502,9 +658,7 @@ impl Checked {
                         "original Slice requires its complete element occurrence embedding",
                     ));
                 }
-                Ok(value::scalar(Type::Slice {
-                    element: Box::new(element.ty),
-                }))
+                value::unary(geometry::Unary::Slice, element, b)
             }
             Kind::Tuple(fields) => {
                 let mut types = Vec::new();
@@ -515,9 +669,9 @@ impl Checked {
                             "original tuple needs its complete child class embedding",
                         ));
                     }
-                    Solver::push(&mut types, field.ty, b)?;
+                    Solver::push(&mut types, field, b)?;
                 }
-                Ok(value::scalar(Type::Tuple(types)))
+                value::tuple(types, b)
             }
             Kind::Closure {
                 definition,
@@ -585,16 +739,12 @@ impl Checked {
                         "actual closure scope omits original environment or phantom classes",
                     ));
                 }
-                Ok(Value {
-                    ty: Type::Closure(id),
-                    life: StorageLifeShape {
+                Ok(Value::new(Type::Closure(id), StorageLifeShape {
                         binder_count: count,
                         slots: Vec::new(),
                         retained: Vec::new(),
                         nominal_arguments: Vec::new(),
-                    },
-                    classes,
-                })
+                    }, classes))
             }
             _ => Err(unknown(
                 "original complete type remains unresolved independently of executable images",
@@ -627,68 +777,22 @@ impl Checked {
             return Ok(value::scalar(ty.clone()));
         }
         let context = self.context(caller, context, inventory, b)?;
-        let source = inventory.definition(caller, b)?;
-        let SemanticDefinitionBody::FunctionWithBody {
-            site_nodes, sites, ..
-        } = &source.body
-        else {
-            return Err(fail("original call result has no complete caller body"));
-        };
-        let call = self
-            .calls
-            .get(&(caller, node))
-            .ok_or_else(|| fail("original result role has no checked call and actual vector"))?;
-        let mut recipe = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            b.spend(sites.len(), WORK)?;
-            if link.node == SemanticOriginalNode::Expression(node)
-                && sites.iter().any(|site| {
-                    site.id == link.site
-                        && matches!(
-                            site.kind,
-                            SemanticSiteRecipeKind::OriginalCall
-                                | SemanticSiteRecipeKind::Call { .. }
-                                | SemanticSiteRecipeKind::CallableCall { .. }
-                        )
-                })
-            {
-                if recipe.replace(link.site).is_some() {
-                    return Err(fail("original call result has ambiguous role anchors"));
-                }
-            }
-        }
-        let recipe =
-            recipe.ok_or_else(|| fail("original call result has no emitted role anchor"))?;
+        b.lookup(self.calls.len(), WORK)?;
+        let call = self.calls.get(&(caller, node)).ok_or_else(|| fail("original result role has no checked call and actual vector"))?;
+        let recipe = inventory.call_anchor(caller, node, b)?;
         let function = match &context.target {
             SemanticInstanceTarget::Function(target) => inventory.function(target, b)?,
             _ => return Err(fail("original call result has no real caller function")),
         };
-        let mut actual = None;
-        for site in &program.sites {
-            b.spend(1, WORK)?;
-            if site.instance == context.id && site.recipe == recipe {
-                let SemanticSiteAddress::Typed {
-                    block,
-                    instruction,
-                    edge: SemanticSiteEdge::After,
-                } = site.at
-                else {
-                    return Err(fail(
-                        "original call result does not name its actual after boundary",
-                    ));
-                };
-                let instruction = function
-                    .blocks
-                    .get(block.0 as usize)
-                    .and_then(|block| block.instructions.get(instruction as usize))
-                    .ok_or_else(|| fail("original call role has no actual instruction"))?;
-                if actual.replace(instruction).is_some() {
-                    return Err(fail("original result role has multiple executable calls"));
-                }
-            }
-        }
-        let instruction = actual.ok_or_else(|| fail("original result role has no actual call"))?;
+        let site = inventory.emitted_site(program, context.id, recipe, b)?;
+        let SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After } = site.at else {
+            return Err(fail("original call result does not name its actual after boundary"));
+        };
+        let instruction = function.blocks.get(block.0 as usize)
+            .filter(|actual| actual.id == block)
+            .and_then(|block| block.instructions.get(instruction as usize))
+            .ok_or_else(|| fail("original call role has no actual instruction"))?;
+        let action = &site.action;
         if let InstructionKind::Call {
             function: target, ..
         }
@@ -699,19 +803,79 @@ impl Checked {
             function: target, ..
         } = instruction.kind
         {
-            let mut selected = None;
-            for instance in &program.instances {
-                b.spend(1, WORK)?;
-                if matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id==target)
-                    && selected.replace(instance).is_some()
-                {
-                    return Err(fail(
-                        "original call result has ambiguous actual target instances",
-                    ));
+            let mut worlds = 0usize;
+            for instance in inventory.worlds(program, target, b)? {
+                if instance.definition != call.target {
+                    return Err(fail("original result role selects another actual callee"));
                 }
+                worlds = worlds.saturating_add(1);
             }
-            if selected.is_none_or(|instance| instance.definition != call.target) {
-                return Err(fail("original result role selects another actual callee"));
+            if worlds == 0 {
+                return Err(fail("original result role has no actual callee world"));
+            }
+            if worlds > 1 {
+                let actuals = match action {
+                    SemanticSiteAction::BodyCall { actuals } => actuals,
+                    SemanticSiteAction::Call {
+                        target: SemanticFunctionTarget::Typed(id),
+                        actuals,
+                    } if *id == target => actuals,
+                    _ => return Err(fail("shared result changes its exact actual call receipt")),
+                };
+                if actuals.len() != call.actuals.len() {
+                    return Err(fail("shared result omits its original full mixed vector"));
+                }
+                // The result is instantiated in the caller's checked original
+                // domain below. Do not select a representative callee world:
+                // every world of this code must independently fit this receipt.
+                for world in &program.instances {
+                    b.spend(1, WORK)?;
+                    if !matches!(world.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id==target)
+                    {
+                        continue;
+                    }
+                    // Each world retains its independently checked lexical
+                    // parent, Self, environment and header. None is selected
+                    // as a representative of the caller's result classes.
+                    // The original result below is instantiated in this exact
+                    // caller's checked scheme, while every callee world must
+                    // satisfy the same complete mixed boundary structurally.
+                    if world.actuals.len() != call.actuals.len() {
+                        return Err(fail("shared result world changes its full mixed arity"));
+                    }
+                    for (ordinal, ((original, proposed), actual)) in
+                        call.actuals.iter().zip(actuals).zip(&world.actuals).enumerate()
+                    {
+                        let expected =
+                            self.argument(*original, context, program, inventory, b, depth + 1)?;
+                        let proposed =
+                            self.result_world_argument(context, proposed, inventory, b, depth + 1)?;
+                        let actual =
+                            self.result_world_argument(world, actual, inventory, b, depth + 1)?;
+                        if proposed != expected {
+                            return Err(fail("shared result receipt differs from its complete caller-domain original actual"));
+                        }
+                        let valid = match (&expected, &actual) {
+                            (Argument::Life(_), Argument::Life(Class::Formal(owner, index))) =>
+                                *owner == world.id && *index as usize == ordinal,
+                            (Argument::Type(expected), Argument::Type(actual)) => {
+                                // Classes belong to different original worlds.
+                                // Compare full N/shape and physical Type here;
+                                // actual header/input/result class equations
+                                // remain separate boundary obligations.
+                                geometry::same_type(&expected.ty, &actual.ty, b)?
+                                    && expected.life == actual.life
+                                    && expected.classes.len() == actual.classes.len()
+                            }
+                            (Argument::Const { carrier: expected, value }, Argument::Const { carrier: actual, value: actual_value }) =>
+                                geometry::same_type(expected, actual, b)? && value == actual_value,
+                            _ => false,
+                        };
+                        if !valid {
+                            return Err(fail("shared result world changes its independently checked rigid mixed boundary"));
+                        }
+                    }
+                }
             }
         } else if !call.closure
             || !matches!(
@@ -720,6 +884,7 @@ impl Checked {
                     | InstructionKind::CallClosureOnce { .. }
                     | InstructionKind::CallClosureShared { .. }
                     | InstructionKind::CallClosureMut { .. }
+                    | InstructionKind::CallClosureBorrowed { .. }
             )
         {
             return Err(fail("original result role changed its actual call family"));
@@ -742,5 +907,40 @@ impl Checked {
             ));
         }
         Ok(result)
+    }
+
+    /// Resolve a proposed boundary in its own exact original world. Full class
+    /// images are retained; comparing worlds does not identify their classes.
+    fn result_world_argument(
+        &self,
+        context: &SemanticInstance,
+        actual: &SemanticActual,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Argument> {
+        crate::dyn_metadata::recipe(actual, b)?;
+        let (input, constant) = match actual {
+            SemanticActual::Type(input) => (input, None),
+            SemanticActual::Const { ty, value } => (ty, Some(value)),
+            SemanticActual::Life(life) => {
+                return Ok(Argument::Life(value::class(context, life, inventory, b, depth + 1)?));
+            }
+            _ => return Err(fail("shared call result contains an unmaterialized actual")),
+        };
+        let value = value::resolved(context, input, inventory, b, depth)?;
+        if let Some(constant) = constant {
+            if constant.ty() != value.ty {
+                return Err(fail(
+                    "shared call result changes its complete constant carrier",
+                ));
+            }
+            Ok(Argument::Const {
+                carrier: value.into_type(b)?,
+                value: constant.clone(),
+            })
+        } else {
+            Ok(Argument::Type(value))
+        }
     }
 }

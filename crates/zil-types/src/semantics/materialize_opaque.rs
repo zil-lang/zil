@@ -248,6 +248,11 @@ impl Eval<'_, '_, '_> {
         &mut self,
         value: &mut SemanticTypeValue,
         actuals: &[SemanticActual],
+        caller: SemanticInstanceId,
+        candidate: &SemanticInstance,
+        boundary: &super::super::original::CalleeResultBoundary,
+        output: ValueId,
+        depth: usize,
     ) -> R<()> {
         let SemanticTypeValue::Resolved { life, classes, .. } = value else {
             return Err(bad("callee result retains an unresolved whole type"));
@@ -256,7 +261,84 @@ impl Eval<'_, '_, '_> {
         if classes.len() != life.binder_count as usize {
             return Err(bad("callee result omits an intrinsic class"));
         }
-        for image in classes {
+        let mut input_images = BTreeMap::new();
+        let function = self.function(candidate.id)?;
+        let needs_boundary = classes.iter().any(|image| match image {
+            SemanticClassExpr::Formal {
+                scope: SemanticScopeRef::Ancestor(0),
+                ..
+            } => false,
+            SemanticClassExpr::IntrinsicClass {
+                operand:
+                    SemanticOperand::TypeArgument {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        ..
+                    },
+                path,
+                ..
+            } if path.is_empty() => false,
+            _ => true,
+        });
+        if needs_boundary && let Some(header) = &function.storage_life {
+            if function.parameters.len() != boundary.parameters.len() {
+                return Err(bad(
+                    "opaque result changes its complete original input arity",
+                ));
+            }
+            let mut bindings = Vec::new();
+            let mut intrinsic = Vec::new();
+            let mut statics = Vec::new();
+            for (index, parameter) in boundary.parameters.iter().enumerate() {
+                let local = function
+                    .locals
+                    .get(function.parameters[index].0 as usize)
+                    .ok_or_else(|| bad("opaque result input has no actual local"))?;
+                let input = self.ty(caller, &parameter.ty, Some(&local.ty), depth + 1)?;
+                super::super::creator_headers::rows::append(
+                    &input,
+                    StorageBase::Parameter(index as u32),
+                    &mut bindings,
+                    &mut intrinsic,
+                    &mut statics,
+                    self.limits,
+                    self.left,
+                )?;
+            }
+            for row in &header.bindings {
+                if !matches!(row.position.base, StorageBase::Parameter(_)) {
+                    continue;
+                }
+                self.fee(bindings.len())?;
+                let mut selected = bindings
+                    .iter()
+                    .filter(|(position, _)| position == &row.position);
+                let (_, image) = selected
+                    .next()
+                    .ok_or_else(|| bad("opaque input header adds a physical occurrence"))?;
+                if selected.next().is_some() {
+                    return Err(bad("opaque input physical occurrence is ambiguous"));
+                }
+                self.insert_result_input(&mut input_images, row.binder, image)?;
+            }
+            for row in &header.classes {
+                if !matches!(row.position.base, StorageBase::Parameter(_)) {
+                    continue;
+                }
+                self.fee(intrinsic.len())?;
+                let mut selected = intrinsic
+                    .iter()
+                    .filter(|(position, _)| position == &row.position);
+                let (_, image) = selected
+                    .next()
+                    .ok_or_else(|| bad("opaque input header adds an intrinsic occurrence"))?;
+                if selected.next().is_some() {
+                    return Err(bad("opaque input intrinsic occurrence is ambiguous"));
+                }
+                self.insert_result_input(&mut input_images, row.binder, image)?;
+            }
+        }
+        for (class_index, image) in classes.iter_mut().enumerate() {
+            let local_image;
             let selected = match image {
                 SemanticClassExpr::Formal {
                     scope: SemanticScopeRef::Ancestor(0),
@@ -292,13 +374,80 @@ impl Eval<'_, '_, '_> {
                     })?
                 }
                 _ => {
-                    return Err(unknown(
-                        "opaque result requires a separately proved callee-local or ancestor class boundary",
-                    ));
+                    // The actual result header connects this complete child
+                    // class to a real input occurrence of this exact call.
+                    // It supplies a proposal only: original headers and every
+                    // actual call/return equation are checked independently.
+                    let header = function.storage_life.as_ref().ok_or_else(|| {
+                        unknown("opaque result requires its complete actual input/result header")
+                    })?;
+                    self.fee(header.classes.len())?;
+                    let mut rows = header.classes.iter().filter(|row| {
+                        row.position.base == StorageBase::Result
+                            && row.position.path.is_empty()
+                            && row.position.class as usize == class_index
+                    });
+                    let row = rows.next().ok_or_else(|| {
+                        unknown("opaque result has no complete original input class relation")
+                    })?;
+                    if rows.next().is_some() {
+                        return Err(bad("opaque result class relation is ambiguous"));
+                    }
+                    if let Some(input) = input_images.get(&row.binder) {
+                        input
+                    } else {
+                        let StorageBinder::Invocation(ordinal) = row.binder else {
+                            return Err(unknown(
+                                "opaque captured Fixed result lacks its sealed input boundary",
+                            ));
+                        };
+                        if ordinal >= header.invocation_binder_count
+                            || !matches!(
+                                &self.definition(candidate.definition)?.body,
+                                SemanticDefinitionBody::FunctionWithBody {
+                                    body: SemanticOriginalFunctionBody::Defined(_),
+                                    ..
+                                }
+                            )
+                        {
+                            return Err(bad(
+                                "opaque local result class lacks its complete original body domain",
+                            ));
+                        }
+                        // The complete class of this exact emitted result is
+                        // fresh to the call. Its input alternatives remain in
+                        // the independent return-source/loan proof; no input
+                        // images are identified by this coordinate.
+                        local_image = SemanticClassExpr::IntrinsicClass {
+                            operand: SemanticOperand::Value(output),
+                            path: Vec::new(),
+                            class: class_index as u32,
+                        };
+                        &local_image
+                    }
                 }
             };
             crate::dyn_metadata::semantic_operand_snapshot(selected, self.limits, self.left, 1)?;
             *image = selected.clone();
+        }
+        Ok(())
+    }
+    fn insert_result_input(
+        &mut self,
+        images: &mut BTreeMap<StorageBinder, SemanticClassExpr>,
+        binder: StorageBinder,
+        image: &SemanticClassExpr,
+    ) -> R<()> {
+        crate::dyn_metadata::semantic_operand_snapshot(image, self.limits, self.left, 1)?;
+        if let Some(old) = images.get(&binder) {
+            crate::dyn_metadata::semantic_operand_snapshot(old, self.limits, self.left, 1)?;
+            if old != image {
+                return Err(bad(
+                    "opaque input class changes its complete original caller image",
+                ));
+            }
+        } else {
+            images.insert(binder, image.clone());
         }
         Ok(())
     }
@@ -635,9 +784,12 @@ impl Eval<'_, '_, '_> {
                 "opaque result needs its exact original direct-call target",
             ));
         };
-        let actual_result = op
+        let output = op
             .result
-            .and_then(|id| function.values.get(id.0 as usize))
+            .ok_or_else(|| bad("opaque result call has no actual result SSA"))?;
+        let actual_result = function
+            .values
+            .get(output.0 as usize)
             .ok_or_else(|| bad("opaque result call has no actual complete result SSA"))?;
         if let Some(hint) = hint {
             inference::charge_type_snapshot(
@@ -673,7 +825,15 @@ impl Eval<'_, '_, '_> {
                 continue;
             }
             let mut value = self.ty(candidate.id, &boundary.result, hint, depth + 1)?;
-            self.explicit_result_images(&mut value, &actuals)?;
+            self.explicit_result_images(
+                &mut value,
+                &actuals,
+                caller,
+                candidate,
+                boundary,
+                output,
+                depth + 1,
+            )?;
             let context = if closed {
                 Some(self.closed_result_context(
                     candidate.id,

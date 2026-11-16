@@ -114,8 +114,7 @@ impl Symbols {
             }
             origins.push(origin);
         }
-        Ok(CheckedType {
-            ty: value.raw.ty.clone(),
+        Ok(CheckedType {type_cell: crate::semantic::CheckedTypeData::new(value.raw.ty.clone()),
             life: value.life.clone(),
             classes,
             origins,
@@ -125,22 +124,20 @@ impl Symbols {
     /// Reverse a freshly constructed value in this private Semantic domain.
     /// Its outside indices were created from checked ClassKeys/Γ here; they
     /// are never public W/Context indices or an inverse to_context map.
-    pub(super) fn constructed(
-        &self,
-        value: terms::Value,
-        statics: Vec<crate::semantic::StaticOccurrence>,
-        b: &mut Budget,
-    ) -> Check<CheckedType> {
+    pub(super) fn constructed(&self,value:terms::Value,statics:Vec<crate::semantic::StaticOccurrence>,b:&mut Budget)->Check<CheckedType>{
+        self.constructed_shared(crate::semantic::CheckedTypeData::new(value.raw.ty),constructors::Shape{life:value.raw.life,classes:value.raw.classes,terms:value.terms},statics,b)
+    }
+    pub(super) fn constructed_shared(&self,type_cell:std::rc::Rc<crate::semantic::CheckedTypeData>,shape:constructors::Shape,statics:Vec<crate::semantic::StaticOccurrence>,b:&mut Budget)->Check<CheckedType>{
         if !matches!(self.owner, terms::Owner::Semantic(_)) {
             return Err(bad(
                 "fresh semantic construction has no request-local image domain",
             ));
         }
-        dynamic_metadata::recipe(&value.raw, b)?;
-        b.spend(value.terms.len())?;
-        let mut classes = Vec::with_capacity(value.terms.len());
-        let mut origins = Vec::with_capacity(value.terms.len());
-        for term in &value.terms {
+        dynamic_metadata::bounds_type_parts(&type_cell.ty,&shape.life,&shape.classes,b)?;
+        b.spend(shape.terms.len())?;
+        let mut classes = Vec::with_capacity(shape.terms.len());
+        let mut origins = Vec::with_capacity(shape.terms.len());
+        for term in &shape.terms {
             b.spend(self.classes.len().saturating_add(self.origins.len()))?;
             let (key, _) = self
                 .classes
@@ -159,9 +156,8 @@ impl Symbols {
                 });
             }
         }
-        Ok(CheckedType {
-            ty: value.raw.ty,
-            life: value.raw.life,
+        Ok(CheckedType {type_cell,
+            life: shape.life,
             classes,
             origins,
             statics,
@@ -177,11 +173,11 @@ impl Symbols {
     }
     /// Preserve static occurrences alongside the term conversion. The caller
     /// must retain these in its executable request; this grants no provenance.
-    pub(super) fn incoming_pending(
+    pub(super) fn incoming_pending_terms(
         &mut self,
         value: &CheckedType,
         b: &mut Budget,
-    ) -> Check<(terms::Value, Vec<crate::semantic::StaticOccurrence>)> {
+    ) -> Check<(Vec<terms::LifeTerm>, Vec<crate::semantic::StaticOccurrence>)> {
         b.spend(value.statics.len())?;
         for occurrence in &value.statics {
             use crate::semantic::StaticOccurrence;
@@ -196,10 +192,19 @@ impl Symbols {
                 }
             }
         }
-        Ok((self.incoming_value(value, b)?, value.statics.clone()))
+        Ok((self.incoming_terms(value, b)?, value.statics.clone()))
     }
-    fn incoming_value(&mut self, value: &CheckedType, b: &mut Budget) -> Check<terms::Value> {
-        dynamic_metadata::ty(&value.ty, b)?;
+    pub(super) fn incoming_pending(&mut self,value:&CheckedType,b:&mut Budget)->Check<(terms::Value,Vec<crate::semantic::StaticOccurrence>)>{
+        let(terms,statics)=self.incoming_pending_terms(value,b)?;
+        dynamic_metadata::ty(&value.ty,b)?;
+        Ok((terms::Value{raw:DynTypeValue{ty:value.ty.clone(),life:value.life.clone(),classes:terms.iter().map(|term|term.image).collect()},terms},statics))
+    }
+    fn incoming_value(&mut self,value:&CheckedType,b:&mut Budget)->Check<terms::Value>{
+        dynamic_metadata::ty(&value.ty,b)?;
+        let terms=self.incoming_terms(value,b)?;
+        Ok(terms::Value{raw:DynTypeValue{ty:value.ty.clone(),life:value.life.clone(),classes:terms.iter().map(|term|term.image).collect()},terms})
+    }
+    pub(super) fn incoming_terms(&mut self,value:&CheckedType,b:&mut Budget)->Check<Vec<terms::LifeTerm>>{
         let count = value.life.binder_count as usize;
         if count > b.limits.max_nodes
             || value.classes.len() != count
@@ -253,15 +258,9 @@ impl Symbols {
             };
             terms.push(terms::LifeTerm { origin, image });
         }
-        Ok(terms::Value {
-            raw: DynTypeValue {
-                ty: value.ty.clone(),
-                life: value.life.clone(),
-                classes: terms.iter().map(|term| term.image).collect(),
-            },
-            terms,
-        })
+        Ok(terms)
     }
+
 }
 
 #[cfg(test)]
@@ -329,9 +328,11 @@ mod tests {
         for row in &mut derived.life.nominal_arguments {
             row.binder = 0;
         }
-        if let Type::BorrowedStorage { life, .. } = &mut derived.ty {
+        let mut changed=derived.raw_type_copy(&mut budget).unwrap();
+        if let Type::BorrowedStorage { life, .. } = &mut changed {
             *life = derived.life.clone();
         }
+        derived.replace_type(changed);
         derived.classes.truncate(1);
         derived.origins = vec![IntrinsicOrigin::DerivedClass {
             source: derived.classes[0].clone(),

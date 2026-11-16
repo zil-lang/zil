@@ -756,9 +756,15 @@ fn headers(
             validate_type(&receiver.ty, 0, function.span, budget)?;
         }
         if let Some(bindings) = &function.retained_return_sources {
-            charge_return_sources(bindings, budget.limits, function.span, |n| {
-                budget.work(n, function.span)
-            })?;
+            charge_return_sources(
+                bindings,
+                budget.limits,
+                function.span,
+                |charge| match charge {
+                    ReturnSourceCharge::Work(work) => budget.work(work, function.span),
+                    ReturnSourceCharge::Type(ty) => validate_type(ty, 0, function.span, budget),
+                },
+            )?;
         }
         // These raw headers provide context only. Formal signature/resource
         // checks run afterwards and remain the authority for admission.
@@ -869,45 +875,89 @@ pub(super) fn snapshot_callable_parameters(
     }
     Ok(result)
 }
+/// Accounting callbacks for complete retained-source transport. A leaf Type
+/// uses the caller's existing bounded type walker; no region is interpreted.
+pub(super) enum ReturnSourceCharge<'a> {
+    Work(usize),
+    Type(&'a Type),
+}
 pub(super) fn charge_return_sources(
     bindings: &[StorageSourceBinding],
     limits: &Limits,
     span: Span,
-    mut spend: impl FnMut(usize) -> R<()>,
+    mut spend: impl FnMut(ReturnSourceCharge<'_>) -> R<()>,
 ) -> R<()> {
-    let fail = || {
-        Diagnostic::limit(
-            Phase::Types,
-            "retained return source metadata limit exceeded",
-            Some(span),
-        )
-    };
-    let mut nodes = bindings.len().checked_add(1).ok_or_else(fail)?;
-    for binding in bindings {
-        if binding.position.path.len() > limits.max_call_depth
-            || binding.sources.len() > limits.max_nodes
-        {
+    fn rows(
+        nodes: &mut usize,
+        length: usize,
+        limits: &Limits,
+        span: Span,
+        spend: &mut impl FnMut(ReturnSourceCharge<'_>) -> R<()>,
+    ) -> R<()> {
+        let fail = || {
+            Diagnostic::limit(
+                Phase::Types,
+                "retained return source metadata limit exceeded",
+                Some(span),
+            )
+        };
+        *nodes = nodes.checked_add(length).ok_or_else(fail)?;
+        if *nodes > limits.max_nodes {
             return Err(fail());
         }
-        nodes = nodes
-            .checked_add(binding.position.path.len())
-            .and_then(|n| n.checked_add(binding.sources.len()))
-            .ok_or_else(fail)?;
+        spend(ReturnSourceCharge::Work(
+            length.checked_mul(8).ok_or_else(fail)?,
+        ))
+    }
+    let mut nodes = 0;
+    rows(
+        &mut nodes,
+        bindings.len().saturating_add(1),
+        limits,
+        span,
+        &mut spend,
+    )?;
+    for binding in bindings {
+        if binding.position.path.len() > limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "retained return source metadata path limit exceeded",
+                Some(span),
+            ));
+        }
+        rows(
+            &mut nodes,
+            binding.position.path.len(),
+            limits,
+            span,
+            &mut spend,
+        )?;
+        rows(&mut nodes, binding.sources.len(), limits, span, &mut spend)?;
         for atom in &binding.sources {
-            let source = crate::exact_storage_source(atom)?;
-            if source.path.len() > limits.max_call_depth {
-                return Err(fail());
+            let (first, second, leaf) = match atom {
+                StorageSource::Exact(position) => (Some(position), None, None),
+                StorageSource::PlaceAddress { place, .. } => (Some(place), None, None),
+                StorageSource::OwnedView { head, leaf, .. } => (Some(head), None, Some(leaf)),
+                StorageSource::ReborrowedLeaf { source, head } => (Some(source), Some(head), None),
+                StorageSource::Static { leaf, .. } => (None, None, Some(leaf)),
+            };
+            rows(&mut nodes, 1, limits, span, &mut spend)?;
+            for position in first.into_iter().chain(second) {
+                if position.path.len() > limits.max_call_depth {
+                    return Err(Diagnostic::limit(
+                        Phase::Types,
+                        "retained return source metadata path limit exceeded",
+                        Some(span),
+                    ));
+                }
+                rows(&mut nodes, position.path.len(), limits, span, &mut spend)?;
             }
-            nodes = nodes
-                .checked_add(source.path.len())
-                .and_then(|n| n.checked_add(1))
-                .ok_or_else(fail)?;
+            if let Some(leaf) = leaf {
+                spend(ReturnSourceCharge::Type(leaf))?;
+            }
         }
     }
-    if nodes > limits.max_nodes {
-        return Err(fail());
-    }
-    spend(nodes.checked_mul(8).ok_or_else(fail)?)
+    Ok(())
 }
 
 pub(super) fn snapshot_context_function(
@@ -931,15 +981,20 @@ pub(super) fn snapshot_context_function(
     let callable_parameters =
         snapshot_callable_parameters(&function.callable_parameters, limits, left, function.span)?;
     if let Some(bindings) = &function.retained_return_sources {
-        charge_return_sources(bindings, limits, function.span, |n| {
-            *left = left.checked_sub(n).ok_or_else(|| {
-                Diagnostic::limit(
-                    Phase::Types,
-                    "retained result snapshot budget exceeded",
-                    Some(function.span),
-                )
-            })?;
-            Ok(())
+        charge_return_sources(bindings, limits, function.span, |charge| match charge {
+            ReturnSourceCharge::Work(work) => {
+                *left = left.checked_sub(work).ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Types,
+                        "retained result snapshot budget exceeded",
+                        Some(function.span),
+                    )
+                })?;
+                Ok(())
+            }
+            ReturnSourceCharge::Type(ty) => {
+                charge_type_snapshot(ty, function.span, limits, left, 1)
+            }
         })?;
     }
     Ok(CoreFunction {
@@ -1390,7 +1445,10 @@ fn returned_snapshot(bound: &CoreCallableReturn, span: Span, budget: &mut Budget
 
 fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span) -> R<Signature> {
     if let Some(bindings) = &signature.retained_return_sources {
-        charge_return_sources(bindings, budget.limits, span, |n| budget.work(n, span))?;
+        charge_return_sources(bindings, budget.limits, span, |charge| match charge {
+            ReturnSourceCharge::Work(work) => budget.work(work, span),
+            ReturnSourceCharge::Type(ty) => validate_type(ty, 0, span, budget),
+        })?;
     }
     if let Some(life) = &signature.storage_life {
         borrowed_fp::charge_contract(life, |work| budget.work(work, span), 1)?;

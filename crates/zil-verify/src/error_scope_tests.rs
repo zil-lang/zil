@@ -260,7 +260,7 @@ fn error_operands_still_require_valid_ids_and_definition_dominance() {
 }
 
 #[test]
-fn owned_success_payload_requires_an_explicit_result_mode() {
+fn owned_success_payload_modes_keep_exactly_once_transfer_raw_and_wire() {
     let mut body = Body::new(Type::ErrorUnion {
         error: Box::new(Type::I32),
         result: Box::new(owned()),
@@ -273,10 +273,38 @@ fn owned_success_payload_requires_an_explicit_result_mode() {
             value,
         },
     );
-    rejected(
-        body.close(Some(result), CleanupExitKind::Return),
-        "owned success result requires an explicit create or give result mode",
-    );
+    let original = body.close(Some(result), CleanupExitKind::Return);
+    // Infer is the ordinary body-inferred ownership mode. It still consumes
+    // the actual success payload and must leave no other responsibility live.
+    for mode in [PassingMode::Infer, PassingMode::Create, PassingMode::Give] {
+        let mut function = original.clone();
+        function.result_mode = mode;
+        let module = module(function);
+        let plan = resource_tests::plan(&module);
+        let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+        verify_module(module.clone(), plan, &module.target, &Limits::default()).unwrap();
+        verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+    }
+    for mode in [PassingMode::Copy, PassingMode::Move, PassingMode::Describe,
+        PassingMode::Borrow, PassingMode::BorrowMut] {
+        let mut function = original.clone();
+        function.result_mode = mode;
+        rejected(function, "owned success result requires an explicit create or give result mode");
+    }
+    // A second injection of the same Managed SSA cannot be justified by an
+    // inferred result mode, even when both unions have the right complete type.
+    let mut duplicate = original.clone();
+    let second = ValueId(duplicate.values.len() as u32);
+    duplicate.values.push(duplicate.return_type.clone());
+    let end = duplicate.blocks[0].instructions.len() - 1;
+    duplicate.blocks[0].instructions.insert(end, ins(Some(second), InstructionKind::MakeErrorUnion {
+        is_error: false, value,
+    }));
+    rejected(duplicate, "managed SSA value was not available exactly once");
+    let mut leaked = original;
+    leaked.blocks[0].terminator = Terminator::Return(None);
+    leaked.return_type = Type::Unit;
+    rejected(leaked, "normal return leaves an outstanding resource responsibility");
 }
 
 #[test]

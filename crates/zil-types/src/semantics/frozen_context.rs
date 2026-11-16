@@ -294,7 +294,7 @@ fn wrapper_relation(
     else {
         return Err(bad("frozen wrapper/parent lacks its full original body"));
     };
-    if actual.len() != original.len() {
+    if actual.len() < original.len() {
         return Err(bad(
             "generated wrapper loses or invents original source names",
         ));
@@ -309,7 +309,7 @@ fn wrapper_relation(
         invocation: &empty,
         shift: 1,
     };
-    for (actual, original) in actual.iter().zip(original) {
+    for (actual, original) in actual.iter().take(original.len()).zip(original) {
         crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
         crate::dyn_metadata::semantic_operand_snapshot(original, limits, left, 1)?;
         if actual.path != original.path || actual.namespace != original.namespace {
@@ -329,7 +329,164 @@ fn wrapper_relation(
             ));
         }
     }
+    let mut generated = Vec::new();
+    let prefix = &actual[..original.len()];
+    let source_caller = source
+        .modules
+        .iter()
+        .find(|row| row.core.module_id == *module)
+        .ok_or_else(|| bad("frozen wrapper source module is absent"))?;
+    let executable_caller = executable
+        .modules
+        .iter()
+        .find(|row| row.core.module_id == *module)
+        .ok_or_else(|| bad("frozen wrapper executable module is absent"))?;
+    for selected_module in &executable.modules {
+        for selected in &selected_module.core.functions {
+            pay(left, 1)?;
+            if selected_module.core.module_id == *module && selected.id == *function {
+                continue;
+            }
+            let mut target = None;
+            let mut actual_source = None;
+            for source_module in &source.modules {
+                pay(left, 1)?;
+                if source_module.core.module_id == selected_module.core.module_id {
+                    pay(left, source_module.core.functions.len())?;
+                    for candidate in &source_module.core.functions {
+                        if candidate.id == selected.id {
+                            if actual_source.replace(candidate).is_some() {
+                                return Err(bad(
+                                    "selected CT callee duplicates its source Core identity",
+                                ));
+                            }
+                        }
+                    }
+                }
+                if let Some(semantic) = &source_module.core.semantic {
+                    pay(left, semantic.instances.len())?;
+                    for instance in &semantic.instances {
+                        if matches!(&instance.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Core { module, function }) if *module == selected_module.core.module_id && *function == selected.id)
+                        {
+                            if target.replace(instance.definition).is_some() {
+                                return Err(bad(
+                                    "selected CT callee has ambiguous original instance owners",
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            let source_function = actual_source
+                .ok_or_else(|| bad("selected CT callee has no actual source function"))?;
+            pay(
+                left,
+                source_function
+                    .name
+                    .len()
+                    .saturating_add(selected.name.len()),
+            )?;
+            if source_function.name != selected.name {
+                return Err(bad("selected CT callee changes its source symbol spelling"));
+            }
+            let target = target
+                .ok_or_else(|| bad("selected CT callee has no exact original declaration"))?;
+            if selected_module.core.module_id == *module {
+                generated_name(
+                    prefix,
+                    &mut generated,
+                    &[selected.name.as_str()],
+                    target,
+                    limits,
+                    left,
+                )?;
+            } else {
+                for import in &executable_caller.imports {
+                    pay(left, 1)?;
+                    if import.module != selected_module.core.module_id {
+                        continue;
+                    }
+                    pay(
+                        left,
+                        source_caller
+                            .imports
+                            .len()
+                            .saturating_add(import.alias.len()),
+                    )?;
+                    if !source_caller.imports.iter().any(|source| source == import) {
+                        return Err(bad(
+                            "generated CT callee uses an invented source import alias",
+                        ));
+                    }
+                    generated_name(
+                        prefix,
+                        &mut generated,
+                        &[import.alias.as_str(), selected.name.as_str()],
+                        target,
+                        limits,
+                        left,
+                    )?;
+                }
+            }
+        }
+    }
+    pay(left, generated.len())?;
+    if &actual[original.len()..] != generated.as_slice() {
+        return Err(bad(
+            "generated wrapper changes its complete selected callee symbol directory",
+        ));
+    }
     Ok((wrapper.id, definition.id))
+}
+fn generated_name(
+    prefix: &[SemanticOriginalNameBinding],
+    generated: &mut Vec<SemanticOriginalNameBinding>,
+    path: &[&str],
+    target: SemanticDefinitionId,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    for entry in prefix.iter().chain(generated.iter()) {
+        pay(
+            left,
+            entry
+                .path
+                .len()
+                .saturating_add(path.iter().map(|part| part.len()).sum::<usize>())
+                .saturating_add(1),
+        )?;
+        if entry.namespace == SemanticOriginalNamespace::Value
+            && entry.path.len() == path.len()
+            && entry.path.iter().zip(path).all(|(a, b)| a == b)
+        {
+            if entry.value != SemanticOriginalNameValue::Definition(target) {
+                return Err(bad(
+                    "generated CT callee collides with another original source binding",
+                ));
+            }
+            return Ok(());
+        }
+    }
+    if prefix.len().saturating_add(generated.len()) >= limits.max_nodes {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "generated CT callee directory node limit exceeded",
+            None,
+        ));
+    }
+    pay(
+        left,
+        path.iter()
+            .fold(path.len().saturating_add(1), |work, part| {
+                work.saturating_add(part.len())
+            }),
+    )?;
+    generated.push(SemanticOriginalNameBinding {
+        path: path.iter().map(|part| (*part).to_owned()).collect(),
+        namespace: SemanticOriginalNamespace::Value,
+        value: SemanticOriginalNameValue::Definition(target),
+    });
+    Ok(())
 }
 pub(crate) fn check(
     executable: &CoreProgram,

@@ -15,6 +15,7 @@ struct Ports {
     direct: bool,
     environment: bool,
     task_ports: Vec<(Vec<zil_ir::ContractProjection>, usize)>,
+    physical_slots:Vec<(Vec<ContractProjection>,usize)>,
     // Per-ordinal address upper variables, distinct from nominal classes.
     array_elements: Vec<usize>,
 }
@@ -49,7 +50,8 @@ fn pure_class_keys(
                 path.pop();
             }
         }
-        Type::Array { element, .. } => {
+        Type::Managed(inner)|Type::Desc(inner)|Type::Address{inner,..}=>{path.push(LifeTypeProjection::Pointee);pure_class_keys(inner,path,out,b)?;path.pop();},
+        Type::Array { element, .. } | Type::OwnedStore { element } | Type::Slice { element } => {
             path.push(LifeTypeProjection::Element);
             pure_class_keys(element, path, out, b)?;
             path.pop();
@@ -63,7 +65,7 @@ fn pure_class_keys(
                 path.pop();
             }
         }
-        Type::Record { fields, .. } => {
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
             for (index, (_, field)) in fields.iter().enumerate() {
                 path.push(LifeTypeProjection::Place(PlaceProjection::Field(
                     index as u32,
@@ -301,15 +303,12 @@ impl Equations {
         Ok(())
     }
     fn ports(&mut self, module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<Ports> {
-        let outer = if matches!(ty, Type::Address { .. })
-            || b.task_sources() && matches!(ty, Type::Desc(_)) {
+        let outer = if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
             Some(self.fresh(false, b)?)
         } else {
             None
         };
-        let ty = if let Type::Address { inner, .. } = ty {
-            inner.as_ref()
-        } else if let Type::Desc(inner) = ty && b.task_sources() {
+        let ty = if let Type::Address { inner, .. } | Type::Desc(inner) = ty {
             inner.as_ref()
         } else {
             ty
@@ -371,7 +370,8 @@ impl Equations {
                     class,
                 ));
             }
-        } else if !module.life_instances.is_empty()
+        } else if matches!(ty,Type::Managed(_)|Type::Desc(_)|Type::OwnedStore{..}|Type::Slice{..}|Type::Package{..})
+            || !module.life_instances.is_empty()
             && matches!(
                 ty,
                 Type::Array { .. } | Type::Tuple(_) | Type::Record { .. } | Type::Enum { .. }
@@ -388,6 +388,14 @@ impl Equations {
                 Vec::new()
             };
             pure_class_keys(ty, &mut path, &mut keys, b)?;
+        }
+        let mut physical_slots=Vec::new();
+        if outer.is_none()&&let Type::BorrowedStorage{life,..}=ty{
+            b.spend(life.slots.len())?;
+            for slot in &life.slots{
+                b.spend(slot.path.len().saturating_add(1))?;
+                physical_slots.push((slot.path.iter().copied().map(ContractProjection::Place).collect(),slot.binder as usize));
+            }
         }
         let mut task_ports = Vec::new();
         if b.task_sources() {
@@ -479,6 +487,7 @@ impl Equations {
             direct,
             environment,
             task_ports,
+            physical_slots,
             array_elements,
         })
     }
@@ -556,7 +565,7 @@ fn failure_view_slot(
     Ok(found)
 }
 fn shape(ty: &Type) -> Option<&StorageLifeShape> {
-    let ty = if let Type::Address { inner, .. } = ty {
+    let ty = if let Type::Address { inner, .. } | Type::Desc(inner) = ty {
         inner.as_ref()
     } else {
         ty
@@ -578,8 +587,8 @@ fn link_projection(
     if child.keys.is_empty() {
         return Ok(());
     }
-    b.spend(usize::from(matches!(parent_ty, Type::Address { .. })))?;
-    let (physical, prefix) = if let Type::Address { inner, .. } = parent_ty {
+    b.spend(usize::from(matches!(parent_ty, Type::Address { .. } | Type::Desc(_))))?;
+    let (physical, prefix) = if let Type::Address { inner, .. } | Type::Desc(inner) = parent_ty {
         (inner.as_ref(), vec![LifeTypeProjection::Pointee])
     } else {
         (parent_ty, Vec::new())
@@ -663,6 +672,13 @@ fn select(v: &(Vec<usize>, Vec<usize>), binder: StorageBinder) -> Check<usize> {
         .copied()
         .ok_or_else(|| bad("class binder outside invocation domain"))
 }
+fn physical_binding(p:&Ports,path:&[ContractProjection],b:&mut Budget)->Check<Option<usize>>{
+    b.spend(p.physical_slots.iter().fold(1usize,|work,(actual,_)|work.saturating_add(actual.len().saturating_add(path.len()).saturating_add(1))))?;
+    let mut rows=p.physical_slots.iter().filter(|(actual,_)|actual==path);
+    let Some((_,class))=rows.next()else{return Ok(None);};
+    if rows.next().is_some(){return Err(bad("physical signature binding selects duplicate actual borrowed slots"));}
+    Ok(Some(*p.classes.get(*class).ok_or_else(||bad("physical signature binding escapes its complete intrinsic class domain"))?))
+}
 fn bind(
     c: &StorageLifeContract,
     base: StorageBase,
@@ -695,6 +711,9 @@ fn bind(
                     e.equal(p.classes[*index], select(v, row.binder)?, b)?;
                     continue;
                 }
+            }
+            if !row.position.path.is_empty()&&let Some(actual)=physical_binding(p,&row.position.path,b)?{
+                e.equal(actual,select(v,row.binder)?,b)?;continue;
             }
             if !row.position.path.is_empty() {
                 return Err(bad(
@@ -778,6 +797,9 @@ fn bind_with_outer(
                     array_outer::binding(e, p.classes[*index], select(v, row.binder)?, flow, b)?;
                     continue;
                 }
+            }
+            if !row.position.path.is_empty()&&let Some(actual)=physical_binding(p,&row.position.path,b)?{
+                array_outer::binding(e,actual,select(v,row.binder)?,flow,b)?;continue;
             }
             if !row.position.path.is_empty() {
                 return Err(bad(
@@ -927,7 +949,7 @@ pub(super) fn check_role(
         .ok_or_else(|| bad("role entry environment is absent"))?;
     super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
     if d.storage_life.is_some() {
-        super::signature_life::closure_relation(
+        super::signature_life::closure_relation_resource_scopes(
             module,
             &d.parameters,
             &d.captures,
@@ -935,6 +957,7 @@ pub(super) fn check_role(
             super::stored_callables::life_result(d),
             life,
             Some(f.span),
+            b,
         )?;
     } else {
         super::borrowed_fp::relation(&d.parameters, &d.result, life, Some(f.span))?;
@@ -1053,7 +1076,7 @@ fn check_with(
         b.spend(f.parameters.len())?;
         if f.parameters
             .iter()
-            .any(|l| locals[l.0 as usize].environment)
+            .any(|l| {let ports=&locals[l.0 as usize];ports.environment&&(ports.outer.is_some()||!ports.classes.is_empty())})
         {
             return Err(bad(
                 "captured Fixed parameter needs a complete enclosing relation",
@@ -1161,6 +1184,17 @@ fn check_with(
             None
         }
     };
+    let local_roles=crate::dynamic_witness::semantic_patterns::local_role_transfers(module,f,b)?;
+    for role in &local_roles{
+        let actual=locals.get(role.local.0 as usize).and_then(|ports|ports.outer).ok_or_else(||bad("checked shared local role has no actual outer class"))?;
+        let mut target=None;
+        for output in &role.outputs{
+            let vars=header.as_ref().ok_or_else(||bad("checked shared local export has no complete actual header"))?;
+            let expected=select(vars,output.binder)?;
+            e.equal(actual,expected,b)?;target=Some(expected);
+        }
+        if target.is_none(){let own=e.fresh(true,b)?;e.equal(actual,own,b)?;}
+    }
     // Source structure first; capture-fixed substitution second; calls last.
     // A first call cannot pick an unconstrained capture's semantic class.
     for phase in 0..if environments { 3 } else { 1 } {
@@ -1637,26 +1671,35 @@ fn check_with(
                             )?;
                         }
                     }
-                    InstructionKind::DescribeLocal { local } if b.task_sources() => {
-                        if let Some(out)=out {
-                            e.ground_address(out.outer,b)?;
-                            array_outer::copy(&mut e,out,&locals[local.0 as usize],outer.as_ref(),b)?;
-                        }
+                    InstructionKind::DescribeLocal { local } => {
+                        if let Some(out)=out {e.ground_address(out.outer,b)?;description_classes(&locals[local.0 as usize],out,false,&mut e,b)?;}
                     }
-                    InstructionKind::DescribeCapture { index } if b.task_sources() => {
-                        if let Some(out)=out {
-                            e.ground_address(out.outer,b)?;
-                            let capture=captures.get(*index as usize).ok_or_else(||bad("Task description has no actual capture class domain"))?;
-                            array_outer::copy(&mut e,out,capture,outer.as_ref(),b)?;
-                        }
+                    InstructionKind::DescribeCapture { index } => {
+                        if let Some(out)=out {e.ground_address(out.outer,b)?;let capture=captures.get(*index as usize).ok_or_else(||bad("description has no actual capture class domain"))?;description_classes(capture,out,false,&mut e,b)?;}
                     }
-                    InstructionKind::Store { local, value } => array_outer::copy(
-                        &mut e,
-                        &locals[local.0 as usize],
-                        &values[value.0 as usize],
-                        outer.as_ref(),
-                        b,
-                    )?,
+                    InstructionKind::DescribeAddress{address}=>{
+                        if let Some(out)=out{e.ground_address(out.outer,b)?;description_classes(&values[address.0 as usize],out,true,&mut e,b)?;}
+                    }
+                    InstructionKind::DescribePackageField{local,index}=>{
+                        if let Some(out)=out{e.ground_address(out.outer,b)?;link_projection(&f.locals[local.0 as usize].ty,&locals[local.0 as usize],out,LifeTypeProjection::Place(PlaceProjection::Field(*index)),&mut e,b)?;}
+                    }
+                    InstructionKind::Store { local, value } => {
+                        b.spend(local_roles.len())?;
+                        let role=local_roles.iter().find(|role|role.local==*local);
+                        let to=&locals[local.0 as usize];let from=&values[value.0 as usize];
+                        if let Some(role)=role{
+                            b.spend(role.stores.len())?;
+                            if !role.stores.contains(&(block.id,instruction_index as u32,*value)){return Err(bad("shared local Store lacks its exact completed original/actual transition"));}
+                            if !matches!(f.locals[local.0 as usize].ty,Type::Address{mutable:false,..})||!matches!(f.values[value.0 as usize],Type::Address{mutable:false,..}){return Err(bad("shared local transport changes actual address mode"));}
+                            // The exact checked Store transports only its
+                            // shared outer role. All complete referent classes
+                            // and per-ordinal array domains stay invariant.
+                            array_outer::copy_elements(&mut e,to,from,outer.as_ref(),b)?;
+                            b.spend(to.classes.len().saturating_add(from.classes.len()).saturating_add(1))?;
+                            if to.classes.len()!=from.classes.len(){return Err(bad("shared local Store changes its complete referent class domain"));}
+                            for(to,from)in to.classes.iter().zip(&from.classes){e.equal(*to,*from,b)?;}
+                        }else{array_outer::copy(&mut e,to,from,outer.as_ref(),b)?;}
+                    }
                     InstructionKind::StaticUtf8 { .. } if b.static_utf8 => {
                         if let Some(out) = out {
                             // This instruction is independently typed as a real
@@ -1675,7 +1718,7 @@ fn check_with(
                         }
                     }
                     InstructionKind::BorrowPlaceLocal { .. }
-                        if super::stored_flow::ordinary_error_borrow(f, i, b)? =>
+                        if super::stored_flow::ordinary_error_borrow(module,f, i, b)? =>
                     {
                         if let Some(out) = out {
                             e.ground_address(out.outer, b)?;
@@ -2329,6 +2372,18 @@ fn check_with(
                         }
                     }
                     InstructionKind::CallIndirect { callee, arguments } => {
+                        if plain_pointer_operation(module,f,i,b)?{
+                            // This complete signature contains no runtime
+                            // data head or intrinsic/captured class. Validate
+                            // every real operand/result directory explicitly;
+                            // an absent borrowed-code header is not the proof.
+                            for value in std::iter::once(callee).chain(arguments).chain(i.result.iter()){
+                                let ports=values.get(value.0 as usize).ok_or_else(||bad("plain indirect call has no complete actual value directory"))?;
+                                b.spend(ports.classes.len().saturating_add(ports.keys.len()).saturating_add(ports.task_ports.len()).saturating_add(ports.array_elements.len()).saturating_add(1))?;
+                                if ports.outer.is_some()||!ports.classes.is_empty()||!ports.keys.is_empty()||ports.environment||!ports.task_ports.is_empty()||!ports.array_elements.is_empty(){return Err(bad("plain indirect call retains an actual borrowed/intrinsic/environment role"));}
+                            }
+                            continue;
+                        }
                         let Type::BorrowedFunctionPointer { life, .. } =
                             &f.values[callee.0 as usize]
                         else {
@@ -2396,16 +2451,75 @@ fn scalar(t: &Type) -> bool {
             | Type::F64
     )
 }
+/// Thin code has a complete monomorphic data-only signature. It is not an
+/// address, captured environment, borrowed code scheme or a target identity.
+pub(super) fn plain_pointer_type(ty:&Type,b:&mut Budget)->Check<bool>{
+    if !matches!(ty,Type::FunctionPointer{..}){return Ok(false);}
+    resources::charge_payload(ty,b)?;
+    let mut pending=vec![(ty,0usize)];
+    while let Some((ty,depth))=pending.pop(){
+        b.spend(1)?;
+        if depth>b.limits.max_call_depth.min(128){return Err(limit("plain code signature depth exceeded"));}
+        match ty{
+            Type::FunctionPointer{parameters,result}=>{b.spend(parameters.len())?;pending.extend(parameters.iter().map(|ty|(ty,depth+1)));pending.push((result,depth+1));},
+            Type::ForeignCallback{parameters,result}=>{resources::charge_payload(ty,b)?;super::native_values::callback_signature(parameters,result,None)?;},
+            Type::BorrowedStorage{storage,life}=>{
+                if life.binder_count!=0||!life.slots.is_empty()||!life.retained.is_empty()||!life.nominal_arguments.is_empty(){return Ok(false);}
+                pending.push((storage,depth+1));
+            },
+            Type::Tuple(fields)=>{b.spend(fields.len())?;pending.extend(fields.iter().map(|ty|(ty,depth+1)));},
+            Type::Record{fields,..}=>{b.spend(fields.len())?;pending.extend(fields.iter().map(|(_,ty)|(ty,depth+1)));},
+            Type::Enum{variants,..}=>{b.spend(variants.len())?;for(_,fields)in variants{b.spend(fields.len())?;pending.extend(fields.iter().map(|ty|(ty,depth+1)));}},
+            Type::ErrorUnion{error,result}=>pending.extend([(error.as_ref(),depth+1),(result.as_ref(),depth+1)]),
+            Type::Array{element,..}=>pending.push((element,depth+1)),
+            Type::Unit|Type::Bool=>{},
+            ty if ty.is_integer()||ty.is_float()=>{},
+            _=>return Ok(false),
+        }
+    }
+    Ok(true)
+}
+fn plain_pointer_operation(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<bool>{
+    let pointer=match i.kind{
+        InstructionKind::FunctionRef{..}=>i.result.and_then(|result|f.values.get(result.0 as usize)),
+        InstructionKind::CallIndirect{callee,..}=>f.values.get(callee.0 as usize),
+        _=>None,
+    };
+    let Some(pointer)=pointer else{return Ok(false);};
+    if !plain_pointer_type(pointer,b)?{return Ok(false);}
+    let Type::FunctionPointer{parameters,result}=pointer else{unreachable!()};
+    // The raw kernel checks the operation and its result presence/full Type;
+    // its return is a checked receipt (), not an optional result Type.
+    super::check_instruction(module,f,i,b)?;
+    let expected=match i.kind{
+        InstructionKind::FunctionRef{..}=>Some(pointer),
+        InstructionKind::CallIndirect{..}if result.as_ref()==&Type::Unit=>None,
+        InstructionKind::CallIndirect{..}=>Some(result.as_ref()),
+        _=>unreachable!(),
+    };
+    match(i.result,expected){
+        (None,None)=>{},
+        (Some(actual),Some(expected))if f.values.get(actual.0 as usize)==Some(expected)=>{},
+        _=>return Err(bad("plain code operation changes its complete actual result")),
+    }
+    if let InstructionKind::FunctionRef{function}=i.kind{
+        let target=module.functions.get(function.0 as usize).filter(|target|target.id==function).ok_or_else(||bad("plain code exact target is absent"))?;
+        if target.call_kind!=CallKind::Direct||target.environment.is_some()||target.foreign.is_some()||target.callable_contract.is_some()||target.callable_return_contract.is_some()||target.reference_return_bound.is_some()||target.result_mode!=PassingMode::Infer||target.parameters.len()!=parameters.len()||target.return_type!=**result{return Err(bad("plain code changes its exact target's complete Direct signature/role"));}
+        for(local,expected)in target.parameters.iter().zip(parameters){b.spend(1)?;if target.locals.get(local.0 as usize).map(|local|&local.ty)!=Some(expected){return Err(bad("plain code changes an exact target parameter type"));}}
+        if let Some(header)=&target.storage_life{super::signature_life::charge(header,b)?;if !super::tasks::input_scope::empty_relation(header){return Err(bad("plain code erases a target Fixed/Invocation class relation"));}}
+    }
+    Ok(true)
+}
 pub(super) fn pointer_instruction(f: &TypedFunction, i: &Instruction) -> bool {
     match &i.kind {
         InstructionKind::FunctionRef { .. } => i
             .result
             .and_then(|v| f.values.get(v.0 as usize))
-            .is_some_and(|t| matches!(t,Type::BorrowedFunctionPointer{result,..}if scalar(result))),
+            .is_some_and(|t| matches!(t,Type::FunctionPointer{..})||matches!(t,Type::BorrowedFunctionPointer{result,..}if scalar(result))),
         InstructionKind::CallIndirect { callee, .. } => f
             .values
             .get(callee.0 as usize)
-            .is_some_and(|t| matches!(t,Type::BorrowedFunctionPointer{result,..}if scalar(result))),
+            .is_some_and(|t| matches!(t,Type::FunctionPointer{..})||matches!(t,Type::BorrowedFunctionPointer{result,..}if scalar(result))),
         _ => false,
     }
 }
@@ -2416,6 +2530,7 @@ pub(super) fn pointer_types(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<()> {
+    if plain_pointer_operation(module,f,i,b)?{return Ok(());}
     match &i.kind {
         InstructionKind::FunctionRef { function } => {
             let ty = i
@@ -2559,4 +2674,22 @@ mod equation_tests {
         e.freeze(&[y], &mut b).unwrap();
         assert!(e.equal(x, a, &mut b).is_err());
     }
+}
+
+// Describing an actual owner creates a fresh outer occurrence and preserves
+// each complete child κ through its exact physical path/index. No equation is
+// inferred between independent children merely from equal outside images.
+fn description_classes(parent:&Ports,child:&Ports,through_address:bool,e:&mut Equations,b:&mut Budget)->Check<()>{
+    b.spend(parent.classes.len().saturating_add(child.classes.len()).saturating_add(1))?;
+    if parent.classes.len()!=child.classes.len(){return Err(bad("description changes its complete actual child domain"));}
+    let mut selected=std::collections::BTreeSet::new();
+    for(index,(path,class))in child.keys.iter().enumerate(){
+        b.spend(path.len().saturating_add(parent.keys.len()).saturating_add(1))?;
+        let mut full=if through_address{vec![LifeTypeProjection::Pointee]}else{vec![]};full.extend_from_slice(path);
+        let mut rows=parent.keys.iter().enumerate().filter(|(_,row)|row.0==full&&row.1==*class);
+        let(source,_)=rows.next().ok_or_else(||bad("description has no exact actual owner child occurrence"))?;
+        if rows.next().is_some()||!selected.insert(source){return Err(bad("description coalesces complete independent child occurrences"));}
+        e.equal(parent.classes[source],child.classes[index],b)?;
+    }
+    Ok(())
 }

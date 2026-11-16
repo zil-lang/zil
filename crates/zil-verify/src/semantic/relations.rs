@@ -39,12 +39,11 @@ impl CheckedContext {
         Ok(false)
     }
     pub(crate) fn same_type(&self, environment: &EvalEnv, left: &CheckedType, right: &CheckedType, b: &mut Budget) -> Check<bool> {
-        dynamic_metadata::ty(&left.ty,b)?;
-        dynamic_metadata::ty(&right.ty,b)?;
+        let same_raw=left.same_raw_type(right,b)?;
         b.spend(left.classes.len().saturating_add(right.classes.len()).saturating_add(left.statics.len()).saturating_add(right.statics.len()))?;
         // Existing domains keep cardinality and occurrence identity, including
         // repeated outside images. Only a fresh construction may canonicalize.
-        if left.ty != right.ty || left.life != right.life || left.classes.len() != right.classes.len() || left.origins.len()!=left.classes.len() || right.origins.len()!=right.classes.len() || left.statics != right.statics { return Ok(false); }
+        if !same_raw || left.life != right.life || left.classes.len() != right.classes.len() || left.origins.len()!=left.classes.len() || right.origins.len()!=right.classes.len() || left.statics != right.statics { return Ok(false); }
         for (a,c) in left.classes.iter().zip(&right.classes) {
             if !self.same(environment,a,c,b)? { return Ok(false); }
         }

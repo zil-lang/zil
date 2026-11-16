@@ -409,6 +409,23 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
             }
             Ok(true)
         }
+        Type::Tuple(fields) => {
+            budget.spend(fields.len())?;
+            for child in fields { if !pollable_storage(module,child,budget)? {return Ok(false);} }
+            Ok(true)
+        }
+        Type::Record{fields,..}|Type::Package{fields,..}=>{
+            budget.spend(fields.len())?;
+            for(_,child)in fields{if !pollable_storage(module,child,budget)?{return Ok(false);}}
+            Ok(true)
+        }
+        Type::Enum{variants,..}=>{
+            budget.spend(variants.len())?;
+            for(_,fields)in variants{budget.spend(fields.len())?;for child in fields{if !pollable_storage(module,child,budget)?{return Ok(false);}}}
+            Ok(true)
+        }
+        Type::ErrorUnion{error,result}=>Ok(pollable_storage(module,error,budget)?&&pollable_storage(module,result,budget)?),
+        Type::Array{element,..}=>pollable_storage(module,element,budget),
         _ => {
             if storage(t,budget)? {return Ok(true);}
             crate::dynamic_witness::structural_actual(module,t,DynStructuralBound::SyncDrop,budget)?;
@@ -527,10 +544,17 @@ fn helper_graph(
                 .saturating_add(f.values.len())
                 .saturating_add(f.parameters.len()),
         )?;
+        let continuation_result=if driving{pollable_storage(module,&f.return_type,budget)?}else{record(&f.return_type,budget)?||result_type(module,&f.return_type,budget)?};
+        let environment=if let Some(id)=f.environment{
+            if !driving{false}else{
+                let closure=crate::closures::definition(module,id,span)?;
+                closure.function==f.id&&closure.storage_life.is_some()&&closure.storage_life==f.storage_life&&pollable_storage(module,&Type::Closure(id),budget)?
+            }
+        }else{true};
         if f.call_kind != CallKind::Direct
-            || f.environment.is_some()
+            || !environment
             || f.callable_return_contract.is_some() && !matches!(f.return_type,Type::Closure(_))
-            || !(record(&f.return_type, budget)? || result_type(module,&f.return_type, budget)?)
+            || !continuation_result
         {
             return Err(reject(
                 "E-VERIFY-TASK",
@@ -572,7 +596,10 @@ fn helper_graph(
             if closed_input {
                 continue;
             }
-            let supported = if borrowed_driver {
+            // A Direct helper reached from a Suspend frame may transport a
+            // pending owner into its result/environment. This is a continuation
+            // layout role, not synchronous destruction of every local Type.
+            let supported = if driving {
                 pollable_storage(module, t, budget)?
             } else {
                 storage(t, budget)?
@@ -635,18 +662,24 @@ fn helper_graph(
                     InstructionKind::CallDynSlot{interface,slot,..}=>{
                         let(kind,targets)=dyn_callees(module,*interface,*slot,budget)?;
                         if kind!=CallKind::Direct{return Err(reject("E-VERIFY-TASK",Some(i.span),"Task synchronous cleanup calls a suspending dynamic slot"));}
-                        pending.extend(targets.into_iter().map(|target|(target,borrowed_driver)));
+                        pending.extend(targets.into_iter().map(|target|(target,driving)));
                     }
                     InstructionKind::TaskPoll { .. }
                     | InstructionKind::TaskValid { .. }
                     | InstructionKind::TaskRequestCancel { .. }
                     | InstructionKind::TaskPollClose { .. }
                     | InstructionKind::TaskFinishDestroy { .. }
-                        if task_driver => {}
+                        if driving => {}
                     InstructionKind::Call { function, .. }
                     | InstructionKind::ForeignCall { function, .. } => {
-                        pending.push((*function, borrowed_driver))
+                        pending.push((*function, driving))
                     }
+                    InstructionKind::MakeClosure{..}|InstructionKind::DropClosure{..}|InstructionKind::ReadCapture{..}|InstructionKind::TakeCapture{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}if driving=>{},
+                    InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}if driving=>{
+                        let(definition,_)=crate::stored_callables::called(module,f,&i.kind).ok_or_else(||reject("E-VERIFY-TASK",Some(i.span),"Task helper invocation has no exact actual closure target"))?;
+                        if !pollable_storage(module,&Type::Closure(definition.id),budget)?{return Err(reject("E-VERIFY-TASK",Some(i.span),"Task helper invocation has no complete retained environment layout"));}
+                        pending.push((definition.function,true));
+                    },
                     InstructionKind::AsyncRegistrationRequestClose { .. }
                     | InstructionKind::AsyncRegistrationPollClose { .. }
                     | InstructionKind::AsyncRegistrationValid { .. }

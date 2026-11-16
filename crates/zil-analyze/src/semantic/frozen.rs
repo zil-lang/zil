@@ -2,6 +2,8 @@
 //! Source definitions are proved universally before the selected actual graph.
 use super::*;
 use zil_base::Limits;
+mod names;
+mod payload;
 
 fn unsupported(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::unsupported(
@@ -267,7 +269,7 @@ fn query_anchor<'a>(
         ));
     };
     core_function(source, module, function, b)?;
-    let index = original_index::index(definition, b)?;
+    let index = inventory.original_index(definition.id, b)?;
     let SemanticOriginalNode::Expression(original) = binding.query.original else {
         return Err(fail("frozen query does not select an original expression"));
     };
@@ -321,7 +323,7 @@ fn selected_bridge(
     owner: &SemanticInstance,
     binding: &CtFrozenContext,
     inventory: &Inventory<'_>,
-    _original: &original::Checked,
+    original: &original::Checked,
     b: &mut Budget,
 ) -> CompileResult<SemanticDefinitionId> {
     let SemanticFunctionTarget::Typed(wrapper_id) = &binding.query.wrapper else {
@@ -371,7 +373,7 @@ fn selected_bridge(
         return Err(fail("selected CT query wrapper has another execution role"));
     }
     let original_definition = inventory.definition(owner.definition, b)?;
-    let index = original_index::index(original_definition, b)?;
+    let index = inventory.original_index(original_definition.id, b)?;
     let SemanticOriginalNode::Expression(node) = binding.query.original else {
         return Err(fail("query wrapper has no original expression anchor"));
     };
@@ -409,10 +411,41 @@ fn selected_bridge(
         ));
     };
     b.spend(names.len().saturating_add(original_names.len()), WORK)?;
-    if names != original_names {
-        return Err(unsupported(
-            "query wrapper names need their complete lexical recipe relocation proof",
-        ));
+    if names.len() < original_names.len() {
+        return Err(fail("query wrapper drops inherited original names"));
+    }
+    let source_program = inventory
+        .source
+        .ok_or_else(|| fail("CT wrapper has no frozen source program"))?;
+    let comparison = payload::Compare {
+        source: source_program,
+        selected,
+        program: source,
+        owner,
+        original,
+        inventory,
+    };
+    for (expected, actual) in original_names.iter().zip(names) {
+        names::inherited(expected, actual, b)?;
+    }
+    for (ordinal, added) in names.iter().enumerate().skip(original_names.len()) {
+        for previous in &names[..ordinal] {
+            crate::dyn_metadata::recipe(previous, b)?;
+            if previous.namespace == added.namespace && previous.path == added.path {
+                return Err(fail("query wrapper repeats an inherited or generated name"));
+            }
+        }
+        let SemanticOriginalNameValue::Definition(definition) = added.value else {
+            return Err(fail("query wrapper adds a non-callee lexical recipe"));
+        };
+        let target = comparison
+            .target(&added.path, b)?
+            .ok_or_else(|| fail("query wrapper name has no real selected Core callee"))?;
+        if added.namespace != SemanticOriginalNamespace::Value || target.definition != definition {
+            return Err(fail(
+                "query wrapper name changes its exact original callee identity",
+            ));
+        }
     }
     let [statement] = body.statements.as_slice() else {
         return Err(fail(
@@ -425,10 +458,8 @@ fn selected_bridge(
     crate::dyn_metadata::recipe(payload.as_ref(), b)?;
     crate::dyn_metadata::recipe(actual, b)?;
     let mut expected = payload.as_ref().clone();
-    while let CoreExprKind::CompileTime(inner) = expected.kind {
-        expected = *inner;
-    }
     let mut actual = actual.clone();
+    comparison.expr(&mut expected, &mut actual, b, 0)?;
     original::normalize_expr(&mut expected, b, 0)?;
     original::normalize_expr(&mut actual, b, 0)?;
     if expected != actual {

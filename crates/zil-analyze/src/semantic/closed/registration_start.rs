@@ -120,6 +120,6 @@ impl Check<'_, '_> {
             self.original
                 .intrinsic_output(instance, site, self.program, self.inventory, b)?;
         self.actual_type(&output.ty, b)?;
-        Ok(output.ty)
+        output.into_type(b)
     }
 }

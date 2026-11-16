@@ -13,6 +13,18 @@ pub(super) fn check_dyn_static_return(
 ) -> CompileResult<()> {
     sources::check_dyn_static_return(module, function, value, path, b)
 }
+pub(super) fn has_static_source(module: &TypedModule, function: &TypedFunction,
+    value: ValueId, path: &[zil_ir::ContractProjection], b: &mut Budget) -> CompileResult<bool> {
+    sources::has_static_source(module, function, value, path, b)
+}
+pub(super) fn slot_static_source(module: &TypedModule, interface: DynInterfaceId,
+    slot: u32, b: &mut Budget) -> CompileResult<Option<bool>> {
+    sources::slot_static_source(module, interface, slot, b)
+}
+pub(super) fn source_leaf<'a>(module: &'a TypedModule, ty: &'a Type,
+    path: &[zil_ir::ContractProjection], b: &mut Budget) -> CompileResult<&'a Type> {
+    sources::source_leaf(module, ty, path, b)
+}
 pub(super) fn check_static_occurrences(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     if !b.static_occurrences {
         return Ok(());

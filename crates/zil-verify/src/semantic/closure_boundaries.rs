@@ -3,14 +3,33 @@
 //! that image. All records remain provisional until the whole entry pass ends.
 use super::*;
 impl CheckedContext {
+    /// Only the exact independently interpreted original closure cursor may
+    /// supply its intrinsic Receiver indices to an image-only raw claim. Its
+    /// constructor/seal and full specialization are still discharged at exit.
+    pub(super) fn original_closure_claim(&self,actual:&CheckedType,expected:&CheckedType,b:&mut Budget)->Check<bool>{
+        if !matches!(expected.ty,Type::Closure(_))||actual.ty!=expected.ty||actual.life!=expected.life||actual.origins.len()!=expected.origins.len(){return Ok(false);}
+        let cursors=self.pending_closures.borrow();b.spend(cursors.len())?;
+        for cursor in cursors.iter(){
+            cursor.expected.charge_clone(b)?;
+            for origin in cursor.expected.origins.iter().chain(&expected.origins){nominal_origins::charge_origin(origin,b)?;}
+            if cursor.expected!=*expected{continue;}
+            for(class,origin)in expected.origins.iter().enumerate(){
+                b.spend(1)?;
+                if origin!=&(IntrinsicOrigin::Existing{scope:ScopeKey::Instance(cursor.instance),operand:OperandKey::Receiver,path:vec![],class:class as u32}){return Ok(false);}
+            }
+            return Ok(true);
+        }
+        Ok(false)
+    }
     pub(super) fn original_closure_value(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,creator:ScopeKey,environment:&EvalEnv,b:&mut Budget)->Check<Option<CheckedType>> {
         let node=self.original.borrow().as_ref().ok_or_else(||bad("original closure source has no checked body"))?.closure_creation(module,definition,source,b)?;
         let Some(node)=node else{return Ok(None);};
         let at=environment.at.ok_or_else(||unsupported("original closure value requires its exact actual creation point",None))?;
+        let function=module.functions.get(at.function.0 as usize).filter(|function|function.id==at.function).ok_or_else(||bad("original closure use has no exact actual function"))?;
         let rows=self.closure_boundaries.borrow();b.spend(rows.len())?;
         let mut selected=None;
         for row in rows.iter().filter(|row|row.creator==creator&&row.node==node) {
-            if row.at.function!=at.function||row.at.block!=at.block||row.at.instruction>=at.instruction {continue;}
+            if row.at.function!=at.function||!creation_dominates(function,row.at,at,b)?{continue;}
             if selected.replace(row.value.clone()).is_some(){return Err(unsupported("original closure value has several unresolved actual creation images",None));}
         }
         selected.map(Some).ok_or_else(||unsupported("original closure initializer has no independently sealed actual creation",None))
@@ -26,34 +45,10 @@ impl CheckedContext {
         Ok(selected)
     }
     pub(super) fn capture_local_source(&self,module:&TypedModule,creator:&SemanticInstance,child:&SemanticInstance,ordinal:u32,capture:ValueId,b:&mut Budget)->Check<()> {
-        let (definition,node)=self.original.borrow().as_ref().ok_or_else(||bad("actual capture has no original body proof"))?.implicit_capture_binding(module,child.definition,ordinal,b)?;
-        if definition!=creator.definition{return Err(bad("actual capture belongs to another original creator scope"));}
-        let original=self.definition(module,definition,b)?;
-        let SemanticDefinitionBody::FunctionWithBody{site_nodes,..}=&original.body else{return Err(bad("actual capture parent has no original binding ledger"));};
-        let program=module.semantic.as_ref().ok_or_else(||bad("actual capture program is absent"))?;
-        let mut local=None;
-        for source in site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Statement(node)) {
-            for site in program.sites.iter().filter(|site|site.instance==creator.id&&site.recipe==source.site) {
-                b.spend(1)?;
-                if let SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(value),..}=&site.action {
-                    if local.replace(*value).is_some(){return Err(bad("original captured binding has several actual local identities"));}
-                }
-            }
-        }
-        let local=local.ok_or_else(||bad("original captured binding lacks its actual local declaration"))?;
-        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=creator.target else{return Err(bad("capture creator is not an executable scope"));};
+        let source=self.original.borrow().as_ref().ok_or_else(||bad("actual capture has no original body proof"))?.implicit_capture_binding(module,child.definition,ordinal,b)?;
+        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=creator.target else{return Err(bad("capture creator is not executable"));};
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("capture creator function is absent"))?;
-        let mut current=capture;let mut visited=std::collections::BTreeSet::new();
-        loop {
-            b.spend(1)?;if !visited.insert(current){return Err(bad("actual captured head has a producer cycle"));}
-            let mut producer=None;
-            for block in &f.blocks {b.spend(block.instructions.len())?;for instruction in &block.instructions {if instruction.result==Some(current)&&producer.replace(instruction).is_some(){return Err(bad("actual capture has duplicate SSA definitions"));}}}
-            match &producer.ok_or_else(||bad("actual captured head has no SSA definition"))?.kind {
-                InstructionKind::ReborrowAddress{address,..}=>current=*address,
-                InstructionKind::BorrowLocal{local:actual}|InstructionKind::BorrowLocalMut{local:actual} if *actual==local=>return Ok(()),
-                _=>return Err(bad("actual captured head differs from its original free-value binding")),
-            }
-        }
+        if !self.capture_creator_source(module,creator,f,capture,source,b)?{return Err(bad("captured head differs from its exact original creator free-value binder"));}Ok(())
     }
 }
 impl CheckedContext {
@@ -61,7 +56,8 @@ impl CheckedContext {
         let Type::Address{mutable:old_mutable,inner}=&parent.ty else{return Err(bad("actual reborrow operand is not a complete address"));};
         if mutable&&!*old_mutable{return Err(bad("actual reborrow upgrades a shared address"));}
         let mode=if mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress};
-        let mut value=parent.clone();value.ty=Type::Address{mutable,inner:inner.clone()};
+        parent.charge_clone(b)?;dynamic_metadata::ty(inner,b)?;
+        let mut value=parent.clone();value.replace_type(Type::Address{mutable,inner:inner.clone()});
         let mut outer=value.life.slots.iter().enumerate().filter(|(_,slot)|slot.path.is_empty());
         let Some(index)=outer.next().map(|(i,_)|i)else{
             let mut statics=parent.statics.iter().filter(|row|matches!(row,StaticOccurrence::Direct{path,leaf,mode:StoredBorrowMode::SharedAddress}if path.is_empty()&&leaf==&parent.ty));
@@ -91,4 +87,23 @@ impl CheckedContext {
         value.life.binder_count=classes.len() as u32;value.classes=classes;value.origins=mapped_origins;
         Ok(value)
     }
+}
+
+// Every actual path to a later use must pass this exact creator. Class or
+// Type equality never selects an initializer from another branch or loop.
+pub(super) fn creation_dominates(f:&TypedFunction,creation:SitePoint,use_:SitePoint,b:&mut Budget)->Check<bool>{
+    if creation.block==use_.block{return Ok(creation.instruction<use_.instruction||(creation.instruction==use_.instruction&&use_.after));}
+    let mut pending=vec![f.entry];let mut seen=BTreeSet::new();
+    while let Some(id)=pending.pop(){
+        b.spend(1)?;
+        if id==creation.block||!seen.insert(id){continue;}
+        if id==use_.block{return Ok(false);}
+        let block=f.blocks.get(id.0 as usize).filter(|block|block.id==id).ok_or_else(||bad("closure domination selects an absent actual block"))?;
+        match block.terminator{
+            Terminator::Jump(target)=>pending.push(target),
+            Terminator::Branch{then_block,else_block,..}=>pending.extend([then_block,else_block]),
+            Terminator::Return(_)|Terminator::Trap|Terminator::Unreachable=>{},
+        }
+    }
+    Ok(true)
 }

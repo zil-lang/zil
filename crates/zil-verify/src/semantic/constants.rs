@@ -88,7 +88,7 @@ impl CheckedContext {
                         DynConstPattern::Unary {
                             op: *op,
                             value: Box::new(value),
-                            ty: Box::new(DynTypePattern::Concrete(operand.ty)),
+                            ty: Box::new(DynTypePattern::Concrete(operand.into_raw_type(b)?)),
                         },
                         b,
                     )
@@ -132,7 +132,7 @@ impl CheckedContext {
                             op: *op,
                             left: Box::new(DynConstPattern::Value(left)),
                             right: Box::new(DynConstPattern::Value(right)),
-                            ty: Box::new(DynTypePattern::Concrete(operand.ty)),
+                            ty: Box::new(DynTypePattern::Concrete(operand.into_raw_type(b)?)),
                         },
                         b,
                     )
@@ -165,7 +165,7 @@ impl CheckedContext {
                     closed(
                         DynConstPattern::Convert {
                             value: Box::new(DynConstPattern::Value(value)),
-                            ty: Box::new(DynTypePattern::Concrete(target.ty)),
+                            ty: Box::new(DynTypePattern::Concrete(target.into_raw_type(b)?)),
                         },
                         b,
                     )

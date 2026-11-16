@@ -67,7 +67,7 @@ impl Check<'_, '_> {
                     ));
                 }
                 Ok(value::scalar(Type::Slice {
-                    element: Box::new(element.ty),
+                    element: Box::new(element.into_type(b)?),
                 }))
             }
             SemanticTypeRecipe::Tuple(fields) if fields.is_empty() => Ok(value::scalar(Type::Unit)),
@@ -81,7 +81,7 @@ impl Check<'_, '_> {
                             "callable tuple requires its complete child occurrence embedding",
                         ));
                     }
-                    self.push_value(&mut types, field.ty, b)?;
+                    self.push_value(&mut types, field.into_type(b)?, b)?;
                 }
                 Ok(value::scalar(Type::Tuple(types)))
             }

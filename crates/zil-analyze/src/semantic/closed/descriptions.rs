@@ -30,7 +30,7 @@ impl Check<'_, '_> {
         }
         self.defining(function, id, b)?;
         let mut selected = None;
-        for site in &self.program.sites {
+        for site in self.inventory.sites_for_value(self.program, instance.id, id, b)? {
             b.spend(1, WORK)?;
             if site.instance != instance.id
                 || !matches!(site.action,SemanticSiteAction::TypeUse {subject:SemanticOperand::Value(value),..} if value==id)
@@ -49,6 +49,7 @@ impl Check<'_, '_> {
             };
             let source = &original.source;
             let expected = original.output;
+            self.checked_view_role(&original.root, &expected, &original.role, Some(original.anchor), b)?;
             let Type::Managed(payload) = &source.ty else {
                 return Err(fail(
                     "implicit description source is not an original owning value",
@@ -65,7 +66,11 @@ impl Check<'_, '_> {
                 payload,
                 b,
             )?;
-            if expected.ty != Type::Desc(payload.clone())
+            let same_payload = match &expected.ty {
+                Type::Desc(inner) => geometry::same_type(inner, payload, b)?,
+                _ => false,
+            };
+            if !same_payload
                 || function.values.get(id.0 as usize) != Some(&expected.ty)
                 || expected.life.slots.len() != 1
                 || !expected.life.slots[0].path.is_empty()

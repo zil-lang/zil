@@ -16,11 +16,7 @@ enum Query {
     Value(ValueId),
     Local(LocalId, BlockId, usize),
 }
-#[derive(Clone, Copy)]
-struct Definition {
-    block: BlockId,
-    instruction: usize,
-}
+type Definition = crate::SsaDefinition;
 struct Node {
     query: Query,
     seed: Option<u32>,
@@ -31,8 +27,8 @@ struct Node {
 struct Graph<'c, 'a, 'i, 'f> {
     check: &'c Check<'a, 'i>,
     function: &'f TypedFunction,
-    initialization: crate::Initialization,
-    definitions: Vec<Option<Definition>>,
+    initialization: std::sync::Arc<crate::Initialization>,
+    definitions: std::sync::Arc<Vec<Option<crate::SsaDefinition>>>,
     indices: BTreeMap<Query, usize>,
     nodes: Vec<Node>,
 }
@@ -45,35 +41,13 @@ impl<'c, 'a, 'i, 'f> Graph<'c, 'a, 'i, 'f> {
         // This independent finite pass checks every reachable initialization
         // edge. In particular a missing origin cannot hide behind a loop's
         // optimistic initial local set or behind a dead predecessor.
-        let initialization = crate::initialize(function, b)?;
+        let initialization = crate::shared_initialization(function, b)?;
         if function.values.len() > b.helper_nodes {
             return Err(limit_error(
                 "capture provenance SSA directory exceeds its node budget",
             ));
         }
-        b.spend(function.values.len(), WORK)?;
-        let mut definitions = vec![None; function.values.len()];
-        for block in &function.blocks {
-            b.spend(block.instructions.len().saturating_add(1), WORK)?;
-            for (instruction, item) in block.instructions.iter().enumerate() {
-                if let Some(value) = item.result {
-                    let slot = definitions.get_mut(value.0 as usize).ok_or_else(|| {
-                        fail("capture provenance SSA definition leaves its actual value directory")
-                    })?;
-                    if slot
-                        .replace(Definition {
-                            block: block.id,
-                            instruction,
-                        })
-                        .is_some()
-                    {
-                        return Err(fail(
-                            "capture provenance SSA value has several actual definitions",
-                        ));
-                    }
-                }
-            }
-        }
+        let definitions = crate::shared_definitions(function, b)?;
         Ok(Self {
             check,
             function,

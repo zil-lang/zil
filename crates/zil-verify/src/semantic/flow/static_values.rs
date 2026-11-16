@@ -10,15 +10,41 @@ impl CheckedContext {
         let mut matched=false;
         for site in &programme.sites{
             b.spend(1)?;if site.instance!=instance.id{continue;}
-            let &SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(mut value),..}=&site.action else{continue;};
-            let mut seen=std::collections::BTreeSet::new();loop{
-                if value==result{break;}b.spend(1)?;if !seen.insert(value){return Err(bad("static literal role contains an actual SSA cycle"));}
-                let mut producer=None;for block in &f.blocks{b.spend(block.instructions.len())?;for operation in &block.instructions{if operation.result==Some(value)&&producer.replace(operation).is_some(){return Err(bad("static literal role has duplicate actual SSA definitions"));}}}
-                match producer.map(|row|&row.kind){Some(InstructionKind::ReborrowAddress{address,mutable:false})=>value=*address,_=>break}
+            let SemanticSiteAddress::Typed{block,instruction:at,edge}=site.at else{return Err(bad("static source retains a Core operation"));};
+            let block=f.blocks.get(block.0 as usize).ok_or_else(||bad("static literal source has no actual site block"))?;
+            if at as usize>block.instructions.len()||at as usize==block.instructions.len()&&edge!=SemanticSiteEdge::Before{return Err(bad("static literal source is outside its actual instruction/terminator boundary"));}
+            // A TypeUse may observe an SSA value before a terminator. Only
+            // Store/Call source roles require an instruction at this address.
+            let operation=block.instructions.get(at as usize);
+            let mut candidates=Vec::new();
+            match &site.action{
+                SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),..}=>{candidates.push((*value,None));},
+                SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(local),..}=>{
+                    let operation=operation.ok_or_else(||bad("static local source selects a terminator instead of its actual Store"))?;
+                    if let InstructionKind::Store{local:actual,value}=operation.kind{if actual==*local{candidates.push((value,None));}}
+                },
+                SemanticSiteAction::BodyCall{..}|SemanticSiteAction::Call{..}|SemanticSiteAction::CallableCall{..}=>{
+                    let operation=operation.ok_or_else(||bad("static Call source selects a terminator instead of its actual Call"))?;
+                    let(args,receiver_argument)=match &operation.kind{
+                        InstructionKind::Call{arguments,..}|InstructionKind::ForeignCall{arguments,..}|InstructionKind::SuspendCall{arguments,..}=>(arguments,true),
+                        InstructionKind::CallIndirect{arguments,..}|InstructionKind::CallDynSlot{arguments,..}|InstructionKind::CallClosure{arguments,..}|InstructionKind::CallClosureOnce{arguments,..}|InstructionKind::CallClosureBorrowed{arguments,..}|InstructionKind::CallClosureShared{arguments,..}|InstructionKind::CallClosureMut{arguments,..}=>(arguments,false),
+                        _=>continue,
+                    };
+                    let mut selects=false;for argument in args{if static_operand_root(f,*argument,result,b)?{selects=true;break;}}if !selects{continue;}
+                    let original=self.original.borrow();let original=original.as_ref().ok_or_else(||bad("static Call literal has no independently checked original body"))?;
+                    if let Some((arity,literals))=original.static_call_literals(module,instance.definition,site.recipe,receiver_argument,b)?{
+                        if literals.is_empty(){continue;}
+                        if arity!=args.len(){return Err(bad("static literal Call changes its exact original argument roles"));}
+                        for(ordinal,bytes)in literals{candidates.push((*args.get(ordinal).ok_or_else(||bad("original static argument has no actual operand"))?,Some(bytes)));}
+                    }
+                },
+                _=>{},
             }
-            if value!=result{continue;}
-            let original=self.original.borrow();let original=original.as_ref().ok_or_else(||bad("static literal has no independently checked original body"))?;
-            if let Some(expected)=original.static_literal(module,instance.definition,site.recipe,b)?{b.spend(expected.len().saturating_add(bytes.len()))?;if expected!=*bytes{return Err(bad("actual static bytes differ from their exact original literal"));}matched=true;}
+            for(value,spelling)in candidates{
+                if !static_operand_root(f,value,result,b)?{continue;}
+                let expected=if let Some(bytes)=spelling{Some(bytes)}else{let original=self.original.borrow();original.as_ref().ok_or_else(||bad("static literal has no independently checked original body"))?.static_literal(module,instance.definition,site.recipe,b)?};
+                if let Some(expected)=expected{b.spend(expected.len().saturating_add(bytes.len()))?;if expected!=*bytes{return Err(bad("actual static bytes differ from their exact original literal"));}matched=true;}
+            }
         }
         if !matched{return Err(bad("actual static literal has no exact original source occurrence"));}
         let ty=Type::Address{mutable:false,inner:Box::new(Type::Slice{element:Box::new(Type::U8)})};
@@ -37,5 +63,13 @@ impl CheckedContext {
         }}
         if actual.statics.iter().any(|row|!expected.statics.contains(row)){return Err(bad("static claim omits a previously checked pending source occurrence"));}
         b.spend(expected.statics.len())?;actual.statics=expected.statics.clone();Ok(())
+    }
+}
+
+fn static_operand_root(f:&TypedFunction,mut value:ValueId,result:ValueId,b:&mut Budget)->Check<bool>{
+    let mut seen=BTreeSet::new();loop{
+        if value==result{return Ok(true);}b.spend(1)?;if !seen.insert(value){return Err(bad("static literal role contains an actual SSA cycle"));}
+        let mut producer=None;for block in &f.blocks{b.spend(block.instructions.len())?;for operation in &block.instructions{if operation.result==Some(value)&&producer.replace(operation).is_some(){return Err(bad("static literal role has duplicate actual SSA definitions"));}}}
+        match producer.map(|row|&row.kind){Some(InstructionKind::ReborrowAddress{address,mutable:false})=>value=*address,_=>return Ok(false)}
     }
 }

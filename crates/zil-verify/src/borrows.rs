@@ -914,9 +914,20 @@ fn reconstruct(
                             {
                                 row.push(Root::Capture(*index));
                             }
-                            InstructionKind::ByteBufferBorrow { buffer, .. }
-                            | InstructionKind::MutexValue { guard: buffer } => {
+                            InstructionKind::ByteBufferBorrow { buffer, .. } => {
                                 roots_join(&mut row, &values[buffer.0 as usize], budget)?;
+                            }
+                            InstructionKind::MutexValue { guard } => {
+                                crate::generic_mutex::instruction(module,f,instruction,budget)?;
+                                // The payload is in the retained manager, not
+                                // in the activation's guard handle. Guard-local
+                                // lifetime/authority remains in the independent
+                                // loan ancestry carried through this projection.
+                                for root in &values[guard.0 as usize]{
+                                    budget.spend(1)?;
+                                    if matches!(root,Root::Local(local)if f.locals.get(local.0 as usize).is_some_and(|local|matches!(local.ty,Type::MutexGuard{..}))){continue;}
+                                    roots_join(&mut row,std::slice::from_ref(root),budget)?;
+                                }
                             }
                             InstructionKind::OwnedStoreBorrow { store, .. }
                             | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
@@ -989,7 +1000,7 @@ fn reconstruct(
                             | InstructionKind::BorrowLocalMut { local }
                             | InstructionKind::BorrowDynOwned { local, .. } => {
                                 row.push(Root::Local(*local));
-                                if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
+                                if matches!(f.locals[local.0 as usize].ty, Type::Closure(_)|Type::MutexGuard{..})
                                     && let Some(captures) = state.get(local)
                                 {
                                     roots_join(&mut row, captures, budget)?;
@@ -1724,6 +1735,11 @@ fn check_module_mask(
                 apart.push(Default::default());
             }
             continue;
+        }
+        // Non-data manager captures keep their full Fixed/Invocation class
+        // proof while this ordinary lane checks their actual roots and loans.
+        if crate::ordinary_heads::resource_body(module,function,budget)?{
+            crate::class_flow::check(module,function,&graph.reachable,budget)?;
         }
         // Only the new parameter-capture lane adds a whole-invocation
         // obligation. Ordinary local captures retain their existing cost.

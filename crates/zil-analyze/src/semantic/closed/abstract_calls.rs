@@ -13,7 +13,9 @@ impl Check<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<Option<Value>> {
         let mut selected = None;
-        for site in &self.program.sites {
+        for site in self.inventory.sites_at(
+            self.program, instance.id, block, index, SemanticSiteEdge::After, b,
+        )? {
             b.spend(1, WORK)?;
             if site.instance != instance.id
                 || !matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After } if actual == block && instruction as usize == index)
@@ -97,7 +99,7 @@ impl Check<'_, '_> {
                         ));
                     }
                 }
-                if source.inner != boundary.subject {
+                if !self.capture_values_equal(&source.inner, &boundary.subject, b)? {
                     return Err(fail(
                         "abstract place invocation changes its full original child domain",
                     ));
@@ -146,18 +148,19 @@ impl Check<'_, '_> {
                 let expected_mutable = *expected_mutable;
                 let mut expected_receiver = boundary.receiver;
                 if !*mutable && expected_mutable {
-                    let Type::Address { inner, .. } = &expected_receiver.ty else {
+                    let geometry = expected_receiver.geometry_mut(b)?;
+            let Type::Address { inner, .. } = &geometry.ty else {
                         unreachable!()
                     };
                     crate::dyn_metadata::ty(inner, b)?;
-                    expected_receiver.ty = Type::Address {
+                    geometry.ty = Type::Address {
                         mutable: false,
                         inner: inner.clone(),
                     };
-                    if expected_receiver.life.slots.len() != 1 {
+                    if geometry.life.slots.len() != 1 {
                         return Err(fail("original receiver omits its outer occurrence"));
                     }
-                    expected_receiver.life.slots[0].mode = StoredBorrowMode::SharedAddress;
+                    geometry.life.slots[0].mode = StoredBorrowMode::SharedAddress;
                 }
                 if !self.outer_role(instance, function, &receiver, &expected_receiver, b, 0)? {
                     return Err(fail(
@@ -216,10 +219,10 @@ impl Check<'_, '_> {
                     "abstract actual invocation changes its complete argument arity",
                 ));
             }
-            for ((argument, expected), actual_type) in arguments
+            for (ordinal, ((argument, expected), actual_type)) in arguments
                 .iter()
                 .zip(&boundary.parameters)
-                .zip(&definition.parameters)
+                .zip(&definition.parameters).enumerate()
             {
                 operations::available_before(
                     function,
@@ -236,8 +239,8 @@ impl Check<'_, '_> {
                 }
                 if self.uses_full_value(&expected.ty, b)? {
                     let actual = self.ssa_value(instance, function, *argument, b, 0)?;
-                    let valid = if matches!(expected.ty, Type::Address { .. }) {
-                        self.outer_role(instance, function, &actual, expected, b, 0)?
+                    let valid = if matches!(expected.ty, Type::Address { .. } | Type::Desc(_)) {
+                        self.outer_call_role(instance, function, (block, index), ordinal, *argument, &actual, expected, b, 0)?
                     } else {
                         actual == *expected
                     };

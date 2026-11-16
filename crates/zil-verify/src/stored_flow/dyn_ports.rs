@@ -940,17 +940,45 @@ pub(super) fn transfer(
                 Some(DynResultSource::Value) => {}
                 Some(DynResultSource::Borrow { sources, .. }) => {
                     for atom in sources {
-                        let source = crate::exact_storage_source(atom)?;
-                        join_permission(
-                            &mut out.address,
-                            &slot_source(module, f, source, &args, values, state, b)?,
-                            b,
-                        )?;
+                        dynamic_metadata::source(atom,b)?;
+                        match atom{
+                            StorageSource::Exact(source)=>join_permission(&mut out.address,&slot_source(module,f,source,&args,values,state,b)?,b)?,
+                            StorageSource::Static{..}=>{
+                                // A possible target category is no literal/conditional proof.
+                                add_sources(&mut out.address.sources,&[Source{base:HoldRoot::Static,leaf:vec![],inline:vec![],retained_port:None,heap_parents:vec![],heap_element:None,static_dependency:StaticProvenance::UpperOnly}],b)?
+                            },
+                            StorageSource::ReborrowedLeaf{source,head}=>{
+                                let data=slot_source(module,f,source,&args,values,state,b)?;
+                                if !data.sources.is_empty(){
+                                    let actual_head=slot_source(module,f,head,&args,values,state,b)?;
+                                    if actual_head.sources.is_empty(){return Err(bad("dynamic child result has no real call-before receiver head"));}
+                                    access_head(&actual_head,false,b)?;
+                                    dyn_returns::initialized(state,&actual_head,b)?;
+                                    dyn_returns::initialized(state,&data,b)?;
+                                    join_permission(&mut out.address,&data,b)?;
+                                    // step() creates the actual CallDynSlot result child
+                                    // after collecting original parents and this head.
+                                    add_loans(&mut out.address.loans,&actual_head.loans,b)?;
+                                }
+                                false
+                            },
+                            StorageSource::OwnedView{head,..}=>{
+                                // Each concrete entry independently proves its real
+                                // inline owning projection. As in the closed Dyn
+                                // route, retain the actual complete receiver region;
+                                // no erased field layout is turned into a GEP.
+                                let actual=slot_source(module,f,head,&args,values,state,b)?;
+                                access_head(&actual,false,b)?;
+                                dyn_returns::initialized(state,&actual,b)?;
+                                join_permission(&mut out.address,&actual,b)?
+                            },
+                            StorageSource::PlaceAddress{..}=>return Err(unsupported("erased place source requires its actual initialized-place consumer",None)),
+                        };
                     }
                 }
                 _ => return Err(bad("dynamic method result source is Unknown")),
             }
-            if matches!(slot.result, Type::Address { .. })
+            if !out.address.sources.is_empty()&&matches!(slot.result, Type::Address { .. })
                 && slot
                     .storage_life
                     .as_ref()

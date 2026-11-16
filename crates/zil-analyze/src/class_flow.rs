@@ -2,6 +2,8 @@
 //! storage initialization, parent loans, effects or physical access rights.
 use super::*;
 mod array_outer;
+pub(super) mod reference_grounding;
+pub(super) mod thin;
 
 #[derive(Clone, Default)]
 struct Ports {
@@ -11,8 +13,68 @@ struct Ports {
     direct: bool,
     environment: bool,
     task_ports: Vec<(Vec<zil_ir::ContractProjection>, usize)>,
+    physical_slots: Vec<(Vec<zil_ir::ContractProjection>, usize)>,
     // Per-ordinal address upper variables, distinct from nominal classes.
     array_elements: Vec<usize>,
+}
+fn physical_class_slots(
+    ty: &Type,
+    prefix: &mut Vec<PlaceProjection>,
+    keys: &[(Vec<LifeTypeProjection>, u32)],
+    out: &mut Vec<(Vec<zil_ir::ContractProjection>, usize)>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    b.spend(1, "qualified physical class inventory")?;
+    if prefix.len() > b.partial_depth {
+        return Err(bad("qualified physical class path exceeds depth"));
+    }
+    match ty {
+        Type::BorrowedStorage { life, .. } => {
+            for slot in &life.slots {
+                b.spend(
+                    keys.len().saturating_mul(prefix.len().saturating_add(1)),
+                    "qualified physical class selection",
+                )?;
+                let index = keys
+                    .iter()
+                    .position(|(path, class)| {
+                        *class == slot.binder
+                            && path.len() == prefix.len()
+                            && path
+                                .iter()
+                                .zip(prefix.iter())
+                                .all(|(a, z)| matches!(a, LifeTypeProjection::Place(a) if a == z))
+                    })
+                    .ok_or_else(|| bad("qualified physical slot has no complete class position"))?;
+                b.spend(
+                    prefix
+                        .len()
+                        .saturating_add(slot.path.len())
+                        .saturating_add(1),
+                    "qualified physical slot directory",
+                )?;
+                let path = prefix
+                    .iter()
+                    .chain(&slot.path)
+                    .copied()
+                    .map(zil_ir::ContractProjection::Place)
+                    .collect();
+                out.push((path, index));
+            }
+        }
+        Type::Tuple(fields) => {
+            for (index, child) in fields.iter().enumerate() {
+                prefix
+                    .push(PlaceProjection::Field(u32::try_from(index).map_err(
+                        |_| bad("qualified physical field index overflow"),
+                    )?));
+                physical_class_slots(child, prefix, keys, out, b)?;
+                prefix.pop();
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 fn pure_class_keys(
     ty: &Type,
@@ -491,6 +553,10 @@ impl Equations {
                 b,
             )?;
         }
+        let mut physical_slots = Vec::new();
+        if outer.is_none() {
+            physical_class_slots(ty, &mut Vec::new(), &keys, &mut physical_slots, b)?;
+        }
         let count = keys.len();
         if !direct {
             b.spend(count, "class port allocation")?;
@@ -506,6 +572,7 @@ impl Equations {
             direct,
             environment: matches!(ty, Type::Closure(_)) && count != 0,
             task_ports,
+            physical_slots,
             array_elements,
         })
     }
@@ -721,6 +788,22 @@ fn bind(
                 e.equal(actual, select(v, row.binder)?, b)?;
                 continue;
             }
+            if !row.position.path.is_empty() {
+                b.spend(
+                    p.physical_slots
+                        .len()
+                        .saturating_mul(row.position.path.len().saturating_add(1)),
+                    "qualified physical binding selection",
+                )?;
+                if let Some((_, index)) = p
+                    .physical_slots
+                    .iter()
+                    .find(|(path, _)| path == &row.position.path)
+                {
+                    e.equal(p.classes[*index], select(v, row.binder)?, b)?;
+                    continue;
+                }
+            }
             if !row.position.path.is_empty() && b.task_sources() {
                 b.spend(p.task_ports.len(), "actual Task semantic class")?;
                 if let Some((_, index)) = p
@@ -807,6 +890,22 @@ fn bind_with_outer(
                 array_outer::binding(e, actual, select(v, row.binder)?, flow, b)?;
                 continue;
             }
+            if !row.position.path.is_empty() {
+                b.spend(
+                    p.physical_slots
+                        .len()
+                        .saturating_mul(row.position.path.len().saturating_add(1)),
+                    "qualified physical binding selection",
+                )?;
+                if let Some((_, index)) = p
+                    .physical_slots
+                    .iter()
+                    .find(|(path, _)| path == &row.position.path)
+                {
+                    array_outer::binding(e, p.classes[*index], select(v, row.binder)?, flow, b)?;
+                    continue;
+                }
+            }
             if !row.position.path.is_empty() && b.task_sources() {
                 b.spend(p.task_ports.len(), "actual Task semantic class")?;
                 if let Some((_, index)) = p
@@ -868,6 +967,77 @@ fn bind_with_outer(
                 .ok_or_else(|| bad("qualified class has no exact actual type path"))?;
             let actual = &p.classes[index];
             array_outer::binding(e, *actual, select(v, row.binder)?, flow, b)?;
+        }
+    }
+    Ok(())
+}
+
+// Bind only independently proved local-result regions, after their actual
+// alternatives are grounded and before a capture freezes the persistent class.
+#[allow(clippy::too_many_arguments)]
+fn bind_reference_results(
+    module: &TypedModule,
+    function: &TypedFunction,
+    reachable: &[bool],
+    contract: Option<&StorageLifeContract>,
+    header: Option<&(Vec<usize>, Vec<usize>)>,
+    values: &[Ports],
+    e: &mut Equations,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if !b
+        .initialization
+        .as_ref()
+        .is_some_and(|init| init.module == module as *const TypedModule as usize)
+    {
+        return Ok(());
+    }
+    b.spend(
+        b.semantic_reference_results.len(),
+        "completed reference result binding",
+    )?;
+    let rows: Vec<_> = b
+        .semantic_reference_results
+        .iter()
+        .filter(|(id, _, _)| *id == function.id)
+        .copied()
+        .collect();
+    if rows.is_empty() {
+        return Ok(());
+    }
+    let (Some(contract), Some(header)) = (contract, header) else {
+        return Err(bad("reference result role has no actual function relation"));
+    };
+    for (_, child, binder) in rows {
+        crate::signature_life::charge(contract, b)?;
+        if !contract.classes.iter().any(|row| {
+            row.position.base == StorageBase::Result
+                && row.position.path.is_empty()
+                && row.position.class == child
+                && row.binder == binder
+        }) {
+            return Err(bad("reference result changes its actual header role"));
+        }
+        for (block, live) in function.blocks.iter().zip(reachable) {
+            b.spend(1, "reference result actual return")?;
+            if !*live {
+                continue;
+            }
+            let Terminator::Return(Some(value)) = block.terminator else {
+                continue;
+            };
+            let port = &values[value.0 as usize];
+            if port.keys.get(child as usize) != Some(&(Vec::new(), child)) {
+                return Err(bad("reference result has another actual class path"));
+            }
+            let variable = *port
+                .classes
+                .get(child as usize)
+                .ok_or_else(|| bad("reference result lacks its complete class"))?;
+            let root = e.root(variable, b)?;
+            if e.grounded.as_ref().is_some_and(|rows| rows[root]) {
+                e.equal(variable, select(header, binder)?, b)?;
+            }
         }
     }
     Ok(())
@@ -1173,6 +1343,7 @@ fn check_with(
             }
         }
     }
+    let mut reference_grounding = reference_grounding::Grounding::default();
     let mut deferred_helpers = Vec::new();
     let mut deferred_closures = Vec::new();
     for (block_index, block) in f.blocks.iter().enumerate() {
@@ -1716,13 +1887,61 @@ fn check_with(
                         }
                     }
                 }
-                InstructionKind::Store { local, value } => array_outer::copy(
-                    &mut e,
-                    &locals[local.0 as usize],
-                    &values[value.0 as usize],
-                    outer.as_ref(),
-                    b,
-                )?,
+                InstructionKind::Store { local, value } => {
+                    b.lookup(
+                        b.semantic_reference_locals.len(),
+                        "original reference Store role",
+                    )?;
+                    let local_region =
+                        b.initialization.as_ref().is_some_and(|cache| {
+                            cache.module == module as *const TypedModule as usize
+                        }) && b.semantic_reference_locals.contains(&(f.id, *local));
+                    if local_region {
+                        b.type_work(
+                            &f.locals[local.0 as usize].ty,
+                            true,
+                            "original reference Store full domain",
+                        )?;
+                        b.type_work(
+                            &f.values[value.0 as usize],
+                            true,
+                            "original reference RHS full domain",
+                        )?;
+                        let target = &locals[local.0 as usize];
+                        let source = &values[value.0 as usize];
+                        if target.outer.is_none()
+                            || source.outer.is_none()
+                            || target.keys != source.keys
+                            || target.classes.len() != source.classes.len()
+                            || target.array_elements.len() != source.array_elements.len()
+                        {
+                            return Err(bad(
+                                "original reference Store changes its complete pointee domain",
+                            ));
+                        }
+                        reference_grounding.store(
+                            target.outer.unwrap(),
+                            source.outer.unwrap(),
+                            b,
+                        )?;
+                        // The separately proved declaration region labels this
+                        // mutable shared slot. Actual Store RHS sources remain
+                        // alternatives, not equal rigid input classes. All child
+                        // classes stay invariant; loans remain in actual CFG flow.
+                        array_outer::copy_elements(&mut e, target, source, outer.as_ref(), b)?;
+                        for (a, z) in target.classes.iter().zip(&source.classes) {
+                            e.equal(*a, *z, b)?;
+                        }
+                    } else {
+                        array_outer::copy(
+                            &mut e,
+                            &locals[local.0 as usize],
+                            &values[value.0 as usize],
+                            outer.as_ref(),
+                            b,
+                        )?;
+                    }
+                }
                 InstructionKind::BorrowPackageField { .. }
                     if super::stored_flow::ordinary_package_borrow(module, f, i, b)? =>
                 {
@@ -1780,13 +1999,33 @@ fn check_with(
                 }
                 InstructionKind::ReborrowAddress { address, .. } => {
                     if let Some(out) = out {
-                        array_outer::copy(
-                            &mut e,
-                            out,
-                            &values[address.0 as usize],
-                            outer.as_ref(),
-                            b,
+                        let source = &values[address.0 as usize];
+                        b.lookup(
+                            b.semantic_reborrow_regions.len(),
+                            "completed original reborrow region",
                         )?;
+                        let independent_region = b.initialization.as_ref().is_some_and(|init| {
+                            init.module == module as *const TypedModule as usize
+                        }) && i
+                            .result
+                            .is_some_and(|id| b.semantic_reborrow_regions.contains(&(f.id, id)));
+                        if !independent_region {
+                            array_outer::copy(&mut e, out, source, outer.as_ref(), b)?;
+                            continue;
+                        }
+                        if let (Some(target), Some(parent)) = (out.outer, source.outer) {
+                            // A real reborrow introduces a fresh upper region.
+                            // Its pointee classes remain invariant; its parent
+                            // supplies grounding without identifying two loans.
+                            reference_grounding.store(target, parent, b)?;
+                        }
+                        array_outer::copy_elements(&mut e, out, source, outer.as_ref(), b)?;
+                        if out.keys != source.keys || out.classes.len() != source.classes.len() {
+                            return Err(bad("actual reborrow changes its complete pointee domain"));
+                        }
+                        for (target, parent) in out.classes.iter().zip(&source.classes) {
+                            e.equal(*target, *parent, b)?;
+                        }
                     }
                 }
                 InstructionKind::AddressIndex { address, .. } => {
@@ -2361,11 +2600,11 @@ fn check_with(
                         )?;
                     }
                 }
-                InstructionKind::Call {
-                    function,
-                    arguments,
-                } => {
+                InstructionKind::Call { function, arguments }
+                | InstructionKind::SuspendCall { function, arguments }
+                    if crate::stored_flow::synchronous_abi::ordinary_call(&i.kind, b)? => {
                     let callee = &module.functions[function.0 as usize];
+                    reference_grounding.call(module, callee, arguments, out, &values, b)?;
                     if let Some(c) = &callee.storage_life {
                         let defer = if retained_environment {
                             b.spend(arguments.len(), "actual environment argument detection")?;
@@ -2455,6 +2694,32 @@ fn check_with(
                     }
                 }
                 InstructionKind::CallIndirect { callee, arguments } => {
+                    if thin::instruction(f, i) {
+                        thin::types(module, f, i, b)?;
+                        for operand in std::iter::once(callee)
+                            .chain(arguments)
+                            .chain(i.result.iter())
+                        {
+                            let ports = values.get(operand.0 as usize).ok_or_else(|| {
+                                bad("thin indirect value has no complete class inventory")
+                            })?;
+                            b.spend(1, "thin indirect empty class inventory")?;
+                            if ports.outer.is_some()
+                                || !ports.classes.is_empty()
+                                || !ports.keys.is_empty()
+                                || ports.direct
+                                || ports.environment
+                                || !ports.task_ports.is_empty()
+                                || !ports.physical_slots.is_empty()
+                                || !ports.array_elements.is_empty()
+                            {
+                                return Err(bad(
+                                    "thin indirect call retains actual class or environment obligations",
+                                ));
+                            }
+                        }
+                        continue;
+                    }
                     let Type::BorrowedFunctionPointer { life, .. } = &f.values[callee.0 as usize]
                     else {
                         return Err(bad(
@@ -2481,6 +2746,17 @@ fn check_with(
     if let Some(flow) = &outer {
         flow.checkpoint(&mut e, b)?;
     }
+    reference_grounding.propagate(&mut e, b)?;
+    bind_reference_results(
+        module,
+        f,
+        reachable,
+        assumptions,
+        header.as_ref(),
+        &values,
+        &mut e,
+        b,
+    )?;
     b.spend(
         deferred_helpers.len(),
         "deferred helper result class inventory",
@@ -2539,6 +2815,17 @@ fn check_with(
                 &values,
                 None,
                 (&mut e, outer.as_ref()),
+                b,
+            )?;
+            reference_grounding.propagate(&mut e, b)?;
+            bind_reference_results(
+                module,
+                f,
+                reachable,
+                assumptions,
+                header.as_ref(),
+                &values,
+                &mut e,
                 b,
             )?;
             progressed = true;
@@ -2635,6 +2922,9 @@ fn scalar(t: &Type) -> bool {
     )
 }
 pub(super) fn pointer_instruction(f: &TypedFunction, i: &Instruction) -> bool {
+    if thin::instruction(f, i) {
+        return true;
+    }
     match &i.kind {
         InstructionKind::FunctionRef { .. } => i
             .result
@@ -2654,6 +2944,9 @@ pub(super) fn pointer_types(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    if thin::instruction(f, i) {
+        return thin::types(module, f, i, b);
+    }
     match &i.kind {
         InstructionKind::FunctionRef { function } => {
             let ty = i

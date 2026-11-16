@@ -33,10 +33,11 @@ fn fields<'a>(
     entries: impl Iterator<Item = &'a Type>,
     module: &TypedModule,
     b: &mut Budget,
+    active: &mut BTreeSet<zil_ir::ClosureId>,
 ) -> CompileResult<(u64, u64)> {
     let (mut size, mut maximum) = (0u64, 1u64);
     for ty in entries {
-        let (bytes, alignment) = value(ty, module, b)?;
+        let (bytes, alignment) = value_inner(ty, module, b, active)?;
         size = checked(align(size, alignment)?.checked_add(bytes))?;
         maximum = maximum.max(alignment);
     }
@@ -98,6 +99,14 @@ fn resource(
     Ok(())
 }
 fn value(ty: &Type, module: &TypedModule, b: &mut Budget) -> CompileResult<(u64, u64)> {
+    value_inner(ty, module, b, &mut BTreeSet::new())
+}
+fn value_inner(
+    ty: &Type,
+    module: &TypedModule,
+    b: &mut Budget,
+    active: &mut BTreeSet<zil_ir::ClosureId>,
+) -> CompileResult<(u64, u64)> {
     b.spend(1, WORK)?;
     Ok(match ty {
         Type::Unit => (0, 1),
@@ -105,6 +114,13 @@ fn value(ty: &Type, module: &TypedModule, b: &mut Budget) -> CompileResult<(u64,
         Type::U16 | Type::I16 => (2, 2),
         Type::U32 | Type::I32 | Type::F32 => (4, 4),
         Type::I64 | Type::U64 | Type::Usize | Type::Isize | Type::F64 => (8, 8),
+        // Code identities have pointer representation. Signature, original
+        // identity and complete class-domain checks remain separate proofs.
+        Type::FunctionPointer { .. }
+        | Type::BorrowedFunctionPointer { .. }
+        | Type::ForeignCallback { .. }
+        | Type::ForeignHandle => (8, 8),
+        Type::OwnedDyn { .. } => (16, 8),
         Type::Managed(payload) => match payload.as_ref() {
             Type::ByteBuffer => {
                 resource(module, zil_ir::BYTE_BUFFER_RESOURCE_NAME, payload, true, b)?;
@@ -125,7 +141,7 @@ fn value(ty: &Type, module: &TypedModule, b: &mut Budget) -> CompileResult<(u64,
                 }
                 identity(name, entries, b)?;
                 resource(module, name, payload, false, b)?;
-                fields(entries.iter().map(|(_, ty)| ty), module, b)?
+                fields(entries.iter().map(|(_, ty)| ty), module, b, active)?
             }
             _ => {
                 return Err(unsupported(
@@ -142,11 +158,11 @@ fn value(ty: &Type, module: &TypedModule, b: &mut Budget) -> CompileResult<(u64,
             fields: entries,
         } => {
             identity(name, entries, b)?;
-            fields(entries.iter().map(|(_, ty)| ty), module, b)?
+            fields(entries.iter().map(|(_, ty)| ty), module, b, active)?
         }
-        Type::Tuple(entries) => fields(entries.iter(), module, b)?,
+        Type::Tuple(entries) => fields(entries.iter(), module, b, active)?,
         Type::Array { element, length } => {
-            let (bytes, alignment) = value(element, module, b)?;
+            let (bytes, alignment) = value_inner(element, module, b, active)?;
             (checked(bytes.checked_mul(u64::from(*length)))?, alignment)
         }
         Type::Enum { name, variants } if ty.is_copy_value() => {
@@ -166,7 +182,7 @@ fn value(ty: &Type, module: &TypedModule, b: &mut Budget) -> CompileResult<(u64,
                 if name.is_empty() || !names.insert(name) {
                     return Err(bad("recursive Store variants are empty or repeated"));
                 }
-                let (bytes, a) = fields(entries.iter(), module, b)?;
+                let (bytes, a) = fields(entries.iter(), module, b, active)?;
                 maximum = maximum.max(bytes);
                 alignment = alignment.max(a);
             }
@@ -179,16 +195,37 @@ fn value(ty: &Type, module: &TypedModule, b: &mut Budget) -> CompileResult<(u64,
             )
         }
         Type::ErrorUnion { error, result } if ty.is_copy_value() => {
-            let (e, ea) = value(error, module, b)?;
-            let (r, ra) = value(result, module, b)?;
-            let alignment = 4u64.max(ea).max(ra);
-            (
-                align(
-                    checked(align(4, alignment)?.checked_add(e.max(r)))?,
-                    alignment,
-                )?,
-                alignment,
-            )
+            let (e, ea) = value_inner(error, module, b, active)?;
+            let (r, ra) = value_inner(result, module, b, active)?;
+            // The executable ErrorUnion is { i1, Error, Result }; both arm
+            // fields occupy inline storage even though only one is live.
+            let alignment = ea.max(ra);
+            let after_error = checked(align(1, ea)?.checked_add(e))?;
+            let after_result = checked(align(after_error, ra)?.checked_add(r))?;
+            (align(after_result, alignment)?, alignment)
+        }
+        Type::Closure(id) => {
+            b.spend(
+                active.len().saturating_add(1),
+                "callback Store active layout path",
+            )?;
+            if active.len() >= b.helper_depth || !active.insert(*id) {
+                return Err(unsupported(
+                    "callback Store layout has a recursive or excessive environment path",
+                ));
+            }
+            let definition = module
+                .closures
+                .get(id.0 as usize)
+                .filter(|definition| definition.id == *id)
+                .ok_or_else(|| bad("callback Store layout has no exact actual environment"))?;
+            b.spend(
+                definition.captures.len().saturating_add(1),
+                "callback Store complete inline environment layout",
+            )?;
+            let layout = fields(definition.captures.iter(), module, b, active);
+            active.remove(id);
+            layout?
         }
         _ => {
             return Err(unsupported(
@@ -235,8 +272,16 @@ pub(super) fn semantic_element(
         ));
     }
     if !selected(element) {
-        if matches!(element, Type::Package { .. }) {
-            super::dynamic_store::product_element(element, b)?;
+        if let Type::Package { fields, .. } = element {
+            b.spend(fields.len(), "StoreElement concrete callback family")?;
+            if fields
+                .iter()
+                .any(|(_, field)| matches!(field, Type::Closure(_)))
+            {
+                super::dynamic_store::callback_element(module, element, b)?;
+            } else {
+                super::dynamic_store::product_element(element, b)?;
+            }
         } else {
             return super::pod_store::semantic_element(module, element, b);
         }

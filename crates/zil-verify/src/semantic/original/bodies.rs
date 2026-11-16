@@ -7,7 +7,9 @@ impl CheckedOriginal {
         if self.checked.contains(&id){return Ok(());}
         if !self.active.insert(id){return Err(bad("original closure/body checking cycle has no established prototype"));}
         let previous=self.current.replace(id);
+        let previous_premises=self.premise_environment.take();
         let result=self.definition_inner(module,context,id,active,b).map_err(|mut error|{error.message.push_str(&format!(" [original definition {id:?}]"));error});
+        self.premise_environment=previous_premises;
         self.current=previous;self.active.remove(&id);
         if result.is_ok(){self.checked.insert(id);}result
     }
@@ -23,6 +25,10 @@ impl CheckedOriginal {
         if !self.results.contains_key(&id){let value=self.fresh(b)?;self.results.insert(id,value);}
         let env=self.environment(module,context,id,active,b)?;
         let prototype=self.signature(module,context,signature,&env,active,b)?;
+        // Subsequent annotations, constructor schemes and associated types
+        // all prove their obligations in this exact independently formed Γ.
+        // The outer definition wrapper restores its caller even on failure.
+        self.premise_environment=Some(self.copy_environment(&prototype.environment,b)?);
         let mut bindings=self.free_values.get(&id).cloned().unwrap_or_default();
         for binding in bindings.values_mut(){binding.identity=Binder::Capture{definition:id,source:Box::new(binding.identity.clone())};}
         let mut parameter_names=BTreeSet::new();
@@ -76,6 +82,7 @@ impl CheckedOriginal {
         b.spend(1)?;
         match requirement {
             SemanticRequirementRecipe::LifeEqual{left,right}=>{let left=self.life(module,context,left,env,active,b)?;let right=self.life(module,context,right,env,active,b)?;let owner=self.current.ok_or_else(||bad("original lifetime premise has no declaration context"))?;self.life_equalities.entry(owner).or_default().push((left,right));},
+            SemanticRequirementRecipe::Outlives{longer,shorter}=>{let longer=self.life(module,context,longer,env,active,b)?;let shorter=self.life(module,context,shorter,env,active,b)?;let owner=self.current.ok_or_else(||bad("original Outlives premise has no active declaration"))?;self.life_outlives.entry(owner).or_default().push((longer,shorter));},
             SemanticRequirementRecipe::TypeEqual{left,right}=>output.push((self.ty(module,context,left,env,active,b)?,self.ty(module,context,right,env,active,b)?)),
             SemanticRequirementRecipe::ForAll{lifetimes,requirements}=>{let mut env=env.clone();if *lifetimes!=0{let token=active.fresh(b)?;b.spend(*lifetimes as usize)?;env.bounds.insert(0,(0..*lifetimes).map(|index|Life::Bound(token,index)).collect());}for requirement in requirements{self.collect_equalities(module,context,requirement,&env,output,active,b)?;}},
             _=>{},
@@ -99,14 +106,16 @@ impl CheckedOriginal {
                             self.binding_families.insert((env.current()?,root.id),expected.as_ref().unwrap().clone());
                         }
                         let actual=match initializer{Some(value)=>self.expression(module,context,value,env,bindings,if family{None}else{expected.as_ref()},active,b)?,None=>match expected{Some(ref ty)=>ty.clone(),None=>return Err(bad("original uninitialized binding lacks its full type"))}};
-                        if let Some(expected)=expected{if family{self.bind_family_result(&actual,&expected,b)?;}else{self.unify(&actual,&expected,b)?;}}
+                        let actual=if let Some(initializer)=initializer{self.code_value(module,context,initializer,&actual,expected.as_ref(),true,env,active,b)?}else{actual};
+                        if let Some(expected)=expected{if family{self.bind_family_result(&actual,&expected,b)?;}else{self.relate_value(&actual,&expected,b)?;}}
+                        let actual=if *mutable&&ty.is_none(){self.introduce_shared_local(module,context,statement.id,&actual,env,b)?}else{actual};
                         self.bindings.insert((env.current()?,statement.id),actual.clone());let binding=Binding{ty:actual,mutable:*mutable,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};if let Some(initializer)=initializer{if self.creation(env.current()?,initializer,bindings,b)?{b.spend(1)?;self.created_bindings.insert(binding.identity.clone());}}self.declare(env,&binding,b)?;bindings.insert(name.clone(),binding);false
                     },
                     CoreStatementKind::TupleBinding{pattern,mutable,ty,initializer}=>{let expected=ty.as_ref().map(|recipe|self.ty(module,context,recipe,env,active,b)).transpose()?;let actual=self.expression(module,context,initializer,env,bindings,expected.as_ref(),active,b)?;self.pattern_root(module,context,statement.id,&[],pattern,&actual,*mutable,env,bindings,active,b)?;self.bindings.insert((env.current()?,statement.id),actual);false},
                     CoreStatementKind::Expression(expression)=>{let value=self.expression(module,context,expression,env,bindings,None,active,b)?;self.overwrite_cleanup(env,expression.id,&value,None,b)?;false},
-                    CoreStatementKind::Return(expression)=>{if self.in_defer.get(&env.current()?).copied().unwrap_or(0)!=0{return Err(bad("original deferred cleanup cannot return from its caller"));}let actual=match expression{Some(expression)=>self.expression(module,context,expression,env,bindings,Some(result),active,b)?,None=>Ty::Atom(Type::Unit)};self.unify(&actual,result,b)?;self.return_resource(expression.as_ref(),&actual,env,b)?;self.queue_cleanup(env,None,b)?;true},
-                    CoreStatementKind::Assign{target,value}=>{self.mutable_place(module,context,target,env,bindings,active,b)?;let(expected,place)=self.place(module,context,target,env,bindings,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.unify(&actual,&expected,b)?;self.overwrite_cleanup(env,target.id,&expected,place.as_ref(),b)?;if let Some(place)=place{if !self.creation(env.current()?,value,bindings,b)?{b.spend(1)?;self.creation_tainted.insert(place.binder.clone());}self.uses.entry(env.current()?).or_default().initialize(&place,b)?;}false},
-                    CoreStatementKind::CompoundAssign{target,op,value}=>{self.mutable_place(module,context,target,env,bindings,active,b)?;let expected=self.expression(module,context,target,env,bindings,None,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.numeric_binary_original(*op,&expected,&actual,b)?;false},
+                    CoreStatementKind::Return(expression)=>{if self.in_defer.get(&env.current()?).copied().unwrap_or(0)!=0{return Err(bad("original deferred cleanup cannot return from its caller"));}let actual=match expression{Some(expression)=>self.expression(module,context,expression,env,bindings,Some(result),active,b)?,None=>Ty::Atom(Type::Unit)};self.relate_value(&actual,result,b)?;self.return_resource(expression.as_ref(),&actual,env,b)?;self.queue_cleanup(env,None,b)?;true},
+                    CoreStatementKind::Assign{target,value}=>{let(expected,place)=self.place(module,context,target,env,bindings,active,b)?;self.mutable_place(module,context,target,env,bindings,active,b)?;if !self.shared_local_assignment(module,context,target,value,&expected,place.as_ref(),env,bindings,active,b)?{let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.relate_value(&actual,&expected,b)?;}self.overwrite_cleanup(env,target.id,&expected,place.as_ref(),b)?;if let Some(place)=place{if !self.creation(env.current()?,value,bindings,b)?{b.spend(1)?;self.creation_tainted.insert(place.binder.clone());}self.uses.entry(env.current()?).or_default().initialize(&place,b)?;}false},
+                    CoreStatementKind::CompoundAssign{target,op,value}=>{let expected=self.expression(module,context,target,env,bindings,None,active,b)?;self.mutable_place(module,context,target,env,bindings,active,b)?;let actual=self.expression(module,context,value,env,bindings,Some(&expected),active,b)?;self.numeric_binary_original(*op,&expected,&actual,b)?;false},
                     CoreStatementKind::If{condition,then_body,else_body}=>{
                         self.condition_original(module,context,condition,env,bindings,active,b)?;let before=self.use_snapshot(env,b)?;
                         let yes_returns=self.block(module,context,then_body,env,&mut bindings.clone(),result,loops,active,b)?;let yes=self.use_snapshot(env,b)?;
@@ -122,7 +131,7 @@ impl CheckedOriginal {
                     CoreStatementKind::While{condition,body}=>{
                         let entry=self.use_snapshot(env,b)?;self.condition_original(module,context,condition,env,bindings,active,b)?;let after_condition=self.use_snapshot(env,b)?;
                         let returns=self.block(module,context,body,env,&mut bindings.clone(),result,loops+1,active,b)?;let backedge=self.use_snapshot(env,b)?;
-                        if !returns{self.loop_uses(module,context,env,&entry,&backedge,bindings,active,b)?;}self.set_uses(env,after_condition)?;false
+                        if !returns{self.loop_uses(module,context,env,&entry,&backedge,bindings,active,b)?;}self.set_uses(env,after_condition)?;Self::constant_true(condition,b)?&&!Self::loop_break(body,b)?
                     },
                     CoreStatementKind::WhileLet{pattern,value,body}=>{
                         let entry=self.use_snapshot(env,b)?;let ty=self.expression(module,context,value,env,bindings,None,active,b)?;let after_condition=self.use_snapshot(env,b)?;
@@ -130,7 +139,19 @@ impl CheckedOriginal {
                         let returns=self.block(module,context,body,env,&mut inner,result,loops+1,active,b)?;if returns{self.forget_scope(env,&live_before,b)?;}else{self.exit_scope(env,&live_before,b)?;}let backedge=self.use_snapshot(env,b)?;
                         if !returns{self.loop_uses(module,context,env,&entry,&backedge,bindings,active,b)?;}self.set_uses(env,after_condition)?;false
                     },
-                    CoreStatementKind::ForRange{name,start,end,body}=>{let ty=self.expression(module,context,start,env,bindings,None,active,b)?;let end=self.expression(module,context,end,env,bindings,Some(&ty),active,b)?;self.unify(&ty,&end,b)?;if !matches!(self.resolved(&ty,b)?,Ty::Atom(ref ty)if ty.is_integer()){return Err(bad("original range endpoints are not integers"));}let mut inner=bindings.clone();let binding=Binding{ty,mutable:false,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};self.declare(env,&binding,b)?;inner.insert(name.clone(),binding);let before=self.use_snapshot(env,b)?;let returns=self.block(module,context,body,env,&mut inner,result,loops+1,active,b)?;let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}self.set_uses(env,before)?;false},
+                    CoreStatementKind::ForRange{name,start,end,body}=>{let ty=self.range_endpoints(module,context,start,end,env,bindings,active,b)?;let scope_before=self.live_keys(env,b)?;let mut inner=bindings.clone();let binding=Binding{ty,mutable:false,identity:Binder::Local{definition:env.current()?,node:statement.id,name:name.clone()}};self.declare(env,&binding,b)?;inner.insert(name.clone(),binding);let before=self.use_snapshot(env,b)?;let returns=self.block(module,context,body,env,&mut inner,result,loops+1,active,b)?;if returns{self.forget_scope(env,&scope_before,b)?;}else{self.exit_scope(env,&scope_before,b)?;}let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}self.set_uses(env,before)?;false},
+                    CoreStatementKind::ForEach{pattern,iterator,body}=>{
+                        let mut range=iterator;while let CoreExprKind::Group(inner)=&range.kind{b.spend(1)?;range=inner;}
+                        let CoreExprKind::Range{start,end}=&range.kind else{return Err(unsupported("original iteration needs its complete checked iterator protocol",Some(iterator.span)));};
+                        if !matches!(pattern.kind,CorePatternKind::Name(_)|CorePatternKind::Wildcard){return Err(bad("integer range requires one irrefutable original value pattern"));}
+                        self.remember_names(env,SemanticOriginalNode::Expression(iterator.id),bindings,b)?;
+                        let ty=self.range_endpoints(module,context,start,end,env,bindings,active,b)?;
+                        let before=self.use_snapshot(env,b)?;let scope_before=self.live_keys(env,b)?;let mut inner=bindings.clone();
+                        self.pattern_root(module,context,statement.id,&[],pattern,&ty,false,env,&mut inner,active,b)?;
+                        let returns=self.block(module,context,body,env,&mut inner,result,loops+1,active,b)?;
+                        if returns{self.forget_scope(env,&scope_before,b)?;}else{self.exit_scope(env,&scope_before,b)?;}
+                        let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}self.set_uses(env,before)?;false
+                    },
                     CoreStatementKind::Match{value,arms}=>{
                         let ty=self.expression(module,context,value,env,bindings,None,active,b)?;let before=self.use_snapshot(env,b)?;let mut continuing=None;let mut all=!arms.is_empty();
                         for(arm_index,arm)in arms.iter().enumerate(){self.set_uses(env,before.clone())?;let arm_live=self.live_keys(env,b)?;let mut inner=bindings.clone();self.pattern_root(module,context,statement.id,&[arm_index as u32],&arm.pattern,&ty,false,env,&mut inner,active,b)?;
@@ -147,7 +168,7 @@ impl CheckedOriginal {
                         let after=self.use_snapshot(env,b)?;self.set_uses(env,before.clone())?;
                         if after.moved.difference(&before.moved).any(|place|bindings.values().any(|binding|binding.identity==place.binder)){return Err(unsupported("original deferred value transfer requires its complete scope-exit use schedule",None));}false
                     },
-                    CoreStatementKind::Loop(body)=>{let before=self.use_snapshot(env,b)?;let returns=self.block(module,context,body,env,&mut bindings.clone(),result,loops+1,active,b)?;let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}false},
+                    CoreStatementKind::Loop(body)=>{let before=self.use_snapshot(env,b)?;let returns=self.block(module,context,body,env,&mut bindings.clone(),result,loops+1,active,b)?;let after=self.use_snapshot(env,b)?;if !returns{self.loop_uses(module,context,env,&before,&after,bindings,active,b)?;}!Self::loop_break(body,b)?},
                     CoreStatementKind::Break|CoreStatementKind::Continue if loops!=0=>false,
                     _=>return Err(unsupported("original statement has no complete symbolic operation rule",Some(statement.span))),
                 };
@@ -161,6 +182,44 @@ impl CheckedOriginal {
 }
 
 impl CheckedOriginal {
+    #[allow(clippy::too_many_arguments)]
+    fn range_endpoints(&mut self,module:&TypedModule,context:&CheckedContext,start:&SemanticOriginalExpr,end:&SemanticOriginalExpr,env:&Env,bindings:&BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<Ty>{
+        let(left,right)=if Self::contextual_numeric_literal(start,b)?{
+            let right=self.expression(module,context,end,env,bindings,None,active,b)?;let left=self.expression(module,context,start,env,bindings,Some(&right),active,b)?;(left,right)
+        }else{let left=self.expression(module,context,start,env,bindings,None,active,b)?;let right=self.expression(module,context,end,env,bindings,Some(&left),active,b)?;(left,right)};
+        self.unify(&left,&right,b)?;let ty=self.resolved(&left,b)?;if !matches!(&ty,Ty::Atom(ty)if ty.is_integer()){return Err(bad("original range endpoints are not one complete integer carrier"));}Ok(ty)
+    }
+    fn constant_true(mut expression:&SemanticOriginalExpr,b:&mut Budget)->Check<bool>{
+        loop {
+            b.spend(1)?;
+            match &expression.kind {
+                CoreExprKind::Group(inner)=>expression=inner,
+                CoreExprKind::Bool(value)=>return Ok(*value),
+                _=>return Ok(false),
+            }
+        }
+    }
+    fn loop_break(body:&SemanticOriginalBlock,b:&mut Budget)->Check<bool>{
+        let mut pending=vec![body];
+        while let Some(body)=pending.pop(){
+            b.spend(body.statements.len().saturating_add(1))?;
+            for statement in &body.statements {
+                match &statement.kind {
+                    CoreStatementKind::Break=>return Ok(true),
+                    CoreStatementKind::If{then_body,else_body,..}|CoreStatementKind::IfLet{then_body,else_body,..}=>{
+                        pending.push(then_body);
+                        if let Some(body)=else_body{pending.push(body);}
+                    },
+                    CoreStatementKind::Match{arms,..}=>{b.spend(arms.len())?;for arm in arms{pending.push(&arm.body);}},
+                    CoreStatementKind::Block(body)|CoreStatementKind::Unsafe(body)=>pending.push(body),
+                    // Nested loops bind their own break; deferred bodies have
+                    // an independent control context checked by block().
+                    _=>{},
+                }
+            }
+        }
+        Ok(false)
+    }
     pub(super) fn contextual_numeric_literal(expression:&SemanticOriginalExpr,b:&mut Budget)->Check<bool>{
         let mut pending=vec![expression];
         while let Some(expression)=pending.pop(){
@@ -170,7 +229,8 @@ impl CheckedOriginal {
                     b.spend(text.len().saturating_add(12))?;
                     if ["isize","usize","i64","i32","i16","i8","u64","u32","u16","u8","f64","f32"].iter().any(|suffix|text.ends_with(*suffix)){return Ok(false);}
                 },
-                CoreExprKind::Group(inner)|CoreExprKind::Unary{op:UnaryOp::Negate|UnaryOp::BitNot,operand:inner}=>pending.push(inner),
+                CoreExprKind::Group(inner)|CoreExprKind::CompileTime(inner)|CoreExprKind::Unary{op:UnaryOp::Negate|UnaryOp::BitNot,operand:inner}=>pending.push(inner),
+                CoreExprKind::Sequence{bindings,value}if bindings.is_empty()=>pending.push(value),
                 CoreExprKind::Binary{op:BinaryOp::Add|BinaryOp::Subtract|BinaryOp::Multiply|BinaryOp::Divide|BinaryOp::Remainder|BinaryOp::AddWrapping|BinaryOp::SubtractWrapping|BinaryOp::MultiplyWrapping|BinaryOp::BitAnd|BinaryOp::BitOr|BinaryOp::BitXor|BinaryOp::ShiftLeft|BinaryOp::ShiftRight,left,right}=>{pending.push(left);pending.push(right);},
                 _=>return Ok(false),
             }

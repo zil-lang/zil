@@ -5,9 +5,11 @@ use zil_base::NodeId;
 
 mod abstract_calls;
 mod body_equivalence;
+mod borrow_roles;
 pub(super) mod borrow_places;
 mod buffers;
 mod capabilities;
+mod call_regions;
 mod captures;
 mod constructors;
 mod descriptions;
@@ -17,9 +19,11 @@ mod dyn_values;
 mod effects;
 mod enums;
 mod function_values;
+mod frozen_calls;
 mod intrinsic_actuals;
 mod invocations;
 mod loops;
+pub(super) mod local_reference_roles;
 pub(super) mod mixed;
 mod mutex;
 pub(super) mod nominal;
@@ -148,7 +152,15 @@ pub(super) enum LocalAnchor {
     Pattern(u32),
 }
 #[derive(Clone)]
+struct ViewSelection {
+    local: Option<LocalAnchor>,
+    occurrence: Term,
+    upper: Option<Term>,
+    selected: Term,
+}
+#[derive(Clone)]
 struct Borrow {
+    role: Option<ViewSelection>,
     anchor: Option<LocalAnchor>,
     expression: Option<NodeId>,
     index: Option<NodeId>,
@@ -244,17 +256,22 @@ pub(super) struct Checked {
     pattern_origins: Vec<pattern_places::PatternOrigin>,
     names_at: BTreeMap<(SemanticDefinitionId, NodeId), Vec<(String, Term)>>,
     environment_reads: BTreeMap<(SemanticDefinitionId, NodeId), u32>,
+    local_reads: BTreeMap<(SemanticDefinitionId, NodeId), LocalAnchor>,
     capture_origins: BTreeMap<(SemanticDefinitionId, u32), LocalAnchor>,
     function_values: BTreeMap<(SemanticDefinitionId, NodeId), SemanticDefinitionId>,
     code_calls: BTreeMap<(SemanticDefinitionId, NodeId), CodeCall>,
     string_literals: BTreeMap<(SemanticDefinitionId, NodeId), Vec<u8>>,
     return_injections: BTreeMap<(SemanticDefinitionId, NodeId), (Term, bool)>,
     dyn_creations: BTreeMap<(SemanticDefinitionId, NodeId), dyn_owned::Creation>,
+    view_uppers: BTreeMap<(SemanticDefinitionId, u32), Vec<Term>>,
+    reference_roles: BTreeMap<(SemanticDefinitionId, NodeId), local_reference_roles::Role>,
+    call_regions: BTreeMap<(SemanticDefinitionId, u32), call_regions::Region>,
+    call_uses: BTreeMap<(SemanticDefinitionId, NodeId), Vec<call_regions::Use>>,
 }
 struct Solver<'a, 'i> {
     inventory: &'i Inventory<'a>,
     program: &'i SemanticModule,
-    indexes: BTreeMap<SemanticDefinitionId, original_index::Index<'a>>,
+    indexes: BTreeMap<SemanticDefinitionId, std::sync::Arc<original_index::Index<'a>>>,
     state: Checked,
     active: BTreeSet<SemanticDefinitionId>,
     creators: BTreeMap<SemanticDefinitionId, (SemanticDefinitionId, NodeId)>,
@@ -271,9 +288,11 @@ struct Solver<'a, 'i> {
     loops: Vec<loops::LoopFrame>,
     trait_state: traits::State,
     capture_state: captures::CaptureState,
-    receiving: Vec<Term>,
+    receiving: Vec<(SemanticDefinitionId, NodeId, Term)>,
     field_needs: Vec<(Term, SemanticDefinitionId, u32)>,
     nominal_declaration: Option<SemanticDefinitionId>,
+    call_variables: BTreeMap<Term, call_regions::Role>,
+    call_parameters: BTreeSet<Term>,
 }
 pub(super) fn resource(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::limit(
@@ -297,8 +316,16 @@ impl Solver<'_, '_> {
         }
         Ok(())
     }
+    #[track_caller]
     fn push<T>(rows: &mut Vec<T>, row: T, b: &mut Budget) -> CompileResult<()> {
-        b.spend(rows.len().saturating_add(1), WORK)?;
+        // Spare capacity appends one fresh node. Only a real growth can move
+        // existing rows; charging their full length on every append is quadratic.
+        let relocation = if rows.len() == rows.capacity() {
+            rows.len()
+        } else {
+            0
+        };
+        b.spend(relocation.saturating_add(1), WORK)?;
         rows.try_reserve(1)
             .map_err(|_| resource("original inference inventory allocation failed"))?;
         rows.push(row);
@@ -1284,6 +1311,41 @@ impl Solver<'_, '_> {
             CoreExprKind::RecordUpdate { base, .. } => {
                 self.lexical_input_hint(frame, base, b, depth + 1)
             }
+            CoreExprKind::Member { object, member, owner } => {
+                let Some(object) = self.lexical_input_hint(frame, object, b, depth + 1)? else {
+                    return Ok(None);
+                };
+                if let Some(owner) = owner {
+                    let expected = self.recipe(frame, owner, b, depth + 1)?;
+                    self.input_hint(expected, object, b, depth + 1)?;
+                }
+                Ok(Some(self.field(object, member, b, depth + 1)?.1))
+            }
+            CoreExprKind::Unary { op: UnaryOp::Dereference, operand } => {
+                let Some(address) = self.lexical_input_hint(frame, operand, b, depth + 1)? else {
+                    return Ok(None);
+                };
+                Ok(match self.state.arena[self.type_root(address, b)?] {
+                    Kind::Address { inner, .. } => Some(inner),
+                    _ => None,
+                })
+            }
+            CoreExprKind::Unary { op, operand }
+                if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut) =>
+            {
+                // This reads the original place's Type only. No expression,
+                // occurrence, loan, read or consuming event is formed here.
+                // The temporary outer life is only an inference variable;
+                // the genuine source borrow is checked once with its exact
+                // receiving role and must independently solve it.
+                let Some(inner) = self.lexical_input_hint(frame, operand, b, depth + 1)? else {
+                    return Ok(None);
+                };
+                let life = self.term(Kind::LifeVariable(None), b)?;
+                Ok(Some(self.term(Kind::Address {
+                    mutable: *op == UnaryOp::BorrowMut, life, inner,
+                }, b)?))
+            }
             _ => Ok(None),
         }
     }
@@ -1356,6 +1418,7 @@ impl Solver<'_, '_> {
     fn scheme(
         &mut self,
         caller: &Frame,
+        call_node: Option<NodeId>,
         target: SemanticDefinitionId,
         written: &[CoreGenericArgument<SemanticTypeRecipe>],
         input_hints: Option<&[Option<Term>]>,
@@ -1375,14 +1438,10 @@ impl Solver<'_, '_> {
                 "original lexical/member call needs its complete declared scope and quantifier instantiation",
             ));
         }
-        if !written.is_empty() && written.len() != definition.parameters.len() {
-            return Err(fail(
-                "original written actual vector has another mixed arity",
-            ));
-        }
+        let written = mixed::written_call_actuals(&definition.parameters, written, b)?;
         let mut formals = Vec::new();
         for (index, formal) in definition.parameters.iter().enumerate() {
-            let term = match (formal, written.get(index)) {
+            let term = match (formal, written[index]) {
                 (
                     SemanticFormal::Type { requirements },
                     Some(CoreGenericArgument::Type(recipe)),
@@ -1397,7 +1456,7 @@ impl Solver<'_, '_> {
                 (SemanticFormal::Lifetime, Some(CoreGenericArgument::Lifetime(name))) => {
                     self.named_life(caller, name, b, depth + 1)?
                 }
-                (SemanticFormal::Lifetime, None) => self.term(Kind::LifeVariable(None), b)?,
+                (SemanticFormal::Lifetime, None) => self.call_variable(call_regions::Role::Life(index as u32), b)?,
                 (SemanticFormal::Const { .. }, _) => {
                     return Err(unknown(
                         "original call constant inference needs its complete carrier and expression proof",
@@ -1443,14 +1502,17 @@ impl Solver<'_, '_> {
                 .get(&target)
                 .ok_or_else(|| fail("original opaque result has no checked declaration body"))?
                 .result;
-            Some(self.instantiate(checked, target, &frame.formals, b, depth + 1)?)
+            Some(checked)
         } else {
             None
         };
         let mut implicits = BTreeMap::new();
         for row in &definition.implicit_lifetimes {
             b.spend(row.occurrence_path.len().saturating_add(1), WORK)?;
-            let life = self.term(Kind::LifeVariable(None), b)?;
+            let life = if let Some(node) = call_node
+                && self.reference_result_role(target, row.ordinal, b)? {
+                self.term(Kind::Life(Life::CallResult(caller.definition, node, target, row.ordinal)), b)?
+            } else { self.call_variable(call_regions::Role::Implicit(row.ordinal), b)? };
             b.lookup(implicits.len(), WORK)?;
             if implicits.insert(row.ordinal, life).is_some() {
                 return Err(fail(
@@ -1459,6 +1521,9 @@ impl Solver<'_, '_> {
             }
         }
         let lifetimes = self.invocation_actuals(signature.invocation_lifetimes, b)?;
+        for (index, life) in lifetimes.iter().enumerate() {
+            self.mark_call_variable(*life, call_regions::Role::Invocation(index as u32), b)?;
+        }
         Self::push(
             &mut self.role_frames,
             roles::RoleFrame {
@@ -1470,10 +1535,17 @@ impl Solver<'_, '_> {
         )?;
         let answer: CompileResult<Term> = (|| {
             for (ordinal, parameter) in signature.parameters.iter().enumerate() {
+                b.spend(1, WORK)?;
+                if let Some(Some(actual)) = input_hints.and_then(|hints| hints.get(ordinal)) {
+                    self.input_recipe_hint(&frame, &parameter.ty, *actual, b, depth + 1)?;
+                }
+            }
+            for (ordinal, parameter) in signature.parameters.iter().enumerate() {
                 let term = self.recipe(&frame, &parameter.ty, b, depth + 1)?;
                 if let Some(Some(actual)) = input_hints.and_then(|hints| hints.get(ordinal)) {
                     self.input_hint(term, *actual, b, depth + 1)?;
                 }
+                self.mark_call_parameter(term, &parameter.ty, b)?;
                 Self::push(&mut frame.parameters, term, b)?;
             }
             for formal in &definition.parameters {
@@ -1483,7 +1555,10 @@ impl Solver<'_, '_> {
             }
             self.premise_needs(&frame, &definition.requirements, b)?;
             let result = if let Some(opaque) = opaque {
-                opaque
+                // Open this result in the same exact call-local implicit
+                // frame as its parameters. The declaration remains rigid;
+                // each invocation gets its own source-to-use substitution.
+                self.instantiate(opaque, target, &frame.formals, b, depth + 1)?
             } else {
                 self.recipe(&frame, &signature.result, b, depth + 1)?
             };
@@ -1504,7 +1579,7 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Term> {
-        Self::push(&mut self.receiving, expected, b)?;
+        Self::push(&mut self.receiving, (frame.definition, value.id, expected), b)?;
         let result = self.expression(frame, value, b, depth);
         self.receiving
             .pop()
@@ -1557,8 +1632,8 @@ impl Solver<'_, '_> {
                     let index = selected.ok_or_else(|| {
                         fail("original name is not in the complete lexical value context")
                     })?;
+                    self.record_environment_read(frame, index, value.id, b)?;
                     if index < frame.inherited {
-                        self.record_environment_read(frame, index, value.id, b)?;
                         b.lookup(frame.captured.len(), WORK)?;
                         frame.captured.insert(index, frame.locals[index].ty);
                     }
@@ -1620,8 +1695,11 @@ impl Solver<'_, '_> {
                         self.term(Kind::Tuple(terms), b)?
                     }
                 }
-                CoreExprKind::Group(value) | CoreExprKind::CompileTime(value) => {
-                    self.expression(frame, value, b, depth + 1)?
+                CoreExprKind::Group(inner) | CoreExprKind::CompileTime(inner) => {
+                    match self.receiving_for(frame, value.id, b)? {
+                        Some(expected) => self.expression_expected(frame, inner, expected, b, depth + 1)?,
+                        None => self.expression(frame, inner, b, depth + 1)?,
+                    }
                 }
                 CoreExprKind::Try(value) => {
                     let value = self.expression(frame, value, b, depth + 1)?;
@@ -1686,8 +1764,8 @@ impl Solver<'_, '_> {
                     output
                 }
                 CoreExprKind::Ascribed { ty, value } => {
-                    let actual = self.expression(frame, value, b, depth + 1)?;
                     let expected = self.recipe(frame, ty, b, depth + 1)?;
+                    let actual = self.expression_expected(frame, value, expected, b, depth + 1)?;
                     self.unify(actual, expected, depth + 1, b)?;
                     expected
                 }
@@ -1756,6 +1834,21 @@ impl Solver<'_, '_> {
                         ));
                     }
                     let inner = place.inner;
+                    let source_life = place.source_life;
+                    let row = self.borrow_occurrence(frame.definition, value.id, b)?;
+                    let occurrence = self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?;
+                    self.remember_view_upper(frame.definition, row, source_life, b)?;
+                    let wanted = match self.receiving_for(frame, value.id, b)? {
+                        Some(expected) => match self.state.arena[self.type_root(expected, b)?] {
+                            Kind::Address { life, inner: expected, .. } => { self.unify(inner, expected, depth + 1, b)?; Some(life) },
+                            _ => None,
+                        },
+                        None => None,
+                    };
+                    let local = if !place.indirect && place.expression.is_none() && place.path.is_empty() {
+                        place.anchor.filter(|anchor| matches!(anchor, LocalAnchor::Binding(_)))
+                    } else { None };
+                    let life = self.select_view_life(frame, occurrence, source_life, wanted, local, b, depth + 1)?;
                     b.lookup(self.state.borrows.len(), WORK)?;
                     if self
                         .state
@@ -1763,6 +1856,7 @@ impl Solver<'_, '_> {
                         .insert(
                             (frame.definition, value.id),
                             Borrow {
+                                role: Some(ViewSelection { local, occurrence, upper: source_life, selected: life }),
                                 anchor: place.anchor,
                                 expression: place.expression,
                                 index: place.index,
@@ -1779,8 +1873,6 @@ impl Solver<'_, '_> {
                             "original borrow occurrence has competing source binders",
                         ));
                     }
-                    let row = self.borrow_occurrence(frame.definition, value.id, b)?;
-                    let life = self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?;
                     self.term(
                         Kind::Address {
                             mutable: *op == UnaryOp::BorrowMut,
@@ -1809,8 +1901,10 @@ impl Solver<'_, '_> {
                     op: UnaryOp::Dereference,
                     operand,
                 } => {
-                    let address = self.expression(frame, operand, b, depth + 1)?;
-                    let root = self.root(address, b)?;
+                    // Dereferencing observes the existing address head; it
+                    // does not move that affine head out of its lexical slot.
+                    let address = self.borrowed_argument(frame, operand, b, depth + 1)?;
+                    let root = self.type_root(address, b)?;
                     let Kind::Address { inner, .. } = self.state.arena[root] else {
                         return Err(fail("original dereference does not select an address"));
                     };
@@ -1938,24 +2032,8 @@ impl Solver<'_, '_> {
                             .filter(|place| !place.path.is_empty())
                             .map(|place| place.selected)
                     };
+                    let mut prepared_arguments = BTreeMap::new();
                     let (parameters, result) = if let Some(local) = local {
-                        if let CoreExprKind::Name(name) = &head.kind {
-                            b.spend(
-                                frame
-                                    .locals
-                                    .iter()
-                                    .map(|local| local.name.len().saturating_add(name.len() + 1))
-                                    .sum::<usize>(),
-                                WORK,
-                            )?;
-                            if let Some(index) =
-                                frame.locals.iter().rposition(|local| local.name == *name)
-                                && index < frame.inherited
-                            {
-                                b.lookup(frame.captured.len(), WORK)?;
-                                frame.captured.insert(index, local);
-                            }
-                        }
                         if !written.is_empty() {
                             return Err(unknown(
                                 "original generic callable needs its complete method instantiation",
@@ -1970,6 +2048,7 @@ impl Solver<'_, '_> {
                         {
                             call
                         } else {
+                            let callee_value = local;
                             let mut local = self.root(local, b)?;
                             for _ in 0..=b.partial_depth {
                                 if let Kind::CallResult { hidden, .. } = self.state.arena[local] {
@@ -2000,6 +2079,25 @@ impl Solver<'_, '_> {
                                     "original indirect call needs its full callable premise",
                                 ));
                             };
+                            // Abstract receivers register through their exact
+                            // borrow_place/receiver path; thin code registers
+                            // through expression. Only this known-Closure path
+                            // observes a callee without either evaluation.
+                            b.lookup(frame.expressions.len(), WORK)?;
+                            if frame.expressions.insert(head.id, callee_value).is_some() {
+                                return Err(fail("original callable head node is reused"));
+                            }
+                            if let CoreExprKind::Name(name) = &head.kind {
+                                b.spend(frame.locals.iter().map(|local|
+                                    local.name.len().saturating_add(name.len() + 1)).sum::<usize>(), WORK)?;
+                                let index = frame.locals.iter().rposition(|local| local.name == *name)
+                                    .ok_or_else(|| fail("original known callable has no exact lexical binding"))?;
+                                self.record_environment_read(frame, index, head.id, b)?;
+                                if index < frame.inherited {
+                                    b.lookup(frame.captured.len(), WORK)?;
+                                    frame.captured.insert(index, callee_value);
+                                }
+                            }
                             self.known_capture_call(frame, head, target, b)?;
                             let declaration = self.inventory.definition(target, b)?;
                             let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
@@ -2011,10 +2109,17 @@ impl Solver<'_, '_> {
                             };
                             let lives =
                                 self.invocation_actuals(signature.invocation_lifetimes, b)?;
+                            if parameters.len() != signature.parameters.len() {
+                                return Err(fail("original known closure changes its declared parameter arity"));
+                            }
                             let mut opened = Vec::new();
-                            for parameter in parameters {
+                            for (parameter, declared) in parameters.into_iter().zip(&signature.parameters) {
                                 let parameter =
                                     self.open_invocations(parameter, target, &lives, b, depth + 1)?;
+                                // Only the genuine original signature grants a
+                                // call outer role. A whole T instantiated as an
+                                // Address remains an invariant complete Type.
+                                self.mark_call_parameter(parameter, &declared.ty, b)?;
                                 Self::push(&mut opened, parameter, b)?;
                             }
                             let parameters = opened;
@@ -2285,8 +2390,42 @@ impl Solver<'_, '_> {
                                         self.lexical_input_hint(frame, argument, b, depth + 1)?;
                                     Self::push(&mut hints, hint, b)?;
                                 }
+                                let definition = self.inventory.definition(target, b)?;
+                                let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body else {
+                                    return Err(fail("original call inference has no full static signature"));
+                                };
+                                // A nested argument of an abstract Type must be
+                                // evaluated once before dependent trait output
+                                // formation. Stage the complete ordered vector
+                                // only when all inputs have that direct Type
+                                // role and no receiving context is being lost.
+                                b.spend(signature.parameters.len().saturating_add(arguments.len().saturating_mul(2)), WORK)?;
+                                let abstract_inputs = signature.parameters.iter().all(|parameter|
+                                    matches!(parameter.ty, SemanticTypeRecipe::Formal(SemanticFormalRef {
+                                        scope: SemanticScopeRef::Ancestor(0), .. })));
+                                let nested = hints.iter().zip(arguments).any(|(hint, argument)| hint.is_none()
+                                    && matches!(argument.kind, CoreExprKind::Call { .. }));
+                                if written.is_empty() && abstract_inputs && nested
+                                    && self.receiving_for(frame, value.id, b)?.is_none()
+                                    && hints.iter().zip(arguments).all(|(hint, argument)| hint.is_some()
+                                        || matches!(argument.kind, CoreExprKind::Call { .. }))
+                                {
+                                    for (ordinal, argument) in arguments.iter().enumerate() {
+                                        let borrowed = if let Some(Some(hint)) = hints.get(ordinal) {
+                                            matches!(self.state.arena[self.type_root(*hint, b)?], Kind::Address { .. })
+                                        } else { false };
+                                        let actual = if borrowed { self.borrowed_argument(frame, argument, b, depth + 1)? }
+                                            else { self.expression(frame, argument, b, depth + 1)? };
+                                        b.lookup(prepared_arguments.len(), WORK)?;
+                                        if prepared_arguments.insert(argument.id, actual).is_some() {
+                                            return Err(fail("staged call argument reuses an original source identity"));
+                                        }
+                                        if let Some(hint) = hints.get_mut(ordinal) { *hint = Some(actual); }
+                                    }
+                                }
                                 let (actuals, parameters, result) = self.scheme(
                                     frame,
+                                    Some(value.id),
                                     target,
                                     written,
                                     Some(&hints),
@@ -2324,10 +2463,30 @@ impl Solver<'_, '_> {
                             "original call value arity differs from its declared scheme",
                         ));
                     }
-                    for (argument, parameter) in arguments.iter().zip(parameters) {
-                        self.call_argument(frame, argument, parameter, b, depth + 1)?;
+                    // The exact receiving expression constrains this call's
+                    // unresolved result roles before its arguments are checked.
+                    // This opens no equation between two rigid occurrences.
+                    if let Some(expected) = self.receiving_for(frame, value.id, b)? {
+                        self.call_result_context(result, expected, b, depth + 1)?;
                     }
-                    self.static_call_roles(frame, value.id, arguments, result, b, depth + 1)?;
+                    let mut outer_inputs = Vec::new();
+                    for (ordinal, (argument, parameter)) in arguments.iter().zip(parameters).enumerate() {
+                        b.lookup(prepared_arguments.len(), WORK)?;
+                        let actual = if let Some(actual) = prepared_arguments.remove(&argument.id) {
+                            actual
+                        } else {
+                            self.call_input_value(frame, argument, parameter, b, depth + 1)?
+                        };
+                        if let Some(input) = self.collect_call_input(frame, argument, actual, parameter, ordinal, b, depth + 1)? {
+                            Self::push(&mut outer_inputs, input, b)?;
+                        }
+                    }
+                    b.lookup(self.state.calls.len(), WORK)?;
+                    b.lookup(self.state.abstract_calls.len(), WORK)?;
+                    let prototype = self.state.calls.get(&(frame.definition, value.id)).map(|call| call.target)
+                        .or_else(|| self.state.abstract_calls.get(&(frame.definition, value.id)).map(|call| call.signature_owner));
+                    self.settle_call_inputs(frame, value.id, prototype, &outer_inputs, b, depth + 1)?;
+                    if !prepared_arguments.is_empty() { return Err(fail("original staged call leaves an unchecked argument")); }
                     self.finish_abstract_call(frame.definition, value.id, b)?;
                     b.lookup(self.state.intrinsics.len(), WORK)?;
                     if self
@@ -2639,10 +2798,50 @@ impl Solver<'_, '_> {
                     let condition = self.expression(frame, condition, b, depth + 1)?;
                     let boolean = self.atom(Type::Bool, b)?;
                     self.unify(condition, boolean, depth + 1, b)?;
-                    let left = self.expression(frame, then_value, b, depth + 1)?;
-                    let right = self.expression(frame, else_value, b, depth + 1)?;
-                    self.unify(left, right, depth + 1, b)?;
-                    left
+                    let expected = self.receiving_for(frame, value.id, b)?;
+                    let result = self.var(b)?;
+                    let wanted = expected.unwrap_or(result);
+                    let alive = frame.alive;
+                    let before = self.copy_locals(&frame.locals, b)?;
+                    // Infer both complete branches once. Literal terms remain
+                    // unresolved until their common result is constrained, so
+                    // a known integer peer supplies context without evaluating
+                    // another branch just to discover its type.
+                    let left = self.expression_expected(frame, then_value, wanted, b, depth + 1)?;
+                    self.unify(left, result, depth + 1, b)?;
+                    let left_alive = frame.alive;
+                    let left_locals = std::mem::replace(&mut frame.locals, before);
+                    frame.alive = alive;
+                    let right = self.expression_expected(frame, else_value, wanted, b, depth + 1)?;
+                    self.unify(right, result, depth + 1, b)?;
+                    let right_alive = frame.alive;
+                    if left_locals.len() != frame.locals.len() {
+                        return Err(fail("original value branch changes its lexical binding inventory"));
+                    }
+                    for (left, right) in left_locals.iter().zip(&mut frame.locals) {
+                        b.spend(1, WORK)?;
+                        match (left_alive, right_alive) {
+                            (true, true) => self.join_vacancies(right, left, b)?,
+                            (true, false) => {
+                                right.vacant = self.copy_vacancies(&left.vacant, b)?;
+                                right.maybe_vacant = self.copy_vacancies(&left.maybe_vacant, b)?;
+                                right.live = left.live;
+                            }
+                            _ => {},
+                        }
+                        right.used = match (left_alive, right_alive) {
+                            (true, true) => left.used || right.used,
+                            (true, false) => left.used,
+                            _ => right.used,
+                        };
+                        right.initialized = match (left_alive, right_alive) {
+                            (true, true) => left.initialized && right.initialized,
+                            (true, false) => left.initialized,
+                            _ => right.initialized,
+                        };
+                    }
+                    frame.alive = left_alive || right_alive;
+                    result
                 }
                 _ => {
                     return Err(unknown(
@@ -2708,6 +2907,7 @@ impl Solver<'_, '_> {
                         }
                     }
                     if let Some(value) = initializer {
+                        let initializer_node = value.id;
                         let value = self.expression_expected(
                             frame,
                             value,
@@ -2727,6 +2927,18 @@ impl Solver<'_, '_> {
                             };
                             self.unify(family, payload, depth + 1, b)?;
                         }
+                        let value = self
+                            .reference_binding(
+                                frame,
+                                statement.id,
+                                initializer_node,
+                                value,
+                                *mutable,
+                                ty.is_some(),
+                                b,
+                                depth + 1,
+                            )?
+                            .unwrap_or(value);
                         self.unify(local, value, depth + 1, b)?;
                     } else if family.is_some() {
                         return Err(unknown(
@@ -2904,6 +3116,15 @@ impl Solver<'_, '_> {
                 } => {
                     self.pattern_loop(frame, statement.id, pattern, value, body, b, depth + 1)?;
                 }
+                CoreStatementKind::ForRange { name, start, end, body } => {
+                    self.range_loop(frame, statement.id, loops::RangeBinding::Name(name),
+                        start, end, body, b, depth + 1)?;
+                }
+                CoreStatementKind::ForEach { pattern, iterator, body } => {
+                    let (start, end) = self.range_parts(iterator, b, depth + 1)?;
+                    self.range_loop(frame, statement.id, loops::RangeBinding::Pattern(pattern),
+                        start, end, body, b, depth + 1)?;
+                }
                 CoreStatementKind::While { condition, body } => {
                     self.loop_statement(frame, Some(condition), body, b, depth + 1)?;
                 }
@@ -3024,6 +3245,7 @@ impl Solver<'_, '_> {
                             b,
                         )?;
                     }
+                    self.record_environment_read(frame, index, target.id, b)?;
                     let actual = self.expression(frame, value, b, depth + 1)?;
                     self.unify(actual, expected, depth + 1, b)?;
                     Self::push(&mut self.numeric, expected, b)?;
@@ -3099,8 +3321,22 @@ impl Solver<'_, '_> {
                         self.mutating_closures.insert(frame.definition);
                     }
                     let expected = frame.locals[index].ty;
-                    let value = self.expression_expected(frame, value, expected, b, depth + 1)?;
-                    self.unify(value, expected, depth + 1, b)?;
+                    if let Some(binding) = self.reference_assignment_target(frame, index, b)? {
+                        let actual = self.expression(frame, value, b, depth + 1)?;
+                        self.reference_assignment(
+                            frame,
+                            binding,
+                            statement.id,
+                            value.id,
+                            actual,
+                            b,
+                            depth + 1,
+                        )?;
+                    } else {
+                        let actual =
+                            self.expression_expected(frame, value, expected, b, depth + 1)?;
+                        self.unify(actual, expected, depth + 1, b)?;
+                    }
                     b.lookup(frame.expressions.len(), WORK)?;
                     if frame.expressions.insert(target.id, expected).is_some() {
                         return Err(fail("original assignment destination node is reused"));
@@ -3556,6 +3792,16 @@ fn normalize_block(
                 normalize_expr(condition, b, depth + 1)?;
                 normalize_block(body, b, depth + 1)?;
             }
+            CoreStatementKind::ForRange { start, end, body, .. } => {
+                normalize_expr(start, b, depth + 1)?;
+                normalize_expr(end, b, depth + 1)?;
+                normalize_block(body, b, depth + 1)?;
+            }
+            CoreStatementKind::ForEach { pattern, iterator, body } => {
+                normalize_pattern(pattern, b, depth + 1)?;
+                normalize_expr(iterator, b, depth + 1)?;
+                normalize_block(body, b, depth + 1)?;
+            }
             CoreStatementKind::Loop(body) => normalize_block(body, b, depth + 1)?,
             CoreStatementKind::Break | CoreStatementKind::Continue => {}
             CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
@@ -3618,7 +3864,8 @@ pub(super) fn normalize_expr(
         | CoreExprKind::Try(value)
         | CoreExprKind::Unary { operand: value, .. }
         | CoreExprKind::Ascribed { value, .. } => normalize_expr(value, b, depth + 1)?,
-        CoreExprKind::Binary { left, right, .. } => {
+        CoreExprKind::Binary { left, right, .. }
+        | CoreExprKind::Range { start: left, end: right } => {
             normalize_expr(left, b, depth + 1)?;
             normalize_expr(right, b, depth + 1)?;
         }
@@ -3759,7 +4006,7 @@ pub(super) fn check(
             definition.body,
             SemanticDefinitionBody::FunctionWithBody { .. }
         ) {
-            let index = original_index::index(definition, b)?;
+            let index = inventory.original_index(definition.id, b)?;
             b.lookup(indexes.len(), WORK)?;
             indexes.insert(definition.id, index);
         }
@@ -3788,12 +4035,17 @@ pub(super) fn check(
             pattern_origins: Vec::new(),
             names_at: BTreeMap::new(),
             environment_reads: BTreeMap::new(),
+            local_reads: BTreeMap::new(),
             capture_origins: BTreeMap::new(),
             function_values: BTreeMap::new(),
             code_calls: BTreeMap::new(),
             string_literals: BTreeMap::new(),
             return_injections: BTreeMap::new(),
             dyn_creations: BTreeMap::new(),
+            view_uppers: BTreeMap::new(),
+            reference_roles: BTreeMap::new(),
+            call_regions: BTreeMap::new(),
+            call_uses: BTreeMap::new(),
         },
         active: BTreeSet::new(),
         creators: BTreeMap::new(),
@@ -3813,6 +4065,8 @@ pub(super) fn check(
         receiving: Vec::new(),
         field_needs: Vec::new(),
         nominal_declaration: None,
+        call_variables: BTreeMap::new(),
+        call_parameters: BTreeSet::new(),
     };
     solver.trait_catalog(b)?;
     for definition in &program.definitions {
@@ -3958,6 +4212,27 @@ pub(super) fn check(
                     "original actual does not establish its declared sealed capability"
                 }
             });
+            if matches!(need.predicate, Predicate::Copy) {
+                let root = solver.type_root(need.term, b)?;
+                let detail = match &solver.state.arena[root] {
+                    Kind::Rigid(owner, ordinal) => format!("rigid {}:{} mixed {}", owner.module.0, owner.index, ordinal),
+                    Kind::Nominal { definition, .. } | Kind::Closure { definition, .. } => format!("definition {}:{}", definition.module.0, definition.index),
+                    kind => format!("kind {:?}", std::mem::discriminant(kind)),
+                };
+                errors[0].notes.push(format!("original Copy subject {}", detail));
+                let mut shown = 0usize;
+                'frames: for frame in solver.state.frames.values() {
+                    for (node, term) in &frame.expressions {
+                        b.spend(1, WORK)?;
+                        if *term == need.term || solver.type_root(*term, b)? == root {
+                            b.spend(64, WORK)?;
+                            errors[0].notes.push(format!("original Copy value definition {}:{} expression {}", frame.definition.module.0, frame.definition.index, node.0));
+                            shown += 1;
+                            if shown == 16 { break 'frames; }
+                        }
+                    }
+                }
+            }
             if matches!(need.predicate, Predicate::SyncDrop) {
                 let root = solver.type_root(need.term, b)?;
                 let detail = match &solver.state.arena[root] {
@@ -4005,6 +4280,7 @@ pub(super) fn check(
             solver.sized_original(*value, b, 0)?;
         }
     }
+    solver.reference_role_escapes(b)?;
     effects.finish(&solver.state, inventory, b)?;
     protocol::check(&solver.state, inventory, b)?;
     solver.check_resume_capabilities(b)?;
@@ -4689,7 +4965,7 @@ impl Checked {
             Kind::Atom(ty) => Ok(ty.clone()),
             Kind::CallResult { .. } => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
-                .ty),
+                .into_type(b)?),
             Kind::Array { .. }
             | Kind::Task(_)
             | Kind::Dyn(_)
@@ -4699,7 +4975,7 @@ impl Checked {
             | Kind::Desc { .. }
             | Kind::Wrapped(_, _) => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
-                .ty),
+                .into_type(b)?),
             Kind::Slice(element) => Ok(Type::Slice {
                 element: Box::new(self.materialize(
                     *element,
@@ -4757,7 +5033,7 @@ impl Checked {
             }
             Kind::Nominal { .. } => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
-                .ty),
+                .into_type(b)?),
             Kind::Closure { definition, .. } => {
                 let mut selected = None;
                 for instance in &program.instances {
@@ -4787,7 +5063,7 @@ impl Checked {
             )),
             Kind::Associated { .. } | Kind::SelfType(_) => Ok(self
                 .value(term, context, program, inventory, b, depth + 1)?
-                .ty),
+                .into_type(b)?),
         }
     }
     pub(super) fn source_type(
@@ -4801,7 +5077,7 @@ impl Checked {
     ) -> CompileResult<Type> {
         Ok(self
             .source_value(context, scope, source, program, inventory, b)?
-            .ty)
+            .into_type(b)?)
     }
     pub(super) fn source_value(
         &self,
@@ -4948,6 +5224,14 @@ impl Checked {
                     }
                     b.spend(source.path.len(), WORK)?;
                     found = Some(borrow_places::Source {
+                        role: source.role.as_ref().map(|role| -> CompileResult<_> {
+                            Ok((
+                                self.life_value(role.occurrence, context, inventory, b)?,
+                                role.upper.map(|upper| self.life_value(upper, context, inventory, b)).transpose()?,
+                                self.life_value(role.selected, context, inventory, b)?,
+                                role.local,
+                            ))
+                        }).transpose()?,
                         anchor: source.anchor,
                         expression: source.expression,
                         index: source.index,

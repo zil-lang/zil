@@ -29,15 +29,17 @@ impl CheckedOriginal {
         let mut selected=self.environment(module,context,method,active,b)?;
         let frame=selected.lexical.iter_mut().find(|row|row.definition==scope.id).ok_or_else(||bad("original member omits its true trait parent"))?;
         frame.actuals=self.resolve_arguments(&trait_arguments,0,b)?;selected.self_type=Some((scope.id,self.resolved(&receiver,b)?));
-        let written=written_types.map_or_else(||written_mixed.map_or(0,<[CoreGenericArgument<SemanticTypeRecipe>]>::len),<[SemanticTypeRecipe]>::len);
-        if written>original.parameters.len(){return Err(bad("original member has excess written mixed actuals"));}
+        let written_slots=Self::written_original_slots(&original.parameters,written_types,written_mixed,b)?;
         let mut actuals=Vec::new();for(ordinal,formal)in original.parameters.iter().enumerate(){
-            let written=if let Some(types)=written_types{types.get(ordinal).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(mixed)=written_mixed{match mixed.get(ordinal){Some(CoreGenericArgument::Type(ty))=>Some(Arg::Type(self.ty(module,context,ty,env,active,b)?)),Some(CoreGenericArgument::Lifetime(name))=>{let value=self.named(module,context,env.current()?,name,SemanticOriginalNamespace::Lifetime,b)?.ok_or_else(||bad("original method life argument is unresolved"))?;let SemanticOriginalNameValue::Recipe(recipe @ SemanticActualRecipe::Life(_))=value else{return Err(bad("original method life actual has another kind"));};Some(self.actual(module,context,recipe,env,active,b)?)},Some(CoreGenericArgument::Const(_))=>return Err(unsupported("original method Const inference needs its exact declared carrier",None)),None=>None}}else{None};
+            let written_slot=written_slots[ordinal];
+            let written=if let Some(types)=written_types{written_slot.and_then(|index|types.get(index)).map(|ty|self.ty(module,context,ty,env,active,b).map(Arg::Type)).transpose()?}else if let Some(mixed)=written_mixed{match written_slot.and_then(|index|mixed.get(index)){Some(CoreGenericArgument::Type(ty))=>Some(Arg::Type(self.ty(module,context,ty,env,active,b)?)),Some(CoreGenericArgument::Lifetime(name))=>{let value=self.named(module,context,env.current()?,name,SemanticOriginalNamespace::Lifetime,b)?.ok_or_else(||bad("original method life argument is unresolved"))?;let SemanticOriginalNameValue::Recipe(recipe @ SemanticActualRecipe::Life(_))=value else{return Err(bad("original method life actual has another kind"));};Some(self.actual(module,context,recipe,env,active,b)?)},Some(CoreGenericArgument::Const(_))=>return Err(unsupported("original method Const inference needs its exact declared carrier",None)),None=>None}}else{None};
             let actual=match(written,formal){(Some(value),_)=>value,(None,SemanticFormal::Type{..})=>Arg::Type(self.fresh(b)?),(None,SemanticFormal::Lifetime)=>Arg::Life(self.fresh_life(b)?),_=>return Err(unsupported("original method Const argument is not independently inferred",None))};
             if !matches!((formal,&actual),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Lifetime,Arg::Life(_))|(SemanticFormal::Const{..},Arg::Const(_))){return Err(bad("original member changes a full-ordinal actual kind"));}actuals.push(actual);
         }
         selected.lexical[0].actuals=actuals;
+        let outer_floor=self.next_inference;
         let prototype=self.call_signature(module,context,method,signature,&selected,active,b)?;
+        let outer_heads=self.defer_call_heads(&prototype,&selected.lexical[0].actuals,outer_floor,b)?;
         if prototype.parameters.len()!=arguments.len()+1{return Err(bad("original member receiver/value arity differs"));}
         self.execute_effect(env,prototype.call_kind,b)?;
         let mode=prototype.modes[0];let receiver_parameter=self.resolved(&prototype.parameters[0],b)?;
@@ -47,16 +49,20 @@ impl CheckedOriginal {
         }
         if let Some(place)=&place{self.read_original(module,context,place,&object_type,env,!matches!(mode,PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe),active,b)?;}
         let actual_receiver=match receiver_parameter{Ty::Address{mutable,..}=>Ty::Address{mutable,life:Life::ReceiverRole(env.current()?,call.id,receiver_mode.unwrap()),inner:Box::new(receiver.clone())},Ty::Desc{..}=>Ty::Desc{life:Life::ReceiverRole(env.current()?,call.id,StoredBorrowMode::WritableDescription),inner:Box::new(receiver.clone())},_=>object_type};
-        self.unify(&actual_receiver,&prototype.parameters[0],b)?;
-        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters[1..]).zip(&prototype.modes[1..]){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.unify(&actual,&parameter,b)?;}
+        self.relate_value(&actual_receiver,&prototype.parameters[0],b)?;
+        b.spend(prototype.parameters.len())?;let mut region_parameters=Vec::with_capacity(prototype.parameters.len());region_parameters.push(self.resolved(&prototype.parameters[0],b)?);
+        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters[1..]).zip(&prototype.modes[1..]){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.relate_value(&actual,&parameter,b)?;region_parameters.push(parameter);}
+        self.finish_call_heads(&outer_heads,call.id,b)?;
+        self.remember_call_region_parameters(&region_parameters,call.id,env,b)?;
         for requirement in &original.requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}
         for formal in &original.parameters{if let SemanticFormal::Type{requirements}=formal{for requirement in requirements{self.obligation(module,context,requirement,&selected,env,active,b)?;}}}
         let result=self.normalize_original_type(module,context,&prototype.result,env,active,b)?;
-        if let Some(expected)=expected{self.unify(&result,expected,b)?;}
+        if let Some(expected)=expected{self.relate_value(&result,expected,b)?;}
         let caller=context.definition(module,env.current()?,b)?;let SemanticDefinitionBody::FunctionWithBody{sites,site_nodes,..}=&caller.body else{unreachable!()};
         let mut sites=site_nodes.iter().filter(|row|row.node==SemanticOriginalNode::Expression(call.id)).filter_map(|row|sites.iter().find(|site|site.id==row.site)).filter(|site|matches!(site.kind,SemanticSiteRecipeKind::OriginalCall));
         let site=sites.next().ok_or_else(||bad("abstract original member requires its exact BodyCall site"))?;if sites.next().is_some(){return Err(bad("original trait member call site is ambiguous"));}
         let actuals=self.resolve_arguments(&selected.lexical[0].actuals,0,b)?;
+        self.remember_inferred_type_sources(module,env.current()?,site.id,original,signature,arguments,1,&written_slots,&actuals,b)?;
         self.trait_calls.insert((env.current()?,site.id),TraitCall{receiver,declaration,arguments:trait_arguments,member:ordinal,actuals,node:call.id,receiver_mode});
         Ok(Some(result))
     }

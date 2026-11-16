@@ -7,6 +7,14 @@ pub(in crate::semantic) fn ordinary_drop_absent(
     inventory: &Inventory<'_>,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    b.lookup(inventory.ordinary_drop_absence.borrow().len(), WORK)?;
+    if inventory
+        .ordinary_drop_absence
+        .borrow()
+        .contains(&definition)
+    {
+        return Ok(());
+    }
     for owner in inventory.definitions.values() {
         b.spend(1, WORK)?;
         if matches!(&owner.body,SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl{
@@ -18,10 +26,30 @@ pub(in crate::semantic) fn ordinary_drop_absent(
             ));
         }
     }
+    b.lookup(inventory.ordinary_drop_absence.borrow().len(), WORK)?;
+    inventory
+        .ordinary_drop_absence
+        .borrow_mut()
+        .insert(definition);
     Ok(())
 }
 
 pub(in crate::semantic) fn drop_method(
+    resource: SemanticDefinitionId,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+) -> CompileResult<Option<SemanticDefinitionId>> {
+    b.lookup(inventory.drop_methods.borrow().len(), WORK)?;
+    if let Some(method) = inventory.drop_methods.borrow().get(&resource) {
+        return Ok(*method);
+    }
+    let method = drop_method_uncached(resource, inventory, b)?;
+    b.lookup(inventory.drop_methods.borrow().len(), WORK)?;
+    inventory.drop_methods.borrow_mut().insert(resource, method);
+    Ok(method)
+}
+
+fn drop_method_uncached(
     resource: SemanticDefinitionId,
     inventory: &Inventory<'_>,
     b: &mut Budget,

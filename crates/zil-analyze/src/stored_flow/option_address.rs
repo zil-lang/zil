@@ -68,6 +68,72 @@ pub(crate) fn shape(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         && map.binder == slot.binder)
 }
 
+/// A shared Address Type actual can spell its one intrinsic outer class
+/// explicitly. That local class remains separate from the enclosing Enum map.
+pub(super) fn shared_actual<'a>(
+    actual: &'a LifeNominalActual,
+    b: &mut Budget,
+) -> CompileResult<Option<&'a Type>> {
+    fee(b, 1)?;
+    let ty = match actual {
+        LifeNominalActual::Type(ty @ Type::Address { mutable: false, .. }) => ty,
+        LifeNominalActual::QualifiedType {
+            ty: ty @ Type::Address { mutable: false, .. },
+            life,
+        } => {
+            crate::dyn_metadata::shape(life, b)?;
+            if life.binder_count != 1
+                || !life.retained.is_empty()
+                || !life.nominal_arguments.is_empty()
+                || !matches!(life.slots.as_slice(), [slot]
+                    if slot.path.is_empty() && slot.binder == 0 && slot.mode == StoredBorrowMode::SharedAddress)
+            {
+                return Err(failure(
+                    "shared Address actual changes its complete intrinsic class domain",
+                ));
+            }
+            ty
+        }
+        _ => return Ok(None),
+    };
+    crate::dyn_metadata::ty(ty, b)?;
+    Ok(Some(ty))
+}
+
+pub(super) fn instance(
+    module: &TypedModule,
+    instance: &LifeNominalInstance,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let [actual] = instance.arguments.as_slice() else {
+        return Err(failure("builtin Option omits its complete Type actual"));
+    };
+    let actual = shared_actual(actual, b)?
+        .ok_or_else(|| failure("builtin Option requires its exact shared Address actual"))?;
+    let Type::Address { inner, .. } = actual else {
+        unreachable!()
+    };
+    if !shape(&instance.ty, b)? || !crate::tasks::input_scope::known_zero(module, inner, b)? {
+        return Err(failure(
+            "builtin Option actual, source-class map or physical payload differs",
+        ));
+    }
+    let Type::BorrowedStorage { storage, .. } = &instance.ty else {
+        unreachable!()
+    };
+    let Type::Enum { variants, .. } = storage.as_ref() else {
+        unreachable!()
+    };
+    b.type_work(actual, true, "Option original full Type actual")?;
+    b.type_work(&variants[1].1[0], true, "Option actual physical payload")?;
+    if actual != &variants[1].1[0] {
+        return Err(failure(
+            "builtin Option actual, source-class map or physical payload differs",
+        ));
+    }
+    Ok(())
+}
+
 /// Authenticate the complete operation before either preflight or permission flow.
 /// This is private to this kernel; no proof is shared with another consumer.
 pub(super) fn types<'a>(
@@ -96,6 +162,7 @@ pub(super) fn types<'a>(
         b.type_work(&instance.ty, true, "Option complete instance identity")?;
         b.type_work(ty, true, "Option operation complete identity")?;
         if instance.ty == *ty {
+            self::instance(module, instance, b)?;
             matches += 1;
         }
     }

@@ -21,19 +21,19 @@ pub(super) struct SourceOrigin {
     origin: Origin,
     scope: Option<CoreFunctionSourceScope>,
 }
-pub(crate) fn prepare(
+pub(crate) fn prepare<'a>(
     ledger: &mut Ledger,
-    cores: &[&CoreModule],
+    cores: &[&'a CoreModule],
     limits: &Limits,
     left: &mut usize,
-) -> R<()> {
+) -> R<Option<super::original_context::InputLease<'a>>> {
     if ledger.original.context().is_some() {
         return Err(bad(
             "original ABI context was prepared twice in one Types request",
         ));
     }
     if cores.iter().all(|core| core.semantic.is_none()) {
-        return Ok(());
+        return Ok(None);
     }
     let stats = ledger.ordinary_stats.clone();
     let origin_start = *left;
@@ -60,9 +60,9 @@ pub(crate) fn prepare(
     stats
         .borrow_mut()
         .record_pass("abi: original function heads", origin_start, *left);
-    let mut input =
+    let (mut input, pending_inputs) =
         stored::OrdinaryStats::step(&stats, "abi: collect original input", left, |left| {
-            super::original_context::Input::collect(cores, limits, left)
+            super::original_context::Input::collect_leased(cores, limits, left)
         })?;
     if let Some(source) = ledger.frozen.as_deref() {
         stored::OrdinaryStats::step(&stats, "abi: include frozen source", left, |left| {
@@ -111,12 +111,13 @@ pub(crate) fn prepare(
     stats
         .borrow_mut()
         .record_original_stages(&proof.stage_costs);
-    let context =
+    let (context, input_lease) =
         stored::OrdinaryStats::step(&stats, "abi: seal original context", left, |left| {
-            super::original_context::OriginalContext::checked(
+            super::original_context::OriginalContext::checked_leased(
                 input,
                 proof,
                 ledger.frozen.clone(),
+                pending_inputs,
                 left,
             )
         })?;
@@ -153,7 +154,7 @@ pub(crate) fn prepare(
     ledger.abi_origins = origins;
     ledger.fixed_abis = Some(choices);
     ledger.original.install(context)?;
-    Ok(())
+    Ok(Some(input_lease))
 }
 /// Select the instruction convention from this actual target's authentic
 /// emitter frame, never a static name or a concrete body's apparent effect.

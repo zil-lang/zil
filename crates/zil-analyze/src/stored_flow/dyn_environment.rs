@@ -97,8 +97,16 @@ fn contract(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> CompileR
             }
             let mut targets = Vec::new();
             for atom in &claim.sources {
-                let source = crate::exact_storage_source(atom)?;
-                let target = exact_target(source, b)?;
+                let target = if let StorageSource::Static { leaf, mode } = atom {
+                    let target = dyn_return::static_target(leaf, *mode, b)?;
+                    b.type_work(&shape.leaf, false, "returned environment Static full leaf")?;
+                    if leaf != &shape.leaf || *mode != shape.mode {
+                        return Err(failure("returned environment Static upper changes its complete port leaf or mode"));
+                    }
+                    target
+                } else {
+                    exact_target(crate::exact_storage_source(atom)?, b)?
+                };
                 fee(
                     b,
                     targets
@@ -126,9 +134,11 @@ pub(super) fn sites(
     if !b.dyn_contexts {
         return Ok(());
     }
-    let InstructionKind::Call { function, .. } = instruction.kind else {
-        return Ok(());
-    };
+    let (InstructionKind::Call { function, .. }
+        | InstructionKind::SuspendCall { function, .. }) = instruction.kind else {
+            return Ok(());
+        };
+    if !synchronous_abi::ordinary_call(&instruction.kind, b)? { return Ok(()); }
     let f = module
         .functions
         .get(function.0 as usize)
@@ -174,16 +184,21 @@ pub(super) fn sites(
 pub(super) fn summarize(
     module: &TypedModule,
     f: &TypedFunction,
-    value: &Value,
+    returned_value: (ValueId, &Value),
     facts: &mut Facts,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    let (returned, value) = returned_value;
     for (path, (upper, _)) in contract(module, f, b)? {
         ordered(b, value.dyn_ports.len(), path.len())?;
         let Some(actual) = value.dyn_ports.get(&path) else {
             facts.dyn_return_complete = false;
             continue;
         };
+        if actual.targets.iter().any(|target| target.base == HoldRoot::Static)
+            && !crate::retained::has_static_source(module, f, returned, &path, b)? {
+            return Err(failure("returned environment Static port has no actual literal return-chain witness"));
+        }
         for target in &actual.targets {
             fee(
                 b,
@@ -196,6 +211,12 @@ pub(super) fn summarize(
                     "actual returned capture port exceeds its declared input upper",
                 ));
             }
+        }
+        ordered(b, facts.returned_dyn_ports.len(), path.len())?;
+        let sources = facts.returned_dyn_ports.entry(path.clone()).or_default();
+        for target in &actual.targets {
+            fee(b, target_width(target).saturating_mul(sources.len().saturating_add(1)))?;
+            if !sources.contains(target) { sources.push(target.clone()); }
         }
         fee(b, path.len())?;
         facts.returned_dyn_capture_upper.insert(path, upper);
@@ -228,6 +249,15 @@ pub(super) fn call(
     for (path, sources) in &summary.returned_dyn_capture_upper {
         let mut permission = Permission::default();
         for source in sources {
+            if source.base == HoldRoot::Static {
+                ordered(b, summary.returned_dyn_ports.len(), path.len())?;
+                let Some(actual) = summary.returned_dyn_ports.get(path) else {
+                    out.creation_complete = Some(false);
+                    continue;
+                };
+                fee(b, actual.len())?;
+                if !actual.iter().any(|target| target.base == HoldRoot::Static) { continue; }
+            }
             let actual = substitute(source, args, values, state, b)?;
             let actual = if dyn_return::transports_existing(callee, source) {
                 actual
@@ -444,10 +474,9 @@ pub(super) fn accesses(
                 }
             }
         }
-        InstructionKind::Call {
-            function,
-            arguments,
-        } => {
+        InstructionKind::Call { function, arguments }
+        | InstructionKind::SuspendCall { function, arguments }
+            if synchronous_abi::ordinary_call(&i.kind, b)? => {
             for (source, write) in &summaries[function.0 as usize].dyn_accesses {
                 let actual = substitute(source, arguments, values, state, b)?;
                 if actual.targets.is_empty() {

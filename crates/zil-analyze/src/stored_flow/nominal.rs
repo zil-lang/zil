@@ -81,22 +81,16 @@ fn walk(
     }
     if decl.id.compiler {
         for actual in &instance.arguments {
-            if let LifeNominalActual::Type(ty) = actual {
+            if let LifeNominalActual::Type(ty) | LifeNominalActual::QualifiedType { ty, .. } =
+                actual
+            {
                 shape_work(ty, limits, b)?;
                 crate::dyn_metadata::ty(ty, b)?;
             }
         }
         shape_work(storage, limits, b)?;
         crate::dyn_metadata::ty(storage, b)?;
-        if !option_address::shape(&instance.ty, b)?
-            || !matches!((instance.arguments.as_slice(), storage.as_ref()),
-                ([LifeNominalActual::Type(actual)], Type::Enum { variants, .. })
-                if actual == &variants[1].1[0])
-        {
-            return Err(failure(
-                "builtin Option actual, source-class map or physical payload differs",
-            ));
-        }
+        option_address::instance(module, instance, b)?;
         active.pop();
         return Ok(Vec::new());
     }
@@ -118,6 +112,25 @@ fn walk(
                 });
             }
             (LifeParameterKind::Type, LifeNominalActual::Type(_)) => {}
+            (
+                LifeParameterKind::Type,
+                actual @ LifeNominalActual::QualifiedType {
+                    ty: Type::Address { mutable: false, .. },
+                    ..
+                },
+            ) => {
+                let ty = option_address::shared_actual(actual, b)?.ok_or_else(|| {
+                    failure("qualified Enum actual loses its shared Address domain")
+                })?;
+                let Type::Address { inner, .. } = ty else {
+                    unreachable!()
+                };
+                if !crate::tasks::input_scope::known_zero(module, inner, b)? {
+                    return Err(failure(
+                        "qualified Enum Address actual omits its pointee class domain",
+                    ));
+                }
+            }
             (LifeParameterKind::Const(ty), LifeNominalActual::Const(c))
                 if c.ty() == *ty
                     && matches!(
@@ -142,8 +155,15 @@ fn walk(
         }
     }
     for (ordinal, actual) in instance.arguments.iter().enumerate() {
-        let LifeNominalActual::Type(ty) = actual else {
-            continue;
+        let ty = match actual {
+            LifeNominalActual::Type(ty) => ty,
+            LifeNominalActual::QualifiedType {
+                ty: Type::Address { mutable: false, .. },
+                ..
+            } => option_address::shared_actual(actual, b)?.ok_or_else(|| {
+                failure("qualified Enum actual changes its complete Address kind")
+            })?,
+            _ => continue,
         };
         shape_work(ty, limits, b)?;
         crate::dyn_metadata::ty(ty, b)?;
@@ -344,14 +364,26 @@ pub(super) fn same_key(
         }
     }
     let arguments_equal = a.arguments.len() == c.arguments.len()
-        && a.arguments.iter().zip(&c.arguments).all(|(a, c)| match (a, c) {
-            (LifeNominalActual::Type(ty), LifeNominalActual::QualifiedType { ty: other, life })
-            | (LifeNominalActual::QualifiedType { ty: other, life }, LifeNominalActual::Type(ty)) => {
-                ty == other && life.binder_count == 0 && life.slots.is_empty()
-                    && life.retained.is_empty() && life.nominal_arguments.is_empty()
-            }
-            _ => a == c,
-        });
+        && a.arguments
+            .iter()
+            .zip(&c.arguments)
+            .all(|(a, c)| match (a, c) {
+                (
+                    LifeNominalActual::Type(ty),
+                    LifeNominalActual::QualifiedType { ty: other, life },
+                )
+                | (
+                    LifeNominalActual::QualifiedType { ty: other, life },
+                    LifeNominalActual::Type(ty),
+                ) => {
+                    ty == other
+                        && life.binder_count == 0
+                        && life.slots.is_empty()
+                        && life.retained.is_empty()
+                        && life.nominal_arguments.is_empty()
+                }
+                _ => a == c,
+            });
     let (Type::BorrowedStorage { life: al, .. }, Type::BorrowedStorage { life: cl, .. }) =
         (&a.ty, &c.ty)
     else {

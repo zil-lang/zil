@@ -3,6 +3,7 @@ impl CheckedOriginal {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn pattern(&mut self,module:&TypedModule,context:&CheckedContext,pattern:&SemanticOriginalPattern,subject:&Ty,mutable:bool,env:&Env,bindings:&mut BTreeMap<String,Binding>,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let token=active.fresh(b)?;active.with_query(DependencyKey{kind:QueryKind::Type,token},b,|active,b|{
+            if let Some((node,path))=&self.pattern_origin{b.spend(path.len().saturating_add(1))?;self.pattern_types.insert((env.current()?,*node,path.clone()),subject.clone());}
             match &pattern.kind {
                 CorePatternKind::Wildcard=>{},
                 CorePatternKind::Name(name)=>{let identity=Binder::Pattern{definition:env.current()?,token:active.fresh(b)?};if let Some((node,path))=&self.pattern_origin{b.spend(path.len().saturating_mul(2).saturating_add(1))?;self.pattern_types.insert((env.current()?,*node,path.clone()),subject.clone());self.pattern_bindings.insert((env.current()?,*node,path.clone()),identity.clone());}let binding=Binding{ty:subject.clone(),mutable,identity};self.declare(env,&binding,b)?;bindings.insert(name.clone(),binding);},
@@ -27,6 +28,68 @@ impl CheckedOriginal {
         let mut selected=self.environment(module,context,id,active,b)?;selected.lexical[0].actuals=arguments;
         for(index,(pattern,recipe))in patterns.iter().zip(&variant.fields).enumerate(){let ty=self.ty(module,context,recipe,&selected,active,b)?;self.pattern_child(module,context,index as u32,pattern,&ty,mutable,env,bindings,active,b)?;}Ok(())
     }
+}
+
+impl CheckedOriginal {
+    pub(in crate::semantic) fn pattern_place(&self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(NodeId,Vec<LifeTypeProjection>,String,Span,bool)>{
+        let place=self.value_places.get(&(definition,node)).ok_or_else(||bad("pattern observation has no independently checked original Place"))?;
+        let Binder::Pattern{definition:owner,..}=&place.binder else{return Err(bad("pattern observation changes its original binder category"));};
+        if *owner!=definition{return Err(bad("pattern observation changes its original lexical owner"));}
+        let mut selected=None;
+        for((scope,statement,path),binder)in &self.pattern_bindings{b.spend(path.len().saturating_add(1))?;if *scope==definition&&binder==&place.binder{if selected.replace((*statement,path.clone())).is_some(){return Err(bad("pattern binder has multiple original binding occurrences"));}}}
+        let(statement,path)=selected.ok_or_else(||bad("pattern binder lacks its complete original occurrence"))?;
+        let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("pattern owner has no original body"))?;
+        let statement=function.statements.get(&statement).ok_or_else(||bad("pattern binding statement is absent"))?;
+        let(subject,mut pattern,mut consumed,mutable)=match &statement.kind{
+            CoreStatementKind::Match{value,arms}=>{let arm=*path.first().ok_or_else(||bad("match binder omits its original arm ordinal"))?;let selected=arms.get(arm as usize).ok_or_else(||bad("match binder arm is absent"))?;(value,&selected.pattern,1usize,false)},
+            CoreStatementKind::IfLet{value,pattern,..}|CoreStatementKind::WhileLet{value,pattern,..}=>(value,pattern,0,false),
+            CoreStatementKind::TupleBinding{initializer,pattern,mutable,..}=>(initializer,pattern,0,*mutable),
+            _=>return Err(bad("pattern binder selects another original statement role")),
+        };
+        let mut subject=subject;let mut projections=Vec::new();
+        loop{
+            b.spend(1)?;
+            if self.injections.contains_key(&(definition,subject.id)){break;}
+            subject=match &subject.kind{
+                CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=>inner,
+                CoreExprKind::Try(inner)=>{projections.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)));inner},
+                CoreExprKind::Unary{op:UnaryOp::Dereference,operand}=>{projections.push(LifeTypeProjection::Pointee);operand},
+                _=>break,
+            };
+        }
+        // The actual producer walk runs from the selected payload back to the
+        // source. Envelopes precede pattern fields in the forward path.
+        projections.reverse();
+        while consumed<path.len(){
+            b.spend(1)?;let child=path[consumed] as usize;
+            let parent=self.pattern_types.get(&(definition,statement.id,path[..consumed].to_vec())).ok_or_else(||bad("pattern projection lacks its independently checked whole parent type"))?;
+            pattern=match &pattern.kind{
+                CorePatternKind::ErrorArm{is_error,pattern}if child==0=>{projections.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*is_error)));pattern},
+                CorePatternKind::Tuple(fields)=>{projections.push(LifeTypeProjection::Place(PlaceProjection::Field(child as u32)));fields.get(child).ok_or_else(||bad("tuple pattern child is absent"))?},
+                CorePatternKind::Variant{variant,fields,..}|CorePatternKind::Constructor{variant,fields,..}=>{
+                    let Ty::Nominal(owner,_)=self.resolved(parent,b)? else{return Err(bad("variant pattern parent has no exact original nominal identity"));};
+                    let definition=function_definition(module,owner,b)?;let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Enum{variants},..}=&definition.body else{return Err(bad("variant pattern owner is not its original Enum"));};
+                    b.spend(variants.len())?;let ordinal=variants.iter().position(|row|row.name==*variant).ok_or_else(||bad("pattern original variant is absent"))?;
+                    projections.push(LifeTypeProjection::Place(PlaceProjection::Variant(VariantProjection{variant:ordinal as u32,index:child as u32})));fields.get(child).ok_or_else(||bad("variant pattern child is absent"))?
+                },
+                CorePatternKind::Record{fields,..}|CorePatternKind::RecordConstructor{fields,..}=>{
+                    let(name,pattern)=fields.get(child).ok_or_else(||bad("record pattern child is absent"))?;
+                    let Ty::Nominal(owner,_)=self.resolved(parent,b)? else{return Err(bad("record pattern parent lacks its exact original nominal identity"));};
+                    let definition=function_definition(module,owner,b)?;let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Product{fields},..}=&definition.body else{return Err(bad("record pattern owner is not its original product"));};
+                    b.spend(fields.len())?;let ordinal=fields.iter().position(|row|row.name==*name).ok_or_else(||bad("record pattern field is absent"))?;
+                    projections.push(LifeTypeProjection::Place(PlaceProjection::Field(ordinal as u32)));pattern
+                },
+                _=>return Err(unsupported("pattern source requires its complete original physical projection rule",Some(pattern.span))),
+            };consumed+=1;
+        }
+        let CorePatternKind::Name(name)=&pattern.kind else{return Err(bad("pattern source does not end at its actual original value binder"));};
+        b.spend(name.len())?;Ok((subject.id,projections,name.clone(),pattern.span,mutable))
+    }
+}
+
+fn function_definition<'a>(module:&'a TypedModule,id:SemanticDefinitionId,b:&mut Budget)->Check<&'a SemanticDefinition>{
+    let definitions=&module.semantic.as_ref().ok_or_else(||bad("pattern nominal original programme is absent"))?.definitions;b.spend(definitions.len())?;
+    let mut rows=definitions.iter().filter(|row|row.id==id);let row=rows.next().ok_or_else(||bad("pattern nominal original owner is absent"))?;if rows.next().is_some(){return Err(bad("pattern nominal original owner is duplicated"));}Ok(row)
 }
 
 impl CheckedOriginal {

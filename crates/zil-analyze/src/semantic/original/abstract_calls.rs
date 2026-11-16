@@ -8,7 +8,7 @@ pub(super) struct AbstractCall {
     pub(super) subject: Term,
     receiver: Term,
     place: Option<Borrow>,
-    signature_owner: SemanticDefinitionId,
+    pub(super) signature_owner: SemanticDefinitionId,
     pub(super) signature: SemanticSignatureRecipe,
     pub(super) bounds: Vec<u32>,
     protected: Vec<Term>,
@@ -114,6 +114,15 @@ impl Solver<'_, '_> {
         }
         self.push_bound_frame(context.definition, signature.bound_lifetimes, true, b)?;
         let mut protected = Vec::new();
+        let mut bound_origins = Vec::new();
+        for (depth, bound) in self.bound_frames[checkpoint..].iter().rev().enumerate() {
+            for (index, life) in bound.lifetimes.iter().enumerate() {
+                Self::push(&mut bound_origins, (*life, depth as u32, index as u32), b)?;
+            }
+        }
+        for (life, depth, index) in bound_origins {
+            self.mark_call_variable(life, call_regions::Role::Bound(depth, index), b)?;
+        }
         for bound in &self.bound_frames[checkpoint..] {
             for life in &bound.lifetimes {
                 Self::push(&mut protected, *life, b)?;
@@ -121,18 +130,33 @@ impl Solver<'_, '_> {
         }
         let mut lifetimes = Vec::new();
         b.spend(signature.invocation_lifetimes as usize, WORK)?;
-        for _ in 0..signature.invocation_lifetimes {
+        for index in 0..signature.invocation_lifetimes {
             // These variables exist only for this real original invocation.
             // Solving them never mutates a rigid original or a retained class.
-            let life = self.term(Kind::LifeVariable(None), b)?;
+            let life = self.call_variable(call_regions::Role::Invocation(index), b)?;
             Self::push(&mut lifetimes, life, b)?;
+        }
+        let mut implicits = BTreeMap::new();
+        for parameter in &signature.parameters {
+            b.spend(1, WORK)?;
+            let lifetime = match &parameter.ty {
+                SemanticTypeRecipe::Address { lifetime, .. } | SemanticTypeRecipe::Desc { lifetime, .. } => lifetime,
+                _ => continue,
+            };
+            if let SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit { scope: SemanticScopeRef::Ancestor(0), ordinal }) = lifetime {
+                b.lookup(implicits.len(), WORK)?;
+                if !implicits.contains_key(ordinal) {
+                    let life = self.call_variable(call_regions::Role::Implicit(*ordinal), b)?;
+                    implicits.insert(*ordinal, life);
+                }
+            }
         }
         Self::push(
             &mut self.role_frames,
             roles::RoleFrame {
                 owner: context.definition,
                 lifetimes,
-                implicits: BTreeMap::new(),
+                implicits,
             },
             b,
         )?;
@@ -144,8 +168,9 @@ impl Solver<'_, '_> {
                         "abstract call needs its complete resource argument mode",
                     ));
                 }
-                let parameter = self.recipe(context, &parameter.ty, b, depth + 1)?;
-                Self::push(&mut parameters, parameter, b)?;
+                let term = self.recipe(context, &parameter.ty, b, depth + 1)?;
+                self.mark_call_parameter(term, &parameter.ty, b)?;
+                Self::push(&mut parameters, term, b)?;
             }
             let result = self.recipe(context, &signature.result, b, depth + 1)?;
             Ok((parameters, result))
@@ -231,6 +256,7 @@ impl Solver<'_, '_> {
                 subject: root,
                 receiver: local,
                 place: Some(Borrow {
+                    role: None,
                     anchor: place.anchor,
                     expression: place.expression,
                     index: place.index,
@@ -298,6 +324,10 @@ impl Solver<'_, '_> {
         }
         let position =
             position.ok_or_else(|| fail("abstract receiver has no original lexical value"))?;
+        // This borrowed receiver is observed by this invocation path, not
+        // by expression() or borrow_place(). Keep its exact binder receipt
+        // alongside the single expression registration below.
+        self.record_environment_read(frame, position, callee.id, b)?;
         let parameter = position
             .checked_sub(frame.inherited)
             .filter(|position| *position < frame.parameters.len())
@@ -414,6 +444,7 @@ impl Checked {
                 .map(|source| -> CompileResult<borrow_places::Source> {
                     b.spend(source.path.len(), WORK)?;
                     Ok(borrow_places::Source {
+                        role: None,
                         anchor: source.anchor,
                         expression: source.expression,
                         index: source.index,

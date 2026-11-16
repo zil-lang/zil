@@ -708,10 +708,13 @@ impl CompilationSession {
             report,
             observer,
             || {
-                let inferred = zil_types::infer_source_closures(core, &options.limits)?;
-                let remaining = expanded.selection.remaining(&options.limits)?;
-                super::ct_program::single(&inferred, &options.target, &remaining)
-                    .map(|core| RawSnapshot::Core(Arc::new(core)))
+                (|| {
+                    let inferred = zil_types::infer_source_closures(core, &options.limits)?;
+                    let remaining = expanded.selection.remaining(&options.limits)?;
+                    super::ct_program::single(&inferred, &options.target, &remaining)
+                        .map(|core| RawSnapshot::Core(Arc::new(core)))
+                })()
+                .map_err(super::ct_program::ct_errors)
             },
         )?;
         let RawSnapshot::Core(ct_core) = ct_core else {

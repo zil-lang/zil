@@ -8,6 +8,12 @@ fn op(result: Option<ValueId>, kind: InstructionKind, span: Span) -> Instruction
 
 pub(super) fn fixture(kind: CallableKind, captures: usize) -> TypedModule {
     let mut m = resource_closure_tests::fixture(kind, false, captures);
+    // Every real capture is Managed<Token{n:i32}>: it owns a resource but
+    // contributes no lifetime class. State that complete raw domain explicitly;
+    // neither None nor a returned fresh allocation supplies this declaration.
+    let closed=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],static_bindings:vec![],classes:vec![]};
+    m.closures[0].storage_life=Some(closed.clone());
+    m.functions[1].storage_life=Some(closed);
     let mut factory = m.functions[0].clone();
     let span = factory.span;
     let at = factory.blocks[0]
@@ -238,8 +244,12 @@ fn owning_fixture(kind: CallableKind, retain_input: bool) -> TypedModule {
         )
     };
     entry.blocks[0].terminator = Terminator::Return(Some(result));
+    // Its only optional capture is the complete zero-domain owned closure
+    // above. The capture's ownership/cleanup remains in the actual ledger.
+    let closed=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],static_bindings:vec![],classes:vec![]};
+    entry.storage_life=Some(closed.clone());
     m.closures.push(ClosureDefinition {
-        storage_life: None,
+        storage_life: Some(closed),
         id: ClosureId(1),
         function: FunctionId(3),
         captures: if retain_input {

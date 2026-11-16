@@ -285,7 +285,8 @@ impl Engine<'_> {
         let receiver = function
             .params
             .first()
-            .filter(|parameter| parameter.name == "self")
+            .filter(|parameter| parameter.name == "self"
+                || parameter.name == trait_instances::LOWERED_RECEIVER_NAME)
             .and_then(|parameter| match &grouped(&parameter.ty).kind {
                 TypeKind::Reference { lifetime, .. } => lifetime.as_deref(),
                 _ => None,
@@ -548,5 +549,32 @@ impl Engine<'_> {
             function.span,
         )?;
         Ok(Some(format!("{host}.{member}")))
+    }
+}
+
+#[cfg(test)]
+mod short_receiver_views {
+    use zil_base::{FileId, ModuleId, SourceUnit};
+
+    #[test]
+    fn natural_short_views_keep_the_lifted_receiver_and_fixed_self_domain() {
+        for text in [
+            include_str!("../../zil-verify/tests/fixtures/dyn-context/short-external-view.zil"),
+            include_str!("../../zil-verify/tests/fixtures/dyn-context/short-inline-view.zil"),
+        ] {
+            let source = SourceUnit::new(FileId(0), ModuleId(0), "short-view.zil", text);
+            let syntax = zil_syntax::parse(&source).into_result().unwrap();
+            let core = crate::expand(&source, &syntax).unwrap();
+            let providers = core.functions.iter().filter(|function| {
+                function.parameters.first().is_some_and(|parameter|
+                    parameter.name == super::super::trait_instances::LOWERED_RECEIVER_NAME)
+                    && matches!(function.return_type, zil_ir::Type::Address { mutable: false, .. })
+            }).collect::<Vec<_>>();
+            assert!(!providers.is_empty());
+            assert!(providers.iter().any(|function| function.storage_life.as_ref().is_some_and(|header| {
+                header.classes.iter().any(|class| matches!(class.binder, zil_ir::StorageBinder::Fixed(_)))
+                    && header.bindings.iter().any(|binding| binding.position.base == zil_ir::StorageBase::Result)
+            })));
+        }
     }
 }

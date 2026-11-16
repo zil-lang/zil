@@ -1061,7 +1061,7 @@ fn source_candidate_for(text: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePl
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
     let aliases = BTreeMap::new();
-    let expanded = zil_expand::expand_program_with_limits_target_context(
+    let expanded = zil_expand::expand_program_with_semantics(
         std::slice::from_ref(&unit),
         &[&syntax],
         &[Vec::new()],

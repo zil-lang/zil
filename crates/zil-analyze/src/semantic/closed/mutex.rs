@@ -128,7 +128,7 @@ impl Check<'_, '_> {
                 }
             }
         }
-        for (id, wanted) in values.iter().zip(&expected) {
+        for (ordinal, (id, wanted)) in values.iter().zip(&expected).enumerate() {
             operations::available_before(
                 function,
                 (block, index, SemanticSiteEdge::Before),
@@ -145,8 +145,8 @@ impl Check<'_, '_> {
                 Type::Address { .. } | Type::Desc(_) | Type::MutexGuard { .. }
             ) {
                 let value = self.ssa_value(instance, function, *id, b, 0)?;
-                let valid = if matches!(wanted.ty, Type::Address { .. }) {
-                    self.outer_role(instance, function, &value, wanted, b, 0)?
+                let valid = if matches!(wanted.ty, Type::Address { .. } | Type::Desc(_)) {
+                    self.outer_call_role(instance, function, (block, index), ordinal, *id, &value, wanted, b, 0)?
                 } else {
                     value == *wanted
                 };
@@ -189,7 +189,7 @@ impl Check<'_, '_> {
                 }
             }
         }
-        let index = super::super::original_index::index(declaration, b)?;
+        let index = self.inventory.original_index(declaration.id, b)?;
         let expression = index.get_expr(
             original.ok_or_else(|| fail("thread operation has no original source call"))?,
             b,

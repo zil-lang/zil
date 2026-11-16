@@ -297,11 +297,12 @@ fn type_life(
             if rows.next().is_some() {
                 return Err(bad("raw Task opaque child identity is duplicated"));
             }
+            dynamic_metadata::retained_shape(&interface.retained_life,b)?;
             StorageLifeShape {
                 binder_count: interface.retained_life.binder_count,
                 slots: vec![],
-                retained: vec![],
-                nominal_arguments: vec![],
+                retained: interface.retained_life.retained.clone(),
+                nominal_arguments: interface.retained_life.nominal_arguments.clone(),
             }
         }
         Type::Address { inner, .. } | Type::Desc(inner) | Type::Managed(inner) => {
@@ -345,8 +346,11 @@ fn type_life(
             }
             parent
         }
-        _ => match input_scope::domain(ty, b)? {
-            input_scope::Domain::Known(0) => StorageLifeShape {
+        // Reconstruct from the actual module/header here. The preliminary
+        // input-scope cache can be absent while semantic child flow runs;
+        // absence is Unknown and cannot establish a closed child domain.
+        _ => match dynamic_witness::intrinsic_domain(module,ty,b)?.0 {
+            0 => StorageLifeShape {
                 binder_count: 0,
                 slots: vec![],
                 retained: vec![],

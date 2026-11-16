@@ -868,9 +868,89 @@ impl Check<'_, '_, '_> {
         self.alias_bind(state, local, span)
     }
 
-    pub(super) fn alias_return(&mut self, state: &State, span: Span) -> R<()> {
+    // A shared pointer loaded from the receiver's declared retained domain has
+    // no inline receiver alias. Validate the complete Source upper candidate;
+    // leave its actual target and parent loans to the original/CFG consumers.
+    // This is directed outer-role adaptation, never class or type equality.
+    fn alias_scoped_receiver_return(
+        &mut self, state: &State, expression: &Expr, actual: &TypeRef,
+    ) -> R<bool> {
+        let span = expression.span;
+        let TypeKind::Reference { mutable: false, lifetime: Some(life), .. } = &group(actual).kind else {
+            return Ok(false);
+        };
+        let Some(receiver) = self.source_definition.params.first().filter(|parameter|
+            parameter.name == "self" || parameter.name == trait_instances::LOWERED_RECEIVER_NAME)
+        else { return Ok(false); };
+        let TypeKind::Reference { lifetime: receiver_life, inner: referent, .. } = &group(&receiver.ty).kind else {
+            return Ok(false);
+        };
+        let Some(result) = self.source_definition.return_type.as_ref() else { return Ok(false); };
+        let TypeKind::Reference { mutable: false, lifetime: result_life, .. } = &group(result).kind else {
+            return Ok(false);
+        };
+        // A natural receiver-elided result, including its existing hygienic
+        // elaboration, selects this short receiver upper. An unrelated written
+        // result lifetime cannot enter this adaptation lane.
+        if result_life.is_some() && result_life != receiver_life { return Ok(false); }
+        let mut declared = false;
+        for formal in &self.source_definition.generics {
+            self.budget.node(formal.span, 0)?;
+            self.budget.text(&formal.name, span)?;
+            self.budget.text(life, span)?;
+            declared |= matches!(formal.kind, GenericParamKind::Lifetime) && formal.name == *life;
+        }
+        if !declared { return Ok(false); }
+        fn retained(ty: &TypeRef, life: &str, budget: &mut Budget<'_>, depth: usize) -> R<bool> {
+            budget.node(ty.span, depth)?;
+            match &ty.kind {
+                TypeKind::Group(inner) => retained(inner, life, budget, depth + 1),
+                TypeKind::Reference { lifetime, inner, .. } => {
+                    let mut found = false;
+                    if let Some(name) = lifetime { budget.text(name, ty.span)?; budget.text(life, ty.span)?; found = name == life; }
+                    Ok(found || retained(inner, life, budget, depth + 1)?)
+                }
+                TypeKind::Named { args, .. } => {
+                    for argument in args {
+                        budget.node(ty.span, depth)?;
+                        match argument {
+                            GenericArg::Lifetime(name) => { budget.text(name, ty.span)?; budget.text(life, ty.span)?; if name == life { return Ok(true); } }
+                            GenericArg::Type(inner) if retained(inner, life, budget, depth + 1)? => return Ok(true),
+                            _ => {}
+                        }
+                    }
+                    Ok(false)
+                }
+                TypeKind::Tuple(fields) => {
+                    for field in fields { if retained(field, life, budget, depth + 1)? { return Ok(true); } }
+                    Ok(false)
+                }
+                TypeKind::Array { element, .. } => retained(element, life, budget, depth + 1),
+                _ => Ok(false),
+            }
+        }
+        if !retained(referent, life, self.budget, 0)? { return Ok(false); }
+        // Actual expression flow must still select parameter zero; labels or
+        // the coincident type of another value cannot establish that source.
+        let roots = self.life_expression(expression, state)?;
+        if roots.len() != 1 || !roots.contains(&0) { return Ok(false); }
+        let Some(local) = state.locals.get(&receiver.name) else { return Ok(false); };
+        let Some(aliases) = &state.aliases else { return Ok(false); };
+        self.alias_fee(tree_work(aliases.locals.len()), span)?;
+        let Some(loans) = aliases.locals.get(&local.id) else { return Ok(false); };
+        if loans.is_empty() { return Ok(false); }
+        for id in loans {
+            self.alias_fee(tree_work(aliases.loans.len()).saturating_add(tree_work(self.aliases.inputs.len())), span)?;
+            let loan = &aliases.loans[id];
+            if loan.invalid || !self.aliases.inputs.contains(&loan.position.owner) { return Ok(false); }
+        }
+        Ok(true)
+    }
+
+    pub(super) fn alias_return(&mut self, state: &State, expression: &Expr, actual: &TypeRef) -> R<()> {
+        let span = expression.span;
         if self.aliases.result.is_empty() {
-            if self.retained_result_contract {
+            if self.retained_result_contract || self.alias_scoped_receiver_return(state, expression, actual)? {
                 // A loaded retained pointer is not an alias of the outer
                 // receiver object. Its original Fixed class was checked for
                 // every return by source_life; lowering additionally requires

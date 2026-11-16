@@ -64,6 +64,9 @@ mod tests {
                 &state.locals[id - solution.values.len()]
             };
             add_loans(&mut loans, &payload.address.loans, b)?;
+            if b.store_descriptions()||!payload.store_description.loans.is_empty(){
+                add_loans(&mut loans,&payload.store_description.loans,b)?;
+            }
             if b.task_borrowed_results {
                 for (_, p) in &payload.task_ports {
                     add_loans(&mut loans, &p.loans, b)?;

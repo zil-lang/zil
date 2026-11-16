@@ -7,6 +7,7 @@ pub(crate) fn program(
     cores: &[&CoreModule],
     module: &mut TypedModule,
     ledger: &super::emission::Ledger,
+    input_lease: Option<&super::original_context::InputLease<'_>>,
     limits: &Limits,
     left: &mut usize,
 ) -> R<Option<SemanticModule>> {
@@ -37,7 +38,9 @@ pub(crate) fn program(
         &ledger.ordinary_stats,
         "finish: verify original inputs",
         left,
-        |left| context.verify_inputs(cores, ledger.frozen.as_ref(), limits, left),
+        |left| {
+            context.verify_leased_inputs(cores, ledger.frozen.as_ref(), input_lease, limits, left)
+        },
     )?;
     let mut result = stored::OrdinaryStats::step(
         &ledger.ordinary_stats,
@@ -48,12 +51,6 @@ pub(crate) fn program(
     stored::OrdinaryStats::step(&ledger.ordinary_stats, "finish: relocation", left, |left| {
         super::lower::program(&mut result, module, ledger, limits, left)
     })?;
-    stored::OrdinaryStats::step(
-        &ledger.ordinary_stats,
-        "finish: actual Dyn registry relocation",
-        left,
-        |left| super::materialize::dynamic::relocate(&result, module, ledger, limits, left),
-    )?;
     #[cfg(test)]
     {
         super::source_probe::record_stage(module, "after-lower")?;
@@ -123,6 +120,14 @@ pub(crate) fn program(
         "finish: full materialization",
         left,
         |left| super::materialize::program(&mut result, module, ledger, limits, left),
+    )?;
+    // Dyn specialization proposals need the complete actual Self, mixed
+    // actuals and header images, including classes absent from the header.
+    stored::OrdinaryStats::step(
+        &ledger.ordinary_stats,
+        "finish: actual Dyn registry relocation",
+        left,
+        |left| super::materialize::dynamic::relocate(&result, module, ledger, limits, left),
     )?;
     #[cfg(test)]
     super::source_probe::record(module, &result, limits, left)?;

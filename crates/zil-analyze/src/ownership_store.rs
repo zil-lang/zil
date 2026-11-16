@@ -26,15 +26,25 @@ pub(super) fn ordinary_owned(
             "ordinary Store requires an owning Managed carrier",
         ));
     };
-    let Type::OwnedStore { element } = payload.as_ref() else {
+    payload_definition(module, payload, budget)
+}
+
+/// Pure canonical payload qualification for both owning and weak signatures.
+/// This creates no Managed value, input head, loan or cleanup responsibility.
+pub(super) fn payload_definition(
+    module: &TypedModule,
+    payload: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    let Type::OwnedStore { element } = payload else {
         return Err(unsupported(
             "ordinary Store requires an actual Store payload",
         ));
     };
     if matches!(element.as_ref(), Type::Package { .. }) {
-        return dynamic_store::ordinary_owned(module, ty, budget);
+        return dynamic_store::ordinary_payload(module, payload, budget);
     }
-    budget.type_work(ty, true, "ordinary POD Store complete owner")?;
+    budget.type_work(payload, true, "ordinary POD Store complete payload")?;
     pod_store::carrier(module, element, budget)
 }
 

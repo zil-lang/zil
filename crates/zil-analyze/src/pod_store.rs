@@ -372,6 +372,17 @@ pub(super) fn instruction(
     if matches!(element, Type::Package { .. }) && !budget.nested_store_windows {
         return Ok(());
     }
+    instruction_types(function, instruction, element, budget)
+}
+
+/// Full physical operand/result relation, shared by canonical Store frame
+/// consumers. Element qualification and actual access remain separate proofs.
+pub(super) fn instruction_types(
+    function: &TypedFunction,
+    instruction: &Instruction,
+    element: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
     budget.spend(1, "POD Store instruction")?;
     let result = instruction
         .result

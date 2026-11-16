@@ -5,6 +5,7 @@ use super::*;
 mod tasks;
 #[path = "original_type_cache.rs"]
 mod type_cache;
+pub(in crate::semantics) use type_cache::hash_into;
 pub(in crate::semantics) fn recipe_key(
     value: &SemanticTypeRecipe,
     limits: &Limits,
@@ -27,6 +28,9 @@ fn bit(s: ProtocolState) -> u8 {
 }
 fn mask(states: &[ProtocolState]) -> u8 {
     states.iter().fold(0, |m, s| m | bit(*s))
+}
+fn lookup_work(len: usize) -> usize {
+    len.saturating_add(1).ilog2() as usize + 1
 }
 fn failure(message: &str) -> Diagnostic {
     error("E-SEMANTIC-PROTOCOL", Span::default(), message)
@@ -327,6 +331,15 @@ const PROTOCOL_COST_KEYS: &[&str] = &[
     "function_inputs",
 ];
 
+// Only the shape of a fresh abstract Plain value. These rows cannot contain
+// an actual Root, protocol phase, constructor occurrence or cleanup receipt.
+enum PlainLayout {
+    Unchecked,
+    Cold,
+    Stable,
+    Complete(std::rc::Rc<Value>),
+}
+
 struct Engine<'a, 'b> {
     program: &'a SemanticModule,
     proof: &'b mut Proof,
@@ -334,12 +347,14 @@ struct Engine<'a, 'b> {
     left: &'b mut usize,
     active: BTreeSet<SemanticDefinitionId>,
     relevant: BTreeSet<SemanticDefinitionId>,
-    categories: type_cache::Table<cleanup::Category>,
-    cleanup: type_cache::Table<bool>,
     type_ids: type_cache::Table<usize>,
     type_values: Vec<CleanupType>,
     type_categories: Vec<Option<cleanup::Category>>,
     type_cleanup: Vec<Option<bool>>,
+    type_fields: Vec<Option<std::rc::Rc<Vec<(String, CleanupType)>>>>,
+    type_errors: Vec<Option<(CleanupType, CleanupType)>>,
+    type_plain: Vec<PlainLayout>,
+    type_shape_nodes: usize,
     query_types: BTreeMap<(SemanticDefinitionId, Query), Option<CleanupType>>,
     method_costs: BTreeMap<&'static str, (usize, usize, usize)>,
     method_cost_total: usize,
@@ -370,33 +385,50 @@ impl<'a> Engine<'a, '_> {
         depth: usize,
     ) -> R<CleanupType> {
         self.pay(1, depth)?;
-        let (key, found) = self.type_ids.lookup(owner, ty, self.limits, self.left)?;
-        if let Some(index) = found {
+        let (index, recipe) =
+            self.type_ids
+                .intern(owner, ty, self.type_values.len(), self.limits, self.left)?;
+        self.install_type_handle(owner, index, recipe, depth)
+    }
+    fn install_type_handle(
+        &mut self,
+        owner: SemanticDefinitionId,
+        index: usize,
+        recipe: Option<std::rc::Rc<SemanticTypeRecipe>>,
+        depth: usize,
+    ) -> R<CleanupType> {
+        self.pay(1, depth)?;
+        let Some(recipe) = recipe else {
             return self
                 .type_values
                 .get(index)
+                .filter(|value| value.1 == owner)
                 .cloned()
                 .ok_or_else(|| failure("original cleanup type identity is absent"));
+        };
+        if index != self.type_values.len() || index >= self.limits.max_nodes {
+            return Err(failure("original cleanup type directory index changed"));
         }
-        if self.type_values.len() >= self.limits.max_nodes {
-            return Err(Diagnostic::limit(
-                Phase::Types,
-                "original cleanup type directory limit exceeded",
-                None,
-            ));
-        }
-        let index = self.type_values.len();
-        let handle = CleanupType(
-            std::rc::Rc::new(copy_recipe(ty, self.limits, self.left)?),
-            owner,
-            index,
-        );
-        self.type_ids
-            .insert(key, ty, index, self.limits, self.left)?;
-        self.pay(3, depth)?;
+        let handle = CleanupType(recipe, owner, index);
+        let growth = [
+            (self.type_values.len(), self.type_values.capacity()),
+            (self.type_categories.len(), self.type_categories.capacity()),
+            (self.type_cleanup.len(), self.type_cleanup.capacity()),
+            (self.type_fields.len(), self.type_fields.capacity()),
+            (self.type_errors.len(), self.type_errors.capacity()),
+            (self.type_plain.len(), self.type_plain.capacity()),
+        ]
+        .into_iter()
+        .fold(0usize, |work, (len, capacity)| {
+            work.saturating_add(if len == capacity { len } else { 0 })
+        });
+        self.pay(growth.saturating_add(6), depth)?;
         self.type_values.push(handle.clone());
         self.type_categories.push(None);
         self.type_cleanup.push(None);
+        self.type_fields.push(None);
+        self.type_errors.push(None);
+        self.type_plain.push(PlainLayout::Unchecked);
         Ok(handle)
     }
     fn type_identity<T: TypeInput + ?Sized>(
@@ -420,18 +452,29 @@ impl<'a> Engine<'a, '_> {
         }
         Ok(Some(index))
     }
+    fn input_handle<T: TypeInput + ?Sized>(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &T,
+        depth: usize,
+    ) -> R<CleanupType> {
+        if let Some(index) = self.type_identity(owner, ty, depth)? {
+            self.pay(1, depth)?;
+            Ok(self.type_values[index].clone())
+        } else {
+            self.type_handle(owner, ty.recipe(), depth + 1)
+        }
+    }
     fn cleanup_value<T: TypeInput + ?Sized>(
         &mut self,
         owner: SemanticDefinitionId,
         ty: &T,
         depth: usize,
     ) -> R<Value> {
-        let handle = if let Some(index) = self.type_identity(owner, ty, depth)? {
-            self.type_values[index].clone()
-        } else {
-            self.type_handle(owner, ty.recipe(), depth + 1)?
-        };
-        Ok(Value::Cleanup { owner, ty: handle })
+        Ok(Value::Cleanup {
+            owner,
+            ty: self.input_handle(owner, ty, depth)?,
+        })
     }
     fn category<T: TypeInput + ?Sized>(
         &mut self,
@@ -442,19 +485,8 @@ impl<'a> Engine<'a, '_> {
         let cost_before = *self.left;
         let cost_children = self.method_cost_total;
         let result = (|| {
-            let identity = self.type_identity(owner, ty, depth)?;
-            if let Some(index) = identity {
-                if let Some(value) = self.type_categories[index] {
-                    return Ok(value);
-                }
-            }
-            let (key, cached) = if identity.is_none() {
-                self.categories
-                    .lookup(owner, ty.recipe(), self.limits, self.left)?
-            } else {
-                ((owner, zil_base::Fingerprint::default()), None)
-            };
-            if let Some(value) = cached {
+            let ty = self.input_handle(owner, ty, depth)?;
+            if let Some(value) = self.type_categories[ty.2] {
                 return Ok(value);
             }
             let value = cleanup::category(
@@ -465,18 +497,12 @@ impl<'a> Engine<'a, '_> {
                 self.limits,
                 self.left,
             )?;
-            if let Some(index) = identity {
-                self.type_categories[index] = Some(value)
-            } else {
-                self.categories
-                    .insert(key, ty.recipe(), value, self.limits, self.left)?;
-            }
+            self.type_categories[ty.2] = Some(value);
             Ok(value)
         })();
         self.record_cost("category", cost_before, cost_children);
         result
     }
-
     fn can_drop<T: TypeInput + ?Sized>(
         &mut self,
         owner: SemanticDefinitionId,
@@ -486,19 +512,8 @@ impl<'a> Engine<'a, '_> {
         let cost_before = *self.left;
         let cost_children = self.method_cost_total;
         let result = (|| {
-            let identity = self.type_identity(owner, ty, depth)?;
-            if let Some(index) = identity {
-                if let Some(value) = self.type_cleanup[index] {
-                    return Ok(value);
-                }
-            }
-            let (key, cached) = if identity.is_none() {
-                self.cleanup
-                    .lookup(owner, ty.recipe(), self.limits, self.left)?
-            } else {
-                ((owner, zil_base::Fingerprint::default()), None)
-            };
-            if let Some(value) = cached {
+            let ty = self.input_handle(owner, ty, depth)?;
+            if let Some(value) = self.type_cleanup[ty.2] {
                 return Ok(value);
             }
             let value = cleanup::capability(
@@ -509,16 +524,102 @@ impl<'a> Engine<'a, '_> {
                 self.limits,
                 self.left,
             )?;
-            if let Some(index) = identity {
-                self.type_cleanup[index] = Some(value)
-            } else {
-                self.cleanup
-                    .insert(key, ty.recipe(), value, self.limits, self.left)?;
-            }
+            self.type_cleanup[ty.2] = Some(value);
             Ok(value)
         })();
         self.record_cost("can_drop", cost_before, cost_children);
         result
+    }
+    fn product_fields(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &CleanupType,
+        depth: usize,
+    ) -> R<Option<std::rc::Rc<Vec<(String, CleanupType)>>>> {
+        self.type_identity(owner, ty, depth)?;
+        self.pay(1, depth)?;
+        if let Some(fields) = &self.type_fields[ty.2] {
+            return Ok(Some(fields.clone()));
+        }
+        if self.type_errors[ty.2].is_some() {
+            return Ok(None);
+        }
+        let Some(fields) = cleanup::fields(
+            self.program,
+            self.proof,
+            owner,
+            ty.recipe(),
+            self.limits,
+            self.left,
+        )?
+        else {
+            // No unknown/non-product result is retained as a positive fact.
+            return Ok(None);
+        };
+        let nodes = self
+            .type_shape_nodes
+            .saturating_add(fields.len())
+            .saturating_add(1);
+        if nodes > self.limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "original product shape cache node limit exceeded",
+                None,
+            ));
+        }
+        self.pay(fields.len().saturating_add(2), depth)?;
+        let mut result = Vec::with_capacity(fields.len());
+        for (name, recipe) in fields {
+            let child = self.type_handle(owner, &recipe, depth + 1)?;
+            result.push((name, child));
+        }
+        let result = std::rc::Rc::new(result);
+        self.type_fields[ty.2] = Some(result.clone());
+        self.type_shape_nodes = nodes;
+        Ok(Some(result))
+    }
+    fn error_arms(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &CleanupType,
+        depth: usize,
+    ) -> R<Option<(CleanupType, CleanupType)>> {
+        self.type_identity(owner, ty, depth)?;
+        self.pay(2, depth)?;
+        if let Some(arms) = &self.type_errors[ty.2] {
+            return Ok(Some(arms.clone()));
+        }
+        // A successfully selected product is disjoint from ErrorUnion. This
+        // uses the exact complete constructor, never an unknown/failed query.
+        if self.type_fields[ty.2].is_some() {
+            return Ok(None);
+        }
+        let Some((error, result)) = cleanup::error_arms(
+            self.program,
+            self.proof,
+            owner,
+            ty.recipe(),
+            self.limits,
+            self.left,
+        )?
+        else {
+            return Ok(None);
+        };
+        let nodes = self.type_shape_nodes.saturating_add(3);
+        if nodes > self.limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "original error shape cache node limit exceeded",
+                None,
+            ));
+        }
+        let arms = (
+            self.type_handle(owner, &error, depth + 1)?,
+            self.type_handle(owner, &result, depth + 1)?,
+        );
+        self.type_errors[ty.2] = Some(arms.clone());
+        self.type_shape_nodes = nodes;
+        Ok(Some(arms))
     }
 
     fn pay(&mut self, n: usize, depth: usize) -> R<()> {
@@ -871,7 +972,7 @@ impl<'a> Engine<'a, '_> {
             let slot = selected.ok_or_else(|| {
                 pending("original cleanup capture lacks its exact original whole-Type source")
             })?;
-            self.pay(self.proof.environments.len(), depth)?;
+            self.pay(lookup_work(self.proof.environments.len()), depth)?;
             let (owner, ty) = self
                 .proof
                 .environments
@@ -917,15 +1018,25 @@ impl<'a> Engine<'a, '_> {
                 self.proof.types.len().saturating_add(1).ilog2() as usize + 1,
                 depth,
             )?;
-            let recipe = self
+            // The original body proof is immutable for this query. Borrow its
+            // recipe directly into the exact pool: no intermediate full clone
+            // is needed merely to cross the Engine method boundary.
+            let interned = self
                 .proof
                 .types
                 .get(&key)
-                .map(|ty| copy_recipe(ty, self.limits, self.left))
+                .map(|recipe| {
+                    self.type_ids.intern(
+                        owner,
+                        recipe,
+                        self.type_values.len(),
+                        self.limits,
+                        self.left,
+                    )
+                })
                 .transpose()?;
-            let value = recipe
-                .as_ref()
-                .map(|ty| self.type_handle(owner, ty, depth + 1))
+            let value = interned
+                .map(|(index, recipe)| self.install_type_handle(owner, index, recipe, depth + 1))
                 .transpose()?;
             self.pay(key.1.copy_work().saturating_add(2), depth)?;
             self.query_types.insert(key, value.clone());
@@ -1026,6 +1137,160 @@ impl<'a> Engine<'a, '_> {
         self.record_cost("choice", cost_before, cost_children);
         result
     }
+    fn plain_value(
+        &mut self,
+        owner: SemanticDefinitionId,
+        ty: &CleanupType,
+        depth: usize,
+    ) -> R<Value> {
+        self.type_identity(owner, ty, depth)?;
+        self.pay(1, depth)?;
+        if let PlainLayout::Complete(value) = &self.type_plain[ty.2] {
+            let value = value.clone();
+            // A fresh value is allocated on every use, with the same complete
+            // shape/depth charge as all other Value copies. No dynamic state
+            // or ownership occurrence is shared with the saved shape.
+            return self.value_copy(&value, depth + 1);
+        }
+        let mut stable = self.plain_shape_stable(ty, depth + 1)?;
+        let value = if let Some((error, result)) = self.error_arms(owner, ty, depth + 1)? {
+            let error_type = error;
+            let error = self.typed(owner, &error_type, Value::Plain, depth + 1)?;
+            let result_value = self.typed(owner, &result, Value::Plain, depth + 1)?;
+            if stable {
+                stable = self.plain_shape_stable(&error_type, depth + 1)?
+                    && self.plain_shape_stable(&result, depth + 1)?;
+            }
+            self.choice(
+                vec![
+                    Value::Error {
+                        is_error: true,
+                        payload: Box::new(error),
+                    },
+                    Value::Error {
+                        is_error: false,
+                        payload: Box::new(result_value),
+                    },
+                ],
+                depth + 1,
+            )?
+        } else if let Some(fields) = self.product_fields(owner, ty, depth + 1)? {
+            self.pay(fields.len(), depth)?;
+            let mut values = BTreeMap::new();
+            for (name, field) in fields.iter() {
+                self.pay(
+                    name.len()
+                        .saturating_add(lookup_work(values.len()))
+                        .saturating_add(1),
+                    depth,
+                )?;
+                let value = self.typed(owner, field, Value::Plain, depth + 1)?;
+                if stable {
+                    stable = self.plain_shape_stable(field, depth + 1)?;
+                }
+                values.insert(name.clone(), value);
+            }
+            Value::Fields(values)
+        } else {
+            self.cleanup_value(owner, ty, depth + 1)?
+        };
+        if !stable {
+            self.type_plain[ty.2] = PlainLayout::Cold;
+        }
+        if stable {
+            let nodes = self
+                .type_shape_nodes
+                .saturating_add(value.work())
+                .saturating_add(1);
+            if nodes > self.limits.max_nodes {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "original Plain shape node limit exceeded",
+                    None,
+                ));
+            }
+            let saved = self.value_copy(&value, depth + 1)?;
+            self.pay(2, depth)?;
+            self.type_plain[ty.2] = PlainLayout::Complete(std::rc::Rc::new(saved));
+            self.type_shape_nodes = nodes;
+        }
+        Ok(value)
+    }
+    fn plain_shape_stable(&mut self, ty: &CleanupType, depth: usize) -> R<bool> {
+        self.pay(1, depth)?;
+        if matches!(self.type_plain[ty.2], PlainLayout::Unchecked) {
+            self.type_plain[ty.2] = if self.stable_plain_type(ty.recipe(), depth + 1)? {
+                PlainLayout::Stable
+            } else {
+                PlainLayout::Cold
+            };
+        }
+        Ok(!matches!(self.type_plain[ty.2], PlainLayout::Cold))
+    }
+    // A deliberately conservative optimization domain. Rigid declared formals
+    // belong to owner Gamma; unresolved queries, inference, opaque/environment
+    // views and associated selections continue through the full cold path.
+    fn stable_plain_type(&mut self, ty: &SemanticTypeRecipe, depth: usize) -> R<bool> {
+        self.pay(1, depth)?;
+        Ok(match ty {
+            SemanticTypeRecipe::Atom(_) => true,
+            SemanticTypeRecipe::Formal(SemanticFormalRef {
+                scope: SemanticScopeRef::Ancestor(hops),
+                ..
+            }) => *hops != u32::MAX,
+            SemanticTypeRecipe::Nominal { arguments, .. } => {
+                let mut stable = true;
+                for argument in arguments {
+                    self.pay(1, depth)?;
+                    stable &= match argument {
+                        SemanticActualRecipe::Type(ty) => self.stable_plain_type(ty, depth + 1)?,
+                        SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(reference)) => {
+                            reference.scope != SemanticScopeRef::Ancestor(u32::MAX)
+                        }
+                        SemanticActualRecipe::Const { carrier, value } => {
+                            self.stable_plain_type(carrier, depth + 1)?
+                                && self.stable_plain_const(value, depth + 1)?
+                        }
+                        _ => false,
+                    };
+                }
+                stable
+            }
+            SemanticTypeRecipe::Managed(inner)
+            | SemanticTypeRecipe::OwnedStore(inner)
+            | SemanticTypeRecipe::Mutex(inner)
+            | SemanticTypeRecipe::Registration(inner)
+            | SemanticTypeRecipe::AsyncRegistration(inner)
+            | SemanticTypeRecipe::Slice(inner) => self.stable_plain_type(inner, depth + 1)?,
+            SemanticTypeRecipe::Tuple(fields) | SemanticTypeRecipe::AnonymousSum(fields) => {
+                let mut stable = true;
+                for field in fields {
+                    stable &= self.stable_plain_type(field, depth + 1)?;
+                }
+                stable
+            }
+            SemanticTypeRecipe::ErrorUnion { error, result } => {
+                self.stable_plain_type(error, depth + 1)?
+                    && self.stable_plain_type(result, depth + 1)?
+            }
+            SemanticTypeRecipe::Array { element, length } => {
+                self.stable_plain_type(element, depth + 1)?
+                    && self.stable_plain_const(length, depth + 1)?
+            }
+            _ => false,
+        })
+    }
+    fn stable_plain_const(&mut self, value: &SemanticConstRecipe, depth: usize) -> R<bool> {
+        self.pay(1, depth)?;
+        Ok(match value {
+            SemanticConstRecipe::Value(_) => true,
+            SemanticConstRecipe::Formal(reference) => {
+                reference.scope != SemanticScopeRef::Ancestor(u32::MAX)
+            }
+            _ => false,
+        })
+    }
+
     fn typed<T: TypeInput + ?Sized>(
         &mut self,
         owner: SemanticDefinitionId,
@@ -1037,76 +1302,27 @@ impl<'a> Engine<'a, '_> {
         let cost_children = self.method_cost_total;
         let result: R<Value> = (|| {
             self.pay(value.work(), depth)?;
-            match self.category(owner, ty, depth + 1)? {
+            let ty = self.input_handle(owner, ty, depth + 1)?;
+            match self.category(owner, &ty, depth + 1)? {
                 cleanup::Category::Copy | cleanup::Category::View => {
                     return self.view(value, depth + 1);
                 }
                 cleanup::Category::Own => {}
             }
             match value {
-                Value::Plain => {
-                    if let Some((error, result)) = cleanup::error_arms(
-                        self.program,
-                        self.proof,
-                        owner,
-                        ty.recipe(),
-                        self.limits,
-                        self.left,
-                    )? {
-                        let error = self.typed(owner, &error, Value::Plain, depth + 1)?;
-                        let result = self.typed(owner, &result, Value::Plain, depth + 1)?;
-                        return self.choice(
-                            vec![
-                                Value::Error {
-                                    is_error: true,
-                                    payload: Box::new(error),
-                                },
-                                Value::Error {
-                                    is_error: false,
-                                    payload: Box::new(result),
-                                },
-                            ],
-                            depth + 1,
-                        );
-                    }
-                    if let Some(fields) = cleanup::fields(
-                        self.program,
-                        self.proof,
-                        owner,
-                        ty.recipe(),
-                        self.limits,
-                        self.left,
-                    )? {
-                        self.pay(fields.len(), depth)?;
-                        let mut values = BTreeMap::new();
-                        for (name, ty) in fields {
-                            values.insert(name, self.typed(owner, &ty, Value::Plain, depth + 1)?);
-                        }
-                        return Ok(Value::Fields(values));
-                    }
-                    self.cleanup_value(owner, ty, depth + 1)
-                }
+                Value::Plain => self.plain_value(owner, &ty, depth + 1),
                 Value::Choice(values) => {
                     let values = values
                         .into_iter()
-                        .map(|value| self.typed(owner, ty, value, depth + 1))
+                        .map(|value| self.typed(owner, &ty, value, depth + 1))
                         .collect::<R<Vec<_>>>()?;
                     self.choice(values, depth + 1)
                 }
                 Value::Fields(values) => {
-                    if cleanup::fields(
-                        self.program,
-                        self.proof,
-                        owner,
-                        ty.recipe(),
-                        self.limits,
-                        self.left,
-                    )?
-                    .is_some()
-                    {
+                    if self.product_fields(owner, &ty, depth + 1)?.is_some() {
                         Ok(Value::Fields(values))
                     } else {
-                        self.cleanup_value(owner, ty, depth + 1)
+                        self.cleanup_value(owner, &ty, depth + 1)
                     }
                 }
                 other => Ok(other),
@@ -1307,7 +1523,10 @@ impl<'a> Engine<'a, '_> {
             self.pay(1, depth)?;
             match &expression.kind {
                 CoreExprKind::Name(name) => {
-                    self.pay(name.len().saturating_add(state.names.len()), depth)?;
+                    self.pay(
+                        name.len().saturating_add(lookup_work(state.names.len())),
+                        depth,
+                    )?;
                     if let Some(value) = state.names.get(name).and_then(|stack| stack.last()) {
                         self.value_copy(value, depth + 1)
                     } else {
@@ -1543,10 +1762,7 @@ impl<'a> Engine<'a, '_> {
         let cost_before = *self.left;
         let cost_children = self.method_cost_total;
         let result: R<Option<Value>> = (|| {
-            self.pay(
-                self.proof.nominal_constructors.len().saturating_add(1),
-                depth,
-            )?;
+            self.pay(lookup_work(self.proof.nominal_constructors.len()), depth)?;
             let Some((id, variant)) = self.proof.nominal_constructors.get(&(owner, node)).copied()
             else {
                 return Ok(None);
@@ -1624,7 +1840,7 @@ impl<'a> Engine<'a, '_> {
             let Some(site) = self.site(owner, expression.id, depth)? else {
                 return self.unknown_call(owner, expression.id, values, state, depth);
             };
-            self.pay(self.proof.intrinsics.len(), depth)?;
+            self.pay(lookup_work(self.proof.intrinsics.len()), depth)?;
             if let Some(call) = self.proof.intrinsics.get(&(owner, site)) {
                 let work = match &call.kind {
                     IntrinsicKind::DynCall {
@@ -1637,6 +1853,7 @@ impl<'a> Engine<'a, '_> {
                 };
                 self.pay(work, depth)?;
             }
+            self.pay(lookup_work(self.proof.intrinsics.len()), depth)?;
             let intrinsic = self
                 .proof
                 .intrinsics
@@ -1708,11 +1925,15 @@ impl<'a> Engine<'a, '_> {
                             op,
                             RegistrationOp::AsyncFinish | RegistrationOp::AsyncFinishChecked
                         ) {
-                            if phase != CLOSED {
+                            if op == RegistrationOp::AsyncFinishChecked && phase != CLOSED {
                                 return Err(failure(
                                     "original registration reclamation is not dominated by Closed for this owning root",
                                 ));
                             }
+                            // The unchecked operation retains the sealed runtime
+                            // CLOSED guard: a nonclosed execution faults without
+                            // reclaiming anything. Only its successful return
+                            // retires the owning generation here.
                             self.change(state, root, CLOSED, true, depth)?;
                             return Ok(Value::Plain);
                         }
@@ -1748,7 +1969,7 @@ impl<'a> Engine<'a, '_> {
                     _ => return self.unknown_call(owner, expression.id, values, state, depth),
                 }
             }
-            self.pay(self.proof.call_targets.len(), depth)?;
+            self.pay(lookup_work(self.proof.call_targets.len()), depth)?;
             let target = self.proof.call_targets.get(&(owner, site)).copied();
             let Some(target) = target else {
                 // An abstract or environment call may reach a captured root even
@@ -1951,7 +2172,7 @@ impl<'a> Engine<'a, '_> {
                         ));
                         diagnostic
                     })?;
-            self.pay(self.proof.injections.len(), depth)?;
+            self.pay(lookup_work(self.proof.injections.len()), depth)?;
             if let Some(injection) = self.proof.injections.get(&(owner, expr.id)) {
                 let is_error = injection.is_error;
                 let payload = copy_recipe(&injection.payload, self.limits, self.left)?;
@@ -1977,7 +2198,7 @@ impl<'a> Engine<'a, '_> {
                 {
                     // A sealed constructor expression can be spelled as a static
                     // member. It creates a value instead of reading a local place.
-                    self.pay(self.proof.nominal_constructors.len(), depth)?;
+                    self.pay(lookup_work(self.proof.nominal_constructors.len()), depth)?;
                     let constructed = if self
                         .proof
                         .nominal_constructors
@@ -1985,7 +2206,7 @@ impl<'a> Engine<'a, '_> {
                     {
                         true
                     } else if let Some(site) = self.site(owner, expr.id, depth + 1)? {
-                        self.pay(self.proof.intrinsics.len(), depth)?;
+                        self.pay(lookup_work(self.proof.intrinsics.len()), depth)?;
                         matches!(
                             self.proof
                                 .intrinsics
@@ -2023,7 +2244,10 @@ impl<'a> Engine<'a, '_> {
             self.pay(1, depth)?;
             match &expr.kind {
                 CoreExprKind::Name(name) => {
-                    self.pay(name.len().saturating_add(state.names.len()), depth)?;
+                    self.pay(
+                        name.len().saturating_add(lookup_work(state.names.len())),
+                        depth,
+                    )?;
                     if let Some(value) = state.names.get(name).and_then(|s| s.last()) {
                         self.value_copy(value, depth)
                     } else {
@@ -2032,29 +2256,34 @@ impl<'a> Engine<'a, '_> {
                 }
                 CoreExprKind::Call { callee, arguments } => {
                     let site = self.site(owner, expr.id, depth + 1)?;
-                    self.pay(
+                    let callback = if let Some(site) = site {
+                        self.pay(lookup_work(self.proof.intrinsics.len()), depth)?;
                         self.proof
-                            .callable_calls
-                            .len()
-                            .saturating_add(self.proof.method_calls.len())
-                            .saturating_add(self.proof.intrinsics.len()),
-                        depth,
-                    )?;
-                    if site
-                        .and_then(|site| self.proof.intrinsics.get(&(owner, site)))
-                        .is_some_and(|call| {
-                            matches!(call.kind, IntrinsicKind::ForeignCallback { .. })
-                        })
-                    {
+                            .intrinsics
+                            .get(&(owner, site))
+                            .is_some_and(|call| {
+                                matches!(call.kind, IntrinsicKind::ForeignCallback { .. })
+                            })
+                    } else {
+                        false
+                    };
+                    if callback {
                         // The original scheme already authenticated the symbol. It
                         // is a code address formation, with no runtime operand.
                         return Ok(Value::Plain);
                     }
-                    let once = site
-                        .and_then(|site| self.proof.callable_calls.get(&(owner, site)))
-                        .is_some_and(|call| call.kind == CallableKind::FnOnce);
+                    let once = if let Some(site) = site {
+                        self.pay(lookup_work(self.proof.callable_calls.len()), depth)?;
+                        self.proof
+                            .callable_calls
+                            .get(&(owner, site))
+                            .is_some_and(|call| call.kind == CallableKind::FnOnce)
+                    } else {
+                        false
+                    };
                     let mut receiver = None;
                     if let Some(site) = site {
+                        self.pay(lookup_work(self.proof.method_calls.len()), depth)?;
                         if let Some(method) = self.proof.method_calls.get(&(owner, site)) {
                             let declaration_id = method.declaration;
                             crate::dyn_metadata::semantic_operand_snapshot(
@@ -2420,10 +2649,9 @@ impl<'a> Engine<'a, '_> {
                 CoreExprKind::Closure { move_capture, .. } => {
                     let child = self.closure_child(owner, expr.id, depth + 1)?;
                     self.pay(
-                        self.proof
-                            .capture_names
-                            .len()
-                            .saturating_add(self.proof.closure_move.len()),
+                        self.proof.capture_names.len().saturating_add(1).ilog2() as usize
+                            + 1
+                            + lookup_work(self.proof.closure_move.len()),
                         depth,
                     )?;
                     if self.proof.closure_move.get(&child.id) != Some(move_capture) {
@@ -2440,6 +2668,7 @@ impl<'a> Engine<'a, '_> {
                             .fold(names.len(), |n, name| n.saturating_add(name.len())),
                         depth,
                     )?;
+                    self.pay(lookup_work(self.proof.capture_names.len()), depth)?;
                     let names = self
                         .proof
                         .capture_names
@@ -3791,6 +4020,18 @@ impl<'a> Engine<'a, '_> {
                     iterator,
                     body,
                 } => {
+                    if let CoreExprKind::Range { start, end } = &iterator.kind {
+                        self.expr(owner, start, &mut state, depth + 1)?;
+                        self.expr(owner, end, &mut state, depth + 1)?;
+                        return self.iteration(
+                            owner,
+                            statement.id,
+                            pattern,
+                            body,
+                            state,
+                            depth + 1,
+                        );
+                    }
                     let value = self.expr(owner, iterator, &mut state, depth + 1)?;
                     self.drop_value(&value, &state, depth + 1)?;
                     self.pay(1, depth)?;
@@ -3987,10 +4228,9 @@ impl<'a> Engine<'a, '_> {
                 if definition.kind == SemanticDefinitionKind::Closure {
                     let (parent, creator) = self.closure_creator(definition, depth + 1)?;
                     self.pay(
-                        self.proof
-                            .capture_names
-                            .len()
-                            .saturating_add(self.proof.closure_move.len()),
+                        self.proof.capture_names.len().saturating_add(1).ilog2() as usize
+                            + 1
+                            + lookup_work(self.proof.closure_move.len()),
                         depth,
                     )?;
                     let moved = *self.proof.closure_move.get(&owner).ok_or_else(|| {
@@ -4005,6 +4245,7 @@ impl<'a> Engine<'a, '_> {
                             .fold(names.len(), |work, name| work.saturating_add(name.len())),
                         depth,
                     )?;
+                    self.pay(lookup_work(self.proof.capture_names.len()), depth)?;
                     let names = self
                         .proof
                         .capture_names
@@ -4114,7 +4355,10 @@ impl<'a> Engine<'a, '_> {
                     }
                     if matches!(captured_mode, Some(CallableKind::Fn | CallableKind::FnMut)) {
                         for (name, expected) in &capture_inputs {
-                            self.pay(name.len().saturating_add(state.names.len()), depth)?;
+                            self.pay(
+                                name.len().saturating_add(lookup_work(state.names.len())),
+                                depth,
+                            )?;
                             let actual = state
                                 .names
                                 .get(name)
@@ -4241,12 +4485,14 @@ pub(super) fn check(
         left,
         active: BTreeSet::new(),
         relevant: BTreeSet::new(),
-        categories: type_cache::Table::new(),
-        cleanup: type_cache::Table::new(),
         type_ids: type_cache::Table::new(),
         type_values: Vec::new(),
         type_categories: Vec::new(),
         type_cleanup: Vec::new(),
+        type_fields: Vec::new(),
+        type_errors: Vec::new(),
+        type_plain: Vec::new(),
+        type_shape_nodes: 0,
         query_types: BTreeMap::new(),
         method_costs: PROTOCOL_COST_KEYS
             .iter()
@@ -4477,5 +4723,134 @@ impl super::super::original_walk::Context for UnsafeSource<'_> {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod plain_layout_tests {
+    use super::*;
+
+    #[test]
+    fn reusable_plain_shapes_never_replace_active_values_or_unresolved_domains() {
+        let owner = SemanticDefinitionId::default();
+        let program = SemanticModule {
+            definitions: vec![SemanticDefinition {
+                id: owner,
+                identity: LifeDeclarationIdentity {
+                    package: "plain-layout".into(),
+                    module_path: vec![],
+                    declaration_path: vec!["owner".into()],
+                    generation_path: vec![],
+                },
+                parent: None,
+                kind: SemanticDefinitionKind::Function,
+                parameters: vec![],
+                implicit_lifetimes: vec![],
+                requirements: vec![],
+                environment: vec![],
+                body: SemanticDefinitionBody::Function {
+                    signature: SemanticSignatureRecipe {
+                        bound_lifetimes: 0,
+                        invocation_lifetimes: 0,
+                        parameters: vec![],
+                        result: SemanticTypeRecipe::Atom(Type::Unit),
+                        result_mode: PassingMode::Copy,
+                        call_kind: CallKind::Direct,
+                    },
+                    sites: vec![],
+                },
+            }],
+            instances: vec![],
+            sites: vec![],
+            dyn_scopes: vec![],
+        };
+        let mut proof = Proof::default();
+        proof.complete.insert(owner);
+        proof.definition_positions = std::rc::Rc::new(BTreeMap::from([(owner, 0)]));
+        let queried = Query::Expression(NodeId(7));
+        proof.types.insert(
+            (owner, queried.clone()),
+            SemanticTypeRecipe::Managed(Box::new(SemanticTypeRecipe::Atom(Type::ByteBuffer))),
+        );
+        let limits = Limits::default();
+        let mut left = limits.max_analysis_steps;
+        let mut engine = Engine {
+            program: &program,
+            proof: &mut proof,
+            limits: &limits,
+            left: &mut left,
+            active: BTreeSet::new(),
+            relevant: BTreeSet::new(),
+            type_ids: type_cache::Table::new(),
+            type_values: vec![],
+            type_categories: vec![],
+            type_cleanup: vec![],
+            type_fields: vec![],
+            type_errors: vec![],
+            type_plain: vec![],
+            type_shape_nodes: 0,
+            query_types: BTreeMap::new(),
+            method_costs: PROTOCOL_COST_KEYS
+                .iter()
+                .map(|key| (*key, (0, 0, 0)))
+                .collect(),
+            method_cost_total: 0,
+            function_cost_total: 0,
+            task_exits: BTreeMap::new(),
+            task_exit_count: 0,
+            task_source_returns: BTreeSet::new(),
+        };
+        let recipe = SemanticTypeRecipe::ErrorUnion {
+            error: Box::new(SemanticTypeRecipe::Atom(Type::Unit)),
+            result: Box::new(SemanticTypeRecipe::Managed(Box::new(
+                SemanticTypeRecipe::Atom(Type::ByteBuffer),
+            ))),
+        };
+        let ty = engine.type_handle(owner, &recipe, 0).unwrap();
+        let queried_type = engine
+            .query_type(owner, queried.clone(), 0)
+            .unwrap()
+            .unwrap();
+        let directory_len = engine.type_values.len();
+        let repeated = engine.query_type(owner, queried, 0).unwrap().unwrap();
+        assert!(queried_type == repeated);
+        assert_eq!(engine.type_values.len(), directory_len);
+        let first = engine.typed(owner, &ty, Value::Plain, 0).unwrap();
+        assert!(matches!(engine.type_plain[ty.2], PlainLayout::Complete(_)));
+        let before = *engine.left;
+        let second = engine.typed(owner, &ty, Value::Plain, 0).unwrap();
+        assert!(first == second);
+        assert!(*engine.left < before);
+        let Value::Choice(first_rows) = &first else {
+            panic!()
+        };
+        let Value::Choice(second_rows) = &second else {
+            panic!()
+        };
+        assert!(!std::ptr::eq(first_rows.as_ptr(), second_rows.as_ptr()));
+        let active = Value::Root(Root::Parameter(owner, 0), true, true, Some(OPEN));
+        let returned = engine.typed(owner, &ty, active.clone(), 0).unwrap();
+        assert!(returned == active);
+        // The reusable shape grants no independent synchronous cleanup proof.
+        assert!(engine.type_cleanup[ty.2].is_none());
+        for unstable in [
+            SemanticTypeRecipe::Formal(SemanticFormalRef {
+                scope: SemanticScopeRef::Ancestor(u32::MAX),
+                ordinal: 0,
+            }),
+            SemanticTypeRecipe::Environment {
+                scope: SemanticScopeRef::Ancestor(0),
+                ordinal: 0,
+            },
+            SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Result,
+            },
+            SemanticTypeRecipe::Unsupported("unresolved".into()),
+        ] {
+            let nested = SemanticTypeRecipe::Managed(Box::new(unstable));
+            assert!(!engine.stable_plain_type(&nested, 0).unwrap());
+        }
+        assert!(engine.value_copy(&second, limits.max_call_depth).is_err());
     }
 }

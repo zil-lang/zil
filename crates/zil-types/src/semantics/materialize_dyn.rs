@@ -1,6 +1,8 @@
 //! Materialize an original Dyn type against an actual, complete interface.
 //! The table is a candidate for an exact type, never authority for a provider.
 use super::*;
+#[path = "materialize_dyn_contract.rs"]
+mod contracts;
 #[path = "dyn_registry.rs"]
 mod registry;
 pub(crate) use registry::relocate;
@@ -516,116 +518,23 @@ fn exact_signature_recipe(
     Ok(())
 }
 
-fn exact_effects(recipe: &[DynEffectRecipe], actual: &[DynEffect]) -> R<()> {
-    if recipe.len() != actual.len() {
-        return Err(bad("Dyn method effect recipe omits an actual effect"));
-    }
-    for (recipe, actual) in recipe.iter().zip(actual) {
-        let matched = matches!(
-            (recipe, actual),
-            (DynEffectRecipe::Alloc, DynEffect::Alloc)
-                | (DynEffectRecipe::Io, DynEffect::Io)
-                | (DynEffectRecipe::Block, DynEffect::Block)
-                | (DynEffectRecipe::Suspend, DynEffect::Suspend)
-                | (DynEffectRecipe::Spawn, DynEffect::Spawn)
-                | (DynEffectRecipe::Ffi, DynEffect::Ffi)
-                | (DynEffectRecipe::Reenter, DynEffect::Reenter)
-                | (DynEffectRecipe::Panic, DynEffect::Panic)
-        );
-        if !matched {
-            return Err(unknown(
-                "Dyn method effect needs its exact callable or cleanup recipe",
-            ));
-        }
-    }
-    Ok(())
-}
-
-fn exact_contract_recipe(recipe: &DynContractRecipe, actual: &DynContract) -> R<()> {
-    match (&recipe.requires, &actual.requires) {
-        (Some(recipes), Some(actuals)) if recipes.len() == actuals.len() => {
-            for (recipe, actual) in recipes.iter().zip(actuals) {
-                if !matches!((recipe, actual),
-                    (DynRequirementRecipe::Read(a), DynRequirement::Read(b)) if a == b)
-                    && !matches!((recipe, actual),
-                    (DynRequirementRecipe::Write(a), DynRequirement::Write(b)) if a == b)
-                    && !matches!((recipe, actual),
-                    (DynRequirementRecipe::Manage(a), DynRequirement::Manage(b)) if a == b)
-                    && !matches!((recipe, actual),
-                    (DynRequirementRecipe::Apart(a, b), DynRequirement::Apart(c, d)) if a == c && b == d)
-                {
-                    return Err(bad("Dyn method requirement changes its original contract"));
-                }
-            }
-        }
-        (None, None) => {}
-        _ => return Err(bad("Dyn method requirement directory is incomplete")),
-    }
-    match (&recipe.guarantees, &actual.guarantees) {
-        (Some(recipes), Some(actuals)) if recipes.is_empty() && actuals.is_empty() => {}
-        (None, None) => {}
-        _ => {
-            return Err(unknown(
-                "Dyn method guarantee needs its complete source recipe",
-            ));
-        }
-    }
-    if recipe.hold != actual.hold
-        || recipe.call != actual.call
-        || recipe.resume != actual.resume
-        || recipe.threads != actual.threads
-    {
-        return Err(bad(
-            "Dyn method contract changes hold, access, resume, or thread bound",
-        ));
-    }
-    match (&recipe.result, &actual.result) {
-        (Some(DynResultSourceRecipe::Value), Some(DynResultSource::Value))
-        | (Some(DynResultSourceRecipe::Create), Some(DynResultSource::Create))
-        | (Some(DynResultSourceRecipe::Give), Some(DynResultSource::Give))
-        | (None, None) => {}
-        _ => {
-            return Err(unknown(
-                "Dyn method result needs its complete source recipe",
-            ));
-        }
-    }
-    match (&recipe.cleanup, &actual.cleanup) {
-        (Some(recipe), Some(actual))
-            if recipe.environment == actual.environment
-                && recipe.positions == actual.positions
-                && recipe.access == actual.access =>
-        {
-            exact_effects(&recipe.effects, &actual.effects)?;
-        }
-        (None, None) => {}
-        _ => return Err(bad("Dyn method cleanup differs from its original contract")),
-    }
-    match (&recipe.effects, &actual.effects) {
-        (Some(recipe), Some(actual)) => exact_effects(recipe, actual)?,
-        (None, None) => {}
-        _ => return Err(bad("Dyn method effect directory is incomplete")),
-    }
-    Ok(())
-}
-
 /// A separate, bounded check of the actual owned provider and its original
 /// method identities. The caller proves the original trait predicate and
 /// actual MakeDynOwned instruction in its own world before invoking this.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn owned_provider(
-    program: &SemanticModule,
-    module: &TypedModule,
-    ledger: &Ledger,
+pub(in crate::semantics) fn owned_provider(
+    world: &mut crate::semantics::world::World<'_, '_>,
     interface_id: DynInterfaceId,
     vtable_id: DynVtableId,
     source: &Type,
     route: DynOwnedStorage,
-    limits: &Limits,
-    left: &mut usize,
 ) -> R<()> {
+    let program = world.program;
+    let module = world.module;
+    let ledger = world.ledger;
+    let limits = world.limits;
     provider_fee(
-        left,
+        world.left,
         module
             .dyn_vtables
             .len()
@@ -678,7 +587,7 @@ pub(crate) fn owned_provider(
     let trait_scope = exact_scope(
         program,
         SemanticDynOwner::Declaration(trait_declaration.id),
-        left,
+        world.left,
     )?;
     if !matches!(&trait_scope.body, SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration })
         if *declaration == trait_declaration.id)
@@ -688,7 +597,7 @@ pub(crate) fn owned_provider(
     let impl_scope = exact_scope(
         program,
         SemanticDynOwner::Declaration(implementation.id),
-        left,
+        world.left,
     )?;
     if !matches!(&impl_scope.body, SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl { declaration, trait_application, .. })
         if *declaration == implementation.id && trait_application.declaration == trait_declaration.id)
@@ -719,7 +628,7 @@ pub(crate) fn owned_provider(
         ));
     }
     provider_fee(
-        left,
+        world.left,
         signatures
             .len()
             .saturating_mul(4)
@@ -751,29 +660,27 @@ pub(crate) fn owned_provider(
                 declaration: trait_declaration.id,
                 member: index as u32,
             },
-            left,
+            world.left,
         )?;
         if original_trait_method.parent != Some(trait_scope.id) {
             return Err(bad(
                 "Dyn trait method is outside its original declaration scope",
             ));
         }
-        exact_signature_recipe(&signature.signature, original_trait_method, left)?;
-        exact_contract_recipe(&signature.signature.contract, &slot.contract)?;
+        exact_signature_recipe(&signature.signature, original_trait_method, world.left)?;
         let original_provider = exact_scope(
             program,
             SemanticDynOwner::MethodDefinition(definition.id),
-            left,
+            world.left,
         )?;
         if original_provider.parent != Some(impl_scope.id) {
             return Err(bad(
                 "Dyn provider method is outside its original impl scope",
             ));
         }
-        exact_signature_recipe(&definition.signature, original_provider, left)?;
-        exact_contract_recipe(&definition.signature.contract, &slot.contract)?;
+        exact_signature_recipe(&definition.signature, original_provider, world.left)?;
         provider_fee(
-            left,
+            world.left,
             definition
                 .instances
                 .len()
@@ -795,12 +702,12 @@ pub(crate) fn owned_provider(
             || !specialization.method_actuals.is_empty()
         {
             let mut diagnostic = bad("Dyn method specialization changes Self or complete actuals");
-            inference::charge_type_snapshot(source, Span::default(), limits, left, 1)?;
+            inference::charge_type_snapshot(source, Span::default(), limits, world.left, 1)?;
             inference::charge_type_snapshot(
                 &specialization.receiver.ty,
                 Span::default(),
                 limits,
-                left,
+                world.left,
                 1,
             )?;
             diagnostic.notes.push(format!(
@@ -820,7 +727,7 @@ pub(crate) fn owned_provider(
         if instances.next().is_some() || instance.parent.is_none() {
             return Err(bad("Dyn provider method instance is ambiguous or unscoped"));
         }
-        provider_fee(left, program.instances.len())?;
+        provider_fee(world.left, program.instances.len())?;
         let mut parents = program
             .instances
             .iter()
@@ -848,9 +755,9 @@ pub(crate) fn owned_provider(
             },
             Some(source),
             limits,
-            left,
+            world.left,
         )?;
-        crate::dyn_metadata::semantic_operand_snapshot(&expected_self, limits, left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(&expected_self, limits, world.left, 1)?;
         let SemanticTypeValue::Resolved {
             ty: expected_type,
             life: expected_life,
@@ -873,7 +780,7 @@ pub(crate) fn owned_provider(
             .self_type
             .as_ref()
             .ok_or_else(|| bad("Dyn provider instance omits its complete lexical Self"))?;
-        crate::dyn_metadata::semantic_operand_snapshot(claimed_self, limits, left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(claimed_self, limits, world.left, 1)?;
         if claimed_self != &expected_self {
             return Err(bad(
                 "Dyn provider instance changes its original complete Self domain",
@@ -905,6 +812,39 @@ pub(crate) fn owned_provider(
                 ));
             }
         }
+        let (parameters, result) = world.dynamic_provider_signature(
+            instance,
+            function,
+            original_provider,
+            original_trait_method,
+            table,
+            interface,
+            slot,
+        )?;
+        contracts::compare(
+            program,
+            original_trait_method,
+            &interface.application.actuals,
+            interface,
+            slot,
+            &signature.signature.contract,
+            &parameters,
+            &result,
+            limits,
+            world.left,
+        )?;
+        contracts::compare(
+            program,
+            original_provider,
+            &table.actuals,
+            interface,
+            slot,
+            &definition.signature.contract,
+            &parameters,
+            &result,
+            limits,
+            world.left,
+        )?;
         if source.is_b0_scalar() && !table.self_classes.is_empty() {
             return Err(bad("Dyn scalar Self invents retained classes"));
         }
@@ -944,6 +884,8 @@ pub(crate) fn call_slot(
     member: u32,
     limits: &Limits,
     left: &mut usize,
+    parameters: &[std::rc::Rc<SemanticTypeValue>],
+    result: &SemanticTypeValue,
 ) -> R<()> {
     provider_fee(
         left,
@@ -1101,7 +1043,18 @@ pub(crate) fn call_slot(
         return Err(bad("Dyn call original method signature repeats"));
     }
     exact_signature_recipe(&signature.signature, original, left)?;
-    exact_contract_recipe(&signature.signature.contract, &slot.contract)?;
+    contracts::compare(
+        program,
+        original,
+        &interface.application.actuals,
+        interface,
+        slot,
+        &signature.signature.contract,
+        parameters,
+        result,
+        limits,
+        left,
+    )?;
     let original_signature = original_signature(original)?;
     if slot.parameter_modes.len() != slot.parameters.len()
         || original_signature.parameters.len() != slot.parameters.len().saturating_add(1)

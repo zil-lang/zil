@@ -99,18 +99,15 @@ impl Checked {
             let actual = match self.argument(*term, context, program, inventory, b, depth + 1)? {
                 Argument::Type(value) => {
                     if value.classes.is_empty() {
-                        DynGenericActual::Type(value.ty)
+                        DynGenericActual::Type(value.into_type(b)?)
                     } else {
                         let mut classes = Vec::new();
                         for class in &value.classes {
                             let fixed = self.dyn_fixed(class, domain, b)?;
                             Solver::push(&mut classes, fixed, b)?;
                         }
-                        DynGenericActual::QualifiedType(DynTypeValue {
-                            ty: value.ty,
-                            life: value.life,
-                            classes,
-                        })
+                        let (ty, life, _) = value.into_parts(b)?;
+                        DynGenericActual::QualifiedType(DynTypeValue { ty, life, classes })
                     }
                 }
                 Argument::Life(class) => DynGenericActual::Life(self.dyn_fixed(&class, domain, b)?),
@@ -183,7 +180,7 @@ impl Checked {
             dyn_types::Context::Closed => Some(None),
             dyn_types::Context::Type(term) => Some(Some(
                 self.value(*term, context, program, inventory, b, depth + 1)?
-                    .ty,
+                    .into_type(b)?,
             )),
             dyn_types::Context::Shape(_) => None,
         };
@@ -213,12 +210,13 @@ impl Checked {
                         let fixed = self.dyn_fixed(class, &classes, b)?;
                         Solver::push(&mut mapped, fixed, b)?;
                     }
+                    let (ty, life, _) = value.into_parts(b)?;
                     Solver::push(
                         &mut associated_types,
                         DynAssociatedType {
                             member,
-                            ty: value.ty,
-                            life: value.life,
+                            ty,
+                            life,
                             classes: mapped,
                         },
                         b,
@@ -319,19 +317,19 @@ impl Checked {
         let interface = selected.ok_or_else(|| {
             fail("original Dyn type has no exact actual application, Context and associated key")
         })?;
-        Ok(Value {
-            ty: if ty.owned {
+        Ok(Value::new(
+            if ty.owned {
                 Type::OwnedDyn { interface }
             } else {
                 Type::Dyn { interface }
             },
-            life: StorageLifeShape {
+            StorageLifeShape {
                 binder_count: retained.binder_count,
                 slots: Vec::new(),
-                retained: Vec::new(),
-                nominal_arguments: Vec::new(),
+                retained: retained.retained,
+                nominal_arguments: retained.nominal_arguments,
             },
             classes,
-        })
+        ))
     }
 }

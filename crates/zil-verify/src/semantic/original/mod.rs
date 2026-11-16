@@ -10,7 +10,10 @@ mod index;
 mod expressions;
 mod calls;
 mod callbacks;
+mod code_sources;
 mod patterns;
+mod range_bindings;
+pub(in crate::semantic) use range_bindings::RangeBinding;
 mod materialize;
 mod usage;
 mod places;
@@ -18,6 +21,7 @@ mod cleanup;
 mod names;
 mod structural;
 mod lifetimes;
+mod local_roles;
 mod substitution;
 mod closure_sources;
 mod frozen;
@@ -50,21 +54,28 @@ use terms::*;
 use dyn_types::*;
 use std::collections::{BTreeMap,BTreeSet};
 #[derive(Clone)]
-pub(super) struct Prototype {pub(super) parameters:Vec<Ty>,pub(super) result:Ty,pub(super) environment:Env,pub(super) modes:Vec<PassingMode>,pub(super) result_mode:PassingMode,pub(super) call_kind:CallKind,pub(super) bound_lifetimes:u32,pub(super) invocation_lifetimes:u32,pub(super) callable_kind:Option<CallableKind>}
+pub(super) struct Prototype {pub(super) parameters:Vec<Ty>,pub(super) result:Ty,pub(super) environment:Env,pub(super) modes:Vec<PassingMode>,pub(super) result_mode:PassingMode,pub(super) call_kind:CallKind,pub(super) bound_lifetimes:u32,pub(super) invocation_lifetimes:u32,pub(super) premise_bounds:Vec<Vec<Life>>,pub(super) callable_kind:Option<CallableKind>}
 struct VariantConstruction{definition:SemanticDefinitionId,variant:u32,actuals:Vec<Arg>}
 #[derive(Default)]
 pub(super) struct CheckedOriginal {
+    // Structural cursors and original expressions borrow this exact owned,
+    // immutable source snapshot. They cannot inherit a recycled view address.
+    source_grammar:Option<index::SourceIndex>,
     expressions:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
+    // Category of the evaluated Place before a later field observation
+    // publishes an effective Desc type for that same original expression.
+    place_types:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
     // Contextual sum observations are distinct from the payload operation.
     // The selected arm is solved in original Γ before any actual emission.
     injections:BTreeMap<(SemanticDefinitionId,NodeId),(bool,Ty)>,
     bindings:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
+    local_roles:BTreeMap<(SemanticDefinitionId,NodeId),local_roles::LocalRole>,
     binding_families:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
     parameters:BTreeMap<(SemanticDefinitionId,u32),Ty>,
     results:BTreeMap<SemanticDefinitionId,Ty>,
     calls:BTreeMap<(SemanticDefinitionId,SemanticSiteId),Vec<Arg>>,
     intrinsic_type_sources:BTreeMap<(SemanticDefinitionId,SemanticSiteId,u32),NodeId>,
-    call_type_sources:BTreeMap<(SemanticDefinitionId,SemanticSiteId,u32),Vec<NodeId>>,
+    call_type_sources:BTreeMap<(SemanticDefinitionId,SemanticSiteId,u32),Vec<(NodeId,bool)>>,
     call_targets:BTreeMap<(SemanticDefinitionId,SemanticSiteId),SemanticDefinitionId>,
     trait_calls:BTreeMap<(SemanticDefinitionId,SemanticSiteId),trait_calls::TraitCall>,
     constructors:BTreeMap<(SemanticDefinitionId,SemanticSiteId),VariantConstruction>,
@@ -73,9 +84,17 @@ pub(super) struct CheckedOriginal {
     task_closed_cleanups:BTreeSet<(SemanticDefinitionId,Place)>,
     task_async_cleanups:BTreeSet<(SemanticDefinitionId,Place)>,
     callable_nodes:BTreeMap<(SemanticDefinitionId,NodeId),NodeId>,
+    code_sources:BTreeMap<(SemanticDefinitionId,NodeId),SemanticDefinitionId>,
     prototypes:BTreeMap<SemanticDefinitionId,Prototype>,
     substitutions:BTreeMap<u64,Ty>,
     life_substitutions:BTreeMap<u64,Life>,
+    outer_inferences:BTreeMap<u64,Vec<Life>>,
+    call_regions:BTreeMap<u64,(SemanticDefinitionId,NodeId,Vec<u32>,Vec<Life>)>,
+    call_head_roles:BTreeMap<u64,Vec<u32>>,
+    call_region_parameters:BTreeMap<(SemanticDefinitionId,NodeId),Vec<(u32,u64)>>,
+    borrow_parents:BTreeMap<(SemanticDefinitionId,NodeId),Life>,
+    outer_flows:BTreeMap<SemanticDefinitionId,Vec<(Life,Life)>>,
+    life_outlives:BTreeMap<SemanticDefinitionId,Vec<(Life,Life)>>,
     life_equalities:BTreeMap<SemanticDefinitionId,Vec<(Life,Life)>>,
     next_inference:u64,
     environments:BTreeMap<SemanticDefinitionId,Env>,
@@ -83,6 +102,7 @@ pub(super) struct CheckedOriginal {
     checked:BTreeSet<SemanticDefinitionId>,
     equalities:BTreeMap<SemanticDefinitionId,Vec<(Ty,Ty)>>,
     current:Option<SemanticDefinitionId>,
+    premise_environment:Option<Env>,
     free_values:BTreeMap<SemanticDefinitionId,BTreeMap<String,Binding>>,
     uses:BTreeMap<SemanticDefinitionId,Uses>,
     used:BTreeMap<SemanticDefinitionId,BTreeSet<Binder>>,
@@ -114,6 +134,7 @@ impl CheckedOriginal {
     pub(super) fn check(module:&TypedModule,context:&CheckedContext,active:&mut ActiveQueries,b:&mut Budget)->Check<Self> {
         let mut result=Self::default();
         let index=index::build(module,b)?;
+        result.source_grammar=Some(index::snapshot(module,&index,b)?);
         for function in index.definitions.values(){b.spend(function.parameters.len().saturating_add(1))?;if function.parameters.len()!=function.signature.parameters.len(){return Err(bad("original body index and signature have different value arity"));}}
         let program=module.semantic.as_ref().ok_or_else(||bad("original body program is absent"))?;
         let mut pending=program.definitions.iter().filter(|definition|matches!(definition.kind,SemanticDefinitionKind::Function|SemanticDefinitionKind::Method|SemanticDefinitionKind::Closure|SemanticDefinitionKind::TaskEntry)).collect::<Vec<_>>();
@@ -122,7 +143,14 @@ impl CheckedOriginal {
         // over the original creator/binding point instead of a child LocalId.
         b.spend(pending.len().saturating_mul(pending.len().checked_ilog2().map_or(1,|n|n as usize+1)).saturating_mul(b.limits.max_call_depth.min(128)))?;
         pending.sort_by_key(|definition|{let mut depth=0;let mut parent=definition.parent;while let Some(id)=parent {depth+=1;parent=program.definitions.iter().find(|row|row.id==id).and_then(|row|row.parent);}depth});
-        for definition in pending {result.definition(module,context,definition.id,active,b)?;}
+        let total=pending.len();
+        for(ordinal,definition)in pending.into_iter().enumerate(){
+            b.diagnostic_stage("original bodies");
+            if let Some(progress)=&mut b.diagnostic_progress{progress.original=Some((ordinal+1,total,definition.id));}
+            result.definition(module,context,definition.id,active,b)?;
+        }
+        result.check_outer_flows(b)?;
+        b.diagnostic_stage("original body obligations");
         let obligations=std::mem::take(&mut result.copy_obligations);
         for(ty,env)in obligations{result.current=Some(env.current()?);if !result.is_copy(module,context,&ty,&env,active,b)?{return Err(bad("original repeated value use has no resolved Copy proof"));}}
         for(ty,env)in std::mem::take(&mut result.element_obligations){result.current=Some(env.current()?);result.structural_obligation(module,context,&ty,DynStructuralBound::StoreElement,&env,active,b)?;}
@@ -135,6 +163,7 @@ impl CheckedOriginal {
         // No original protocol claim is usable by the actual bridge until
         // every original body, including uninstantiated bodies, has been
         // checked against its own entry relation.
+        b.diagnostic_stage("original protocols and cleanup");
         result.check_protocols(module,context,&index,active,b)?;
         result.check_cleanups(module,context,active,b)?;
         for(definition,_)in &result.task_async_cleanups{b.spend(1)?;if result.prototypes.get(definition).is_none_or(|prototype|prototype.call_kind!=CallKind::Suspend){return Err(bad("original asynchronous Task cleanup has no complete Suspend head"));}result.executing_effects.insert(*definition,CallKind::Suspend);}
@@ -142,6 +171,20 @@ impl CheckedOriginal {
         for binding in &result.creation_returns{b.spend(1)?;if result.creation_tainted.contains(binding){return Err(bad("original create result has a reassigned or loop-carried unproved lineage"));}}
         Ok(result)
     }
+    fn source_index<'s>(&'s self,_module:&TypedModule,definitions:&[SemanticDefinitionId],b:&mut Budget)->Check<index::Index<'s>>{
+        let source=self.source_grammar.as_ref().ok_or_else(||bad("original source query has no owned complete grammar"))?;
+        index::select(source,definitions,b)
+    }
+    fn original_call_site(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(usize,SemanticSiteId)>{
+        let source=self.source_grammar.as_ref().ok_or_else(||bad("original call has no owned complete grammar"))?;
+        let rows=source.recipes(definition,SemanticOriginalNode::Expression(node),&[index::Role::Call,index::Role::CallableCall,index::Role::OriginalCall],b)?;
+        let [row]=rows.as_slice()else{return Err(bad("original Call has no unique exact operation site"));};Ok(*row)
+    }
+    pub(in crate::semantic) fn original_declaration_sites(&self,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<Vec<SemanticSiteId>>{
+        let source=self.source_grammar.as_ref().ok_or_else(||bad("original local has no owned complete grammar"))?;
+        Ok(source.recipes(definition,SemanticOriginalNode::Statement(node),&[index::Role::DeclareLocal],b)?.into_iter().map(|(_,site)|site).collect())
+    }
+
     fn fresh(&mut self,b:&mut Budget)->Check<Ty>{b.spend(1)?;let id=self.next_inference;self.next_inference=id.checked_add(1).ok_or_else(||limit("original body inference identity exhausted"))?;Ok(Ty::Infer(id))}
     fn resolved(&self,ty:&Ty,b:&mut Budget)->Check<Ty>{self.resolve_at(ty,0,b)}
     fn resolve_at(&self,ty:&Ty,depth:usize,b:&mut Budget)->Check<Ty>{

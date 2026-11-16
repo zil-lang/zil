@@ -1,6 +1,6 @@
-//! Exact archived223 bytes plus a structurally migrated schema40 fixture.
-#[path = "../../zil-ir/test-support/schema40_fixture.rs"]
-mod schema40_fixture;
+//! Exact archived223 bytes and current explicit untrusted raw reconstruction.
+#[path = "../../zil-ir/test-support/current_raw_fixtures.rs"]
+mod current_raw_fixtures;
 use std::{fs, path::PathBuf};
 use zil_base::{Fingerprint, Limits, Phase, ResultCategory, TargetProfile};
 
@@ -57,13 +57,13 @@ fn frozen_schema27_29_30_32_and37_wire_are_rejected_as_old_transports() {
     }
 }
 
-// The offline test writer decodes actual39 candidates and explicitly refuses
-// changed relation fields before current serialization. Production has no legacy codec.
+// Current public IR reconstruction preserves the original operand, ownership
+// and mutation obligations. Archived bytes are only version rejection controls.
 fn current_original_envelope(limits: &Limits) -> Vec<u8> {
     assert_eq!(&ORIGINAL[..8], b"ZILMODP\0");
     assert_eq!(&ORIGINAL[8..12], &27u32.to_le_bytes());
     assert_eq!(zil_ir::wire::WIRE_VERSION, zil_base::SCHEMA_VERSION);
-    let migrated = schema40_fixture::migrate(SCHEMA40, limits);
+    let migrated = current_raw_fixtures::rebuild(SCHEMA40, limits);
     let (module, plan) = zil_ir::wire::decode_module_candidate(&migrated, limits).unwrap();
     assert_eq!(module.schema_version, zil_base::SCHEMA_VERSION);
     assert_eq!(plan.schema_version, zil_base::SCHEMA_VERSION);

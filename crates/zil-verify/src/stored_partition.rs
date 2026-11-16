@@ -13,6 +13,7 @@ fn stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bo
                 budget.spend(closures_seen.len().saturating_add(1))?;
                 if !closures_seen.insert(*id) { continue; }
                 let definition = closures::definition(module, *id, None)?;
+                if crate::ordinary_heads::resource_closure(module,*id,budget)?{continue;}
                 // Work selection only. The complete relation, every actual
                 // creator/entry and its memory sources are checked elsewhere.
                 found |= definition.storage_life.is_some();
@@ -25,8 +26,9 @@ fn stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bo
                 found = true;
                 pending.push(storage);
             }
-            Type::OwnedStore { element }
-            | Type::Registration {
+            Type::ByteBuffer=>{found=true;},
+            Type::OwnedStore{element}=>{found|=super::stored_owned::ordinary_store_value(module,ty,budget)?;pending.push(element);},
+            Type::Registration {
                 environment: element,
             }
             | Type::AsyncRegistration {
@@ -153,8 +155,24 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
         }
         mask.push(stored);
     }
-    if !mask.iter().any(|v| *v) || mask.iter().all(|v| *v) {
-        return Ok(None);
+    // None selects the complete stored ledger; an explicit empty partition
+    // instead proves every actual body with the ordinary borrow/resource lane.
+    if !mask.iter().any(|v| *v){return Ok(Some(mask));}
+    if mask.iter().all(|v| *v) { return Ok(None); }
+    // The small mixed lane only transports ordinary scalar boundaries. Rich
+    // owner/description/heap graphs instead require the existing complete
+    // stored solver for every actual function, including the ordinary peers.
+    // This is more verification work, not an exemption for a resource table,
+    // a cross-domain call, a capture source or an owner cleanup obligation.
+    for resource in &module.resources{
+        budget.spend(1)?;
+        if stored_type(module,&resource.payload,budget)?{return Ok(None);}
+    }
+    for(index,function)in module.functions.iter().enumerate(){
+        if !mask[index]{continue;}
+        for ty in std::iter::once(&function.return_type).chain(function.locals.iter().map(|row|&row.ty)).chain(&function.values){
+            if forbidden_stored_type(module,ty,budget)?{return Ok(None);}
+        }
     }
     for definition in &module.closures {
         budget.spend(1)?;

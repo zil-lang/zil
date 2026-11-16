@@ -8,10 +8,10 @@ pub(super) struct Port {
     pub binder: u32,
     pub inner: Vec<(u32, u32)>,
 }
-pub(super) fn check(
+pub(super) fn check<'a>(
     module: &TypedModule,
-    interface: &DynInterface,
-    mut domain: impl FnMut(&Type, &mut Budget) -> Check<u32>,
+    interface: &'a DynInterface,
+    mut domain: impl FnMut(&'a Type, &mut Budget) -> Check<u32>,
     b: &mut Budget,
 ) -> Check<Vec<Port>> {
     let Some(context) = &interface.context else {
@@ -305,6 +305,35 @@ mod tests {
             )
             .is_err()
         );
+        // Complete opaque values carry these logical rows at their own root;
+        // none of Context's actual physical slots becomes an erased value GEP.
+        module.dyn_interfaces.push(interface.clone());
+        let erased_life=StorageLifeShape{binder_count:3,slots:vec![],retained:interface.retained_life.retained.clone(),nominal_arguments:interface.retained_life.nominal_arguments.clone()};
+        let scope=DynInstantiationScope{fixed_binder_count:3,invocation_binder_count:0};
+        let (_,plan)=crate::tests::baseline();
+        let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();
+        let (decoded,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+        for actual_module in [&module,&decoded]{
+            for owned in [false,true]{
+                let ty=if owned{Type::OwnedDyn{interface:interface.id}}else{Type::Dyn{interface:interface.id}};
+                let value=DynTypeValue{ty:ty.clone(),life:erased_life.clone(),classes:(0..3).map(StorageBinder::Fixed).collect()};
+                assert_eq!(values::check(actual_module,&value,scope,&mut Budget::new(&limits)).unwrap().count,3);
+                assert_eq!(crate::tasks::frame_shape::declared_life(actual_module,&ty,&mut Budget::new(&limits)).unwrap(),erased_life);
+                let mut omitted=value.clone();omitted.life.nominal_arguments.pop();
+                assert!(values::check(actual_module,&omitted,scope,&mut Budget::new(&limits)).is_err());
+                let mut renamed=value.clone();renamed.life.nominal_arguments[0].declaration=tag_id;
+                assert!(values::check(actual_module,&renamed,scope,&mut Budget::new(&limits)).is_err(),"equal N cannot replace the original nominal identity");
+                let mut physical=value.clone();physical.life.slots=life.slots.clone();
+                assert!(values::check(actual_module,&physical,scope,&mut Budget::new(&limits)).is_err(),"logical Context metadata supplies no erased physical GEP");
+                let mut compound=StorageLifeShape{binder_count:4,slots:vec![StorageLifeSlot{path:vec![],mode:StoredBorrowMode::SharedAddress,binder:0}],retained:(0..3).map(|class|StorageRetainedBinding{path:vec![LifeTypeProjection::Pointee],class,binder:class+1}).collect(),nominal_arguments:erased_life.nominal_arguments.iter().map(|row|{let mut row=row.clone();row.path.insert(0,LifeTypeProjection::Pointee);row.binder+=1;row}).collect()};
+                let mut address=DynTypeValue{ty:Type::Address{mutable:false,inner:Box::new(ty)},life:compound.clone(),classes:(0..4).map(StorageBinder::Fixed).collect()};
+                let compound_scope=DynInstantiationScope{fixed_binder_count:4,invocation_binder_count:0};
+                assert_eq!(values::check(actual_module,&address,compound_scope,&mut Budget::new(&limits)).unwrap().count,4);
+                compound.retained[1].binder=compound.retained[0].binder;
+                address.life=compound;
+                assert!(values::check(actual_module,&address,compound_scope,&mut Budget::new(&limits)).is_err(),"one outside image cannot compress two child intrinsic indices");
+            }
+        }
         let mut missing = interface;
         missing.retained_life.retained.pop();
         assert!(

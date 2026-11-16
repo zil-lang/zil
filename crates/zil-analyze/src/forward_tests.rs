@@ -983,10 +983,10 @@ fn symbolic_copy_capability_is_not_obtained_by_hiding_f_in_an_old_state_value() 
     rejected(&m);
 }
 
-#[path = "../../zil-ir/test-support/schema40_fixture.rs"]
-mod schema40_fixture;
+#[path = "../../zil-ir/test-support/current_raw_fixtures.rs"]
+mod current_raw_fixtures;
 
-// Frozen old bytes remain immutable; only tests migrate unchanged candidate records.
+// Frozen old bytes stay immutable rejection controls; current raw fixtures are explicit constructors.
 macro_rules! reviewed_fixture_current {
     ($name:literal) => {{
         let historical = include_bytes!(concat!("../tests/forward_call_wire_fixtures/", $name));
@@ -1002,7 +1002,7 @@ macro_rules! reviewed_fixture_current {
         let v39 = include_bytes!(concat!("../tests/forward_call_wire_fixtures/v39/", $name));
         let errors = zil_ir::wire::decode_module_candidate(v39, &Limits::default()).unwrap_err();
         assert_eq!(errors[0].code, "E-WIRE-VERSION");
-        schema40_fixture::migrate(
+        current_raw_fixtures::rebuild(
             include_bytes!(concat!("../tests/forward_call_wire_fixtures/v40/", $name)),
             &Limits::default(),
         )
@@ -1011,7 +1011,7 @@ macro_rules! reviewed_fixture_current {
 
 #[test]
 fn reviewed_capture_bodies_are_window_roots_with_and_without_consumer_edges() {
-    // Structured Wire40 migrations of the frozen Wire32 counterexamples and controls;
+    // Current raw reconstructions of the frozen counterexamples and controls;
     // the producer candidate in each file grants no authority.
     for (valid, bytes) in [
         (
@@ -1037,7 +1037,15 @@ fn reviewed_capture_bodies_are_window_roots_with_and_without_consumer_edges() {
         if valid {
             accepted(&module);
         } else {
-            rejected(&module);
+            let errors = analyze(&module, &Limits::default()).unwrap_err();
+            assert!(
+                errors.iter().any(|error| {
+                    error.code == "E-BORROW-CONFLICT"
+                        && error.category == zil_base::ResultCategory::SafeReject
+                        && error.message.contains("live access overlaps")
+                }),
+                "{errors:?}"
+            );
         }
     }
 }

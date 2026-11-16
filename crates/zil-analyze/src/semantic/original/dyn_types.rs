@@ -1334,11 +1334,12 @@ impl Checked {
                         "original Dyn Context omits part of its intrinsic class domain",
                     ));
                 }
+                crate::dyn_metadata::shape(&value.life, b)?;
                 let mut shape = RetainedLifeShape {
                     binder_count: value.life.binder_count,
                     ports: Vec::new(),
-                    retained: value.life.retained,
-                    nominal_arguments: value.life.nominal_arguments,
+                    retained: value.life.retained.clone(),
+                    nominal_arguments: value.life.nominal_arguments.clone(),
                 };
                 for slot in &value.life.slots {
                     let leaf = physical_leaf(&value.ty, &slot.path, b)?;
@@ -1392,7 +1393,7 @@ impl Checked {
                             push_port(
                                 &mut shape.ports,
                                 RetainedBorrowPort {
-                                    leaf: leaf.ty,
+                                    leaf: leaf.into_type(b)?,
                                     mode: *mode,
                                     binder,
                                 },
@@ -1489,14 +1490,14 @@ impl Checked {
                                     "original Dyn Context nominal expansion changes its complete child domain",
                                 ));
                             }
-                            for row in value.life.nominal_arguments {
+                            for row in &value.life.nominal_arguments {
                                 let image = images.get(row.binder as usize).ok_or_else(|| {
                                     fail("original Dyn Context nominal child class is absent")
                                 })?;
                                 let binder = materialize.binder(&domain, image, b)?;
                                 b.spend(path.len().saturating_add(row.path.len()), WORK)?;
                                 let mut full_path = path.clone();
-                                full_path.extend(row.path);
+                                full_path.extend(row.path.iter().cloned());
                                 Solver::push(
                                     &mut shape.nominal_arguments,
                                     NominalLifeArgument {
@@ -1696,7 +1697,12 @@ impl Solver<'_, '_> {
             }
         }
     }
-    fn dyn_domain_covered(&self, ty: &DynType, b: &mut Budget, depth: usize) -> CompileResult<()> {
+    pub(super) fn dyn_domain_covered(
+        &self,
+        ty: &DynType,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
         self.step(depth, b)?;
         let mut available = Vec::new();
         self.dyn_context_domain(&ty.context, &mut available, b, depth + 1)?;
@@ -1727,6 +1733,36 @@ impl Solver<'_, '_> {
             if !found {
                 return Err(fail(
                     "original Dyn Context omits a persistent trait or associated class domain, including phantom actuals",
+                ));
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn dyn_source_covered(
+        &self,
+        ty: &DynType,
+        source: Term,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
+        let mut available = Vec::new();
+        self.dyn_context_domain(&ty.context, &mut available, b, depth + 1)?;
+        let mut required = Vec::new();
+        self.dyn_domain(source, &mut required, b, depth + 1)?;
+        for need in required {
+            let mut found = false;
+            for have in &available {
+                match (need, *have) {
+                    (Domain::Life(a), Domain::Life(z)) | (Domain::Type(a), Domain::Type(z)) => {
+                        found |= self.same_original(a, z, b, depth + 1)?;
+                    }
+                    _ => {}
+                }
+            }
+            if !found {
+                return Err(fail(
+                    "owned Dyn Context omits a complete original Self class, including phantom occurrences",
                 ));
             }
         }
