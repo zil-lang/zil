@@ -10,6 +10,9 @@ pub(super) struct CanonicalDefinitions {
     module: usize,
     limits: (usize, usize),
     proofs: std::collections::BTreeMap<u8, std::collections::BTreeMap<String, usize>>,
+    // These addresses belong only to the retained Arc<Geometry> registry.
+    // A temporary or a newly supplied same-named payload always takes full Eq.
+    equal_payloads: std::collections::BTreeMap<(u8, usize), usize>,
 }
 fn canonical_context(module: &TypedModule, b: &Budget) -> bool {
     let owner = module as *const TypedModule as usize;
@@ -56,6 +59,30 @@ fn canonical_cached(
         .resources
         .get(index)
         .ok_or_else(|| super::bad("canonical Store declaration index leaves its exact module"))?;
+    let address = payload as *const Type as usize;
+    b.lookup(
+        b.geometry_types.len(),
+        "canonical Store immutable payload owner",
+    )?;
+    let retained = b.geometry_types.contains_key(&address);
+    if retained {
+        let width = b
+            .product_store_definitions
+            .as_ref()
+            .unwrap()
+            .equal_payloads
+            .len();
+        b.lookup(width, "canonical Store complete payload equality query")?;
+        if b.product_store_definitions
+            .as_ref()
+            .unwrap()
+            .equal_payloads
+            .get(&(kind, address))
+            == Some(&index)
+        {
+            return Ok(true);
+        }
+    }
     // Full preflight precedes both comparison and reuse. A newly supplied Type
     // is never trusted because its name happens to hit a successful directory.
     crate::dyn_metadata::ty(payload, b)?;
@@ -65,7 +92,25 @@ fn canonical_cached(
         false,
         "canonical Store declaration equality",
     )?;
-    Ok(&definition.payload == payload)
+    let equal = &definition.payload == payload;
+    if equal && retained {
+        let width = b
+            .product_store_definitions
+            .as_ref()
+            .unwrap()
+            .equal_payloads
+            .len();
+        b.lookup(
+            width,
+            "canonical Store complete payload equality publication",
+        )?;
+        b.product_store_definitions
+            .as_mut()
+            .unwrap()
+            .equal_payloads
+            .insert((kind, address), index);
+    }
+    Ok(equal)
 }
 fn remember_canonical(
     module: &TypedModule,
@@ -89,6 +134,7 @@ fn remember_canonical(
             module: owner,
             limits,
             proofs: std::collections::BTreeMap::new(),
+            equal_payloads: std::collections::BTreeMap::new(),
         });
     }
     let width = b

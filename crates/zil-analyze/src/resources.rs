@@ -4312,7 +4312,8 @@ fn analyze_function_program(
     input[f.entry.0 as usize] = Some(initial);
     let mut stack = vec![f.entry.0 as usize];
     let ranks =
-        if budget.pod_stores || (budget.store_option_results && budget.ordinary_error_places) {
+        if budget.pod_stores || (budget.store_option_results && budget.ordinary_error_places)
+            || f.locals.len().saturating_add(f.values.len()) >= 64 && f.blocks.len() > 1 {
             pod_resource_ranks(f, budget)?
         } else {
             Vec::new()
