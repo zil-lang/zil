@@ -22,7 +22,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 ## 通用语言可用性并行收敛
 
-2026-11-16（Asia/Shanghai）继续按完整功能链施工。最新同版候选 `64baba7ac` 的完整工程正向 **9/13**、预期安全负例 **4/4**，独立 Verify 非零；这是源码工程通过数，不代表语言功能完成百分比，Alpha仍未接受。已通过标量、模式、泛型库、闭包、动态分派、异步入口、线程、外部生命周期和流处理工程；所有权、拥有集合、缓冲I/O、迭代仍待闭合。`a01ab1db1` 同版CT原套31/31、新原定义四对照×四后端优化配置通过；流处理40次ZIL与20次独立Rust对照、动态分派三组含分配失败和线程Source/raw/Wire/native通过。更广Task创建者头和普通应用默认Source预算仍失败。三核心库IR102/Expand160/Types84通过；Analyze286/13失败、Verify717/44失败正在核旧fixture与实际安全义务，不能忽略。源码CLI独立工程四并发，原生目标按package/features一次编译后四并发执行；一个不可变候选与重Rust构建窗口，独立阅读、实现、备份和运行并行。详见[Alpha执行记录](records/language-alpha-execution.json)。
+2026-11-16（Asia/Shanghai）继续按完整功能链施工。最新完整候选 `e17bdb789` 正向 **7/13**、预期安全负例 **4/4**；此前 `04ca91fee` 为10/13，新验证输入桥带来三个旧工程回归，修正 `cf616dd47` 已保存待同版核验，Alpha仍未接受。所有权已过默认分析预算，现修Source泛型字段调用作用域丢失导致错误Suspend；拥有集合及迭代仍有实际域/预算问题。额外12原Source首次2个通过独立Verify，原双地址闭包四后端优化配置正常运行；原活字节视图控制四配置均正确在空视图索引处bounds trap，全部无后端fallback。Astra将原应用2.02M实际热点定位为身份、名字及recipe目录重复查询，完整优化已保存待验。原CT31/31、流项目40次ZIL/20次Rust、三组动态分派及线程既有证据保留各自精确版本；不能拼成当前Alpha。最新组件423862为IR103/0、Expand168/0、Types96/0、Analyze292/7、Verify752/34；新候选单元测试机械类型错已修待验。独立读写和源码/原生消费者四并发，一个不可变候选和重Rust构建窗口。详见[执行记录](records/language-alpha-execution.json)及[整链修复经验](records/language-alpha-chain-lessons-20261116.md)。
 
 2026-11-15（Asia/Shanghai）用户要求停止施工并由 root 本人审核，不使用子代理审查。全部实施与审查代理及构建已停止；最新完整候选243c05a73仍正向1/13、预期负例4/4，Alpha未接受。源码fd028ceb3与全部活动WIP已同步/固定归档90d7881b并读回校验。具体算法不一致、完整消费者遗漏、调度问题及已更新执行约束见[亲自审核](records/language-alpha-personal-workflow-audit-20261115.md)；仅文档与现场保全，不自动恢复施工。
 

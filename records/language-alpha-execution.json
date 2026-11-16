@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-16T01:25:36.355741+00:00",
+  "updated_at_utc": "2026-11-16T02:28:49.341595+00:00",
   "user_requirement": "Complete Alpha delivery covering all foundational language gaps; one-hour goal is not a stop condition. Continue until complete. No shortcuts or false acceptance.",
   "one_hour_window": {
     "start_utc": "2026-11-14T07:06:00Z",
@@ -14,8 +14,8 @@
     "acceptance": "Partial exact-scope successes; Task and ordinary application fail; NOT ACCEPTED"
   },
   "active_branch": "task/language-alpha",
-  "latest_ready_source": "873fa15d0e72baa8bad62d1775d15859cfd69602",
-  "current_candidate_under_validation": "873fa15d0e72baa8bad62d1775d15859cfd69602",
+  "latest_ready_source": "cf616dd47d84a949416138373acf81e0e743d936",
+  "current_candidate_under_validation": "e17bdb789832e638ddadb378eca9a25b5cf003cc",
   "wip_backup": {
     "archive_commit": "ef484badb5b7df79aa414e7a5d24267755df5cb4",
     "previous_archive": "2cd99f4b2d88a9df818a742bd464d2a61a115f88",
@@ -227,12 +227,12 @@
     ]
   },
   "latest_actual_checkpoint": {
-    "candidate": "04ca91feefe902cc21f16008c34ed32f33a7e8be",
-    "source_positive_passed": 10,
+    "candidate": "e17bdb789832e638ddadb378eca9a25b5cf003cc",
+    "source_positive_passed": 7,
     "source_positive_total": 13,
     "expected_negatives_passed": 4,
     "buffered_io_native": "Pass; original short_io.zil/C, both backends O0/O2, default Rust thread stack and failure/close assertions retained",
-    "source_application": "Complete original Source and all 62 Types worlds finished within defaults; now Analyze receiver/provider ordering failure",
+    "source_application": "Source/Types complete; Analyze work limit in original definition identity/name/recipe scans. 2.02M actual hot work localized by Astra; complete directory batch319a33958 saved, pending validation",
     "actual_borrowed_iterator": "Types complete; Analyze original implicit/formal role correspondence failure",
     "remaining_foundation": [
       "ownership: Analyze Enum resource query budget",
@@ -240,12 +240,16 @@
       "iteration: Verify default work budget"
     ],
     "extra_original_sources": {
-      "candidate": "517c6e74fa204b1df30121223dc9a2c152f1c125",
-      "generated": 2,
+      "candidate": "e17bdb789832e638ddadb378eca9a25b5cf003cc",
+      "success_through_independent_verify": 2,
       "total": 12,
-      "scope": "Untrusted Source/Types/Analyze and current Wire round trip only; independent verification and native acceptance separate"
+      "successful_cases": [
+        "two-addresses",
+        "loan_control"
+      ],
+      "native": "8/8 exact original source builds/executions across both requested backends O0/O2, no fallback, Verify1 each. two-addresses exits0; loan_control indexes an empty byte view and correctly SIGILL bounds-traps in all four configurations."
     },
-    "core_units": "80cdc507e: IR103/0 Expand168/0 Types93/0 Analyze290/9 Verify737/41; later two unit-only coordinate/import compile errors fixed; latest units pending",
+    "core_units": "423862e30 IR103/0 Expand168/0 Types96/0 Analyze292/7 Verify752/34. e17 unit-only FrameToken literal compile error fixed in cf616; no stale executable reused.",
     "github_crates_recovery": {
       "commit": "8499073b22c02d1f0ada75ee69aa108a2341f675",
       "source_head": "a2ada45b41b602081ad1028b8a81bd8a5258cc33",
@@ -253,7 +257,17 @@
       "sha256": "dd23309b0ea50bd20102a1d7c803982656fee49696d9b5b28d377ccc50246b8f",
       "readback_equal": true
     },
-    "publication_limitation": "Expanded tests/tools/Cargo.lock archive and goal publication rejected by automatic approval review; retained locally. Formal task/language-alpha remote ref is not current."
+    "publication_limitation": "Expanded tests/tools/Cargo.lock archive and goal publication rejected by automatic approval review; retained locally. Formal task/language-alpha remote ref is not current.",
+    "regression": "Three previously passing original projects rejected by an overbroad verifier call-argument equality bridge; scoped fix cf616dd47 saved, awaiting validation",
+    "ownership": "Complete module Analyze now passes its default work bound; task interface rejects Source inference incorrectly marking a generic field call Suspend. Source exact scoped nominal application fix underway; do not remove ABI guard",
+    "new_github_recovery_pending": {
+      "source_head": "cf616dd47d84a949416138373acf81e0e743d936",
+      "sha256": "b5411b9eb59eeda23992a86bc0cfa24a3fc08f0c565f3f85b8497cfaf6901492"
+    }
   },
-  "chain_lessons": "records/language-alpha-chain-lessons-20261116.md"
+  "chain_lessons": "records/language-alpha-chain-lessons-20261116.md",
+  "interface_status_question": {
+    "pending_user_input_required": false,
+    "ui_banner": "Possibly stale async approval; available tools have no cancellation interface, and list_threads read failed. Cannot confirm UI root cause. Implementation is running."
+  }
 }
