@@ -17,7 +17,7 @@ impl CheckedContext {
         let claims=match &site.action{SemanticSiteAction::BodyCall{actuals}=>actuals,SemanticSiteAction::Call{target:SemanticFunctionTarget::Typed(id),actuals}if *id==callee=>actuals,_=>return Err(bad("actual member Call has another source emission role"))};
         if claims.len()!=actuals.len(){return Err(bad("actual member call omits its full mixed method actuals"));}
         for(expected,claim)in actuals.iter().zip(claims){self.member_actual_claim(module,expected,claim,environment,b)?;}
-        self.call_worlds(module,callee,receipt.body,&receipt.environment,environment,active,b)?;
+        let worlds=self.call_worlds(module,callee,receipt.body,&receipt.environment,environment,active,b)?;
         b.spend(receipt.actual_signature.parameters.len().saturating_add(receipt.actual_signature.bound.len()).saturating_add(receipt.actual_signature.invocation.len()).saturating_add(1))?;
         for(value,_)in &receipt.actual_signature.parameters{value.charge_clone(b)?;}receipt.actual_signature.result.charge_clone(b)?;
         for key in receipt.actual_signature.bound.iter().chain(&receipt.actual_signature.invocation){if let ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=key{b.spend(path.len())?;}}
@@ -34,7 +34,9 @@ impl CheckedContext {
         // These are signatures and original identity only. All actual function
         // CFG/loans/cleanup and the pending universal relation must still pass;
         // raw trait/body contract uppers have supplied no permission here.
-        Ok(if signature.result.ty==Type::Unit{None}else{Some(signature.result.clone())})
+        b.spend(worlds.len())?;
+        self.record_static_member(module,caller,site,function,receipt,worlds.into_iter().map(|world|world.instance).collect(),b)?;
+        Ok(if signature.result.ty==Type::Unit{None}else{Some(signature.result)})
     }
     fn member_actual_claim(&self,module:&TypedModule,expected:&CheckedActual,claim:&SemanticActual,environment:&EvalEnv,b:&mut Budget)->Check<()>{
         let equal=match(expected,claim){(CheckedActual::Type(expected),SemanticActual::Type(claim))=>{self.claim(module,claim,expected,environment,b)?;true},(CheckedActual::Const{carrier,value},SemanticActual::Const{ty,value:actual})=>{self.claim(module,ty,carrier,environment,b)?;value==actual},(CheckedActual::Life(expected),SemanticActual::Life(actual))=>self.same(environment,expected,&self.class(module,actual,environment,b)?,b)?,_=>false};

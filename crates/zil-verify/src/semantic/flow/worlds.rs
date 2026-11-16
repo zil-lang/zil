@@ -5,6 +5,7 @@
 use super::*;
 
 pub(super) struct CallWorld {
+    pub(super) instance:SemanticInstanceId,
     environment: EvalEnv,
     boundary: trait_members::Boundary,
 }
@@ -49,7 +50,7 @@ impl CheckedContext {
                 if let(Some(a),Some(z))=(&a.self_type,&z.self_type){boundary.value(self,caller,a,z,b)?;}
             }
             b.spend(1)?;
-            matched.push(CallWorld{environment:actual,boundary});
+            matched.push(CallWorld{instance:instance.id,environment:actual,boundary});
         }
         if matched.is_empty(){return Err(bad("actual Call has no complete source instance in its exact lexical world"));}
         Ok(matched)

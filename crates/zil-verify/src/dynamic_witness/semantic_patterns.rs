@@ -16,6 +16,16 @@ impl Session {
     }
 }
 
+/// Only the completed exact-module semantic session exposes ordinary member
+/// execution. This proves no vtable contract, source envelope or permission.
+pub(crate) fn checked_static_specialization(module:&TypedModule,function:&TypedFunction,b:&mut Budget)->Check<bool>{
+    if module.semantic.is_none(){return Ok(false);}
+    b.spend(1)?;
+    let Some(session)=b.semantic_checked.clone()else{return Ok(false);};
+    if session.module!=module as *const TypedModule as usize{return Ok(false);}
+    session.context.checked_static_specialization(module,function,b)
+}
+
 /// Static source correspondence is recomputed against the immutable actual
 /// body. No cached W result or source class can activate an assignment loan.
 pub(crate) fn assignment_writes(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->Check<Vec<ValueId>> {

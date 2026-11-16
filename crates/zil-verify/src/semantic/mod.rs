@@ -22,6 +22,7 @@ pub(crate) use nominal_origins::charge_origin as charge_intrinsic_origin;
 mod closures;
 mod opaque;
 mod method_obligations;
+mod static_members;
 pub(crate) mod callable_obligations;
 pub(crate) mod task_domains;
 mod catalogue;
@@ -58,6 +59,7 @@ pub(crate) struct CheckedContext {
     premises: RefCell<BTreeMap<ScopeKey, Premises>>,
     premises_epoch:Cell<u64>,
     static_identity:std::rc::Rc<()>,
+    static_members:RefCell<Vec<static_members::StaticMember>>,
     closed_frames:RefCell<BTreeMap<(usize,SemanticInstanceId,u64,bool,bool),instances::ClosedFrames>>,
     occurrences: RefCell<BTreeMap<(ScopeKey, OperandKey), CheckedType>>,
     seals: RefCell<BTreeMap<SemanticInstanceId, Vec<CheckedActual>>>,
