@@ -1015,8 +1015,15 @@ pub(super) fn task_helpers(
             let Some(ownership) = verified.task_ownership(*id) else {
                 continue;
             };
-            for owner in ownership.owners() {
-                let ty = owner.ty();
+            // Result debt has its own canonical frame slot, just like each
+            // local/value owner. Its cleanup address must be emitted even if
+            // the result never appears among the function's input debts.
+            for ty in ownership
+                .owners()
+                .iter()
+                .map(|owner| owner.ty())
+                .chain(ownership.result_type())
+            {
                 budget.tree(ty, 0)?;
                 if !matches!(ty, Type::Package { .. }) || new_shape(ty) {
                     continue;
