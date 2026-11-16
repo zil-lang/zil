@@ -32,7 +32,10 @@ fn consuming_call_requires_closed_remaining_captures_before_delivering_its_resul
         || (d.phase == zil_base::Phase::Types && d.code == "E-ORIGINAL-CLEANUP"
             && d.message.contains("live original Task default Drop cleanup")
             && d.message.contains("Closed fact")
-            && d.notes.iter().any(|note| note.contains("original consuming entry remaining capture")))),
+            && d.notes.iter().any(|note| note.contains("original consuming entry remaining capture")))
+        || (d.phase == zil_base::Phase::Types && d.category == ResultCategory::SafeReject
+            && d.code == "E-ORIGINAL-CLEANUP"
+            && d.message == "consuming call has remaining environment cleanup without a synchronous proof or a Suspend execution root")),
         "{}", rejected.to_json());
 }
 
