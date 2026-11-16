@@ -32,3 +32,5 @@ Astra按当前源码复核完整imports、碰撞、call-free、模型扩张和�
 现一次贯通真正planner receipt key→PartitionProduct/四槽历史→CodegenSummary→native inventory/retained inventory/ELF/汇总；不再从缓存目录猜layout。实际class域缺key/缺真实producer保守拒绝，原完整layout/closure/ABI/O2/运行门保持。真实Source回归含多次私改、分区及最终文件命中、删除产物后的恢复；本新整链尚待统一验收及新性能窗口。
 
 初始8窗与所有首败、旧编译器和已过门的完整raw已fresh验证85,083files、4,411,100,174raw bytes、1,204,793,250archive bytes，位于evidence/stable-class-initial-progress-20261116；这不是新key源码的性能验收。SDK18/native-link沿原恢复入口，不重建LLVM。
+
+最终305冻结与formal04均已完成：backend314/publication2/tool22/strict/fmt/release通过；498请求/166功能格/61运行质量通过，48main限额行保留。原生1k/5.1k完整流程与check5k本窗领先，但5.1k八私改及真实restart+firstedit仍落后，全面门不关闭。实际layoutkey解决DCE历史歧义；全源/原费用/独立Verify/O2不减，精确当前数字、逐区块负结果和全量恢复见report/results/stages/current-acceptance/RESTORE。

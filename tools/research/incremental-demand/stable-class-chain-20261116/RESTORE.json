@@ -1,0 +1,35 @@
+{
+  "source": "305175a125240f5dd7ae4d935352047d43992723",
+  "core_restore": "../evidence/stable-class-performance-core-20261116/RESTORE.json",
+  "formal_archives": [
+    {
+      "name": "native",
+      "archive": "tools/research/incremental-demand/evidence/stable-class-performance-native-20261116",
+      "files": 235554,
+      "raw_bytes": 4006836235,
+      "archive_bytes": 855914759,
+      "sha256": "357e62ef6d5b716d9ada7812f60d3010ecb93da085dd2ee210fceb419f9d5959",
+      "fresh_receipt": "tools/research/incremental-demand/evidence/stable-class-performance-native-20261116/fresh-recovery-receipt.json"
+    },
+    {
+      "name": "retain",
+      "archive": "tools/research/incremental-demand/evidence/stable-class-performance-retain-20261116",
+      "files": 48566,
+      "raw_bytes": 1310617998,
+      "archive_bytes": 308884031,
+      "sha256": "f5f5422826cfd25d68041fe6a608ac33d6ddb7b7a3fc35de95060a285ad2b9fd",
+      "fresh_receipt": "tools/research/incremental-demand/evidence/stable-class-performance-retain-20261116/fresh-recovery-receipt.json"
+    },
+    {
+      "name": "check-5000-wide",
+      "archive": "tools/research/incremental-demand/evidence/stable-class-performance-check-5000-wide-20261116",
+      "files": 3370,
+      "raw_bytes": 894047376,
+      "archive_bytes": 250084209,
+      "sha256": "d3760279f0403bf24bb6caa2317fdcd656bdb28c893cb28910635c21b9e311ea",
+      "fresh_receipt": "tools/research/incremental-demand/evidence/stable-class-performance-check-5000-wide-20261116/fresh-recovery-receipt.json"
+    }
+  ],
+  "initial_progress": "https://github.com/zil-lang/zil/blob/305175a125240f5dd7ae4d935352047d43992723/tools/research/incremental-demand/evidence/stable-class-initial-progress-20261116/RESTORE.json",
+  "rule": "Read from the same immutable finaldelivery commit; core has exact used binaries/DSOs/native-link, initialprogress is separate fixed305 dependency. Freshfullverify receipts are companions outside archivepayload."
+}
