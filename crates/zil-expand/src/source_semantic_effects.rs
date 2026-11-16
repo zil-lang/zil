@@ -1796,7 +1796,7 @@ pub(super) fn observe_call_prototypes(
     }
     budget.identity_work(order.len().saturating_mul(order.len().saturating_add(1).ilog2() as usize + 1), span)?;
     order.sort_unstable();
-    let mut captures = Vec::new();
+    let mut captures: Vec<(usize, Vec<(&str, Target)>)> = Vec::new();
     let mut applications = Vec::new();
     let mut store_elements = Vec::new();
     let mut prototypes = Vec::new();
