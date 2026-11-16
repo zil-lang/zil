@@ -123,3 +123,19 @@ python3 tools/research/native-api-validation/validate.py --repo . --cli target/r
 - LLVM前后结构核验、对象生成和链接均可失败，任何失败都停止发布。
 - 显式可信本地对象缓存；稳定符号/匿名项身份、按项查询、ThinLTO仍属于后续专项。
 - 新性能结果仅适用于冻结场景、工具链和资源；没有完成产品级性能门、非作者独立审核或远端CI。
+
+## 有界编译工作配置
+
+`check`、`build`、`run`、`test`以及显式resident会话可用`--work-profile standard|alpha`。
+默认`standard`保留10,000,000步工作配额；显式`alpha`选择冻结的`alpha-25m-v1`，
+仅将`max_analysis_steps`设为25,000,000，其余所有`Limits`不变，CT执行步数仍为1,000,000。
+例如`zil check tests/integers/complete-domains.zil --work-profile alpha --json`，
+或`zil check app --resident --work-profile alpha --json`后逐行发送`compile`、`quit`。
+重复或未知配置是命令行用法错误；耗尽配额仍返回`ResourceLimit`，不自动提高配额或重试。
+SDK的`CompileOptions::default()`与`zil_base::Limits::default()`仍使用标准10M配额。
+
+JSON编译报告（包括`run.compile`、测试汇总及每个测试、resident的`report`）追加
+`work_profile`、`work_profile_revision`及全部`effective_limits`，供结果复现和配额比较。
+配额是软件资源策略，不是安全定理或功能修复；缓存、resident及较高配额均不省略当前独立Verify。
+完整冻结值和独立校验要求见[资源配置](../../validation/language-alpha-resource-profile.json)。
+选择该配置不代表语言Alpha已经完成验收。

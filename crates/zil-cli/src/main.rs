@@ -1,11 +1,13 @@
 #![forbid(unsafe_code)]
 mod qc;
 mod resident;
+mod work_profile;
 use std::env;
 use std::path::PathBuf;
 use std::process::{Command, ExitCode, Stdio};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use work_profile::WorkProfile;
 use zil_base::{Diagnostic, Phase, ResultCategory, TargetProfile, json_string};
 use zil_driver::{
     CancellationToken, CompileOptions, CompileReport, ExecutionProfile, FunctionMerging,
@@ -20,7 +22,7 @@ const DEFAULT_BACKEND: NativeBackend = if cfg!(feature = "llvm-api") {
     NativeBackend::Clang
 };
 
-const HELP: &str = "ZIL 0.1.0 — compiler draft\n\nUsage:\n  zil check FILE [--stop-after parse|core|types|analyze|verify] [--json]\n  zil build FILE [-o OUTPUT] [--entry NAME] [--emit-dir DIR] [--json]\n  zil run FILE [--entry NAME] [--emit-dir DIR] [--json]\n  zil test [PROJECT] [--test-timeout-ms N] [--json]\n  zil lock [PROJECT]\n  zil qc [--tool PATH] COMMAND [OPTIONS]\n  zil version\n\nOptions:\n  --resident               Explicit JSON stdio session for check/build; compile/clear/stats/quit\n  --resident-capacity N    Raw query entries, 8..256 (default: 32; not a byte bound)\n  --resident-reset-after N Drop all retained state every N requests, 1..4096 (default: 64)\n  --cache-dir DIR           Store unverified source candidates\n  --semantic-cache DIR      Trusted local raw semantic candidates; current Verify required\n  --syntax-lock PATH        Read a locked syntax-provider registry\n  --object-cache DIR        Trusted local LLVM API object cache (opt-in)\n  --backend clang|llvm-api  Object generation strategy (standard build: llvm-api)\n  --clang PATH              LLVM clang executable (default: ZIL_CLANG or clang)\n  --emit-dir DIR            Write actual phase artifacts\n  --target native|win64     Select the checked target ABI\n  --windows-lib PATH        Explicit Win64 import archive (repeatable)\n  --linker PATH             Win64 lld-link executable\n  --closed-executable      Linux build: generated ZIL symbols have no export contract\n  --incremental-o2         O2 build: bounded complete imports or ordinary multi-unit fallback\n  --function-merging MODE   O2 build: off|after|before-and-after (default: off)\n  --opt O0|O2               Native LLVM optimization level\n  --codegen-units N         Maximum native units, 1..64 (default: 1)\n  --codegen-jobs N          Concurrent native compiles, 1..64 (default: 1)\n  --compile-timeout-ms N    Cooperative deadline checked between compiler phases\n  --test-timeout-ms N       Per-test native execution deadline (default: 5000)\n  --profile native|managed  Managed is explicitly Unsupported\n\nNative run requires an explicit main; it adds no implicit module execution or GC.\nUnsupported language features return Unsupported; they are never silently accepted.\n";
+const HELP: &str = "ZIL 0.1.0 — compiler draft\n\nUsage:\n  zil check FILE [--stop-after parse|core|types|analyze|verify] [--json]\n  zil build FILE [-o OUTPUT] [--entry NAME] [--emit-dir DIR] [--json]\n  zil run FILE [--entry NAME] [--emit-dir DIR] [--json]\n  zil test [PROJECT] [--test-timeout-ms N] [--json]\n  zil lock [PROJECT]\n  zil qc [--tool PATH] COMMAND [OPTIONS]\n  zil version\n\nOptions:\n  --resident               Explicit JSON stdio session for check/build; compile/clear/stats/quit\n  --resident-capacity N    Raw query entries, 8..256 (default: 32; not a byte bound)\n  --resident-reset-after N Drop all retained state every N requests, 1..4096 (default: 64)\n  --cache-dir DIR           Store unverified source candidates\n  --semantic-cache DIR      Trusted local raw semantic candidates; current Verify required\n  --syntax-lock PATH        Read a locked syntax-provider registry\n  --object-cache DIR        Trusted local LLVM API object cache (opt-in)\n  --backend clang|llvm-api  Object generation strategy (standard build: llvm-api)\n  --clang PATH              LLVM clang executable (default: ZIL_CLANG or clang)\n  --emit-dir DIR            Write actual phase artifacts\n  --target native|win64     Select the checked target ABI\n  --windows-lib PATH        Explicit Win64 import archive (repeatable)\n  --linker PATH             Win64 lld-link executable\n  --closed-executable      Linux build: generated ZIL symbols have no export contract\n  --incremental-o2         O2 build: bounded complete imports or ordinary multi-unit fallback\n  --function-merging MODE   O2 build: off|after|before-and-after (default: off)\n  --opt O0|O2               Native LLVM optimization level\n  --codegen-units N         Maximum native units, 1..64 (default: 1)\n  --codegen-jobs N          Concurrent native compiles, 1..64 (default: 1)\n  --compile-timeout-ms N    Cooperative deadline checked between compiler phases\n  --test-timeout-ms N       Per-test native execution deadline (default: 5000)\n  --profile native|managed  Managed is explicitly Unsupported\n  --work-profile standard|alpha  Bounded compiler work quota (default: standard)\n\nNative run requires an explicit main; it adds no implicit module execution or GC.\nUnsupported language features return Unsupported; they are never silently accepted.\n";
 fn usage(message: &str, json: bool) -> ExitCode {
     let diagnostic = Diagnostic::error(Phase::Driver, "E-CLI-ARGUMENT", None, message);
     if json {
@@ -78,7 +80,12 @@ fn main() -> ExitCode {
                 println!("{}", path.display());
                 ExitCode::SUCCESS
             }
-            Err(errors) => project_errors(&errors, json),
+            Err(errors) => project_errors(
+                &errors,
+                json,
+                WorkProfile::Standard,
+                &CompileOptions::default().limits,
+            ),
         };
     }
     let mut options = CompileOptions {
@@ -90,6 +97,8 @@ fn main() -> ExitCode {
         },
         ..CompileOptions::default()
     };
+    let mut work_profile = WorkProfile::default();
+    let mut work_profile_seen = false;
     let mut resident_mode = false;
     let mut resident_config = resident::Config::default();
     let mut resident_tuned = false;
@@ -99,6 +108,21 @@ fn main() -> ExitCode {
     while index < args.len() {
         match args[index].as_str() {
             "--json" => {}
+            "--work-profile" => {
+                if work_profile_seen {
+                    return usage("--work-profile may be specified only once", json);
+                }
+                work_profile_seen = true;
+                index += 1;
+                let Some(value) = args.get(index) else {
+                    return usage("--work-profile requires standard or alpha", json);
+                };
+                let Some(selected) = WorkProfile::parse(value) else {
+                    return usage("unknown work profile; expected standard or alpha", json);
+                };
+                work_profile = selected;
+                work_profile.apply(&mut options.limits);
+            }
             "--resident" => resident_mode = true,
             "--resident-capacity" | "--resident-reset-after" => {
                 let flag = args[index].as_str();
@@ -319,6 +343,7 @@ fn main() -> ExitCode {
         None => return usage("input file is required", json),
     };
     if resident_mode {
+        resident_config.work_profile = work_profile;
         return resident::run(&input, &options, resident_config);
     }
     let input = if action == "test"
@@ -327,10 +352,10 @@ fn main() -> ExitCode {
     {
         let manifest = match ProjectManifest::open(&input, &options.limits) {
             Ok(manifest) => manifest,
-            Err(errors) => return project_errors(&errors, json),
+            Err(errors) => return project_errors(&errors, json, work_profile, &options.limits),
         };
         if let Err(errors) = manifest.check_lock() {
-            return project_errors(&errors, json);
+            return project_errors(&errors, json, work_profile, &options.limits);
         }
         options.build_inputs = manifest.fingerprint;
         let entry = manifest.entry.clone();
@@ -349,7 +374,7 @@ fn main() -> ExitCode {
         if options.target.triple != TargetProfile::host_llvm().triple {
             return usage("zil test requires native target", json);
         }
-        return run_tests(&input, &options, test_timeout, json);
+        return run_tests(&input, &options, work_profile, test_timeout, json);
     }
     let _temporary = if action == "run" && options.output.is_none() {
         let nonce = SystemTime::now()
@@ -372,7 +397,7 @@ fn main() -> ExitCode {
     let report = compile_path(&input, &options);
     if report.status != ResultCategory::Success {
         if json {
-            println!("{}", report.to_json());
+            println!("{}", work_profile.report_json(&report, &options.limits));
         } else {
             for diagnostic in &report.diagnostics {
                 if let Some(path) = diagnostic
@@ -394,10 +419,10 @@ fn main() -> ExitCode {
         });
     }
     if action == "run" {
-        return run_native(&report, json);
+        return run_native(&report, json, work_profile, &options.limits);
     }
     if json {
-        println!("{}", report.to_json());
+        println!("{}", work_profile.report_json(&report, &options.limits));
     } else if let Some(path) = report.artifacts.get("executable") {
         println!("{}", path.display());
     } else {
@@ -405,13 +430,23 @@ fn main() -> ExitCode {
     }
     ExitCode::SUCCESS
 }
-fn run_native(report: &CompileReport, json: bool) -> ExitCode {
+fn run_native(
+    report: &CompileReport,
+    json: bool,
+    work_profile: WorkProfile,
+    limits: &zil_base::Limits,
+) -> ExitCode {
+    let compile_json = if json {
+        work_profile.report_json(report, limits)
+    } else {
+        String::new()
+    };
     let Some(path) = report.artifacts.get("executable") else {
         return runtime_infrastructure(
             "E-RUN-ARTIFACT",
             "successful build omitted executable",
             json,
-            Some(report),
+            Some(&compile_json),
         );
     };
     let status = if json {
@@ -422,14 +457,14 @@ fn run_native(report: &CompileReport, json: bool) -> ExitCode {
                     "E-RUN-EXEC",
                     &error.to_string(),
                     true,
-                    Some(report),
+                    Some(&compile_json),
                 );
             }
         };
         let signal = signal(&output.status);
         println!(
             "{{\"compile\":{},\"run\":{{\"exit_code\":{},\"signal\":{},\"stdout\":{},\"stderr\":{}}}}}",
-            report.to_json(),
+            compile_json,
             output
                 .status
                 .code()
@@ -447,7 +482,7 @@ fn run_native(report: &CompileReport, json: bool) -> ExitCode {
                     "E-RUN-EXEC",
                     &error.to_string(),
                     false,
-                    Some(report),
+                    Some(&compile_json),
                 );
             }
         }
@@ -473,7 +508,7 @@ fn runtime_infrastructure(
     code: &str,
     message: &str,
     json: bool,
-    compile: Option<&CompileReport>,
+    compile: Option<&str>,
 ) -> ExitCode {
     let diagnostic = Diagnostic::new(Phase::Run, ResultCategory::InfraError, code, message, None);
     if json {
@@ -482,7 +517,7 @@ fn runtime_infrastructure(
             diagnostic.to_json()
         );
         if let Some(compile) = compile {
-            println!("{{\"compile\":{},\"run\":{result}}}", compile.to_json());
+            println!("{{\"compile\":{compile},\"run\":{result}}}");
         } else {
             println!("{result}");
         }
@@ -498,19 +533,30 @@ impl Drop for RunDirectory {
     }
 }
 
-fn project_errors(errors: &[Diagnostic], json: bool) -> ExitCode {
+fn project_errors(
+    errors: &[Diagnostic],
+    json: bool,
+    work_profile: WorkProfile,
+    limits: &zil_base::Limits,
+) -> ExitCode {
     let status = errors
         .first()
         .map_or(ResultCategory::SafeReject, |error| error.category);
     if json {
         println!(
-            "{{\"status\":{},\"phase\":\"driver\",\"diagnostics\":[{}]}}",
-            json_string(status.as_str()),
-            errors
-                .iter()
-                .map(Diagnostic::to_json)
-                .collect::<Vec<_>>()
-                .join(",")
+            "{}",
+            work_profile.annotate_json(
+                &format!(
+                    "{{\"status\":{},\"phase\":\"driver\",\"diagnostics\":[{}]}}",
+                    json_string(status.as_str()),
+                    errors
+                        .iter()
+                        .map(Diagnostic::to_json)
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ),
+                limits
+            )
         );
     } else {
         for error in errors {
@@ -529,6 +575,7 @@ fn project_errors(errors: &[Diagnostic], json: bool) -> ExitCode {
 fn run_tests(
     root: &std::path::Path,
     options: &CompileOptions,
+    work_profile: WorkProfile,
     timeout: Duration,
     json: bool,
 ) -> ExitCode {
@@ -541,7 +588,7 @@ fn run_tests(
     for source in &sources {
         match discover_tests(source, options) {
             Ok(names) => cases.extend(names.into_iter().map(|name| (source.clone(), name))),
-            Err(errors) => return project_errors(&errors, json),
+            Err(errors) => return project_errors(&errors, json, work_profile, &options.limits),
         }
     }
     if cases.is_empty() {
@@ -553,6 +600,8 @@ fn run_tests(
                 "no #[test] functions selected",
             )],
             json,
+            work_profile,
+            &options.limits,
         );
     }
     let nonce = SystemTime::now()
@@ -642,7 +691,7 @@ fn run_tests(
                 source.display()
             );
         }
-        results.push(format!(
+        results.push(work_profile.annotate_json(&format!(
             "{{\"source\":{},\"name\":{},\"outcome\":{},\"compile_status\":{},\"verification_runs\":{},\"diagnostics\":[{}]}}",
             json_string(&source.to_string_lossy()),
             json_string(name),
@@ -650,18 +699,24 @@ fn run_tests(
             json_string(report.status.as_str()),
             report.verification_runs,
             report.diagnostics.iter().map(Diagnostic::to_json).collect::<Vec<_>>().join(",")
-        ));
+        ), &selected.limits));
     }
     if json {
         println!(
-            "{{\"status\":{},\"passed\":{passed},\"total\":{},\"tests\":[{}]}}",
-            json_string(if passed == cases.len() {
-                "Pass"
-            } else {
-                "Fail"
-            }),
-            cases.len(),
-            results.join(",")
+            "{}",
+            work_profile.annotate_json(
+                &format!(
+                    "{{\"status\":{},\"passed\":{passed},\"total\":{},\"tests\":[{}]}}",
+                    json_string(if passed == cases.len() {
+                        "Pass"
+                    } else {
+                        "Fail"
+                    }),
+                    cases.len(),
+                    results.join(",")
+                ),
+                &options.limits
+            )
         );
     } else {
         eprintln!("{passed}/{} tests passed", cases.len());
