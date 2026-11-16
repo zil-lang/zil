@@ -756,6 +756,39 @@ pub(super) fn select(
     out.loans.extend(&value.pointer.loans);
     Ok(out)
 }
+
+/// Substitute a checked callee's access or separation requirement. Its own
+/// lock may have grounded this payload in a descriptor input. This result is
+/// used only by conflict checking: it grants no guard, token or returned view.
+pub(super) fn select_call_requirement(
+    callee: &TypedFunction,
+    index: u32,
+    value: &Value,
+    carrier: &[ContractProjection],
+    b: &mut Budget,
+) -> CompileResult<Permission> {
+    fee(b, carrier.len().saturating_add(1))?;
+    let input = input_type(callee, index)?;
+    if !description(input) {
+        if !guard(input, b)? && !guard_head(input, b)? {
+            return Err(failure("Mutex payload call requirement has no actual manager or guard input"));
+        }
+        return select(value, carrier, b);
+    }
+    if !carrier.is_empty() {
+        return Err(failure("Mutex payload call requirement cannot discard its carrier path"));
+    }
+    b.type_work(input, false, "Mutex call requirement complete manager input")?;
+    let manager = &value.store_description;
+    complete(manager, "Mutex payload call requirement has no actual manager source", b)?;
+    for source in &manager.targets {
+        fee(b, target_width(source).saturating_add(1))?;
+        if source.retained_port.is_some() || source.base == HoldRoot::Static {
+            return Err(failure("Mutex payload call requirement changes its actual manager namespace"));
+        }
+    }
+    payload(manager, b)
+}
 #[allow(clippy::too_many_arguments)]
 pub(super) fn transfer(
     module: &TypedModule,

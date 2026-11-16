@@ -3862,6 +3862,19 @@ fn substitute(
     state: &State,
     b: &mut Budget,
 ) -> CompileResult<Permission> {
+    substitute_call_source(source, arguments, values, state, None, b)
+}
+
+// Call requirements describe accesses inside the checked callee. A payload
+// acquired there from a manager parameter is not a returned guard permission.
+fn substitute_call_source(
+    source: &Target,
+    arguments: &[ValueId],
+    values: &[Value],
+    state: &State,
+    requirement: Option<&TypedFunction>,
+    b: &mut Budget,
+) -> CompileResult<Permission> {
     if source.base == HoldRoot::Static {
         if !source.stored.is_empty() || !source.place.is_empty() {
             return Err(failure(
@@ -3901,7 +3914,11 @@ fn substitute(
                         "Mutex payload substitution cannot drop a stored carrier path",
                     ));
                 }
-                mutex::select(value, carrier, b)?
+                if let Some(callee) = requirement {
+                    mutex::select_call_requirement(callee, index, value, carrier, b)?
+                } else {
+                    mutex::select(value, carrier, b)?
+                }
             }
         }
     } else if source.stored.is_empty() {
@@ -7132,7 +7149,7 @@ fn windows(
                         raw_references::call(callee, &summaries[function.0 as usize], arguments, values, &state, b)?;
                         if !summaries[function.0 as usize].head_accesses.is_empty() {
                             for (target, write) in &summaries[function.0 as usize].head_accesses {
-                                let actual = substitute(target, arguments, values, &state, b)?;
+                                let actual = substitute_call_source(target, arguments, values, &state, Some(callee), b)?;
                                 if actual.targets.is_empty() {
                                     return Err(failure(
                                         "callee head effect has no actual caller manager",
@@ -7268,8 +7285,8 @@ fn windows(
                                 }
                                 continue;
                             }
-                            let left = substitute(left, arguments, values, &state, b)?;
-                            let right = substitute(right, arguments, values, &state, b)?;
+                            let left = substitute_call_source(left, arguments, values, &state, Some(callee), b)?;
+                            let right = substitute_call_source(right, arguments, values, &state, Some(callee), b)?;
                             if left.targets.is_empty() || right.targets.is_empty() {
                                 return Err(failure(
                                     "callee separation lacks complete actual slot facts",
