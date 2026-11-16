@@ -98,8 +98,8 @@ mod structural_tests{
         let id=owner.id;
         owner.parameters=(0..2).map(|ordinal|SemanticFormal::Type{requirements:vec![SemanticRequirementRecipe::Structural{ty:SemanticTypeRecipe::Formal(SemanticFormalRef{scope:SemanticScopeRef::Ancestor(0),ordinal}),bound:DynStructuralBound::Value}]}).collect();
         let opaque=SemanticTypeRecipe::Opaque{definition:id,arguments:(0..2).map(|ordinal|SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(SemanticFormalRef{scope:SemanticScopeRef::Ancestor(0),ordinal}))).collect(),hidden:Box::new(SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Result})};
-        let SemanticDefinitionBody::FunctionWithBody{signature,result,..}=&mut owner.body else{unreachable!()};
-        signature.result=opaque.clone();*result=Some(opaque);
+        let SemanticDefinitionBody::FunctionWithBody{signature,..}=&mut owner.body else{unreachable!()};
+        signature.result=opaque;
         // This unused generic original returns its T parameter. U is a real
         // phantom type actual, not permission to erase a borrowed dependency.
         program.definitions.push(owner);
