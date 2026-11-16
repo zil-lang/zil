@@ -4,8 +4,8 @@ use zil_driver::CompileReport;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) enum WorkProfile {
-    #[default]
     Standard,
+    #[default]
     Alpha,
 }
 
@@ -28,14 +28,14 @@ impl WorkProfile {
     fn revision(self) -> &'static str {
         match self {
             Self::Standard => "standard-10m-v1",
-            Self::Alpha => "alpha-25m-v1",
+            Self::Alpha => "alpha-64m-v2",
         }
     }
 
     pub(super) fn apply(self, limits: &mut Limits) {
         limits.max_analysis_steps = match self {
             Self::Standard => 10_000_000,
-            Self::Alpha => 25_000_000,
+            Self::Alpha => 64_000_000,
         };
     }
 
