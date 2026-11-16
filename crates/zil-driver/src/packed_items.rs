@@ -498,8 +498,37 @@ impl Reader {
             cancellation: cancellation.clone(),
         })
     }
+    #[cfg(test)]
     pub(crate) fn logical(&self) -> &[u8] {
         &self.manifest.logical
+    }
+    /// The decoder consumes this request's bounded logical table while the
+    /// same Reader keeps serving its already checked physical item locations.
+    pub(crate) fn take_logical(&mut self) -> Vec<u8> {
+        std::mem::take(&mut self.manifest.logical)
+    }
+    /// Reuse only the locator already parsed by this request. Unlike epoch(),
+    /// this carries no verified file stamps: publication still rechecks packs.
+    /// It does not reread shared manifest chunks or retain their raw buffers.
+    pub(crate) fn hint_epoch(&self) -> Epoch {
+        Epoch {
+            namespace: Some(self.root.clone()),
+            locations: self.manifest.locations.clone(),
+            packs: self
+                .manifest
+                .packs
+                .iter()
+                .map(|(key, length)| {
+                    (
+                        *key,
+                        PackRecord {
+                            length: *length,
+                            stamp: None,
+                        },
+                    )
+                })
+                .collect(),
+        }
     }
     pub(crate) fn load(&mut self, key: Fingerprint) -> Option<Arc<[u8]>> {
         if self.cancellation.is_cancelled() {

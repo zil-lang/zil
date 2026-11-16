@@ -1,4 +1,4 @@
-//! Reuse actual partition items after the CURRENT planner chose their roles.
+//! Reuse actual partition items after their CURRENT layout roles are checked.
 //! This is process-owned data, not a layout decision or a verification receipt.
 use super::{direct_calls, layout};
 use std::collections::{BTreeMap, BTreeSet};
@@ -39,6 +39,27 @@ impl Materialization {
         units: &[Module],
         reused_items: usize,
     ) -> Self {
+        let calls = source
+            .items
+            .iter()
+            .map(|item| {
+                Arc::new(match item {
+                    Item::Function(function) => direct_calls(function),
+                    _ => BTreeSet::new(),
+                })
+            })
+            .collect();
+        Self::with_calls(source, layout, units, reused_items, calls)
+    }
+    /// Calls came from the current layout validator's complete body walk. They
+    /// are raw observed inputs, with the same ownership as this materialization.
+    pub(super) fn with_calls(
+        source: Module,
+        layout: &layout::Layout,
+        units: &[Module],
+        reused_items: usize,
+        calls: Vec<Arc<BTreeSet<String>>>,
+    ) -> Self {
         let inputs = layout
             .units
             .iter()
@@ -66,16 +87,6 @@ impl Materialization {
                     slots,
                     names: import_names(&source, unit),
                 }
-            })
-            .collect();
-        let calls = source
-            .items
-            .iter()
-            .map(|item| {
-                Arc::new(match item {
-                    Item::Function(function) => direct_calls(function),
-                    _ => BTreeSet::new(),
-                })
             })
             .collect();
         Self {

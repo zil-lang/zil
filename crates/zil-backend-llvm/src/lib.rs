@@ -40,6 +40,7 @@ mod machine_closure_linkage;
 #[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
 mod machine_object_patch;
 mod machine_output;
+mod machine_preflight;
 mod machine_scalar;
 mod machine_stable_identity;
 #[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]

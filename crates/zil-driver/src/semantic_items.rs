@@ -88,7 +88,7 @@ struct MemoryPublication {
     segments: Vec<WireSegment>,
 }
 pub(super) struct LoadedPublication {
-    envelope: Vec<u8>,
+    packs: packed::Epoch,
     memory: Option<Arc<MemoryPublication>>,
 }
 #[derive(Default)]
@@ -131,6 +131,7 @@ impl SemanticPublicationSession {
     }
     /// Public digests are not evidence. A producer handle must match the exact
     /// current raw value; reversible transport equality is checked separately.
+    #[cfg(test)]
     pub(crate) fn bind_products(&mut self, products: &[zil_types::FunctionProduct]) {
         self.products = products
             .iter()
@@ -161,12 +162,23 @@ impl SemanticPublicationSession {
         self.function_plan_bindings_compared = prepared.function_plan_bindings_compared;
         self.memory = prepared.memory;
     }
+    #[cfg(test)]
     fn prepare(
         &self,
         typed: &Arc<TypedProgram>,
         candidate: &CandidatePlan,
         limits: &Limits,
         relative_bindings: bool,
+    ) -> Option<(Vec<WireSegment>, FunctionEncodingStats, PreparedPublication)> {
+        self.prepare_with_products(typed, candidate, limits, relative_bindings, None)
+    }
+    fn prepare_with_products(
+        &self,
+        typed: &Arc<TypedProgram>,
+        candidate: &CandidatePlan,
+        limits: &Limits,
+        relative_bindings: bool,
+        products: Option<&[zil_types::FunctionProduct]>,
     ) -> Option<(Vec<WireSegment>, FunctionEncodingStats, PreparedPublication)> {
         // Checkpoints may share raw OnceLock slots. Serialize aggregate cache
         // admission across them; their raw hints never authorize Verify.
@@ -243,7 +255,13 @@ impl SemanticPublicationSession {
             // A canonical transport association remains valid for an exact
             // raw value. Changed values need a real producer handle or a
             // reversible span conversion followed by complete function Eq.
-            let product = self.products.get(&function.id);
+            // Successful MemoryPublication reuse above needs no per-function
+            // product table at all. A rebuild borrows the actual dense current
+            // products only if its normal encoder needs canonical association.
+            let product = products
+                .and_then(|rows| rows.get(function.id.0 as usize))
+                .filter(|product| product.id == function.id)
+                .or_else(|| self.products.get(&function.id));
             let body = if equal_raw && prior.is_some() {
                 prior.cloned()
             } else {
@@ -1000,6 +1018,22 @@ fn assemble(
     limits: &Limits,
     load: &mut dyn FnMut(Fingerprint) -> Option<Vec<u8>>,
 ) -> Option<Vec<u8>> {
+    assemble_buffers(manifest, limits, load)
+}
+
+fn assemble_shared(
+    manifest: &[u8],
+    limits: &Limits,
+    load: &mut dyn FnMut(Fingerprint) -> Option<Arc<[u8]>>,
+) -> Option<Vec<u8>> {
+    assemble_buffers(manifest, limits, load)
+}
+
+fn assemble_buffers<B: AsRef<[u8]>>(
+    manifest: &[u8],
+    limits: &Limits,
+    load: &mut dyn FnMut(Fingerprint) -> Option<B>,
+) -> Option<Vec<u8>> {
     let (total, _count, start) = layout(manifest, limits)?;
     let mut expected = 0usize;
     for row in manifest[MANIFEST_HEADER..start]
@@ -1025,11 +1059,12 @@ fn assemble(
     {
         let fingerprint = Fingerprint(row[..32].try_into().ok()?);
         let length = usize::try_from(u64::from_le_bytes(row[32..40].try_into().ok()?)).ok()?;
-        let segment = load(fingerprint)?;
-        if segment.len() != length || Fingerprint::of(&segment) != fingerprint {
+        let loaded = load(fingerprint)?;
+        let segment = loaded.as_ref();
+        if segment.len() != length || Fingerprint::of(segment) != fingerprint {
             return None;
         }
-        bytes.extend_from_slice(&segment);
+        bytes.extend_from_slice(segment);
     }
     Some(bytes)
 }
@@ -1043,20 +1078,14 @@ impl Store {
         options: &CompileOptions,
     ) -> Option<SemanticPublicationSession> {
         let loaded = self.loaded_publication.borrow_mut().take()?;
-        let epoch = packed::Epoch::hint(
-            &self.root.join("packs-v1"),
-            &loaded.envelope,
-            packed::Bounds {
-                maximum: self.maximum,
-                max_items: maximum_segments(&options.limits)?,
-            },
-            &options.cancellation,
-        )?;
+        if options.cancellation.is_cancelled() {
+            return None;
+        }
         Some(SemanticPublicationSession {
             memory: loaded
                 .memory
                 .filter(|memory| memory.limits == options.limits),
-            semantic_packs: epoch,
+            semantic_packs: loaded.packs,
             ..Default::default()
         })
     }
@@ -1111,15 +1140,15 @@ impl Store {
                 bounds,
                 &options.cancellation,
             )?;
-            let logical = reader.logical().to_vec();
+            let logical = reader.take_logical();
             let mut segments = Vec::new();
-            let bytes = assemble(&logical, &options.limits, &mut |key| {
+            let bytes = assemble_shared(&logical, &options.limits, &mut |key| {
                 let bytes = reader.load(key)?;
                 segments.push(WireSegment {
                     fingerprint: key,
                     bytes: bytes.clone(),
                 });
-                Some(bytes.to_vec())
+                Some(bytes)
             })?;
             let (program, candidate, memory) = MemoryPublication::restore(
                 &logical,
@@ -1132,7 +1161,7 @@ impl Store {
                 return None;
             }
             *self.loaded_publication.borrow_mut() = Some(LoadedPublication {
-                envelope: manifest.to_vec(),
+                packs: reader.hint_epoch(),
                 memory,
             });
             return Some((program, candidate));
@@ -1158,6 +1187,7 @@ impl Store {
         options: &CompileOptions,
         plan: &artifacts::ArtifactPlan,
         publication: &mut SemanticPublicationSession,
+        products: Option<&[zil_types::FunctionProduct]>,
     ) -> Option<SemanticPublicationStats> {
         let batch = publication_start(options.profile_compilation);
         if options.cancellation.is_cancelled() || plan.validate().is_err() {
@@ -1169,8 +1199,13 @@ impl Store {
             .ok()?;
         let mut guard_ns = publication_elapsed(batch);
         let encode = publication_start(options.profile_compilation);
-        let (segments, encoding, prepared) =
-            publication.prepare(typed, candidate, &options.limits, options.push_reuse)?;
+        let (segments, encoding, prepared) = publication.prepare_with_products(
+            typed,
+            candidate,
+            &options.limits,
+            options.push_reuse,
+            products,
+        )?;
         let manifest = manifest(&segments, &prepared.bindings, &options.limits)?;
         let encode_ns = publication_elapsed(encode);
         let pin = publication_start(options.profile_compilation);
@@ -2058,6 +2093,40 @@ mod tests {
     }
 
     #[test]
+    fn publication_borrows_actual_products_without_building_an_owned_product_table() {
+        let directory = directory();
+        let path = directory.join("main.zil");
+        let mut session = CompilationSession::default();
+        let mut publication = SemanticPublicationSession::default();
+        let limits = Limits::default();
+        for (text, serialized) in [
+            (CANONICAL_SOURCE.to_owned(), 3),
+            (CANONICAL_SOURCE.replace("x+1", "x+17"), 1),
+            (
+                format!("\n\n{}", CANONICAL_SOURCE.replace("x+1", "x+17")),
+                0,
+            ),
+        ] {
+            let (typed, candidate, products) = canonical_fixture(&mut session, &path, &text);
+            let (segments, stats, prepared) = publication
+                .prepare_with_products(&typed, &candidate, &limits, false, Some(&products))
+                .unwrap();
+            publication.install(prepared);
+            assert!(publication.products.is_empty());
+            assert_eq!(
+                (stats.serialized_functions, stats.reused_functions),
+                (serialized, 3 - serialized)
+            );
+            let logical = manifest(&segments, &publication.bindings, &limits).unwrap();
+            assert_eq!(
+                decode_bound(&flatten(&segments), &logical, &limits).unwrap(),
+                ((*typed).clone(), (*candidate).clone())
+            );
+        }
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn restored_segments_bind_current_values_without_rereading_or_reencoding() {
         let directory = directory();
         let path = directory.join("main.zil");
@@ -2081,10 +2150,11 @@ mod tests {
             .unwrap();
         let (decoded, claims) = store.load(&options).unwrap();
         let pack = cold.semantic_packs.first_pack_path().unwrap();
-        let held = pack.with_extension("held");
-        fs::rename(&pack, &held).unwrap();
-        // The loaded request transfers its raw image without opening data packs
-        // again. Current publication still rechecks them after this handoff.
+        let pack_root = pack.parent().unwrap();
+        let held = pack_root.with_extension("held");
+        fs::rename(pack_root, &held).unwrap();
+        // Neither data packs nor shared locator manifests can be reopened at
+        // handoff. Publication still rechecks the complete packs afterward.
         let mut publication = store.take_loaded_publication(&options).unwrap();
         assert!(publication.memory.is_some());
         assert!(publication.previous.is_none());
@@ -2096,7 +2166,7 @@ mod tests {
             ));
         }
         assert!(memory.plan_slots.iter().all(Option::is_some));
-        fs::rename(&held, &pack).unwrap();
+        fs::rename(&held, pack_root).unwrap();
         drop(cold);
         let current = Arc::new(decoded);
         let restored = store

@@ -1679,22 +1679,34 @@ impl CompilationSession {
             && let Some(store) = &semantic
             && let Some(candidate) = self.analysis_candidate(&typed_snapshot)
         {
-            if !options.push_reuse
+            let products = if !options.push_reuse
                 || report
                     .types_push_work
                     .as_ref()
                     .is_some_and(|work| work.context_rebuilds != 0)
             {
-                self.semantic_publication
-                    .bind_products(self.function_types.last_products());
-            }
-            let publication = store.save(
-                typed.program(),
-                &candidate,
-                options,
-                &artifacts,
-                &mut self.semantic_publication,
-            );
+                Some(self.function_types.last_products())
+            } else {
+                None
+            };
+            let publication = if let Some(products) = products {
+                store.save_with_products(
+                    typed.program(),
+                    &candidate,
+                    options,
+                    &artifacts,
+                    &mut self.semantic_publication,
+                    Some(products),
+                )
+            } else {
+                store.save(
+                    typed.program(),
+                    &candidate,
+                    options,
+                    &artifacts,
+                    &mut self.semantic_publication,
+                )
+            };
             if options.profile_compilation {
                 report.semantic_cache_publication = publication;
             }
@@ -2174,7 +2186,7 @@ fn single_file_semantic_profiled(
     stats: Option<&mut SourceIngressStats>,
 ) -> Option<LoadedSemantic> {
     if options.profile != ExecutionProfile::Native
-        || options.closed_executable
+        || (options.closed_executable && !options.push_reuse)
         || options.semantic_cache.is_none()
         || session.active_query_count() != 0
         || project.modules.len() != 1
@@ -2334,6 +2346,7 @@ fn load_sources_profiled(
         }
     }
     let mut prefetched = BTreeMap::new();
+    let mut resolved_imports = Vec::new();
     let receipt_started = stats.as_ref().map(|_| Instant::now());
     let discovery = if options.project.is_none() && semantic_anchor.is_none() {
         discovery_cache::load(project, &root_path, options, session, stats.as_deref_mut())?
@@ -2365,6 +2378,7 @@ fn load_sources_profiled(
                 return Ok(LoadedProject::Semantic(Box::new(pair)));
             }
         }
+        resolved_imports = attempt.resolved;
         // A receipt mismatch or semantic miss restores the original ordered
         // parser. Reuse immutable reads when it discovers the same canonical
         // file, including changed files read during the failed receipt probe.
@@ -2438,10 +2452,18 @@ fn load_sources_profiled(
             return Err(parsed.diagnostics.clone());
         }
         charge_frontend(&mut remaining, &parsed)?;
+        let mut import_index = 0usize;
         for item in &parsed.module.items {
             let ast::ItemKind::Import(import) = &item.kind else {
                 continue;
             };
+            let resolved = resolved_imports
+                .get(index)
+                .and_then(|imports| imports.get(import_index))
+                .and_then(|resolved| {
+                    resolved.matches(&project.modules[index], item.span, &import.path)
+                });
+            import_index += 1;
             unsupported_import(item, import)?;
             if import.syntax && options.syntax_lock.is_none() {
                 return Err(reject(
@@ -2488,6 +2510,11 @@ fn load_sources_profiled(
                     &import.path,
                     item.span,
                 )?
+            } else if let Some(canonical) = resolved {
+                // This same request already ran resolve_file_module during a
+                // complete discovery replay. The actual parser above matched
+                // its importer, complete path and exact span before lending it.
+                canonical
             } else {
                 resolve_file_module(directory, &import.path, item.span)?
             };
@@ -3162,6 +3189,78 @@ pub fn main()->i32=>0",
             cleared.to_json()
         );
         assert_eq!(cleared.verification_runs, 1);
+        fs::remove_dir_all(dir.0).unwrap();
+    }
+
+    #[test]
+    fn closed_push_restart_replays_current_discovery_without_losing_real_frontend_epochs() {
+        let dir = Dir::new();
+        let path = dir.0.join("main.zil");
+        fs::write(&path, "import dep; pub fn main()->i32{return dep.f(7);}").unwrap();
+        fs::write(dir.0.join("dep.zil"), "pub fn f(x:i32)->i32{return x+1;}").unwrap();
+        let options = CompileOptions {
+            stop_after: Stage::Verify,
+            push_reuse: true,
+            closed_executable: true,
+            profile_compilation: true,
+            semantic_cache: Some(dir.0.join("cache")),
+            ..Default::default()
+        };
+        let mut producer = CompilationSession::default();
+        let cold = producer.compile_path(&path, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        drop(producer);
+        let mut consumer = CompilationSession::default();
+        let restarted = consumer.compile_path(&path, &options);
+        assert_eq!(
+            restarted.status,
+            ResultCategory::Success,
+            "{}",
+            restarted.to_json()
+        );
+        assert_eq!(restarted.verification_runs, 1);
+        assert_eq!(restarted.disk_cache, DiskCacheStatus::Hydrated);
+        let ingress = restarted.source_ingress.as_ref().unwrap();
+        assert_eq!(
+            (ingress.source_files_read, ingress.parser_executions),
+            (2, 2)
+        );
+        assert_eq!(
+            (
+                ingress.discovery_receipt_probes,
+                ingress.discovery_receipt_complete
+            ),
+            (1, 1)
+        );
+        assert_eq!(
+            (
+                ingress.semantic_load_attempts,
+                ingress.semantic_restored_functions
+            ),
+            (1, 2)
+        );
+        for phase in [Phase::Types, Phase::Analyze] {
+            assert!(restarted.query_events.iter().any(|event| {
+                event.phase == phase && event.disposition == QueryDisposition::Executed
+            }));
+        }
+        // The restored source graph cannot hide a newly ambiguous filesystem
+        // entry. Its optional replay fails and the original resolver rejects it.
+        fs::create_dir(dir.0.join("dep")).unwrap();
+        fs::write(
+            dir.0.join("dep/mod.zil"),
+            "pub fn f(x:i32)->i32{return x+2;}",
+        )
+        .unwrap();
+        let rejected = CompilationSession::default().compile_path(&path, &options);
+        assert_eq!(rejected.status, ResultCategory::SafeReject);
+        assert_eq!(rejected.verification_runs, 0);
+        assert!(
+            rejected
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "E-MODULE-AMBIGUOUS")
+        );
         fs::remove_dir_all(dir.0).unwrap();
     }
 

@@ -445,7 +445,16 @@ fn evaluate(
     }
 }
 
+#[cfg(test)]
 pub(crate) fn fold_known_leaf_calls(module: &mut Module, lir: &LirView<'_>) -> usize {
+    fold_known_leaf_calls_with_preflight(module, lir, &mut Default::default())
+}
+
+pub(crate) fn fold_known_leaf_calls_with_preflight(
+    module: &mut Module,
+    lir: &LirView<'_>,
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
+) -> usize {
     let sources = lir
         .functions
         .iter()
@@ -462,7 +471,7 @@ pub(crate) fn fold_known_leaf_calls(module: &mut Module, lir: &LirView<'_>) -> u
         })
         .map(|function| format!("zil.fn.{}", function.id.0))
         .collect::<BTreeSet<_>>();
-    fold_with_sources(module, &sources)
+    fold_with_sources_and_preflight(module, &sources, preflight)
 }
 
 type Replacement = (usize, usize, usize, Scalar);
@@ -583,13 +592,22 @@ fn plan_with_sources_and_fuel(
     replacements
 }
 
+#[cfg(test)]
 fn fold_with_sources(module: &mut Module, sources: &BTreeSet<String>) -> usize {
+    fold_with_sources_and_preflight(module, sources, &mut Default::default())
+}
+
+fn fold_with_sources_and_preflight(
+    module: &mut Module,
+    sources: &BTreeSet<String>,
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
+) -> usize {
     let replacements = plan_with_sources(module, sources);
     if replacements.is_empty() {
         return 0;
     }
     let summaries = summary::plan(module, sources, &replacements);
-    if zil_llvm_api::validate_module(module).is_err() {
+    if preflight.check(module).is_err() {
         // No mutation occurred, including on malformed original models. Leave
         // the existing diagnostic/backend path and per-unit preflight intact.
         return 0;

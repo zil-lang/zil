@@ -69,6 +69,12 @@ impl Default for CodegenOptions {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BackendTimings {
     pub machine_ns: u64,
+    /// Nested detail inside machine_ns; never add these to the parent.
+    pub machine_emit_ns: u64,
+    pub machine_transform_ns: u64,
+    /// Full preflight work within machine_ns and partition_ns (fallback).
+    /// This overlaps both parents and machine_transform_ns; never add it.
+    pub machine_preflight_ns: u64,
     pub partition_ns: u64,
     pub diagnostic_ns: u64,
     pub object_ns: u64,
@@ -91,8 +97,11 @@ impl BackendTimings {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"machine_ns\":{},\"partition_ns\":{},\"diagnostic_ns\":{},\"object_ns\":{},\"link_key_ns\":{},\"link_execution_ns\":{},\"other_ns\":{},\"total_ns\":{}}}",
+            "{{\"machine_ns\":{},\"machine_emit_ns\":{},\"machine_transform_ns\":{},\"machine_preflight_ns\":{},\"partition_ns\":{},\"diagnostic_ns\":{},\"object_ns\":{},\"link_key_ns\":{},\"link_execution_ns\":{},\"other_ns\":{},\"total_ns\":{}}}",
             self.machine_ns,
+            self.machine_emit_ns,
+            self.machine_transform_ns,
+            self.machine_preflight_ns,
             self.partition_ns,
             self.diagnostic_ns,
             self.object_ns,
@@ -381,6 +390,7 @@ pub fn build_view_with_cancellation_and_session(
         )]);
     }
     let machine_started = std::time::Instant::now();
+    let mut machine_preflight = crate::machine_preflight::CurrentPreflight::default();
     let (mut machine, collected_closed, mut task_work) = crate::emit::lower_output_with_session(
         verified,
         lir,
@@ -395,6 +405,8 @@ pub fn build_view_with_cancellation_and_session(
             && options.optimization == Optimization::O2
             && !options.incremental_o2,
     )?;
+    timings.machine_emit_ns = crate::object_cache::elapsed_ns(machine_started);
+    let transform_started = std::time::Instant::now();
     if let Some(session) = session.as_deref_mut() {
         session.summary.representation_functions_checked = session.lower.representation_checked;
         session.summary.representation_functions_reused = session.lower.representation_reused;
@@ -489,18 +501,23 @@ pub fn build_view_with_cancellation_and_session(
     } else {
         if options.optimization == Optimization::O2 && options.incremental_o2 {
             let mut flat = machine.to_module();
-            crate::machine_checked_add_chain::fold_checked_add_chains_cached(
+            crate::machine_checked_add_chain::fold_checked_add_chains_cached_with_preflight(
                 &mut flat,
                 &mut checked_add_cache,
+                &mut machine_preflight,
             );
             checked_add_work.0 += checked_add_cache.checked_functions;
             checked_add_work.1 += checked_add_cache.reused_functions;
-            crate::machine_scalar::fold_known_leaf_calls(&mut flat, lir);
+            crate::machine_scalar::fold_known_leaf_calls_with_preflight(
+                &mut flat,
+                lir,
+                &mut machine_preflight,
+            );
             if call_classes_enabled {
                 check_cancelled(cancelled)?;
                 // The class pass reads and stages a complete model. A source
                 // capability or a hash is not its machine admission proof.
-                zil_llvm_api::validate_module(&flat).map_err(api_error)?;
+                machine_preflight.check(&flat).map_err(api_error)?;
                 let previous = session
                     .as_ref()
                     .and_then(|session| session.transformed.as_ref())
@@ -558,6 +575,7 @@ pub fn build_view_with_cancellation_and_session(
         session.summary.reused_call_class_keys = keys;
         session.summary.rebuilt_call_class_keys = new_keys;
     }
+    timings.machine_transform_ns = crate::object_cache::elapsed_ns(transform_started);
     timings.machine_ns = crate::object_cache::elapsed_ns(machine_started);
     // Source grouping and call-import policy are dependencies in addition to
     // generated machine values. A changed body with equal machine output can
@@ -691,14 +709,19 @@ pub fn build_view_with_cancellation_and_session(
             // from the actual current original emitter output, not a partial
             // helper plan; this attempt remains inside the request's timing.
             let mut flat = original_machine.to_module();
-            crate::machine_checked_add_chain::fold_checked_add_chains_cached(
+            crate::machine_checked_add_chain::fold_checked_add_chains_cached_with_preflight(
                 &mut flat,
                 &mut checked_add_cache,
+                &mut machine_preflight,
             );
             checked_add_work.0 += checked_add_cache.checked_functions;
             checked_add_work.1 += checked_add_cache.reused_functions;
-            crate::machine_scalar::fold_known_leaf_calls(&mut flat, lir);
-            zil_llvm_api::validate_module(&flat).map_err(api_error)?;
+            crate::machine_scalar::fold_known_leaf_calls_with_preflight(
+                &mut flat,
+                lir,
+                &mut machine_preflight,
+            );
+            machine_preflight.check(&flat).map_err(api_error)?;
             call_classes = crate::machine_call_classes::canonicalize(
                 &mut flat,
                 &transform_policy.protected,
@@ -786,6 +809,7 @@ pub fn build_view_with_cancellation_and_session(
         };
         timings.diagnostic_ns += crate::object_cache::elapsed_ns(diagnostic_started);
         let mut pending_layout = None;
+        let mut restored_layout_key = None;
         let mut materialization = None;
         let previous_partition = session
             .as_ref()
@@ -841,8 +865,17 @@ pub fn build_view_with_cancellation_and_session(
                 pending_layout = pending;
                 (plan, None, None, recipe)
             } else if !class_symbols.is_empty() {
-                let (plan, pending, current) =
-                    class_plan.expect("complete current class import plan");
+                let crate::machine_cgu::ClassPartition {
+                    plan,
+                    pending,
+                    materialization: current,
+                    layout_key,
+                    reused_layout,
+                } = class_plan.expect("complete current class import plan");
+                if let Some(session) = session.as_deref_mut() {
+                    session.summary.reused_partition_layout = reused_layout;
+                }
+                restored_layout_key = layout_key;
                 if let (Some(current), Some(session)) = (current.as_ref(), session.as_deref_mut()) {
                     session.summary.reused_partition_items = current.reused_items;
                     session.summary.rebuilt_partition_items = current.constructed_items;
@@ -1018,7 +1051,8 @@ pub fn build_view_with_cancellation_and_session(
         }
         let layout_key = pending_layout
             .as_ref()
-            .map(|pending| pending.key().to_hex());
+            .map(|pending| pending.key().to_hex())
+            .or(restored_layout_key);
         if let (Some(session), Some(input)) = (session.as_deref_mut(), partition_input) {
             session.partition = Some(std::sync::Arc::new(crate::incremental::PartitionProduct {
                 input,
@@ -1046,9 +1080,12 @@ pub fn build_view_with_cancellation_and_session(
     let (plan, llvm, pending_layout, stable_diagnostic, private_closures, partition_layout_key) =
         partitioned;
     if let Some(session) = session.as_deref_mut() {
+        session.summary.machine_preflights_checked = machine_preflight.executions;
+        session.summary.machine_preflights_reused = machine_preflight.reuses;
         session.summary.checked_add_functions_checked = checked_add_work.0;
         session.summary.checked_add_functions_reused = checked_add_work.1;
     }
+    timings.machine_preflight_ns = machine_preflight.elapsed_ns;
     timings.partition_ns =
         crate::object_cache::elapsed_ns(partition_started).saturating_sub(timings.diagnostic_ns);
     let object_setup_started = std::time::Instant::now();

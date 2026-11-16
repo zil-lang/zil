@@ -116,8 +116,20 @@ impl Store {
         plan: &artifacts::ArtifactPlan,
         publication: &mut SemanticPublicationSession,
     ) -> Option<SemanticPublicationStats> {
+        self.save_with_products(typed, candidate, options, plan, publication, None)
+    }
+
+    pub(super) fn save_with_products(
+        &self,
+        typed: &Arc<TypedProgram>,
+        candidate: &CandidatePlan,
+        options: &CompileOptions,
+        plan: &artifacts::ArtifactPlan,
+        publication: &mut SemanticPublicationSession,
+        products: Option<&[zil_types::FunctionProduct]>,
+    ) -> Option<SemanticPublicationStats> {
         if self.segmented {
-            return self.save_segments(typed, candidate, options, plan, publication);
+            return self.save_segments(typed, candidate, options, plan, publication, products);
         }
         if options.cancellation.is_cancelled() || plan.validate().is_err() {
             return None;
@@ -842,7 +854,7 @@ impl FunctionStore {
                     else {
                         return;
                     };
-                    let logical = reader.logical().to_vec();
+                    let logical = reader.take_logical();
                     if session.restore_item_products(
                         &logical,
                         &mut |key| reader.load(key),

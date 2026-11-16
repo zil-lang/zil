@@ -17,7 +17,10 @@ struct Store {
 impl Store {
     fn new(source: &SourceUnit, options: &CompileOptions) -> Option<Self> {
         if options.profile != ExecutionProfile::Native
-            || options.closed_executable
+            // Closed push hydration still builds real current parser/provider
+            // epochs and canonical filesystem hints. A terminal closed restore
+            // without those current inputs remains outside this receipt path.
+            || (options.closed_executable && !options.push_reuse)
             || options.stop_after < Stage::Verify
             || options.emit_dir.is_some()
             || options.cache_dir.is_some()
@@ -176,6 +179,31 @@ impl Pending {
 pub(super) struct Attempt {
     pub(super) project: ProjectSources,
     pub(super) complete: bool,
+    pub(super) resolved: Vec<Vec<ResolvedImport>>,
+}
+
+/// A resolution executed during THIS request, not read from the receipt. Only
+/// the genuine current parser's identical import may consume the result.
+pub(super) struct ResolvedImport {
+    importer: String,
+    module: ModuleId,
+    span: Span,
+    path: Vec<String>,
+    canonical: PathBuf,
+}
+impl ResolvedImport {
+    pub(super) fn matches(
+        &self,
+        source: &SourceUnit,
+        span: Span,
+        path: &[String],
+    ) -> Option<PathBuf> {
+        (self.importer == source.path
+            && self.module == source.module_id
+            && self.span == span
+            && self.path == path)
+            .then(|| self.canonical.clone())
+    }
 }
 
 pub(super) fn load(
@@ -221,12 +249,14 @@ pub(super) fn load(
         stats.source_clone_bytes += project.modules.iter().map(|s| s.text.len()).sum::<usize>();
     }
     let mut recovered = project.clone();
+    let mut resolved = Vec::new();
     let complete = replay(
         &receipt,
         &mut recovered,
         root_path,
         options,
         stats.as_deref_mut(),
+        &mut resolved,
     )
     .is_some();
     if complete && let Some(stats) = stats {
@@ -240,6 +270,8 @@ pub(super) fn load(
     Ok(Some(Attempt {
         project: recovered,
         complete,
+        // A failed optional probe cannot lend a partial path environment.
+        resolved: if complete { resolved } else { Vec::new() },
     }))
 }
 
@@ -249,6 +281,7 @@ fn replay(
     root_path: &Path,
     options: &CompileOptions,
     mut stats: Option<&mut SourceIngressStats>,
+    resolved: &mut Vec<Vec<ResolvedImport>>,
 ) -> Option<()> {
     let directory = root_path.parent()?;
     let mut remaining = options.limits.clone();
@@ -264,12 +297,20 @@ fn replay(
         }
         remaining.max_tokens = remaining.max_tokens.checked_sub(cached.tokens)?;
         remaining.max_nodes = remaining.max_nodes.checked_sub(cached.tokens)?;
+        let mut resolved_imports = Vec::new();
         for import in &cached.imports {
             if !import.span.is_valid_for(&project.modules[index]) {
                 return None;
             }
             // Resolve every edge now, including paths/aliases seen earlier.
             let canonical = resolve_file_module(directory, &import.path, import.span).ok()?;
+            resolved_imports.push(ResolvedImport {
+                importer: project.modules[index].path.clone(),
+                module: project.modules[index].module_id,
+                span: import.span,
+                path: import.path.clone(),
+                canonical: canonical.clone(),
+            });
             let canonical_text = canonical.to_str()?;
             let id = if let Some(&id) = known.get(&canonical) {
                 id
@@ -306,6 +347,7 @@ fn replay(
             };
             project.paths.insert(import.path.clone(), id);
         }
+        resolved.push(resolved_imports);
     }
     (project.modules.len() == receipt.modules.len()).then_some(())
 }

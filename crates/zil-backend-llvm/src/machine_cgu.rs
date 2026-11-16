@@ -249,7 +249,16 @@ pub(crate) fn partition_view_cached_reusing(
 }
 /// Stable class implementations are actual current staged definitions. Keep
 /// their import domain explicit; prefix matches never authorize extra bodies.
-/// The ordinary planner still decides every current edge and copy budget.
+/// A checked exact-input layout can restore the raw plan; current machine/unit
+/// preflight and the ordinary post-partition pipeline remain in the caller.
+pub(crate) struct ClassPartition {
+    pub(crate) plan: Plan,
+    pub(crate) pending: Option<layout::Pending>,
+    pub(crate) materialization: Option<Materialization>,
+    pub(crate) layout_key: Option<String>,
+    pub(crate) reused_layout: bool,
+}
+
 pub(crate) fn partition_classes_reusing(
     module: Module,
     lir: &LirView<'_>,
@@ -258,7 +267,39 @@ pub(crate) fn partition_classes_reusing(
     classes: &BTreeSet<String>,
     cache_root: Option<&std::path::Path>,
     previous: Option<&Materialization>,
-) -> Option<(Plan, Option<layout::Pending>, Option<Materialization>)> {
+) -> Option<ClassPartition> {
+    let cache = cache_root
+        .and_then(|root| {
+            layout::Cache::new(
+                root,
+                &module,
+                lir,
+                entry,
+                count,
+                true,
+                CallImportPolicy::Complete,
+            )
+        })
+        .map(|cache| cache.with_classes(classes));
+    if let Some((cached, calls)) = cache
+        .as_ref()
+        .and_then(|cache| cache.load_classes(&module, lir, entry, count, classes))
+        && valid_declaration_prelude(&module)
+    {
+        let source = module.clone();
+        let (units, reused) = cached.replay_reusing_counted(module, previous);
+        let materialization = Materialization::with_calls(source, &cached, &units, reused, calls);
+        return Some(ClassPartition {
+            plan: Plan {
+                units,
+                fallback: None,
+            },
+            pending: None,
+            materialization: Some(materialization),
+            layout_key: cache.as_ref().map(|cache| cache.key().to_hex()),
+            reused_layout: true,
+        });
+    }
     let source = module.clone();
     let mut layout = None;
     let mut reused = 0;
@@ -281,24 +322,20 @@ pub(crate) fn partition_classes_reusing(
     }
     // Publish the actual completed pre-prune plan through the same successful
     // native transaction as ordinary layouts; do not reconstruct it from ELF.
-    let pending = cache_root
-        .and_then(|root| {
-            layout::Cache::new(
-                root,
-                &source,
-                lir,
-                entry,
-                count,
-                true,
-                CallImportPolicy::Complete,
-            )
-        })
+    let pending = cache
         .zip(layout.as_ref())
-        .and_then(|(cache, layout)| cache.with_classes(classes).pending(layout));
+        .and_then(|(cache, layout)| cache.pending(layout));
+    let layout_key = pending.as_ref().map(|pending| pending.key().to_hex());
     let materialization = layout
         .as_ref()
         .map(|layout| Materialization::new(source, layout, &plan.units, reused));
-    Some((plan, pending, materialization))
+    Some(ClassPartition {
+        plan,
+        pending,
+        materialization,
+        layout_key,
+        reused_layout: false,
+    })
 }
 
 struct CachedPartitionOptions<'a> {
@@ -1966,7 +2003,7 @@ mod tests {
                 &|| false,
             )
             .unwrap();
-            let (mut plan, _, _) = partition_classes_reusing(
+            let ClassPartition { mut plan, .. } = partition_classes_reusing(
                 input,
                 &source.as_view(),
                 EntryPoint::None,

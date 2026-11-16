@@ -11,7 +11,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use zil_base::Fingerprint;
 use zil_ir::{InstructionKind, LirView};
-use zil_llvm_api::model::{Item, Linkage, Module};
+use zil_llvm_api::model::{Item, Linkage, Module, Op, Val};
+
+pub(super) type CurrentCalls = Vec<std::sync::Arc<BTreeSet<String>>>;
 
 const MAGIC: &[u8; 8] = b"ZILCGU01";
 const DIRECTORY: &str = "partition-layout-v1";
@@ -213,6 +215,16 @@ impl Layout {
     /// checksum/current-input key protects the original graph decision itself,
     /// with the same trusted-directory boundary as the existing object cache.
     fn valid(&self, module: &Module, lir: &LirView<'_>, count: usize) -> bool {
+        self.valid_in_domain(module, lir, count, None)
+    }
+
+    fn valid_in_domain(
+        &self,
+        module: &Module,
+        lir: &LirView<'_>,
+        count: usize,
+        classes: Option<&BTreeSet<String>>,
+    ) -> bool {
         if module.items.len() > MAX_ITEMS || self.units.len() > count {
             return false;
         }
@@ -224,18 +236,43 @@ impl Layout {
             .filter_map(|(index, item)| matches!(item, Item::NamedType(..)).then_some(index))
             .collect::<Vec<_>>();
         let has_imports = self.units.iter().any(|unit| !unit.imports.is_empty());
-        let source_names = if has_imports {
+        let definition_names = if classes.is_some() {
+            module
+                .items
+                .iter()
+                .enumerate()
+                .filter(|(_, item)| definition(item))
+                .filter_map(|(index, item)| match item {
+                    Item::Function(f) => Some((f.name.as_str(), index)),
+                    Item::Global(g) => Some((g.name.as_str(), index)),
+                    Item::NamedType(..) => None,
+                })
+                .collect::<BTreeMap<_, _>>()
+        } else {
+            BTreeMap::new()
+        };
+        let source_names = if has_imports || classes.is_some() {
             lir.functions
                 .iter()
                 .filter(|f| f.foreign.is_none())
-                .map(|f| format!("zil.fn.{}", f.id.0))
+                .map(|f| {
+                    if classes.is_some() {
+                        super::source_name(&definition_names, f.id)
+                    } else {
+                        format!("zil.fn.{}", f.id.0)
+                    }
+                })
                 .collect::<BTreeSet<_>>()
         } else {
             BTreeSet::new()
         };
         let mut source_cost = 0usize;
         let mut symbols = BTreeSet::new();
-        for item in module.items.iter().filter(|_| has_imports) {
+        for item in module
+            .items
+            .iter()
+            .filter(|_| has_imports || classes.is_some())
+        {
             match item {
                 Item::Function(function) => {
                     if !symbols.insert(function.name.as_str()) {
@@ -255,6 +292,20 @@ impl Layout {
                 }
                 Item::NamedType(..) => {}
             }
+        }
+        if let Some(classes) = classes
+            && (source_names.iter().any(|name| {
+                definition_names.get(name.as_str()).is_none_or(|&index| {
+                    !matches!(&module.items[index], Item::Function(f) if f.blocks.is_some())
+                })
+            }) || classes.iter().any(|name| {
+                definition_names.get(name.as_str()).is_none_or(|&index| {
+                    !matches!(&module.items[index], Item::Function(f)
+                        if f.blocks.is_some() && f.linkage == Linkage::External)
+                })
+            }))
+        {
+            return false;
         }
         let mut copied_cost = 0usize;
         let mut previous = None;
@@ -311,7 +362,8 @@ impl Layout {
                 };
                 if function.blocks.is_none()
                     || function.linkage != Linkage::External
-                    || !source_names.contains(&function.name)
+                    || !(source_names.contains(&function.name)
+                        || classes.is_some_and(|classes| classes.contains(&function.name)))
                     || unit.definitions.binary_search(&index).is_ok()
                     || symbols
                         .contains(format!("zil.import.{}.{}", unit.owner, function.name).as_str())
@@ -333,6 +385,281 @@ impl Layout {
             .enumerate()
             .all(|(i, item)| assigned[i] == definition(item))
     }
+
+    /// Recheck the actual current graph, not a class-name prefix or checksum.
+    /// One current body walk supplies both closure checks and materialization's
+    /// observed calls. Bounded indexed walks avoid repeating the source planner.
+    fn valid_classes(
+        &self,
+        module: &Module,
+        lir: &LirView<'_>,
+        entry: EntryPoint,
+        count: usize,
+        classes: &BTreeSet<String>,
+    ) -> Option<CurrentCalls> {
+        if !self.valid_in_domain(module, lir, count, Some(classes)) {
+            return None;
+        }
+        let graph = ClassGraph::read(module)?;
+        let mut remaining = graph.remaining;
+        let mut owners = vec![usize::MAX; module.items.len()];
+        for (owner, unit) in self.units.iter().enumerate() {
+            for &index in &unit.definitions {
+                owners[index] = owner;
+            }
+        }
+        let mut importable = vec![false; module.items.len()];
+        for function in lir.functions.iter().filter(|f| f.foreign.is_none()) {
+            let name = super::source_name(&graph.names, function.id);
+            let &index = graph.names.get(name.as_str())?;
+            importable[index] = true;
+            let selected = match entry {
+                EntryPoint::Main => function.name == "main",
+                EntryPoint::ReturnValue(wanted) | EntryPoint::Test(wanted) => function.id == wanted,
+                EntryPoint::None => false,
+            };
+            if selected
+                && let Some(&wrapper) = graph.names.get("main")
+                && owners[wrapper] != usize::MAX
+                && owners[index] != owners[wrapper]
+            {
+                return None;
+            }
+        }
+        for name in classes {
+            importable[*graph.names.get(name.as_str())?] = true;
+        }
+        if let (Some(&main), Some(&pe)) = (graph.names.get("main"), graph.names.get("zil.pe.entry"))
+            && owners[main] != usize::MAX
+            && owners[pe] != usize::MAX
+            && owners[main] != owners[pe]
+        {
+            return None;
+        }
+        let named = module
+            .items
+            .iter()
+            .filter(|item| matches!(item, Item::NamedType(..)))
+            .count();
+        let mut seen = vec![0usize; module.items.len()];
+        let mut imported = vec![0usize; module.items.len()];
+        let mut referenced = vec![0usize; module.items.len()];
+        let mut pending = Vec::new();
+        for (owner, unit) in self.units.iter().enumerate() {
+            let stamp = owner + 1;
+            for &index in &unit.imports {
+                imported[index] = stamp;
+            }
+            for &index in &unit.definitions {
+                enqueue_calls(
+                    &graph.reads[index].calls,
+                    &owners,
+                    owner,
+                    stamp,
+                    &mut seen,
+                    &mut pending,
+                    &mut remaining,
+                )?;
+            }
+            let mut reached = 0usize;
+            while let Some(index) = pending.pop() {
+                if imported[index] != stamp || !importable[index] {
+                    return None;
+                }
+                // Copies may not duplicate/refer across a local-state component,
+                // even if an address rather than a direct call reaches it.
+                if graph.reads[index]
+                    .references
+                    .iter()
+                    .any(|&target| local(&module.items[target]))
+                {
+                    return None;
+                }
+                reached += 1;
+                enqueue_calls(
+                    &graph.reads[index].calls,
+                    &owners,
+                    owner,
+                    stamp,
+                    &mut seen,
+                    &mut pending,
+                    &mut remaining,
+                )?;
+            }
+            if reached != unit.imports.len() {
+                return None;
+            }
+            let mut prelude_count = named;
+            let mut declaration_count = 0usize;
+            for &index in unit.definitions.iter().chain(&unit.imports) {
+                for &target in &graph.reads[index].references {
+                    remaining = remaining.checked_sub(1)?;
+                    if referenced[target] == stamp {
+                        continue;
+                    }
+                    referenced[target] = stamp;
+                    if owners[target] == usize::MAX {
+                        if unit.prelude.binary_search(&target).is_err() {
+                            return None;
+                        }
+                        prelude_count += 1;
+                    } else if owners[target] != owner {
+                        if local(&module.items[target]) {
+                            return None;
+                        }
+                        if imported[target] != stamp {
+                            if unit.declarations.binary_search(&target).is_err() {
+                                return None;
+                            }
+                            declaration_count += 1;
+                        }
+                    }
+                }
+            }
+            if prelude_count != unit.prelude.len() || declaration_count != unit.declarations.len() {
+                return None;
+            }
+        }
+        Some(
+            graph
+                .reads
+                .into_iter()
+                .map(|reads| {
+                    std::sync::Arc::new(
+                        reads
+                            .calls
+                            .into_iter()
+                            .filter_map(|index| match &module.items[index] {
+                                Item::Function(f) => Some(f.name.clone()),
+                                Item::Global(g) => Some(g.name.clone()),
+                                Item::NamedType(..) => None,
+                            })
+                            .collect(),
+                    )
+                })
+                .collect(),
+        )
+    }
+}
+
+#[derive(Default)]
+struct ClassReads {
+    references: Vec<usize>,
+    calls: Vec<usize>,
+}
+struct ClassGraph<'a> {
+    names: BTreeMap<&'a str, usize>,
+    reads: Vec<ClassReads>,
+    remaining: usize,
+}
+impl<'a> ClassGraph<'a> {
+    fn read(module: &'a Module) -> Option<Self> {
+        let mut names = BTreeMap::new();
+        for (index, item) in module.items.iter().enumerate() {
+            let name = match item {
+                Item::Function(f) => f.name.as_str(),
+                Item::Global(g) => g.name.as_str(),
+                Item::NamedType(..) => continue,
+            };
+            if names.insert(name, index).is_some() {
+                return None;
+            }
+        }
+        let mut remaining = MAX_REFS.checked_sub(module.items.len())?;
+        let mut reads = Vec::with_capacity(module.items.len());
+        for item in &module.items {
+            let mut current = ClassReads::default();
+            match item {
+                Item::Function(function) => {
+                    for block in function.blocks.iter().flatten() {
+                        remaining = remaining.checked_sub(1)?;
+                        for instruction in &block.instructions {
+                            remaining = remaining.checked_sub(1)?;
+                            if let Op::Call {
+                                callee: Val::Global(name),
+                                ..
+                            } = &instruction.op
+                            {
+                                current.calls.push(*names.get(name.as_str())?);
+                            }
+                            for value in instruction.op.values() {
+                                value_references(
+                                    value,
+                                    &names,
+                                    &mut current.references,
+                                    &mut remaining,
+                                )?;
+                            }
+                        }
+                    }
+                }
+                Item::Global(global) => {
+                    if let Some(value) = &global.initializer {
+                        value_references(value, &names, &mut current.references, &mut remaining)?;
+                    }
+                }
+                Item::NamedType(..) => {}
+            }
+            current.references.sort_unstable();
+            current.references.dedup();
+            current.calls.sort_unstable();
+            current.calls.dedup();
+            reads.push(current);
+        }
+        Some(Self {
+            names,
+            reads,
+            remaining,
+        })
+    }
+}
+fn value_references(
+    value: &Val,
+    names: &BTreeMap<&str, usize>,
+    references: &mut Vec<usize>,
+    remaining: &mut usize,
+) -> Option<()> {
+    let mut pending = Vec::new();
+    let mut first = Some(value);
+    while let Some(value) = first.take().or_else(|| pending.pop()) {
+        *remaining = remaining.checked_sub(1)?;
+        match value {
+            Val::Global(name) => references.push(*names.get(name.as_str())?),
+            Val::Array(args) => {
+                if pending.len().checked_add(args.len())? > *remaining {
+                    return None;
+                }
+                pending.extend(args.iter().map(|arg| &arg.value));
+            }
+            Val::Gep { ptr, indices, .. } => {
+                if pending.len().checked_add(indices.len())?.checked_add(1)? > *remaining {
+                    return None;
+                }
+                pending.push(ptr);
+                pending.extend(indices.iter().map(|arg| &arg.value));
+            }
+            _ => {}
+        }
+    }
+    Some(())
+}
+fn enqueue_calls(
+    calls: &[usize],
+    owners: &[usize],
+    owner: usize,
+    stamp: usize,
+    seen: &mut [usize],
+    pending: &mut Vec<usize>,
+    remaining: &mut usize,
+) -> Option<()> {
+    for &target in calls {
+        *remaining = remaining.checked_sub(1)?;
+        if owners[target] != usize::MAX && owners[target] != owner && seen[target] != stamp {
+            seen[target] = stamp;
+            pending.push(target);
+        }
+    }
+    Some(())
 }
 
 fn definition(item: &Item) -> bool {
@@ -405,6 +732,25 @@ impl Cache {
         })
     }
     pub(super) fn load(&self, module: &Module, lir: &LirView<'_>, count: usize) -> Option<Layout> {
+        let layout = self.read()?;
+        layout.valid(module, lir, count).then_some(layout)
+    }
+    pub(super) fn load_classes(
+        &self,
+        module: &Module,
+        lir: &LirView<'_>,
+        entry: EntryPoint,
+        count: usize,
+        classes: &BTreeSet<String>,
+    ) -> Option<(Layout, CurrentCalls)> {
+        let layout = self.read()?;
+        let calls = layout.valid_classes(module, lir, entry, count, classes)?;
+        Some((layout, calls))
+    }
+    pub(super) fn key(&self) -> Fingerprint {
+        self.key
+    }
+    fn read(&self) -> Option<Layout> {
         private_existing(&self.root).ok()?;
         let directory = self.root.join(DIRECTORY);
         private_existing(&directory).ok()?;
@@ -430,8 +776,7 @@ impl Cache {
         {
             return None;
         }
-        let layout = Layout::decode(&bytes[HEADER..])?;
-        layout.valid(module, lir, count).then_some(layout)
+        Layout::decode(&bytes[HEADER..])
     }
     // A stable-class recipe is never interchangeable with the ordinary source
     // import policy, even if their complete machine inputs happen to agree.

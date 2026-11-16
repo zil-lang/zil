@@ -625,7 +625,15 @@ fn function_chains(function: &Function, intrinsics: &HashMap<&str, Kind>) -> Vec
     plans
 }
 
+#[cfg(test)]
 pub(crate) fn fold_checked_add_chains(module: &mut Module) -> usize {
+    fold_checked_add_chains_with_preflight(module, &mut Default::default())
+}
+
+fn fold_checked_add_chains_with_preflight(
+    module: &mut Module,
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
+) -> usize {
     let (intrinsics, has_trap) = declarations(module);
     if intrinsics.is_empty() || !has_trap {
         return 0;
@@ -642,7 +650,7 @@ pub(crate) fn fold_checked_add_chains(module: &mut Module) -> usize {
             (!chains.is_empty()).then_some(FunctionPlan { item, chains })
         })
         .collect::<Vec<_>>();
-    if plans.is_empty() || zil_llvm_api::validate_module(module).is_err() {
+    if plans.is_empty() || preflight.check(module).is_err() {
         return 0;
     }
     let mut removed_checks = 0;
@@ -680,7 +688,16 @@ fn apply_chains(function: &mut Function, chains: Vec<Chain>) -> usize {
 /// raw Function equality, planning or replay. In particular an unrelated bad
 /// declaration/global cannot hide behind a retained function result. This API
 /// has the same caller-owned cancellation boundary as the ordinary fold API.
+#[cfg(test)]
 pub(crate) fn fold_checked_add_chains_cached(module: &mut Module, cache: &mut Cache) -> usize {
+    fold_checked_add_chains_cached_with_preflight(module, cache, &mut Default::default())
+}
+
+pub(crate) fn fold_checked_add_chains_cached_with_preflight(
+    module: &mut Module,
+    cache: &mut Cache,
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
+) -> usize {
     cache.checked_functions = 0;
     cache.reused_functions = 0;
     let (intrinsics, has_trap) = declarations(module);
@@ -699,9 +716,9 @@ pub(crate) fn fold_checked_add_chains_cached(module: &mut Module, cache: &mut Ca
             .iter()
             .filter(|item| matches!(item, Item::Function(f) if f.blocks.is_some()))
             .count();
-        return fold_checked_add_chains(module);
+        return fold_checked_add_chains_with_preflight(module, preflight);
     }
-    if zil_llvm_api::validate_module(module).is_err() {
+    if preflight.check(module).is_err() {
         // Keep the previous completed epoch on rejection, never install any
         // tentative rows or modify the current raw model.
         return 0;

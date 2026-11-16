@@ -400,11 +400,14 @@ fn stable_class_layout_publishes_the_actual_plan_only_on_commit() {
         )
         .unwrap()
     };
-    let (plan, pending, _) = build();
-    drop(pending.unwrap());
+    let first = build();
+    assert!(!first.reused_layout);
+    let plan = first.plan;
+    drop(first.pending.unwrap());
     assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 0);
-    let (_, pending, _) = build();
-    let pending = pending.unwrap().pin().unwrap();
+    let planned = build();
+    let reported_key = planned.layout_key.unwrap();
+    let pending = planned.pending.unwrap().pin().unwrap();
     let path = pending.path().to_owned();
     assert!(!path.exists());
     pending.commit();
@@ -438,5 +441,466 @@ fn stable_class_layout_publishes_the_actual_plan_only_on_commit() {
     .key;
     assert_ne!(ordinary_key, class_key);
     assert_eq!(bytes[8..40], class_key.0);
+    assert_eq!(reported_key, class_key.to_hex());
     assert!(ordinary.load(&module, &source.as_view(), 2).is_none());
+    let restored = build();
+    assert!(restored.reused_layout);
+    assert!(restored.pending.is_none());
+    assert_eq!(restored.layout_key.as_deref(), Some(reported_key.as_str()));
+    assert_eq!(restored.plan.units, plan.units);
+    assert!(restored.materialization.is_some());
+}
+
+fn stable_fixture() -> (Module, LirModule, BTreeSet<String>) {
+    let (_, mut source) = fixture();
+    for id in 3..5 {
+        let mut function = source.functions[0].clone();
+        function.id = FunctionId(id);
+        function.name = format!("f{id}");
+        function.span.file = FileId(id % 2);
+        source.functions.push(function);
+    }
+    let mut items = vec![Item::Function(function("zil.fn.0", Some("zil.fn.1")))];
+    for id in 1..5 {
+        let mut body = function(&format!("zil.fn.{id}"), (id == 3).then_some("zil.fn.1"));
+        if id != 3 {
+            body.blocks.as_mut().unwrap()[0].instructions[0].op =
+                Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(id * 4 + 3))));
+        }
+        items.push(Item::Function(body));
+    }
+    items.push(Item::Function(
+        function("unused.foreign", None).declaration(),
+    ));
+    let mut module = Module {
+        triple: source.target.triple.clone(),
+        fingerprint: "class-producer".into(),
+        items: items.into(),
+    };
+    let (_, classes) =
+        crate::machine_call_classes::canonicalize_stable(&mut module, &BTreeSet::new(), &|| false)
+            .unwrap();
+    assert!(!classes.is_empty());
+    zil_llvm_api::validate_module(&module).unwrap();
+    (module, source, classes)
+}
+
+fn class_cache(
+    directory: &Directory,
+    module: &Module,
+    source: &LirModule,
+    classes: &BTreeSet<String>,
+) -> Cache {
+    Cache::new(
+        &directory.0,
+        module,
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        true,
+        CallImportPolicy::Complete,
+    )
+    .unwrap()
+    .with_classes(classes)
+}
+
+#[test]
+fn class_disk_restart_replays_current_values_and_restores_materialization() {
+    let (module, source, classes) = stable_fixture();
+    let directory = Directory::new();
+    let build = |module: Module, previous: Option<&super::super::Materialization>| {
+        super::super::partition_classes_reusing(
+            module,
+            &source.as_view(),
+            EntryPoint::None,
+            2,
+            &classes,
+            Some(&directory.0),
+            previous,
+        )
+        .unwrap()
+    };
+    let first = build(module.clone(), None);
+    assert!(!first.reused_layout);
+    let expected_key = first.layout_key.clone();
+    first.pending.unwrap().pin().unwrap().commit();
+    let mut current = module.clone();
+    current.fingerprint = "current-independent-verification".into();
+    let restored = build(current.clone(), None);
+    assert!(restored.reused_layout);
+    assert!(restored.pending.is_none());
+    assert_eq!(restored.layout_key, expected_key);
+    assert!(
+        restored
+            .plan
+            .units
+            .iter()
+            .all(|unit| unit.fingerprint == current.fingerprint)
+    );
+    for unit in &restored.plan.units {
+        zil_llvm_api::validate_module(unit).unwrap();
+    }
+    let cache = class_cache(&directory, &current, &source, &classes);
+    let (layout, _) = cache
+        .load_classes(&current, &source.as_view(), EntryPoint::None, 2, &classes)
+        .unwrap();
+    assert_eq!(restored.plan.units, layout.replay(current.clone()));
+    assert_eq!(
+        restored.materialization,
+        Some(super::super::Materialization::new(
+            current.clone(),
+            &layout,
+            &restored.plan.units,
+            0
+        ))
+    );
+    let reused = build(current, restored.materialization.as_ref());
+    assert!(reused.reused_layout);
+    assert!(reused.materialization.as_ref().unwrap().reused_items > 0);
+    assert_eq!(reused.plan.units, restored.plan.units);
+
+    // Body changes must select a different actual current key, not the disk
+    // recipe's old bodies; replay never deserializes a machine body.
+    let mut changed = module;
+    let Item::Function(function) = &mut changed.items[2] else {
+        unreachable!()
+    };
+    function.blocks.as_mut().unwrap()[0].instructions[0].op =
+        Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(29))));
+    let rebuilt = build(changed, reused.materialization.as_ref());
+    assert!(!rebuilt.reused_layout);
+    assert_ne!(rebuilt.layout_key, expected_key);
+    assert!(rebuilt.pending.is_some());
+}
+
+#[test]
+fn class_cache_rejects_checksummed_partial_extra_and_unreferenced_roles() {
+    let (module, source, classes) = stable_fixture();
+    let directory = Directory::new();
+    let build = || {
+        super::super::partition_classes_reusing(
+            module.clone(),
+            &source.as_view(),
+            EntryPoint::None,
+            2,
+            &classes,
+            Some(&directory.0),
+            None,
+        )
+        .unwrap()
+    };
+    let first = build();
+    first.pending.unwrap().pin().unwrap().commit();
+    let cache = || class_cache(&directory, &module, &source, &classes);
+    let (layout, _) = cache()
+        .load_classes(&module, &source.as_view(), EntryPoint::None, 2, &classes)
+        .unwrap();
+    let mut missing = layout.clone();
+    let unit = missing
+        .units
+        .iter_mut()
+        .find(|unit| !unit.imports.is_empty())
+        .unwrap();
+    let removed = unit.imports.pop().unwrap();
+    unit.declarations.push(removed);
+    unit.declarations.sort_unstable();
+
+    let mut extra = layout.clone();
+    let (owner, index) = extra
+        .units
+        .iter()
+        .enumerate()
+        .find_map(|(owner, unit)| {
+            module.items.iter().enumerate().find_map(|(index, item)| {
+                (matches!(item, Item::Function(f) if f.blocks.is_some() && f.name == "zil.fn.3")
+                    && unit.definitions.binary_search(&index).is_err()
+                    && unit.imports.binary_search(&index).is_err())
+                .then_some((owner, index))
+            })
+        })
+        .unwrap();
+    extra.units[owner].imports.push(index);
+    extra.units[owner].imports.sort_unstable();
+
+    let mut prelude = layout.clone();
+    let unused = module
+        .items
+        .iter()
+        .position(|item| matches!(item, Item::Function(f) if f.name == "unused.foreign"))
+        .unwrap();
+    prelude.units[0].prelude.push(unused);
+    prelude.units[0].prelude.sort_unstable();
+
+    for invalid in [missing, extra, prelude] {
+        assert!(invalid.valid_in_domain(&module, &source.as_view(), 2, Some(&classes)));
+        assert!(
+            invalid
+                .valid_classes(&module, &source.as_view(), EntryPoint::None, 2, &classes)
+                .is_none()
+        );
+        // Commit a correct checksum/current key around the wrong graph roles.
+        // The envelope alone must not admit incomplete or gratuitous imports.
+        cache().pending(&invalid).unwrap().pin().unwrap().commit();
+        assert!(
+            cache()
+                .load_classes(&module, &source.as_view(), EntryPoint::None, 2, &classes)
+                .is_none()
+        );
+        let fallback = build();
+        assert!(!fallback.reused_layout);
+        assert_eq!(fallback.plan.units, first.plan.units);
+        assert_eq!(fallback.layout_key, first.layout_key);
+        fallback.pending.unwrap().pin().unwrap().commit();
+        assert!(build().reused_layout);
+    }
+}
+
+#[test]
+fn class_restore_keeps_original_source_copy_bound_and_actual_definition_domain() {
+    let (module, source, classes) = stable_fixture();
+    let mut recorded = None;
+    let plan = super::super::partition_view_once(
+        module.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        true,
+        true,
+        &mut recorded,
+        None,
+        &mut 0,
+        &classes,
+    );
+    assert!(plan.fallback.is_none());
+    let layout = recorded.unwrap();
+    // Real classes imported by the plan do not become authorized merely from
+    // their generated spelling when the actual class domain is absent.
+    assert!(
+        layout
+            .valid_classes(
+                &module,
+                &source.as_view(),
+                EntryPoint::None,
+                2,
+                &BTreeSet::new()
+            )
+            .is_none()
+    );
+    let mut overflow = layout.clone();
+    for unit in &mut overflow.units {
+        unit.declarations.clear();
+        unit.imports = module
+            .items
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| {
+                (matches!(item, Item::Function(f) if f.blocks.is_some())
+                    && unit.definitions.binary_search(&index).is_err())
+                .then_some(index)
+            })
+            .collect();
+    }
+    assert!(!overflow.valid_in_domain(&module, &source.as_view(), 2, Some(&classes)));
+    assert!(
+        overflow
+            .valid_classes(&module, &source.as_view(), EntryPoint::None, 2, &classes)
+            .is_none()
+    );
+    let mut absent = classes.clone();
+    absent.insert("zil.class.not-an-actual-definition".into());
+    assert!(
+        layout
+            .valid_classes(&module, &source.as_view(), EntryPoint::None, 2, &absent)
+            .is_none()
+    );
+    let mut declaration = module.clone();
+    let class = declaration
+        .items
+        .iter_mut()
+        .find_map(|item| match item {
+            Item::Function(f) if classes.contains(&f.name) => Some(f),
+            _ => None,
+        })
+        .unwrap();
+    class.blocks = None;
+    assert!(
+        layout
+            .valid_classes(
+                &declaration,
+                &source.as_view(),
+                EntryPoint::None,
+                2,
+                &classes
+            )
+            .is_none()
+    );
+}
+
+#[test]
+fn class_restore_rejects_split_local_state_and_retains_address_declarations() {
+    let (module, source) = fixture();
+    let (_, layout) = planned(&module, &source);
+    let classes = BTreeSet::new();
+    assert!(
+        layout
+            .valid_classes(&module, &source.as_view(), EntryPoint::None, 2, &classes)
+            .is_some()
+    );
+    let mut split = layout.clone();
+    split.units[0].definitions.retain(|&index| index != 6);
+    split.units[1].definitions.push(6);
+    assert!(split.valid_in_domain(&module, &source.as_view(), 2, Some(&classes)));
+    assert!(
+        split
+            .valid_classes(&module, &source.as_view(), EntryPoint::None, 2, &classes)
+            .is_none()
+    );
+
+    let mut addressed = module;
+    let Item::Function(user) = &mut addressed.items[5] else {
+        unreachable!()
+    };
+    user.blocks.as_mut().unwrap()[0].instructions[0].op =
+        Op::Return(Some(Arg::new(Ty::Ptr, Val::Global("zil.fn.1".into()))));
+    zil_llvm_api::validate_module(&addressed).unwrap();
+    assert!(
+        layout
+            .valid_classes(&addressed, &source.as_view(), EntryPoint::None, 2, &classes)
+            .is_some()
+    );
+    let mut no_import = layout;
+    no_import.units[0].imports.clear();
+    // An address prototype still cannot replace the independent direct-call
+    // implementation import required by zil.fn.0 in the same current unit.
+    no_import.units[0].declarations.push(4);
+    assert!(
+        no_import
+            .valid_classes(&addressed, &source.as_view(), EntryPoint::None, 2, &classes)
+            .is_none()
+    );
+}
+
+#[test]
+fn class_cache_key_binds_class_set_and_current_lir_projection() {
+    let (module, mut source, classes) = stable_fixture();
+    let directory = Directory::new();
+    let cache = class_cache(&directory, &module, &source, &classes);
+    let key = cache.key;
+    let mut recorded = None;
+    super::super::partition_view_once(
+        module.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        true,
+        true,
+        &mut recorded,
+        None,
+        &mut 0,
+        &classes,
+    );
+    cache
+        .pending(&recorded.unwrap())
+        .unwrap()
+        .pin()
+        .unwrap()
+        .commit();
+    let mut other_classes = classes.clone();
+    other_classes.pop_first();
+    let changed = class_cache(&directory, &module, &source, &other_classes);
+    assert_ne!(changed.key, key);
+    assert!(
+        changed
+            .load_classes(
+                &module,
+                &source.as_view(),
+                EntryPoint::None,
+                2,
+                &other_classes
+            )
+            .is_none()
+    );
+    source.functions[0].span.file = FileId(9);
+    let changed = class_cache(&directory, &module, &source, &classes);
+    assert_ne!(changed.key, key);
+    assert!(
+        changed
+            .load_classes(&module, &source.as_view(), EntryPoint::None, 2, &classes)
+            .is_none()
+    );
+}
+
+#[test]
+fn class_cache_cannot_hide_invalid_unused_declarations_or_clone_collisions() {
+    let (module, source, classes) = stable_fixture();
+    let directory = Directory::new();
+    let first = super::super::partition_classes_reusing(
+        module.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        &classes,
+        Some(&directory.0),
+        None,
+    )
+    .unwrap();
+    first.pending.unwrap().pin().unwrap().commit();
+    let (layout, _) = class_cache(&directory, &module, &source, &classes)
+        .load_classes(&module, &source.as_view(), EntryPoint::None, 2, &classes)
+        .unwrap();
+    let mut invalid = module.clone();
+    let unused = invalid
+        .items
+        .iter_mut()
+        .find_map(|item| match item {
+            Item::Function(f) if f.name == "unused.foreign" => Some(f),
+            _ => None,
+        })
+        .unwrap();
+    unused.linkage = Linkage::Internal;
+    assert!(zil_llvm_api::validate_module(&invalid).is_err());
+    // The bad declaration is absent from every unit, but the original current
+    // declaration preflight must still reject even a correctly framed record.
+    class_cache(&directory, &invalid, &source, &classes)
+        .pending(&layout)
+        .unwrap()
+        .pin()
+        .unwrap()
+        .commit();
+    assert!(
+        super::super::partition_classes_reusing(
+            invalid,
+            &source.as_view(),
+            EntryPoint::None,
+            2,
+            &classes,
+            Some(&directory.0),
+            None,
+        )
+        .is_none()
+    );
+
+    let unit = layout
+        .units
+        .iter()
+        .find(|unit| !unit.imports.is_empty())
+        .unwrap();
+    let Item::Function(imported) = &module.items[unit.imports[0]] else {
+        unreachable!()
+    };
+    let clone_name = format!("zil.import.{}.{}", unit.owner, imported.name);
+    let mut collision = module;
+    collision
+        .items
+        .push(Item::Function(function(&clone_name, None)));
+    let mut complete_ownership = layout.clone();
+    complete_ownership.units[0]
+        .definitions
+        .push(collision.items.len() - 1);
+    assert!(zil_llvm_api::validate_module(&collision).is_ok());
+    assert!(
+        complete_ownership
+            .valid_classes(&collision, &source.as_view(), EntryPoint::None, 2, &classes,)
+            .is_none()
+    );
 }

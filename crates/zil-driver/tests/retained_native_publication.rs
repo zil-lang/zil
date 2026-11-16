@@ -411,6 +411,11 @@ fn stable_class_layout_receipt_survives_edits_partition_and_final_artifact_reuse
         .into_iter()
         .enumerate()
     {
+        if index == 2 {
+            // Drop every resident machine/transform/partition owner. Only the
+            // successful producer's disk layout may restore the raw plan.
+            session = CompilationSession::default();
+        }
         fs::write(case.0.join("left.zil"), format!("fn hidden(x:i32)->i32{{return x+{value};}}\npub fn value(x:i32)->i32{{return hidden(x);}}")).unwrap();
         let report = case.compile(&mut session, &options, "actual-class-layout");
         successful(&report, value + 24);
@@ -451,8 +456,17 @@ fn stable_class_layout_receipt_survives_edits_partition_and_final_artifact_reuse
         }
         if matches!(index, 1 | 2) {
             assert_eq!(Some(key), first.as_ref());
-            assert!(report.backend_work.as_ref().unwrap().reused_partition);
-            assert!(native.final_artifact.as_ref().unwrap().before_codegen);
+            let work = report.backend_work.as_ref().unwrap();
+            if index == 1 {
+                assert!(work.reused_partition);
+                assert!(native.final_artifact.as_ref().unwrap().before_codegen);
+            } else {
+                assert!(!work.reused_partition);
+                assert!(work.reused_partition_layout);
+                assert_eq!(report.verification_runs, 1);
+                assert_eq!(native.object_cache.hits, native.actual_units);
+                assert_eq!(native.object_cache.misses, 0);
+            }
         }
         if index == 1 {
             let (program, diagnostic) = case.paths();
