@@ -70,7 +70,9 @@ pub(super) fn inherit_child_shape(
     if child.binder_count as usize != map.len()
         || map.iter().any(|binder| *binder >= parent.binder_count)
     {
-        return Err(bad("child occurrence map leaves its complete parent domain"));
+        return Err(bad(
+            "child occurrence map leaves its complete parent domain",
+        ));
     }
     let mapped = |class: u32| {
         map.get(class as usize)
@@ -121,6 +123,8 @@ pub(super) use opaque::call_result_at;
 mod domains;
 #[path = "materialize_emitter.rs"]
 mod emitter;
+#[path = "creator_invocations.rs"]
+mod invocations;
 #[path = "materialize_scopes.rs"]
 mod scopes;
 #[path = "materialize_self.rs"]
@@ -142,6 +146,7 @@ struct Eval<'a, 'm, 'b> {
     limits: &'b Limits,
     left: &'b mut usize,
     active: BTreeSet<(SemanticInstanceId, u32)>,
+    invocation_probe: Option<(SemanticInstanceId, u32)>,
 }
 impl<'a, 'm> Eval<'a, 'm, '_> {
     #[track_caller]
@@ -432,19 +437,21 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 index: *index,
             },
             SemanticLifeRecipe::Invocation(index) => {
-                let instance = self.instance(scope)?;
-                self.fee(instance.header_embedding.len())?;
-                let mut rows = instance
-                    .header_embedding
-                    .iter()
-                    .filter(|row| row.header == StorageBinder::Invocation(*index));
-                let row = rows.next().ok_or_else(|| {
-                    unknown("invocation type needs its complete actual header embedding")
-                })?;
-                if rows.next().is_some() {
-                    return Err(bad("invocation header embedding is ambiguous"));
+                if let Some((owner, count)) = self.invocation_probe
+                    && owner == scope
+                {
+                    if *index >= count {
+                        return Err(bad("invocation discovery exceeds its original frame"));
+                    }
+                    // This private draft marker is consumed only while finding
+                    // real input coordinates. It never enters a Typed proposal.
+                    SemanticClassExpr::Implicit {
+                        scope: SemanticScopeRef::Ancestor(u32::MAX),
+                        ordinal: *index,
+                    }
+                } else {
+                    self.invocation_input(scope, *index)?
                 }
-                self.class(scope, &row.actual)?
             }
             SemanticLifeRecipe::OuterOccurrence {
                 operand,
@@ -1425,14 +1432,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                     ..empty()
                 };
                 let map = (0..child.binder_count).collect::<Vec<_>>();
-                inherit_child_shape(
-                    &mut life,
-                    &child,
-                    projection,
-                    &map,
-                    self.limits,
-                    self.left,
-                )?;
+                inherit_child_shape(&mut life, &child, projection, &map, self.limits, self.left)?;
                 let ty = match recipe {
                     SemanticTypeRecipe::Managed(_) => Type::Managed(Box::new(ty)),
                     SemanticTypeRecipe::OwnedStore(_) => Type::OwnedStore {
@@ -2100,6 +2100,7 @@ pub(super) fn program(
         limits,
         left,
         active: BTreeSet::new(),
+        invocation_probe: None,
     };
     eval.rows(program.instances.len())?;
     eval.rows(program.sites.len())?;
@@ -2356,6 +2357,7 @@ pub(super) fn type_at(
         limits,
         left,
         active: BTreeSet::new(),
+        invocation_probe: None,
     }
     .ty(scope, recipe, hint, 0)
 }
@@ -2377,6 +2379,7 @@ pub(super) fn type_in_view(
         limits,
         left,
         active: BTreeSet::new(),
+        invocation_probe: None,
     }
     .ty(scope, recipe, hint, 0)
 }
@@ -2402,6 +2405,7 @@ pub(super) fn symbolic_in_view(
             limits,
             left,
             active: BTreeSet::new(),
+            invocation_probe: None,
         }
         .original_type(scope, *selector, source, 0)
     } else {
@@ -2444,6 +2448,7 @@ pub(super) fn actual_in_view(
         limits,
         left,
         active: BTreeSet::new(),
+        invocation_probe: None,
     }
     .recipe_actual(scope, recipe, 0)
 }
@@ -2465,6 +2470,7 @@ pub(super) fn parent_actuals_in_view(
         limits,
         left,
         active: BTreeSet::new(),
+        invocation_probe: None,
     }
     .parent_actuals(caller, call, holder)
 }
@@ -2485,6 +2491,7 @@ pub(super) fn class_at(
         limits,
         left,
         active: BTreeSet::new(),
+        invocation_probe: None,
     }
     .life(scope, recipe)
 }
@@ -2505,6 +2512,7 @@ pub(super) fn class_in_view(
         limits,
         left,
         active: BTreeSet::new(),
+        invocation_probe: None,
     }
     .life(scope, recipe)
 }

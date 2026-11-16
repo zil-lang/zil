@@ -27,8 +27,14 @@ pub(in crate::semantics) struct ActualDirectory<'a> {
     pub(in crate::semantics) dyn_declarations: &'a [DynDeclaration],
     pub(in crate::semantics) dyn_interfaces: &'a [DynInterface],
     pub(in crate::semantics) instances: BTreeMap<SemanticInstanceId, SemanticInstance>,
+    pub(super) invocation_inputs:
+        std::cell::RefCell<BTreeMap<invocations::InputKey, invocations::Inputs>>,
+    pub(super) invocation_active: std::cell::RefCell<BTreeSet<SemanticInstanceId>>,
 }
 impl<'a> ActualDirectory<'a> {
+    pub(super) fn stable_invocation_inputs(&self) -> bool {
+        self.complete.is_some() && self.instances.is_empty()
+    }
     pub(in crate::semantics) fn from_module(module: &'a TypedModule) -> Self {
         Self::from_module_at(module, "complete directory")
     }
@@ -36,6 +42,8 @@ impl<'a> ActualDirectory<'a> {
         Self {
             complete: Some(module),
             source: None,
+            invocation_inputs: Default::default(),
+            invocation_active: Default::default(),
             ordinary: std::cell::RefCell::new(Some(stored::OrdinaryContext::tagged(module, tag))),
             functions: Functions::Complete(&module.functions),
             closures: Cow::Borrowed(&module.closures),
@@ -334,6 +342,8 @@ impl<'a> ActualDirectory<'a> {
         Ok(Self {
             complete: None,
             source: None,
+            invocation_inputs: Default::default(),
+            invocation_active: Default::default(),
             ordinary: std::cell::RefCell::new(None),
             functions: Functions::Building(functions),
             closures: Cow::Owned(closures),
