@@ -474,6 +474,7 @@ fn share_manifest(
         meta_bounds,
         previous.unwrap_or(&empty),
         &mut metadata,
+        true,
     )?;
     let encode = publication_start(context.profile);
     descriptor.extend_from_slice(
@@ -717,7 +718,7 @@ fn publish_with_hook(
         locations,
         packs,
         records,
-    } = place_items(&context, items, bounds, epoch, &mut stats)?;
+    } = place_items(&context, items, bounds, epoch, &mut stats, false)?;
     let encode = publication_start(context.profile);
     let envelope = Manifest {
         logical: logical.to_vec(),
@@ -771,6 +772,7 @@ fn place_items(
     bounds: Bounds,
     epoch: &Epoch,
     stats: &mut PublicationStats,
+    selective_compaction: bool,
 ) -> Option<Placement> {
     if context.cancellation.is_cancelled() || items.is_empty() || items.len() > bounds.max_items {
         return None;
@@ -815,9 +817,48 @@ fn place_items(
         }
     }
     // Bound old pack I/O before opening any old pack, including unused bytes.
-    let old_bytes = old_packs.values().try_fold(0usize, |sum, length| {
+    let mut old_bytes = old_packs.values().try_fold(0usize, |sum, length| {
         sum.checked_add(length.checked_sub(PACK_HEADER)?)
     })?;
+    if selective_compaction
+        && old_bytes.checked_add(current_total.checked_sub(proposed_bytes)?)? > bounds.maximum
+    {
+        // Repack the cheapest stale groups first. Rewriting the entire locator
+        // after a few edits would lose content-defined disk sharing. This is
+        // still bounded by the same original aggregate physical I/O allowance.
+        let mut groups = BTreeMap::<Fingerprint, (usize, Vec<Fingerprint>)>::new();
+        for (key, item) in &proposed {
+            let group = groups.entry(item.pack).or_default();
+            group.0 = group.0.checked_add(item.length)?;
+            group.1.push(*key);
+        }
+        let mut choices: Vec<_> = groups
+            .into_iter()
+            .filter_map(|(pack, (live, keys))| {
+                let payload = old_packs.get(&pack)?.checked_sub(PACK_HEADER)?;
+                let stale = payload.checked_sub(live)?;
+                (stale > 0).then_some((pack, live, stale, keys))
+            })
+            .collect();
+        choices.sort_by(|a, b| {
+            ((b.2 as u128) * (a.1 as u128))
+                .cmp(&((a.2 as u128) * (b.1 as u128)))
+                .then_with(|| a.0.cmp(&b.0))
+        });
+        for (pack, live, _, keys) in choices {
+            if old_bytes.checked_add(current_total.checked_sub(proposed_bytes)?)? <= bounds.maximum
+            {
+                break;
+            }
+            old_bytes =
+                old_bytes.checked_sub(old_packs.remove(&pack)?.checked_sub(PACK_HEADER)?)?;
+            proposed_bytes = proposed_bytes.checked_sub(live)?;
+            stats.compacted_items += keys.len();
+            for key in keys {
+                proposed.remove(&key)?;
+            }
+        }
+    }
     let missing_bytes = current_total.checked_sub(proposed_bytes)?;
     let compact = old_bytes.checked_add(missing_bytes)? > bounds.maximum;
     if compact {
