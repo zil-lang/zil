@@ -37,6 +37,29 @@ impl CheckedContext{
                 ghost_captures::complete_environment(module,child,b)?;
                 match instruction.kind{InstructionKind::DescribeCapture{..}=>self.owner_description(module,child,instruction,scope,environment,active,b).map(Some),InstructionKind::BorrowCapture{mutable,..}=>self.owner_address(child,instruction,scope,mutable,environment,active,b).map(Some),_=>unreachable!()}
             },
+            InstructionKind::DropPackageField{local,index}|InstructionKind::StorePackageField{local,index,..}=>{
+                let parent=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual package field replacement has no complete parent domain"))?;
+                if f.locals.get(local.0 as usize).is_none_or(|row|row.ty!=parent.ty){return Err(bad("actual package field replacement changes its exact parent local type"));}
+                let storage=match &parent.ty{Type::BorrowedStorage{storage,..}=>storage.as_ref(),other=>other};
+                let Type::Package{fields,..}=storage else{return Err(bad("actual package field replacement has another owning product kind"));};
+                if fields.get(*index as usize).is_none(){return Err(bad("actual package field replacement selects no original field"));}
+                let child=self.child_value(module,parent,&[LifeTypeProjection::Place(PlaceProjection::Field(*index))],b)?;
+                match instruction.kind{
+                    InstructionKind::StorePackageField{value,..}=>{
+                        if !self.compatible(environment,value_at(values,value)?,&child,b)?{return Err(bad("actual package field replacement changes its complete original child domain"));}
+                    },
+                    InstructionKind::DropPackageField{..}=>{
+                        // This is a conditional cleanup of the selected field,
+                        // including the empty slot after an actual FnOnce take.
+                        // The owning Product kernel retains the live/vacant
+                        // debt and loan checks; its parent ghost domain stays
+                        // intact for an exact same-domain field refill.
+                        ghost_captures::complete_environment(module,&child,b)?;
+                    },
+                    _=>unreachable!(),
+                }
+                Ok(None)
+            },
             InstructionKind::WriteCapture{index,value}=>{
                 let value=value_at(values,*value)?;
                 {let occurrences=self.occurrences.borrow();let old=occurrences.get(&(scope,OperandKey::Capture(*index))).ok_or_else(||bad("actual capture replacement has no sealed destination"))?;if !self.same_type(environment,old,value,b)?{return Err(bad("actual capture replacement changes its complete source domain/type"));}}

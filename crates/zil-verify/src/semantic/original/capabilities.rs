@@ -50,9 +50,10 @@ impl CheckedOriginal {
                 Ty::Code{bound_lifetimes,invocation_lifetimes,parameters,result,..}=>{if bound_lifetimes!=0||invocation_lifetimes!=0{return Ok(false);}for parameter in parameters{if !self.closed_value(module,context,&parameter,env,active,b)?{return Ok(false);}}self.closed_value(module,context,&result,env,active,b)?},
                 Ty::Closure(definition,arguments,sealed)=>{
                     for argument in arguments.iter().chain(&sealed){match argument{Arg::Life(_)=>return Ok(false),Arg::Type(ty)=>if !self.closed_value(module,context,ty,env,active,b)?{return Ok(false);},Arg::Const(_)=>{}}}
-                    if !self.checked.contains(&definition){return Ok(false);}let used=self.used.get(&definition).cloned().unwrap_or_default();let free=self.free_values.get(&definition).cloned().unwrap_or_default();
-                    if !self.creator_moves.get(&definition).copied().unwrap_or(false)&&free.values().any(|binding|used.contains(&Binder::Capture{definition,source:Box::new(binding.identity.clone())})){return Ok(false);}
-                    for binding in free.values(){if used.contains(&Binder::Capture{definition,source:Box::new(binding.identity.clone())})&&!self.closed_value(module,context,&binding.ty,env,active,b)?{return Ok(false);}}true
+                    if !self.checked.contains(&definition){return Ok(false);}
+                    let captures=self.closure_capture_types(module,context,definition,&arguments,&sealed,b)?;
+                    if !self.creator_moves.get(&definition).copied().unwrap_or(false)&&!captures.is_empty(){return Ok(false);}
+                    for capture in captures{if !self.closed_value(module,context,&capture,env,active,b)?{return Ok(false);}}true
                 },
                 Ty::Nominal(id,arguments)=>self.nominal_capability(module,context,id,&arguments,SemanticBuiltinTrait::ClosedEnvironment,env,active,b)?,
             })
@@ -70,8 +71,8 @@ impl CheckedOriginal {
             Ty::Closure(definition,arguments,sealed)=>{
                 if !self.checked.contains(&definition)||!self.creator_moves.get(&definition).copied().unwrap_or(false){return Ok(false);}
                 for argument in arguments.iter().chain(&sealed){match argument{Arg::Life(_)=>return Ok(false),Arg::Type(ty)=>if !self.transfer_value(module,context,ty,env,active,b)?{return Ok(false);},Arg::Const(_)=>{}}}
-                let used=self.used.get(&definition).cloned().unwrap_or_default();let free=self.free_values.get(&definition).cloned().unwrap_or_default();
-                for binding in free.values(){if used.contains(&Binder::Capture{definition,source:Box::new(binding.identity.clone())})&&!self.transfer_value(module,context,&binding.ty,env,active,b)?{return Ok(false);}}true
+                let captures=self.closure_capture_types(module,context,definition,&arguments,&sealed,b)?;
+                for capture in captures{if !self.transfer_value(module,context,&capture,env,active,b)?{return Ok(false);}}true
             },
             Ty::Opaque(owner,arguments)=>{
                 for argument in &arguments{match argument{Arg::Life(_)=>return Ok(false),Arg::Type(ty)=>if !self.transfer_value(module,context,ty,env,active,b)?{return Ok(false);},Arg::Const(_)=>{}}}
