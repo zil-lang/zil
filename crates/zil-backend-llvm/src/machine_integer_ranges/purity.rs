@@ -154,7 +154,8 @@ pub(crate) fn mark(
     // Effect facts are universal for the current body. Address-taken functions
     // received no narrowed argument assumptions, so their actual pure bodies
     // may still be annotated; no caller range is imported as an effect proof.
-    let mut body_cache: HashMap<usize, Vec<(&Function, Option<BTreeSet<String>>)>> = HashMap::new();
+    type BodyEffects<'a> = HashMap<usize, Vec<(&'a Function, Option<BTreeSet<String>>)>>;
+    let mut body_cache = BodyEffects::new();
     let candidates: BTreeMap<_, _> = module
         .items
         .iter()

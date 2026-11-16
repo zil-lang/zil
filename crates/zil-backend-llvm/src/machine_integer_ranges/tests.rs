@@ -474,10 +474,9 @@ fn generated_with_bounded_root(unknown_caller: bool) -> Module {
                     callee: Val::Global(name),
                     ..
                 } = &mut inst.op
+                    && name == "leaf"
                 {
-                    if name == "leaf" {
-                        *name = "zil.fn.1".into();
-                    }
+                    *name = "zil.fn.1".into();
                 }
             }
         }

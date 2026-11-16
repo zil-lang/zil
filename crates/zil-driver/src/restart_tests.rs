@@ -272,20 +272,19 @@ fn push_restart_ignores_whole_candidate_and_still_checks_current_unused_bodies()
     let cold = writer.compile_path(&path, &options);
     success(&cold);
     let functions = typed(&writer, &cold).module.functions.len();
-    drop(writer);
-    let whole = options
-        .semantic_cache
-        .as_ref()
-        .unwrap()
-        .join("semantic-v7-push");
-    let candidate = fs::read_dir(whole)
-        .unwrap()
-        .map(|entry| entry.unwrap().path())
-        .find(|path| {
-            path.extension()
-                .is_some_and(|extension| extension == "candidate")
+    let candidate = writer
+        .raw
+        .iter()
+        .find_map(|(key, raw)| {
+            matches!(raw, RawSnapshot::ProjectTyped(_)).then(|| {
+                super::semantic_cache::Store::new(&options, key)
+                    .unwrap()
+                    .path()
+            })
         })
-        .expect("cold whole candidate exists");
+        .expect("actual cold whole candidate key exists");
+    assert!(candidate.is_file());
+    drop(writer);
     fs::write(candidate, b"unusable whole candidate").unwrap();
     let mut session = CompilationSession::default();
     let restarted = session.compile_path(&path, &options);
