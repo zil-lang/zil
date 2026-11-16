@@ -22,7 +22,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 ## 通用语言可用性并行收敛
 
-2026-11-16 最新同版真实Source（c21f9fce3）：正向13/13、预期语义负例4/4、extra14/14；nearest36/40，余四例均已越Analyze至Verify完整raw目录/有向来源消费者。Task26报告2过24败（Types20/A2/V2），两个过例缺合法正基线，尚无完整native接受；Option活动6项为4过2败、TaskSource3/3，未以ignored掩盖。A实际Task head、Types完整carrier/Unit、SourceNone原域与VTask worker角色完整批已保存并普通快进同步至5f224ec6b，正统一首编验收；raw完整几何和Types cleanup仍施工。Alpha仍未接受，证据与精确版本见[执行记录](records/language-alpha-execution.json)。
+2026-11-16 最新真实链路：`10db86e6f`正向13/13、预期语义负例4/4、extra14/14、nearest升38/40，余两例已到Verify实际grounded-origin及invariant-call来源消费者；未宽内层Eq。V完整单元862/0，A精确预算N12614及N−1/fresh/warm一致，生产配额不变。`6e3b8ca32`五模块原stream工程Clang/LLVM-API各O0/O2共40次ZIL原生及20次独立Rust对照全部通过；Task仍报告2过24败（Types20/A2/V2），无完整Task native接受，不能据报告负例通过宣称安全。Source活动Option6/6、TaskSource3/3、0ignored保留其5f224版本。Types完整域/阶段桥与A原快照role已存并推送816a9d96，正同版首编验收；Task A/V完整调用、端点与清理继续施工。Alpha仍未接受，精确版本/收据见[执行记录](records/language-alpha-execution.json)。
 
 2026-11-16 同版完整Source首次13/13：`3f591ec16`在CLI alpha-64m-v2下，核心正向工程13/13独立Verify成功，原缺SyncDrop负例4/4在实际语义阶段拒绝。不是完整Alpha交付：extra14仍11/14（三个V借用返回路径），nearest36为28/36（六个A借用/泛型/构造消费者、两个新正例输入模式语法需修）。Sol整链施工与A/V分离Astra审核并行；全核心回归及真实native继续。当前源码恢复已GitHub上传并读回至3f591ec16（archive固定a9dd246830）；不据阶段计数宣称发布。
 
