@@ -925,6 +925,35 @@ pub(super) struct Shape {
     dominators: Vec<BTreeSet<usize>>,
     reachable_from: Vec<BTreeSet<usize>>,
 }
+impl Shape {
+    pub(super) fn entry_reaches(
+        &self,
+        world: &mut World<'_, '_>,
+        function: &TypedFunction,
+        target: BlockId,
+    ) -> R<bool> {
+        world.pay(
+            index::search(self.blocks.len())
+                .saturating_mul(2)
+                .saturating_add(1),
+        )?;
+        if self.source != function as *const TypedFunction as usize || self.schema != function.id {
+            return Err(bad(
+                "capture source query changes its complete immutable CFG",
+            ));
+        }
+        let entry = *self
+            .blocks
+            .get(&function.entry)
+            .ok_or_else(|| bad("capture source CFG has no entry"))?;
+        let target = *self
+            .blocks
+            .get(&target)
+            .ok_or_else(|| bad("capture source CFG block is absent"))?;
+        world.pay(index::search(self.reachable_from[entry].len()))?;
+        Ok(entry == target || self.reachable_from[entry].contains(&target))
+    }
+}
 pub(super) struct Cfg {
     shape: Rc<Shape>,
     instance: SemanticInstanceId,

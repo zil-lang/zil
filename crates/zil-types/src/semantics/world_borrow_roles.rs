@@ -52,6 +52,321 @@ fn transparent(
     }
     Ok(cursor)
 }
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ActivationSource {
+    Value(ValueId),
+    Capture(u32),
+}
+/// All real definitions reaching this Load, stopped at the nearest write on
+/// each CFG predecessor path. A loop backedge is not an arbitrary first store.
+fn reaching_values(
+    world: &mut World<'_, '_>,
+    function: &TypedFunction,
+    local: LocalId,
+    at: (BlockId, usize),
+) -> R<Vec<ActivationSource>> {
+    world.pay(index::search(world.cfg_shapes.len()).saturating_add(1))?;
+    let shape = world
+        .cfg_shapes
+        .get(&function.id)
+        .cloned()
+        .ok_or_else(|| bad("capture source query lacks its checked immutable CFG"))?;
+    let mut pending = vec![at];
+    let mut seen = std::collections::BTreeSet::new();
+    let mut values = std::collections::BTreeSet::new();
+    while let Some((block, before)) = pending.pop() {
+        world.pay(index::search(seen.len()).saturating_add(1))?;
+        if !seen.insert((block, before)) {
+            continue;
+        }
+        if seen.len() > world.limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "capture reaching-state node limit exceeded",
+                None,
+            ));
+        }
+        world.pay(function.blocks.len())?;
+        let body = function
+            .blocks
+            .iter()
+            .find(|row| row.id == block)
+            .ok_or_else(|| bad("capture read reaches an absent actual block"))?;
+        if before > body.instructions.len() {
+            return Err(bad(
+                "capture read leaves its exact actual instruction boundary",
+            ));
+        }
+        let mut assigned = None;
+        for operation in body.instructions[..before].iter().rev() {
+            world.pay(1)?;
+            match operation.kind {
+                InstructionKind::Store {
+                    local: target,
+                    value,
+                } if target == local => {
+                    assigned = Some(ActivationSource::Value(value));
+                    break;
+                }
+                InstructionKind::BindPackageCapture {
+                    local: target,
+                    index,
+                } if target == local => {
+                    assigned = Some(ActivationSource::Capture(index));
+                    break;
+                }
+                InstructionKind::StorageLive(target)
+                | InstructionKind::StorageDead(target)
+                | InstructionKind::TakeLocal { local: target }
+                    if target == local =>
+                {
+                    return Err(bad("capture alias has no initialized reaching occupant"));
+                }
+                _ => {}
+            }
+        }
+        if let Some(value) = assigned {
+            values.insert(value);
+            continue;
+        }
+        let mut predecessor = false;
+        for parent in &function.blocks {
+            world.pay(1)?;
+            let reaches = match parent.terminator {
+                Terminator::Jump(target) => target == block,
+                Terminator::Branch {
+                    then_block,
+                    else_block,
+                    ..
+                } => then_block == block || else_block == block,
+                _ => false,
+            };
+            if reaches && shape.entry_reaches(world, function, parent.id)? {
+                pending.push((parent.id, parent.instructions.len()));
+                predecessor = true;
+            }
+        }
+        if !predecessor {
+            return Err(bad(
+                "capture alias reaches entry without its actual initialization",
+            ));
+        }
+    }
+    if values.is_empty() {
+        return Err(bad("capture alias has no real reaching source"));
+    }
+    Ok(values.into_iter().collect())
+}
+
+/// Reconstruct the complete captured value through the actual activation
+/// prologue and its exact reaching copies. This is geometry/source transport;
+/// it neither resurrects a transferred field nor grants current permission.
+#[allow(clippy::too_many_arguments)]
+fn capture_source_value(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    original: &SemanticDefinition,
+    function: &TypedFunction,
+    value: ValueId,
+    capture_index: u32,
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+    active: &mut std::collections::BTreeSet<ValueId>,
+    depth: usize,
+) -> R<SharedType> {
+    world.pay(index::search(active.len()).saturating_add(1))?;
+    if depth > world.limits.max_call_depth || !active.insert(value) {
+        return Err(bad(
+            "capture read has a cyclic or excessive actual alias path",
+        ));
+    }
+    let (operation, block, instruction) = producer(world, function, value)?;
+    let output = function
+        .values
+        .get(value.0 as usize)
+        .ok_or_else(|| bad("capture alias SSA has no complete actual type"))?;
+    let result = match operation {
+        InstructionKind::Load(local) => {
+            let mut result: Option<SharedType> = None;
+            for source in reaching_values(world, function, *local, (block, instruction))? {
+                let source = match source {
+                    ActivationSource::Value(source) => capture_source_value(
+                        world,
+                        instance,
+                        original,
+                        function,
+                        source,
+                        capture_index,
+                        implicit,
+                        active,
+                        depth + 1,
+                    )?,
+                    ActivationSource::Capture(index) if index == capture_index => {
+                        world.capture_initial(instance, index)?
+                    }
+                    ActivationSource::Capture(_) => {
+                        return Err(bad("activation local selects another actual capture slot"));
+                    }
+                };
+                if let Some(previous) = &result {
+                    world.same(instance.id, previous, &source, implicit)?;
+                } else {
+                    result = Some(source);
+                }
+            }
+            result.ok_or_else(|| bad("capture alias has no complete reaching value"))?
+        }
+        InstructionKind::ReadCapture { index } if *index == capture_index => {
+            let captured = world.capture_initial(instance, *index)?;
+            match (World::type_of(&captured)?, output) {
+                (source, target)
+                    if source == target
+                        && (stored::physical(source).is_copy_value()
+                            || matches!(
+                                stored::physical(source),
+                                Type::Address { .. } | Type::Desc(_)
+                            )) =>
+                {
+                    captured
+                }
+                (
+                    Type::Address {
+                        mutable: true,
+                        inner,
+                    },
+                    Type::Address {
+                        mutable: false,
+                        inner: target,
+                    },
+                ) if inner == target => {
+                    let child = world.pointee(&captured)?;
+                    world.address_projection(output, &captured, &child)?
+                }
+                _ => {
+                    return Err(bad(
+                        "capture alias changes its full Copy/view mode or moves an owning field",
+                    ));
+                }
+            }
+        }
+        InstructionKind::TakeCapture { index } if *index == capture_index => {
+            let closure = function
+                .environment
+                .ok_or_else(|| bad("capture transfer alias has no actual environment"))?;
+            let (definition, child) = world.child(closure)?;
+            if child.id != instance.id
+                || !matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
+            {
+                return Err(bad(
+                    "capture transfer alias lacks an exclusive actual entry",
+                ));
+            }
+            world.capture_initial(instance, *index)?
+        }
+        InstructionKind::BorrowCapture { index, mutable } if *index == capture_index => {
+            let closure = function
+                .environment
+                .ok_or_else(|| bad("capture borrow alias has no actual environment"))?;
+            let (definition, child) = world.child(closure)?;
+            if child.id != instance.id || *mutable && definition.kind == CallableKind::Fn {
+                return Err(bad(
+                    "capture borrow alias strengthens the actual receiver mode",
+                ));
+            }
+            if !matches!(output, Type::Address { mutable: actual, .. } if actual == mutable) {
+                return Err(bad("capture borrow alias changes its actual outer access"));
+            }
+            let captured = world.capture_initial(instance, *index)?;
+            let image = world.occurrence(function, value)?;
+            world.address(output, image, &captured)?
+        }
+        InstructionKind::DescribeCapture { index } if *index == capture_index => {
+            let captured = world.capture_initial(instance, *index)?;
+            if !matches!(World::type_of(&captured)?, Type::Managed(_)) {
+                return Err(bad(
+                    "capture description alias has no original owning field",
+                ));
+            }
+            let payload = world.pointee(&captured)?;
+            let image = world.occurrence(function, value)?;
+            world.address(output, image, &payload)?
+        }
+        InstructionKind::ReadAddress { address } => {
+            let source = capture_source_value(
+                world,
+                instance,
+                original,
+                function,
+                *address,
+                capture_index,
+                implicit,
+                active,
+                depth + 1,
+            )?;
+            world.pointee(&source)?
+        }
+        InstructionKind::DescribeAddress { address } => {
+            let source = capture_source_value(
+                world,
+                instance,
+                original,
+                function,
+                *address,
+                capture_index,
+                implicit,
+                active,
+                depth + 1,
+            )?;
+            places::address_mutable(world, &source, false)?;
+            let owner = world.pointee(&source)?;
+            if !matches!(World::type_of(&owner)?, Type::Managed(_)) {
+                return Err(bad(
+                    "capture description alias has no reached owning carrier",
+                ));
+            }
+            let payload = world.pointee(&owner)?;
+            let image = world.occurrence(function, value)?;
+            world.address(output, image, &payload)?
+        }
+        InstructionKind::ReborrowAddress { address, mutable } => {
+            let source = capture_source_value(
+                world,
+                instance,
+                original,
+                function,
+                *address,
+                capture_index,
+                implicit,
+                active,
+                depth + 1,
+            )?;
+            places::address_mutable(world, &source, *mutable)?;
+            let payload = world.pointee(&source)?;
+            let image = world.occurrence(function, value)?;
+            world.address(output, image, &payload)?
+        }
+        _ => {
+            return Err(bad(
+                "capture loan is not its exact actual environment operation",
+            ));
+        }
+    };
+    inference::charge_type_snapshot(output, Span::default(), world.limits, world.left, 1)?;
+    inference::charge_type_snapshot(
+        World::type_of(&result)?,
+        Span::default(),
+        world.limits,
+        world.left,
+        1,
+    )?;
+    if World::type_of(&result)? != output {
+        return Err(bad(
+            "capture alias changes its complete actual physical type",
+        ));
+    }
+    active.remove(&value);
+    Ok(result)
+}
+
 fn binding_local(
     world: &mut World<'_, '_>,
     instance: &SemanticInstance,
@@ -281,43 +596,59 @@ fn trace(
                 }
                 let index = selected
                     .ok_or_else(|| bad("capture loan has no exact original creator source"))?;
-                let Cursor::Value(value) = cursor else {
-                    return Err(bad("capture loan has no actual read or borrow SSA"));
-                };
-                let capture = world.capture(instance, index)?;
-                let operation = producer(world, function, value)?.0;
-                match operation {
-                    InstructionKind::ReadCapture { index: actual }
-                    | InstructionKind::DescribeCapture { index: actual }
-                        if *actual == index =>
-                    {
+                match cursor {
+                    Cursor::Value(value) => {
+                        let reconstructed = capture_source_value(
+                            world,
+                            instance,
+                            original,
+                            function,
+                            value,
+                            index,
+                            implicit,
+                            &mut std::collections::BTreeSet::new(),
+                            0,
+                        )?;
                         let actual = world.get(values, value)?;
-                        world.same(instance.id, &actual, &capture, implicit)?;
+                        world.same(instance.id, &actual, &reconstructed, implicit)?;
                     }
-                    InstructionKind::BorrowCapture { index: actual, .. } if *actual == index => {
-                        let actual = world.get(values, value)?;
-                        let inner = world.pointee(&actual)?;
-                        world.same(instance.id, &inner, &capture, implicit)?;
-                    }
-                    InstructionKind::ReadAddress { address } if matches!(producer(world, function, *address)?.0, InstructionKind::ReadCapture { index: actual } if *actual == index) =>
-                    {
-                        let proof = ledger.original.borrow();
-                        let proof = proof
-                            .as_ref()
-                            .ok_or_else(|| bad("capture loan lost its original capture mode"))?;
-                        if proof.closure_move.get(&original.id) != Some(&false) {
-                            return Err(bad(
-                                "capture loan invents a default-borrow environment read",
-                            ));
+                    Cursor::Local(local) => {
+                        let Some((_, current_function, block, instruction, _)) =
+                            world.current_point
+                        else {
+                            return Err(bad("capture local has no exact current CFG point"));
+                        };
+                        if current_function != function.id {
+                            return Err(bad("capture local is queried in another actual function"));
                         }
-                        let inner = world.pointee(&capture)?;
-                        let actual = world.get(values, value)?;
-                        world.same(instance.id, &actual, &inner, implicit)?;
-                    }
-                    _ => {
-                        return Err(bad(
-                            "capture loan is not its exact actual environment operation",
-                        ));
+                        let captured = world.capture_initial(instance, index)?;
+                        let actual = world.local(locals, local)?;
+                        world.same(instance.id, &actual, &captured, implicit)?;
+                        for source in reaching_values(world, function, local, (block, instruction))?
+                        {
+                            match source {
+                                ActivationSource::Capture(actual) if actual == index => {}
+                                ActivationSource::Value(value) => {
+                                    let source = capture_source_value(
+                                        world,
+                                        instance,
+                                        original,
+                                        function,
+                                        value,
+                                        index,
+                                        implicit,
+                                        &mut std::collections::BTreeSet::new(),
+                                        0,
+                                    )?;
+                                    world.same(instance.id, &source, &captured, implicit)?;
+                                }
+                                _ => {
+                                    return Err(bad(
+                                        "capture local is not bound to its exact actual environment field",
+                                    ));
+                                }
+                            }
+                        }
                     }
                 }
                 reached_input = true;

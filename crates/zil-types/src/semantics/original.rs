@@ -319,6 +319,8 @@ struct Check<'a, 'b> {
     stage_depth: usize,
     cleanup_depth: usize,
     requested_snapshot: Option<(SemanticDefinitionId, SemanticOriginalNode)>,
+    snapshot_sources:
+        Option<std::rc::Rc<BTreeMap<(SemanticDefinitionId, bool, NodeId), Vec<(usize, usize)>>>>,
     escape_active: Vec<SemanticTypeRecipe>,
 }
 #[derive(Default)]
@@ -1427,60 +1429,112 @@ impl<'a> Check<'a, '_> {
                     .insert((owner, expression, node), snapshot);
             }
         }
-        self.pay(self.program.definitions.len(), 0)?;
-        for child in &self.program.definitions {
-            if child.parent != Some(owner) {
-                continue;
+        if self.snapshot_sources.is_none() {
+            let program = self.program;
+            self.pay(program.definitions.len().saturating_add(1), 0)?;
+            let mut index =
+                BTreeMap::<(SemanticDefinitionId, bool, NodeId), Vec<(usize, usize)>>::new();
+            let mut rows = 0usize;
+            for (child_position, child) in program.definitions.iter().enumerate() {
+                let Some(parent) = child.parent else {
+                    continue;
+                };
+                self.pay(child.environment.len(), 0)?;
+                for (formal_position, formal) in child.environment.iter().enumerate() {
+                    let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        source: SemanticOriginalTypeSource::NameAt { at, .. },
+                    }) = &formal.source
+                    else {
+                        continue;
+                    };
+                    rows = rows
+                        .checked_add(1)
+                        .ok_or_else(|| bad("original snapshot index row count overflows"))?;
+                    if rows > self.limits.max_nodes {
+                        return Err(Diagnostic::limit(
+                            Phase::Types,
+                            "original snapshot index node limit exceeded",
+                            None,
+                        ));
+                    }
+                    let (expression, node) = match at {
+                        SemanticOriginalNode::Expression(node) => (true, *node),
+                        SemanticOriginalNode::Statement(node) => (false, *node),
+                    };
+                    self.pay(index.len().saturating_add(1).ilog2() as usize + 2, 0)?;
+                    let positions = index.entry((parent, expression, node)).or_default();
+                    let relocation = if positions.len() == positions.capacity() {
+                        positions.len()
+                    } else {
+                        0
+                    };
+                    self.pay(relocation.saturating_add(1), 0)?;
+                    positions.push((child_position, formal_position));
+                }
             }
-            self.pay(child.environment.len(), 0)?;
-            for formal in &child.environment {
-                let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
-                    scope: SemanticScopeRef::Ancestor(0),
-                    source:
-                        SemanticOriginalTypeSource::NameAt {
-                            at: requested,
-                            name,
-                        },
-                }) = &formal.source
-                else {
-                    continue;
-                };
-                if *requested != at {
-                    continue;
-                }
-                self.pay(name.len().saturating_add(variables.len()), 0)?;
-                let value = variables.get(name).ok_or_else(|| {
-                    bad("original NameAt has no lexical binder at its exact source point")
-                })?;
-                self.pay(value.origin.copy_work(), 0)?;
-                let result_origin = if value.origin_owner == owner {
-                    self.proof
-                        .call_result_origins
-                        .get(&(owner, value.origin.clone()))
-                        .copied()
-                } else {
-                    None
-                };
-                let value = copy_recipe(&value.ty, self.limits, self.left)?;
-                let (expression, node) = match at {
-                    SemanticOriginalNode::Expression(node) => (true, node),
-                    SemanticOriginalNode::Statement(node) => (false, node),
-                };
-                if let Some(origin) = result_origin {
-                    self.pay(name.len().saturating_add(2), 0)?;
-                    self.proof.proof_mut()?.call_result_origins.insert(
-                        (
-                            owner,
-                            Query::NameAt {
-                                expression,
-                                node,
-                                name: name.clone(),
-                            },
-                        ),
-                        origin,
-                    );
-                }
-                self.proof.proof_mut()?.types.insert(
+            self.snapshot_sources = Some(std::rc::Rc::new(index));
+        }
+        self.pay(1, 0)?;
+        let index = self
+            .snapshot_sources
+            .as_ref()
+            .ok_or_else(|| bad("original snapshot index disappeared"))?
+            .clone();
+        let (expression, node) = match at {
+            SemanticOriginalNode::Expression(node) => (true, node),
+            SemanticOriginalNode::Statement(node) => (false, node),
+        };
+        self.pay(index.len().saturating_add(1).ilog2() as usize + 1, 0)?;
+        for (child_position, formal_position) in
+            index.get(&(owner, expression, node)).into_iter().flatten()
+        {
+            self.pay(1, 0)?;
+            let formal = self
+                .program
+                .definitions
+                .get(*child_position)
+                .and_then(|child| child.environment.get(*formal_position))
+                .ok_or_else(|| bad("original snapshot index leaves its immutable directory"))?;
+            let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source:
+                    SemanticOriginalTypeSource::NameAt {
+                        at: requested,
+                        name,
+                    },
+            }) = &formal.source
+            else {
+                return Err(bad(
+                    "original snapshot index changes its complete source kind",
+                ));
+            };
+            if *requested != at {
+                return Err(bad(
+                    "original snapshot index selects another exact original occurrence",
+                ));
+            }
+            self.pay(name.len().saturating_add(variables.len()), 0)?;
+            let value = variables.get(name).ok_or_else(|| {
+                bad("original NameAt has no lexical binder at its exact source point")
+            })?;
+            self.pay(value.origin.copy_work(), 0)?;
+            let result_origin = if value.origin_owner == owner {
+                self.proof
+                    .call_result_origins
+                    .get(&(owner, value.origin.clone()))
+                    .copied()
+            } else {
+                None
+            };
+            let value = copy_recipe(&value.ty, self.limits, self.left)?;
+            let (expression, node) = match at {
+                SemanticOriginalNode::Expression(node) => (true, node),
+                SemanticOriginalNode::Statement(node) => (false, node),
+            };
+            if let Some(origin) = result_origin {
+                self.pay(name.len().saturating_add(2), 0)?;
+                self.proof.proof_mut()?.call_result_origins.insert(
                     (
                         owner,
                         Query::NameAt {
@@ -1489,9 +1543,20 @@ impl<'a> Check<'a, '_> {
                             name: name.clone(),
                         },
                     ),
-                    value,
+                    origin,
                 );
             }
+            self.proof.proof_mut()?.types.insert(
+                (
+                    owner,
+                    Query::NameAt {
+                        expression,
+                        node,
+                        name: name.clone(),
+                    },
+                ),
+                value,
+            );
         }
         Ok(())
     }
@@ -6020,6 +6085,7 @@ fn check_requested(
         stage_depth: 0,
         cleanup_depth: 0,
         requested_snapshot,
+        snapshot_sources: None,
         escape_active: Vec::new(),
     };
     check.pay(1024, 0)?;

@@ -45,6 +45,7 @@ pub(super) fn borrowed_check<'a, 'b>(
         stage_depth: 0,
         cleanup_depth: 0,
         requested_snapshot: None,
+        snapshot_sources: None,
         escape_active: Vec::new(),
     })
 }
