@@ -62,6 +62,54 @@ struct Check<'a, 'i> {
     nominal_definitions: std::cell::RefCell<BTreeMap<LifeDeclarationId, SemanticDefinitionId>>,
 }
 impl Check<'_, '_> {
+    fn sealed_byte_buffer(&self, b: &mut Budget) -> CompileResult<()> {
+        let key = (
+            self.module as *const TypedModule as usize,
+            b.partial_depth,
+            b.helper_nodes,
+        );
+        b.lookup(self.inventory.sealed_byte_buffers.borrow().len(), WORK)?;
+        if self.inventory.sealed_byte_buffers.borrow().contains(&key) {
+            return b.spend(1, WORK);
+        }
+        b.spend(self.module.resources.len(), WORK)?;
+        let mut count = 0;
+        for resource in &self.module.resources {
+            crate::dyn_metadata::ty(&resource.payload, b)?;
+            b.spend(
+                resource
+                    .name
+                    .len()
+                    .saturating_add(zil_ir::BYTE_BUFFER_RESOURCE_NAME.len())
+                    .saturating_add(1),
+                WORK,
+            )?;
+            if resource.payload == Type::ByteBuffer
+                || resource.name == zil_ir::BYTE_BUFFER_RESOURCE_NAME
+            {
+                if resource.payload != Type::ByteBuffer
+                    || resource.name != zil_ir::BYTE_BUFFER_RESOURCE_NAME
+                    || resource.teardown.is_some()
+                {
+                    return Err(fail(
+                        "semantic ByteBuffer carrier has another sealed allocator or cleanup definition",
+                    ));
+                }
+                count += 1;
+            }
+        }
+        if count != 1 {
+            return Err(fail(
+                "semantic ByteBuffer carrier lacks its exact unique sealed definition",
+            ));
+        }
+        b.lookup(self.inventory.sealed_byte_buffers.borrow().len(), WORK)?;
+        self.inventory
+            .sealed_byte_buffers
+            .borrow_mut()
+            .insert(key);
+        Ok(())
+    }
     fn ordinary_type(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
         self.ordinary_type_at(ty, b, 0)
     }
@@ -87,30 +135,7 @@ impl Check<'_, '_> {
             Type::Managed(inner) | Type::Desc(inner) => match inner.as_ref() {
                 Type::Mutex { payload } => return self.mutex_payload(payload, b),
                 Type::ByteBuffer => {
-                    b.spend(self.module.resources.len(), WORK)?;
-                    let mut count = 0;
-                    for resource in &self.module.resources {
-                        crate::dyn_metadata::ty(&resource.payload, b)?;
-                        if resource.payload == Type::ByteBuffer
-                            || resource.name == zil_ir::BYTE_BUFFER_RESOURCE_NAME
-                        {
-                            if resource.payload != Type::ByteBuffer
-                                || resource.name != zil_ir::BYTE_BUFFER_RESOURCE_NAME
-                                || resource.teardown.is_some()
-                            {
-                                return Err(fail(
-                                    "semantic ByteBuffer carrier has another sealed allocator or cleanup definition",
-                                ));
-                            }
-                            count += 1;
-                        }
-                    }
-                    if count != 1 {
-                        return Err(fail(
-                            "semantic ByteBuffer carrier lacks its exact unique sealed definition",
-                        ));
-                    }
-                    return Ok(());
+                    return self.sealed_byte_buffer(b);
                 }
                 Type::OwnedStore { element } => {
                     self.ordinary_type_at(element, b, depth + 1)?;

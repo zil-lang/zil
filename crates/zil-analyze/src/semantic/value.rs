@@ -58,6 +58,7 @@ impl Value {
             classes,
         }
     }
+    #[track_caller]
     pub(super) fn into_parts(
         self,
         b: &mut Budget,
@@ -72,6 +73,7 @@ impl Value {
         };
         Ok((geometry.ty, geometry.life, self.classes))
     }
+    #[track_caller]
     pub(super) fn into_type(self, b: &mut Budget) -> CompileResult<Type> {
         match std::sync::Arc::try_unwrap(self.geometry) {
             Ok(geometry) => Ok(geometry.ty),

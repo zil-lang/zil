@@ -79,6 +79,13 @@ struct Register<'a> {
     inputs: &'a mut Inputs,
     budget: &'a mut Budget,
 }
+fn registration_limit(message: &str) -> Vec<zil_base::Diagnostic> {
+    vec![zil_base::Diagnostic::limit(
+        zil_base::Phase::Analyze,
+        message,
+        None,
+    )]
+}
 impl DynRecipeVisitor for Register<'_> {
     type Error = Vec<zil_base::Diagnostic>;
     fn node(&mut self, _depth: usize) -> CompileResult<()> {
@@ -89,22 +96,10 @@ impl DynRecipeVisitor for Register<'_> {
             .spend(n.saturating_add(1), "semantic geometry input directory")
     }
     fn ty(&mut self, value: &Type, _depth: usize) -> CompileResult<()> {
-        self.budget.lookup(
-            self.inputs.types.len(),
-            "semantic geometry Type registration",
-        )?;
-        self.inputs.types.insert(value as *const Type as usize);
-        Ok(())
+        self.inputs.register_type(value, self.budget)
     }
     fn life(&mut self, value: &StorageLifeShape, _depth: usize) -> CompileResult<()> {
-        self.budget.lookup(
-            self.inputs.lives.len(),
-            "semantic geometry domain registration",
-        )?;
-        self.inputs
-            .lives
-            .insert(value as *const StorageLifeShape as usize);
-        Ok(())
+        self.inputs.register_life(value, self.budget)
     }
     fn identity(&mut self, _: &LifeDeclarationIdentity, depth: usize) -> CompileResult<()> {
         self.node(depth)
@@ -126,7 +121,8 @@ impl Inputs {
         budget: &mut Budget,
     ) -> CompileResult<Self> {
         // The complete raw metadata/depth preflight has already succeeded.
-        // This existing structural visitor only records exact immutable roots.
+        // The recipe visitor exposes Type roots; registration follows every
+        // existing immutable child and embedded domain below each such root.
         budget.geometry_module = Some(module as *const TypedModule as usize);
         let mut inputs = Self {
             module: Some(module as *const TypedModule as usize),
@@ -147,11 +143,7 @@ impl Inputs {
                     LifeNominalActual::Type(ty) => inputs.register_type(ty, budget)?,
                     LifeNominalActual::QualifiedType { ty, life } => {
                         inputs.register_type(ty, budget)?;
-                        budget
-                            .lookup(inputs.lives.len(), "semantic geometry domain registration")?;
-                        inputs
-                            .lives
-                            .insert(life as *const StorageLifeShape as usize);
+                        inputs.register_life(life, budget)?;
                     }
                     _ => budget.spend(1, "semantic geometry input directory")?,
                 }
@@ -167,7 +159,12 @@ impl Inputs {
             }
         }
         for closure in &module.closures {
-            for ty in &closure.captures {
+            for ty in closure
+                .captures
+                .iter()
+                .chain(&closure.parameters)
+                .chain(std::iter::once(&closure.result))
+            {
                 inputs.register_type(ty, budget)?;
             }
         }
@@ -177,12 +174,144 @@ impl Inputs {
         Ok(inputs)
     }
     fn register_type(&mut self, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
-        budget.lookup(self.types.len(), "semantic geometry Type registration")?;
-        self.types.insert(ty as *const Type as usize);
-        if let Type::BorrowedStorage { life, .. } = ty {
-            budget.lookup(self.lives.len(), "semantic geometry domain registration")?;
-            self.lives.insert(life as *const StorageLifeShape as usize);
+        let mut pending = Vec::new();
+        Self::register_child(&mut pending, ty, 0, budget)?;
+        let mut nodes = 0usize;
+        while let Some((ty, depth)) = pending.pop() {
+            budget.spend(1, "semantic geometry input directory")?;
+            nodes = nodes
+                .checked_add(1)
+                .ok_or_else(|| registration_limit("semantic geometry input node count overflow"))?;
+            if depth > budget.partial_depth || nodes > budget.helper_nodes {
+                return Err(registration_limit(
+                    "semantic geometry input exceeds metadata profile",
+                ));
+            }
+            budget.lookup(self.types.len(), "semantic geometry Type registration")?;
+            if !self.types.insert(ty as *const Type as usize) {
+                // Every published input root was traversed by this same walk.
+                continue;
+            }
+            let child_depth = depth.saturating_add(1);
+            match ty {
+                Type::BorrowedStorage { storage, life } => {
+                    self.register_life(life, budget)?;
+                    Self::register_child(&mut pending, storage, child_depth, budget)?;
+                }
+                Type::Address { inner, .. }
+                | Type::Managed(inner)
+                | Type::Desc(inner)
+                | Type::Slice { element: inner }
+                | Type::Array { element: inner, .. }
+                | Type::OwnedStore { element: inner }
+                | Type::Mutex { payload: inner }
+                | Type::Registration { environment: inner }
+                | Type::AsyncRegistration { environment: inner }
+                | Type::Opaque { hidden: inner, .. } => {
+                    Self::register_child(&mut pending, inner, child_depth, budget)?
+                }
+                Type::Task {
+                    result,
+                    retained_life,
+                }
+                | Type::MutexGuard {
+                    payload: result,
+                    retained_life,
+                } => {
+                    Self::register_child(&mut pending, result, child_depth, budget)?;
+                    for port in &retained_life.ports {
+                        Self::register_child(&mut pending, &port.leaf, child_depth, budget)?;
+                    }
+                }
+                Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                    for (_, child) in fields {
+                        Self::register_child(&mut pending, child, child_depth, budget)?;
+                    }
+                }
+                Type::Tuple(fields) => {
+                    for child in fields {
+                        Self::register_child(&mut pending, child, child_depth, budget)?;
+                    }
+                }
+                Type::Enum { variants, .. } => {
+                    for (_, fields) in variants {
+                        budget.spend(1, "semantic geometry input directory")?;
+                        for child in fields {
+                            Self::register_child(&mut pending, child, child_depth, budget)?;
+                        }
+                    }
+                }
+                Type::ErrorUnion { error, result } => {
+                    Self::register_child(&mut pending, error, child_depth, budget)?;
+                    Self::register_child(&mut pending, result, child_depth, budget)?;
+                }
+                Type::FunctionPointer { parameters, result }
+                | Type::BorrowedFunctionPointer {
+                    parameters, result, ..
+                }
+                | Type::ForeignCallback { parameters, result } => {
+                    Self::register_child(&mut pending, result, child_depth, budget)?;
+                    for child in parameters {
+                        Self::register_child(&mut pending, child, child_depth, budget)?;
+                    }
+                }
+                Type::Dyn { .. }
+                | Type::OwnedDyn { .. }
+                | Type::Unit
+                | Type::Bool
+                | Type::I32
+                | Type::I64
+                | Type::U64
+                | Type::Usize
+                | Type::F32
+                | Type::F64
+                | Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::I8
+                | Type::I16
+                | Type::Isize
+                | Type::ByteBuffer
+                | Type::ForeignHandle
+                | Type::SyncCell(_)
+                | Type::TaskI32
+                | Type::CWideString
+                | Type::Named(_)
+                | Type::Closure(_)
+                | Type::Unsupported(_) => {}
+            }
         }
+        Ok(())
+    }
+    fn register_life(&mut self, life: &StorageLifeShape, budget: &mut Budget) -> CompileResult<()> {
+        budget.lookup(self.lives.len(), "semantic geometry domain registration")?;
+        self.lives.insert(life as *const StorageLifeShape as usize);
+        Ok(())
+    }
+    fn register_child<'t>(
+        pending: &mut Vec<(&'t Type, usize)>,
+        ty: &'t Type,
+        depth: usize,
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        if pending.len() >= budget.helper_nodes {
+            return Err(registration_limit(
+                "semantic geometry input pending count exceeded",
+            ));
+        }
+        let relocation = if pending.len() == pending.capacity() {
+            pending.len()
+        } else {
+            0
+        };
+        budget.spend(
+            relocation.saturating_add(1),
+            "semantic geometry input pending allocation",
+        )?;
+        pending
+            .try_reserve(1)
+            .map_err(|_| registration_limit("semantic geometry input allocation failed"))?;
+        pending.push((ty, depth));
         Ok(())
     }
     pub(super) fn type_value(

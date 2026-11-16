@@ -44,6 +44,9 @@ struct Inventory<'a> {
         std::cell::RefCell<BTreeMap<(usize, usize, LifeDeclarationId), SemanticDefinitionId>>,
     drop_methods: std::cell::RefCell<BTreeMap<SemanticDefinitionId, Option<SemanticDefinitionId>>>,
     ordinary_drop_absence: std::cell::RefCell<BTreeSet<SemanticDefinitionId>>,
+    // Successful immutable sealed-resource directory checks only, isolated
+    // by the exact borrowed module and the current metadata limit profile.
+    sealed_byte_buffers: std::cell::RefCell<BTreeSet<(usize, usize, usize)>>,
     geometry: geometry::Inputs,
     call_anchors: std::cell::RefCell<BTreeMap<SemanticDefinitionId, BTreeMap<zil_base::NodeId, SemanticSiteId>>>,
     emitted_sites: std::cell::RefCell<BTreeMap<usize, BTreeMap<(SemanticInstanceId, SemanticSiteId), usize>>>,
@@ -74,6 +77,7 @@ impl<'a> Inventory<'a> {
             declaration_scopes: std::cell::RefCell::new(BTreeMap::new()),
             drop_methods: std::cell::RefCell::new(BTreeMap::new()),
             ordinary_drop_absence: std::cell::RefCell::new(BTreeSet::new()),
+            sealed_byte_buffers: std::cell::RefCell::new(BTreeSet::new()),
             geometry: geometry::Inputs::new(module, program, b)?,
             call_anchors: std::cell::RefCell::new(BTreeMap::new()),
             emitted_sites: std::cell::RefCell::new(BTreeMap::new()),
