@@ -347,7 +347,7 @@ fn function_types_decodable_rejected_work_product_rebuilds_current_source() {
 }
 
 #[test]
-fn function_types_trivial_leaves_do_not_create_persistent_work_products() {
+fn function_types_trivial_leaves_restore_cfgs_and_recheck_the_changed_body() {
     let d = Directory::new();
     let options = CompileOptions {
         semantic_cache: Some(d.0.join("cache")),
@@ -357,12 +357,16 @@ fn function_types_trivial_leaves_do_not_create_persistent_work_products() {
     let main = "import library\nfn value()->i32{return library.answer();}";
     let library = "fn leaf(x:i32)->i32{return x+1;} pub fn answer()->i32{return leaf(41);}";
     success(&session.compile_project(&d.project(main, library), &options));
-    assert!(!d.0.join("cache/function-types-v1").exists());
+    assert!(d.0.join("cache/function-types-v1").exists());
+    drop(session);
+    let mut session = CompilationSession::default();
     let p = d.project(main, &library.replace("x+1", "x+2"));
     let r = session.compile_project(&p, &options);
     success(&r);
-    assert_eq!(session.function_type_stats().reused_functions, 0);
-    assert!(!d.0.join("cache/function-types-v1").exists());
+    assert_eq!(session.function_type_stats().reused_functions, 2);
+    assert_eq!(session.function_type_stats().restored_reused_functions, 2);
+    assert_eq!(session.function_type_stats().executed_functions, 1);
+    assert!(d.0.join("cache/function-types-v1").exists());
     compare_fresh(&session, &r, &p, &options);
 }
 

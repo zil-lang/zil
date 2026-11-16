@@ -268,8 +268,8 @@ fn disk_restart_at_default_capacity_hydrates_then_pushes_one_private_edit() {
 fn restart_replays_checked_function_fees_then_keeps_sparse_edits() {
     let dir = TempDir::new();
     let (path, options) = dir.fixture(100);
-    // These bodies qualify for the existing raw function cache. Tiny scalar
-    // leaves deliberately keep their ordinary builder scheduling policy.
+    // Long bodies and the ordinary scalar wrappers all use the same raw CFG
+    // protocol; every original fee is still replayed in the real push ledger.
     let body = "let a=x+1; let b=a+2; let c=b+3; let d=c+4; return d;";
     let source = format!(
         "fn private(x:i32)->i32{{{body}}} fn other(x:i32)->i32{{{body}}} pub fn f(x:i32)->i32{{{body}}}"
@@ -287,9 +287,9 @@ fn restart_replays_checked_function_fees_then_keeps_sparse_edits() {
     success(&restart);
     assert_eq!(restart.disk_cache, DiskCacheStatus::Hydrated);
     let stats = session.function_types.last_stats();
-    assert_eq!(stats.reused_functions, 303);
-    assert_eq!(stats.restored_reused_functions, 303);
-    assert_eq!(stats.executed_functions, 3);
+    assert_eq!(stats.reused_functions, 306);
+    assert_eq!(stats.restored_reused_functions, 306);
+    assert_eq!(stats.executed_functions, 0);
     epochs(&session, &restart, 102);
     compare(&session, &restart, &path, &options);
 
@@ -313,8 +313,8 @@ fn restart_replays_checked_function_fees_then_keeps_sparse_edits() {
     success(&first_edit);
     assert_eq!(first_edit.disk_cache, DiskCacheStatus::Missing);
     let stats = next.function_types.last_stats();
-    assert_eq!(stats.reused_functions, 302);
-    assert_eq!(stats.executed_functions, 4);
+    assert_eq!(stats.reused_functions, 305);
+    assert_eq!(stats.executed_functions, 1);
     epochs(&next, &first_edit, 102);
     compare(&next, &first_edit, &path, &options);
 
@@ -468,6 +468,17 @@ fn wrong_decoded_hydration_values_cannot_supply_results_checks_or_fees() {
                 .sum::<usize>();
             assert!(blocks > 1);
             current_options.limits.max_blocks = blocks - 1;
+        }
+        // Isolate the untrusted whole-program anchor from the independently
+        // valid CFG cache. The separate restart regression tests real CFG hits;
+        // this counterexample must still perform all nine current body checks.
+        let function_cache = options
+            .semantic_cache
+            .as_ref()
+            .unwrap()
+            .join("function-types-v3-push");
+        if function_cache.exists() {
+            fs::remove_dir_all(function_cache).unwrap();
         }
         let mut session = CompilationSession::default();
         let report = session.compile_project_request(
