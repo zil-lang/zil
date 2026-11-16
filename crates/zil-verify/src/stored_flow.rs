@@ -1342,6 +1342,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
             Type::Address { mutable, inner } => {
                 type_bounds(inner, limits, b)?;
                 if !inner.is_address_pointee()
+                    && !(b.raw_reference_cells&&reference_cells::nested(t))
                     && !(qualified(inner).is_some()&&physical(inner,limits,b)?){
                     return Err(err("stored shared leaf has invalid actual pointee"));
                 }
@@ -7274,6 +7275,7 @@ fn check_with_mask(
                 || neutral_owner
                 || qualified(ty).is_some()
                 || addressed(ty).is_some()
+                || b.raw_reference_cells&&reference_cells::nested(ty)
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value()
                 || shared_array_shape(ty, b)?

@@ -20,7 +20,7 @@ fn external(module: &TypedModule, function: &TypedFunction, root: Root) -> bool 
         // retained parameter ports. The capture's owning head is a separate
         // root; equal field types or a shared enclosing owner cannot prove
         // separation between two actual selectors.
-        Root::ParameterPort(..) | Root::CapturePort(..) => true,
+        Root::ParameterPort(..) | Root::CapturePort(..) | Root::Reference(..) => true,
         Root::ParameterCapture(parameter, capture) => {
             let ty = &function.locals[function.parameters[parameter as usize].0 as usize].ty;
             helpers::parameter_type(ty).is_some_and(|(id, _)| {

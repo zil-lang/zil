@@ -1303,3 +1303,19 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod kernel_entry_tests{
+    use super::*;
+    #[test]
+    fn actual_nested_borrow_read_and_write_keep_precise_types_and_modes(){
+        let(module,_)=crate::tests::baseline();let mut f=module.functions[0].clone();f.locals.truncate(1);f.locals[0].ty=Type::Address{mutable:false,inner:Box::new(Type::I32)};f.locals[0].mutable=true;
+        let shared=f.locals[0].ty.clone();let outer=Type::Address{mutable:true,inner:Box::new(shared.clone())};f.values=vec![outer,shared.clone(),shared.clone(),Type::Address{mutable:false,inner:Box::new(shared)}];
+        let span=f.span;let read=Instruction{result:Some(ValueId(2)),kind:InstructionKind::ReadAddress{address:ValueId(0)},span};
+        let operations=[Instruction{result:Some(ValueId(0)),kind:InstructionKind::BorrowLocalMut{local:LocalId(0)},span},Instruction{result:None,kind:InstructionKind::WriteAddress{address:ValueId(0),value:ValueId(1)},span},read.clone(),Instruction{result:Some(ValueId(3)),kind:InstructionKind::BorrowLocal{local:LocalId(0)},span}];
+        let mut b=Budget::new(&Limits::default());b.raw_reference_cells=true;b.stored_borrows=true;
+        for instruction in operations{crate::check_instruction(&module,&f,&instruction,&mut b).unwrap();}
+        f.values[2]=Type::Address{mutable:true,inner:Box::new(Type::I32)};
+        assert!(crate::check_instruction(&module,&f,&read,&mut b).is_err(),"a shared stored pointer cannot be read as an exclusive pointer");
+    }
+}

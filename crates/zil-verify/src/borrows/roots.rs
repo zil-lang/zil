@@ -172,6 +172,7 @@ impl Ord for Root {
             Self::ParameterCapture(_, capture) => (3, *capture, 0, 0, 0),
             Self::ParameterPort(_, port) => (6, *port, 0, 0, 0),
             Self::CapturePort(_, port) => (7, *port, 0, 0, 0),
+            Self::Reference(_,index)=>(8,*index,0,0,0),
             _ => (0, 0, 0, 0, 0),
         };
         (self.coarse(), projection(self)).cmp(&(other.coarse(), projection(other)))
@@ -1296,4 +1297,15 @@ pub(super) fn mixed_address_roots(
             })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod reference_namespace_tests{
+    use super::*;
+    #[test]
+    fn ordered_roots_keep_every_content_coordinate_separate_from_slot(){
+        let slot=Root::Parameter(0);let first=Root::Reference(HoldRoot::Parameter(0),0);let second=Root::Reference(HoldRoot::Parameter(0),1);
+        let rows=std::collections::BTreeSet::from([slot,first,second]);assert_eq!(rows.len(),3);
+        assert!(!slot.intersects(first));assert!(!first.intersects(second));assert!(first.intersects(first));
+    }
 }

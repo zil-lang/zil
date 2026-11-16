@@ -2094,6 +2094,13 @@ fn check_function_signature_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
+    if budget.raw_reference_cells&&let Type::Address{inner,..}=ty&&matches!(inner.as_ref(),Type::Address{..}){
+        // Each actual pointee still goes through its existing complete checker.
+        // The full raw referent class directory is checked by signature_life
+        // and class_flow; this type admission does not provide a source.
+        stored_flow::type_work(inner,&budget.limits.clone(),budget)?;
+        return check_function_signature_type(module,inner,span,budget);
+    }
     if let Type::MutexGuard {
         payload,
         retained_life,
@@ -2202,6 +2209,9 @@ fn check_local_type(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> Check<bool> {
+    if budget.raw_reference_cells&&matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Address{..})){
+        check_function_signature_type(module,ty,span,budget)?;return Ok(false);
+    }
     if matches!(ty, Type::BorrowedStorage { .. }) {
         return if budget.stored_borrows {
             Ok(false)
@@ -3111,7 +3121,9 @@ fn check_instruction(
         }
         InstructionKind::BorrowLocal { local } => {
             let inner = local_type(function, *local, span)?;
-            if let Type::Closure(id) = inner {
+            if budget.raw_reference_cells&&matches!(inner,Type::Address{..}){
+                check_function_signature_type(module,inner,span,budget)?;
+            } else if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
             } else if let Type::OwnedDyn { interface } = inner {
                 dynamic_dispatch::type_owned(module, *interface, budget)?;
@@ -3151,7 +3163,9 @@ fn check_instruction(
         }
         InstructionKind::BorrowLocalMut { local } => {
             let inner = local_type(function, *local, span)?;
-            if let Type::Closure(id) = inner {
+            if budget.raw_reference_cells&&matches!(inner,Type::Address{..}){
+                check_function_signature_type(module,inner,span,budget)?;
+            } else if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
             } else if let Type::OwnedDyn { interface } = inner {
                 dynamic_dispatch::type_owned(module, *interface, budget)?;
@@ -3234,7 +3248,9 @@ fn check_instruction(
                     "indirect write requires an exclusive address",
                 ));
             };
-            check_type(inner, span)?;
+            if budget.raw_reference_cells&&matches!(inner.as_ref(),Type::Address{mutable:false,..}){
+                check_function_signature_type(module,inner,span,budget)?;
+            }else{check_type(inner,span)?;}
             if inner.as_ref() != value_type(function, *value, span)? {
                 return Err(reject(
                     "E-VERIFY-TYPE",
@@ -3332,7 +3348,7 @@ fn check_instruction(
             {
                 resources::check_type_for(module, field, span, budget)?;
             } else {
-                check_type(field, span)?;
+                if budget.raw_reference_cells&&matches!(field,Type::Address{..}){check_function_signature_type(module,field,span,budget)?;}else{check_type(field,span)?;}
             }
             budget.array_snapshot(field, value_type(function, *address, span)?)?;
             Some(Type::Address {
@@ -3362,7 +3378,7 @@ fn check_instruction(
                     "index projection requires an integer",
                 ));
             }
-            check_type(element, span)?;
+            if budget.raw_reference_cells&&matches!(element.as_ref(),Type::Address{..}){check_function_signature_type(module,element,span,budget)?;}else{check_type(element,span)?;}
             Some(Type::Address {
                 mutable: *mutable,
                 inner: element.clone(),
@@ -3415,6 +3431,14 @@ fn check_instruction(
                 ));
             }
             Some(Type::I64)
+        }
+        InstructionKind::ReadAddress{address}if budget.raw_reference_cells&&matches!(value_type(function,*address,span)?,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Address{mutable:false,..}))=>{
+            let Type::Address{inner,..}=value_type(function,*address,span)?else{unreachable!()};
+            check_function_signature_type(module,inner,span,budget)?;
+            // Copying a shared pointer value is discharged by the actual cell
+            // and loan consumers, not by Type::is_copy_value on all addresses.
+            stored_flow::type_work(inner,&budget.limits.clone(),budget)?;
+            Some(inner.as_ref().clone())
         }
         InstructionKind::ReadAddress { address } => match value_type(function, *address, span)? {
             Type::Address { inner, .. }

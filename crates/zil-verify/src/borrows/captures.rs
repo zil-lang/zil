@@ -31,6 +31,7 @@ impl Source {
                     | Root::ParameterPort(..)
                     | Root::Capture(_)
                     | Root::CapturePort(..)
+                    | Root::Reference(..)
             ) | Self::InputCapture { .. }
         )
     }
@@ -129,6 +130,12 @@ impl Invocation<'_> {
             root
         };
         let slot = match root {
+            Root::Reference(..)=>{
+                // This is a real pointee-content source, never an environment
+                // position or the argument slot. Existing physical/opaque
+                // capture selectors cannot instantiate its call-before cell.
+                return Err(unsupported("raw pointer-content separation requires complete actual call-before cell transport",Some(self.span)));
+            }
             Root::Static => {
                 return Err(reject(
                     "E-VERIFY-HOLD",
@@ -879,4 +886,17 @@ pub(super) fn lending_result(
         }
     }
     Ok(roots)
+}
+
+#[cfg(test)]
+mod reference_effect_tests{
+    use super::*;
+    #[test]
+    fn pointer_contents_are_external_effects_and_never_environment_slots(){
+        let root=Root::Reference(HoldRoot::Parameter(0),0);assert!(Source::Root(root).external());
+        let captures=CaptureFacts{values:vec![],inputs:vec![]};let ordinary=Facts{values:vec![],inputs:vec![],product_captures:false};let span=zil_base::Span::new(zil_base::FileId(0),0,1);
+        let invocation=Invocation{function:FunctionId(0),caller:FunctionId(0),arguments:&[],environment:None,environment_value:None,captures:&captures,ordinary:&ordinary,span};
+        let error=invocation.substitute(root,&mut Budget::new(&Limits::default())).unwrap_err();
+        assert_eq!(error.category,zil_base::ResultCategory::Unsupported);assert!(error.message.contains("call-before cell transport"));
+    }
 }
