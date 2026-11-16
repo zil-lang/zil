@@ -99,7 +99,7 @@ impl CheckedOriginal {
             Ty::Closure(definition,actuals,sealed)=>{
                 if written_types.is_some()||written_mixed.is_some(){return Err(bad("original closure invocation has unsupported generic application"));}
                 let original=context.definition(module,definition,b)?;let SemanticDefinitionBody::FunctionWithBody{signature,..}=&original.body else{return Err(bad("original Closure has no complete signature/body"));};
-                let mut selected=self.environment(module,context,definition,active,b)?;selected.lexical[0].actuals=actuals;selected.lexical[0].environment=sealed;
+                let selected=self.closure_creator_environment(module,context,definition,&actuals,&sealed,env,active,b)?;
                 let rigid=if let Some(prototype)=self.prototypes.get(&definition){prototype.clone()}else{let rigid=self.environment(module,context,definition,active,b)?;self.signature(module,context,signature,&rigid,active,b)?};let outer_floor=self.next_inference;let prototype=self.instantiate_prototype(&rigid,Some(definition),&selected,b)?;
                 if prototype.callable_kind==Some(CallableKind::FnOnce){if let Some(place)=&callee_place{self.read_original(module,context,place,&callee_type,env,true,active,b)?;}}
                 if prototype.callable_kind==Some(CallableKind::FnMut){if let Some(place)=&callee_place{self.written.entry(env.current()?).or_default().insert(place.binder.clone());}}
@@ -113,11 +113,11 @@ impl CheckedOriginal {
                 let prototype=match &target{
                     Ty::Closure(definition,actuals,sealed)=>{
                         let original=context.definition(module,*definition,b)?;let SemanticDefinitionBody::FunctionWithBody{signature,..}=&original.body else{return Err(bad("original borrowed Closure omits its body/signature"));};
-                        let mut selected=self.environment(module,context,*definition,active,b)?;selected.lexical[0].actuals=actuals.clone();selected.lexical[0].environment=sealed.clone();
+                        let selected=self.closure_creator_environment(module,context,*definition,actuals,sealed,env,active,b)?;
                         let rigid=if let Some(prototype)=self.prototypes.get(definition){prototype.clone()}else{let rigid=self.environment(module,context,*definition,active,b)?;self.signature(module,context,signature,&rigid,active,b)?};
                         self.instantiate_prototype(&rigid,Some(*definition),&selected,b)?
                     },
-                    _=>{let prototype=self.callable_premise(module,context,&target,env,active,b)?.ok_or_else(||bad("original borrowed indirect Call has no complete Callable premise"))?;self.instantiate_prototype(&prototype,None,&prototype.environment,b)?},
+                    _=>{let prototype=self.callable_premise(module,context,&target,env,active,b)?.ok_or_else(||bad("original borrowed indirect Call has no complete Callable premise"))?;self.freshen_code_prototype(&prototype,None,b)?},
                 };
                 match prototype.callable_kind{
                     Some(CallableKind::Fn|CallableKind::FunctionPointer)=>{},
@@ -133,7 +133,7 @@ impl CheckedOriginal {
                 // The premise owns this code signature's quantifiers. Each
                 // call gets fresh roles; caller input heads and retained
                 // domains are not among those code binders (owner is None).
-                let outer_floor=self.next_inference;let prototype=self.instantiate_prototype(&prototype,None,&prototype.environment,b)?;
+                let outer_floor=self.next_inference;let prototype=self.freshen_code_prototype(&prototype,None,b)?;
                 if prototype.callable_kind==Some(CallableKind::FnOnce){if let Some(place)=&callee_place{self.read_original(module,context,place,&variable,env,true,active,b)?;}}
                 if prototype.callable_kind==Some(CallableKind::FnMut){if let Some(place)=&callee_place{self.written.entry(env.current()?).or_default().insert(place.binder.clone());}}
                 self.invoke(module,context,call.id,outer_floor,&prototype,arguments,env,bindings,active,b)
@@ -247,16 +247,16 @@ mod quantified_goal_tests{
         let invocation=Life::Invocation(FrameToken(800),0);let goal=Life::Bound(FrameToken(900),0);let other=Life::Bound(FrameToken(901),0);
         let mut source=signature(invocation.clone(),invocation.clone());source.invocation_lifetimes=1;source.environment.invocation=vec![invocation];
         let mut wanted=signature(goal.clone(),goal.clone());wanted.environment.bounds=vec![vec![goal.clone()]];
-        let(actual,flexible)=checked.callable_goal_source(&source,&wanted,None,&mut b).unwrap();
+        let(actual,flexible)=checked.callable_goal_source(&source,&wanted,None,None,&mut b).unwrap();
         assert_eq!(actual.invocation_lifetimes,1);assert_eq!(actual.environment.invocation.len(),1);assert_eq!(wanted.invocation_lifetimes,0);assert_eq!(wanted.environment.bounds,vec![vec![goal.clone()]]);
         checked.callable_goal_type(&actual.parameters[0],&wanted.parameters[0],&flexible,&mut b).unwrap();checked.callable_goal_type(&actual.result,&wanted.result,&flexible,&mut b).unwrap();
         assert!(checked.callable_goal_type(&actual.result,&address(other.clone(),Ty::Atom(Type::I32)),&flexible,&mut b).is_err(),"the source's repeated role cannot switch to another nonzero frame");
-        let fixed=signature(other.clone(),other);let(actual,flexible)=checked.callable_goal_source(&fixed,&wanted,None,&mut b).unwrap();assert!(checked.callable_goal_type(&actual.parameters[0],&wanted.parameters[0],&flexible,&mut b).is_err(),"a captured rigid role is not universally callable");
-        for malformed in [0,2]{let mut bad=source.clone();bad.invocation_lifetimes=malformed;assert!(checked.callable_goal_source(&bad,&wanted,None,&mut b).is_err());}
-        let mut bad=wanted.clone();bad.bound_lifetimes=2;assert!(checked.callable_goal_source(&source,&bad,None,&mut b).is_err());
-        let mut bad=wanted.clone();bad.modes[0]=PassingMode::BorrowMut;assert!(checked.callable_goal_source(&source,&bad,None,&mut b).is_err());
-        let mut bad=wanted.clone();bad.result_mode=PassingMode::Copy;assert!(checked.callable_goal_source(&source,&bad,None,&mut b).is_err());
-        let mut bad=wanted;bad.call_kind=CallKind::Suspend;assert!(checked.callable_goal_source(&source,&bad,None,&mut b).is_err());
+        let fixed=signature(other.clone(),other);let(actual,flexible)=checked.callable_goal_source(&fixed,&wanted,None,None,&mut b).unwrap();assert!(checked.callable_goal_type(&actual.parameters[0],&wanted.parameters[0],&flexible,&mut b).is_err(),"a captured rigid role is not universally callable");
+        for malformed in [0,2]{let mut bad=source.clone();bad.invocation_lifetimes=malformed;assert!(checked.callable_goal_source(&bad,&wanted,None,None,&mut b).is_err());}
+        let mut bad=wanted.clone();bad.bound_lifetimes=2;assert!(checked.callable_goal_source(&source,&bad,None,None,&mut b).is_err());
+        let mut bad=wanted.clone();bad.modes[0]=PassingMode::BorrowMut;assert!(checked.callable_goal_source(&source,&bad,None,None,&mut b).is_err());
+        let mut bad=wanted.clone();bad.result_mode=PassingMode::Copy;assert!(checked.callable_goal_source(&source,&bad,None,None,&mut b).is_err());
+        let mut bad=wanted;bad.call_kind=CallKind::Suspend;assert!(checked.callable_goal_source(&source,&bad,None,None,&mut b).is_err());
     }
     #[test]
     fn universal_callable_goal_solves_only_explicit_private_call_roles(){
@@ -287,22 +287,31 @@ mod quantified_goal_tests{
 impl CheckedOriginal{
     #[allow(clippy::too_many_arguments)]
     fn callable_goal(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&SemanticTypeRecipe,signature:&SemanticSignatureRecipe,kind:CallableKind,target:&Env,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{
-        let receiver=self.ty(module,context,receiver,target,active,b)?;let receiver=self.resolved(&receiver,b)?;
+        let receiver_recipe=receiver;
+        let receiver=self.ty(module,context,receiver_recipe,target,active,b)?;let receiver=self.resolved(&receiver,b)?;
         let wanted=self.signature(module,context,signature,target,active,b)?;
-        let (actual,owner)=match &receiver{
+        let (actual,owner,selected)=match &receiver{
             Ty::Closure(id,actuals,sealed)=>{
                 if !self.checked.contains(id){return Err(bad("original Callable source body is not independently complete"));}
                 let prototype=self.prototypes.get(id).cloned().ok_or_else(||bad("original Callable source lacks its complete prototype"))?;
-                let mut selected=self.environment(module,context,*id,active,b)?;
-                selected.lexical[0].actuals=self.resolve_arguments(actuals,0,b)?;
-                selected.lexical[0].environment=self.resolve_arguments(sealed,0,b)?;
-                (self.specialize_code_prototype(&prototype,&selected,b)?,Some(*id))
+                // A target's checked original Result/lexical occurrence may
+                // be the creator (for example a generic opaque factory). A
+                // substituted Formal Type instead remains caller-owned, even
+                // during recursive calls to the same declaration identity.
+                let mut creator=caller;
+                if let SemanticTypeRecipe::OriginalType{scope,source}=receiver_recipe{
+                    let frame=target.frame(*scope)?;
+                    if context.definition(module,*id,b)?.parent==Some(frame.definition)
+                        && matches!(self.original_type(frame.definition,source,b)?,Ty::Closure(original,..)if original==*id){creator=target;}
+                }
+                let selected=self.closure_creator_environment(module,context,*id,actuals,sealed,creator,active,b)?;
+                (prototype,Some(*id),Some(selected))
             },
             Ty::Code{kind,parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes}=>{
                 let capability=match kind{SemanticCodeKind::FunctionPointer|SemanticCodeKind::BorrowedFunctionPointer=>Some(CallableKind::FunctionPointer),SemanticCodeKind::ForeignCallback=>None};
-                (Prototype{parameters:parameters.clone(),result:*result.clone(),environment:self.copy_environment(caller,b)?,modes:modes.clone(),result_mode:*result_mode,call_kind:*call_kind,bound_lifetimes:*bound_lifetimes,invocation_lifetimes:*invocation_lifetimes,premise_bounds:vec![],callable_kind:capability},None)
+                (Prototype{parameters:parameters.clone(),result:*result.clone(),environment:self.copy_environment(caller,b)?,modes:modes.clone(),result_mode:*result_mode,call_kind:*call_kind,bound_lifetimes:*bound_lifetimes,invocation_lifetimes:*invocation_lifetimes,premise_bounds:vec![],callable_kind:capability},None,None)
             },
-            _=>(self.callable_premise(module,context,&receiver,caller,active,b)?.ok_or_else(||bad("original caller does not prove the target Callable requirement"))?,None),
+            _=>(self.callable_premise(module,context,&receiver,caller,active,b)?.ok_or_else(||bad("original caller does not prove the target Callable requirement"))?,None,None),
         };
         if !callable_accepts(actual.callable_kind,kind){return Err(unsupported("original Callable source capability is not independently established",None));}
         // Universal elimination instantiates only this source code scheme's
@@ -310,7 +319,7 @@ impl CheckedOriginal{
         // ForAll need not put equivalent quantifiers in the same code field.
         // Their complete directories are checked separately; the real P/R
         // occurrences discharge every substitution, never numeric ordinals.
-        let (actual,flexible)=self.callable_goal_source(&actual,&wanted,owner,b)?;
+        let (actual,flexible)=self.callable_goal_source(&actual,&wanted,owner,selected.as_ref(),b)?;
         for(actual,wanted)in actual.parameters.iter().zip(&wanted.parameters){
             let actual=self.normalize_original_type(module,context,actual,caller,active,b)?;
             let wanted=self.normalize_original_type(module,context,wanted,caller,active,b)?;
@@ -320,10 +329,13 @@ impl CheckedOriginal{
         let wanted=self.normalize_original_type(module,context,&wanted.result,caller,active,b)?;
         self.callable_goal_type(&actual,&wanted,&flexible,b).map_err(|error|error.with_note(format!("Callable source receiver {:?}; target lexical frames {:?}; caller lexical frames {:?}",receiver,target.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>(),caller.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>())))
     }
-    fn callable_goal_source(&mut self,actual:&Prototype,wanted:&Prototype,owner:Option<SemanticDefinitionId>,b:&mut Budget)->Check<(Prototype,BTreeSet<Life>)>{
+    fn callable_goal_source(&mut self,actual:&Prototype,wanted:&Prototype,owner:Option<SemanticDefinitionId>,selected:Option<&Env>,b:&mut Budget)->Check<(Prototype,BTreeSet<Life>)>{
         if actual.parameters.len()!=wanted.parameters.len()||actual.modes!=wanted.modes||actual.result_mode!=wanted.result_mode||actual.call_kind!=wanted.call_kind{return Err(bad("original Callable requirement has different complete modes/kind"));}
         self.private_prototype_frames(wanted,b)?;
-        let(actual,roles)=self.instantiate_prototype_roles(actual,owner,&actual.environment,b)?;
+        // A concrete Closure is still in its original declaration domain:
+        // freshen only its private directories before one simultaneous actual
+        // substitution. A premise/opaque signature is already caller-closed.
+        let(actual,roles)=if let Some(selected)=selected{self.instantiate_prototype_roles(actual,owner,selected,b)?}else{self.freshen_code_prototype_roles(actual,owner,b)?};
         b.spend(roles.len())?;Ok((actual,roles.values().cloned().collect()))
     }
     fn callable_goal_type(&mut self,actual:&Ty,wanted:&Ty,flexible:&BTreeSet<Life>,b:&mut Budget)->Check<()>{

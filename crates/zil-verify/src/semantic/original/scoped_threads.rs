@@ -26,8 +26,10 @@ impl CheckedOriginal {
         self.unify(&input,&prototype.parameters[0],b)?;
         for requirement in &definition.requirements{self.obligation(module,context,requirement,&target,env,active,b)?;}
         let body=self.expression(module,context,&arguments[2],env,bindings,None,active,b)?;
-        let Ty::Closure(body_definition,_,_)=self.resolved(&body,b)?else{return Err(bad("thread parent body is not an original concrete closure"));};
+        let Ty::Closure(body_definition,body_arguments,body_sealed)=self.resolved(&body,b)?else{return Err(bad("thread parent body is not an original concrete closure"));};
         let body_signature=self.prototypes.get(&body_definition).cloned().ok_or_else(||bad("thread parent body has no universally checked complete prototype"))?;
+        let body_environment=self.closure_creator_environment(module,context,body_definition,&body_arguments,&body_sealed,env,active,b)?;
+        let body_signature=self.specialize_code_prototype(&body_signature,&body_environment,b)?;
         if !body_signature.parameters.is_empty()||body_signature.result!=Ty::Atom(Type::I32)||body_signature.result_mode!=PassingMode::Infer||body_signature.call_kind!=CallKind::Direct||!matches!(body_signature.callable_kind,Some(CallableKind::Fn|CallableKind::FnMut|CallableKind::FnOnce)){return Err(bad("thread parent body does not admit the complete consuming zero-input i32 Direct role"));}
         // The parent closure is also cleaned on native thread-creation failure.
         self.structural_obligation(module,context,&body,DynStructuralBound::SyncDrop,env,active,b)?;

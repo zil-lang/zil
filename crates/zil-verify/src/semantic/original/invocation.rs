@@ -8,10 +8,52 @@ impl CheckedOriginal {
         let prototype=self.signature(module,context,signature,&rigid,active,b)?;
         self.instantiate_prototype(&prototype,Some(target),selected,b)
     }
+    /// Reuse the actual creator's complete lexical suffix. Sealed values
+    /// validate that boundary; their Type shapes never infer parent actuals.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn closure_creator_environment(&mut self,module:&TypedModule,context:&CheckedContext,owner:SemanticDefinitionId,arguments:&[Arg],sealed:&[Arg],creator:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Env>{
+        let definition=context.definition(module,owner,b)?;
+        if definition.kind!=SemanticDefinitionKind::Closure||definition.parameters.len()!=arguments.len()||definition.environment.len()!=sealed.len(){return Err(bad("original Closure boundary changes its complete mixed argument/environment directories"));}
+        for(formal,actual)in definition.parameters.iter().zip(arguments).chain(definition.environment.iter().map(|row|&row.kind).zip(sealed)){
+            b.spend(1)?;
+            if !matches!((formal,actual),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Lifetime,Arg::Life(_))|(SemanticFormal::Const{..},Arg::Const(_))){return Err(bad("original Closure boundary changes a full-ordinal actual kind"));}
+        }
+        let parent=definition.parent.ok_or_else(||bad("original Closure boundary has no declared creator"))?;
+        let at=creator.lexical.iter().position(|frame|frame.definition==parent).ok_or_else(||unsupported("original Closure boundary lacks its real creator lexical suffix",None))?;
+        let mut selected=self.copy_environment(creator,b)?;selected.lexical.drain(..at);
+        let mut ancestor=Some(parent);
+        for frame in &selected.lexical{
+            b.spend(1)?;
+            if ancestor!=Some(frame.definition){return Err(bad("original Closure boundary changes its complete declared lexical ancestry"));}
+            let original=context.definition(module,frame.definition,b)?;
+            if original.parameters.len()!=frame.actuals.len()||original.environment.len()!=frame.environment.len(){return Err(bad("original Closure creator suffix omits a complete mixed frame"));}
+            for(formal,actual)in original.parameters.iter().zip(&frame.actuals).chain(original.environment.iter().map(|row|&row.kind).zip(&frame.environment)){
+                b.spend(1)?;if !matches!((formal,actual),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Lifetime,Arg::Life(_))|(SemanticFormal::Const{..},Arg::Const(_))){return Err(bad("original Closure creator suffix changes a full-ordinal actual kind"));}
+            }
+            ancestor=original.parent;
+        }
+        if ancestor.is_some(){return Err(bad("original Closure creator suffix omits an enclosing declaration"));}
+        let mut expected=Vec::new();for formal in &definition.environment{expected.push(self.actual(module,context,&formal.source,&selected,active,b)?);}
+        if !self.same_arguments_readonly(&expected,sealed,b)?{return Err(bad("original Closure sealed environment differs from its exact actual creator sources"));}
+        selected.lexical.insert(0,Frame{definition:owner,actuals:self.resolve_arguments(arguments,0,b)?,environment:self.resolve_arguments(sealed,0,b)?});
+        Ok(selected)
+    }
     pub(super) fn instantiate_prototype(&mut self,prototype:&Prototype,owner:Option<SemanticDefinitionId>,selected:&Env,b:&mut Budget)->Check<Prototype>{
         self.instantiate_prototype_roles(prototype,owner,selected,b).map(|(prototype,_)|prototype)
     }
     pub(super) fn instantiate_prototype_roles(&mut self,prototype:&Prototype,owner:Option<SemanticDefinitionId>,selected:&Env,b:&mut Budget)->Check<(Prototype,BTreeMap<Life,Life>)>{
+        self.prototype_roles(prototype,owner,selected,true,b)
+    }
+    /// The code was already interpreted in its actual creator/caller domain.
+    /// Invocation introduces its private roles without applying that closed
+    /// actual vector to itself a second time (including recursive callers).
+    pub(super) fn freshen_code_prototype_roles(&mut self,prototype:&Prototype,owner:Option<SemanticDefinitionId>,b:&mut Budget)->Check<(Prototype,BTreeMap<Life,Life>)>{
+        self.prototype_roles(prototype,owner,&prototype.environment,false,b)
+    }
+    pub(super) fn freshen_code_prototype(&mut self,prototype:&Prototype,owner:Option<SemanticDefinitionId>,b:&mut Budget)->Check<Prototype>{
+        self.freshen_code_prototype_roles(prototype,owner,b).map(|(prototype,_)|prototype)
+    }
+    fn prototype_roles(&mut self,prototype:&Prototype,owner:Option<SemanticDefinitionId>,selected:&Env,substitute:bool,b:&mut Budget)->Check<(Prototype,BTreeMap<Life,Life>)>{
         let mut candidates=BTreeSet::new();
         self.private_prototype_frames(prototype,b)?;
         b.spend(prototype.environment.invocation.len().saturating_add(1))?;
@@ -37,9 +79,10 @@ impl CheckedOriginal {
         let mut rewrite=|life:&Life,b:&mut Budget|{b.spend(1)?;Ok(map.get(life).cloned().unwrap_or_else(||life.clone()))};
         let environment=self.prototype_environment(prototype,selected,&mut rewrite,b)?;
         let mut premise_bounds=Vec::new();for frame in &prototype.premise_bounds{let mut values=Vec::new();for life in frame{values.push(rewrite(life,b)?);}premise_bounds.push(values);}
-        let mut parameters=Vec::new();for ty in &prototype.parameters{let ty=self.map_invocation_type(ty,&mut rewrite,0,b)?;parameters.push(self.apply_type(&ty,selected,b)?);}
+        let mut parameters=Vec::new();for ty in &prototype.parameters{let ty=self.map_invocation_type(ty,&mut rewrite,0,b)?;parameters.push(if substitute{self.apply_type(&ty,selected,b)?}else{ty});}
         let result=self.map_invocation_type(&prototype.result,&mut rewrite,0,b)?;
-        Ok((Prototype{parameters,result:self.apply_type(&result,selected,b)?,environment,modes:prototype.modes.clone(),result_mode:prototype.result_mode,call_kind:prototype.call_kind,bound_lifetimes:prototype.bound_lifetimes,invocation_lifetimes:prototype.invocation_lifetimes,premise_bounds,callable_kind:prototype.callable_kind},map))
+        let result=if substitute{self.apply_type(&result,selected,b)?}else{result};
+        Ok((Prototype{parameters,result,environment,modes:prototype.modes.clone(),result_mode:prototype.result_mode,call_kind:prototype.call_kind,bound_lifetimes:prototype.bound_lifetimes,invocation_lifetimes:prototype.invocation_lifetimes,premise_bounds,callable_kind:prototype.callable_kind},map))
     }
     pub(super) fn private_prototype_frames<'a>(&self,prototype:&'a Prototype,b:&mut Budget)->Check<Vec<&'a [Life]>>{
         if prototype.environment.invocation.len()!=prototype.invocation_lifetimes as usize{return Err(bad("original prototype lacks its complete Invocation directory"));}
@@ -121,6 +164,55 @@ impl CheckedOriginal {
 mod tests{
     use super::*;
     fn address(life:Life)->Ty{Ty::Address{mutable:false,life,inner:Box::new(Ty::Atom(Type::I32))}}
+    #[test]
+    fn closure_creator_suffix_checks_all_original_mixed_sources_without_inference(){
+        let limits=Limits::default();let(mut module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let program=module.semantic.as_mut().unwrap();let mut parent=program.definitions.iter().find(|row|row.kind==SemanticDefinitionKind::Function&&row.parent.is_none()).unwrap().clone();
+        parent.id.index=program.definitions.iter().filter(|row|row.id.module==parent.id.module).map(|row|row.id.index).max().unwrap()+1;
+        let owner=parent.id;let child=SemanticDefinitionId{module:owner.module,index:owner.index+1};
+        let body=SemanticDefinitionBody::FunctionWithBody{signature:SemanticSignatureRecipe{bound_lifetimes:0,invocation_lifetimes:0,parameters:vec![],result:SemanticTypeRecipe::Atom(Type::Unit),result_mode:PassingMode::Infer,call_kind:CallKind::Direct},protocol_contracts:vec![],foreign:None,resume_bound:TaskResumeBound::Local,sites:vec![],parameters:vec![],receiver_parameter:None,names:vec![],site_nodes:vec![],body:SemanticOriginalFunctionBody::Defined(SemanticOriginalBlock{span:Default::default(),statements:vec![]})};
+        parent.identity.declaration_path.push("creator_suffix_parent".into());parent.parameters=vec![SemanticFormal::Type{requirements:vec![]},SemanticFormal::Lifetime,SemanticFormal::Const{carrier:SemanticTypeRecipe::Atom(Type::Usize)}];parent.implicit_lifetimes.clear();parent.requirements.clear();parent.environment.clear();parent.body=body.clone();
+        let mut closure=parent.clone();closure.id=child;closure.parent=Some(owner);closure.kind=SemanticDefinitionKind::Closure;closure.identity.declaration_path.push("child".into());closure.parameters.clear();
+        let formal=|ordinal|SemanticFormalRef{scope:SemanticScopeRef::Ancestor(0),ordinal};
+        closure.environment=vec![SemanticEnvironmentFormal{kind:SemanticFormal::Type{requirements:vec![]},source:SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(formal(0)))},SemanticEnvironmentFormal{kind:SemanticFormal::Lifetime,source:SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(formal(1)))},SemanticEnvironmentFormal{kind:SemanticFormal::Const{carrier:SemanticTypeRecipe::Atom(Type::Usize)},source:SemanticActualRecipe::Const{carrier:SemanticTypeRecipe::Atom(Type::Usize),value:SemanticConstRecipe::Formal(formal(2))}}];
+        program.definitions.push(parent);program.definitions.push(closure);
+        let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();let mut checked=CheckedOriginal::default();checked.current=Some(owner);let mut active=ActiveQueries::new();
+        let values=vec![Arg::Type(address(Life::CallRegion(18))),Arg::Life(Life::CallRegion(19)),Arg::Const(Const{carrier:Box::new(Ty::Atom(Type::Usize)),value:ConstValue::Value(Constant::Usize(8))})];
+        let creator=Env{lexical:vec![Frame{definition:owner,actuals:values.clone(),environment:vec![]}],bounds:vec![],invocation:vec![],self_type:None};
+        let selected=checked.closure_creator_environment(&module,&context,child,&[],&values,&creator,&mut active,&mut b).unwrap();assert_eq!(selected.lexical[1].actuals,values);
+        let mut wrong=values.clone();wrong[1]=Arg::Life(Life::CallRegion(20));assert!(checked.closure_creator_environment(&module,&context,child,&[],&wrong,&creator,&mut active,&mut b).is_err());
+        let mut wrong_creator=creator.clone();wrong_creator.lexical[0].actuals.swap(0,1);assert!(checked.closure_creator_environment(&module,&context,child,&[],&values,&wrong_creator,&mut active,&mut b).is_err());
+        wrong_creator=creator.clone();wrong_creator.lexical.clear();assert!(checked.closure_creator_environment(&module,&context,child,&[],&values,&wrong_creator,&mut active,&mut b).is_err());
+        assert!(checked.substitutions.is_empty());assert!(checked.life_substitutions.is_empty(),"a sealed boundary check grants no global identity equation");
+    }
+    #[test]
+    fn closed_code_instantiation_does_not_resubstitute_recursive_parent_actuals(){
+        let parent=SemanticDefinitionId{module:zil_base::ModuleId(0),index:4};
+        let child=SemanticDefinitionId{module:parent.module,index:5};
+        let scalar=Ty::Atom(Type::I32);let variable=|ordinal|Ty::Variable(parent,ordinal);
+        let constant=|ordinal|Const{carrier:Box::new(Ty::Atom(Type::Usize)),value:ConstValue::Variable(parent,ordinal)};
+        let env=Env{lexical:vec![Frame{definition:child,actuals:vec![],environment:vec![]},Frame{definition:parent,actuals:vec![Arg::Life(Life::Formal(parent,0)),Arg::Life(Life::Formal(parent,1)),Arg::Type(variable(2)),Arg::Type(variable(3)),Arg::Const(constant(4)),Arg::Const(constant(5))],environment:vec![]}],bounds:vec![],invocation:vec![],self_type:None};
+        let prototype=Prototype{parameters:vec![],result:Ty::Tuple(vec![address(Life::Formal(parent,0)),variable(2),Ty::Array(Box::new(scalar.clone()),Box::new(constant(4)))]),environment:env,modes:vec![],result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound_lifetimes:0,invocation_lifetimes:0,premise_bounds:vec![],callable_kind:Some(CallableKind::FnOnce)};
+        let mut selected=prototype.environment.clone();selected.lexical[1].actuals=vec![Arg::Life(Life::Formal(parent,1)),Arg::Life(Life::Static),Arg::Type(variable(3)),Arg::Type(scalar),Arg::Const(constant(5)),Arg::Const(Const{carrier:Box::new(Ty::Atom(Type::Usize)),value:ConstValue::Value(Constant::Usize(7))})];
+        let mut checked=CheckedOriginal::default();let mut b=Budget::new(&Limits::default());
+        let expected=Ty::Tuple(vec![address(Life::Formal(parent,1)),variable(3),Ty::Array(Box::new(Ty::Atom(Type::I32)),Box::new(constant(5)))]);
+        let direct=checked.instantiate_prototype(&prototype,Some(child),&selected,&mut b).unwrap();assert_eq!(direct.result,expected);
+        let closed=checked.specialize_code_prototype(&prototype,&selected,&mut b).unwrap();assert_eq!(closed.result,expected);
+        let first=checked.freshen_code_prototype(&closed,None,&mut b).unwrap();let second=checked.freshen_code_prototype(&closed,None,&mut b).unwrap();
+        assert_eq!(first.result,expected);assert_eq!(second.result,expected);
+    }
+    #[test]
+    fn raw_closure_freshens_before_inserting_an_existing_caller_whole_type(){
+        let parent=SemanticDefinitionId{module:zil_base::ModuleId(0),index:4};let child=SemanticDefinitionId{module:parent.module,index:5};
+        let variable=Ty::Variable(parent,0);let caller=address(Life::Implicit(child,0));
+        let env=Env{lexical:vec![Frame{definition:child,actuals:vec![],environment:vec![]},Frame{definition:parent,actuals:vec![Arg::Type(variable.clone())],environment:vec![]}],bounds:vec![],invocation:vec![],self_type:None};
+        let prototype=Prototype{parameters:vec![variable.clone()],result:variable,environment:env,modes:vec![PassingMode::Infer],result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound_lifetimes:0,invocation_lifetimes:0,premise_bounds:vec![],callable_kind:Some(CallableKind::Fn)};
+        let mut selected=prototype.environment.clone();selected.lexical[1].actuals=vec![Arg::Type(caller.clone())];
+        let mut checked=CheckedOriginal::default();let mut b=Budget::new(&Limits::default());
+        let (actual,roles)=checked.instantiate_prototype_roles(&prototype,Some(child),&selected,&mut b).unwrap();
+        assert!(roles.is_empty(),"the inserted caller's same-numbered head is not a private code role");
+        assert_eq!(actual.parameters,vec![caller.clone()]);assert_eq!(actual.result,caller);
+    }
     #[test]
     fn quantified_premises_keep_nested_phantom_result_and_external_roles(){
         let bound=vec![Life::Bound(FrameToken(200),0),Life::Bound(FrameToken(200),1)];

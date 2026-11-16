@@ -680,9 +680,11 @@ impl CheckedOriginal {
         b: &mut Budget,
     ) -> Check<Prototype> {
         match self.resolved(ty, b)? {
-            Ty::Closure(id, ..) => self.prototypes.get(&id).cloned().ok_or_else(|| {
-                bad("callback lacks its complete universally checked original entry")
-            }),
+            Ty::Closure(id,arguments,sealed) => {
+                let prototype=self.prototypes.get(&id).cloned().ok_or_else(||bad("callback lacks its complete universally checked original entry"))?;
+                let selected=self.closure_creator_environment(module,context,id,&arguments,&sealed,env,active,b)?;
+                self.specialize_code_prototype(&prototype,&selected,b)
+            },
             ty => self
                 .callable_premise(module, context, &ty, env, active, b)?
                 .ok_or_else(|| {
