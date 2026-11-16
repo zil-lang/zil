@@ -1,0 +1,16 @@
+{
+  "directory": "/workspace/.zil-env/alpha-checkpoint-20261116T150857Z",
+  "path": "language/alpha-checkpoint-20261116T150857Z",
+  "bytes": 76604,
+  "sha256": "977aec0379abce80c93f67b0659879ebe27229766cc5fbc4b5a8d892cdc2169b",
+  "parts": 4,
+  "base": "74094ece4b6202700e318df33330db5616420718",
+  "head": "c81734d07fec5a4d0c88547103fbe44c7987a718",
+  "remote_commit": "bffb3ca659d286fadb6f43546643572abd668034",
+  "verified_parts": [
+    1,
+    2,
+    3,
+    4
+  ]
+}
