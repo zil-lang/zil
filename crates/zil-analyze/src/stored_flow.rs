@@ -7787,7 +7787,7 @@ fn derive_cfg(
                             }
                         }
                     }
-                    let mut add = |path: &Path, permission: &Permission| -> CompileResult<()> {
+                    let mut add = |path: &Path, permission: &Permission, b: &mut Budget| -> CompileResult<()> {
                         ordered(b, actual.returned.len(), path.len())?;
                         fee(b, path.len())?;
                         let row = actual.returned.entry(path.clone()).or_default();
@@ -7818,11 +7818,11 @@ fn derive_cfg(
                         Ok(())
                     };
                     if matches!(f.return_type, Type::Address { .. }) {
-                        add(&Vec::new(), &value.pointer)?;
+                        add(&Vec::new(), &value.pointer, b)?;
                         dyn_address::upper_union(&mut actual.returned_source_upper, &value.source_upper, b)?;
                     }
                     for (path, permission) in &value.slots {
-                        add(path, permission)?;
+                        add(path, permission, b)?;
                     }
                     if matches!(f.return_type, Type::Closure(_)) {
                         for (path, permission) in &value.environment {

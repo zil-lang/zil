@@ -44,30 +44,79 @@ fn borrowed_option_input_keeps_joint_actual_and_complete_variants() {
             .find(|function| function.name == "identity")
             .unwrap();
         assert_eq!(identity.parameters[0].ty, identity.return_type);
-        let Type::BorrowedStorage { storage, life } = &identity.return_type else {
+        // Source headers name the physical declaration. Qualification is
+        // published separately in the exact nominal catalog, then resolved by
+        // Types; a header Named is not evidence that its class domain is empty.
+        let Type::Named(name) = &identity.return_type else {
             panic!(
-                "whole Option lost qualification: {:?}",
+                "Option header lost its physical declaration: {:?}",
                 identity.return_type
             );
         };
-        assert_eq!(life.binder_count, 1);
-        let Type::Enum { name, .. } = storage.as_ref() else {
-            panic!("Option lost nominal enum")
+        let instances = core
+            .life_instances
+            .iter()
+            .filter(|instance| {
+                matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Enum { name: actual, .. } if actual == name))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            instances.len(),
+            1,
+            "whole Option needs one unambiguous qualified instance: {text}"
+        );
+        let instance = instances[0];
+        let Type::BorrowedStorage { storage, life } = &instance.ty else {
+            unreachable!()
         };
-        let physical = core.enums.iter().find(|item| &item.name == name).unwrap();
-        assert_eq!(physical.variants.len(), 2);
+        assert_eq!(life.binder_count, 1);
+        let Type::Enum { variants, .. } = storage.as_ref() else {
+            unreachable!()
+        };
+        let physical = core
+            .enums
+            .iter()
+            .filter(|item| &item.name == name)
+            .collect::<Vec<_>>();
+        assert_eq!(physical.len(), 1);
+        assert_eq!(
+            &physical[0].variants, variants,
+            "catalog must preserve every actual variant and field"
+        );
+        assert_eq!(variants.len(), 2);
         assert!(
-            physical
-                .variants
+            variants
                 .iter()
                 .any(|(name, fields)| name == "None" && fields.is_empty())
         );
-        assert!(physical.variants.iter().any(|(name, fields)| name == "Some" && matches!(fields.as_slice(), [Type::Address { mutable: false, inner: pointee }] if **pointee == Type::I32)));
-        let instance = core
-            .life_instances
+        assert!(variants.iter().any(|(name, fields)| name == "Some" && matches!(fields.as_slice(), [Type::Address { mutable: false, inner: pointee }] if **pointee == Type::I32)));
+        assert_eq!(
+            life.retained,
+            [zil_ir::StorageRetainedBinding {
+                path: vec![zil_ir::LifeTypeProjection::TypeArgument(0)],
+                class: 0,
+                binder: 0,
+            }]
+        );
+        let some = variants
             .iter()
-            .find(|instance| instance.ty == identity.return_type)
-            .unwrap();
+            .position(|(name, _)| name == "Some")
+            .unwrap() as u32;
+        assert_eq!(
+            life.slots,
+            [zil_ir::StorageLifeSlot {
+                path: vec![zil_ir::PlaceProjection::Variant(
+                    zil_ir::VariantProjection {
+                        variant: some,
+                        index: 0
+                    }
+                )],
+                binder: 0,
+                mode: zil_ir::StoredBorrowMode::SharedAddress,
+            }]
+        );
+        assert!(life.nominal_arguments.is_empty());
         let declaration = core
             .life_declarations
             .iter()
@@ -86,10 +135,22 @@ fn borrowed_option_input_keeps_joint_actual_and_complete_variants() {
                 instance.arguments
             );
         };
-        assert!(matches!(ty, Type::Address { mutable: false, inner: pointee } if **pointee == Type::I32));
+        assert!(
+            matches!(ty, Type::Address { mutable: false, inner: pointee } if **pointee == Type::I32)
+        );
         assert_eq!(argument_life.binder_count, 1);
-        assert_eq!(argument_life.slots.len(), 1);
+        assert_eq!(
+            argument_life.slots,
+            [zil_ir::StorageLifeSlot {
+                path: Vec::new(),
+                binder: 0,
+                mode: zil_ir::StoredBorrowMode::SharedAddress,
+            }]
+        );
+        assert!(argument_life.retained.is_empty());
+        assert!(argument_life.nominal_arguments.is_empty());
         let contract = identity.storage_life.as_ref().unwrap();
+        assert_eq!(contract.classes.len(), 2);
         let input = contract
             .classes
             .iter()
