@@ -2327,12 +2327,13 @@ fn load_sources_profiled(
         .cancellation
         .check(Phase::Parse)
         .map_err(|e| vec![e])?;
-    if options.project.is_none()
+    let needs_current_syntax = super::stable_source_identity::eligible(options);
+    let resident_single = options.project.is_none()
         && project.modules.len() == 1
         && !project.modules[0].text.contains("import")
         && !project.modules[0].text.contains("syntax")
-        && resident_discovered_frontend(project, options, session)
-    {
+        && resident_discovered_frontend(project, options, session);
+    if resident_single && !needs_current_syntax {
         if let Some(stats) = stats.as_deref_mut() {
             stats.resident_routes += 1;
         }
@@ -2340,6 +2341,7 @@ fn load_sources_profiled(
     }
     let mut semantic_anchor = None;
     if options.project.is_none()
+        && !resident_single
         && let Some(pair) =
             single_file_semantic_profiled(project, options, session, stats.as_deref_mut())
     {
@@ -2364,7 +2366,12 @@ fn load_sources_profiled(
             .as_nanos();
     }
     if let Some(attempt) = discovery {
-        if attempt.complete && resident_discovered_frontend(&attempt.project, options, session) {
+        let resident =
+            attempt.complete && resident_discovered_frontend(&attempt.project, options, session);
+        // Closed native spelling candidates still come from current parser
+        // owners. Keep that cheap syntax route while avoiding a redundant disk
+        // candidate decode when the actual resident frontend is available.
+        if resident && !needs_current_syntax {
             *project = attempt.project;
             if let Some(stats) = stats.as_deref_mut() {
                 stats.resident_routes += 1;
@@ -2372,6 +2379,7 @@ fn load_sources_profiled(
             return Ok(LoadedProject::Resident);
         }
         if attempt.complete
+            && !resident
             && let Some(pair) =
                 exact_discovered_semantic_profiled(&attempt.project, options, stats.as_deref_mut())
         {
