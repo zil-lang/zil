@@ -1320,15 +1320,15 @@ impl Store {
                 max_items: maximum_segments(&options.limits)?,
             })
             .manifest_maximum()
-            && let Ok(CacheRead::Candidate(bytes)) =
-                ArtifactCache::with_limit(&self.root, maximum).inspect_candidate(self.key)
         {
             // Only a completed successful publication advances this optional
             // locator. Failure leaves ordinary semantic publication successful.
             let io = publication_start(options.profile_compilation);
-            if ArtifactCache::with_limit(&self.root, maximum)
-                .write_candidate_cancellable(key, &bytes, &options.cancellation)
-                .is_ok()
+            if let Ok(CacheRead::Candidate(bytes)) =
+                ArtifactCache::with_limit(&self.root, maximum).inspect_candidate(self.key)
+                && ArtifactCache::with_limit(&self.root, maximum)
+                    .write_candidate_cancellable(key, &bytes, &options.cancellation)
+                    .is_ok()
             {
                 stats.manifest_writes += 1;
                 stats.manifest_bytes += bytes.len();
@@ -1648,7 +1648,7 @@ mod tests {
         assert_eq!(assembled, encode(&typed, &candidate, &limits).unwrap());
         assert_eq!(
             decode(&assembled, &limits).unwrap(),
-            ((*typed).clone(), (*candidate).clone())
+            ((*typed).clone(), candidate.clone())
         );
         let mut forged = bytes.clone();
         forged[16..20].copy_from_slice(&u32::MAX.to_le_bytes());
@@ -1986,7 +1986,7 @@ mod tests {
         );
         assert_eq!(
             current.load(&options).unwrap(),
-            ((*typed).clone(), candidate.clone())
+            ((*typed).clone(), (*candidate).clone())
         );
 
         // A locator never carries file stamps or an integrity authorization.
