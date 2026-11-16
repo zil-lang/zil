@@ -27,15 +27,20 @@ pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
     check_program_mode(module,None,b)
 }
 pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContext<'_>>,b:&mut Budget)->Check<()> {
+    b.diagnostic_stage("semantic catalogue");
     let context=CheckedContext::catalogue_mode(module,frozen,b)?;
     let program=module.semantic.as_ref().ok_or_else(||bad("semantic programme is absent"))?;
     crate::foreign::check_declarations(module,b)?;
     let mut active=ActiveQueries::new();
+    b.diagnostic_stage("original universal bodies");
     let mut original=original::CheckedOriginal::check(module,&context,&mut active,b)?;
+    b.diagnostic_stage("original frozen schemes");
     original.frozen_schemes(module,&context,&mut active,b)?;
     *context.original.borrow_mut()=Some(original);
     let mut external=dynamic_witness::semantic_external::Proofs::default();
+    b.diagnostic_stage("task context metadata");
     context.prepare_task_contexts(module,&mut external,&mut active,b)?;
+    b.diagnostic_stage("frozen specialization boundaries");
     if let Some(frozen)=frozen {frozen.specializations(module,&context,&mut active,b)?;}
     let mut checked_instances=std::collections::BTreeSet::new();
     let mut checked_worlds=Vec::new();
@@ -47,8 +52,12 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
     }
     b.spend(ordered.len().saturating_mul(ordered.len().checked_ilog2().map_or(1,|n|n as usize+1)))?;
     ordered.sort_by_key(|(depth,instance)|(*depth,instance.id));
+    let total=if b.diagnostic_progress.is_some(){ordered.iter().filter(|(_,instance)|matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(_)))).count()}else{0};
+    let mut ordinal=0;
     for (_,instance) in ordered {
         if let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target {
+            ordinal+=1;b.diagnostic_stage("actual world environment");
+            if let Some(progress)=&mut b.diagnostic_progress{progress.world=Some((ordinal,total,instance.id,function));}
             let environment=context.environment_for_instance(module,instance.id,&mut active,b)?;
             let definition=context.definition(module,instance.definition,b)?;
             context.evaluate_requirements(module,&definition.requirements,&environment,RequirementMode::DeclarationPremise,&mut external,&mut active,b)?;
@@ -56,7 +65,9 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
                 if let SemanticFormal::Type{requirements}=formal {context.evaluate_requirements(module,requirements,&environment,RequirementMode::DeclarationPremise,&mut external,&mut active,b)?;}
             }
             let SemanticDefinitionBody::FunctionWithBody{signature,..}=&definition.body else {return Err(bad("actual function has no original signature"));};
+            b.diagnostic_stage("actual world signature");
             let signature=context.evaluate_signature(module,signature,&environment,&mut external,&mut active,b)?;
+            b.diagnostic_stage("actual world body");
             context.function(module,instance,function,&signature,&environment,&mut external,&mut active,b)?;
             context.mark_task_worker_checked(module,instance,&signature,b)?;
             checked_instances.insert(instance.id);
@@ -64,6 +75,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
             checked_worlds.push((instance.id,environment));
         }
     }
+    b.diagnostic_stage("actual closure boundaries");
     for boundary in context.closure_boundaries.borrow().iter() {
         b.spend(1)?;
         if !checked_instances.contains(&boundary.child)||!context.seals.borrow().contains_key(&boundary.child){return Err(bad("actual Closure boundary has no completely checked child entry and creator seal"));}
@@ -83,6 +95,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
         // actual Call substitution are checked separately; no global union
         // equates those outside images with the rigid creator's identities.
     }
+    b.diagnostic_stage("actual external methods");
     context.finish_external_methods(module,&mut external,&mut active,b)?;
     context.defer_callable_shapes(module,&mut external,&checked_instances,b)?;
     // External shape requests are obligations, not proof tokens. No Some
@@ -96,6 +109,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
         b.spend(program.instances.len())?;
         if function.foreign.is_none()&&!program.instances.iter().any(|row|matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id==function.id)) {return Err(bad("semantic programme omits an actual function instance"));}
     }
+    b.diagnostic_stage("actual constructor publication");
     context.publish_constructor_classes(module,&checked_worlds,b)?;
     b.spend(1)?;
     b.semantic_checked=Some(std::rc::Rc::new(dynamic_witness::semantic_patterns::Session::new(module,context,active)));
@@ -771,6 +785,7 @@ impl CheckedContext {
         // This original declaration names this exact actual borrow occurrence;
         // it is not equality inferred from a shared outside image or header.
         b.spend(1)?;
+        b.spend(1)?;self.invalidate_closed_frames();
         self.premises.borrow_mut().entry(frame.key).or_default().relations.equalities.push((original,actual.clone()));
         Ok(())
     }

@@ -131,7 +131,13 @@ impl CheckedOriginal {
         // over the original creator/binding point instead of a child LocalId.
         b.spend(pending.len().saturating_mul(pending.len().checked_ilog2().map_or(1,|n|n as usize+1)).saturating_mul(b.limits.max_call_depth.min(128)))?;
         pending.sort_by_key(|definition|{let mut depth=0;let mut parent=definition.parent;while let Some(id)=parent {depth+=1;parent=program.definitions.iter().find(|row|row.id==id).and_then(|row|row.parent);}depth});
-        for definition in pending {result.definition(module,context,definition.id,active,b)?;}
+        let total=pending.len();
+        for(ordinal,definition)in pending.into_iter().enumerate(){
+            b.diagnostic_stage("original bodies");
+            if let Some(progress)=&mut b.diagnostic_progress{progress.original=Some((ordinal+1,total,definition.id));}
+            result.definition(module,context,definition.id,active,b)?;
+        }
+        b.diagnostic_stage("original body obligations");
         let obligations=std::mem::take(&mut result.copy_obligations);
         for(ty,env)in obligations{result.current=Some(env.current()?);if !result.is_copy(module,context,&ty,&env,active,b)?{return Err(bad("original repeated value use has no resolved Copy proof"));}}
         for(ty,env)in std::mem::take(&mut result.element_obligations){result.current=Some(env.current()?);result.structural_obligation(module,context,&ty,DynStructuralBound::StoreElement,&env,active,b)?;}
@@ -144,6 +150,7 @@ impl CheckedOriginal {
         // No original protocol claim is usable by the actual bridge until
         // every original body, including uninstantiated bodies, has been
         // checked against its own entry relation.
+        b.diagnostic_stage("original protocols and cleanup");
         result.check_protocols(module,context,&index,active,b)?;
         result.check_cleanups(module,context,active,b)?;
         for(definition,_)in &result.task_async_cleanups{b.spend(1)?;if result.prototypes.get(definition).is_none_or(|prototype|prototype.call_kind!=CallKind::Suspend){return Err(bad("original asynchronous Task cleanup has no complete Suspend head"));}result.executing_effects.insert(*definition,CallKind::Suspend);}

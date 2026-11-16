@@ -367,11 +367,27 @@ fn limit(message: impl Into<String>) -> Diagnostic {
     Diagnostic::limit(Phase::Verify, message, None)
 }
 
+#[derive(Clone,Copy,Debug,Default)]
+struct DiagnosticProgress{
+    stage:&'static str,
+    original:Option<(usize,usize,SemanticDefinitionId)>,
+    world:Option<(usize,usize,SemanticInstanceId,FunctionId)>,
+    recipes_started:usize,
+    recipes_completed:usize,
+    frame_hits:usize,
+    frames_built:usize,
+    frame_cache_entries:usize,
+    resource_hits:usize,
+    resource_registered_cold:usize,
+    resource_unregistered_cold:usize,
+    recipe:Option<(usize,std::mem::Discriminant<SemanticTypeRecipe>,Option<SemanticDefinitionId>,Option<semantic::ScopeKey>,Option<semantic::SitePoint>)>,
+}
 struct Budget {
     remaining: usize,
     structural: Option<dynamic_metadata::Structure>,
     diagnostic_costs: Option<BTreeMap<(&'static str, u32), (usize, usize)>>,
     diagnostic_metadata_caller: Option<&'static std::panic::Location<'static>>,
+    diagnostic_progress:Option<DiagnosticProgress>,
     callable_source_functions: Vec<FunctionId>,
     pending_callable_sources: Vec<FunctionId>,
     returned_environment_sources: bool,
@@ -504,6 +520,7 @@ impl Budget {
             structural: None,
             diagnostic_costs: std::env::var_os("ZIL_VERIFY_PROFILE_COSTS").map(|_| BTreeMap::new()),
             diagnostic_metadata_caller: None,
+            diagnostic_progress:std::env::var_os("ZIL_VERIFY_PROFILE_COSTS").map(|_|DiagnosticProgress::default()),
             callable_source_functions: Vec::new(),
             pending_callable_sources: Vec::new(),
             returned_environment_sources: false,
@@ -612,6 +629,7 @@ impl Budget {
                     " [requested {amount}, remaining {}, function {:?}, callsite {location}]",
                     self.remaining, self.current_function
                 ));
+                if let Some(progress)=self.diagnostic_progress{message.push_str(&format!(" [progress {progress:?}]"));}
                 let mut rows: Vec<_> = costs.iter().collect();
                 rows.sort_by_key(|(_, (work, calls))| std::cmp::Reverse((*work, *calls)));
                 for ((file, line), (work, calls)) in rows.into_iter().take(20) {
@@ -622,6 +640,7 @@ impl Budget {
         })?;
         Ok(())
     }
+    fn diagnostic_stage(&mut self,stage:&'static str){if let Some(progress)=&mut self.diagnostic_progress{progress.stage=stage;}}
     // Callers pass immutable local Type trees from the checked module; their
     // nodes keep these addresses for this verification request. The first
     // query pays for the complete tree walk, and each lookup pays for the map.
@@ -894,22 +913,28 @@ fn check_module_budget(
 
     budget.function_count = module.functions.len();
     let prior_structure = budget.structural.take();
+    let prior_progress=budget.diagnostic_progress;
     let result = (|| {
+    budget.diagnostic_stage("immutable registration");
     budget.structural = Some(dynamic_metadata::Structure::register(module, budget)?);
     if module.semantic.is_none(){semantic::task_domains::prepare_raw_task_contexts(module,&mut budget)?;}
     budget.stored_context = true;
+    budget.diagnostic_stage("semantic program");
     if let Some(frozen)=frozen {
         frozen.check_executable(module,&mut budget)?;
     }else if module.semantic.is_some() {
         semantic::check_program(module, &mut budget)?;
     }
+    budget.diagnostic_stage("dynamic inventory");
     if has_dyn {
         dynamic_dispatch::inventory(module, &mut budget)?;
     }
+    budget.diagnostic_stage("stored inventory");
     if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
         stored_flow::inventory(module, limits, &mut budget)?;
         budget.stored_borrows = true;
     }
+    budget.diagnostic_stage("resource definitions");
     resources::check_definitions(module, limits, &mut budget)?;
     for text in [
         &module.target.id,
@@ -921,6 +946,7 @@ fn check_module_budget(
     }
     // Bound every aggregate shape before definitions, equality, cloning or
     // fingerprinting. Raw APIs receive no protection from a source producer.
+    budget.diagnostic_stage("typed shape preflight");
     for (index, function) in module.functions.iter().enumerate() {
         if function.resume_bound == zil_ir::TaskResumeBound::Transfer {
             budget.spend(1)?;
@@ -1486,6 +1512,7 @@ fn check_module_budget(
     })
     })();
     budget.structural = prior_structure;
+    budget.diagnostic_progress=prior_progress;
     result
 }
 

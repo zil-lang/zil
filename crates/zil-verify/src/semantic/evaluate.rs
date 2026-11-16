@@ -11,14 +11,21 @@ impl CheckedContext {
         active: &mut ActiveQueries,
         b: &mut Budget,
     ) -> Check<CheckedType> {
-        dynamic_metadata::recipe(recipe, b)?;
-        let key = DependencyKey {
-            kind: QueryKind::Type,
-            token: active.fresh(b)?,
-        };
-        active.with_query(key, b, |active, b| {
-            self.type_inner(module, recipe, environment, external, active, b)
-        })
+        let previous=b.diagnostic_progress.as_ref().and_then(|progress|progress.recipe);
+        if let Some(progress)=&mut b.diagnostic_progress{
+            progress.recipes_started=progress.recipes_started.saturating_add(1);
+            progress.recipe=Some((recipe as *const SemanticTypeRecipe as usize,std::mem::discriminant(recipe),environment.lexical.first().map(|frame|frame.definition),environment.lexical.first().map(|frame|frame.key),environment.at));
+        }
+        let result=(||{
+            dynamic_metadata::recipe(recipe,b)?;
+            let key=DependencyKey{kind:QueryKind::Type,token:active.fresh(b)?};
+            active.with_query(key,b,|active,b|self.type_inner(module,recipe,environment,external,active,b))
+        })();
+        if let Some(progress)=&mut b.diagnostic_progress{
+            if result.is_ok(){progress.recipes_completed=progress.recipes_completed.saturating_add(1);}
+            progress.recipe=previous;
+        }
+        result
     }
     fn type_inner(
         &self,

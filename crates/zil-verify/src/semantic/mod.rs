@@ -56,6 +56,8 @@ pub(crate) struct CheckedContext {
     definitions: BTreeMap<SemanticDefinitionId, usize>,
     instances: BTreeMap<SemanticInstanceId, usize>,
     premises: RefCell<BTreeMap<ScopeKey, Premises>>,
+    premises_epoch:Cell<u64>,
+    closed_frames:RefCell<BTreeMap<(usize,SemanticInstanceId,u64,bool,bool),instances::ClosedFrames>>,
     occurrences: RefCell<BTreeMap<(ScopeKey, OperandKey), CheckedType>>,
     seals: RefCell<BTreeMap<SemanticInstanceId, Vec<CheckedActual>>>,
     pending_closures: RefCell<Vec<ClosureCursor>>,
@@ -143,6 +145,10 @@ impl ActiveQueries {
 }
 
 impl CheckedContext {
+    fn invalidate_closed_frames(&self){
+        if let Some(next)=self.premises_epoch.get().checked_add(1){self.premises_epoch.set(next);}else{self.closed_frames.borrow_mut().clear();self.premises_epoch.set(0);}
+    }
+
     /// Share only an exact live allocation, or an exact registered immutable
     /// module node. A fresh temporary Type is always copied and paid cold.
     pub(super) fn shared_type_cell(&self,ty:&Type,b:&mut Budget)->Check<std::rc::Rc<CheckedTypeData>>{

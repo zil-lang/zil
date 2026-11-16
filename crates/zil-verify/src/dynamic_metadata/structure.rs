@@ -209,7 +209,15 @@ pub(crate) fn resource_known(module:&TypedModule,record:&Type,b:&mut Budget)->Ch
     if state.module!=module as *const TypedModule as usize{return Ok(None);}
     let ptr=record as *const Type as usize;let fee=lookup(state.resource_success.len());
     b.spend(fee)?;let state=b.structural.as_ref().unwrap();
-    Ok(state.resource_success.get(&(ptr,profile(b))).copied())
+    let found=state.resource_success.get(&(ptr,profile(b))).copied();
+    if b.diagnostic_progress.is_some(){
+        let registered=state.types.contains(&ptr);
+        let progress=b.diagnostic_progress.as_mut().unwrap();
+        if found.is_some(){progress.resource_hits=progress.resource_hits.saturating_add(1);}
+        else if registered{progress.resource_registered_cold=progress.resource_registered_cold.saturating_add(1);}
+        else{progress.resource_unregistered_cold=progress.resource_unregistered_cold.saturating_add(1);}
+    }
+    Ok(found)
 }
 pub(crate) fn resource_success(module:&TypedModule,record:&Type,index:usize,b:&mut Budget)->Check<()>{
     let Some(state)=&b.structural else{return Ok(());};let ptr=record as *const Type as usize;
