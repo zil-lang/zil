@@ -188,7 +188,7 @@ fn discover(path: &Path, options: &mut CompileOptions) -> (ProjectSources, Loade
 }
 
 #[test]
-fn disk_restart_at_default_capacity_hydrates_then_pushes_one_private_edit() {
+fn disk_restart_at_default_capacity_restores_cfgs_then_pushes_one_private_edit() {
     let dir = TempDir::new();
     let (path, options) = dir.fixture(100);
     let mut writer = CompilationSession::default();
@@ -202,7 +202,7 @@ fn disk_restart_at_default_capacity_hydrates_then_pushes_one_private_edit() {
     success(&restart);
     assert_eq!(
         restart.disk_cache,
-        DiskCacheStatus::Hydrated,
+        DiskCacheStatus::Rebuilt,
         "{}",
         restart.to_json()
     );
@@ -265,6 +265,64 @@ fn disk_restart_at_default_capacity_hydrates_then_pushes_one_private_edit() {
 }
 
 #[test]
+fn push_restart_ignores_whole_candidate_and_still_checks_current_unused_bodies() {
+    let dir = TempDir::new();
+    let (path, options) = dir.fixture(1);
+    let mut writer = CompilationSession::default();
+    let cold = writer.compile_path(&path, &options);
+    success(&cold);
+    let functions = typed(&writer, &cold).module.functions.len();
+    drop(writer);
+    let whole = options
+        .semantic_cache
+        .as_ref()
+        .unwrap()
+        .join("semantic-v7-push");
+    let candidate = fs::read_dir(whole)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "candidate")
+        })
+        .expect("cold whole candidate exists");
+    fs::write(candidate, b"unusable whole candidate").unwrap();
+    let mut session = CompilationSession::default();
+    let restarted = session.compile_path(&path, &options);
+    success(&restarted);
+    assert_eq!(
+        restarted
+            .source_ingress
+            .as_ref()
+            .unwrap()
+            .semantic_load_attempts,
+        0
+    );
+    let decoding = restarted.function_cache_decoding.as_ref().unwrap();
+    assert_eq!(decoding.decode_attempts, functions);
+    assert_eq!(decoding.decoded_functions, functions);
+    assert_eq!(
+        session
+            .function_types
+            .last_stats()
+            .restored_reused_functions,
+        functions
+    );
+    epochs(&session, &restarted, 3);
+    compare(&session, &restarted, &path, &options);
+    drop(session);
+    // An unused definition still enters the current producer/checker chain.
+    let unused = dir.0.join("unrelated.zil");
+    fs::write(&unused, module().replace("x+3", "true")).unwrap();
+    let mut consumer = CompilationSession::default();
+    let invalid = consumer.compile_path(&path, &options);
+    assert_eq!(invalid.phase, Phase::Types);
+    assert_ne!(invalid.status, ResultCategory::Success);
+    assert_eq!(invalid.verification_runs, 0);
+    compare(&consumer, &invalid, &path, &options);
+}
+
+#[test]
 fn restart_replays_checked_function_fees_then_keeps_sparse_edits() {
     let dir = TempDir::new();
     let (path, options) = dir.fixture(100);
@@ -285,7 +343,7 @@ fn restart_replays_checked_function_fees_then_keeps_sparse_edits() {
     let mut session = CompilationSession::default();
     let restart = session.compile_path(&path, &options);
     success(&restart);
-    assert_eq!(restart.disk_cache, DiskCacheStatus::Hydrated);
+    assert_eq!(restart.disk_cache, DiskCacheStatus::Rebuilt);
     let stats = session.function_types.last_stats();
     assert_eq!(stats.reused_functions, 306);
     assert_eq!(stats.restored_reused_functions, 306);
@@ -449,9 +507,15 @@ fn wrong_decoded_hydration_values_cannot_supply_results_checks_or_fees() {
     for corruption in ["plan", "typed", "limits"] {
         let mut current_options = options.clone();
         let (project, loaded) = discover(&path, &mut current_options);
-        let LoadedProject::Hydrating(syntax, mut pair) = loaded else {
-            panic!("physical disk candidate must reach real hydration");
+        let LoadedProject::Parsed(syntax) = loaded else {
+            panic!("push discovery must restore current syntax without eagerly loading Typed/Plan");
         };
+        // Explicitly inject the same untrusted whole image to retain the
+        // counterexample. Ordinary push restoration no longer reads it.
+        let mut pair = Box::new(
+            exact_discovered_semantic_profiled(&project, &current_options, None)
+                .expect("physical disk candidate for injection"),
+        );
         if corruption != "plan" {
             pair.0.module.functions[0].return_type = zil_ir::Type::Bool;
         }

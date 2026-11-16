@@ -741,6 +741,13 @@ impl CompilationSession {
         if let Some(store) = &semantic {
             let cache_start = cost_start(options.profile_compilation);
             let restored = preloaded_semantic.or_else(|| {
+                // Push reconstructs the current producers below and restores
+                // independently keyed raw CFG products. Eagerly decoding and
+                // rebasing an entire old Typed/Plan image first duplicates
+                // that work and cannot supply any current producer epoch.
+                if options.push_reuse {
+                    return None;
+                }
                 store.load(options).map(|(typed, candidate)| {
                     Box::new((typed, candidate, store.take_loaded_publication(options)))
                 })
@@ -2189,7 +2196,8 @@ fn single_file_semantic_profiled(
     session: &CompilationSession,
     stats: Option<&mut SourceIngressStats>,
 ) -> Option<LoadedSemantic> {
-    if options.profile != ExecutionProfile::Native
+    if options.push_reuse
+        || options.profile != ExecutionProfile::Native
         || (options.closed_executable && !options.push_reuse)
         || options.semantic_cache.is_none()
         || session.active_query_count() != 0
@@ -2380,6 +2388,7 @@ fn load_sources_profiled(
         }
         if attempt.complete
             && !resident
+            && !options.push_reuse
             && let Some(pair) =
                 exact_discovered_semantic_profiled(&attempt.project, options, stats.as_deref_mut())
         {
@@ -3231,11 +3240,19 @@ pub fn main()->i32=>0",
             restarted.to_json()
         );
         let decoding = restarted.function_cache_decoding.as_ref().unwrap();
-        assert!(decoding.reused_decoded_functions > 0);
-        assert_eq!(decoding.decoded_functions, 0);
-        assert_eq!(decoding.decode_attempts, 0);
+        assert_eq!(decoding.reused_decoded_functions, 0);
+        assert_eq!(decoding.decoded_functions, 2);
+        assert_eq!(decoding.decode_attempts, 2);
+        assert_eq!(
+            restarted
+                .function_type_work
+                .as_ref()
+                .unwrap()
+                .restored_reused_functions,
+            2
+        );
         assert_eq!(restarted.verification_runs, 1);
-        assert_eq!(restarted.disk_cache, DiskCacheStatus::Hydrated);
+        assert_eq!(restarted.disk_cache, DiskCacheStatus::Rebuilt);
         let ingress = restarted.source_ingress.as_ref().unwrap();
         assert_eq!(
             (ingress.source_files_read, ingress.parser_executions),
@@ -3253,7 +3270,7 @@ pub fn main()->i32=>0",
                 ingress.semantic_load_attempts,
                 ingress.semantic_restored_functions
             ),
-            (1, 2)
+            (0, 0)
         );
         for phase in [Phase::Types, Phase::Analyze] {
             assert!(restarted.query_events.iter().any(|event| {
