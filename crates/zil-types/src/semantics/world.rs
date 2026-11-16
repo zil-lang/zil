@@ -312,9 +312,20 @@ impl<'a> World<'a, '_> {
                 self.zero_shape_at(element, depth + 1)?;
                 Ok(empty())
             }
-            _ => Err(pending(
-                "actual zero-domain type requires its complete original whole-type equation",
-            )),
+            _ => {
+                // The module-backed visitor rebuilds opaque/callable and
+                // resource children from their complete actual inventories.
+                // An absent equation, unknown scope or nonzero child still
+                // rejects; no address lifetime or runtime permission is
+                // recovered from erased pointer/layout bytes here.
+                self.view.ordinary_zero(
+                    ty,
+                    self.limits,
+                    self.left,
+                    &self.ledger.ordinary_stats,
+                )?;
+                Ok(empty())
+            }
         }
     }
     fn symbolic(

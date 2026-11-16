@@ -1579,9 +1579,37 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                                 ));
                             }
                         }
-                        inferred_id = found.ok_or_else(|| {
-                            unknown("closure recipe has no exact actual creator emission")
-                        })?;
+                        let Some(found) = found else {
+                            let current = self.instance(scope)?;
+                            crate::dyn_metadata::semantic_operand_snapshot(current, self.limits, self.left, 1)?;
+                            for actual in arguments.iter().chain(environment) {
+                                crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
+                            }
+                            let detail = format!(
+                                "closure creator request: use {scope:?}, use definition {:?}, actual creator function {creator:?}; closure definition {definition:?}, declared parent {:?}; full arguments {arguments:?}; full environment {environment:?}; use actuals {:?}",
+                                current.definition, declaration.parent, current.actuals,
+                            );
+                            self.fee(detail.len())?;
+                            let mut error = unknown("closure recipe has no exact actual creator emission");
+                            error.notes.push(detail);
+                            let module = self.module;
+                            let input = self.input;
+                            let ledger = self.ledger;
+                            self.fee(input.instances.len().saturating_add(ledger.frames.len()))?;
+                            for child in module.semantic_instances(input) {
+                                if child.definition != *definition { continue; }
+                                crate::dyn_metadata::semantic_operand_snapshot(child, self.limits, self.left, 1)?;
+                                let frame = match child.target {
+                                    SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(entry)) => ledger.frames.get(&entry),
+                                    _ => None,
+                                };
+                                let detail = format!("actual closure candidate: {child:?}; emitted origin {:?}; emitted creator {:?}", frame.map(|frame| frame.origin), frame.and_then(|frame| frame.parent));
+                                self.fee(detail.len())?;
+                                error.notes.push(detail);
+                            }
+                            return Err(error);
+                        };
+                        inferred_id = found;
                         &inferred_id
                     }
                     _ => {
