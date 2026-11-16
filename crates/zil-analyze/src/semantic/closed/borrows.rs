@@ -267,6 +267,205 @@ impl Check<'_, '_> {
         // and its full header_relation before any site is interpreted. The
         // occurrence mapping below still independently checks this call's
         // actual arguments and its original adapter classes.
+        let contract = callee.storage_life.as_ref().ok_or_else(|| {
+            unknown("class-bearing call result has no complete callee header")
+        })?;
+        let count = match ty {
+            Type::Address { .. } | Type::Desc(_) | Type::Dyn { .. } | Type::OwnedDyn { .. }
+            | Type::ErrorUnion { .. } => u32::try_from(original_output.as_ref().ok_or_else(||
+                fail("call result omits its complete original output"))?.classes.len())
+                .map_err(|_| fail("complete call output domain exceeds its ordinal carrier"))?,
+            Type::Closure(id) => {
+                self.module
+                    .closures
+                    .get(id.0 as usize)
+                    .and_then(|closure| closure.storage_life.as_ref())
+                    .ok_or_else(|| {
+                        unknown("call result closure has no complete intrinsic domain")
+                    })?
+                    .fixed_binder_count
+            }
+            Type::BorrowedStorage { life, .. } => life.binder_count,
+            _ => {
+                return Err(unknown(
+                    "call result requires its complete outer/static class transport",
+                ));
+            }
+        };
+        let mut classes = Vec::new();
+        for child in 0..count {
+            let mut result = None;
+            if let Some(output) = &original_output
+                && (matches!(ty, Type::Address { .. } | Type::Desc(_)) || self.dyn_sum_type(ty, b)?) {
+                for slot in &output.life.slots {
+                    if slot.binder != child { continue; }
+                    for row in &contract.bindings {
+                        b.spend(row.position.path.len().saturating_add(slot.path.len() + 1), WORK)?;
+                        if row.position.base == StorageBase::Result
+                            && row.position.path.len() == slot.path.len()
+                            && row.position.path.iter().zip(&slot.path).all(|(actual, expected)| matches!(actual, ContractProjection::Place(step) if step == expected))
+                        {
+                            if result.is_some_and(|old| old != row.binder) { return Err(fail("call outer result has competing complete header binders")); }
+                            result = Some(row.binder);
+                        }
+                    }
+                }
+                for retained in &output.life.retained {
+                    if retained.binder != child { continue; }
+                    for row in &contract.classes {
+                        b.spend(row.position.path.len().saturating_add(retained.path.len() + 1), WORK)?;
+                        if row.position.base == StorageBase::Result && row.position.path == retained.path && row.position.class == retained.class {
+                            if result.is_some_and(|old| old != row.binder) { return Err(fail("call child result has competing complete header binders")); }
+                            result = Some(row.binder);
+                        }
+                    }
+                }
+            } else {
+                for row in &contract.classes {
+                    b.spend(row.position.path.len() + 1, WORK)?;
+                    if row.position.base == StorageBase::Result && row.position.path.is_empty()
+                        && row.position.class == child && result.replace(row.binder).is_some()
+                    { return Err(fail("callee result repeats an intrinsic class occurrence")); }
+                }
+            }
+            let binder = result
+                .ok_or_else(|| fail("callee result omits an intrinsic class occurrence"))?;
+            let input_binders = self.call_result_input_binders(callee, binder, b)?;
+            let mut source = None;
+            for row in &contract.bindings {
+                b.spend(row.position.path.len().saturating_add(input_binders.len() + 1), WORK)?;
+                if !input_binders.contains(&row.binder) {
+                    continue;
+                }
+                let StorageBase::Parameter(parameter) = row.position.base else {
+                    continue;
+                };
+                if !row.position.path.is_empty() {
+                    return Err(unknown(
+                        "call result requires its complete projected input class transport",
+                    ));
+                }
+                let actual = *arguments
+                    .get(parameter as usize)
+                    .ok_or_else(|| fail("callee class input omits an actual argument"))?;
+                let value = self.ssa_value(instance, function, actual, b, depth + 1)?;
+                let expected = expected_parameters
+                    .get(parameter as usize)
+                    .ok_or_else(|| fail("callee outer role omits an original input"))?;
+                if !matches!(expected.ty, Type::Address { .. } | Type::Desc(_))
+                    || expected.life.slots.len() != 1
+                    || !expected.life.slots[0].path.is_empty()
+                    || !self.outer_call_role(
+                        instance,
+                        function,
+                        (block, index),
+                        parameter as usize,
+                        actual,
+                        &value,
+                        expected,
+                        b,
+                        depth + 1,
+                    )?
+                {
+                    return Err(fail(
+                        "actual input does not satisfy its original outer call role",
+                    ));
+                }
+                let class = expected
+                    .classes
+                    .get(expected.life.slots[0].binder as usize)
+                    .cloned()
+                    .ok_or_else(|| fail("original call outer input omits a whole class"))?;
+                if source.as_ref().is_some_and(|old| old != &class) {
+                    return Err(unknown(
+                        "callee lifetime input needs its complete local role dependency union",
+                    ));
+                }
+                source = Some(class);
+            }
+            if source.is_none() {
+                // Fixed/input-class sources require the same exact
+                // real header occurrence; no result class self-proof.
+                for row in &contract.classes {
+                    b.spend(row.position.path.len().saturating_add(input_binders.len() + 1), WORK)?;
+                    if !input_binders.contains(&row.binder) {
+                        continue;
+                    }
+                    let StorageBase::Parameter(parameter) = row.position.base else {
+                        continue;
+                    };
+                    let actual = *arguments.get(parameter as usize).ok_or_else(|| {
+                        fail("callee class input omits an actual argument")
+                    })?;
+                    let mut input = self.ssa_value(instance, function, actual, b, depth + 1)?;
+                    let expected = expected_parameters
+                        .get(parameter as usize)
+                        .ok_or_else(|| fail("callee class role omits an original input"))?;
+                    let child;
+                    let expected = if row.position.path.is_empty() {
+                        expected
+                    } else if row.position.path.as_slice() == [LifeTypeProjection::Pointee] {
+                        if !self.outer_call_role(instance, function, (block, index), parameter as usize, actual, &input, expected, b, depth + 1)? {
+                            return Err(fail("callee child class input changes its independently proved outer call role"));
+                        }
+                        input = self.pointee(&input, b)?;
+                        child = self.pointee(expected, b)?;
+                        &child
+                    } else {
+                        return Err(unknown("call result child requires its full projected input relation"));
+                    };
+                    if input != *expected {
+                        return Err(fail(
+                            "actual intrinsic input changes its complete original class domain",
+                        ));
+                    }
+                    let class = expected.classes.get(row.position.class as usize).cloned()
+                        .ok_or_else(|| fail("callee class input is absent from its original whole value"))?;
+                    if source.as_ref().is_some_and(|old| old != &class) {
+                        return Err(unknown(
+                            "callee class input needs its complete role dependency union",
+                        ));
+                    }
+                    source = Some(class);
+                }
+            }
+            if source.is_none() && let Some(output) = &original_output {
+                source = self.reference_call_result_class(instance, function, (block, index),
+                    callee, child, output, b, depth + 1)?;
+            }
+            let class=source.ok_or_else(||unknown("callee result class has no independently proved input/static/role source"))?;
+            self.push_value(&mut classes, class, b)?;
+        }
+        if let Some(output) = original_output {
+            b.spend(output.classes.len().saturating_add(classes.len()), WORK)?;
+            if output.classes != classes { return Err(fail("call result header changes its independently proved original outer/child role")); }
+            return output.with_classes(classes, b);
+        }
+        let detached_shape;
+        let shape = match ty {
+            Type::BorrowedStorage { life, .. } => life,
+            _ => {
+                detached_shape = StorageLifeShape {
+                    binder_count: count,
+                    slots: Vec::new(),
+                    retained: Vec::new(),
+                    nominal_arguments: Vec::new(),
+                };
+                &detached_shape
+            }
+        };
+        // static_call_values checked every actual target world against
+        // this exact original call receipt. The result classes above
+        // come only from the caller's original complete input roles;
+        // no callee-world representative or class coincidence is used.
+        value::borrowed_full(ty, shape, classes, self.inventory, b)
+    }
+
+    // Independent physical header slots may denote the same declared
+    // original lifetime. Prove that equation in every actual world, rather
+    // than requiring equal slot numbers or equating their runtime loans.
+    pub(super) fn call_result_input_binders(&self, callee: &TypedFunction,
+        result: StorageBinder, b: &mut Budget) -> CompileResult<Vec<StorageBinder>> {
         let contract = callee.storage_life.as_ref()
             .ok_or_else(|| fail("call class source has no complete actual header"))?;
         let mut candidates = Vec::new();
