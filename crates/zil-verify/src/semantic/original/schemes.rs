@@ -188,12 +188,27 @@ impl CheckedOriginal{
                     let original=context.definition(module,owner,b)?;
                     if original.kind!=SemanticDefinitionKind::Closure||!self.checked.contains(&owner)||original.parameters.len()!=arguments.len()||original.environment.len()!=sealed.len(){return Err(bad("original closure scheme has no complete checked definition/formal/environment domain"));}
                     let target=self.closure_creator_environment(module,context,owner,arguments,sealed,creator,active,b)?;
-                    for(formal,value)in original.parameters.iter().zip(arguments).chain(original.environment.iter().map(|row|&row.kind).zip(sealed)){
+                    for(formal,value)in original.parameters.iter().zip(arguments){
                         match(formal,value){
                             (SemanticFormal::Type{requirements},Arg::Type(ty))=>{self.scheme_term(module,context,ty,caller,active,b)?;for requirement in requirements{self.obligation(module,context,requirement,&target,caller,active,b)?;}},
                             (SemanticFormal::Lifetime,Arg::Life(_))=>{},
                             (SemanticFormal::Const{..},Arg::Const(value))=>self.scheme_carrier(&value.carrier,b)?,
-                            _=>return Err(bad("original closure scheme changes an ordered argument or sealed environment kind")),
+                            _=>return Err(bad("original closure scheme changes an ordered argument kind")),
+                        }
+                    }
+                    for(formal,value)in original.environment.iter().zip(sealed){
+                        match(&formal.kind,value){
+                            (SemanticFormal::Type{requirements},Arg::Type(ty))=>{
+                                let from_creator=match &formal.source{SemanticActualRecipe::Type(recipe)=>self.closure_source_creator(module,context,recipe,ty,creator,b)?,_=>false};
+                                if from_creator{
+                                    let Ty::Closure(child,arguments,sealed)=self.resolved(ty,b)?else{unreachable!()};
+                                    self.scheme_closure(module,context,child,&arguments,&sealed,creator,caller,active,b)?;
+                                }else{self.scheme_term(module,context,ty,caller,active,b)?;}
+                                for requirement in requirements{self.obligation(module,context,requirement,&target,caller,active,b)?;}
+                            },
+                            (SemanticFormal::Lifetime,Arg::Life(_))=>{},
+                            (SemanticFormal::Const{..},Arg::Const(value))=>self.scheme_carrier(&value.carrier,b)?,
+                            _=>return Err(bad("original closure scheme changes a sealed environment kind")),
                         }
                     }
                     // Actual free-value identity, complete Fixed image and

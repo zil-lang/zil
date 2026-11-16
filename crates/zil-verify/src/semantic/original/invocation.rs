@@ -8,6 +8,15 @@ impl CheckedOriginal {
         let prototype=self.signature(module,context,signature,&rigid,active,b)?;
         self.instantiate_prototype(&prototype,Some(target),selected,b)
     }
+    /// An actual inserted through a generic Formal remains caller-owned.
+    /// Only this raw original source role can select another creator scope.
+    pub(super) fn closure_source_creator(&self,module:&TypedModule,context:&CheckedContext,recipe:&SemanticTypeRecipe,ty:&Ty,source:&Env,b:&mut Budget)->Check<bool>{
+        let Ty::Closure(child,..)=self.resolved(ty,b)? else{return Ok(false);};
+        let SemanticTypeRecipe::OriginalType{scope,source:occurrence}=recipe else{return Ok(false);};
+        let frame=source.frame(*scope)?;
+        Ok(context.definition(module,child,b)?.parent==Some(frame.definition)
+            &&matches!(self.original_type(frame.definition,occurrence,b)?,Ty::Closure(original,..)if original==child))
+    }
     /// Reuse the actual creator's complete lexical suffix. Sealed values
     /// validate that boundary; their Type shapes never infer parent actuals.
     #[allow(clippy::too_many_arguments)]
@@ -183,6 +192,14 @@ mod tests{
         let mut wrong=values.clone();wrong[1]=Arg::Life(Life::CallRegion(20));assert!(checked.closure_creator_environment(&module,&context,child,&[],&wrong,&creator,&mut active,&mut b).is_err());
         let mut wrong_creator=creator.clone();wrong_creator.lexical[0].actuals.swap(0,1);assert!(checked.closure_creator_environment(&module,&context,child,&[],&values,&wrong_creator,&mut active,&mut b).is_err());
         wrong_creator=creator.clone();wrong_creator.lexical.clear();assert!(checked.closure_creator_environment(&module,&context,child,&[],&values,&wrong_creator,&mut active,&mut b).is_err());
+        let inner=Ty::Closure(child,vec![],values.clone());
+        checked.bindings.insert((owner,NodeId(7)),inner.clone());
+        let source=SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Binding(NodeId(7))};
+        assert!(checked.closure_source_creator(&module,&context,&source,&inner,&creator,&mut b).unwrap(),"a nested captured sibling keeps its checked original source scope");
+        checked.bindings.insert((owner,NodeId(8)),Ty::Variable(owner,0));
+        let inserted=SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Binding(NodeId(8))};
+        assert!(!checked.closure_source_creator(&module,&context,&inserted,&inner,&creator,&mut b).unwrap(),"a whole Type inserted through a caller Formal does not select an ambient same-id creator");
+        assert!(!checked.closure_source_creator(&module,&context,&SemanticTypeRecipe::Formal(formal(0)),&inner,&creator,&mut b).unwrap());
         assert!(checked.substitutions.is_empty());assert!(checked.life_substitutions.is_empty(),"a sealed boundary check grants no global identity equation");
     }
     #[test]

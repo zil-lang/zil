@@ -262,7 +262,7 @@ pub(super) fn check_shape(
                 is_input,
                 &mut proof,
                 b,
-            )?;
+            ).map_err(|error|error.with_note(format!("Callable complete class occurrence {:?}; actual binder {:?}, required binder {:?}, input {}",row.position,actual.binder,row.binder,is_input)))?;
         }
         for row in &expected.bindings {
             if input(row.position.base) != is_input {
@@ -329,7 +329,7 @@ pub(super) fn check_shape(
                 is_input,
                 &mut proof,
                 b,
-            )?;
+            ).map_err(|error|error.with_note(format!("Callable outer borrow occurrence {:?}; actual binder {:?}, required binder {:?}, input {}",row.position,actual.binder,row.binder,is_input)))?;
         }
     }
     let public_base = |base| matches!(base, StorageBase::Parameter(_) | StorageBase::Result);
@@ -374,9 +374,9 @@ fn relation(
         StorageBinder::Fixed(class) => {
             let term = receiver.term(class, b)?;
             if term.image != image || headers::symbol(term) != required {
-                return Err(bad(
-                    "callable retained/class relation changes an intrinsic origin or rigid class",
-                ));
+                dynamic_metadata::recipe(&receiver.raw,b)?;
+                return Err(bad("callable retained/class relation changes an intrinsic origin or rigid class")
+                    .with_note(format!("Callable actual Fixed({class}) term {:?}; required intrinsic {:?}, required lexical image {:?}; actual receiver complete value {:?}",term,required,image,receiver.raw)));
             }
         }
         StorageBinder::Invocation(_) => {

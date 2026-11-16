@@ -299,11 +299,7 @@ impl CheckedOriginal{
                 // substituted Formal Type instead remains caller-owned, even
                 // during recursive calls to the same declaration identity.
                 let mut creator=caller;
-                if let SemanticTypeRecipe::OriginalType{scope,source}=receiver_recipe{
-                    let frame=target.frame(*scope)?;
-                    if context.definition(module,*id,b)?.parent==Some(frame.definition)
-                        && matches!(self.original_type(frame.definition,source,b)?,Ty::Closure(original,..)if original==*id){creator=target;}
-                }
+                if self.closure_source_creator(module,context,receiver_recipe,&receiver,target,b)?{creator=target;}
                 let selected=self.closure_creator_environment(module,context,*id,actuals,sealed,creator,active,b)?;
                 (prototype,Some(*id),Some(selected))
             },
