@@ -87,6 +87,9 @@ pub(super) struct Inputs {
     lives: BTreeSet<usize>,
     empty: StorageLifeShape,
     resolved: std::cell::RefCell<BTreeMap<(usize, usize), Arc<Geometry>>>,
+    // Exact immutable input Type coordinates. The owner's actual first domain
+    // was fully bounded; it is not a domain premise for a later request.
+    type_roots: std::cell::RefCell<BTreeMap<usize, Arc<Geometry>>>,
     nominals: std::cell::RefCell<BTreeMap<usize, Arc<Geometry>>>,
 }
 impl Default for Inputs {
@@ -98,6 +101,7 @@ impl Default for Inputs {
             lives: BTreeSet::new(),
             empty: value::empty(),
             resolved: std::cell::RefCell::new(BTreeMap::new()),
+            type_roots: std::cell::RefCell::new(BTreeMap::new()),
             nominals: std::cell::RefCell::new(BTreeMap::new()),
         }
     }
@@ -349,6 +353,38 @@ impl Inputs {
     ) -> CompileResult<Arc<Geometry>> {
         self.resolved(ty, life.unwrap_or(&self.empty), budget)
     }
+    pub(super) fn check_type(&self, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
+        // Flat atoms are cheaper to walk than to query in the input directory.
+        if ty.is_b0_scalar()
+            || matches!(
+                ty,
+                Type::ByteBuffer
+                    | Type::ForeignHandle
+                    | Type::SyncCell(_)
+                    | Type::TaskI32
+                    | Type::CWideString
+                    | Type::Closure(_)
+                    | Type::Dyn { .. }
+                    | Type::OwnedDyn { .. }
+            )
+        {
+            return crate::dyn_metadata::ty(ty, budget);
+        }
+        if self.module != budget.geometry_module {
+            return Err(fail("geometry source changes its exact immutable module"));
+        }
+        if self.raw_limits == (budget.partial_depth, budget.helper_nodes) {
+            budget.lookup(
+                self.type_roots.borrow().len(),
+                "semantic geometry input Type bounds",
+            )?;
+            if let Some(owner) = self.type_roots.borrow().get(&(ty as *const Type as usize)) {
+                intern::owned(owner, budget)?;
+                return Ok(());
+            }
+        }
+        crate::dyn_metadata::ty(ty, budget)
+    }
     pub(super) fn resolved(
         &self,
         ty: &Type,
@@ -396,18 +432,40 @@ impl Inputs {
             if std::ptr::eq(life, &existing.life) {
                 return Ok(existing);
             }
-            crate::dyn_metadata::shape(life, budget)?;
-            crate::dyn_metadata::shape(&existing.life, budget)?;
-            if existing.life == *life {
-                return Ok(existing);
-            }
+            return intern::with_life(&existing, life, budget);
         }
         budget.lookup(self.types.len(), "semantic geometry Type source lookup")?;
         budget.lookup(self.lives.len(), "semantic geometry domain source lookup")?;
-        let registered = self.raw_limits == (budget.partial_depth, budget.helper_nodes)
-            && self.types.contains(&key.0)
-            && (self.lives.contains(&key.1) || std::ptr::eq(life, &self.empty));
-        let value = copy_geometry(ty, life, budget)?;
+        let registered_type = self.raw_limits == (budget.partial_depth, budget.helper_nodes)
+            && self.types.contains(&key.0);
+        let registered =
+            registered_type && (self.lives.contains(&key.1) || std::ptr::eq(life, &self.empty));
+        let type_root = if registered_type {
+            budget.lookup(
+                self.type_roots.borrow().len(),
+                "semantic geometry input Type snapshot",
+            )?;
+            budget.spend(1, "semantic geometry shared result")?;
+            self.type_roots.borrow().get(&key.0).cloned()
+        } else {
+            None
+        };
+        let value = if let Some(owner) = type_root {
+            intern::with_life(&owner, life, budget)?
+        } else {
+            let value = copy_geometry(ty, life, budget)?;
+            if registered_type {
+                budget.lookup(
+                    self.type_roots.borrow().len(),
+                    "semantic geometry input Type publication",
+                )?;
+                budget.spend(1, "semantic geometry shared result")?;
+                self.type_roots
+                    .borrow_mut()
+                    .insert(key.0, Arc::clone(&value));
+            }
+            value
+        };
         if registered {
             budget.lookup(
                 self.resolved.borrow().len(),
@@ -480,6 +538,12 @@ pub(super) fn same_geometry(
     let left = intern::owned(left, budget)?;
     let right = intern::owned(right, budget)?;
     Ok(left.geometry_id == right.geometry_id)
+}
+pub(super) fn has_current_receipt(
+    owner: &Arc<Geometry>,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    intern::has_current_receipt(owner, budget)
 }
 pub(crate) fn bounded_work(ty: &Type, budget: &mut Budget) -> CompileResult<Option<usize>> {
     Ok(registered_type(ty, budget)?.map(|(_, work)| work))
@@ -559,6 +623,7 @@ mod tests {
         let second = inputs.resolved(&ty, &life, &mut budget).unwrap();
         assert!(Arc::ptr_eq(&first, &second));
         assert!(inputs.resolved.borrow().is_empty());
+        assert!(inputs.type_roots.borrow().is_empty());
         assert!(
             !budget
                 .geometry_types
@@ -569,6 +634,59 @@ mod tests {
         assert!(!Arc::ptr_eq(&first, &changed));
         assert_eq!(first.ty, Type::I32);
         assert_eq!(changed.ty, Type::U32);
+        assert!(inputs.type_roots.borrow().is_empty());
+
+        // A registered immutable Type can be reused with a freshly supplied
+        // complete domain. The snapshot keeps its actual first domain rather
+        // than creating an artificial N0 value for the Type directory.
+        let input_type = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::Closure(ClosureId(0))),
+        };
+        let mut registered = Inputs {
+            raw_limits: (budget.partial_depth, budget.helper_nodes),
+            ..Inputs::default()
+        };
+        registered.register_type(&input_type, &mut budget).unwrap();
+        let distinct = StorageLifeShape {
+            binder_count: 2,
+            slots: vec![StorageLifeSlot {
+                path: Vec::new(),
+                binder: 0,
+                mode: StoredBorrowMode::SharedAddress,
+            }],
+            retained: vec![StorageRetainedBinding {
+                path: vec![LifeTypeProjection::Pointee],
+                class: 0,
+                binder: 1,
+            }],
+            nominal_arguments: Vec::new(),
+        };
+        let mut merged = distinct.clone();
+        merged.binder_count = 1;
+        merged.retained[0].binder = 0;
+        let separate = registered
+            .resolved(&input_type, &distinct, &mut budget)
+            .unwrap();
+        let together = registered
+            .resolved(&input_type, &merged, &mut budget)
+            .unwrap();
+        assert_eq!(separate.ty, together.ty);
+        assert_eq!(separate.life, distinct);
+        assert_eq!(together.life, merged);
+        assert!(!Arc::ptr_eq(&separate, &together));
+        assert_eq!(registered.type_roots.borrow().len(), 1);
+        assert_eq!(
+            registered.type_roots.borrow().values().next().unwrap().life,
+            distinct
+        );
+        assert!(registered.resolved.borrow().is_empty());
+        budget.partial_depth = 0;
+        assert!(
+            registered
+                .resolved(&input_type, &merged, &mut budget)
+                .is_err()
+        );
     }
     #[test]
     fn physical_field_equalities_keep_complete_coordinate_and_type_identity() {

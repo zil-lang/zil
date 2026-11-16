@@ -376,7 +376,9 @@ pub(super) fn construct(
         kind,
         children: ids,
     };
-    let digest = hash(&(b"geometry-constructor-v1", &construction), b)?;
+    // This is a private candidate-bucket discriminator. Exact constructor and
+    // ordered child identities below, rather than this hash, select an alias.
+    let digest = hash(&(u8::MAX, &construction), b)?;
     let key = (b.geometry_module, limits(b), digest);
     b.lookup(
         b.geometry_type_catalog.len(),
@@ -476,7 +478,7 @@ pub(super) fn construct(
     });
     Ok(owner)
 }
-fn with_life(
+pub(super) fn with_life(
     source: &Arc<Geometry>,
     life: &StorageLifeShape,
     b: &mut Budget,
@@ -485,6 +487,14 @@ fn with_life(
     let before = b.remaining();
     crate::dyn_metadata::shape(life, b)?;
     let shape_work = before - b.remaining();
+    b.spend(
+        source_receipt.shape_work.max(shape_work),
+        "complete geometry domain equality comparison",
+    )?;
+    if source.life == *life {
+        b.spend(1, "semantic geometry shared result")?;
+        return Ok(Arc::clone(source));
+    }
     let (digest, existing) = geometry_candidate(source_receipt.type_id, life, shape_work, b)?;
     if let Some(existing) = existing {
         b.spend(1, "semantic geometry shared result")?;
@@ -549,6 +559,10 @@ fn current_receipt<'a>(owner: &'a Geometry, b: &Budget) -> Option<&'a Receipt> {
             && row.limits == limits(b)
             && Arc::ptr_eq(&row.epoch, &b.geometry_epoch)
     })
+}
+pub(super) fn has_current_receipt(owner: &Arc<Geometry>, b: &mut Budget) -> CompileResult<bool> {
+    b.spend(1, "semantic geometry immutable receipt")?;
+    Ok(current_receipt(owner, b).is_some())
 }
 pub(super) fn owned(owner: &Arc<Geometry>, b: &mut Budget) -> CompileResult<Receipt> {
     b.spend(1, "semantic geometry immutable receipt")?;

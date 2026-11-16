@@ -1244,7 +1244,7 @@ impl Check<'_, '_> {
             .values
             .get(id.0 as usize)
             .ok_or_else(|| fail("semantic value transport selects an absent SSA"))?;
-        crate::dyn_metadata::ty(ty, b)?;
+        self.inventory.geometry.check_type(ty, b)?;
         if ty.is_b0_scalar() {
             return Ok(value::scalar(ty.clone()));
         }
@@ -1263,7 +1263,7 @@ impl Check<'_, '_> {
                 // The count selects a proof obligation, never proves it:
                 // reconstruct every real capture and original environment.
                 self.zero_data(ty, b, 0)?;
-                return Ok(value::scalar(ty.clone()));
+                return value::borrowed_scalar(ty, self.inventory, b);
             }
         }
         if matches!(
@@ -1284,7 +1284,7 @@ impl Check<'_, '_> {
             // This is not an empty-shape shortcut: zero_data walks the full
             // nominal/opaque inventory and rejects nonzero or Unknown scopes.
             self.zero_data(ty, b, 0)?;
-            return Ok(value::scalar(ty.clone()));
+            return value::borrowed_scalar(ty, self.inventory, b);
         }
         if depth > b.partial_depth {
             let mut errors =
@@ -1314,7 +1314,7 @@ impl Check<'_, '_> {
                         "actual UTF8 literal changes its complete immutable byte-view type",
                     ));
                 }
-                Ok(value::scalar(ty.clone()))
+                value::borrowed_scalar(ty, self.inventory, b)
             }
             InstructionKind::OwnedStoreNew { .. }
             | InstructionKind::OwnedStoreReserve { .. }
@@ -1601,8 +1601,7 @@ impl Check<'_, '_> {
                         // Class-bearing structural tuples/arrays require their
                         // own original embedding, rather than invented rows.
                         self.zero_data(field, b, depth + 1)?;
-                        crate::dyn_metadata::ty(field, b)?;
-                        value::scalar(field.clone())
+                        value::borrowed_scalar(field, self.inventory, b)?
                     };
                     let actual = self.ssa_value(instance, function, *operand, b, depth + 1)?;
                     if !actual.equal_paid(&field, b)?
@@ -1724,12 +1723,12 @@ impl Check<'_, '_> {
                         b,
                     )?;
                 }
-                Ok(Value::new(ty.clone(), StorageLifeShape {
+                value::borrowed_full(ty, &StorageLifeShape {
                         binder_count: contract.fixed_binder_count,
                         slots: Vec::new(),
                         retained: Vec::new(),
                         nominal_arguments: Vec::new(),
-                    }, complete))
+                    }, complete, self.inventory, b)
             }
             InstructionKind::Call {
                 function: callee,
@@ -1937,20 +1936,24 @@ impl Check<'_, '_> {
                     if output.classes != classes { return Err(fail("call result header changes its independently proved original outer/child role")); }
                     return output.with_classes(classes, b);
                 }
+                let detached_shape;
                 let shape = match ty {
-                    Type::BorrowedStorage { life, .. } => life.clone(),
-                    _ => StorageLifeShape {
-                        binder_count: count,
-                        slots: Vec::new(),
-                        retained: Vec::new(),
-                        nominal_arguments: Vec::new(),
-                    },
+                    Type::BorrowedStorage { life, .. } => life,
+                    _ => {
+                        detached_shape = StorageLifeShape {
+                            binder_count: count,
+                            slots: Vec::new(),
+                            retained: Vec::new(),
+                            nominal_arguments: Vec::new(),
+                        };
+                        &detached_shape
+                    }
                 };
                 // static_call_values checked every actual target world against
                 // this exact original call receipt. The result classes above
                 // come only from the caller's original complete input roles;
                 // no callee-world representative or class coincidence is used.
-                Ok(Value::new(ty.clone(), shape, classes))
+                value::borrowed_full(ty, shape, classes, self.inventory, b)
             }
             _ => {
                 let mut errors =
@@ -1995,8 +1998,7 @@ impl Check<'_, '_> {
                 .is_some_and(|life| life.fixed_binder_count == 0)
             {
                 self.zero_data(ty, b, 0)?;
-                crate::dyn_metadata::ty(ty, b)?;
-                return Ok(value::scalar(ty.clone()));
+                return value::borrowed_scalar(ty, self.inventory, b);
             }
         }
         if ty.is_b0_scalar()
@@ -2017,8 +2019,11 @@ impl Check<'_, '_> {
             // initialized the occupant. Actual initialization and resources
             // are still checked at every consuming operation.
             self.zero_data(ty, b, 0)?;
-            crate::dyn_metadata::ty(ty, b)?;
-            return Ok(value::scalar(ty.clone()));
+            if ty.is_b0_scalar() {
+                crate::dyn_metadata::ty(ty, b)?;
+                return Ok(value::scalar(ty.clone()));
+            }
+            return value::borrowed_scalar(ty, self.inventory, b);
         }
         if depth > b.partial_depth {
             return Err(unknown(

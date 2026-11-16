@@ -182,6 +182,18 @@ pub(super) fn borrowed_scalar(
         Vec::new(),
     ))
 }
+pub(super) fn borrowed_full(
+    ty: &Type,
+    life: &StorageLifeShape,
+    classes: Vec<Class>,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+) -> CompileResult<Value> {
+    Ok(Value::from_geometry(
+        inventory.geometry.resolved(ty, life, b)?,
+        classes,
+    ))
+}
 pub(super) fn unary(kind: geometry::Unary, inner: Value, b: &mut Budget) -> CompileResult<Value> {
     crate::dyn_metadata::shape(&inner.life, b)?;
     let life = inner.life.clone();
@@ -471,6 +483,7 @@ enum ExpectedActual<'a> {
         ty: &'a Type,
         life: Option<&'a StorageLifeShape>,
     },
+    Value(&'a Value),
     Const(&'a Constant),
 }
 fn empty_shape(life: &StorageLifeShape) -> bool {
@@ -480,6 +493,15 @@ fn empty_shape(life: &StorageLifeShape) -> bool {
         && life.nominal_arguments.is_empty()
 }
 fn actual_equal(actual: &LifeNominalActual, expected: &ExpectedActual<'_>) -> bool {
+    if let ExpectedActual::Value(value) = expected {
+        return actual_equal(
+            actual,
+            &ExpectedActual::Type {
+                ty: &value.ty,
+                life: (!value.classes.is_empty()).then_some(&value.life),
+            },
+        );
+    }
     match (actual, expected) {
         (LifeNominalActual::Lifetime(actual), ExpectedActual::Lifetime(expected)) => {
             actual == expected
@@ -516,17 +538,28 @@ fn actual_equal_paid(
         LifeNominalActual::QualifiedType { ty, life } => (ty, Some(life)),
         _ => return Ok(actual_equal(actual, expected)),
     };
-    let ExpectedActual::Type {
-        ty: expected_ty,
-        life: expected_life,
-    } = expected
-    else {
-        return Ok(false);
+    let (expected_ty, expected_life, expected_owner) = match expected {
+        ExpectedActual::Type { ty, life } => (*ty, *life, None),
+        ExpectedActual::Value(value) => (
+            &value.ty,
+            (!value.classes.is_empty()).then_some(&value.life),
+            Some(&value.geometry),
+        ),
+        _ => return Ok(false),
     };
     let geometry = inventory.geometry.type_value(ty, life, b)?;
-    let expected = inventory
-        .geometry
-        .type_value(expected_ty, *expected_life, b)?;
+    let expected = match expected_owner {
+        Some(owner)
+            if (expected_life.is_some() || empty_shape(&owner.life))
+                && geometry::has_current_receipt(owner, b)? =>
+        {
+            b.spend(1, "semantic geometry shared result")?;
+            std::sync::Arc::clone(owner)
+        }
+        _ => inventory
+            .geometry
+            .type_value(expected_ty, expected_life, b)?,
+    };
     geometry::same_geometry(&geometry, &expected, b)
 }
 
@@ -616,10 +649,7 @@ pub(super) fn nominal(
                 }
                 put(
                     &mut expected,
-                    ExpectedActual::Type {
-                        ty: &value.ty,
-                        life: (!value.classes.is_empty()).then_some(&value.life),
-                    },
+                    ExpectedActual::Value(value),
                     b,
                 )?;
             }
