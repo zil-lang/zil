@@ -291,9 +291,10 @@ pub(crate) fn partition_classes_reusing(
     // A body edit may change the exact disk key without changing grouping or
     // the complete current graph. Retain the actual plan, then revalidate all
     // roles, closures, local-state edges and the original whole-plan copy cost.
-    let retained = previous
+    let candidate = previous
         .zip(grouping.as_ref())
-        .and_then(|(previous, grouping)| previous.layout_for(grouping))
+        .and_then(|(previous, grouping)| previous.layout_for(grouping));
+    let retained = candidate
         .filter(|layout| {
             observed.as_ref().is_some_and(|observed| {
                 layout
@@ -302,6 +303,9 @@ pub(crate) fn partition_classes_reusing(
             })
         })
         .cloned();
+    // Refusing a retained recipe also refuses its role-to-slot associations.
+    // They cannot supply items to the fallback planner after admission failed.
+    let previous = previous.filter(|_| candidate.is_none() || retained.is_some());
     let retained_layout = retained.is_some();
     let selected = retained.or_else(|| {
         cache
