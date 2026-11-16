@@ -1,6 +1,21 @@
 //! Declared dyn result uppers are checked against each actual returned row.
 //! Calls substitute the declared upper through actual input permissions.
 use super::*;
+
+// This constructs an upper/category only. Actual result constructors and
+// summaries must separately prove a literal derivation before publishing it.
+pub(super) fn static_target(leaf: &Type, mode: StoredBorrowMode,
+    b: &mut Budget) -> CompileResult<Target> {
+    crate::dyn_metadata::ty(leaf, b)?;
+    if mode != StoredBorrowMode::SharedAddress
+        || !matches!(leaf, Type::Address { mutable: false, inner }
+            if matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8)) {
+        return Err(failure("Static source changes its complete immutable byte leaf or mode"));
+    }
+    fee(b, 2)?;
+    Ok(Target { base: HoldRoot::Static, stored: vec![], retained_port: None,
+        place: vec![], heap_element: None, heap_parents: vec![] })
+}
 use zil_ir::{ContractProjection, LifeTypeProjection, StorageBinder, StorageLifeContract};
 struct Upper {
     targets: Vec<Target>,
@@ -942,6 +957,13 @@ pub(super) fn summarize(
     b: &mut Budget,
 ) -> CompileResult<()> {
     let (returned, value) = returned_value;
+    for (path, permission) in &value.dyn_ports {
+        fee(b, path.len().saturating_add(permission.targets.len()))?;
+        if permission.targets.iter().any(|target| target.base == HoldRoot::Static)
+            && !crate::retained::has_static_source(module, f, returned, path, b)? {
+            return Err(failure("actual Static dyn port has no literal return-chain witness"));
+        }
+    }
     if !b.pending_dyn_outputs.is_empty() {
         ordered(b, b.pending_dyn_outputs.len(), 0)?;
     }
@@ -1195,6 +1217,15 @@ pub(super) fn call(
     for (path, sources) in &summary.declared_dyn_return_upper {
         let mut permission = Permission::default();
         for source in sources {
+            if source.base == HoldRoot::Static {
+                ordered(b, summary.returned_dyn_ports.len(), path.len())?;
+                let Some(actual) = summary.returned_dyn_ports.get(path) else {
+                    out.creation_complete = Some(false);
+                    continue;
+                };
+                fee(b, actual.len())?;
+                if !actual.iter().any(|target| target.base == HoldRoot::Static) { continue; }
+            }
             let actual = substitute(source, args, values, state, b)?;
             let actual = if transports_existing(callee, source) {
                 actual

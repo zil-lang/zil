@@ -575,10 +575,24 @@ pub(super) fn transfer(
                 .find(|item| item.id == *interface)
                 .and_then(|item| item.slots.get(*slot as usize))
                 .ok_or_else(|| failure("dyn slot selection is absent"))?;
-            if let Some(DynResultSource::Borrow { sources, .. }) = &selected.contract.result {
+            if let Some(DynResultSource::Borrow { sources, mutable }) = &selected.contract.result {
                 let actual = get(*callee)?;
-                let mut complete = true;
+                let static_source = if sources.iter().any(|source| matches!(source, StorageSource::Static { .. })) {
+                    crate::retained::slot_static_source(module, *interface, *slot, b)?
+                } else { Some(false) };
+                let mut complete = static_source.is_some();
                 for atom in sources {
+                    if let StorageSource::Static { leaf, mode } = atom {
+                        let target = dyn_return::static_target(leaf, *mode, b)?;
+                        b.type_work(&selected.result, false, "dynamic Static result complete leaf")?;
+                        if *mutable || leaf != &selected.result {
+                            return Err(failure("dynamic Static result changes its full leaf or receiver result mode"));
+                        }
+                        // An unused upper contributes no target. Unknown entry
+                        // returns stay incomplete, rather than seeding an SCC.
+                        if static_source == Some(true) { out.pointer.targets.insert(target); }
+                        continue;
+                    }
                     let source = crate::exact_storage_source(atom)?;
                     fee(b, source.path.len().saturating_add(1))?;
                     if source.base != StorageBase::Parameter(0) {

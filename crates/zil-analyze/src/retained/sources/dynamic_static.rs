@@ -125,6 +125,20 @@ pub(super) fn resolve(
         InstructionKind::BorrowDynOwned { local, .. } if !path.is_empty() => {
             local_sources(c, *local, path, active, depth + 1, b)
         }
+        InstructionKind::ReadErrorUnion { value, is_error }
+        | InstructionKind::TakeErrorUnion { value, is_error } => {
+            pay(b, path.len().saturating_add(1))?;
+            let mut selected = vec![ContractProjection::Place(PlaceProjection::ErrorArm(*is_error))];
+            selected.extend_from_slice(path);
+            super::resolve(c, *value, &selected, active, depth + 1, b)
+        }
+        InstructionKind::ReadVariant { value, variant, index } => {
+            pay(b, path.len().saturating_add(1))?;
+            let mut selected = vec![ContractProjection::Place(PlaceProjection::Variant(VariantProjection {
+                variant: *variant, index: *index }))];
+            selected.extend_from_slice(path);
+            super::resolve(c, *value, &selected, active, depth + 1, b)
+        }
         InstructionKind::MakeErrorUnion { value, is_error } => {
             let Some((ContractProjection::Place(PlaceProjection::ErrorArm(arm)), tail)) =
                 path.split_first()
@@ -278,6 +292,9 @@ pub(super) fn resolve(
         InstructionKind::MakeDynOwned { .. }
         | InstructionKind::MakeDynBorrow { .. }
         | InstructionKind::BorrowDynOwned { .. }
+        | InstructionKind::ReadErrorUnion { .. }
+        | InstructionKind::TakeErrorUnion { .. }
+        | InstructionKind::ReadVariant { .. }
         | InstructionKind::MakeErrorUnion { .. }
         | InstructionKind::CallClosureShared { .. }
         | InstructionKind::CallClosureMut { .. }

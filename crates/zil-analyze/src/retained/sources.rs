@@ -1152,3 +1152,46 @@ mod static_grounding_tests {
         }
     }
 }
+
+/// A possibility witness, distinct from the stronger all-Static result proof.
+/// It follows actual instructions/returns and never reads a Static upper atom.
+pub(super) fn has_static_source(module: &TypedModule, function: &TypedFunction,
+    value: ValueId, path: &[ContractProjection], b: &mut Budget) -> CompileResult<bool> {
+    let c = context(module, function, b)?;
+    let sources = resolve(&c, value, path, &mut BTreeSet::new(), 0, b)?;
+    Ok(sources.contains(&ActualSource::Static))
+}
+
+/// Every actual provider must have a nonempty independently derived return
+/// directory. None remains Unknown; an advertised Static upper is not a seed.
+pub(super) fn slot_static_source(module: &TypedModule, interface: DynInterfaceId,
+    slot: u32, b: &mut Budget) -> CompileResult<Option<bool>> {
+    let mut found = false;
+    let mut literal = false;
+    let mut complete = true;
+    for table in &module.dyn_vtables {
+        pay(b, 1)?;
+        if table.interface != interface { continue; }
+        pay(b, table.entries.len())?;
+        let mut entries = table.entries.iter().filter(|entry| entry.slot == slot);
+        let entry = entries.next().ok_or_else(|| err("Static slot source omits an actual provider entry"))?;
+        if entries.next().is_some() { return Err(err("Static slot source repeats its provider entry")); }
+        let function = module.functions.get(entry.function.0 as usize)
+            .filter(|function| function.id == entry.function)
+            .ok_or_else(|| err("Static slot source has no actual provider function"))?;
+        let c = context(module, function, b)?;
+        found = true;
+        complete &= !c.returned.is_empty();
+        for value in &c.returned {
+            let sources = resolve(&c, *value, &[], &mut BTreeSet::new(), 0, b)?;
+            complete &= !sources.is_empty();
+            literal |= sources.contains(&ActualSource::Static);
+        }
+    }
+    Ok((found && complete).then_some(literal))
+}
+
+pub(super) fn source_leaf<'a>(module: &'a TypedModule, ty: &'a Type,
+    path: &[ContractProjection], b: &mut Budget) -> CompileResult<&'a Type> {
+    endpoint(module, ty, path, b).map(|(ty, _)| ty)
+}

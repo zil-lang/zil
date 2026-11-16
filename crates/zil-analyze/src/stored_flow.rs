@@ -7776,7 +7776,7 @@ fn derive_cfg(
                         &loans,
                         b,
                     )?;
-                    dyn_environment::summarize(module, f, value, &mut actual, b)?;
+                    dyn_environment::summarize(module, f, (id, value), &mut actual, b)?;
                 }
             }
             if let Some(d) = f
