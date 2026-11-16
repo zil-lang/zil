@@ -128,11 +128,11 @@ fn leaf() -> Function {
                 "add",
                 vec![
                     inst(
-                        "add",
+                        "add.pair",
                         call("llvm.sadd.with.overflow.i32", local("x"), Val::Int(3)),
                     ),
-                    inst("add.value", extract("add", 0)),
-                    inst("add.overflow", extract("add", 1)),
+                    inst("add.value", extract("add.pair", 0)),
+                    inst("add.overflow", extract("add.pair", 1)),
                     inst(
                         "",
                         Op::CondBranch {
@@ -282,12 +282,18 @@ fn universal_return_hulls_remove_only_later_safe_flags_and_keep_all_calls_and_tr
     let before = m.clone();
     assert_eq!(apply(&mut m, &BTreeSet::new()), 3);
     zil_llvm_api::validate_module(&m).unwrap();
+    assert_eq!(before.items.len(), m.items.len());
     let mut differences = Vec::new();
     for (a, b) in before.items.iter().zip(m.items.iter()) {
         if let (Item::Function(a), Item::Function(b)) = (a, b) {
+            assert_eq!(
+                a.blocks.as_ref().map(|bs| bs.len()),
+                b.blocks.as_ref().map(|bs| bs.len())
+            );
             assert_eq!(a.signature, b.signature);
             assert_eq!(a.name, b.name);
             for (x, y) in a.blocks.iter().flatten().zip(b.blocks.iter().flatten()) {
+                assert_eq!(x.instructions.len(), y.instructions.len());
                 assert_eq!(x.name, y.name);
                 for (i, j) in x.instructions.iter().zip(&y.instructions) {
                     if i != j {
