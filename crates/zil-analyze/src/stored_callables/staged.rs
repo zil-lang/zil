@@ -353,7 +353,7 @@ mod tests {
         }
     }
     #[test]
-    fn staged_owning_receiver_budget_is_paid_and_direct_fee_is_unchanged() {
+    fn staged_owning_receiver_budget_and_direct_role_query_are_exact() {
         let limits = Limits::default();
         let (m, h, kind) = model(true);
         let (mut low, mut high) = (1, limits.max_analysis_steps);
@@ -391,26 +391,34 @@ mod tests {
             }
         }
         let (m, h, kind) = model(false);
-        let mut b = Budget::new(&Limits {
-            max_analysis_steps: 10,
-            ..limits.clone()
-        });
+        let mut b = Budget::new(&limits);
         assert!(super::super::role(&m, &h, &kind, &mut b).unwrap().is_some());
-        assert!(
-            super::super::role(
+        let direct = limits.max_analysis_steps - b.remaining();
+        for n in [direct, direct - 1, direct] {
+            let result = super::super::role(
                 &m,
                 &h,
                 &kind,
                 &mut Budget::new(&Limits {
-                    max_analysis_steps: 9,
+                    max_analysis_steps: n,
                     ..limits.clone()
-                })
-            )
-            .is_err()
-        );
+                }),
+            );
+            if n == direct {
+                assert!(result.unwrap().is_some());
+            } else {
+                assert!(
+                    result
+                        .unwrap_err()
+                        .iter()
+                        .all(|error| error.category == zil_base::ResultCategory::ResourceLimit)
+                );
+            }
+        }
         eprintln!(
-            "Analyze staged role identity N={low}/N-1/fresh; direct owned role retains exact legacy N10"
+            "complete staged role rows: staged N={low}/N-1/fresh; direct N={direct}/N-1/fresh"
         );
+        assert_eq!(direct, 10, "complete direct role query work changed");
     }
     #[allow(dead_code)]
     mod tail_fixture {

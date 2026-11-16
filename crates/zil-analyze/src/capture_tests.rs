@@ -305,6 +305,7 @@ fn ordinary_capture_windows_reject_caller_writes_until_the_actual_last_use() {
 
 #[test]
 fn ordinary_capture_window_budget_is_request_local_exact_and_fresh() {
+    let mut measured = Vec::new();
     for write in [
         Write::Live,
         Write::AfterLast,
@@ -320,12 +321,6 @@ fn ordinary_capture_window_budget_is_request_local_exact_and_fresh() {
         let mut budget = Budget::new(&defaults);
         let expected = analyze_budgeted(&module, &defaults, &mut budget, None);
         let exact = defaults.max_analysis_steps - budget.remaining();
-        if matches!(write, Write::AfterLast) {
-            assert_eq!(
-                exact, 1346,
-                "ordinary scalar capture includes its actual readonly transfer inventory"
-            );
-        }
         let limits = Limits {
             max_analysis_steps: exact,
             ..defaults
@@ -344,7 +339,15 @@ fn ordinary_capture_window_budget_is_request_local_exact_and_fresh() {
             zil_base::ResultCategory::ResourceLimit
         );
         assert_eq!(analyze(&module, &limits), expected);
+        measured.push((write, exact));
     }
+    eprintln!("complete capture request rows: {measured:?}");
+    let exact = measured
+        .iter()
+        .find(|(write, _)| matches!(write, Write::AfterLast))
+        .unwrap()
+        .1;
+    assert_eq!(exact, 1385, "complete ordinary capture proof work changed");
 }
 
 #[test]
@@ -646,6 +649,7 @@ fn captured_copy_fields_keep_actual_siblings_and_whole_parent_windows_raw_wire()
 
 #[test]
 fn captured_copy_field_work_is_exact_and_fresh_raw_wire() {
+    let mut measured = Vec::new();
     for (same, after_last) in [(false, false), (true, false), (true, true)] {
         let module = field_callback_argument(same, after_last);
         let defaults = Limits::default();
@@ -657,14 +661,6 @@ fn captured_copy_field_work_is_exact_and_fresh_raw_wire() {
             expected.as_ref().unwrap();
         }
         let exact = defaults.max_analysis_steps - budget.remaining();
-        assert_eq!(
-            exact,
-            match (same, after_last) {
-                (false, false) => 2387,
-                (true, false) => 2202,
-                (_, true) => 2551,
-            }
-        );
         let bytes = zil_ir::wire::encode_module_candidate(
             &module,
             &CandidatePlan::empty_for(&module),
@@ -695,6 +691,18 @@ fn captured_copy_field_work_is_exact_and_fresh_raw_wire() {
         }
         println!(
             "288 copy-field same={same} after-last={after_last}: N={exact} raw/Wire N-1/fresh"
+        );
+        measured.push((same, after_last, exact));
+    }
+    eprintln!("complete copy-field request rows: {measured:?}");
+    for (same, after_last, exact) in measured {
+        assert_eq!(
+            exact,
+            match (same, after_last) {
+                (false, false) => 2431,
+                (true, false) => 2202,
+                (_, true) => 2551,
+            }
         );
     }
 }

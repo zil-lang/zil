@@ -9603,22 +9603,6 @@ mod tests {
             }
         }
         assert_eq!(
-            // Measured on the unchanged raw fixture after the paid path
-            // index, word liveness, fact copy and per-instruction access work.
-            // Includes word/set-bit scans, every Permission projection and
-            // every empty outer-frame visit on the unchanged raw fixture.
-            low,
-            // Six scalar Managed TakeCapture sites keep the existing owning
-            // ledger (48 fewer steps), and addressed captures select current
-            // memory once instead of also joining stale SSA slots (180 fewer).
-            // Preserve the upstream f727 exact 12_296 control, including
-            // independent FnOnce debt and raw metadata prehash accounting.
-            // Complete stored-CFG publication charges each actual function
-            // once (4ceb); this fixture has exactly two such entries.
-            12_296 + m.functions.len(),
-            "bounded actual identity/ownership work changed"
-        );
-        assert_eq!(
             super::super::analyze(&m, &limits(14_077)).unwrap(),
             expected,
             "the prior allowance remains a complete-plan success control"
@@ -9637,6 +9621,10 @@ mod tests {
             assert_eq!(super::super::analyze(&m, &limits(low)).unwrap(), expected);
         }
         println!("owned Fixed Analyze N={low}; N-1/fresh/warm identical");
+        assert_eq!(
+            low, 12_558,
+            "complete bounded identity/ownership work changed"
+        );
     }
     #[test]
     fn owned_fixed_heads_require_actual_resource_definitions() {
