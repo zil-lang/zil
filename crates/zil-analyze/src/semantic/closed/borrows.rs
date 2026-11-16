@@ -345,6 +345,43 @@ impl Check<'_, '_> {
                 let StorageBase::Parameter(parameter) = row.position.base else {
                     continue;
                 };
+                if !row.position.path.is_empty()
+                    && row.position.path.iter().all(|step| matches!(step, ContractProjection::Place(_))) {
+                    let expected = expected_parameters.get(parameter as usize)
+                        .ok_or_else(|| fail("projected call source omits its complete original input"))?;
+                    let operand = *arguments.get(parameter as usize)
+                        .ok_or_else(|| fail("projected call source omits its actual SSA input"))?;
+                    let actual = self.ssa_value(instance, function, operand, b, depth + 1)?;
+                    let (actual, expected) = if matches!(expected.ty, Type::Address { .. }) {
+                        if !self.outer_call_role(instance, function, (block, index), parameter as usize,
+                            operand, &actual, expected, b, depth + 1)? {
+                            return Err(fail("projected call source changes its exact outer receiving role"));
+                        }
+                        (self.pointee(&actual, b)?, self.pointee(expected, b)?)
+                    } else { (actual, expected.copy(b)?) };
+                    if !actual.equal_paid(&expected, b)? {
+                        return Err(fail("projected call source changes its complete original input domain"));
+                    }
+                    let mut selected = None;
+                    for slot in &expected.life.slots {
+                        b.spend(slot.path.len().saturating_add(row.position.path.len()).saturating_add(1), WORK)?;
+                        if slot.path.len() == row.position.path.len()
+                            && slot.path.iter().zip(&row.position.path).all(|(expected, actual)|
+                                matches!(actual, ContractProjection::Place(step) if step == expected)) {
+                            if selected.replace(slot.binder).is_some() {
+                                return Err(fail("projected call source repeats its exact physical slot"));
+                            }
+                        }
+                    }
+                    let class = expected.classes.get(selected.ok_or_else(||
+                        fail("projected call source has no complete physical input slot"))? as usize).cloned()
+                        .ok_or_else(|| fail("projected call source leaves its full intrinsic domain"))?;
+                    if source.as_ref().is_some_and(|old| old != &class) {
+                        return Err(fail("projected call result has competing original source classes"));
+                    }
+                    source = Some(class);
+                    continue;
+                }
                 if !row.position.path.is_empty() {
                     let expected = expected_parameters.get(parameter as usize)
                         .ok_or_else(|| fail("Task call port omits its original complete input"))?;

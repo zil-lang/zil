@@ -1346,6 +1346,15 @@ pub(in crate::semantic) fn predicate_actual(
     if ty.is_b0_scalar() || *ty == Type::ForeignHandle {
         return Ok(!matches!(predicate, Predicate::StoreElement) || *ty != Type::Unit);
     }
+    // These predicates describe the reference value itself. Copying a
+    // shared head neither copies its pointee nor changes any intrinsic class;
+    // dropping a head releases its loan without dropping the borrowed owner.
+    match ty {
+        Type::Address { mutable, .. } => return Ok(!matches!(predicate, Predicate::StoreElement)
+            && (!matches!(predicate, Predicate::Copy) || !*mutable)),
+        Type::Desc(_) => return Ok(!matches!(predicate, Predicate::StoreElement)),
+        _ => {}
+    }
     let complete = ty;
     let ty = match ty {
         Type::BorrowedStorage { storage, life }

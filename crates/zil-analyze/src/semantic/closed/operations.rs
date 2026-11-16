@@ -225,6 +225,16 @@ impl Check<'_, '_> {
                     SemanticOperand::Local(local) => {
                         point.local(*local, b)?;
                     }
+                    SemanticOperand::Parameter(parameter) => {
+                        let local = point.function.parameters.get(*parameter as usize)
+                            .ok_or_else(|| fail("parameter class image exceeds the actual input table"))?;
+                        point.local(*local, b)?;
+                        // Reuse the original signature/actual selector proof;
+                        // an initialized input is not its own class image.
+                        if self.parameter_address_claim(instance, value, b, 0)?.is_none() {
+                            return Err(unknown("parameter class image needs its complete whole-value selector transport"));
+                        }
+                    }
                     SemanticOperand::Environment(_) | SemanticOperand::TypeArgument { .. } => {
                         // This selector reads a complete checked logical type
                         // in the real creator/formal scope; it is not a head
