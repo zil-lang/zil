@@ -25,7 +25,7 @@ impl Solver<'_, '_> {
                     "structured thread requires its complete worker, input and parent body",
                 ));
             };
-            let (target, parameters, output, modes, result_mode, call_kind) =
+            let (target, parameters, output, modes, result_mode, call_kind, _worker_actuals) =
                 self.task_worker(frame, worker, node, b, depth + 1)?;
             if parameters.len() != 1
                 || modes.len() != 1

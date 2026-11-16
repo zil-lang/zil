@@ -382,7 +382,7 @@ mod source_tests{
     #[test]
     fn task_source_loop_identity_keeps_unknown_and_every_birth(){
         let limits=Limits::default();let mut b=Budget::new(&limits);
-        let definition=SemanticDefinitionId{module:ModuleId(0),index:0};
+        let definition=SemanticDefinitionId{module:zil_base::ModuleId(0),index:0};
         let binder=Binder::Parameter{definition,ordinal:0};let root=root_place(&binder);
         let birth=TaskSource::Birth{definition,node:NodeId(4)};
         let mut a=State::default();
