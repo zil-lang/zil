@@ -1,4 +1,5 @@
 //! Ordinary cross-module lazy owning adapters and lending callback consumers.
+mod work_profile_support;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -77,7 +78,7 @@ fn typed_project(p: ProjectSources) -> zil_ir::TypedModule {
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
-    let limits = Limits::default();
+    let limits = work_profile_support::limits();
     let expanded = zil_expand::expand_program_with_limits_target_context(
         &p.modules,
         &asts.iter().collect::<Vec<_>>(),
@@ -110,7 +111,7 @@ fn typed_project(p: ProjectSources) -> zil_ir::TypedModule {
 }
 fn raw(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
     let typed = typed(source);
-    let limits = Limits::default();
+    let limits = work_profile_support::limits();
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     if let Err(errors) =
         zil_verify::verify_module(typed.clone(), plan.clone(), &typed.target, &limits)
@@ -190,6 +191,7 @@ fn native(label: &str, source: &str, expected: &[u8], failures: bool) {
                 &project(source),
                 &CompileOptions {
                     stop_after: Stage::Build,
+                    limits: work_profile_support::limits(),
                     backend,
                     optimization,
                     clang: wrapper,

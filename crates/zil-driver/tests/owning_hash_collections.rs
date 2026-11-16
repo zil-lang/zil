@@ -1,5 +1,6 @@
 #![cfg(target_os = "linux")]
 
+mod work_profile_support;
 use std::{
     fs,
     process::Command,
@@ -311,6 +312,7 @@ fn every_owning_hash_allocation_failure_returns_owners_and_preserves_map() {
                 &source,
                 &CompileOptions {
                     stop_after: Stage::Build,
+                    limits: work_profile_support::limits(),
                     backend,
                     optimization,
                     clang: Some(wrapper.clone()),
@@ -373,6 +375,7 @@ fn every_owning_hash_allocation_failure_returns_owners_and_preserves_map() {
                 &source,
                 &CompileOptions {
                     stop_after: Stage::Build,
+                    limits: work_profile_support::limits(),
                     backend,
                     optimization,
                     clang: Some(wrapper.clone()),
@@ -451,6 +454,7 @@ fn buffered_short_io_and_retry_preserve_progress_and_close_once() {
                 &source,
                 &CompileOptions {
                     stop_after: Stage::Build,
+                    limits: work_profile_support::limits(),
                     backend,
                     optimization,
                     clang: Some(wrapper.clone()),
