@@ -29,6 +29,7 @@ pub(crate) struct Structure{
     declaration_success:BTreeSet<(usize,Option<SemanticDefinitionId>,Profile)>,
     resource_success:BTreeMap<(usize,Profile),usize>,
     store_success:BTreeMap<(usize,bool,bool),Vec<Limits>>,
+    stored_bounds:BTreeMap<(usize,usize),Vec<Limits>>,
     owners:BTreeMap<(OwnerKey,SemanticDefinitionId),usize>,
     shared_types:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
     type_owners:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
@@ -43,7 +44,7 @@ impl Structure{
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:BTreeSet::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),owners:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),
+            type_success:BTreeSet::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),store_success:BTreeMap::new(),stored_bounds:BTreeMap::new(),owners:BTreeMap::new(),shared_types:BTreeMap::new(),type_owners:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -234,6 +235,28 @@ pub(crate) fn resource_success(module:&TypedModule,record:&Type,index:usize,b:&m
     b.structural.as_mut().unwrap().resource_success.insert(key,index);Ok(())
 }
 
+// The stored bounds visitor has its own depth convention and diagnostics.
+// It is not a copy/Eq prepayment and proves no shape/nominal/κ permission.
+pub(crate) fn stored_type_known(ty:&Type,limits:&Limits,b:&mut Budget)->Check<bool>{
+    if !cacheable(ty){return Ok(false);}
+    let Some(state)=&b.structural else{return Ok(false);};
+    let fee=lookup(state.stored_bounds.len());b.spend(fee)?;
+    let state=b.structural.take().unwrap();
+    let result=(||{
+        if let Some(profiles)=state.stored_bounds.get(&(ty as *const Type as usize,limits.max_call_depth)){
+            for profile in profiles{b.spend(12)?;if *profile==b.limits{return Ok(true);}}
+        }Ok(false)
+    })();b.structural=Some(state);result
+}
+pub(crate) fn stored_type_success(ty:&Type,limits:&Limits,b:&mut Budget)->Check<()>{
+    if !cacheable(ty){return Ok(());}
+    let Some(state)=&b.structural else{return Ok(());};let ptr=ty as *const Type as usize;
+    let fee=lookup(state.types.len());b.spend(fee)?;
+    if !b.structural.as_ref().unwrap().types.contains(&ptr){return Ok(());}
+    let fee=lookup(b.structural.as_ref().unwrap().stored_bounds.len()).saturating_add(14);b.spend(fee)?;
+    let profile=b.limits.clone();b.structural.as_mut().unwrap().stored_bounds.entry((ptr,limits.max_call_depth)).or_default().push(profile);Ok(())
+}
+
 // Only complete static Store-element admission is retained. This table has
 // no value, owner epoch, address window, cleanup state or Store permission.
 pub(crate) fn store_element_known(module:&TypedModule,ty:&Type,product:bool,b:&mut Budget)->Check<bool>{
@@ -342,6 +365,19 @@ mod tests{
         let actual=crate::dynamic_store::check_store_element(&module,ty,None,&mut b);
         let expected=crate::dynamic_store::check_store_element(&module,ty,None,&mut Budget::new(&b.limits));assert_eq!(actual,expected);
         b.limits=limits;assert!(store_element_known(&module,ty,true,&mut b).unwrap());
+    }
+    #[test]
+    fn stored_bounds_reuse_preserves_depth_errors_temporary_identity_and_full_copy_fee(){
+        let module=fixture();let ty=&module.functions[0].locals.last().unwrap().ty;let limits=Limits::default();let mut b=budget(&module);
+        let before=b.remaining;crate::stored_flow::type_bounds(ty,&limits,&mut b).unwrap();let cold=before-b.remaining;
+        let before=b.remaining;crate::stored_flow::type_bounds(ty,&limits,&mut b).unwrap();let hot=before-b.remaining;assert!(hot<cold);
+        let before=b.remaining;crate::stored_flow::type_work(ty,&limits,&mut b).unwrap();assert!(before-b.remaining>hot,"actual Type copy/Eq keeps its complete name-byte prepayment");
+        let temporary=ty.clone();assert!(!stored_type_known(&temporary,&limits,&mut b).unwrap());
+        let mut shallow=limits.clone();shallow.max_call_depth=0;
+        let actual=crate::stored_flow::type_bounds(ty,&shallow,&mut b).unwrap_err();
+        let expected=crate::stored_flow::type_work(ty,&shallow,&mut Budget::new(&limits)).unwrap_err();assert_eq!(actual,expected);
+        assert!(stored_type_known(ty,&limits,&mut b).unwrap());
+        b.limits.max_values-=1;assert!(!stored_type_known(ty,&limits,&mut b).unwrap(),"budget metadata profiles remain separate");
     }
     #[test]
     fn adopting_source_cells_keeps_every_copied_tree_alive(){

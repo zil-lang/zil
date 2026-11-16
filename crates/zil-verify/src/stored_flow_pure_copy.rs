@@ -27,10 +27,11 @@ pub(super) fn code_atom(ty:&Type,b:&mut Budget)->Check<bool>{
     }
 }
 
-// Ordinary owning unions have a tag/debt in the independent resource kernel,
-// but no stored-address permission. Admit only an actual complete union whose
-// children contain no address, qualified carrier, callable or retained task.
+// Ordinary owning sums retain their tag/debt in the independent resource
+// kernel. Complete target-free children, including closed owning closures,
+// have no stored-address permission; this never makes the whole sum Copy.
 pub(super) fn ordinary_owned_union(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
@@ -38,7 +39,7 @@ pub(super) fn ordinary_owned_union(
     // Flat owning ErrorUnion/Package values predate the sum-extension work
     // flag. Authenticate the complete actual shape here; a scheduling flag
     // neither supplies this proof nor excludes an ordinary existing carrier.
-    if ordinary_owned_enum(f,i,b)?{return Ok(true);}
+    if ordinary_owned_enum(module,f,i,b)?{return Ok(true);}
     let union = match &i.kind {
         InstructionKind::PlaceTagLocal { local, path } if path.is_empty() => {
             if vt(f, i.result.ok_or_else(|| err("union tag lacks result"))?)? != &Type::I32 {
@@ -74,7 +75,7 @@ pub(super) fn ordinary_owned_union(
     if matches!(i.kind, InstructionKind::ReadErrorUnion { .. }) && !union.is_copy_value() {
         return Ok(false);
     }
-    if !ordinary_union_shape(union, b)? {
+    if !ordinary_union_shape(module,union, b)? {
         return Ok(false);
     }
     if matches!(i.kind,InstructionKind::DropErrorUnion{..})&&i.result.is_some(){return Err(err("ordinary owning sum cleanup has a value result"));}
@@ -404,10 +405,10 @@ fn ordinary(ty: &Type, b: &mut Budget, depth: usize) -> Check<()> {
     Ok(())
 }
 
-pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<()> {
-    types_inner(f,i,b).map_err(|mut failure|{if failure.span.is_none(){failure.span=Some(i.span);}failure})
+pub(super) fn types(module:&TypedModule,f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<()> {
+    types_inner(module,f,i,b).map_err(|mut failure|{if failure.span.is_none(){failure.span=Some(i.span);}failure})
 }
-fn types_inner(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<()> {
+fn types_inner(module:&TypedModule,f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<()> {
     let output = vt(
         f,
         i.result
@@ -521,7 +522,10 @@ fn types_inner(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<()> 
         }
         InstructionKind::ExtractField { aggregate, index } => {
             let aggregate = vt(f, *aggregate)?;
-            ordinary(aggregate, b, 0)?;
+            // Reading a selected Copy child does not copy an owning sibling.
+            // Rich pointer-bearing parents keep their separate permission
+            // consumers; a complete target-free product may own other fields.
+            if !complete_owned_fields(module,vec![(aggregate,0)],b)?{ordinary(aggregate, b, 0)?;}
             match super::qualified(aggregate).map_or(aggregate, |(storage, _)| storage) {
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, field)| field),
                 Type::Tuple(fields) => fields.get(*index as usize),
@@ -598,7 +602,7 @@ fn types_inner(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<()> 
     Ok(())
 }
 
-fn ordinary_union_shape(union: &Type, b: &mut Budget) -> Check<bool> {
+fn ordinary_union_shape(module:&TypedModule,union: &Type, b: &mut Budget) -> Check<bool> {
     let Type::ErrorUnion { error, result } = union else {
         return Ok(false);
     };
@@ -607,7 +611,7 @@ fn ordinary_union_shape(union: &Type, b: &mut Budget) -> Check<bool> {
         return Ok(false);
     }
     b.spend(2)?;
-    ordinary_owned_fields(vec![(error.as_ref(), 0), (result.as_ref(), 0)], b)
+    complete_owned_fields(module,vec![(error.as_ref(), 0), (result.as_ref(), 0)],b)
 }
 
 fn ordinary_owned_fields(mut pending: Vec<(&Type, usize)>, b: &mut Budget) -> Check<bool> {
@@ -671,10 +675,16 @@ fn ordinary_owned_fields(mut pending: Vec<(&Type, usize)>, b: &mut Budget) -> Ch
     Ok(true)
 }
 
+fn complete_owned_fields(module:&TypedModule,pending:Vec<(&Type,usize)>,b:&mut Budget)->Check<bool>{
+    for(ty,_)in pending{if !crate::stored_owned::target_free_value(module,ty,b)?{return Ok(false);}}
+    Ok(true)
+}
+
 // Only shared Copy endpoints of a complete address-free ordinary Package
 // can enter this no-stored-target lane. Current lifetime and moved-field
 // facts remain checked against the real local by the independent flow.
 fn ordinary_package_field_borrow(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
@@ -699,7 +709,7 @@ fn ordinary_package_field_borrow(
         return Ok(false);
     }
     super::type_work(root, &b.limits.clone(), b)?;
-    if !ordinary_owned_fields(vec![(root, 0)], b)? {
+    if !complete_owned_fields(module,vec![(root, 0)],b)? {
         return Ok(false);
     }
     let mut endpoint = root;
@@ -729,11 +739,12 @@ fn ordinary_package_field_borrow(
 // An actual selected Copy arm of an ordinary owned union is a new producer.
 // Its current tag and initialized/complete subtree are checked by Sum flow.
 pub(super) fn ordinary_error_borrow(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    if ordinary_package_field_borrow(f, i, b)? {
+    if ordinary_package_field_borrow(module,f, i, b)? {
         return Ok(true);
     }
     let InstructionKind::BorrowPlaceLocal {
@@ -771,7 +782,7 @@ pub(super) fn ordinary_error_borrow(
         // Both arms must be target-free before an ordinary selected-arm view
         // can omit stored permissions. An inactive sibling is not evidence.
         ordinary(parent, b, 0)?;
-    } else if !matches!(other, Type::Package { .. }) || !ordinary_union_shape(parent, b)? {
+    } else if !matches!(other, Type::Package { .. }) || !ordinary_union_shape(module,parent, b)? {
         return Ok(false);
     }
     resources::charge_payload(selected, b)?;
@@ -1015,7 +1026,7 @@ mod copy_field_borrow_tests {
 // Ordinary owning enums enter the same no-stored-target lane as owning error
 // unions. This verifies complete physical payloads, not Copy eligibility or
 // the active tag, move state, local initialization or cleanup responsibility.
-fn ordinary_owned_enum(f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<bool>{
+fn ordinary_owned_enum(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<bool>{
     let ty=match &i.kind{
         InstructionKind::MakeVariant{..}=>vt(f,i.result.ok_or_else(||err("ordinary owning enum constructor has no result"))?)?,
         InstructionKind::VariantTag{value}|InstructionKind::ReadVariant{value,..}=>vt(f,*value)?,
@@ -1025,7 +1036,7 @@ fn ordinary_owned_enum(f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<boo
     };
     let Type::Enum{variants,..}=ty else{return Ok(false);};
     type_work(ty,&b.limits.clone(),b)?;
-    if ty.is_copy_value()||!ordinary_owned_fields(vec![(ty,0)],b)?{return Ok(false);}
+    if ty.is_copy_value()||!complete_owned_fields(module,vec![(ty,0)],b)?{return Ok(false);}
     if matches!(i.kind,InstructionKind::DropEnum{..}){if i.result.is_some(){return Err(err("ordinary owning enum cleanup has a value result"));}return Ok(true);}
     let output=vt(f,i.result.ok_or_else(||err("ordinary owning enum operation has no result"))?)?;
     match &i.kind{
@@ -1050,4 +1061,46 @@ pub(super) fn ordinary_owned_value(ty:&Type,b:&mut Budget)->Check<bool>{
     if !matches!(ty,Type::Package{..}|Type::Enum{..}|Type::ErrorUnion{..}|Type::Tuple(_)|Type::Array{..}){return Ok(false);}
     type_work(ty,&b.limits.clone(),b)?;
     ordinary_owned_fields(vec![(ty,0)],b)
+}
+
+pub(super) fn complete_owned_value(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bool>{
+    if !matches!(ty,Type::Record{..}|Type::Package{..}|Type::Enum{..}|Type::ErrorUnion{..}|Type::Tuple(_)|Type::Array{..}){return Ok(false);}
+    complete_owned_fields(module,vec![(ty,0)],b)
+}
+
+#[cfg(test)]
+mod owned_observation_tests{
+    use super::*;
+    // These test qualification and selected result identity, not an executed
+    // Source body or a certificate for the synthetic module's resource state.
+    #[test]
+    fn owned_sum_tags_and_selected_copy_fields_do_not_copy_their_parent_raw_wire(){
+        let limits=Limits::default();let(mut module,plan)=crate::tests::baseline();
+        let relation=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],classes:vec![],static_bindings:vec![]};
+        module.functions[0].environment=Some(ClosureId(0));module.functions[0].storage_life=Some(relation.clone());
+        module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![Type::I32],parameters:vec![],result:Type::I32,kind:CallableKind::FnMut,storage_life:Some(relation),lending_captures:vec![]});
+        let fields=vec![("callback".into(),Type::Closure(ClosureId(0))),("number".into(),Type::I64)];
+        let owner=Type::Package{name:"State".into(),fields:fields.clone()};
+        let union=Type::ErrorUnion{error:Box::new(Type::Unit),result:Box::new(owner.clone())};
+        let enumeration=Type::Enum{name:"StateSum".into(),variants:vec![("Some".into(),vec![Type::Closure(ClosureId(0)),Type::I64]) ]};
+        let record=Type::Record{name:"OwningFields".into(),fields};
+        assert!(!owner.is_copy_value());assert!(!union.is_copy_value());assert!(!record.is_copy_value());
+        module.functions[0].locals[0].ty=union.clone();
+        let mut local=module.functions[0].locals[0].clone();local.id=LocalId(1);local.ty=owner.clone();module.functions[0].locals.push(local);
+        module.functions[0].values=vec![union,Type::Bool,owner,Type::Unit,enumeration,Type::I32,Type::I64,record,Type::Closure(ClosureId(0))];
+        for wire in [false,true]{
+            let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();
+            let(candidate,_)=if wire{zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap()}else{(module.clone(),plan.clone())};
+            let f=&candidate.functions[0];let mut b=Budget::new(&limits);
+            let operation=|result:Option<u32>,kind:InstructionKind|Instruction{result:result.map(ValueId),kind,span:f.span};
+            for i in [operation(Some(1),InstructionKind::ErrorTag{value:ValueId(0)}),operation(Some(2),InstructionKind::TakeErrorUnion{value:ValueId(0),is_error:false}),operation(Some(0),InstructionKind::MakeErrorUnion{value:ValueId(2),is_error:false}),operation(None,InstructionKind::DropErrorUnion{local:LocalId(0)}),operation(Some(5),InstructionKind::VariantTag{value:ValueId(4)}),operation(Some(6),InstructionKind::ReadVariant{value:ValueId(4),variant:0,index:1})]{assert!(ordinary_owned_union(&candidate,f,&i,&mut b).unwrap());}
+            let read=operation(Some(6),InstructionKind::ReadPackageField{local:LocalId(1),index:1});assert!(ordinary_package_read(f,&read,&mut b).unwrap());
+            let extract=operation(Some(6),InstructionKind::ExtractField{aggregate:ValueId(7),index:1});types(&candidate,f,&extract,&mut b).unwrap();
+            let wrong=operation(Some(1),InstructionKind::ExtractField{aggregate:ValueId(7),index:1});assert!(types(&candidate,f,&wrong,&mut b).is_err());
+            let copy_owner=operation(Some(8),InstructionKind::ExtractField{aggregate:ValueId(7),index:0});assert!(types(&candidate,f,&copy_owner,&mut b).is_err());
+            let update=operation(Some(7),InstructionKind::UpdateField{aggregate:ValueId(7),index:1,value:ValueId(6)});assert!(types(&candidate,f,&update,&mut b).is_err());
+            let read_owner=operation(Some(8),InstructionKind::ReadPackageField{local:LocalId(1),index:0});assert!(ordinary_package_read(f,&read_owner,&mut b).is_err());
+            let enum_owner=operation(Some(8),InstructionKind::ReadVariant{value:ValueId(4),variant:0,index:0});assert!(ordinary_owned_union(&candidate,f,&enum_owner,&mut b).is_err());
+        }
+    }
 }

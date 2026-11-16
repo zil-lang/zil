@@ -82,11 +82,12 @@ pub(super) fn qualified_package_borrow(
 }
 
 pub(super) fn ordinary_error_borrow(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    pure_copy::ordinary_error_borrow(f, i, b)
+    pure_copy::ordinary_error_borrow(module,f, i, b)
 }
 
 pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<bool> {
@@ -1184,6 +1185,16 @@ fn vt(f: &TypedFunction, v: ValueId) -> Check<&Type> {
 }
 
 pub(super) fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()> {
+    type_visit(ty,limits,true,b)
+}
+/// Bounds-only traversal does not copy or compare name bytes. Completed pure
+/// walks may be retained only for exact live immutable module/owned nodes.
+pub(super) fn type_bounds(ty:&Type,limits:&Limits,b:&mut Budget)->Check<()>{
+    if dynamic_metadata::stored_type_known(ty,limits,b)?{return Ok(());}
+    type_visit(ty,limits,false,b)?;
+    dynamic_metadata::stored_type_success(ty,limits,b)
+}
+fn type_visit(ty:&Type,limits:&Limits,copy_or_compare:bool,b:&mut Budget)->Check<()>{
     b.spend(1)?;
     let mut stack = vec![(ty, 0usize)];
     while let Some((t, depth)) = stack.pop() {
@@ -1212,9 +1223,9 @@ pub(super) fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()>
                 stack.push((storage, depth + 1));
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
-                b.spend(name.len().saturating_add(fields.len()))?;
+                b.spend((if copy_or_compare{name.len()}else{1}).saturating_add(fields.len()))?;
                 for (n, t) in fields {
-                    b.spend(n.len())?;
+                    b.spend(if copy_or_compare{n.len()}else{1})?;
                     stack.push((t, depth + 1));
                 }
             }
@@ -1225,9 +1236,9 @@ pub(super) fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()>
                 }
             }
             Type::Enum { name, variants } => {
-                b.spend(name.len().saturating_add(variants.len()))?;
+                b.spend((if copy_or_compare{name.len()}else{1}).saturating_add(variants.len()))?;
                 for (n, fs) in variants {
-                    b.spend(n.len().saturating_add(fs.len()))?;
+                    b.spend((if copy_or_compare{n.len()}else{1}).saturating_add(fs.len()))?;
                     for t in fs {
                         stack.push((t, depth + 1));
                     }
@@ -1276,7 +1287,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
     let Some((storage, shape)) = qualified(ty) else {
         return Ok(false);
     };
-    type_work(ty, limits, b)?;
+    type_bounds(ty, limits, b)?;
     if anonymous_tuple::layout(ty, b)?.is_some() {
         return Ok(true);
     }
@@ -1307,7 +1318,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         b.spend(1)?;
         match t {
             Type::Address { mutable, inner } => {
-                type_work(inner, limits, b)?;
+                type_bounds(inner, limits, b)?;
                 if !inner.is_address_pointee()
                     && !(qualified(inner).is_some()&&physical(inner,limits,b)?){
                     return Err(err("stored shared leaf has invalid actual pointee"));
@@ -1427,7 +1438,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                 }
             }
             Type::Managed(payload) if matches!(storage, Type::Package { .. }) => {
-                type_work(payload, limits, b)?;
+                type_bounds(payload, limits, b)?;
                 if !matches!(
                     payload.as_ref(),
                     Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }
@@ -1438,7 +1449,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                 }
             }
             child => {
-                type_work(child, limits, b)?;
+                type_bounds(child, limits, b)?;
                 if !child.is_copy_value() {
                     return Err(unsupported(
                         "nonshared actual stored leaf needs its physical consumer",
@@ -1528,8 +1539,7 @@ pub(super) fn qualification(
     limits: &Limits,
     b: &mut Budget,
 ) -> Check<()> {
-    type_work(ty, limits, b)?;
-    type_work(ty, limits, b)?;
+    type_bounds(ty, limits, b)?;
     physical(ty, limits, b)?;
     let (storage, _) =
         qualified(ty).ok_or_else(|| err("expected an actual qualified stored type"))?;
@@ -1564,7 +1574,7 @@ pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Chec
         return Ok(false);
     }
     let limits = b.limits.clone();
-    type_work(ty, &limits, b)?;
+    type_bounds(ty, &limits, b)?;
     if !retained::pure(ty, b)? {
         return Ok(false);
     }
@@ -1584,7 +1594,7 @@ pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Ch
         return Ok(false);
     }
     let limits = b.limits.clone();
-    type_work(ty, &limits, b)?;
+    type_bounds(ty, &limits, b)?;
     let mut pending = vec![ty];
     while let Some(current) = pending.pop() {
         b.spend(1)?;
@@ -1643,7 +1653,7 @@ fn ordinary_owner_address(module: &TypedModule, ty: &Type, b: &mut Budget) -> Ch
         return Ok(false);
     };
     if !(matches!(inner.as_ref(), Type::Package { .. })
-        && pure_copy::ordinary_owned_value(inner, b)?
+        && pure_copy::complete_owned_value(module,inner, b)?
         || super::stored_owned::owner(inner))
     {
         return Ok(false);
@@ -1746,12 +1756,12 @@ pub(super) fn qualifications(
                         && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. }))
                     && !replacements::operation(&i.kind)
                     && !pure_copy::operation(&i.kind)
-                    && !pure_copy::ordinary_owned_union(f, i, b)?
+                    && !pure_copy::ordinary_owned_union(module,f, i, b)?
                     && !pure_copy::ordinary_copy_field_borrow(f, i, b)?
                     && !pure_copy::ordinary_package_borrow(f, i, b)?
                     && !pure_copy::ordinary_package_read(f, i, b)?
                     && !pure_copy::qualified_package_description(f, i, b)?
-                    && !ordinary_error_borrow(f, i, b)?
+                    && !ordinary_error_borrow(module,f, i, b)?
                     && !matches!(
                         &i.kind,
                         InstructionKind::StaticUtf8 { .. }
@@ -1852,8 +1862,8 @@ pub(super) fn qualifications(
                             "borrowed Enum operation has no authenticated complete nominal instance",
                         ));
                     }
-                    if !pure_copy::ordinary_owned_union(f, i, b)? {
-                        pure_copy::types(f, i, b)?;
+                    if !pure_copy::ordinary_owned_union(module,f, i, b)? {
+                        pure_copy::types(module,f, i, b)?;
                     }
                 }
                 if let InstructionKind::TakePackageField { local, .. }
@@ -2231,7 +2241,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     let mut has_fixed_environment = false;
     for p in &f.parameters {
         let ty = &f.locals[p.0 as usize].ty;
-        type_work(ty, &b.limits.clone(), b)?;
+        type_bounds(ty, &b.limits.clone(), b)?;
         type_work(ty, &b.limits.clone(), b)?;
         let new_nominal = |ty: &Type| {
             matches!(ty, Type::BorrowedStorage { storage, life }
@@ -2245,7 +2255,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
                 if (matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
                     || new_nominal(inner))
         {
-            type_work(ty, &b.limits.clone(), b)?;
+            type_bounds(ty, &b.limits.clone(), b)?;
         }
         if f.callable_contract.is_some()
             && let Type::Managed(payload) = ty
@@ -2254,9 +2264,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             b.spend(fields.len().saturating_mul(2))?;
         }
         has_fixed_environment |= fixed_environment(module, ty, b);
-        parameters.push(ty.clone());
+        parameters.push(ty);
     }
-    type_work(&f.return_type, &b.limits.clone(), b)?;
+    type_bounds(&f.return_type, &b.limits.clone(), b)?;
     type_work(&f.return_type, &b.limits.clone(), b)?;
     let new_nominal = |ty: &Type| {
         matches!(ty, Type::BorrowedStorage { storage, life }
@@ -2270,7 +2280,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             if (matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
                 || new_nominal(inner))
     {
-        type_work(&f.return_type, &b.limits.clone(), b)?;
+        type_bounds(&f.return_type, &b.limits.clone(), b)?;
     }
     if let Some(id) = f.environment {
         let d = module
@@ -2281,7 +2291,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             return Err(err("captured Fixed entry and definition relation differ"));
         }
         super::stored_callables::captured_profile(module, d, b)?;
-        return super::signature_life::closure_relation_resource_scopes(
+        return super::signature_life::closure_relation_resource_views(
             module,
             &parameters,
             &d.captures,
@@ -2334,7 +2344,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     };
     let pending = dyn_returns::pending::register(module, f, b)?;
     if !pending.is_empty() {
-        return crate::signature_life::function_relation_pending(
+        return crate::signature_life::function_relation_pending_views(
             module,
             &parameters,
             result,
@@ -2345,7 +2355,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             &pending,
         );
     }
-    super::signature_life::function_relation_resource_scopes(
+    super::signature_life::function_relation_resource_views(
         module,
         &parameters,
         result,
@@ -3526,7 +3536,7 @@ fn step(
             }
         }
         InstructionKind::BorrowPlaceLocal { local, path, .. }
-            if ordinary_error_borrow(f, i, b)? =>
+            if ordinary_error_borrow(module,f, i, b)? =>
         {
             b.spend(path.len().saturating_add(1))?;
             out.address.sources.push(Source {
@@ -4407,8 +4417,8 @@ static_dependency: StaticProvenance::NotStatic,
         _ if option_transfer.is_some() => {
             out = option_transfer.unwrap();
         }
-        InstructionKind::DropEnum{local}|InstructionKind::DropErrorUnion{local}if pure_copy::ordinary_owned_union(f,i,b)?=>{state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;},
-        _ if pure_copy::ordinary_owned_union(f, i, b)? => {}
+        InstructionKind::DropEnum{local}|InstructionKind::DropErrorUnion{local}if pure_copy::ordinary_owned_union(module,f,i,b)?=>{state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;},
+        _ if pure_copy::ordinary_owned_union(module,f, i, b)? => {}
         InstructionKind::BorrowPackageField { local, index, .. }
             if pure_copy::ordinary_copy_field_borrow(f, i, b)? =>
         {
@@ -4432,8 +4442,8 @@ static_dependency: StaticProvenance::NotStatic,
             out.address = array_index::transfer(f, i, val(*aggregate)?, b)?;
         }
         _ if pure_copy::operation(&i.kind) => {
-            if !pure_copy::ordinary_owned_union(f, i, b)? {
-                pure_copy::types(f, i, b)?;
+            if !pure_copy::ordinary_owned_union(module,f, i, b)? {
+                pure_copy::types(module,f, i, b)?;
             }
             for input in instruction_operands(&i.kind) {
                 let payload = val(input)?;
@@ -4591,7 +4601,7 @@ static_dependency: StaticProvenance::NotStatic,
                     | InstructionKind::CallDynSlot { .. }
             )
             || match &i.kind{InstructionKind::OwnedStoreBorrow{store,..}|InstructionKind::OwnedStoreBorrowMut{store,..}=>b.store_descriptions()||super::stored_owned::ordinary_store_value(module,vt(f,*store)?,b)?,_=>false}
-            || ordinary_error_borrow(f, i, b)?
+            || ordinary_error_borrow(module,f, i, b)?
             || pure_copy::ordinary_copy_field_borrow(f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(vt(f, id)?, Type::Address { .. })
@@ -5479,7 +5489,7 @@ fn windows(
         for block in &f.blocks {
             b.spend(block.instructions.len())?;
             for instruction in &block.instructions {
-                ordinary_error_places |= ordinary_error_borrow(f, instruction, b)?;
+                ordinary_error_places |= ordinary_error_borrow(module,f, instruction, b)?;
             }
         }
     }
@@ -5692,7 +5702,7 @@ fn windows(
                         }
                     }
                     InstructionKind::BorrowPlaceLocal { local, path, .. }
-                        if ordinary_error_borrow(f, i, b)? =>
+                        if ordinary_error_borrow(module,f, i, b)? =>
                     {
                         b.spend(path.len().saturating_add(1))?;
                         let actual = Permission {
@@ -7128,7 +7138,7 @@ fn check_with_mask(
             type_work(ty, &b.limits.clone(), b)?;
             let ordinary_value = super::stored_owned::ordinary_store_value(module,ty, b)?
                 || super::stored_owned::ordinary_byte_value(ty, b)?
-                || pure_copy::ordinary_owned_value(ty, b)?
+                || pure_copy::complete_owned_value(module,ty, b)?
                 || ordinary_owner_address(module, ty, b)?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let closed_dyn_value =

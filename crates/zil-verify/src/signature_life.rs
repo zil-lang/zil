@@ -276,6 +276,13 @@ pub(super) fn function_relation_byte_inputs(
 ) -> Check<()> {
     function_relation_inner(module, parameters, result, c, span, allow_callback, true, &[])
 }
+// Internal input views retain the exact immutable Type. Ordinary exported
+// wrappers keep their existing owned-slice API; header preflight borrows its
+// actual local declarations without rebuilding the whole parameter trees.
+trait InputType{fn ty(&self)->&Type;}
+impl InputType for Type{fn ty(&self)->&Type{self}}
+impl InputType for &Type{fn ty(&self)->&Type{self}}
+
 struct ZeroResourceRoot<'a> {
     base: StorageBase,
     whole_type: &'a Type,
@@ -294,8 +301,14 @@ pub(super) fn function_relation_resource_scopes(
     allow_byte_input: bool,
     b: &mut Budget,
 ) -> Check<()> {
+    function_resource_inputs(module,parameters,result,c,span,allow_callback,allow_byte_input,b)
+}
+pub(super) fn function_relation_resource_views(module:&TypedModule,parameters:&[&Type],result:&Type,c:&StorageLifeContract,span:Option<Span>,allow_callback:bool,allow_byte_input:bool,b:&mut Budget)->Check<()>{
+    function_resource_inputs(module,parameters,result,c,span,allow_callback,allow_byte_input,b)
+}
+fn function_resource_inputs<P:InputType>(module:&TypedModule,parameters:&[P],result:&Type,c:&StorageLifeContract,span:Option<Span>,allow_callback:bool,allow_byte_input:bool,b:&mut Budget)->Check<()>{
     let mut roots = Vec::new();
-    for (ordinal, ty) in parameters.iter().chain(std::iter::once(result)).enumerate() {
+    for (ordinal, ty) in parameters.iter().map(InputType::ty).chain(std::iter::once(result)).enumerate() {
         let base = if ordinal == parameters.len() {
             StorageBase::Result
         } else {
@@ -305,7 +318,7 @@ pub(super) fn function_relation_resource_scopes(
             )
         };
         if !zero_resource_occurrence(module,ty,span,b)?{continue;}
-        crate::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+        crate::stored_flow::type_bounds(ty, &b.limits.clone(), b)?;
         roots.push(ZeroResourceRoot {
             base,
             whole_type: ty,
@@ -317,13 +330,6 @@ pub(super) fn function_relation_resource_scopes(
             span,
             "resource scope needs its complete static occurrence consumer",
         ));
-    }
-    if roots.is_empty() {
-        return if allow_byte_input {
-            function_relation_byte_inputs(module, parameters, result, c, span, allow_callback)
-        } else {
-            function_relation(module, parameters, result, c, span, allow_callback)
-        };
     }
     function_relation_inner(
         module,
@@ -365,17 +371,19 @@ fn zero_resource_occurrence(module:&TypedModule,ty:&Type,span:Option<Span>,b:&mu
 /// inputs. Known0 schedules no class row, and creates no ownership or SyncDrop
 /// permission; actual creator, body/loan, phase and teardown proofs still run.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn closure_relation_resource_scopes(module:&TypedModule,parameters:&[Type],captures:&[Type],kind:CallableKind,result:&Type,c:&StorageLifeContract,span:Option<Span>,b:&mut Budget)->Check<()>{
+pub(super) fn closure_relation_resource_scopes(module:&TypedModule,parameters:&[Type],captures:&[Type],kind:CallableKind,result:&Type,c:&StorageLifeContract,span:Option<Span>,b:&mut Budget)->Check<()>{closure_resource_inputs(module,parameters,captures,kind,result,c,span,b)}
+pub(super) fn closure_relation_resource_views(module:&TypedModule,parameters:&[&Type],captures:&[Type],kind:CallableKind,result:&Type,c:&StorageLifeContract,span:Option<Span>,b:&mut Budget)->Check<()>{closure_resource_inputs(module,parameters,captures,kind,result,c,span,b)}
+fn closure_resource_inputs<P:InputType>(module:&TypedModule,parameters:&[P],captures:&[Type],kind:CallableKind,result:&Type,c:&StorageLifeContract,span:Option<Span>,b:&mut Budget)->Check<()>{
     let mut roots=Vec::new();
-    for(ordinal,ty)in parameters.iter().chain(captures).chain(std::iter::once(result)).enumerate(){
+    for(ordinal,ty)in parameters.iter().map(InputType::ty).chain(captures).chain(std::iter::once(result)).enumerate(){
         let base=if ordinal<parameters.len(){StorageBase::Parameter(ordinal as u32)}else if ordinal<parameters.len()+captures.len(){StorageBase::Capture((ordinal-parameters.len())as u32)}else{StorageBase::Result};
-        if zero_resource_occurrence(module,ty,span,b)?{crate::stored_flow::type_work(ty,&b.limits.clone(),b)?;roots.push(ZeroResourceRoot{base,whole_type:ty});}
+        if zero_resource_occurrence(module,ty,span,b)?{crate::stored_flow::type_bounds(ty,&b.limits.clone(),b)?;roots.push(ZeroResourceRoot{base,whole_type:ty});}
     }
-    relation_inner(parameters,result,c,span,true,Some(captures),Some(module),false,Some(kind),&[],&roots)
+    relation_inputs(parameters,result,c,span,true,Some(captures),Some(module),false,Some(kind),&[],&roots)
 }
-fn function_relation_inner(
+fn function_relation_inner<P:InputType>(
     module: &TypedModule,
-    parameters: &[Type],
+    parameters: &[P],
     result: &Type,
     c: &StorageLifeContract,
     span: Option<Span>,
@@ -393,7 +401,7 @@ fn function_relation_inner(
     {
         super::tasks::require_closed_context(payload, span)?;
         let inputs = parameters
-            .iter()
+            .iter().map(InputType::ty)
             .enumerate()
             .filter(|(_, ty)| matches!(ty, Type::Address { .. }))
             .collect::<Vec<_>>();
@@ -461,7 +469,7 @@ fn function_relation_inner(
         }
         return Ok(());
     }
-    relation_inner(
+    relation_inputs(
         parameters,
         result,
         c,
@@ -626,6 +634,24 @@ fn relation_inner(
     pending: &[SignatureLifeClass],
     zero_resources: &[ZeroResourceRoot<'_>],
 ) -> Check<()> {
+    relation_inputs(parameters,result,c,span,allow_callback,captures,module,allow_byte_input,closure_kind,pending,zero_resources)
+}
+pub(super) fn function_relation_pending_views(module:&TypedModule,parameters:&[&Type],result:&Type,c:&StorageLifeContract,span:Option<Span>,allow_callback:bool,allow_byte_input:bool,pending:&[SignatureLifeClass])->Check<()>{
+    relation_inputs(parameters,result,c,span,allow_callback,None,Some(module),allow_byte_input,None,pending,&[])
+}
+fn relation_inputs<P:InputType>(
+    parameters: &[P],
+    result: &Type,
+    c: &StorageLifeContract,
+    span: Option<Span>,
+    allow_callback: bool,
+    captures: Option<&[Type]>,
+    module: Option<&TypedModule>,
+    allow_byte_input: bool,
+    closure_kind: Option<CallableKind>,
+    pending: &[SignatureLifeClass],
+    zero_resources: &[ZeroResourceRoot<'_>],
+) -> Check<()> {
     let invalid = || {
         reject(
             "E-VERIFY-SIGNATURE-CLASS",
@@ -671,7 +697,7 @@ fn relation_inner(
     let mut grounded = vec![false; c.fixed_binder_count as usize];
     let capture_types = captures.unwrap_or(&[]);
     for (ordinal, ty) in parameters
-        .iter()
+        .iter().map(InputType::ty)
         .chain(capture_types)
         .chain(std::iter::once(result))
         .enumerate()
@@ -1081,7 +1107,7 @@ fn relation_inner(
             && c.static_bindings
                 .iter()
                 .any(|position| position.base == StorageBase::Result && position.path.is_empty());
-        for (i, p) in parameters.iter().enumerate() {
+        for (i, p) in parameters.iter().map(InputType::ty).enumerate() {
             possible |= matches!(p,Type::Address{mutable:m,..}if !mutable||*m)
                 && outer(c, StorageBase::Parameter(i as u32)) == upper;
         }
@@ -1092,7 +1118,7 @@ fn relation_inner(
             Some(r.binder) == upper
                 && (!mutable
                     || matches!(
-                        parameters.get(i as usize),
+                        parameters.get(i as usize).map(InputType::ty),
                         Some(Type::Address { mutable: true, .. })
                     ))
                 && (!mutable || r.position.path.contains(&LifeTypeProjection::Pointee))
@@ -1237,5 +1263,30 @@ mod tests {
         assert!(check(&bad).is_err());
         assert!(!entails(&c, &bad));
         assert!(relation(&[], &slice, &c, None).is_err());
+    }
+}
+
+#[cfg(test)]
+mod input_view_tests{
+    use super::*;
+    #[test]
+    fn borrowed_parameter_views_preserve_complete_header_and_hostile_domain_checks(){
+        let(module,_)=crate::tests::baseline();
+        let parameters=vec![Type::Address{mutable:false,inner:Box::new(Type::I32)}];
+        let views=parameters.iter().collect::<Vec<_>>();
+        let relation=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:1,bindings:vec![StorageLifeBinding{position:StoragePosition{base:StorageBase::Parameter(0),path:vec![]},binder:StorageBinder::Invocation(0)}],static_bindings:vec![],classes:vec![]};
+        for attack in 0..5{
+            let mut c=relation.clone();match attack{
+                0=>{},
+                1=>c.invocation_binder_count=2,
+                2=>c.bindings[0].binder=StorageBinder::Fixed(0),
+                3=>c.classes.push(SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Parameter(0),path:vec![LifeTypeProjection::Pointee],class:0},binder:StorageBinder::Invocation(0)}),
+                _=>c.static_bindings.push(StoragePosition{base:StorageBase::Parameter(0),path:vec![]}),
+            }
+            let expected=function_relation_resource_scopes(&module,&parameters,&Type::I32,&c,None,false,false,&mut Budget::new(&Limits::default()));
+            let actual=function_relation_resource_views(&module,&views,&Type::I32,&c,None,false,false,&mut Budget::new(&Limits::default()));
+            assert_eq!(actual,expected,"complete input relation at attack {attack}");
+            if attack==0{actual.unwrap();}else{assert_ne!(actual.unwrap_err().category,zil_base::ResultCategory::ResourceLimit);}
+        }
     }
 }

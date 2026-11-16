@@ -353,11 +353,23 @@ pub(super) fn ordinary_store_value<'a>(module:&'a TypedModule,ty:&'a Type,b:&mut
     let head=match ty{Type::Address{inner,..}=>match inner.as_ref(){head @ (Type::Managed(_)|Type::OwnedStore{..})=>head,_=>return Ok(false)},ty=>ty};
     let payload=match head{Type::Managed(inner)|Type::Desc(inner)=>inner.as_ref(),ty=>ty};
     let Type::OwnedStore{element}=payload else{return Ok(false);};
-    let mut pending=vec![(element.as_ref(),0usize)];
+    target_free_value(module,element,b)
+}
+
+/// Complete ordinary data qualification, shared by owned products, sum tags
+/// and Store elements. It supplies no Copy flag, owner, loan or cleanup proof.
+pub(super) fn target_free_value<'a>(module:&'a TypedModule,ty:&'a Type,b:&mut Budget)->Check<bool>{
+    stored_flow::type_work(ty,&b.limits.clone(),b)?;
+    let mut pending=vec![(ty,0usize)];
     while let Some((ty,depth))=pending.pop(){
         b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("ordinary Store target domain depth exceeded"));}
         match ty{
-            Type::BorrowedStorage{storage,life}=>{if life.binder_count!=0||!life.slots.is_empty()||!life.retained.is_empty()||!life.nominal_arguments.is_empty(){return Ok(false);}pending.push((storage,depth+1));},
+            Type::BorrowedStorage{storage,life}=>{
+                if life.binder_count!=0||!life.slots.is_empty()||!life.retained.is_empty()||!life.nominal_arguments.is_empty(){return Ok(false);}
+                // An empty annotation is not its declaration/actual proof.
+                super::stored_flow::qualification(module,ty,&b.limits.clone(),b)?;
+                pending.push((storage,depth+1));
+            },
             Type::Record{fields,..}|Type::Package{fields,..}=>{b.spend(fields.len())?;pending.extend(fields.iter().map(|(_,ty)|(ty,depth+1)));},
             Type::Tuple(fields)=>{b.spend(fields.len())?;pending.extend(fields.iter().map(|ty|(ty,depth+1)));},
             Type::Enum{variants,..}=>{b.spend(variants.len())?;for(_,fields)in variants{b.spend(fields.len())?;pending.extend(fields.iter().map(|ty|(ty,depth+1)));}},
@@ -375,6 +387,8 @@ pub(super) fn ordinary_store_value<'a>(module:&'a TypedModule,ty:&'a Type,b:&mut
                 b.spend(definition.captures.len())?;
                 pending.extend(definition.captures.iter().map(|capture|(capture,depth+1)));
             },
+            Type::FunctionPointer{..}=>if !super::class_flow::plain_pointer_type(ty,b)?{return Ok(false);},
+            Type::ForeignCallback{parameters,result}=>{resources::charge_payload(ty,b)?;super::native_values::callback_signature(parameters,result,None)?;},
             ty if stored_callables::scalar(ty)=>{},
             _=>return Ok(false),
         }
