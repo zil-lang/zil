@@ -1,0 +1,30 @@
+{
+  "source": "b197120ce687c516b87665e7aa3fe4b1732ad7e9",
+  "tree": "fbb01957e4f668416ccff6281f4a2de5ea1dea9d",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-backend-llvm",
+    "--features",
+    "native-products",
+    "--lib",
+    "--",
+    "--include-ignored"
+  ],
+  "start": "2026-11-16T03:08:30.726157+00:00",
+  "end": "2026-11-16T03:08:56.258687+00:00",
+  "exit_code": 0,
+  "valid": true,
+  "test_results": [
+    [
+      "ok",
+      "299",
+      "0",
+      "0"
+    ]
+  ],
+  "log_sha256": "155a261625430e6a28f76b3b6791234ba6777a9606da48ac1e7d26c0bb9d9637"
+}

@@ -1,0 +1,26 @@
+{
+  "source": "b197120ce687c516b87665e7aa3fe4b1732ad7e9",
+  "tree": "fbb01957e4f668416ccff6281f4a2de5ea1dea9d",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-types",
+    "--lib"
+  ],
+  "start": "2026-11-16T03:08:56.271830+00:00",
+  "end": "2026-11-16T03:09:12.612520+00:00",
+  "exit_code": 101,
+  "valid": false,
+  "test_results": [
+    [
+      "FAILED",
+      "109",
+      "1",
+      "0"
+    ]
+  ],
+  "log_sha256": "78e01bf29086f70aad07bacd32ea52083bf062b1c02690cb2d9d1923d7e479f4"
+}

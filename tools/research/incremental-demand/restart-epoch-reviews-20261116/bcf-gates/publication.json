@@ -1,0 +1,31 @@
+{
+  "source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+  "tree": "34df7372f666f32bcca59c0b78f185a68ca75ca0",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-driver",
+    "--features",
+    "native-products",
+    "--test",
+    "retained_native_publication",
+    "--",
+    "--ignored"
+  ],
+  "start": "2026-11-16T02:12:12.087691+00:00",
+  "end": "2026-11-16T02:12:14.436615+00:00",
+  "exit_code": 0,
+  "valid": true,
+  "test_results": [
+    [
+      "ok",
+      "1",
+      "0",
+      "0"
+    ]
+  ],
+  "log_sha256": "48b77c3a2fa81e0320f71006e2453fa8051e3926c1c0694dea0e275abd1bc0e9"
+}

@@ -1,0 +1,3501 @@
+{
+  "elapsed_ms": 1284.8209470000002,
+  "request": 2,
+  "session_epoch": 0,
+  "session_cleared": false,
+  "cached_queries": 111,
+  "active_queries": 0,
+  "rss_kib": 756700,
+  "peak_kib": 756700,
+  "report": {
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "artifacts": {
+      "executable": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/user/candidate/program",
+      "llvm": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/user/candidate/program.ll"
+    },
+    "input_fingerprint": "74156f67fa2b6e5ddf4176b3088a97d4c0100fb24e265f263a7404aed6041919",
+    "seconds": 1.2842556520000001,
+    "cache_hit": true,
+    "commands": [
+      [
+        "/workspace/.zil-environment/native-link-v1/root/lib64/ld-linux-x86-64.so.2",
+        "--inhibit-cache",
+        "--glibc-hwcaps-mask",
+        "",
+        "--library-path",
+        "/workspace/.zil-environment/native-link-v1/root/lib/x86_64-linux-gnu:/workspace/.zil-environment/native-link-v1/root/lib64:/workspace/.zil-environment/native-link-v1/root/usr/lib/x86_64-linux-gnu",
+        "/workspace/.zil-environment/native-link-v1/root/usr/bin/bwrap",
+        "--unshare-user",
+        "--uid",
+        "0",
+        "--gid",
+        "0",
+        "--unshare-pid",
+        "--unshare-net",
+        "--unshare-ipc",
+        "--unshare-uts",
+        "--die-with-parent",
+        "--new-session",
+        "--ro-bind",
+        "/workspace/.zil-environment/native-link-v1/root",
+        "/",
+        "--proc",
+        "/proc",
+        "--dev",
+        "/dev",
+        "--ro-bind",
+        "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/user/candidate/.zil-driver-1175895-1/.zil-build-1175895-1/profile-inputs",
+        "/inputs",
+        "--bind",
+        "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/user/candidate/.zil-driver-1175895-1/.zil-build-1175895-1/profile-outputs",
+        "/out",
+        "--chdir",
+        "/work",
+        "--clearenv",
+        "--setenv",
+        "LC_ALL",
+        "C",
+        "--",
+        "/lib64/ld-linux-x86-64.so.2",
+        "--inhibit-cache",
+        "--glibc-hwcaps-mask",
+        "",
+        "--library-path",
+        "/lib/x86_64-linux-gnu:/lib64:/usr/lib/x86_64-linux-gnu",
+        "/usr/bin/ld",
+        "--hash-style=gnu",
+        "--eh-frame-hdr",
+        "-m",
+        "elf_x86_64",
+        "-pie",
+        "-dynamic-linker",
+        "/lib64/ld-linux-x86-64.so.2",
+        "-o",
+        "/out/program",
+        "/usr/lib/x86_64-linux-gnu/Scrt1.o",
+        "/usr/lib/x86_64-linux-gnu/crti.o",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o",
+        "-L/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu",
+        "-L/usr/lib/gcc/x86_64-linux-gnu/14",
+        "-L/usr/lib64",
+        "-L/usr/lib/x86_64-linux-gnu",
+        "-L/usr/lib64",
+        "-L/usr/lib/x86_64-linux-gnu",
+        "-L/usr/lib64",
+        "-L/usr/lib",
+        "-L/usr/lib",
+        "/inputs/unit-0.o",
+        "/inputs/unit-1.o",
+        "/inputs/unit-2.o",
+        "/inputs/unit-3.o",
+        "/inputs/unit-4.o",
+        "/inputs/unit-5.o",
+        "/inputs/unit-6.o",
+        "/inputs/unit-7.o",
+        "/inputs/unit-8.o",
+        "/inputs/unit-9.o",
+        "/inputs/unit-10.o",
+        "/inputs/unit-11.o",
+        "/inputs/unit-12.o",
+        "/inputs/unit-13.o",
+        "/inputs/unit-14.o",
+        "/inputs/unit-15.o",
+        "-lgcc",
+        "--as-needed",
+        "-lgcc_s",
+        "--no-as-needed",
+        "-lc",
+        "-lgcc",
+        "--as-needed",
+        "-lgcc_s",
+        "--no-as-needed",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o",
+        "/usr/lib/x86_64-linux-gnu/crtn.o"
+      ]
+    ],
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 16128,
+          "input_kind": "builder",
+          "preflight_ns": 3949797,
+          "builder_ns": 7021645,
+          "parse_ns": 0,
+          "optimize_ns": 284264697,
+          "emit_ns": 195622512,
+          "total_ns": 493806924,
+          "cache": {
+            "state": "miss",
+            "action_key": "e757b41925163d177dca6232ce25070c5de480184280e272e0189836ec895137",
+            "corrupt": false,
+            "key_ns": 101,
+            "lookup_ns": 33040,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 206903,
+          "builder_ns": 130958,
+          "parse_ns": 0,
+          "optimize_ns": 553137,
+          "emit_ns": 653359,
+          "total_ns": 1889229,
+          "cache": {
+            "state": "miss",
+            "action_key": "b687fafcb8d2f77bf35bd55c42416e0c8c77883db80fc980dbe088c18f64bec3",
+            "corrupt": false,
+            "key_ns": 50,
+            "lookup_ns": 72309,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 29225,
+          "builder_ns": 54392,
+          "parse_ns": 0,
+          "optimize_ns": 101944,
+          "emit_ns": 399244,
+          "total_ns": 649083,
+          "cache": {
+            "state": "miss",
+            "action_key": "0cb02079f46b6dbb331e7860fbad6e18323a8c7b9c340577c874c99a3bc95941",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 10346,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 29975,
+          "builder_ns": 58048,
+          "parse_ns": 0,
+          "optimize_ns": 184289,
+          "emit_ns": 405814,
+          "total_ns": 746029,
+          "cache": {
+            "state": "miss",
+            "action_key": "bda0a3b3adcd544851bfcfd64b3b0094cceefa1a287c9a6056a1dc73ba041405",
+            "corrupt": false,
+            "key_ns": 140,
+            "lookup_ns": 9014,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 40982,
+          "builder_ns": 76025,
+          "parse_ns": 0,
+          "optimize_ns": 119371,
+          "emit_ns": 486326,
+          "total_ns": 797487,
+          "cache": {
+            "state": "miss",
+            "action_key": "ed3eaf6c17f43236b4db34e0e8666d2a5b0d10fb745e08c88d9b77f774d1d170",
+            "corrupt": false,
+            "key_ns": 20,
+            "lookup_ns": 93140,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 42975,
+          "builder_ns": 73742,
+          "parse_ns": 0,
+          "optimize_ns": 119711,
+          "emit_ns": 582732,
+          "total_ns": 888545,
+          "cache": {
+            "state": "miss",
+            "action_key": "af2ae9f478935cb67120050d13ccdf0a71f1575f412ba8c6365b6435b3cdbc03",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 7702,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 39910,
+          "builder_ns": 83056,
+          "parse_ns": 0,
+          "optimize_ns": 176116,
+          "emit_ns": 665988,
+          "total_ns": 1035147,
+          "cache": {
+            "state": "miss",
+            "action_key": "9da761a262f7727b6471e6607680ea0a4f6a8daa7027ee2aef34b9a9cd5cb4c1",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 8032,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 42354,
+          "builder_ns": 76736,
+          "parse_ns": 0,
+          "optimize_ns": 122635,
+          "emit_ns": 448940,
+          "total_ns": 758879,
+          "cache": {
+            "state": "miss",
+            "action_key": "d1a6b7703677c55f50a072bded4a18fd3b77efdbab7a74b4085f301f4ad3c13a",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 9174,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 88184,
+          "builder_ns": 80562,
+          "parse_ns": 0,
+          "optimize_ns": 125970,
+          "emit_ns": 453336,
+          "total_ns": 827913,
+          "cache": {
+            "state": "miss",
+            "action_key": "371d598c236b1cccac6d81e9401830d01bab863acc19ba2cabf832b71996d66d",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 9875,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 47422,
+          "builder_ns": 85309,
+          "parse_ns": 0,
+          "optimize_ns": 151539,
+          "emit_ns": 448359,
+          "total_ns": 891539,
+          "cache": {
+            "state": "miss",
+            "action_key": "028553ce48aa5f0b06bb390c58759554967bc9a25b7c7c34306cab593956562d",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 13841,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 156056,
+          "builder_ns": 83046,
+          "parse_ns": 0,
+          "optimize_ns": 137648,
+          "emit_ns": 428198,
+          "total_ns": 885289,
+          "cache": {
+            "state": "miss",
+            "action_key": "028553ce48aa5f0b06bb390c58759554967bc9a25b7c7c34306cab593956562d",
+            "corrupt": false,
+            "key_ns": 40,
+            "lookup_ns": 10846,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 40411,
+          "builder_ns": 79771,
+          "parse_ns": 0,
+          "optimize_ns": 213273,
+          "emit_ns": 474528,
+          "total_ns": 882986,
+          "cache": {
+            "state": "miss",
+            "action_key": "028553ce48aa5f0b06bb390c58759554967bc9a25b7c7c34306cab593956562d",
+            "corrupt": false,
+            "key_ns": 170,
+            "lookup_ns": 7161,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 43687,
+          "builder_ns": 79981,
+          "parse_ns": 0,
+          "optimize_ns": 128554,
+          "emit_ns": 453396,
+          "total_ns": 777046,
+          "cache": {
+            "state": "miss",
+            "action_key": "028553ce48aa5f0b06bb390c58759554967bc9a25b7c7c34306cab593956562d",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 5929,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 42144,
+          "builder_ns": 81102,
+          "parse_ns": 0,
+          "optimize_ns": 127923,
+          "emit_ns": 441298,
+          "total_ns": 794903,
+          "cache": {
+            "state": "miss",
+            "action_key": "028553ce48aa5f0b06bb390c58759554967bc9a25b7c7c34306cab593956562d",
+            "corrupt": false,
+            "key_ns": 40,
+            "lookup_ns": 5849,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 45890,
+          "builder_ns": 77497,
+          "parse_ns": 0,
+          "optimize_ns": 125690,
+          "emit_ns": 485795,
+          "total_ns": 804418,
+          "cache": {
+            "state": "miss",
+            "action_key": "028553ce48aa5f0b06bb390c58759554967bc9a25b7c7c34306cab593956562d",
+            "corrupt": false,
+            "key_ns": 20,
+            "lookup_ns": 5578,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 44758,
+          "builder_ns": 80282,
+          "parse_ns": 0,
+          "optimize_ns": 126772,
+          "emit_ns": 446475,
+          "total_ns": 768563,
+          "cache": {
+            "state": "miss",
+            "action_key": "028553ce48aa5f0b06bb390c58759554967bc9a25b7c7c34306cab593956562d",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 5318,
+            "current_preflight_ns": 0
+          }
+        }
+      ],
+      "final_artifact": null,
+      "object_cache": {
+        "requested": true,
+        "enabled": true,
+        "hits": 0,
+        "misses": 16,
+        "corrupt": 0,
+        "stored": 16,
+        "write_failures": 0,
+        "key_ns": 821,
+        "lookup_ns": 307154,
+        "current_preflight_ns": 0,
+        "object_hit_preflight_checked_units": 0,
+        "object_hit_preflight_reused_units": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 16,
+      "actual_units": 16,
+      "jobs": 1,
+      "fallback": null,
+      "task_abis": [],
+      "timings": {
+        "machine_ns": 278905873,
+        "partition_ns": 283776934,
+        "diagnostic_ns": 17177536,
+        "object_ns": 519303478,
+        "link_key_ns": 333205,
+        "link_execution_ns": 21314806,
+        "other_ns": 1027356,
+        "total_ns": 1121839188
+      },
+      "link_tool_identities": {
+        "full_identity_executions": 0,
+        "metadata_reuses": 0,
+        "hashed_fallback_bytes": 0
+      },
+      "call_classes": {
+        "eligible_functions": 5100,
+        "equivalence_classes": 157,
+        "rewritten_calls": 4943,
+        "scope": "completed transformed graph; retained on transform reuse"
+      },
+      "closed_prune": {
+        "fresh_original_units_checked": 16,
+        "full_input_cached_units": 0,
+        "fresh_removed_definitions": 7104,
+        "retained_removed_definitions": 0,
+        "scope": "post-internalization local pruning; current API preflight remains separate"
+      }
+    },
+    "native_product_selection": {
+      "enabled": false,
+      "reason": "below-minimum-average-lir-work",
+      "functions_scanned": 5105,
+      "body_functions_counted": 5103,
+      "blocks_scanned": 20106,
+      "lir_instructions_counted": 201772,
+      "minimum_average_lir_instructions": 64,
+      "counts_saturated": false,
+      "scope": "current-lir-lengths; optional capture policy, not authorization"
+    },
+    "disk_cache": "missing",
+    "query_events": [
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "executed"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "expand",
+        "disposition": "executed"
+      },
+      {
+        "phase": "ct",
+        "disposition": "executed"
+      },
+      {
+        "phase": "types",
+        "disposition": "executed"
+      },
+      {
+        "phase": "analyze",
+        "disposition": "executed"
+      },
+      {
+        "phase": "verify",
+        "disposition": "executed"
+      },
+      {
+        "phase": "lower",
+        "disposition": "executed"
+      },
+      {
+        "phase": "link",
+        "disposition": "executed"
+      }
+    ],
+    "verification_runs": 1,
+    "source_files": {
+      "0": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/main.zil",
+      "1": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/io.zil",
+      "2": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m0.zil",
+      "3": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m1.zil",
+      "4": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m2.zil",
+      "5": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m3.zil",
+      "6": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m4.zil",
+      "7": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m5.zil",
+      "8": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m6.zil",
+      "9": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m7.zil",
+      "10": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m8.zil",
+      "11": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m9.zil",
+      "12": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m10.zil",
+      "13": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m11.zil",
+      "14": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m12.zil",
+      "15": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m13.zil",
+      "16": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m14.zil",
+      "17": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m15.zil",
+      "18": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m16.zil",
+      "19": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m17.zil",
+      "20": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m18.zil",
+      "21": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m19.zil",
+      "22": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m20.zil",
+      "23": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m21.zil",
+      "24": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m22.zil",
+      "25": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m23.zil",
+      "26": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m24.zil",
+      "27": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m25.zil",
+      "28": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m26.zil",
+      "29": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m27.zil",
+      "30": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m28.zil",
+      "31": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m29.zil",
+      "32": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m30.zil",
+      "33": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m31.zil",
+      "34": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m32.zil",
+      "35": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m33.zil",
+      "36": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m34.zil",
+      "37": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m35.zil",
+      "38": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m36.zil",
+      "39": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m37.zil",
+      "40": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m38.zil",
+      "41": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m39.zil",
+      "42": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m40.zil",
+      "43": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m41.zil",
+      "44": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m42.zil",
+      "45": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m43.zil",
+      "46": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m44.zil",
+      "47": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m45.zil",
+      "48": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m46.zil",
+      "49": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m47.zil",
+      "50": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m48.zil",
+      "51": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m49.zil",
+      "52": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m50.zil",
+      "53": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m51.zil",
+      "54": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m52.zil",
+      "55": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m53.zil",
+      "56": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m54.zil",
+      "57": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m55.zil",
+      "58": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m56.zil",
+      "59": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m57.zil",
+      "60": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m58.zil",
+      "61": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m59.zil",
+      "62": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m60.zil",
+      "63": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m61.zil",
+      "64": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m62.zil",
+      "65": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m63.zil",
+      "66": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m64.zil",
+      "67": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m65.zil",
+      "68": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m66.zil",
+      "69": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m67.zil",
+      "70": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m68.zil",
+      "71": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m69.zil",
+      "72": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m70.zil",
+      "73": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m71.zil",
+      "74": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m72.zil",
+      "75": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m73.zil",
+      "76": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m74.zil",
+      "77": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m75.zil",
+      "78": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m76.zil",
+      "79": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m77.zil",
+      "80": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m78.zil",
+      "81": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m79.zil",
+      "82": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m80.zil",
+      "83": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m81.zil",
+      "84": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m82.zil",
+      "85": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m83.zil",
+      "86": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m84.zil",
+      "87": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m85.zil",
+      "88": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m86.zil",
+      "89": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m87.zil",
+      "90": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m88.zil",
+      "91": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m89.zil",
+      "92": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m90.zil",
+      "93": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m91.zil",
+      "94": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m92.zil",
+      "95": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m93.zil",
+      "96": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m94.zil",
+      "97": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m95.zil",
+      "98": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m96.zil",
+      "99": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m97.zil",
+      "100": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m98.zil",
+      "101": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m99.zil"
+    },
+    "scalar_interfaces": [
+      {
+        "module": 0,
+        "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+        "implementation_fingerprint": "ba279feb99bffc9e73309439867d5edb34143182c6cf6b59886ba9e94fdd297f",
+        "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+        "result_origins": [],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": []
+      },
+      {
+        "module": 1,
+        "signature_fingerprint": "6a176340a37af269d79b44ea753f9fb97a6b1927aea04ebdd0bccf276ce4592e",
+        "implementation_fingerprint": "ff0523cbcc596d96efafd5361c91d7482ca52e9f8eee8ca611a486045328d89d",
+        "contract_fingerprint": "b348366ec2992b3c0876958b09de94c08f910e8a8d508672f85337ffd6552a03",
+        "result_origins": [
+          {
+            "name": "emit",
+            "parameters": [],
+            "static_storage": false
+          },
+          {
+            "name": "read",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "emit",
+          "read"
+        ]
+      },
+      {
+        "module": 2,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "cd9627913e151cedc39fd90769f704b86b753c02a1a7b1a698b60fa19652594a",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 3,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "3448a70e7214743b66918047c94207aee6998145df009d2b3c6a63038e2140a8",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 4,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "91cbc44f3dcef41410f753792e42f98eb0ae8e7b419382e851a618e2dc6ae4ce",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 5,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "dccd369ccfe13c2a8694c662567fc8bb9ca4f714577957e8fc61377ba3eea80f",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 6,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "676d1995e9e71c14d6e86cf34626fad93d9a431f2413a4a1944651ba633b2d98",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 7,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "bbff72f580b571503beb4ba06bafb973c11cd4390dbd63d280762220fbed2f8e",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 8,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "d7416bfc25cb94785d5b3944bee39eacbecefddf15133d65b058632eb6b995c6",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 9,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "a94b4eda95a980eb2c241074f3e0df4f7c9575dd501fe4d7746958d179816dad",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 10,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "32fd5fd9c3d5f51c7ab2e339fb671993a4efaf1ea10f898b08180931b3ef5bb1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 11,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "1d8230e57c18d3f256defbde1b87c56116da12d1cc07c6ccff002d3654f684d1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 12,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "51ac8a1d93a92b5a72b8e550f10f8a2a6ebb134f28f30acd6e9da7a305e546de",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 13,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "31b32635cf3803585ab00cd7d581c382a8c860581143a09e583b5371dbc9b462",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 14,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "ef6c95bc6c4896b2d4cbb8c187cbda9617c2321703f0f86da0c4243864922410",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 15,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "900573c44e3b89f14bf8725fdc5a565c8e4f6a827d929c25ed8509548080f06d",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 16,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "3448a70e7214743b66918047c94207aee6998145df009d2b3c6a63038e2140a8",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 17,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "91cbc44f3dcef41410f753792e42f98eb0ae8e7b419382e851a618e2dc6ae4ce",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 18,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "dccd369ccfe13c2a8694c662567fc8bb9ca4f714577957e8fc61377ba3eea80f",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 19,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "676d1995e9e71c14d6e86cf34626fad93d9a431f2413a4a1944651ba633b2d98",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 20,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "bbff72f580b571503beb4ba06bafb973c11cd4390dbd63d280762220fbed2f8e",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 21,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "d7416bfc25cb94785d5b3944bee39eacbecefddf15133d65b058632eb6b995c6",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 22,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "a94b4eda95a980eb2c241074f3e0df4f7c9575dd501fe4d7746958d179816dad",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 23,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "32fd5fd9c3d5f51c7ab2e339fb671993a4efaf1ea10f898b08180931b3ef5bb1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 24,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "1d8230e57c18d3f256defbde1b87c56116da12d1cc07c6ccff002d3654f684d1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 25,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "51ac8a1d93a92b5a72b8e550f10f8a2a6ebb134f28f30acd6e9da7a305e546de",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 26,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "31b32635cf3803585ab00cd7d581c382a8c860581143a09e583b5371dbc9b462",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 27,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "ef6c95bc6c4896b2d4cbb8c187cbda9617c2321703f0f86da0c4243864922410",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 28,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "900573c44e3b89f14bf8725fdc5a565c8e4f6a827d929c25ed8509548080f06d",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 29,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "3448a70e7214743b66918047c94207aee6998145df009d2b3c6a63038e2140a8",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 30,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "91cbc44f3dcef41410f753792e42f98eb0ae8e7b419382e851a618e2dc6ae4ce",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 31,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "dccd369ccfe13c2a8694c662567fc8bb9ca4f714577957e8fc61377ba3eea80f",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 32,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "676d1995e9e71c14d6e86cf34626fad93d9a431f2413a4a1944651ba633b2d98",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 33,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "bbff72f580b571503beb4ba06bafb973c11cd4390dbd63d280762220fbed2f8e",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 34,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "d7416bfc25cb94785d5b3944bee39eacbecefddf15133d65b058632eb6b995c6",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 35,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "a94b4eda95a980eb2c241074f3e0df4f7c9575dd501fe4d7746958d179816dad",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 36,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "32fd5fd9c3d5f51c7ab2e339fb671993a4efaf1ea10f898b08180931b3ef5bb1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 37,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "1d8230e57c18d3f256defbde1b87c56116da12d1cc07c6ccff002d3654f684d1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 38,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "51ac8a1d93a92b5a72b8e550f10f8a2a6ebb134f28f30acd6e9da7a305e546de",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 39,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "31b32635cf3803585ab00cd7d581c382a8c860581143a09e583b5371dbc9b462",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 40,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "ef6c95bc6c4896b2d4cbb8c187cbda9617c2321703f0f86da0c4243864922410",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 41,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "900573c44e3b89f14bf8725fdc5a565c8e4f6a827d929c25ed8509548080f06d",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 42,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "3448a70e7214743b66918047c94207aee6998145df009d2b3c6a63038e2140a8",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 43,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "91cbc44f3dcef41410f753792e42f98eb0ae8e7b419382e851a618e2dc6ae4ce",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 44,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "dccd369ccfe13c2a8694c662567fc8bb9ca4f714577957e8fc61377ba3eea80f",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 45,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "676d1995e9e71c14d6e86cf34626fad93d9a431f2413a4a1944651ba633b2d98",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 46,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "bbff72f580b571503beb4ba06bafb973c11cd4390dbd63d280762220fbed2f8e",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 47,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "d7416bfc25cb94785d5b3944bee39eacbecefddf15133d65b058632eb6b995c6",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 48,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "a94b4eda95a980eb2c241074f3e0df4f7c9575dd501fe4d7746958d179816dad",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 49,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "32fd5fd9c3d5f51c7ab2e339fb671993a4efaf1ea10f898b08180931b3ef5bb1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 50,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "1d8230e57c18d3f256defbde1b87c56116da12d1cc07c6ccff002d3654f684d1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 51,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "51ac8a1d93a92b5a72b8e550f10f8a2a6ebb134f28f30acd6e9da7a305e546de",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 52,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "31b32635cf3803585ab00cd7d581c382a8c860581143a09e583b5371dbc9b462",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 53,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "ef6c95bc6c4896b2d4cbb8c187cbda9617c2321703f0f86da0c4243864922410",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 54,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "900573c44e3b89f14bf8725fdc5a565c8e4f6a827d929c25ed8509548080f06d",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 55,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "3448a70e7214743b66918047c94207aee6998145df009d2b3c6a63038e2140a8",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 56,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "91cbc44f3dcef41410f753792e42f98eb0ae8e7b419382e851a618e2dc6ae4ce",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 57,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "dccd369ccfe13c2a8694c662567fc8bb9ca4f714577957e8fc61377ba3eea80f",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 58,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "676d1995e9e71c14d6e86cf34626fad93d9a431f2413a4a1944651ba633b2d98",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 59,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "bbff72f580b571503beb4ba06bafb973c11cd4390dbd63d280762220fbed2f8e",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 60,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "d7416bfc25cb94785d5b3944bee39eacbecefddf15133d65b058632eb6b995c6",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 61,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "a94b4eda95a980eb2c241074f3e0df4f7c9575dd501fe4d7746958d179816dad",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 62,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "32fd5fd9c3d5f51c7ab2e339fb671993a4efaf1ea10f898b08180931b3ef5bb1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 63,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "1d8230e57c18d3f256defbde1b87c56116da12d1cc07c6ccff002d3654f684d1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 64,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "51ac8a1d93a92b5a72b8e550f10f8a2a6ebb134f28f30acd6e9da7a305e546de",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 65,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "31b32635cf3803585ab00cd7d581c382a8c860581143a09e583b5371dbc9b462",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 66,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "ef6c95bc6c4896b2d4cbb8c187cbda9617c2321703f0f86da0c4243864922410",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 67,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "900573c44e3b89f14bf8725fdc5a565c8e4f6a827d929c25ed8509548080f06d",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 68,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "3448a70e7214743b66918047c94207aee6998145df009d2b3c6a63038e2140a8",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 69,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "91cbc44f3dcef41410f753792e42f98eb0ae8e7b419382e851a618e2dc6ae4ce",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 70,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "dccd369ccfe13c2a8694c662567fc8bb9ca4f714577957e8fc61377ba3eea80f",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 71,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "676d1995e9e71c14d6e86cf34626fad93d9a431f2413a4a1944651ba633b2d98",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 72,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "bbff72f580b571503beb4ba06bafb973c11cd4390dbd63d280762220fbed2f8e",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 73,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "d7416bfc25cb94785d5b3944bee39eacbecefddf15133d65b058632eb6b995c6",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 74,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "a94b4eda95a980eb2c241074f3e0df4f7c9575dd501fe4d7746958d179816dad",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 75,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "32fd5fd9c3d5f51c7ab2e339fb671993a4efaf1ea10f898b08180931b3ef5bb1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 76,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "1d8230e57c18d3f256defbde1b87c56116da12d1cc07c6ccff002d3654f684d1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 77,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "51ac8a1d93a92b5a72b8e550f10f8a2a6ebb134f28f30acd6e9da7a305e546de",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 78,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "31b32635cf3803585ab00cd7d581c382a8c860581143a09e583b5371dbc9b462",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 79,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "ef6c95bc6c4896b2d4cbb8c187cbda9617c2321703f0f86da0c4243864922410",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 80,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "900573c44e3b89f14bf8725fdc5a565c8e4f6a827d929c25ed8509548080f06d",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 81,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "3448a70e7214743b66918047c94207aee6998145df009d2b3c6a63038e2140a8",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 82,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "91cbc44f3dcef41410f753792e42f98eb0ae8e7b419382e851a618e2dc6ae4ce",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 83,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "dccd369ccfe13c2a8694c662567fc8bb9ca4f714577957e8fc61377ba3eea80f",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 84,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "676d1995e9e71c14d6e86cf34626fad93d9a431f2413a4a1944651ba633b2d98",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 85,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "bbff72f580b571503beb4ba06bafb973c11cd4390dbd63d280762220fbed2f8e",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 86,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "d7416bfc25cb94785d5b3944bee39eacbecefddf15133d65b058632eb6b995c6",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 87,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "a94b4eda95a980eb2c241074f3e0df4f7c9575dd501fe4d7746958d179816dad",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 88,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "32fd5fd9c3d5f51c7ab2e339fb671993a4efaf1ea10f898b08180931b3ef5bb1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 89,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "1d8230e57c18d3f256defbde1b87c56116da12d1cc07c6ccff002d3654f684d1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 90,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "51ac8a1d93a92b5a72b8e550f10f8a2a6ebb134f28f30acd6e9da7a305e546de",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 91,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "31b32635cf3803585ab00cd7d581c382a8c860581143a09e583b5371dbc9b462",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 92,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "ef6c95bc6c4896b2d4cbb8c187cbda9617c2321703f0f86da0c4243864922410",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 93,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "900573c44e3b89f14bf8725fdc5a565c8e4f6a827d929c25ed8509548080f06d",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 94,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "3448a70e7214743b66918047c94207aee6998145df009d2b3c6a63038e2140a8",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 95,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "91cbc44f3dcef41410f753792e42f98eb0ae8e7b419382e851a618e2dc6ae4ce",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 96,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "dccd369ccfe13c2a8694c662567fc8bb9ca4f714577957e8fc61377ba3eea80f",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 97,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "676d1995e9e71c14d6e86cf34626fad93d9a431f2413a4a1944651ba633b2d98",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 98,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "bbff72f580b571503beb4ba06bafb973c11cd4390dbd63d280762220fbed2f8e",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 99,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "d7416bfc25cb94785d5b3944bee39eacbecefddf15133d65b058632eb6b995c6",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 100,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "a94b4eda95a980eb2c241074f3e0df4f7c9575dd501fe4d7746958d179816dad",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 101,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "32fd5fd9c3d5f51c7ab2e339fb671993a4efaf1ea10f898b08180931b3ef5bb1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      }
+    ],
+    "frontend_stats": {
+      "function_types": null,
+      "initialization": {
+        "executed_functions": 0,
+        "reused_functions": 1,
+        "retained_queries": 5,
+        "candidate_reused_functions": 5104,
+        "candidate_executed_functions": 1,
+        "equal_function_results": 5105,
+        "changed_function_results": 0,
+        "shared_program_reuses": 0,
+        "initialization_inputs_built": 0,
+        "candidate_inputs_built": 0,
+        "dependency_signatures_checked": 0,
+        "resource_transfers_executed": 0,
+        "resource_transfers_reused": 0,
+        "retained_candidate_queries": 5105,
+        "product_admission_functions_checked": 1,
+        "product_function_queries_executed": 1,
+        "product_function_queries_reused": 5104,
+        "product_global_obligations_executed": 0,
+        "product_global_obligations_reused": 1,
+        "product_plan_rows_replaced": 0,
+        "product_semantic_functions_compared": 1,
+        "product_relocated_function_bindings": 0
+      },
+      "producer": {
+        "admission_classifier_hits": 1,
+        "fused_distributed_items": 5105,
+        "classified_modules": 0,
+        "rebound_scalar_modules": 0,
+        "rebound_frontend_modules": 0,
+        "rebound_restored_item_deep_clones": 0,
+        "rebound_core_function_deep_clones": 0,
+        "rebound_source_map_validations": 0,
+        "classifier_nodes": 0,
+        "preflight_modules": 1,
+        "normalize_modules": 1,
+        "plain_prepare_modules": 1,
+        "plain_lifetimes_modules": 1,
+        "restore_modules": 1,
+        "lower_modules": 1,
+        "reused_lower_modules": 101,
+        "reused_lower_items": 50,
+        "executed_lower_items": 1,
+        "copied_lower_map_entries": 1828,
+        "receipt_hits": 20668,
+        "receipt_nodes": 1315213,
+        "receipt_budget_misses": 0,
+        "lower_budget_misses": 0,
+        "visited_nodes": 2584,
+        "syntax_clone_receipt_nodes": 43,
+        "normalized_item_deep_clones": 1,
+        "normalized_recipe_hits": 5104,
+        "normalized_materializations": 0,
+        "normalized_reconstruction_nodes": 0,
+        "normalized_reconstruction_work": 0,
+        "owned_restore_items": 1,
+        "plain_header_items": 1,
+        "restored_module_deep_clones": 0,
+        "retained_normalized_items": 5104,
+        "retained_restored_modules": 101,
+        "retained_restored_items": 50,
+        "restored_item_deep_clones": 0,
+        "retained_lower_cores": 101,
+        "retained_lower_source_maps": 101,
+        "cloned_source_map_entries": 0,
+        "cloned_source_bytes": 0,
+        "function_input_hashes": 1,
+        "function_input_reuses": 5104,
+        "function_input_text_comparisons": 51,
+        "function_input_binding_hashes": 1,
+        "context_ns": 0,
+        "production_ns": 0,
+        "reuse_ns": 0,
+        "assembly_ns": 0,
+        "total_ns": 0,
+        "environment_cold": 0,
+        "environment_source_layout_changed": 0,
+        "environment_headers_changed": 0,
+        "environment_imports_changed": 0,
+        "environment_target_changed": 0,
+        "environment_context_changed": 0,
+        "env_limit_max_source_bytes_changed": 0,
+        "env_limit_max_tokens_changed": 0,
+        "env_limit_max_nodes_changed": 0,
+        "env_limit_max_functions_changed": 0,
+        "env_limit_max_blocks_changed": 0,
+        "env_limit_max_instructions_changed": 0,
+        "env_limit_max_locals_changed": 0,
+        "env_limit_max_values_changed": 0,
+        "env_limit_max_analysis_steps_changed": 0,
+        "env_limit_max_ct_steps_changed": 0,
+        "env_limit_max_call_depth_changed": 0,
+        "allowance_work_increase": 0,
+        "allowance_work_decrease": 0,
+        "allowance_nodes_increase": 0,
+        "allowance_nodes_decrease": 0
+      },
+      "materialization": {
+        "executed_modules": 1,
+        "reused_modules": 101,
+        "cloned_modules": 1,
+        "receipt_budget_misses": 0
+      }
+    },
+    "source_ingress": null,
+    "frontend_dependency_reads": null,
+    "function_cache_encoding": null,
+    "function_cache_publication": null,
+    "semantic_cache_publication": null,
+    "verification_work": {
+      "full_receipts_reused": 0,
+      "function_proofs_checked": 1,
+      "function_proofs_reused": 5102,
+      "instruction_proofs_reused": 166335,
+      "empty_borrow_proofs_checked": 1,
+      "empty_borrow_proofs_reused": 5104,
+      "empty_borrow_values_avoided": 125837,
+      "raw_shape_functions_checked": 0,
+      "raw_shape_functions_reused": 1,
+      "raw_inventory_functions_checked": 1,
+      "raw_inventory_functions_reused": 5104,
+      "raw_shape_functions_aggregated": 5104,
+      "raw_shape_ranges_reused": 13,
+      "raw_result_modes_checked": 1,
+      "raw_result_modes_reused": 5104,
+      "resource_inventory_functions_checked": 0,
+      "resource_inventory_functions_reused": 5105,
+      "resource_inventory_ranges_reused": 14,
+      "foreign_functions_selected": 2,
+      "foreign_functions_not_visited": 5103,
+      "environment_functions_selected": 0,
+      "environment_functions_not_visited": 5105,
+      "region_functions_checked": 1,
+      "region_functions_reused": 5102,
+      "lexical_cleanup_functions_checked": 1,
+      "lexical_cleanup_functions_reused": 5102,
+      "closure_instance_functions_checked": 0,
+      "closure_instance_functions_reused": 5105,
+      "closure_instance_ranges_reused": 14,
+      "raw_function_headers_reused": 5105
+    },
+    "backend_work": {
+      "lowered_functions": 1,
+      "reused_functions": 5104,
+      "reused_machine_module": false,
+      "whole_machine_input_functions_compared": 0,
+      "reused_machine_transforms": false,
+      "reused_partition": false,
+      "reused_object_keys": 0,
+      "reused_link": false,
+      "rendered_diagnostic_items": 80,
+      "reused_diagnostic_items": 5029,
+      "reused_partition_recipe": false,
+      "reused_partition_units": 0,
+      "rebuilt_partition_units": 16,
+      "reused_partition_items": 7145,
+      "rebuilt_partition_items": 2333,
+      "representation_functions_checked": 1,
+      "representation_functions_reused": 5104,
+      "scoped_thread_functions_checked": 1,
+      "scoped_thread_functions_reused": 5104,
+      "source_projection_traversals": 1,
+      "source_projection_instruction_visits": 33,
+      "source_projection_reuses": 5104,
+      "native_history_restored_units": 0,
+      "native_history_retained_epochs": 0,
+      "native_history_payload_bytes": 0
+    },
+    "lowering_work": {
+      "functions_checked": 1,
+      "layout_checks": 1,
+      "functions_reused": 5104,
+      "full_checks": 0,
+      "budget_replays": 1,
+      "context_checks": 1,
+      "context_check_ns": 0,
+      "cost_profiled": false
+    },
+    "types_push_work": {
+      "context_rebuilds": 0,
+      "sparse_batches": 1,
+      "body_checks": 1,
+      "position_rebindings": 0,
+      "retained_functions": 5104,
+      "receipt_tree_updates": 1,
+      "signature_updates": 0,
+      "signature_readers_checked": 0
+    },
+    "raw_inference_work": {
+      "full_runs": 0,
+      "sparse_batches": 1,
+      "replay_fallbacks": 0,
+      "closure_bodies_checked": 1,
+      "closure_bodies_reused": 5104,
+      "name_functions_checked": 1,
+      "name_functions_reused": 5104,
+      "dependency_bodies_checked": 1,
+      "dependency_bodies_reused": 5104
+    },
+    "ct_plain_work": {
+      "observer_schema": 1,
+      "scope": "plain admission attempt; extra fallback work unknown",
+      "shape_checks": 1,
+      "shape_reuses": 5104,
+      "body_checks": 1,
+      "body_reuses": 5104,
+      "declaration_modules": 102,
+      "receipt_context_matches": 1,
+      "fallbacks": 0
+    },
+    "phase_timings_ns": {
+      "parse": 60626,
+      "expand": 13135719,
+      "types": 126111,
+      "analyze": 110778,
+      "verify": 29864505,
+      "lower": 16124,
+      "codegen": 1122081784,
+      "ct": 10341120
+    },
+    "driver_timings_ns": {},
+    "materialization_ns": 0,
+    "exclusive_costs": null,
+    "attempts": [
+      {
+        "retry_reason": null,
+        "input_fingerprint": "74156f67fa2b6e5ddf4176b3088a97d4c0100fb24e265f263a7404aed6041919",
+        "source_files": {
+          "0": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/main.zil",
+          "1": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/io.zil",
+          "2": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m0.zil",
+          "3": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m1.zil",
+          "4": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m2.zil",
+          "5": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m3.zil",
+          "6": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m4.zil",
+          "7": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m5.zil",
+          "8": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m6.zil",
+          "9": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m7.zil",
+          "10": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m8.zil",
+          "11": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m9.zil",
+          "12": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m10.zil",
+          "13": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m11.zil",
+          "14": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m12.zil",
+          "15": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m13.zil",
+          "16": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m14.zil",
+          "17": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m15.zil",
+          "18": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m16.zil",
+          "19": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m17.zil",
+          "20": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m18.zil",
+          "21": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m19.zil",
+          "22": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m20.zil",
+          "23": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m21.zil",
+          "24": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m22.zil",
+          "25": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m23.zil",
+          "26": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m24.zil",
+          "27": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m25.zil",
+          "28": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m26.zil",
+          "29": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m27.zil",
+          "30": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m28.zil",
+          "31": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m29.zil",
+          "32": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m30.zil",
+          "33": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m31.zil",
+          "34": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m32.zil",
+          "35": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m33.zil",
+          "36": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m34.zil",
+          "37": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m35.zil",
+          "38": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m36.zil",
+          "39": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m37.zil",
+          "40": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m38.zil",
+          "41": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m39.zil",
+          "42": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m40.zil",
+          "43": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m41.zil",
+          "44": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m42.zil",
+          "45": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m43.zil",
+          "46": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m44.zil",
+          "47": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m45.zil",
+          "48": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m46.zil",
+          "49": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m47.zil",
+          "50": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m48.zil",
+          "51": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m49.zil",
+          "52": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m50.zil",
+          "53": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m51.zil",
+          "54": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m52.zil",
+          "55": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m53.zil",
+          "56": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m54.zil",
+          "57": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m55.zil",
+          "58": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m56.zil",
+          "59": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m57.zil",
+          "60": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m58.zil",
+          "61": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m59.zil",
+          "62": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m60.zil",
+          "63": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m61.zil",
+          "64": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m62.zil",
+          "65": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m63.zil",
+          "66": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m64.zil",
+          "67": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m65.zil",
+          "68": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m66.zil",
+          "69": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m67.zil",
+          "70": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m68.zil",
+          "71": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m69.zil",
+          "72": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m70.zil",
+          "73": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m71.zil",
+          "74": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m72.zil",
+          "75": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m73.zil",
+          "76": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m74.zil",
+          "77": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m75.zil",
+          "78": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m76.zil",
+          "79": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m77.zil",
+          "80": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m78.zil",
+          "81": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m79.zil",
+          "82": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m80.zil",
+          "83": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m81.zil",
+          "84": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m82.zil",
+          "85": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m83.zil",
+          "86": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m84.zil",
+          "87": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m85.zil",
+          "88": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m86.zil",
+          "89": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m87.zil",
+          "90": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m88.zil",
+          "91": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m89.zil",
+          "92": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m90.zil",
+          "93": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m91.zil",
+          "94": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m92.zil",
+          "95": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m93.zil",
+          "96": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m94.zil",
+          "97": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m95.zil",
+          "98": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m96.zil",
+          "99": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m97.zil",
+          "100": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m98.zil",
+          "101": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/sources/zil/m99.zil"
+        },
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "frontend_stats": {
+          "function_types": null,
+          "initialization": {
+            "executed_functions": 0,
+            "reused_functions": 1,
+            "retained_queries": 5,
+            "candidate_reused_functions": 5104,
+            "candidate_executed_functions": 1,
+            "equal_function_results": 5105,
+            "changed_function_results": 0,
+            "shared_program_reuses": 0,
+            "initialization_inputs_built": 0,
+            "candidate_inputs_built": 0,
+            "dependency_signatures_checked": 0,
+            "resource_transfers_executed": 0,
+            "resource_transfers_reused": 0,
+            "retained_candidate_queries": 5105,
+            "product_admission_functions_checked": 1,
+            "product_function_queries_executed": 1,
+            "product_function_queries_reused": 5104,
+            "product_global_obligations_executed": 0,
+            "product_global_obligations_reused": 1,
+            "product_plan_rows_replaced": 0,
+            "product_semantic_functions_compared": 1,
+            "product_relocated_function_bindings": 0
+          },
+          "producer": {
+            "admission_classifier_hits": 1,
+            "fused_distributed_items": 5105,
+            "classified_modules": 0,
+            "rebound_scalar_modules": 0,
+            "rebound_frontend_modules": 0,
+            "rebound_restored_item_deep_clones": 0,
+            "rebound_core_function_deep_clones": 0,
+            "rebound_source_map_validations": 0,
+            "classifier_nodes": 0,
+            "preflight_modules": 1,
+            "normalize_modules": 1,
+            "plain_prepare_modules": 1,
+            "plain_lifetimes_modules": 1,
+            "restore_modules": 1,
+            "lower_modules": 1,
+            "reused_lower_modules": 101,
+            "reused_lower_items": 50,
+            "executed_lower_items": 1,
+            "copied_lower_map_entries": 1828,
+            "receipt_hits": 20668,
+            "receipt_nodes": 1315213,
+            "receipt_budget_misses": 0,
+            "lower_budget_misses": 0,
+            "visited_nodes": 2584,
+            "syntax_clone_receipt_nodes": 43,
+            "normalized_item_deep_clones": 1,
+            "normalized_recipe_hits": 5104,
+            "normalized_materializations": 0,
+            "normalized_reconstruction_nodes": 0,
+            "normalized_reconstruction_work": 0,
+            "owned_restore_items": 1,
+            "plain_header_items": 1,
+            "restored_module_deep_clones": 0,
+            "retained_normalized_items": 5104,
+            "retained_restored_modules": 101,
+            "retained_restored_items": 50,
+            "restored_item_deep_clones": 0,
+            "retained_lower_cores": 101,
+            "retained_lower_source_maps": 101,
+            "cloned_source_map_entries": 0,
+            "cloned_source_bytes": 0,
+            "function_input_hashes": 1,
+            "function_input_reuses": 5104,
+            "function_input_text_comparisons": 51,
+            "function_input_binding_hashes": 1,
+            "context_ns": 0,
+            "production_ns": 0,
+            "reuse_ns": 0,
+            "assembly_ns": 0,
+            "total_ns": 0,
+            "environment_cold": 0,
+            "environment_source_layout_changed": 0,
+            "environment_headers_changed": 0,
+            "environment_imports_changed": 0,
+            "environment_target_changed": 0,
+            "environment_context_changed": 0,
+            "env_limit_max_source_bytes_changed": 0,
+            "env_limit_max_tokens_changed": 0,
+            "env_limit_max_nodes_changed": 0,
+            "env_limit_max_functions_changed": 0,
+            "env_limit_max_blocks_changed": 0,
+            "env_limit_max_instructions_changed": 0,
+            "env_limit_max_locals_changed": 0,
+            "env_limit_max_values_changed": 0,
+            "env_limit_max_analysis_steps_changed": 0,
+            "env_limit_max_ct_steps_changed": 0,
+            "env_limit_max_call_depth_changed": 0,
+            "allowance_work_increase": 0,
+            "allowance_work_decrease": 0,
+            "allowance_nodes_increase": 0,
+            "allowance_nodes_decrease": 0
+          },
+          "materialization": {
+            "executed_modules": 1,
+            "reused_modules": 101,
+            "cloned_modules": 1,
+            "receipt_budget_misses": 0
+          }
+        },
+        "types_push_work": {
+          "context_rebuilds": 0,
+          "sparse_batches": 1,
+          "body_checks": 1,
+          "position_rebindings": 0,
+          "retained_functions": 5104,
+          "receipt_tree_updates": 1,
+          "signature_updates": 0,
+          "signature_readers_checked": 0
+        },
+        "raw_inference_work": {
+          "full_runs": 0,
+          "sparse_batches": 1,
+          "replay_fallbacks": 0,
+          "closure_bodies_checked": 1,
+          "closure_bodies_reused": 5104,
+          "name_functions_checked": 1,
+          "name_functions_reused": 5104,
+          "dependency_bodies_checked": 1,
+          "dependency_bodies_reused": 5104
+        },
+        "ct_plain_work": {
+          "observer_schema": 1,
+          "scope": "plain admission attempt; extra fallback work unknown",
+          "shape_checks": 1,
+          "shape_reuses": 5104,
+          "body_checks": 1,
+          "body_reuses": 5104,
+          "declaration_modules": 102,
+          "receipt_context_matches": 1,
+          "fallbacks": 0
+        },
+        "phase_timings_ns": {
+          "parse": 60626,
+          "expand": 13135719,
+          "types": 126111,
+          "analyze": 110778,
+          "verify": 29864505,
+          "lower": 16124,
+          "codegen": 1122081784,
+          "ct": 10341120
+        },
+        "driver_timings_ns": {},
+        "materialization_ns": 0
+      }
+    ]
+  }
+}

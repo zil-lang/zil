@@ -1,0 +1,29 @@
+{
+  "schema": "zil.restart-function-chain-recovery.v1",
+  "source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+  "tree": "35116da8321766cf49106143bd699faada166dbc",
+  "binary": "out/binaries/4a23edc7d06bc18cbed1fb958fdaacd886d9607a/zil",
+  "binary_sha256": "302d58db48f53cd4bc1952f2a9032ead5a6d479314d24eb2ca344f558c2c113e",
+  "archive_manifest": "evidence-manifest.json",
+  "archive_sha256": "5dfb202b0a8656f3f55adaa29e476187f09902131d4be8ff6cbbc77c99b279af",
+  "archive_bytes": 19598435,
+  "parts": 1,
+  "files": 96,
+  "raw_bytes": 61849972,
+  "payload_root": "Repository relative paths beneath the fresh verify destination; do not treat it as a measurement window relative root.",
+  "fresh_full_restore_verified": true,
+  "fresh_receipt": "fresh-recovery-receipt.json",
+  "verify_command": "python3 tools/research/incremental-demand/archive_evidence.py verify --archive-dir ARCHIVE_DIR --restore-dir NEW_EMPTY_DESTINATION",
+  "SDK18_native_link_dependency": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
+  "SDK18_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
+  "LLVM_rebuilt": false,
+  "gates": "tools/research/incremental-demand/restart-epoch-reviews-20261116/current-acceptance.json",
+  "scope": "Current complete cache restoration chain correctness/release binaries, all first gate failures and read-only reviews; prior bcf original request receipt subset only. No new performance window and not a full bcf cache/artifact backup; SDK18/native-link are fixed V32 dependencies.",
+  "last_measured_source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+  "no_new_performance_window": true,
+  "not_in_this_archive": "Full bcf retained/full raw caches/artifacts remain untouched in out/runs and have only a published original request receipt subset. This pack is not their full backup.",
+  "prior_f19_full_recovery": [
+    "https://github.com/zil-lang/zil/blob/7b604bef1c4d1f665cffc1c42c2a43b60d92c928/tools/research/incremental-demand/evidence/native-dependency-20261116/RESTORE.json",
+    "https://github.com/zil-lang/zil/blob/afc97106d3b9ce9dc8eaa5a529c3dde72900e199/tools/research/incremental-demand/evidence/native-dependency-formal-20261116/RESTORE.json"
+  ]
+}

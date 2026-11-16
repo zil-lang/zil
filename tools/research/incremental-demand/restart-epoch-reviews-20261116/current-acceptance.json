@@ -1,0 +1,61 @@
+{
+  "source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+  "tree": "35116da8321766cf49106143bd699faada166dbc",
+  "branch": "research/full-push-native",
+  "binary": "out/binaries/4a23edc7d06bc18cbed1fb958fdaacd886d9607a/zil",
+  "binary_sha256": "302d58db48f53cd4bc1952f2a9032ead5a6d479314d24eb2ca344f558c2c113e",
+  "all_affected_gates_passed": true,
+  "actual_passed_here": {
+    "Types": 110,
+    "driver": 224,
+    "Source": 9,
+    "native_publication": 1,
+    "mechanical": true,
+    "strict": true,
+    "fmt": true,
+    "release": true
+  },
+  "exact_unchanged_reuse": {
+    "backend": {
+      "source": "b197120ce687c516b87665e7aa3fe4b1732ad7e9",
+      "tree": "fbb01957e4f668416ccff6281f4a2de5ea1dea9d",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--include-ignored"
+      ],
+      "start": "2026-11-16T03:08:30.726157+00:00",
+      "end": "2026-11-16T03:08:56.258687+00:00",
+      "exit_code": 0,
+      "valid": true,
+      "test_results": [
+        [
+          "ok",
+          "299",
+          "0",
+          "0"
+        ]
+      ],
+      "log_sha256": "155a261625430e6a28f76b3b6791234ba6777a9606da48ac1e7d26c0bb9d9637"
+    },
+    "Expand124_CT76": "Unchanged since bcf/f19/f629; original immutable receipts retain exact bindings."
+  },
+  "review": "restart-cost-astra-design-02.md; exact 4a23 frozen confirmation; read-only Astra not independent testing.",
+  "no_new_comparative_performance": true,
+  "last_measured_source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+  "last_measured_binary_sha256": "57de85daefac2ec5f562d15f01bd4f54aafeb4f53838da975671cc49dd809bf2",
+  "main": "9170bb4210554392e36eb7528596612596ebef80",
+  "no_main_merge": true,
+  "SDK18_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
+  "LLVM_rebuilt": false,
+  "full_bcf_raw": "local out/runs/restart-epoch-{retain,full}-window-01 only; published original receipt subset explicitly indexed, not full cache/artifact recovery",
+  "source_scope": "Complete function cache\u2192current Types recording/fee replay\u2192Analyze epoch activation\u2192Verify\u2192bounded completed machine history\u2192transform/partition/diagnostic/object key; isolated disk-candidate retry preserves genuine successful epochs."
+}

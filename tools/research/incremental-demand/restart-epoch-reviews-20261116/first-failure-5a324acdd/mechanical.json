@@ -1,0 +1,25 @@
+{
+  "source": "5a324acdd0bb0b3a9c31f6ad3b73ff025c7fe4eb",
+  "tree": "ded5ef920fb1e42a6cb40965ee774ac348895e24",
+  "command": [
+    "cargo",
+    "check",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-cli",
+    "-p",
+    "zil-driver",
+    "-p",
+    "zil-types",
+    "--features",
+    "zil-cli/native-products,zil-driver/native-products",
+    "--all-targets"
+  ],
+  "start": "2026-11-16T02:55:30.513661+00:00",
+  "end": "2026-11-16T02:55:52.075013+00:00",
+  "exit_code": 0,
+  "valid": true,
+  "test_results": [],
+  "log_sha256": "00763a7d0de790fea34074a720fbf07df36b093cb043d4dba8954f5204462a90"
+}

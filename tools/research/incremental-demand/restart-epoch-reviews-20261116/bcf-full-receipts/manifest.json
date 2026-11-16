@@ -1,0 +1,689 @@
+{
+  "schema": "closed-import-project-runtime-v1",
+  "arguments": {
+    "action": "measure",
+    "repo": "/workspace/zil-push-main",
+    "out": "/workspace/zil-push-main/out/runs/restart-epoch-full-window-01",
+    "pins": "/workspace/zil-push-main/out/runs/restart-epoch-pins-01.json",
+    "sizes": [
+      "1000",
+      "2500",
+      "5105"
+    ],
+    "candidate_policy": "closed",
+    "function_merging": "off",
+    "complete_imports": true,
+    "native_validation_jobs": 8,
+    "epochs": 8,
+    "blocks": 2,
+    "cargo": "cargo",
+    "rustc": "rustc",
+    "nm": "nm",
+    "timeout": 900,
+    "native_timeout": 120,
+    "sample_ms": 5,
+    "mode": "o2",
+    "modules": 100,
+    "graph": "wide",
+    "candidate_extra_arg": [
+      "--push-reuse"
+    ],
+    "native_repetitions": 1
+  },
+  "history": [
+    {
+      "name": "cold",
+      "epoch": 0,
+      "broad": false,
+      "positions": false
+    },
+    {
+      "name": "unchanged",
+      "epoch": 0,
+      "broad": false,
+      "positions": false
+    },
+    {
+      "name": "private-001",
+      "epoch": 1,
+      "broad": false,
+      "positions": false
+    },
+    {
+      "name": "private-002",
+      "epoch": 2,
+      "broad": false,
+      "positions": false
+    },
+    {
+      "name": "private-003",
+      "epoch": 3,
+      "broad": false,
+      "positions": false
+    },
+    {
+      "name": "private-004",
+      "epoch": 4,
+      "broad": false,
+      "positions": false
+    },
+    {
+      "name": "private-005",
+      "epoch": 5,
+      "broad": false,
+      "positions": false
+    },
+    {
+      "name": "private-006",
+      "epoch": 6,
+      "broad": false,
+      "positions": false
+    },
+    {
+      "name": "private-007",
+      "epoch": 7,
+      "broad": false,
+      "positions": false
+    },
+    {
+      "name": "private-008",
+      "epoch": 8,
+      "broad": false,
+      "positions": false
+    },
+    {
+      "name": "unchanged-after-edits",
+      "epoch": 8,
+      "broad": false,
+      "positions": false
+    },
+    {
+      "name": "positions",
+      "epoch": 8,
+      "broad": false,
+      "positions": true
+    },
+    {
+      "name": "interface",
+      "epoch": 8,
+      "broad": false,
+      "positions": false,
+      "interface": true
+    },
+    {
+      "name": "broad",
+      "epoch": 0,
+      "broad": true,
+      "positions": false
+    },
+    {
+      "name": "error",
+      "epoch": 0,
+      "broad": true,
+      "positions": false
+    },
+    {
+      "name": "recovery",
+      "epoch": 9,
+      "broad": true,
+      "positions": false
+    },
+    {
+      "name": "restore",
+      "epoch": 0,
+      "broad": false,
+      "positions": false
+    },
+    {
+      "name": "warm-restart",
+      "epoch": 0,
+      "broad": false,
+      "positions": false
+    }
+  ],
+  "runtime_gates": {
+    "candidate_over_main_max_per_case": 1.1,
+    "rust_over_candidate_min_per_case": 0.9,
+    "rust_over_candidate_min_geomean": 0.95,
+    "warmups_per_arm": 1,
+    "samples_per_arm": 6,
+    "iterations": 10000,
+    "seed_period": 251,
+    "accumulator_modulus": 1000003
+  },
+  "preset_shapes": {
+    "1000": "short",
+    "2500": "simple",
+    "5105": "short"
+  },
+  "original_cold_identities": {
+    "1000": {
+      "zil": [
+        102,
+        148770,
+        "dcb7d753d49cee5f38c4c9cee739b5df5e6e8f05304bb0e0049cc5dc824a8a58"
+      ],
+      "rust": [
+        102,
+        156733,
+        "04fb2e8b2797305008649b8e00952e59b490e10f12a9d65b3b39e88f8ea4cfbd"
+      ]
+    },
+    "2500": {
+      "zil": [
+        102,
+        209034,
+        "01ad1fb5f38147ef90d866ad7eb067591b18c83482c826f5aac8a7ccde5b8e9b"
+      ],
+      "rust": [
+        102,
+        214397,
+        "3efe3b6d11c3e12db9895c3ca9b3ae5686b5e96e32bd15619ce842f9388fe2fc"
+      ]
+    },
+    "5105": {
+      "zil": [
+        102,
+        843875,
+        "892fbc295a4cd51abec61c1cd600079126b1d473e1a85671f506353dfe333627"
+      ]
+    }
+  },
+  "expected_workflow_rows": 324,
+  "expected_runtime_cases": 51,
+  "implementation_sha256": {
+    "tools/research/incremental-demand/large_project_matrix.py": "9e7cf9cbbd1f5db46d22a73da48e25eb4e09b291b6f946b41aa139b750ca5f73",
+    "tools/research/incremental-demand/rust_compare.py": "75caebcec1ef29a0cdbdfd83d2ad623e22833458761f400d85722f70ce56febf",
+    "tools/research/incremental-demand/push_counters.py": "b268f773eeba186f05d39ef26f026d5833a592614389d25989b5ab413eb491af",
+    "tools/research/incremental-demand/native_link_matched_measure.py": "f78cd7c56098fc74a287cbbe9b54112c61db1b032a6f1b57c6640c17cb5ee304",
+    "tools/research/incremental-demand/native_link_matched_controller.py": "89080de996ce316bb90ee69b7bdcf74fc6bb97e97830529b558fca04ff04fd29",
+    "tools/research/reactive-query-graph/native_workloads.py": "df6e95b48825063b718fd65a0c4ab8afaa940f6880a40215d60ac9105ced6964",
+    "tools/research/reactive-query-graph/native_measure.py": "a6ada1c84e880896d3a10a8aaf5e52c79aa2b3fc6f006e0d72a028977a509b52",
+    "tools/research/incremental-demand/closed_project_matrix.py": "e00d3d3830994b5273bd7f1ac51f3f35a8b0468c7d955c7b77e7d2c4f2e9b7de",
+    "tools/research/incremental-demand/closed_project_quality.py": "de0daf5aeb2790503fcc10ce84ceaf0a7718069446e7f1aa04d713c5cfbb048d",
+    "tools/research/incremental-demand/elf_instruction_quality.py": "970e332df89a7359d6e8653e9eceab0e2e818cfa8e869d7b49eb4a4b24a808a9",
+    "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+  },
+  "budgets": "unchanged compiler defaults; ResourceLimit is failure",
+  "quality_policy": "Quality for closed-project-runtime-v1; never substitutes for an old ELF gate.\n\nClosed executables explicitly waive generated zil.fn.* exports. Current source,\nindependent Verify, full O2, physical CGU16/jobs1 ownership and all 256 byte+EOF\noracles remain mandatory. Complete ELF equality is an accurate observation, not\nthis protocol's decision rule. Missing generated definitions are enumerated;\nforeign/entry exports and cross-unit references must survive. Formal admission\nis closed+off only. Scalar C integer signatures, physical symbol binding and\nrelocation envelopes are checked; globals/callbacks/indirect calls are refused.\nUnwind section bounds are checked, not general unwind/cleanup semantics. No\nuniversal ABI, callback, exception or instruction-equivalence claim is made.\nSustained runtime acceptance is separate from functional quality: six balanced\nsamples, one warmup, B/A<=1.10, R/B>=0.90 per case, geomean R/B>=0.95.\nThese are existing finite-profile/product gates, not universal performance proof.\n\ncomplete_imports is an explicit, default-false policy. Its separately named\nclosed-import-project-runtime-v1 profile validates complete transitive layout\nimports against the current diagnostic call graph. Imports grant optimization\nvisibility, not canonical ownership or new exported definitions. Existing\nclosed-only results and negatives retain their original schema and policy.\n",
+  "protocol_freeze": "Frozen protocol: closed-project-runtime-v1 (root schedules all execution).\n\n  python3 -B tools/research/incremental-demand/closed_project_matrix.py gen     --out /tmp/closed-gen\n  python3 -B tools/research/incremental-demand/closed_project_matrix.py plan     --out /tmp/closed-plan --pins /absolute/pins.json     --candidate-policy closed --function-merging off\n  # Review plan/manifest.json, freeze tools/compiler receipts, then root runs:\n  python3 -B tools/research/incremental-demand/closed_project_matrix.py measure     --out /absolute/new-window --pins /absolute/pins.json     --candidate-policy closed --function-merging off\n\nONE candidate, actual main9170 and pinned Rust1.99.1, O2/CGU16/jobs1/cacheall,\ndefault budgets. No compiler builds. No policy is enabled by default: measure\nand plan require explicit closed and off. Other policies are not admitted. Candidate\nalone uses push reuse, pinned native linker and the selected closed contract.\nMain receives no research switches. Original large_project_matrix and its ELF\ngate are imported unchanged; old failures never become this protocol's passes.\n\nExplicit --complete-imports selects the distinct closed-import-project-runtime-v1\nprofile and adds the existing --incremental-o2 policy to the candidate only.\nComplete transitive imports retain the unchanged compiler budget and ordinary\nfallback; actual CGU16 is still mandatory. Source and runtime gates are identical.\nThe closed-only profile's NoGo results remain bound to their original tool SHA.\n\nOriginal1000 is SHORT; original2500 is SIMPLE (both wide/100 modules).\nCold/unchanged/restore/restart source identities must match COLD_IDENTITIES,\nincluding both languages' original formal file counts, byte counts and SHA256.\nIdentity is SHA256(JSON(sorted relative-path -> exact file SHA256)), using the\nfrozen source_metadata encoding. Every edited snapshot retains its full vector\nof file hashes in source-equivalence.json; wrappers have separate identities.\nOriginal5105 is 100x50x1, WITHOUT new unused definitions: exactly 102 files,\n843875 bytes, identity 892fbc29...33627, checked before any measurement.\nSequential history: cold/unchanged, 8 (or32) private edits, unchanged, positions,\ninterface (new value argument and matching caller), broad, real name error,\nnew-body recovery, original restore, process restart retaining physical caches.\nEvery success requires current Verify, physical units/exports and all256 bytes\nplus EOF. Every failure preserves prior publication and never executes it.\nMain5105 Expand ResourceLimit is a failed observation, never a time reference;\ncandidate/Rust cells may qualify independently, explicitly excluding main.\n\nIndependent sustained profile: every successful request per size; only main is\nwrapped, every original helper/import/io byte is retained.\n10000 dynamic iterations, seed period251, checksum modulo1000003. This new\nfinite profile declares its own iteration count; the earlier 100000-iteration\nprofile is separate. Numerical\noracle evaluates a whole period independently. One warmup and six balanced\nformal samples per available arm, all six A/B/R permutations. Existing gates:\nB/A<=1.10, R/B>=0.90 per case, geomean R/B>=0.95. RSS and nearest-rank p95\nretained; six samples cannot establish stable tails. Baseline ResourceLimit\nleaves main regression acceptance UNKNOWN, never Pass. Original compile cells\nremain diagnostic until the separately named runtime profile qualifies them.\n\nAll raw stdout/stderr/commands/results retained, content addressed via existing\nmatched blob helpers; oracle temporary directories are packed after execution.\nFunctional oracles always execute; there is no memoized execution witness.\nOnly the imports profile permits explicit --native-validation-jobs 8: independent\nfunctional processes run after the compile timer, then join and archive in input\norder. Compiler jobs and formal sustained runtime sampling remain serial. These\nfunctional durations are not runtime-performance samples.\nOne shared blob/runtime store for the entire batch, not an SDK/compiler copy per\nrequest. Source writes, hashing, native runs, disk scans and archiving are outside\ncompile timers. Disk uses frozen lstat/st_blocks snapshots and global inode\ndeduplication over explicit user roots. Peaks are observed boundaries, never\ntransient peaks. No OS-cache flush or same-process Rust claim. No main merge,\nuniversal Rust lead, new numeric threshold, or historical-gate override implied.\n",
+  "accepted": false,
+  "pins": {
+    "schema": "native-link-three-arm-pins-v1",
+    "tool_source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+    "baseline": {
+      "source": "9170bb4210554392e36eb7528596612596ebef80",
+      "worktree": "/workspace/zil-baseline9170",
+      "binary": "/workspace/zil-push-main/out/binaries/main9170-host-control-01/zil",
+      "binary_sha256": "08fcf4bc3b31590068585b63f4f4bc18def552234b9c57295b9a4b0fb4f199f0",
+      "build_receipt": "/workspace/zil-push-main/out/runs/main9170-host-release-control-01/release.json",
+      "llvm_library_path": "/workspace/zil-recovery/baseline",
+      "llvm_dso_sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250"
+    },
+    "candidate": {
+      "source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+      "worktree": "/workspace/zil-research-measure-sourcebcf",
+      "binary": "/workspace/zil-push-main/out/binaries/bcf409b37c5e5733c57376c0b6123b76321574a9/zil",
+      "binary_sha256": "57de85daefac2ec5f562d15f01bd4f54aafeb4f53838da975671cc49dd809bf2",
+      "build_receipt": "/workspace/zil-push-main/out/runs/restart-epoch-gates-01-bcf409b37c5e/release.json",
+      "llvm_library_path": "/workspace/.zil-environment/llvm-function-products-v18/lib",
+      "llvm_dso_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2"
+    },
+    "native_link_profile": "/workspace/.zil-environment/native-link-v1/manifest",
+    "native_link_profile_sha256": "192bd5739d2420fb3f15afe5c1672ec4934c94046259a79d642e9ffc828f65e6"
+  },
+  "sources": {
+    "baseline": {
+      "commit": "9170bb4210554392e36eb7528596612596ebef80",
+      "checkout_commit": "9170bb4210554392e36eb7528596612596ebef80",
+      "tree": "9aabdb9ebf917528ffa3f0bfc2d834809fe6b2f3",
+      "worktree": "/workspace/zil-baseline9170",
+      "status": "",
+      "source_tree_inventory": {
+        "sha256": "5d4622ef4bea638006c0bc11ee81a0fa91fc23f55bb1aa542948ccfe1bb836cf",
+        "bytes": 476106,
+        "archive": "blobs/5d4622ef4bea638006c0bc11ee81a0fa91fc23f55bb1aa542948ccfe1bb836cf.git-ls-tree"
+      },
+      "worktree_diff": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "archive": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.patch"
+      }
+    },
+    "candidate": {
+      "commit": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+      "checkout_commit": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+      "tree": "34df7372f666f32bcca59c0b78f185a68ca75ca0",
+      "worktree": "/workspace/zil-research-measure-sourcebcf",
+      "status": "",
+      "source_tree_inventory": {
+        "sha256": "14816eae8b0115de8fa2388fbaa61699a1b319d8637c31888c043d39dc18d8d7",
+        "bytes": 615059,
+        "archive": "blobs/14816eae8b0115de8fa2388fbaa61699a1b319d8637c31888c043d39dc18d8d7.git-ls-tree"
+      },
+      "worktree_diff": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "archive": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.patch"
+      }
+    }
+  },
+  "binaries": {
+    "baseline": {
+      "sha256": "08fcf4bc3b31590068585b63f4f4bc18def552234b9c57295b9a4b0fb4f199f0",
+      "bytes": 23174408,
+      "archive": "blobs/08fcf4bc3b31590068585b63f4f4bc18def552234b9c57295b9a4b0fb4f199f0.compiler"
+    },
+    "candidate": {
+      "sha256": "57de85daefac2ec5f562d15f01bd4f54aafeb4f53838da975671cc49dd809bf2",
+      "bytes": 27634928,
+      "archive": "blobs/57de85daefac2ec5f562d15f01bd4f54aafeb4f53838da975671cc49dd809bf2.compiler"
+    }
+  },
+  "tool_source": {
+    "commit": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+    "checkout_commit": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+    "tree": "34df7372f666f32bcca59c0b78f185a68ca75ca0",
+    "worktree": "/workspace/zil-push-main",
+    "status": "",
+    "source_tree_inventory": {
+      "sha256": "14816eae8b0115de8fa2388fbaa61699a1b319d8637c31888c043d39dc18d8d7",
+      "bytes": 615059,
+      "archive": "blobs/14816eae8b0115de8fa2388fbaa61699a1b319d8637c31888c043d39dc18d8d7.git-ls-tree"
+    },
+    "worktree_diff": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "archive": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.patch"
+    }
+  },
+  "candidate_policy": "closed",
+  "native_link_profile_used": true,
+  "native_link_profile_scope": "candidate O2 only",
+  "tools": {
+    "cargo": {
+      "requested": "cargo",
+      "launcher_path": "/workspace/toolchains/cargo/bin/rustup",
+      "launcher_sha256": "b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55",
+      "actual_path": "/workspace/toolchains/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "actual_sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af"
+    },
+    "rustc": {
+      "requested": "rustc",
+      "launcher_path": "/workspace/toolchains/cargo/bin/rustup",
+      "launcher_sha256": "b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55",
+      "actual_path": "/workspace/toolchains/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+      "actual_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+    }
+  },
+  "explicit_environment": {
+    "CARGO_HOME": "/workspace/zil-push-main/out/runs/restart-epoch-full-window-01/cargo-home",
+    "RUSTC": "/workspace/toolchains/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+    "CARGO_INCREMENTAL": "1",
+    "CARGO_BUILD_JOBS": "1",
+    "ZIL_CLANG": "/workspace/.zil-environment/llvm-23.1.4/bin/clang"
+  },
+  "function_merging": "off",
+  "complete_imports": true,
+  "runtime_gate_authority": {
+    "product": "validation/product-gates.json:runtime",
+    "regression_and_sampling_precedent": "goal:records/compiler-multi-edit-continuation.json:482-509",
+    "regression_precedent": "goal:records/compiler-next-optimization.json:216-244"
+  },
+  "native_profile_archive": {
+    "manifest": {
+      "sha256": "192bd5739d2420fb3f15afe5c1672ec4934c94046259a79d642e9ffc828f65e6",
+      "bytes": 14178,
+      "archive": "blobs/192bd5739d2420fb3f15afe5c1672ec4934c94046259a79d642e9ffc828f65e6.native-link-policy"
+    },
+    "snapshot_root": "/workspace/.zil-environment/native-link-v1/root",
+    "files": [
+      {
+        "path": "/lib64/ld-linux-x86-64.so.2",
+        "mode": 493,
+        "sha256": "c8438e4fde1934e61c88311633f00949ff645d5c04cdb8671fa3d78164d2f307",
+        "bytes": 225672,
+        "archive": "blobs/c8438e4fde1934e61c88311633f00949ff645d5c04cdb8671fa3d78164d2f307.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+        "mode": 420,
+        "sha256": "7a27acdd82e38dbddd8568d54de0df4358e71a3c387d5c1d999d369450c1bf6a",
+        "bytes": 1463360,
+        "archive": "blobs/7a27acdd82e38dbddd8568d54de0df4358e71a3c387d5c1d999d369450c1bf6a.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libz.so.1",
+        "mode": 420,
+        "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+        "bytes": 125376,
+        "archive": "blobs/85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libctf.so.0",
+        "mode": 420,
+        "sha256": "bdcd09af9314ef2a40dd137882523e7cb5944189220980257c5ebcc1fe0c9b5b",
+        "bytes": 220288,
+        "archive": "blobs/bdcd09af9314ef2a40dd137882523e7cb5944189220980257c5ebcc1fe0c9b5b.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/Scrt1.o",
+        "mode": 420,
+        "sha256": "4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec",
+        "bytes": 1640,
+        "archive": "blobs/4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libpthread.a",
+        "mode": 420,
+        "sha256": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+        "bytes": 8,
+        "archive": "blobs/f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/crti.o",
+        "mode": 420,
+        "sha256": "78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a",
+        "bytes": 1072,
+        "archive": "blobs/78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libzstd.so.1",
+        "mode": 420,
+        "sha256": "27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21",
+        "bytes": 825336,
+        "archive": "blobs/27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libcap.so.2",
+        "mode": 420,
+        "sha256": "41217b0af128444f66dee8adda52b2ceaf19da00e5b0b155e2b87b857671286b",
+        "bytes": 47288,
+        "archive": "blobs/41217b0af128444f66dee8adda52b2ceaf19da00e5b0b155e2b87b857671286b.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libselinux.so.1",
+        "mode": 420,
+        "sha256": "5cb5293b4e7590463b94f7b23152d54807a6a2ccaf8cac9e343908c6692c086c",
+        "bytes": 202984,
+        "archive": "blobs/5cb5293b4e7590463b94f7b23152d54807a6a2ccaf8cac9e343908c6692c086c.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/crtn.o",
+        "mode": 420,
+        "sha256": "121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101",
+        "bytes": 648,
+        "archive": "blobs/121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libc.a",
+        "mode": 420,
+        "sha256": "679612af043ab6a3eb9af24136b8d0c9ba1e10114f047271386ee7fa37031326",
+        "bytes": 5668466,
+        "archive": "blobs/679612af043ab6a3eb9af24136b8d0c9ba1e10114f047271386ee7fa37031326.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libjansson.so.4",
+        "mode": 420,
+        "sha256": "424135d01f0f2f957bd61d6a56f5f0cf7afa146a677a216173f1a20e8cd1ad8e",
+        "bytes": 59752,
+        "archive": "blobs/424135d01f0f2f957bd61d6a56f5f0cf7afa146a677a216173f1a20e8cd1ad8e.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libgcc_s.so.1",
+        "mode": 420,
+        "sha256": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+        "bytes": 182856,
+        "archive": "blobs/30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libsframe.so.1",
+        "mode": 420,
+        "sha256": "adb0b9a33909e7264ad724e138eb97995832e535b22b192c1a898c349c918a9f",
+        "bytes": 30976,
+        "archive": "blobs/adb0b9a33909e7264ad724e138eb97995832e535b22b192c1a898c349c918a9f.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libpcre2-8.so.0",
+        "mode": 420,
+        "sha256": "92e9b4167f9bbc237ca8f5526d82ee99ec9f8dbd0270ef1dd0ab24e2217f48e3",
+        "bytes": 711216,
+        "archive": "blobs/92e9b4167f9bbc237ca8f5526d82ee99ec9f8dbd0270ef1dd0ab24e2217f48e3.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libc.so.6",
+        "mode": 493,
+        "sha256": "9792e3cbb541c8f44c7acf5f14f4022ea62998ecc787d326bed4d8b6547dfd92",
+        "bytes": 1995216,
+        "archive": "blobs/9792e3cbb541c8f44c7acf5f14f4022ea62998ecc787d326bed4d8b6547dfd92.sdk-input"
+      },
+      {
+        "path": "/lib/x86_64-linux-gnu/libc.so",
+        "mode": 420,
+        "sha256": "fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df",
+        "bytes": 283,
+        "archive": "blobs/fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df.sdk-input"
+      },
+      {
+        "path": "/usr/bin/x86_64-linux-gnu-ld.bfd",
+        "mode": 493,
+        "sha256": "d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b",
+        "bytes": 1861256,
+        "archive": "blobs/d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b.sdk-input"
+      },
+      {
+        "path": "/usr/bin/bwrap",
+        "mode": 493,
+        "sha256": "573236e5328ac2ebb08f59ae3a9805b4f8d12bdef14be8af4450d5463294985f",
+        "bytes": 80248,
+        "archive": "blobs/573236e5328ac2ebb08f59ae3a9805b4f8d12bdef14be8af4450d5463294985f.sdk-input"
+      },
+      {
+        "path": "/usr/bin/ld",
+        "mode": 493,
+        "sha256": "d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b",
+        "bytes": 1861256,
+        "archive": "blobs/d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+        "mode": 420,
+        "sha256": "7a27acdd82e38dbddd8568d54de0df4358e71a3c387d5c1d999d369450c1bf6a",
+        "bytes": 1463360,
+        "archive": "blobs/7a27acdd82e38dbddd8568d54de0df4358e71a3c387d5c1d999d369450c1bf6a.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libsframe.so.1.0.0",
+        "mode": 420,
+        "sha256": "adb0b9a33909e7264ad724e138eb97995832e535b22b192c1a898c349c918a9f",
+        "bytes": 30976,
+        "archive": "blobs/adb0b9a33909e7264ad724e138eb97995832e535b22b192c1a898c349c918a9f.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+        "mode": 420,
+        "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+        "bytes": 125376,
+        "archive": "blobs/85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libpcre2-8.so.0.14.0",
+        "mode": 420,
+        "sha256": "92e9b4167f9bbc237ca8f5526d82ee99ec9f8dbd0270ef1dd0ab24e2217f48e3",
+        "bytes": 711216,
+        "archive": "blobs/92e9b4167f9bbc237ca8f5526d82ee99ec9f8dbd0270ef1dd0ab24e2217f48e3.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/Scrt1.o",
+        "mode": 420,
+        "sha256": "4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec",
+        "bytes": 1640,
+        "archive": "blobs/4ca31259aee8415b60fe566c00cecfa5858f1103296b8043f175ccf2489f00ec.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libpthread.a",
+        "mode": 420,
+        "sha256": "f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5",
+        "bytes": 8,
+        "archive": "blobs/f0a17a43c74d2fe5474fa2fd29c8f14799e777d7d75a2cc4d11c20a6e7b161c5.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libc_nonshared.a",
+        "mode": 420,
+        "sha256": "22a836e3aff767b559a703d42bde40fdb0e550297dbd99dd565f6a68b3ae8dda",
+        "bytes": 5098,
+        "archive": "blobs/22a836e3aff767b559a703d42bde40fdb0e550297dbd99dd565f6a68b3ae8dda.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libcap.so.2.75",
+        "mode": 420,
+        "sha256": "41217b0af128444f66dee8adda52b2ceaf19da00e5b0b155e2b87b857671286b",
+        "bytes": 47288,
+        "archive": "blobs/41217b0af128444f66dee8adda52b2ceaf19da00e5b0b155e2b87b857671286b.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/crti.o",
+        "mode": 420,
+        "sha256": "78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a",
+        "bytes": 1072,
+        "archive": "blobs/78acef26a7007f5320c98633376f2903e33895e694fbc2b91d189b38addbca8a.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libselinux.so.1",
+        "mode": 420,
+        "sha256": "5cb5293b4e7590463b94f7b23152d54807a6a2ccaf8cac9e343908c6692c086c",
+        "bytes": 202984,
+        "archive": "blobs/5cb5293b4e7590463b94f7b23152d54807a6a2ccaf8cac9e343908c6692c086c.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/crtn.o",
+        "mode": 420,
+        "sha256": "121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101",
+        "bytes": 648,
+        "archive": "blobs/121f2a5f12b13471dd8c7dabe3ff334df08540c270564d1a2b3c47ecbd8d3101.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+        "mode": 493,
+        "sha256": "c8438e4fde1934e61c88311633f00949ff645d5c04cdb8671fa3d78164d2f307",
+        "bytes": 225672,
+        "archive": "blobs/c8438e4fde1934e61c88311633f00949ff645d5c04cdb8671fa3d78164d2f307.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libc.a",
+        "mode": 420,
+        "sha256": "679612af043ab6a3eb9af24136b8d0c9ba1e10114f047271386ee7fa37031326",
+        "bytes": 5668466,
+        "archive": "blobs/679612af043ab6a3eb9af24136b8d0c9ba1e10114f047271386ee7fa37031326.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+        "mode": 420,
+        "sha256": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+        "bytes": 182856,
+        "archive": "blobs/30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libctf.so.0.0.0",
+        "mode": 420,
+        "sha256": "bdcd09af9314ef2a40dd137882523e7cb5944189220980257c5ebcc1fe0c9b5b",
+        "bytes": 220288,
+        "archive": "blobs/bdcd09af9314ef2a40dd137882523e7cb5944189220980257c5ebcc1fe0c9b5b.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libjansson.so.4.14.0",
+        "mode": 420,
+        "sha256": "424135d01f0f2f957bd61d6a56f5f0cf7afa146a677a216173f1a20e8cd1ad8e",
+        "bytes": 59752,
+        "archive": "blobs/424135d01f0f2f957bd61d6a56f5f0cf7afa146a677a216173f1a20e8cd1ad8e.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+        "mode": 493,
+        "sha256": "9792e3cbb541c8f44c7acf5f14f4022ea62998ecc787d326bed4d8b6547dfd92",
+        "bytes": 1995216,
+        "archive": "blobs/9792e3cbb541c8f44c7acf5f14f4022ea62998ecc787d326bed4d8b6547dfd92.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7",
+        "mode": 420,
+        "sha256": "27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21",
+        "bytes": 825336,
+        "archive": "blobs/27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21.sdk-input"
+      },
+      {
+        "path": "/usr/lib/x86_64-linux-gnu/libc.so",
+        "mode": 420,
+        "sha256": "fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df",
+        "bytes": 283,
+        "archive": "blobs/fe2a4ce2930fc6b3966aa987fae808375446c8d3823b8c21792e991aad9c75df.sdk-input"
+      },
+      {
+        "path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+        "mode": 420,
+        "sha256": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d",
+        "bytes": 3243220,
+        "archive": "blobs/c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d.sdk-input"
+      },
+      {
+        "path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so",
+        "mode": 420,
+        "sha256": "69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd",
+        "bytes": 132,
+        "archive": "blobs/69a56a9993b7729b29b274e65016031c81f2397f176ed5ad44d59bd50425e0bd.sdk-input"
+      },
+      {
+        "path": "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o",
+        "mode": 420,
+        "sha256": "8981687575c10a2e2146947bce387769cbd118f5b8c5dda489f514dc7d2ed4c7",
+        "bytes": 1152,
+        "archive": "blobs/8981687575c10a2e2146947bce387769cbd118f5b8c5dda489f514dc7d2ed4c7.sdk-input"
+      },
+      {
+        "path": "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o",
+        "mode": 420,
+        "sha256": "37af2040527c75078f900a29ea4a71b22576aa5c26f1f29af7b5935cebbe571e",
+        "bytes": 2736,
+        "archive": "blobs/37af2040527c75078f900a29ea4a71b22576aa5c26f1f29af7b5935cebbe571e.sdk-input"
+      }
+    ],
+    "directories": [
+      "/",
+      "/dev",
+      "/inputs",
+      "/lib",
+      "/lib/x86_64-linux-gnu",
+      "/lib64",
+      "/out",
+      "/proc",
+      "/usr",
+      "/usr/bin",
+      "/usr/lib",
+      "/usr/lib/gcc",
+      "/usr/lib/gcc/x86_64-linux-gnu",
+      "/usr/lib/gcc/x86_64-linux-gnu/14",
+      "/usr/lib/x86_64-linux-gnu",
+      "/usr/lib/x86_64-linux-gnu64",
+      "/usr/lib64",
+      "/usr/local",
+      "/usr/local/lib",
+      "/usr/local/lib/x86_64-linux-gnu",
+      "/usr/local/lib64",
+      "/usr/x86_64-linux-gnu",
+      "/usr/x86_64-linux-gnu/lib",
+      "/usr/x86_64-linux-gnu/lib64",
+      "/work",
+      "/workspace",
+      "/workspace/.zil-environment",
+      "/workspace/.zil-environment/llvm-23.1.4",
+      "/workspace/.zil-environment/llvm-23.1.4/lib",
+      "/workspace/.zil-environment/llvm-23.1.4/lib/clang",
+      "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23",
+      "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib",
+      "/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu"
+    ],
+    "capture_boundary": "Full SDK files are archived only after every measured native request; this does not prewarm the first candidate cold profile load."
+  },
+  "execution_complete": true,
+  "candidate_rust_accepted": true
+}

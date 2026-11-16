@@ -1,0 +1,86 @@
+{
+  "measured_source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+  "scope": "Exact original rows/manifests/summaries/completion plus retained restart/firstedit candidate JSON. This is a receipt subset, not full cache/artifact recovery. Full raw remains local unchanged.",
+  "files": [
+    {
+      "original_path": "out/runs/restart-epoch-full-window-01/rows.jsonl",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-full-receipts/rows.jsonl",
+      "sha256": "263eff2d2a787ef5f592ae25d10c12cd60a79d4a21696821587fce185ff6989e"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-full-window-01/manifest.json",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-full-receipts/manifest.json",
+      "sha256": "e065b041ad85c2c1931778675ed9e4d41498888fc7de2cfe42be5f52517b8a0e"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-full-window-01/summary.json",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-full-receipts/summary.json",
+      "sha256": "9d860eab4a35cf2be92c232672e0f12023e413bbaa73d9b28db6a6a7d0cb9b3d"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-full-window-01/completion.json",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-full-receipts/completion.json",
+      "sha256": "0fd174a855ea8dcc5a13d689bb1884c6975e2feaba8a5b220bcdb5ff09da7d91"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-retain-window-01/rows.jsonl",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/rows.jsonl",
+      "sha256": "058adccc6adfc9e42682899ecd024dbadc330da39376cc1d2f56bccd0b50a8ce"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-retain-window-01/manifest.json",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/manifest.json",
+      "sha256": "ed0fbe929bf1afd4d0a33e6130f19599e29b96caaee1254cd052ab6f9f58f089"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-retain-window-01/summary.json",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/summary.json",
+      "sha256": "40e5694d9d71c5b6d0b2e298b4fcb783454742e5ff84781b9d6a3adc10d95f51"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-retain-window-01/completion.json",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/completion.json",
+      "sha256": "ca9034bae332ee5c65d9fec8097826e15bd1ae34414d4dd17cfdbd5d67e131d9"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-retain-window-01/workflow/2500/block-00/requests/002-warm-restart/candidate/response.json",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/2500/block-00/requests/002-warm-restart/candidate/response.json",
+      "sha256": "b29d1b6fbb01450cee88d65dfc469e8a3348b6a887ab855be5aef99a2de86b88"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-retain-window-01/workflow/2500/block-00/requests/003-private-001/candidate/response.json",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/2500/block-00/requests/003-private-001/candidate/response.json",
+      "sha256": "204454b25e0ed1de0958900c232c871c9f350bd1ab4b3537b5ede32c46808a59"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/requests/002-warm-restart/candidate/response.json",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/2500/block-01/requests/002-warm-restart/candidate/response.json",
+      "sha256": "a3a8ca4e2be108fe4b76d960d69a41750e7884d8cd1124eb8aa6560b69362dd8"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/requests/003-private-001/candidate/response.json",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/2500/block-01/requests/003-private-001/candidate/response.json",
+      "sha256": "d2163691a3e3f0352a0a519ffdc6d9fef6b887493cc909fd569590c76b31b193"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/requests/002-warm-restart/candidate/response.json",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/5105/block-00/requests/002-warm-restart/candidate/response.json",
+      "sha256": "deb99ef0f817c8c767f5b5562cd81ca4d21ae648ed2f659411838655d5b507b0"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-retain-window-01/workflow/5105/block-00/requests/003-private-001/candidate/response.json",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/5105/block-00/requests/003-private-001/candidate/response.json",
+      "sha256": "b17318d46b10c1fdaa788ee7d50c8a66886bbb25d28df369ab8bb05bfb7675fe"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-retain-window-01/workflow/5105/block-01/requests/002-warm-restart/candidate/response.json",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/5105/block-01/requests/002-warm-restart/candidate/response.json",
+      "sha256": "aa8816840205f550259bba908e2870e076983fb2fe772e72ce4e170b32a9bff3"
+    },
+    {
+      "original_path": "out/runs/restart-epoch-retain-window-01/workflow/5105/block-01/requests/003-private-001/candidate/response.json",
+      "published_path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/5105/block-01/requests/003-private-001/candidate/response.json",
+      "sha256": "407e201bfeae9b97a7fc72081211da12f1c9357a99f931d617561ef8c986d65d"
+    }
+  ]
+}

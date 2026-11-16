@@ -1,0 +1,13 @@
+    Checking zil-backend-llvm v0.1.0 (/workspace/zil-push-main/crates/zil-backend-llvm)
+    Checking zil-types v0.1.0 (/workspace/zil-push-main/crates/zil-types)
+    Checking zil-driver v0.1.0 (/workspace/zil-push-main/crates/zil-driver)
+error[E0616]: field `analysis` of struct `session::CompilationSession` is private
+   --> crates/zil-driver/src/restart_tests.rs:334:13
+    |
+334 |     session.analysis = zil_analyze::AnalysisSession::default();
+    |             ^^^^^^^^ private field
+
+    Checking zil-cli v0.1.0 (/workspace/zil-push-main/crates/zil-cli)
+For more information about this error, try `rustc --explain E0616`.
+error: could not compile `zil-driver` (lib test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

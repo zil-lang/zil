@@ -1,0 +1,17 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-push-main/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 9.25s
+     Running tests/scalar_local_promotion.rs (/workspace/zil-target-closed-body/debug/deps/scalar_local_promotion-882a0bdaeaf139b7)
+
+running 9 tests
+test a_borrow_conflict_remains_rejected_before_machine_emission ... ok
+test direct_parameters_and_same_block_assignments_keep_load_time_snapshots ... ok
+test bounded_remainder_chain_removes_only_proven_checks_and_keeps_first_trap ... ok
+test narrow_wide_and_boolean_values_keep_exact_scalar_results ... ok
+test source_derived_out_of_range_ids_do_not_obtain_a_verified_capability ... ok
+test checked_failure_occurs_between_the_same_observable_calls ... ok
+test warm_objects_and_restored_source_still_require_current_verification ... ok
+test full_cleanup_selects_shared_remainders_and_keeps_source_extremes_and_first_trap ... ok
+test branches_and_loops_promote_while_addresses_and_captures_keep_storage ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.95s
+

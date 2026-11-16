@@ -1,0 +1,26 @@
+from pathlib import Path
+import json,statistics,hashlib
+root=Path('/workspace/zil-push-main');w=root/'out/runs/restart-epoch-retain-window-01';s=json.loads((w/'summary.json').read_text());assert s['execution_complete']and s['candidate_rust_accepted']and len(s['runtime_profile']['cases'])==10
+rows=[r for line in(w/'rows.jsonl').read_text().splitlines()if not(r:=json.loads(line)).get('sustained',False)];assert len(rows)==72
+pins=json.loads((root/'out/runs/restart-epoch-pins-01.json').read_text());previous=json.loads((root/'tools/research/incremental-demand/native-dependency-reviews-20261116/cache-time-space.json').read_text())
+result={'schema':'zil.restart-epoch-results.v1','source':pins['candidate']['source'],'binary_sha256':pins['candidate']['binary_sha256'],'tool_source':pins['tool_source'],'actual_main':pins['baseline']['source'],'window':str(w.relative_to(root)),'quality':{k:s[k]for k in('execution_complete','accepted','candidate_rust_accepted','rows','quality_cells')},'source_bound_runtime_cases':10,'protocol':'retain: cold,unchanged,realrestart,firstprivate,error,recovery;2 balancedblocks O2/CGU16/jobs1 defaultbudgets/currentVerify/fullO2. Original compile timers only; startup/cleanup and 257functional inputs+runtime samples outside. Not OS-cold/industrial/symmetricclear/equalquota.','sizes':{}}
+for size,count in(('2500',2505),('5105',5105)):
+ r=[x for x in rows if x['preset']==size];arms=('candidate','rust')if size=='5105'else('baseline','candidate','rust')
+ timings={name:{a:statistics.median(x['measurement']['wall_ms']for x in r if x['request']==name and x['arm']==a)for a in arms}for name in('cold','unchanged','warm-restart','private-001','error','recovery')}
+ pair={a:statistics.median(sum(x['measurement']['wall_ms']for x in r if x['arm']==a and x['block']==block and x['request']in('warm-restart','private-001'))for block in(0,1))for a in arms}
+ evidence=[]
+ for block in(0,1):
+  base=w/'workflow'/size/f'block-{block:02d}'/'requests';restart=json.loads((base/'002-warm-restart/candidate/response.json').read_text())['report'];p=base/'003-private-001/candidate/response.json';private=json.loads(p.read_text())['report']
+  assert restart['disk_cache']=='hydrated'and restart['verification_runs']==1 and restart['types_push_work']['body_checks']==count
+  assert private['verification_runs']==1 and private['types_push_work']['body_checks']==1 and private['types_push_work']['retained_functions']==count-1
+  assert private['ct_plain_work']['body_checks']==1 and private['ct_plain_work']['body_reuses']==count-1
+  assert private['frontend_stats']['initialization']['product_function_queries_executed']==1 and private['frontend_stats']['initialization']['product_function_queries_reused']==count-1
+  assert private['backend_work']['lowered_functions']==1 and private['backend_work']['reused_functions']==count-1
+  assert private['backend_work']['representation_functions_checked']==1 and private['backend_work']['representation_functions_reused']==count-1
+  assert private['backend_work']['source_projection_traversals']==1 and private['backend_work']['source_projection_reuses']==count-1
+  evidence.append({'block':block,'private_response':str(p.relative_to(root)),'sha256':hashlib.file_digest(p.open('rb'),'sha256').hexdigest(),'restart_disk_status':restart['disk_cache'],'restart_phase_ns':restart['phase_timings_ns'],'first_edit_phase_ns':private['phase_timings_ns'],'first_edit_types':private['types_push_work'],'first_edit_CT':private['ct_plain_work'],'first_edit_analyze':private['frontend_stats']['initialization'],'first_edit_backend':private['backend_work']})
+ old=previous['states']['retain']['sizes'][size]['request_median_ms'];oldpair=old['warm-restart']['candidate']+old['private-001']['candidate']
+ def disk(snapshot,arm):return sum(v['physical_bytes']for k,v in snapshot['categories'].items()if k.startswith(arm+'.'))
+ result['sizes'][size]={'declared_functions':count,'request_median_ms':timings,'restart_plus_firstedit_median_ms':pair,'firstedit_candidate_over_rust':timings['private-001']['candidate']/timings['private-001']['rust'],'whole_six_request_median_ms':{a:statistics.median(sum(x['measurement']['wall_ms']for x in r if x['arm']==a and x['block']==b)for b in(0,1))for a in arms},'boundary_peak_MiB':{a:statistics.median(max(disk(x[k],a)for x in r if x['block']==b for k in('disk_before','disk_after'))for b in(0,1))/2**20 for a in arms},'per_block_current_reuse_proof':evidence,'previous_f19_observation':{'source':previous['source'],'restart_ms':old['warm-restart'],'firstedit_ms':old['private-001'],'candidate_pair_ms':oldpair,'new_pair_observed_reduction':1-pair['candidate']/oldpair,'comparison_scope':'Different qualified windows, not a paired causal estimate or a simultaneous second candidate. Restart cost is included; no hidden preparation work.'}}
+path=root/'out/runs/restart-epoch-results-01.json';path.write_text(json.dumps(result,indent=2)+'\n')
+print(json.dumps({'source':result['source'],'sizes':{size:{'restart_ms':d['request_median_ms']['warm-restart'],'firstedit_ms':d['request_median_ms']['private-001'],'joint_ms':d['restart_plus_firstedit_median_ms'],'old_candidate_joint_ms':d['previous_f19_observation']['candidate_pair_ms'],'disk_MiB':d['boundary_peak_MiB']}for size,d in result['sizes'].items()}},indent=2))

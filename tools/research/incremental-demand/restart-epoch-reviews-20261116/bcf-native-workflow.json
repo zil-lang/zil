@@ -1,0 +1,272 @@
+{
+  "compiler_source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+  "tree": "34df7372f666f32bcca59c0b78f185a68ca75ca0",
+  "binary_sha256": "57de85daefac2ec5f562d15f01bd4f54aafeb4f53838da975671cc49dd809bf2",
+  "tool_source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "window": "out/runs/restart-epoch-full-window-01",
+  "quality": {
+    "execution_complete": true,
+    "accepted": false,
+    "candidate_rust_accepted": true,
+    "main_regression_accepted": null,
+    "rows": 324,
+    "quality_cells": 108
+  },
+  "runtime_cases": 51,
+  "runtime_R_over_B_GM": 4.105949797231486,
+  "frequency_policy": "Each request exactly once in predeclared 18-request workflow including eight private edits; two balanced blocks, median complete total. No invented industry frequency. Compile quality scoped to separately named finite runtime protocol.",
+  "disk_scope": "Explicit user caches/artifacts incl diagnostic IR, global inode dedup/lstat st_blocks at request boundaries, not transient peaks; SDK/host Cargo/evidence excluded. Restore hardlink topology is not a new disk measurement.",
+  "sizes": {
+    "1000": {
+      "main_role": "actual main9170",
+      "total_wait_median_ms": {
+        "baseline": 8728.323828,
+        "candidate": 6807.4019195,
+        "rust": 8457.536190499999
+      },
+      "candidate_wait_reduction_vs_rust": 0.19510815370243717,
+      "compile_median_ms": {
+        "cold": {
+          "baseline": 1659.011728,
+          "candidate": 754.019037,
+          "rust": 1170.0821230000001
+        },
+        "broad": {
+          "baseline": 1613.9205465,
+          "candidate": 693.497455,
+          "rust": 954.568917
+        },
+        "interface": {
+          "baseline": 648.5711735,
+          "candidate": 616.5329380000001,
+          "rust": 594.4693955
+        },
+        "warm-restart": {
+          "baseline": 412.3152845,
+          "candidate": 368.82344850000004,
+          "rust": 35.053067999999996
+        },
+        "restore": {
+          "baseline": 155.91894050000002,
+          "candidate": 455.08370950000005,
+          "rust": 1053.3132325000001
+        },
+        "unchanged": {
+          "baseline": 148.332285,
+          "candidate": 18.200082000000002,
+          "rust": 28.794745
+        },
+        "eight_private": {
+          "baseline": 3088.858174,
+          "candidate": 3244.2163535,
+          "rust": 3594.8704454999997
+        }
+      },
+      "disk": {
+        "baseline": {
+          "boundary_peak_physical_bytes_by_block": [
+            24543232,
+            24543232
+          ],
+          "median_boundary_peak_MiB": 23.40625,
+          "eight_private_growth_bytes_by_block": [
+            12419072,
+            12419072
+          ],
+          "median_eight_private_growth_MiB": 11.84375
+        },
+        "candidate": {
+          "boundary_peak_physical_bytes_by_block": [
+            9482240,
+            9551872
+          ],
+          "median_boundary_peak_MiB": 9.076171875,
+          "eight_private_growth_bytes_by_block": [
+            1245184,
+            1310720
+          ],
+          "median_eight_private_growth_MiB": 1.21875
+        },
+        "rust": {
+          "boundary_peak_physical_bytes_by_block": [
+            20107264,
+            20107264
+          ],
+          "median_boundary_peak_MiB": 19.17578125,
+          "eight_private_growth_bytes_by_block": [
+            5373952,
+            5373952
+          ],
+          "median_eight_private_growth_MiB": 5.125
+        }
+      },
+      "runtime_R_over_B_range": [
+        1.3917230190769883,
+        1.709395724158701
+      ],
+      "runtime_rust_gate_all_pass": true,
+      "runtime_main_gate_all_pass": true
+    },
+    "2500": {
+      "main_role": "actual main9170",
+      "total_wait_median_ms": {
+        "baseline": 11594.088524,
+        "candidate": 8366.793897,
+        "rust": 9409.51054
+      },
+      "candidate_wait_reduction_vs_rust": 0.11081518412327529,
+      "compile_median_ms": {
+        "cold": {
+          "baseline": 2531.7467105,
+          "candidate": 1457.848134,
+          "rust": 1604.6472684999999
+        },
+        "broad": {
+          "baseline": 2187.2618925,
+          "candidate": 1102.3396425,
+          "rust": 1140.2721365
+        },
+        "interface": {
+          "baseline": 572.7360424999999,
+          "candidate": 645.6570415,
+          "rust": 652.1568050000001
+        },
+        "warm-restart": {
+          "baseline": 228.51293500000003,
+          "candidate": 812.4519785,
+          "rust": 25.882337999999997
+        },
+        "restore": {
+          "baseline": 231.97457,
+          "candidate": 555.2139105,
+          "rust": 1358.1392985000002
+        },
+        "unchanged": {
+          "baseline": 253.76731999999998,
+          "candidate": 19.207613000000002,
+          "rust": 26.5640315
+        },
+        "eight_private": {
+          "baseline": 4401.7349115,
+          "candidate": 2887.0388494999997,
+          "rust": 3651.702188
+        }
+      },
+      "disk": {
+        "baseline": {
+          "boundary_peak_physical_bytes_by_block": [
+            30220288,
+            30220288
+          ],
+          "median_boundary_peak_MiB": 28.8203125,
+          "eight_private_growth_bytes_by_block": [
+            15597568,
+            15597568
+          ],
+          "median_eight_private_growth_MiB": 14.875
+        },
+        "candidate": {
+          "boundary_peak_physical_bytes_by_block": [
+            13594624,
+            13623296
+          ],
+          "median_boundary_peak_MiB": 12.978515625,
+          "eight_private_growth_bytes_by_block": [
+            1212416,
+            1208320
+          ],
+          "median_eight_private_growth_MiB": 1.154296875
+        },
+        "rust": {
+          "boundary_peak_physical_bytes_by_block": [
+            44580864,
+            32321536
+          ],
+          "median_boundary_peak_MiB": 36.669921875,
+          "eight_private_growth_bytes_by_block": [
+            12087296,
+            12087296
+          ],
+          "median_eight_private_growth_MiB": 11.52734375
+        }
+      },
+      "runtime_R_over_B_range": [
+        1.354493935388535,
+        1.697860361894689
+      ],
+      "runtime_rust_gate_all_pass": true,
+      "runtime_main_gate_all_pass": true
+    },
+    "5105": {
+      "main_role": "ResourceLimit; no performance ratio",
+      "total_wait_median_ms": {
+        "candidate": 28925.515869000003,
+        "rust": 32233.376573499998
+      },
+      "candidate_wait_reduction_vs_rust": 0.10262222131638188,
+      "compile_median_ms": {
+        "cold": {
+          "candidate": 3949.262535,
+          "rust": 5752.5584215
+        },
+        "broad": {
+          "candidate": 2914.2607975,
+          "rust": 5385.131318
+        },
+        "interface": {
+          "candidate": 2167.9360805,
+          "rust": 2028.2588365000001
+        },
+        "warm-restart": {
+          "candidate": 2592.753565,
+          "rust": 28.0130335
+        },
+        "restore": {
+          "candidate": 2517.368364,
+          "rust": 5749.795248
+        },
+        "unchanged": {
+          "candidate": 28.455872,
+          "rust": 35.517698499999995
+        },
+        "eight_private": {
+          "candidate": 11739.4903505,
+          "rust": 10324.7007555
+        }
+      },
+      "disk": {
+        "candidate": {
+          "boundary_peak_physical_bytes_by_block": [
+            49115136,
+            49131520
+          ],
+          "median_boundary_peak_MiB": 46.84765625,
+          "eight_private_growth_bytes_by_block": [
+            1511424,
+            1585152
+          ],
+          "median_eight_private_growth_MiB": 1.4765625
+        },
+        "rust": {
+          "boundary_peak_physical_bytes_by_block": [
+            76394496,
+            76394496
+          ],
+          "median_boundary_peak_MiB": 72.85546875,
+          "eight_private_growth_bytes_by_block": [
+            29863936,
+            29863936
+          ],
+          "median_eight_private_growth_MiB": 28.48046875
+        }
+      },
+      "runtime_R_over_B_range": [
+        27.952889147522175,
+        30.911643149373063
+      ],
+      "runtime_rust_gate_all_pass": true,
+      "runtime_main_gate_all_pass": null
+    }
+  }
+}

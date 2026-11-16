@@ -1,0 +1,23 @@
+{
+  "source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+  "tree": "34df7372f666f32bcca59c0b78f185a68ca75ca0",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "--offline",
+    "--release",
+    "-p",
+    "zil-cli",
+    "--features",
+    "native-products"
+  ],
+  "start": "2026-11-16T02:12:35.626407+00:00",
+  "end": "2026-11-16T02:14:31.483581+00:00",
+  "exit_code": 0,
+  "valid": true,
+  "test_results": [],
+  "log_sha256": "329e367628ff99ecd8feb7259cb4a82240fb1570fb0a9343332450c64ae17de1",
+  "binary": "/workspace/zil-target-closed-body/release/zil",
+  "sha256": "57de85daefac2ec5f562d15f01bd4f54aafeb4f53838da975671cc49dd809bf2"
+}

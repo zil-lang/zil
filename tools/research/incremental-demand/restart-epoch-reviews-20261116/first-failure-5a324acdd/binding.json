@@ -1,0 +1,16 @@
+{
+  "source": "5a324acdd0bb0b3a9c31f6ad3b73ff025c7fe4eb",
+  "tree": "ded5ef920fb1e42a6cb40965ee774ac348895e24",
+  "DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
+  "LLVM_rebuilt": false,
+  "host_env": {
+    "CARGO_TARGET_DIR": "/workspace/zil-target-closed-body",
+    "CARGO_BUILD_JOBS": "4",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_NATIVE_LINK_PROFILE": "/workspace/.zil-environment/native-link-v1/manifest"
+  },
+  "unchanged_gate_reuse": {
+    "Expand124_CT76_backend299": "bcf409b37 and previousf19/f629 receipts: no API/model/Expand/CT/backend source change frombcf. Types/driver/Source/publication/strict/fmt/release rerun once for complete7filechain."
+  }
+}

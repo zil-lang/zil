@@ -1,0 +1,612 @@
+{
+  "archive": {
+    "bytes": 19598435,
+    "format": "tar+zstd",
+    "part_bytes": 25165824,
+    "parts": [
+      {
+        "bytes": 19598435,
+        "name": "evidence.tar.zst.part-00001",
+        "sha256": "5dfb202b0a8656f3f55adaa29e476187f09902131d4be8ff6cbbc77c99b279af"
+      }
+    ],
+    "sha256": "5dfb202b0a8656f3f55adaa29e476187f09902131d4be8ff6cbbc77c99b279af",
+    "tar_bytes": 62013440
+  },
+  "inventory": {
+    "files": [
+      {
+        "bytes": 27652872,
+        "mode": 448,
+        "path": "out/binaries/4a23edc7d06bc18cbed1fb958fdaacd886d9607a/zil",
+        "sha256": "302d58db48f53cd4bc1952f2a9032ead5a6d479314d24eb2ca344f558c2c113e"
+      },
+      {
+        "bytes": 27634928,
+        "mode": 448,
+        "path": "out/binaries/bcf409b37c5e5733c57376c0b6123b76321574a9/zil",
+        "sha256": "57de85daefac2ec5f562d15f01bd4f54aafeb4f53838da975671cc49dd809bf2"
+      },
+      {
+        "bytes": 607,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/backend-pass-life-fixture-failure-b197120ce/backend.json",
+        "sha256": "fa80a6f0f5e9b8441c52538fdbf7df91f5faba82153fab7622d1f611512ee639"
+      },
+      {
+        "bytes": 31243,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/backend-pass-life-fixture-failure-b197120ce/backend.log",
+        "sha256": "155a261625430e6a28f76b3b6791234ba6777a9606da48ac1e7d26c0bb9d9637"
+      },
+      {
+        "bytes": 743,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/backend-pass-life-fixture-failure-b197120ce/binding.json",
+        "sha256": "bb4db75031be6e15416f86809355be5a602682ea5b0f35b7da2d22c5f4e6e5c4"
+      },
+      {
+        "bytes": 87,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/backend-pass-life-fixture-failure-b197120ce/completion.json",
+        "sha256": "47b118c69003c89105c4f538096fd41ee2b09c2a7df971fad9600fc61340b62c"
+      },
+      {
+        "bytes": 635,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/backend-pass-life-fixture-failure-b197120ce/mechanical.json",
+        "sha256": "59c2b5827ccecd5a39f7ed4a3cf3a1f7abd2d447c04f973bf97358ca963b8941"
+      },
+      {
+        "bytes": 207,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/backend-pass-life-fixture-failure-b197120ce/mechanical.log",
+        "sha256": "1490856d48445afbf86a8b97f2842416ce2279e76b4ee92d9999827ffba29d9a"
+      },
+      {
+        "bytes": 531,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/backend-pass-life-fixture-failure-b197120ce/types.json",
+        "sha256": "b61be9e32f4f6686db2a01e4e610672ba22729f7cca21bec493e7ff7efea6b3b"
+      },
+      {
+        "bytes": 12112,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/backend-pass-life-fixture-failure-b197120ce/types.log",
+        "sha256": "78e01bf29086f70aad07bacd32ea52083bf062b1c02690cb2d9d1923d7e479f4"
+      },
+      {
+        "bytes": 128,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-full-receipts/completion.json",
+        "sha256": "0fd174a855ea8dcc5a13d689bb1884c6975e2feaba8a5b220bcdb5ff09da7d91"
+      },
+      {
+        "bytes": 32549,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-full-receipts/manifest.json",
+        "sha256": "e065b041ad85c2c1931778675ed9e4d41498888fc7de2cfe42be5f52517b8a0e"
+      },
+      {
+        "bytes": 3731321,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-full-receipts/rows.jsonl",
+        "sha256": "263eff2d2a787ef5f592ae25d10c12cd60a79d4a21696821587fce185ff6989e"
+      },
+      {
+        "bytes": 192593,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-full-receipts/summary.json",
+        "sha256": "9d860eab4a35cf2be92c232672e0f12023e413bbaa73d9b28db6a6a7d0cb9b3d"
+      },
+      {
+        "bytes": 697,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/binding.json",
+        "sha256": "4919f858fccbb8cd0395188a2944b7cf711f73a4f6056ddc784631a2478bc6b5"
+      },
+      {
+        "bytes": 86,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/completion.json",
+        "sha256": "7dc46a34e7cab413ab160d749dcdfe19bf11a6b947948ee8e6c63f0c56d5b3ab"
+      },
+      {
+        "bytes": 566,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/driver.json",
+        "sha256": "2fd327ff81286378b391166d31a7eac14a6143a5e968a70ce29006e2a333dab3"
+      },
+      {
+        "bytes": 25972,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/driver.log",
+        "sha256": "abbcffafe54a18c4e1791dbbe7eb9f9e19971ca371b831693713bb14c8a06118"
+      },
+      {
+        "bytes": 427,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/fmt.json",
+        "sha256": "df8f625b2e4acba436c080c02242ac02af8a2ffc7549dce3438f0fa95613bc7d"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 601,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/mechanical.json",
+        "sha256": "547c6340c00535b89b366418b6e91fe256368c1be4eb2095499f3ec12c559aa9"
+      },
+      {
+        "bytes": 1105,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/mechanical.log",
+        "sha256": "83a250f072ffd9e6e55ba64c4b2eca0020f5c340d1dfbf76b7f4282662ff0ccf"
+      },
+      {
+        "bytes": 627,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/publication.json",
+        "sha256": "86f951e439a6d71c60da6382fd437bd5aa3ad0a1187fad2c612a6de555d99fb0"
+      },
+      {
+        "bytes": 474,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/publication.log",
+        "sha256": "48b77c3a2fa81e0320f71006e2453fa8051e3926c1c0694dea0e275abd1bc0e9"
+      },
+      {
+        "bytes": 648,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/release.json",
+        "sha256": "35d308674dda3bac331c007fc2b14ae49a22dcde8c938362b3bf4144a965a8c6"
+      },
+      {
+        "bytes": 283,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/release.log",
+        "sha256": "329e367628ff99ecd8feb7259cb4a82240fb1570fb0a9343332450c64ae17de1"
+      },
+      {
+        "bytes": 595,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/source.json",
+        "sha256": "f252627e002c96f01566bcc9d8b0ae194b6427a007896719b33d320205372d89"
+      },
+      {
+        "bytes": 1090,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/source.log",
+        "sha256": "4484d46a4eabe489fd14747089c09aed818464e3d67d66af0a2ff7a265c44d6a"
+      },
+      {
+        "bytes": 614,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/strict.json",
+        "sha256": "f495f320c3ba9c69ccd6720e0529747b1fc82a1dac5d29802d59cae963cc51de"
+      },
+      {
+        "bytes": 281,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/strict.log",
+        "sha256": "f205e00832479810a3513858397b6dfa94d31b6535516f4a91d12646c9e180a8"
+      },
+      {
+        "bytes": 524,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/types.json",
+        "sha256": "53de520bcb637d5fb1d70c995ee016ff5b006a719355f8e2d94f2bc545bef8ec"
+      },
+      {
+        "bytes": 11073,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-gates/types.log",
+        "sha256": "83feec51f1406dd975dcf984ea609b2aac454c3f9370d626fb790055a9098702"
+      },
+      {
+        "bytes": 8198,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-native-workflow.json",
+        "sha256": "55a4b493e8270dabcf6ffe57c4010a243fea4331f5ba6f5587fc17359024871d"
+      },
+      {
+        "bytes": 1457,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-pins.json",
+        "sha256": "e18d5c1f72b2820a5cc49867e3c226867736f6d2303beb90e90c8ca07dbfe78c"
+      },
+      {
+        "bytes": 126,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/completion.json",
+        "sha256": "ca9034bae332ee5c65d9fec8097826e15bd1ae34414d4dd17cfdbd5d67e131d9"
+      },
+      {
+        "bytes": 28892,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/manifest.json",
+        "sha256": "ed0fbe929bf1afd4d0a33e6130f19599e29b96caaee1254cd052ab6f9f58f089"
+      },
+      {
+        "bytes": 755133,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/rows.jsonl",
+        "sha256": "058adccc6adfc9e42682899ecd024dbadc330da39376cc1d2f56bccd0b50a8ce"
+      },
+      {
+        "bytes": 411601,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/summary.json",
+        "sha256": "40e5694d9d71c5b6d0b2e298b4fcb783454742e5ff84781b9d6a3adc10d95f51"
+      },
+      {
+        "bytes": 130639,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/2500/block-00/requests/002-warm-restart/candidate/response.json",
+        "sha256": "b29d1b6fbb01450cee88d65dfc469e8a3348b6a887ab855be5aef99a2de86b88"
+      },
+      {
+        "bytes": 132185,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/2500/block-00/requests/003-private-001/candidate/response.json",
+        "sha256": "204454b25e0ed1de0958900c232c871c9f350bd1ab4b3537b5ede32c46808a59"
+      },
+      {
+        "bytes": 130634,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/2500/block-01/requests/002-warm-restart/candidate/response.json",
+        "sha256": "a3a8ca4e2be108fe4b76d960d69a41750e7884d8cd1124eb8aa6560b69362dd8"
+      },
+      {
+        "bytes": 132183,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/2500/block-01/requests/003-private-001/candidate/response.json",
+        "sha256": "d2163691a3e3f0352a0a519ffdc6d9fef6b887493cc909fd569590c76b31b193"
+      },
+      {
+        "bytes": 130719,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/5105/block-00/requests/002-warm-restart/candidate/response.json",
+        "sha256": "deb99ef0f817c8c767f5b5562cd81ca4d21ae648ed2f659411838655d5b507b0"
+      },
+      {
+        "bytes": 132372,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/5105/block-00/requests/003-private-001/candidate/response.json",
+        "sha256": "b17318d46b10c1fdaa788ee7d50c8a66886bbb25d28df369ab8bb05bfb7675fe"
+      },
+      {
+        "bytes": 130708,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/5105/block-01/requests/002-warm-restart/candidate/response.json",
+        "sha256": "aa8816840205f550259bba908e2870e076983fb2fe772e72ce4e170b32a9bff3"
+      },
+      {
+        "bytes": 132358,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retain-receipts/workflow/5105/block-01/requests/003-private-001/candidate/response.json",
+        "sha256": "407e201bfeae9b97a7fc72081211da12f1c9357a99f931d617561ef8c986d65d"
+      },
+      {
+        "bytes": 20320,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/bcf-retained-lifecycle.json",
+        "sha256": "8b833d7e9f2a2d70a2ce4591d040ac3198d6659b81248bcb67737027745bae13"
+      },
+      {
+        "bytes": 5294,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/controllers/restart-epoch-analyze-01.py",
+        "sha256": "5386a92873362fbd47b3d38e1e796084b7c310a9db1ab92e34bced2a8f57d6b2"
+      },
+      {
+        "bytes": 4020,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/controllers/restart-epoch-finalize-01.py",
+        "sha256": "5efde4212b9ecae7cf86013a6f9f402080a4504793e92a7fec14e426033ffb4d"
+      },
+      {
+        "bytes": 3404,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/controllers/restart-epoch-gates-01.py",
+        "sha256": "1b591fdf3a057bbde78fc419614910b3c1954d48eb11b013128d078a2cb11254"
+      },
+      {
+        "bytes": 3647,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/controllers/restart-function-chain-gates-02.py",
+        "sha256": "04de0d566890e56a8adc4ed436d6d5dd7d8f3669713ccb9e1aaf282e13c499d8"
+      },
+      {
+        "bytes": 3656,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/controllers/restart-function-chain-gates-04.py",
+        "sha256": "61c34ff396fd4c47a3e233f6dbb2e7919e6c926876cadf9e40097c38956a6e6b"
+      },
+      {
+        "bytes": 3656,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/controllers/restart-function-chain-gates-05.py",
+        "sha256": "d4a3460d511a31ce1ad03e7f620665d42ce1b1d723123dc48be61a29c1600313"
+      },
+      {
+        "bytes": 3449,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/controllers/restart-function-gates-01.py",
+        "sha256": "a4b10db769b2f007ae46bd7524b33b703b462ede8ae4794abc60e352a93dd9a2"
+      },
+      {
+        "bytes": 2400,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/current-acceptance.json",
+        "sha256": "f0d657caf050ab37536e853c1e9adc4acd48f88059b379b4ad3a8a2a6e73757f"
+      },
+      {
+        "bytes": 892,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/driver-rollback-failure-4c82f4485/binding.json",
+        "sha256": "0620507a831cd1ff08e62c33c19ab544fc4d46ed31d113f83812f0845b0825f7"
+      },
+      {
+        "bytes": 87,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/driver-rollback-failure-4c82f4485/completion.json",
+        "sha256": "0b8467434d74a4790990a7f80ab91d67c0407c3302f848e86178a849034ea281"
+      },
+      {
+        "bytes": 573,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/driver-rollback-failure-4c82f4485/driver.json",
+        "sha256": "e153334d83a9350d025df1fc5e155693305c8823239b63abb785e2d27e403314"
+      },
+      {
+        "bytes": 77423,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/driver-rollback-failure-4c82f4485/driver.log",
+        "sha256": "f886ca6b4c5578680a987b664478d530ba1221a298aee789ece2b978fad33d9b"
+      },
+      {
+        "bytes": 635,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/driver-rollback-failure-4c82f4485/mechanical.json",
+        "sha256": "814c5ffaf6e9403b278eeeab54e8c1730814d91f995ccdd1ba84e39dcca40adc"
+      },
+      {
+        "bytes": 281,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/driver-rollback-failure-4c82f4485/mechanical.log",
+        "sha256": "f37f6e3b081a2d55cb608d69fb4d6fc5e6b52bebced50ee4b55a53ecf17224c6"
+      },
+      {
+        "bytes": 524,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/driver-rollback-failure-4c82f4485/types.json",
+        "sha256": "002a1f01dc97ca38f475ab2431de7b11d45ad450c27bb4912d085f3853ec36a9"
+      },
+      {
+        "bytes": 11359,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/driver-rollback-failure-4c82f4485/types.log",
+        "sha256": "5b9acff5b65cd2f1f81bcc4fb673c633ab60db83b5583df4fdf2907721f7f480"
+      },
+      {
+        "bytes": 892,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/binding.json",
+        "sha256": "c6f7e3539413afe95e512534e21506f729abdce4cc0ebae8c0cdc10500bfd60a"
+      },
+      {
+        "bytes": 86,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/completion.json",
+        "sha256": "0d5973263a75c2ff47de1a3cfb7493e97946882bf7ae63e97518b27c66d32f8e"
+      },
+      {
+        "bytes": 566,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/driver.json",
+        "sha256": "10ec7a5d20c8e2123d23ab415ca8c6fc175a91a1ad1b2fbe14a01baa3e445221"
+      },
+      {
+        "bytes": 26182,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/driver.log",
+        "sha256": "b8b4190512535d41e5eeb37aa6ab8a183c212797a6b5d060b28e6813741eb3b8"
+      },
+      {
+        "bytes": 427,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/fmt.json",
+        "sha256": "a2172f7c668c5e797bf0a669bb17fa21152e8ab292256d95215b8038531ecd14"
+      },
+      {
+        "bytes": 0,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 635,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/mechanical.json",
+        "sha256": "d5b8ea77655d20605f38ed4170de46660169def7a03e1e31401342f7b9ec7294"
+      },
+      {
+        "bytes": 281,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/mechanical.log",
+        "sha256": "efafbc113270e63a68c99d858bd9f2a67c27bf8e935ee493c62d49e3cb267950"
+      },
+      {
+        "bytes": 627,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/publication.json",
+        "sha256": "cc8aa80b7800133800446526b6c486eb3c2fb53b372bc9547e098b181a5cefef"
+      },
+      {
+        "bytes": 474,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/publication.log",
+        "sha256": "8af9ccf72d06bb7c0b85a28b4eb7a91b7ffb9d57062cf60a8294c1be3c36aac5"
+      },
+      {
+        "bytes": 648,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/release.json",
+        "sha256": "e0fd4f9f82f3794b9da42947d4ec658147599ac2cbf2145a0850802b534f7b5f"
+      },
+      {
+        "bytes": 371,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/release.log",
+        "sha256": "6cec054e4c9b97d2a8d489797868dfb93ed637f3a9f233390afe11a666514377"
+      },
+      {
+        "bytes": 595,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/source.json",
+        "sha256": "c2ba5db2816c58791f7f18750ecb8d32218289314b87f8e782f43b95fde85448"
+      },
+      {
+        "bytes": 1090,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/source.log",
+        "sha256": "e42dbc1f7d9fa10cebc4e4bc9b7d9bb5ee782753cf2d2f0c8f203ba90d194978"
+      },
+      {
+        "bytes": 648,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/strict.json",
+        "sha256": "8881396ff2aea6cdfabe1a5e2834811f24cbcaa6259946148e5da27a32242fa9"
+      },
+      {
+        "bytes": 369,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/strict.log",
+        "sha256": "12bf173a96a6b68a86e92787f4b72c094e6210a4638e3a0dad467a8d6f244f2a"
+      },
+      {
+        "bytes": 524,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/types.json",
+        "sha256": "ec82d7fc32db0503481b44689e92d5c8fcb2a2cbaf6efb9ca79895746fbd67e9"
+      },
+      {
+        "bytes": 11359,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/final-gates/types.log",
+        "sha256": "06f4a0b289b7c5d2f7b9609da5b2a98a1101c25a31d3b62c8e438ae02600f429"
+      },
+      {
+        "bytes": 739,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/first-failure-5a324acdd/binding.json",
+        "sha256": "1ce70f61fbc870b2cd0ecbe1132d19e0cda840a17a0609ae839be04bdf54acb3"
+      },
+      {
+        "bytes": 87,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/first-failure-5a324acdd/completion.json",
+        "sha256": "dbdc409c1608b2f2e075501b6cc4738da3eade3a0702b27825358a0fe6f5ea84"
+      },
+      {
+        "bytes": 601,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/first-failure-5a324acdd/mechanical.json",
+        "sha256": "ca8948aaede08425e584c6cd709719a05fb04eb7c3aca80c4eced290ced90e9b"
+      },
+      {
+        "bytes": 281,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/first-failure-5a324acdd/mechanical.log",
+        "sha256": "00763a7d0de790fea34074a720fbf07df36b093cb043d4dba8954f5204462a90"
+      },
+      {
+        "bytes": 531,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/first-failure-5a324acdd/types.json",
+        "sha256": "04bea45a5d0667d0c0912346b053cb1e69fa9332592f1c4b81164757e858d535"
+      },
+      {
+        "bytes": 11991,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/first-failure-5a324acdd/types.log",
+        "sha256": "d9e8d9fcc4a2a24be15306f0f18158f171e89f2606bfdb5d2c4ace2569cc760a"
+      },
+      {
+        "bytes": 743,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/mechanical-failure-d7a978ed8/binding.json",
+        "sha256": "f3fef159db0435fbcd2d0a7376a743211e68b4f01e00ebe09fc279a6ca554c34"
+      },
+      {
+        "bytes": 87,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/mechanical-failure-d7a978ed8/completion.json",
+        "sha256": "6af2d805ee34f5d2d20dfff1b704dfa8eba32923f338c75162e0c898771d3595"
+      },
+      {
+        "bytes": 638,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/mechanical-failure-d7a978ed8/mechanical.json",
+        "sha256": "bbf9b2ee378f7d49106db6b6c28e8ed134519e4a1dd00c7ffd7fab37ebe902f3"
+      },
+      {
+        "bytes": 761,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/mechanical-failure-d7a978ed8/mechanical.log",
+        "sha256": "53c7ce1f974f082389b8ee94bd336d42df2b435a4b8d907df63fa592cb597a05"
+      },
+      {
+        "bytes": 6036,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/published-receipts.json",
+        "sha256": "763df241e9435c5ea7615ba0374cac23edef81dddf760db845bbc838dd3beff8"
+      },
+      {
+        "bytes": 20032,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/restart-cost-astra-design-02.md",
+        "sha256": "20ef526352c992f9bae5f9f0b762b4fad1cc3e3c0eb6498f1e739380fc180331"
+      },
+      {
+        "bytes": 5889,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/restart-epoch-result-audit-01.md",
+        "sha256": "8620258686bc452c36a8c289be72baec43e68cfc62ee4e48357934f4784c88d0"
+      },
+      {
+        "bytes": 16428,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/restart-producer-hydration-astra-review-01.md",
+        "sha256": "3c80220fa6ba6140358b3742e14d58b207870637b7b8d09d31b7f648bd714164"
+      },
+      {
+        "bytes": 4310,
+        "mode": 384,
+        "path": "tools/research/incremental-demand/restart-epoch-reviews-20261116/review.md",
+        "sha256": "77b833abb0081645556597dd1df0785d3fb2b7d9a548c7ed1d0310aed121882a"
+      }
+    ],
+    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "schema": 1,
+    "scope": "Current complete cache restoration chain correctness/release binaries, all first gate failures and read-only reviews; prior bcf original request receipt subset only. No new performance window and not a full bcf cache/artifact backup; SDK18/native-link are fixed V32 dependencies.",
+    "source_commits": {
+      "compiler": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+      "measured": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+      "tools": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a"
+    }
+  },
+  "inventory_sha256": "c62d0eb6999fbb56a8e8b2fbb5518f5014bb0bf94a2983b82e2435b0b7f12b27",
+  "schema": 1,
+  "selectors": [
+    "tools/research/incremental-demand/restart-epoch-reviews-20261116/**",
+    "out/binaries/4a23edc7d06bc18cbed1fb958fdaacd886d9607a/zil",
+    "out/binaries/bcf409b37c5e5733c57376c0b6123b76321574a9/zil"
+  ],
+  "source_root": "/workspace/zil-push-main"
+}

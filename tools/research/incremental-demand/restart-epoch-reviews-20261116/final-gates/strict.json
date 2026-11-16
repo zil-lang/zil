@@ -1,0 +1,28 @@
+{
+  "source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+  "tree": "35116da8321766cf49106143bd699faada166dbc",
+  "command": [
+    "cargo",
+    "clippy",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-cli",
+    "-p",
+    "zil-llvm-api",
+    "-p",
+    "zil-backend-llvm",
+    "--features",
+    "zil-cli/native-products,zil-llvm-api/text-reference",
+    "--all-targets",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "start": "2026-11-16T03:18:20.789591+00:00",
+  "end": "2026-11-16T03:18:32.540129+00:00",
+  "exit_code": 0,
+  "valid": true,
+  "test_results": [],
+  "log_sha256": "12bf173a96a6b68a86e92787f4b72c094e6210a4638e3a0dad467a8d6f244f2a"
+}

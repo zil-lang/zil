@@ -1,0 +1,26 @@
+{
+  "source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+  "tree": "35116da8321766cf49106143bd699faada166dbc",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "zil-types",
+    "--lib"
+  ],
+  "start": "2026-11-16T03:16:53.510086+00:00",
+  "end": "2026-11-16T03:17:07.881495+00:00",
+  "exit_code": 0,
+  "valid": true,
+  "test_results": [
+    [
+      "ok",
+      "110",
+      "0",
+      "0"
+    ]
+  ],
+  "log_sha256": "06f4a0b289b7c5d2f7b9609da5b2a98a1101c25a31d3b62c8e438ae02600f429"
+}

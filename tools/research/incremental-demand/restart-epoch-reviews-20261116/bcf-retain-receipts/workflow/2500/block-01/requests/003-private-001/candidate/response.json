@@ -1,0 +1,3498 @@
+{
+  "elapsed_ms": 350.708458,
+  "request": 2,
+  "session_epoch": 0,
+  "session_cleared": false,
+  "cached_queries": 111,
+  "active_queries": 0,
+  "rss_kib": 270764,
+  "peak_kib": 270764,
+  "report": {
+    "status": "Success",
+    "phase": "link",
+    "diagnostics": [],
+    "artifacts": {
+      "executable": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/user/candidate/program",
+      "llvm": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/user/candidate/program.ll"
+    },
+    "input_fingerprint": "2dc9fca64d0953f807a832b8b23db481b3e41da334c871fa2e28428d769d2340",
+    "seconds": 0.350245427,
+    "cache_hit": true,
+    "commands": [
+      [
+        "/workspace/.zil-environment/native-link-v1/root/lib64/ld-linux-x86-64.so.2",
+        "--inhibit-cache",
+        "--glibc-hwcaps-mask",
+        "",
+        "--library-path",
+        "/workspace/.zil-environment/native-link-v1/root/lib/x86_64-linux-gnu:/workspace/.zil-environment/native-link-v1/root/lib64:/workspace/.zil-environment/native-link-v1/root/usr/lib/x86_64-linux-gnu",
+        "/workspace/.zil-environment/native-link-v1/root/usr/bin/bwrap",
+        "--unshare-user",
+        "--uid",
+        "0",
+        "--gid",
+        "0",
+        "--unshare-pid",
+        "--unshare-net",
+        "--unshare-ipc",
+        "--unshare-uts",
+        "--die-with-parent",
+        "--new-session",
+        "--ro-bind",
+        "/workspace/.zil-environment/native-link-v1/root",
+        "/",
+        "--proc",
+        "/proc",
+        "--dev",
+        "/dev",
+        "--ro-bind",
+        "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/user/candidate/.zil-driver-1165522-1/.zil-build-1165522-1/profile-inputs",
+        "/inputs",
+        "--bind",
+        "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/user/candidate/.zil-driver-1165522-1/.zil-build-1165522-1/profile-outputs",
+        "/out",
+        "--chdir",
+        "/work",
+        "--clearenv",
+        "--setenv",
+        "LC_ALL",
+        "C",
+        "--",
+        "/lib64/ld-linux-x86-64.so.2",
+        "--inhibit-cache",
+        "--glibc-hwcaps-mask",
+        "",
+        "--library-path",
+        "/lib/x86_64-linux-gnu:/lib64:/usr/lib/x86_64-linux-gnu",
+        "/usr/bin/ld",
+        "--hash-style=gnu",
+        "--eh-frame-hdr",
+        "-m",
+        "elf_x86_64",
+        "-pie",
+        "-dynamic-linker",
+        "/lib64/ld-linux-x86-64.so.2",
+        "-o",
+        "/out/program",
+        "/usr/lib/x86_64-linux-gnu/Scrt1.o",
+        "/usr/lib/x86_64-linux-gnu/crti.o",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o",
+        "-L/workspace/.zil-environment/llvm-23.1.4/lib/clang/23/lib/x86_64-unknown-linux-gnu",
+        "-L/usr/lib/gcc/x86_64-linux-gnu/14",
+        "-L/usr/lib64",
+        "-L/usr/lib/x86_64-linux-gnu",
+        "-L/usr/lib64",
+        "-L/usr/lib/x86_64-linux-gnu",
+        "-L/usr/lib64",
+        "-L/usr/lib",
+        "-L/usr/lib",
+        "/inputs/unit-0.o",
+        "/inputs/unit-1.o",
+        "/inputs/unit-2.o",
+        "/inputs/unit-3.o",
+        "/inputs/unit-4.o",
+        "/inputs/unit-5.o",
+        "/inputs/unit-6.o",
+        "/inputs/unit-7.o",
+        "/inputs/unit-8.o",
+        "/inputs/unit-9.o",
+        "/inputs/unit-10.o",
+        "/inputs/unit-11.o",
+        "/inputs/unit-12.o",
+        "/inputs/unit-13.o",
+        "/inputs/unit-14.o",
+        "/inputs/unit-15.o",
+        "-lgcc",
+        "--as-needed",
+        "-lgcc_s",
+        "--no-as-needed",
+        "-lc",
+        "-lgcc",
+        "--as-needed",
+        "-lgcc_s",
+        "--no-as-needed",
+        "/usr/lib/gcc/x86_64-linux-gnu/14/crtendS.o",
+        "/usr/lib/x86_64-linux-gnu/crtn.o"
+      ]
+    ],
+    "native_codegen": {
+      "backend": "llvm-api",
+      "object_reports": [
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 5296,
+          "input_kind": "builder",
+          "preflight_ns": 1855167,
+          "builder_ns": 1902429,
+          "parse_ns": 0,
+          "optimize_ns": 66751112,
+          "emit_ns": 26283308,
+          "total_ns": 97876679,
+          "cache": {
+            "state": "miss",
+            "action_key": "bb75d912fd9be18212e2bdbf16c00163d454d9656a8172d97625946e8f1b4676",
+            "corrupt": false,
+            "key_ns": 90,
+            "lookup_ns": 59059,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 15463,
+          "builder_ns": 33141,
+          "parse_ns": 0,
+          "optimize_ns": 203468,
+          "emit_ns": 539877,
+          "total_ns": 892100,
+          "cache": {
+            "state": "miss",
+            "action_key": "31da8365fc1cfb5b9da1368bb16cf8c0397094c8dbac24af3a941de2d6d80c62",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 19049,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "input_kind": "object-cache",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "pipeline": "default<O2>",
+          "object_bytes": 480,
+          "cache": {
+            "state": "hit",
+            "action_key": "30936ca8e0f2eadc3af05dcade9cad81aa737f10654aa8afeed22d4926c5beb7",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 15103,
+            "current_preflight_ns": 2804
+          },
+          "llvm_verification_this_request": false,
+          "producer_verified_before_after": true,
+          "current_machine_preflight_reused": true,
+          "preflight_ns": 2804,
+          "builder_ns": 0,
+          "parse_ns": 0,
+          "optimize_ns": 0,
+          "emit_ns": 0,
+          "total_ns": 17937
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 67222,
+          "builder_ns": 16645,
+          "parse_ns": 0,
+          "optimize_ns": 65550,
+          "emit_ns": 443931,
+          "total_ns": 658186,
+          "cache": {
+            "state": "miss",
+            "action_key": "c77340a8ee19f908008a961c3ed375a87ebd6189fb8eaf37996f0508bf40161a",
+            "corrupt": false,
+            "key_ns": 130,
+            "lookup_ns": 8943,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 6791,
+          "builder_ns": 14842,
+          "parse_ns": 0,
+          "optimize_ns": 61724,
+          "emit_ns": 426114,
+          "total_ns": 558886,
+          "cache": {
+            "state": "miss",
+            "action_key": "c77340a8ee19f908008a961c3ed375a87ebd6189fb8eaf37996f0508bf40161a",
+            "corrupt": false,
+            "key_ns": 280,
+            "lookup_ns": 4928,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 6760,
+          "builder_ns": 14061,
+          "parse_ns": 0,
+          "optimize_ns": 58949,
+          "emit_ns": 394327,
+          "total_ns": 522961,
+          "cache": {
+            "state": "miss",
+            "action_key": "c77340a8ee19f908008a961c3ed375a87ebd6189fb8eaf37996f0508bf40161a",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 4416,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 8332,
+          "builder_ns": 50657,
+          "parse_ns": 0,
+          "optimize_ns": 58408,
+          "emit_ns": 437933,
+          "total_ns": 602362,
+          "cache": {
+            "state": "miss",
+            "action_key": "c77340a8ee19f908008a961c3ed375a87ebd6189fb8eaf37996f0508bf40161a",
+            "corrupt": false,
+            "key_ns": 220,
+            "lookup_ns": 4267,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 7952,
+          "builder_ns": 14442,
+          "parse_ns": 0,
+          "optimize_ns": 58108,
+          "emit_ns": 750526,
+          "total_ns": 878680,
+          "cache": {
+            "state": "miss",
+            "action_key": "c77340a8ee19f908008a961c3ed375a87ebd6189fb8eaf37996f0508bf40161a",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 4246,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 7211,
+          "builder_ns": 14322,
+          "parse_ns": 0,
+          "optimize_ns": 59810,
+          "emit_ns": 532686,
+          "total_ns": 663474,
+          "cache": {
+            "state": "miss",
+            "action_key": "c77340a8ee19f908008a961c3ed375a87ebd6189fb8eaf37996f0508bf40161a",
+            "corrupt": false,
+            "key_ns": 20,
+            "lookup_ns": 4547,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 5278,
+          "builder_ns": 14371,
+          "parse_ns": 0,
+          "optimize_ns": 59671,
+          "emit_ns": 463181,
+          "total_ns": 589943,
+          "cache": {
+            "state": "miss",
+            "action_key": "c77340a8ee19f908008a961c3ed375a87ebd6189fb8eaf37996f0508bf40161a",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 4387,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 6239,
+          "builder_ns": 14282,
+          "parse_ns": 0,
+          "optimize_ns": 57146,
+          "emit_ns": 386024,
+          "total_ns": 509561,
+          "cache": {
+            "state": "miss",
+            "action_key": "c77340a8ee19f908008a961c3ed375a87ebd6189fb8eaf37996f0508bf40161a",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 4316,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 7501,
+          "builder_ns": 14552,
+          "parse_ns": 0,
+          "optimize_ns": 57527,
+          "emit_ns": 385554,
+          "total_ns": 550493,
+          "cache": {
+            "state": "miss",
+            "action_key": "c77340a8ee19f908008a961c3ed375a87ebd6189fb8eaf37996f0508bf40161a",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 4106,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 6019,
+          "builder_ns": 15604,
+          "parse_ns": 0,
+          "optimize_ns": 84668,
+          "emit_ns": 689152,
+          "total_ns": 895365,
+          "cache": {
+            "state": "miss",
+            "action_key": "c77340a8ee19f908008a961c3ed375a87ebd6189fb8eaf37996f0508bf40161a",
+            "corrupt": false,
+            "key_ns": 260,
+            "lookup_ns": 6189,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 5829,
+          "builder_ns": 14772,
+          "parse_ns": 0,
+          "optimize_ns": 103286,
+          "emit_ns": 487198,
+          "total_ns": 663645,
+          "cache": {
+            "state": "miss",
+            "action_key": "c77340a8ee19f908008a961c3ed375a87ebd6189fb8eaf37996f0508bf40161a",
+            "corrupt": false,
+            "key_ns": 20,
+            "lookup_ns": 6169,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 6650,
+          "builder_ns": 14202,
+          "parse_ns": 0,
+          "optimize_ns": 112791,
+          "emit_ns": 421057,
+          "total_ns": 610684,
+          "cache": {
+            "state": "miss",
+            "action_key": "c77340a8ee19f908008a961c3ed375a87ebd6189fb8eaf37996f0508bf40161a",
+            "corrupt": false,
+            "key_ns": 121,
+            "lookup_ns": 4797,
+            "current_preflight_ns": 0
+          }
+        },
+        {
+          "backend": "llvm-api",
+          "llvm_version": "23.1.4",
+          "triple": "x86_64-unknown-linux-gnu",
+          "cpu": "x86-64",
+          "features": "",
+          "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+          "pipeline": "default<O2>",
+          "relocation": "PIC",
+          "code_model": "default",
+          "verify_before_after": true,
+          "object_bytes": 480,
+          "input_kind": "builder",
+          "preflight_ns": 5589,
+          "builder_ns": 14362,
+          "parse_ns": 0,
+          "optimize_ns": 60261,
+          "emit_ns": 529692,
+          "total_ns": 658307,
+          "cache": {
+            "state": "miss",
+            "action_key": "c77340a8ee19f908008a961c3ed375a87ebd6189fb8eaf37996f0508bf40161a",
+            "corrupt": false,
+            "key_ns": 30,
+            "lookup_ns": 5068,
+            "current_preflight_ns": 0
+          }
+        }
+      ],
+      "final_artifact": null,
+      "object_cache": {
+        "requested": true,
+        "enabled": true,
+        "hits": 1,
+        "misses": 15,
+        "corrupt": 0,
+        "stored": 15,
+        "write_failures": 0,
+        "key_ns": 1381,
+        "lookup_ns": 159590,
+        "current_preflight_ns": 2804,
+        "object_hit_preflight_checked_units": 0,
+        "object_hit_preflight_reused_units": 1,
+        "disabled_reason": null
+      },
+      "requested_units": 16,
+      "actual_units": 16,
+      "jobs": 1,
+      "fallback": null,
+      "task_abis": [],
+      "timings": {
+        "machine_ns": 61178850,
+        "partition_ns": 68001305,
+        "diagnostic_ns": 7354636,
+        "object_ns": 111888273,
+        "link_key_ns": 373445,
+        "link_execution_ns": 18960370,
+        "other_ns": 825628,
+        "total_ns": 268582507
+      },
+      "link_tool_identities": {
+        "full_identity_executions": 0,
+        "metadata_reuses": 0,
+        "hashed_fallback_bytes": 0
+      },
+      "call_classes": {
+        "eligible_functions": 2500,
+        "equivalence_classes": 127,
+        "rewritten_calls": 2373,
+        "scope": "completed transformed graph; retained on transform reuse"
+      },
+      "closed_prune": {
+        "fresh_original_units_checked": 16,
+        "full_input_cached_units": 0,
+        "fresh_removed_definitions": 2684,
+        "retained_removed_definitions": 0,
+        "scope": "post-internalization local pruning; current API preflight remains separate"
+      }
+    },
+    "native_product_selection": {
+      "enabled": false,
+      "reason": "below-minimum-average-lir-work",
+      "functions_scanned": 2505,
+      "body_functions_counted": 2503,
+      "blocks_scanned": 2506,
+      "lir_instructions_counted": 41372,
+      "minimum_average_lir_instructions": 64,
+      "counts_saturated": false,
+      "scope": "current-lir-lengths; optional capture policy, not authorization"
+    },
+    "disk_cache": "missing",
+    "query_events": [
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "executed"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "parse",
+        "disposition": "reused"
+      },
+      {
+        "phase": "expand",
+        "disposition": "executed"
+      },
+      {
+        "phase": "ct",
+        "disposition": "executed"
+      },
+      {
+        "phase": "types",
+        "disposition": "executed"
+      },
+      {
+        "phase": "analyze",
+        "disposition": "executed"
+      },
+      {
+        "phase": "verify",
+        "disposition": "executed"
+      },
+      {
+        "phase": "lower",
+        "disposition": "executed"
+      },
+      {
+        "phase": "link",
+        "disposition": "executed"
+      }
+    ],
+    "verification_runs": 1,
+    "source_files": {
+      "0": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/main.zil",
+      "1": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/io.zil",
+      "2": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m0.zil",
+      "3": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m1.zil",
+      "4": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m2.zil",
+      "5": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m3.zil",
+      "6": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m4.zil",
+      "7": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m5.zil",
+      "8": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m6.zil",
+      "9": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m7.zil",
+      "10": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m8.zil",
+      "11": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m9.zil",
+      "12": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m10.zil",
+      "13": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m11.zil",
+      "14": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m12.zil",
+      "15": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m13.zil",
+      "16": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m14.zil",
+      "17": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m15.zil",
+      "18": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m16.zil",
+      "19": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m17.zil",
+      "20": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m18.zil",
+      "21": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m19.zil",
+      "22": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m20.zil",
+      "23": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m21.zil",
+      "24": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m22.zil",
+      "25": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m23.zil",
+      "26": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m24.zil",
+      "27": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m25.zil",
+      "28": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m26.zil",
+      "29": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m27.zil",
+      "30": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m28.zil",
+      "31": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m29.zil",
+      "32": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m30.zil",
+      "33": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m31.zil",
+      "34": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m32.zil",
+      "35": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m33.zil",
+      "36": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m34.zil",
+      "37": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m35.zil",
+      "38": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m36.zil",
+      "39": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m37.zil",
+      "40": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m38.zil",
+      "41": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m39.zil",
+      "42": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m40.zil",
+      "43": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m41.zil",
+      "44": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m42.zil",
+      "45": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m43.zil",
+      "46": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m44.zil",
+      "47": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m45.zil",
+      "48": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m46.zil",
+      "49": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m47.zil",
+      "50": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m48.zil",
+      "51": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m49.zil",
+      "52": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m50.zil",
+      "53": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m51.zil",
+      "54": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m52.zil",
+      "55": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m53.zil",
+      "56": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m54.zil",
+      "57": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m55.zil",
+      "58": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m56.zil",
+      "59": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m57.zil",
+      "60": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m58.zil",
+      "61": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m59.zil",
+      "62": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m60.zil",
+      "63": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m61.zil",
+      "64": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m62.zil",
+      "65": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m63.zil",
+      "66": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m64.zil",
+      "67": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m65.zil",
+      "68": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m66.zil",
+      "69": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m67.zil",
+      "70": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m68.zil",
+      "71": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m69.zil",
+      "72": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m70.zil",
+      "73": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m71.zil",
+      "74": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m72.zil",
+      "75": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m73.zil",
+      "76": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m74.zil",
+      "77": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m75.zil",
+      "78": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m76.zil",
+      "79": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m77.zil",
+      "80": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m78.zil",
+      "81": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m79.zil",
+      "82": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m80.zil",
+      "83": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m81.zil",
+      "84": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m82.zil",
+      "85": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m83.zil",
+      "86": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m84.zil",
+      "87": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m85.zil",
+      "88": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m86.zil",
+      "89": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m87.zil",
+      "90": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m88.zil",
+      "91": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m89.zil",
+      "92": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m90.zil",
+      "93": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m91.zil",
+      "94": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m92.zil",
+      "95": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m93.zil",
+      "96": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m94.zil",
+      "97": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m95.zil",
+      "98": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m96.zil",
+      "99": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m97.zil",
+      "100": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m98.zil",
+      "101": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m99.zil"
+    },
+    "scalar_interfaces": [
+      {
+        "module": 0,
+        "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+        "implementation_fingerprint": "ba279feb99bffc9e73309439867d5edb34143182c6cf6b59886ba9e94fdd297f",
+        "contract_fingerprint": "94c98aa6229e0b9297d4545d16a511519da7749b8ac0856b1949b72591ebdb6c",
+        "result_origins": [],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": []
+      },
+      {
+        "module": 1,
+        "signature_fingerprint": "6a176340a37af269d79b44ea753f9fb97a6b1927aea04ebdd0bccf276ce4592e",
+        "implementation_fingerprint": "ff0523cbcc596d96efafd5361c91d7482ca52e9f8eee8ca611a486045328d89d",
+        "contract_fingerprint": "b348366ec2992b3c0876958b09de94c08f910e8a8d508672f85337ffd6552a03",
+        "result_origins": [
+          {
+            "name": "emit",
+            "parameters": [],
+            "static_storage": false
+          },
+          {
+            "name": "read",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "emit",
+          "read"
+        ]
+      },
+      {
+        "module": 2,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "3ebbe845924214cf69c176f160d134890fe166c064fe1791239fa7abf5625f71",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 3,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "a5df8f0e70e747a1c592a3e3198182d22260ac4d42fef232c4611954e4610089",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 4,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "cf3d423b3917b772ffa22c613cd89b4294ec5f2718dd6f5c64b30c96aa63d0a7",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 5,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "1d2351aaf46d34781769e95b9b56dd32164735c8e037f17841d5db4e851fb635",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 6,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "8eb63af3ecfc58d2ea1643cca27190a85c0ebf3e6efe90438819c666e2eea2fb",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 7,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "ee6ca8bfed9441e34b93060d2a4d7565bb4301e9f9006e00fcda2d4d027a4560",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 8,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "0f93975df4a207053c8a3568ddd16eacba680e4a762cb803ddcb6f34a6f0146c",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 9,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "081865262b619476fe9e496eeee227a246ed384f4a9d975d7b02449b896531a0",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 10,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "ae4509eecb43d899832d725e254fc9df338d3845fb7cb2cea6753c6677d34e4b",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 11,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "3949ca9544c8455a1da14901429d0d0da71003235feff7ac0642edb0c1158d9c",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 12,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "8adf5020e2faffcd1201d91b2fd54f926422378fac3c42aa314090a43fa5c7db",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 13,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "09c5da815f2507e8c69728e4f8b9641c3ba34ea84872b1069ce523502c54341c",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 14,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "098f1e63b1b9b017516d0ea7466f417beec1237763108f596697bb038a5370bf",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 15,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "e24881dd8481a47d13561c302f673ae4f9fb6bc31300f3d0633879cf18808f8a",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 16,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "86f70a050ff3b9e740eccf2b9c7674bb40c18c2afe044cd468985cc3ae36da0b",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 17,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "870724253ad599f23dd79c84665e9b50140f40e8ac9b80ee4a1b0863b02be34e",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 18,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "417da5eb6c53eec3d94568fef9148863ce64fb451b1948312a740ae9337a7bd0",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 19,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "cc21fe15f11483e355aaa4cc493b79517710d6cf18cedf9e779f10dd4a13e998",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 20,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "617e381392428cdcd644c4b4868b3e21bac5fd671587ad1f8ed1562574a8a543",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 21,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "644942a7d8c054225a3178fbae70ddeff5d0a8eb52783ae0f1721e6fbbffaaeb",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 22,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "c9d361210ab8e50423a00cda655abbc83306e63853f9ed52031f80bbcbe69280",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 23,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "830aac5c12df92a088139c506b4136f87669c309d3eda7056ee0d780ce69b594",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 24,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "2937c48bfd2058c1faa490bda1b546e23e9e86f2ffd122b58cb479975789710a",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 25,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "e9d9e27cfe72a4573fce68c78e727a5c31f28826e7237645e1b74e91168fdbf1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 26,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "b6cec8fde4516a4502c6e39a25ce543f3c31ec0f77e6e934b73ce99b88f25b1d",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 27,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "c5ca9dfb7f14c44c0c3e6fa8e42b1afec44512fe9fd646b097fd113a655eb4e9",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 28,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "977f7013408a68ac5716c924bb2707a0b3f7790ba0cd53eb776d969716d23cbb",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 29,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "43d65b8d96a750e0f5acfa2d1197edf3055c26d73933bd0a10ba8a7580557f1a",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 30,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "e6f88d265b2b2c08eade06a104c499896ef26be59963bf6adc84dda43c57f136",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 31,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "ed3c46f5a40866be79dea41d82611e1be5ac153bfa3f5d8ecb7150760b1b4c3a",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 32,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "3055b08e42c8a3342b3de1afe270aa2fb0af990db2f9bfbf6c1881e13422647a",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 33,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "ade172f83244e46f410bc4b4c718285bff1f14222e169410b7d67ba1b78dd464",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 34,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "f07cb9f610598995e64bcbceb6e60019d86b9e5d70f8aad3d53ba75f03e8c470",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 35,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "bf13fe2709f679b4ece29151da5755ffa9741ab40c88fa45ee3ab243158a6299",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 36,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "bf73857e418f7747fc7ba619922a20e4512c471f4149e256e3fdae1fc243254e",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 37,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "e33d778feb74dd8c5e2d8876ae776d9f986d9b9eee9d1ded0d690668cf177962",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 38,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "b8a19030f0ce3b2b7db0fe1a6a889b9a7ee8205338f97660f8c6081bc1e1a36a",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 39,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "abeb8e871faebde76e04dcf1679990c737c568b89b7b4df5e02fb5671b8b7279",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 40,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "9a3ef57a0249dd106ef6cdd75fbf96705cf22b18c83493b63350bef55fcb36a1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 41,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "645ad89489575b04c9f865cda0d19c30bdd555cdbef41be86ef1650ca512b875",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 42,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "a4fe3f09f844bdcb51e77f249bce8c215e60084b44ff09245c5babb2ff648691",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 43,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "53d9f133803aef57f94bc3b16c33940b7a520cccd774fc5bf62d3d2fd964c137",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 44,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "db5cfc35f94bf389b1aab8b6133a67070a05ac0d45cac7a818b9e838df2e8fec",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 45,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "4d4ea619dd60702ba3423c2ee3c8efcef8f18e973f95ba942fa44b86564f6233",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 46,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "19ffbf9ce5b7c0c7a7442f74fda7a64bab7d3659a106df23f435095651800412",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 47,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "760332a57228774b414da57b0ec8a638a992ed1f28031639bf5eefaddcdbf150",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 48,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "3436269e35a6555e94ee39a743698d44bd23ab6fbe5170c877690ebc6bcb5746",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 49,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "54ee997da425920eb9a8f8ceac21082c78c50906c57b3c87cd688bf45fe03df5",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 50,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "81f5a67f5ba272b2a74e1076241f3a3978ee3faa30a8d303061abdae9640f88f",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 51,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "cc182ac11075353bc7ccb7ecbee2ca1bcee757ed28eb6ad3fffe0a1780f324a6",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 52,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "5337419d07500d744615f8b06e84f37c622b4cce203d020624dbadd358e57328",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 53,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "43bf2255cabf2087a14e51e673e8ed63d7dd1dc5acbc43f1c6166073bdbc2ac0",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 54,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "4b3ce78817319c3e9816c2b5f676623021cdd37828af79f7596ffbb416df2285",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 55,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "b7dbae5399600b59b1ffa62cd5e8771a03da41d514595dcb2e628e1d95f6a029",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 56,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "92143b6a4d8f94c044268be64b2675bfaa53797e089ed45e6ba4f9e3dccf49c1",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 57,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "b954df3a8631db6d588ec88b55ec3c1d9d5f12467ee05b8812eb3128422e9453",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 58,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "bd46864e51876e13ea77e8fde1e0ac22fe07de1aec89e52a32c01467f00f2164",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 59,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "6f17465e078d2efac9ca0c0ec012d028a5616f73f1169b82c939050d68fc6dd6",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 60,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "0214739a7882ff418f3f9b8df925c3029d101cf14b8e31814804f52ef715f101",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 61,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "fbee15d96a65c7f0539dab9b9d8ab454e73ab06c547a58a35a8d6a5339be0d0c",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 62,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "107630fbb6b8bd6ecf148b66b686c82f884bc45c4c6b1d6ba68c2c5900eaea04",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 63,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "dd6737b87e59f20fb4fc47a49099e88f4f0ae6667a081a08cacb01f366fcce3a",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 64,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "7ececcceae12433c6c5024dc0bf27599afea77bc012da72d93af30274e7f1da5",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 65,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "889bc21ebe79d9da61e768c0bb78d8ff1b38c7589082d567e7b55ed9fba5b218",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 66,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "af86da7a03c114adec0ac547f9723f81ac993ec910142009650c73976edecea6",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 67,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "84559a8a392902c8a334465ea70dcb220c8c8c492bd0149e9eb98bd4b2b23805",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 68,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "52e8d4b7d8f08380c5197b19e5a71bff31191f3041dd88ba721ae117460bfb46",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 69,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "34561e5f52290fb9e5ec229a8d04f5e7a65610d9876d1af05a2147dcd20baa93",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 70,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "97c4c858c4a07f5367cc4c1ed23ea48ca19b520deb1aae93acebb59622a0afde",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 71,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "90e655e0749b69ef00f0c283446f2dcdb4705845ab93929460aafa5e9da78915",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 72,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "d7f16f57632df4a7fe331f73d1f8f3a2c22fc20dfdf9b1498246e0cb32238a30",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 73,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "11c538bb7cb11828e7a2cc406a83e3b0d312193c46cd894ee02966c4d3a00a16",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 74,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "740bdd98785378fa31d4a07434fa4db6bc4af1ee6ea54e0d47df96845325c7f2",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 75,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "3c8c1a526428a50bdc5c763b2d69367025d08e9fa1afcfa03029c830dcd5deb5",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 76,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "79a685dfe671029beeb052fbf986508b6c20ddac7079476153c95b1d8f142157",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 77,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "91f3e3ab090335ee6bcdf1ca9572c8b28c6173b47189cb367f9ed963ffe70865",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 78,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "a0e5c9c5cf830a52c8871689d5adbe557e9371eb6f2aad1a899dfe0e74a3c90b",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 79,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "53e6669a7af34261753963d269a87a8c631d7729a4485f2a1f4ae7347273a96a",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 80,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "600532143724d445fce84625a249bfa6025dfc7e5ba2258974768b34a1d4fceb",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 81,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "c18ecf903274a0f390c58603726be2d4962b201c9d70ee624832d53482353bb6",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 82,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "4edc9f6ea3bb98cde211b93766a60d426e31d8ae68e3877684c9803dc6aa8276",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 83,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "ac7389aa79cc1663ebd84fefcd454909b7e328623f834b821a5245c7e328c4b5",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 84,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "928a5618dfd34e609096d70866a0aa5bf610252959960a350a975e9a0633c723",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 85,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "fcb4f76f005acc3610acd09386b68912e745dbd435414e0b6ee67d9aaf4be920",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 86,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "280f34dd152feaf8c641ab34040d40f71d766a07ee6c7aae499c9713f63ea563",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 87,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "cf9188400e9d2aa5701255f50fcf6428d8916f28ff846e6f05c28ce56a5cb12a",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 88,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "e67cacb623512fdd0cc253e3d65c629ca405e6925a59fdd25f6dc5e70021d31b",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 89,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "6a53b17c24181b7f93c78a4435be1aaaede2ce1b9a886587330462001533d0ce",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 90,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "b23b8f0fa760946af1a834a34e9e62efb72602b1d197c0a5c80f888d05c15d33",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 91,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "637ed723f20043bd1b6a83b2a791e35b52165a73abb42275fd8f358988c96171",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 92,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "dca22dce61a9cf018cd05005a0eefe36b6cf8281d44d8aad85b05bd2a9d52c62",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 93,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "dc0d0783bd8d1c5cc8bba072231c9db9f3a8aa25f681707273749ebf672e27ef",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 94,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "cb0dc2d0f3125ad99b2461be8d4528ccc64de3d1952ccb39ff00843d5ecd994f",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 95,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "dbfba8fb8619ccaea411c3c18ac70d5dc11487fba25c2b7fe26172ef0a62e59b",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 96,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "b459e009f44337994f27ceb38e2a74710b2938026be4c6ba70af8d540d3775e2",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 97,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "2a93ee378cb1fbd09aa70233ee00a884e34d20aa39be22ff4f1d4ea01a9bbb17",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 98,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "cdb3d60ac5f491df064daa910373a73ea8c75854ff1c99f77a64a7eeae86e4a9",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 99,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "a55f8172ef0403ed3defef72663c11a86a153c5bfe8103e7e35cfc53ae818c8b",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 100,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "21dde767b613cbbe4ec875c69ed65c89aa3d07cee38f9a8d6affec3235f0f0ae",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      },
+      {
+        "module": 101,
+        "signature_fingerprint": "6314ad93f5769557ec595892f98be5be8e50efc9f56e94f1fc216acdc242437d",
+        "implementation_fingerprint": "127a903921abdd30f6cfb8a350f78c14d17793e190745f341ca13ff67b678928",
+        "contract_fingerprint": "8c21b0dab284bb9d7680883eb2fc1736109be2f65bd2f2c1edd02f8cbf41ba69",
+        "result_origins": [
+          {
+            "name": "value",
+            "parameters": [],
+            "static_storage": false
+          }
+        ],
+        "callable_contracts": [],
+        "callable_returns": [],
+        "exports": [
+          "value"
+        ]
+      }
+    ],
+    "frontend_stats": {
+      "function_types": null,
+      "initialization": {
+        "executed_functions": 0,
+        "reused_functions": 1,
+        "retained_queries": 6,
+        "candidate_reused_functions": 2504,
+        "candidate_executed_functions": 1,
+        "equal_function_results": 2505,
+        "changed_function_results": 0,
+        "shared_program_reuses": 0,
+        "initialization_inputs_built": 0,
+        "candidate_inputs_built": 0,
+        "dependency_signatures_checked": 0,
+        "resource_transfers_executed": 0,
+        "resource_transfers_reused": 0,
+        "retained_candidate_queries": 2505,
+        "product_admission_functions_checked": 1,
+        "product_function_queries_executed": 1,
+        "product_function_queries_reused": 2504,
+        "product_global_obligations_executed": 0,
+        "product_global_obligations_reused": 1,
+        "product_plan_rows_replaced": 0,
+        "product_semantic_functions_compared": 1,
+        "product_relocated_function_bindings": 0
+      },
+      "producer": {
+        "admission_classifier_hits": 1,
+        "fused_distributed_items": 2505,
+        "classified_modules": 0,
+        "rebound_scalar_modules": 0,
+        "rebound_frontend_modules": 0,
+        "rebound_restored_item_deep_clones": 0,
+        "rebound_core_function_deep_clones": 0,
+        "rebound_source_map_validations": 0,
+        "classifier_nodes": 0,
+        "preflight_modules": 1,
+        "normalize_modules": 1,
+        "plain_prepare_modules": 1,
+        "plain_lifetimes_modules": 1,
+        "restore_modules": 1,
+        "lower_modules": 1,
+        "reused_lower_modules": 101,
+        "reused_lower_items": 24,
+        "executed_lower_items": 1,
+        "copied_lower_map_entries": 392,
+        "receipt_hits": 10242,
+        "receipt_nodes": 295992,
+        "receipt_budget_misses": 0,
+        "lower_budget_misses": 0,
+        "visited_nodes": 605,
+        "syntax_clone_receipt_nodes": 12,
+        "normalized_item_deep_clones": 1,
+        "normalized_recipe_hits": 2504,
+        "normalized_materializations": 0,
+        "normalized_reconstruction_nodes": 0,
+        "normalized_reconstruction_work": 0,
+        "owned_restore_items": 1,
+        "plain_header_items": 1,
+        "restored_module_deep_clones": 0,
+        "retained_normalized_items": 2504,
+        "retained_restored_modules": 101,
+        "retained_restored_items": 24,
+        "restored_item_deep_clones": 0,
+        "retained_lower_cores": 101,
+        "retained_lower_source_maps": 101,
+        "cloned_source_map_entries": 0,
+        "cloned_source_bytes": 0,
+        "function_input_hashes": 1,
+        "function_input_reuses": 2504,
+        "function_input_text_comparisons": 25,
+        "function_input_binding_hashes": 1,
+        "context_ns": 0,
+        "production_ns": 0,
+        "reuse_ns": 0,
+        "assembly_ns": 0,
+        "total_ns": 0,
+        "environment_cold": 0,
+        "environment_source_layout_changed": 0,
+        "environment_headers_changed": 0,
+        "environment_imports_changed": 0,
+        "environment_target_changed": 0,
+        "environment_context_changed": 0,
+        "env_limit_max_source_bytes_changed": 0,
+        "env_limit_max_tokens_changed": 0,
+        "env_limit_max_nodes_changed": 0,
+        "env_limit_max_functions_changed": 0,
+        "env_limit_max_blocks_changed": 0,
+        "env_limit_max_instructions_changed": 0,
+        "env_limit_max_locals_changed": 0,
+        "env_limit_max_values_changed": 0,
+        "env_limit_max_analysis_steps_changed": 0,
+        "env_limit_max_ct_steps_changed": 0,
+        "env_limit_max_call_depth_changed": 0,
+        "allowance_work_increase": 0,
+        "allowance_work_decrease": 0,
+        "allowance_nodes_increase": 0,
+        "allowance_nodes_decrease": 0
+      },
+      "materialization": {
+        "executed_modules": 1,
+        "reused_modules": 101,
+        "cloned_modules": 1,
+        "receipt_budget_misses": 0
+      }
+    },
+    "source_ingress": null,
+    "frontend_dependency_reads": null,
+    "function_cache_encoding": null,
+    "function_cache_publication": null,
+    "semantic_cache_publication": null,
+    "verification_work": {
+      "full_receipts_reused": 0,
+      "function_proofs_checked": 1,
+      "function_proofs_reused": 2502,
+      "instruction_proofs_reused": 34054,
+      "empty_borrow_proofs_checked": 1,
+      "empty_borrow_proofs_reused": 2504,
+      "empty_borrow_values_avoided": 26237,
+      "raw_shape_functions_checked": 0,
+      "raw_shape_functions_reused": 1,
+      "raw_inventory_functions_checked": 1,
+      "raw_inventory_functions_reused": 2504,
+      "raw_shape_functions_aggregated": 2504,
+      "raw_shape_ranges_reused": 12,
+      "raw_result_modes_checked": 1,
+      "raw_result_modes_reused": 2504,
+      "resource_inventory_functions_checked": 0,
+      "resource_inventory_functions_reused": 2505,
+      "resource_inventory_ranges_reused": 13,
+      "foreign_functions_selected": 2,
+      "foreign_functions_not_visited": 2503,
+      "environment_functions_selected": 0,
+      "environment_functions_not_visited": 2505,
+      "region_functions_checked": 1,
+      "region_functions_reused": 2502,
+      "lexical_cleanup_functions_checked": 1,
+      "lexical_cleanup_functions_reused": 2502,
+      "closure_instance_functions_checked": 0,
+      "closure_instance_functions_reused": 2505,
+      "closure_instance_ranges_reused": 13,
+      "raw_function_headers_reused": 2505
+    },
+    "backend_work": {
+      "lowered_functions": 1,
+      "reused_functions": 2504,
+      "reused_machine_module": false,
+      "whole_machine_input_functions_compared": 0,
+      "reused_machine_transforms": false,
+      "reused_partition": false,
+      "reused_object_keys": 1,
+      "reused_link": false,
+      "rendered_diagnostic_items": 102,
+      "reused_diagnostic_items": 2406,
+      "reused_partition_recipe": false,
+      "reused_partition_units": 0,
+      "rebuilt_partition_units": 16,
+      "reused_partition_items": 2569,
+      "rebuilt_partition_items": 393,
+      "representation_functions_checked": 1,
+      "representation_functions_reused": 2504,
+      "scoped_thread_functions_checked": 1,
+      "scoped_thread_functions_reused": 2504,
+      "source_projection_traversals": 1,
+      "source_projection_instruction_visits": 10,
+      "source_projection_reuses": 2504,
+      "native_history_restored_units": 0,
+      "native_history_retained_epochs": 0,
+      "native_history_payload_bytes": 0
+    },
+    "lowering_work": {
+      "functions_checked": 1,
+      "layout_checks": 1,
+      "functions_reused": 2504,
+      "full_checks": 0,
+      "budget_replays": 1,
+      "context_checks": 1,
+      "context_check_ns": 0,
+      "cost_profiled": false
+    },
+    "types_push_work": {
+      "context_rebuilds": 0,
+      "sparse_batches": 1,
+      "body_checks": 1,
+      "position_rebindings": 0,
+      "retained_functions": 2504,
+      "receipt_tree_updates": 1,
+      "signature_updates": 0,
+      "signature_readers_checked": 0
+    },
+    "raw_inference_work": {
+      "full_runs": 0,
+      "sparse_batches": 1,
+      "replay_fallbacks": 0,
+      "closure_bodies_checked": 1,
+      "closure_bodies_reused": 2504,
+      "name_functions_checked": 1,
+      "name_functions_reused": 2504,
+      "dependency_bodies_checked": 1,
+      "dependency_bodies_reused": 2504
+    },
+    "ct_plain_work": {
+      "observer_schema": 1,
+      "scope": "plain admission attempt; extra fallback work unknown",
+      "shape_checks": 1,
+      "shape_reuses": 2504,
+      "body_checks": 1,
+      "body_reuses": 2504,
+      "declaration_modules": 102,
+      "receipt_context_matches": 1,
+      "fallbacks": 0
+    },
+    "phase_timings_ns": {
+      "parse": 76163,
+      "expand": 6679489,
+      "types": 116015,
+      "analyze": 116626,
+      "verify": 8700027,
+      "lower": 10416,
+      "codegen": 268595927,
+      "ct": 4412228
+    },
+    "driver_timings_ns": {},
+    "materialization_ns": 0,
+    "exclusive_costs": null,
+    "attempts": [
+      {
+        "retry_reason": null,
+        "input_fingerprint": "2dc9fca64d0953f807a832b8b23db481b3e41da334c871fa2e28428d769d2340",
+        "source_files": {
+          "0": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/main.zil",
+          "1": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/io.zil",
+          "2": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m0.zil",
+          "3": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m1.zil",
+          "4": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m2.zil",
+          "5": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m3.zil",
+          "6": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m4.zil",
+          "7": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m5.zil",
+          "8": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m6.zil",
+          "9": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m7.zil",
+          "10": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m8.zil",
+          "11": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m9.zil",
+          "12": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m10.zil",
+          "13": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m11.zil",
+          "14": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m12.zil",
+          "15": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m13.zil",
+          "16": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m14.zil",
+          "17": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m15.zil",
+          "18": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m16.zil",
+          "19": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m17.zil",
+          "20": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m18.zil",
+          "21": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m19.zil",
+          "22": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m20.zil",
+          "23": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m21.zil",
+          "24": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m22.zil",
+          "25": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m23.zil",
+          "26": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m24.zil",
+          "27": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m25.zil",
+          "28": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m26.zil",
+          "29": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m27.zil",
+          "30": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m28.zil",
+          "31": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m29.zil",
+          "32": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m30.zil",
+          "33": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m31.zil",
+          "34": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m32.zil",
+          "35": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m33.zil",
+          "36": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m34.zil",
+          "37": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m35.zil",
+          "38": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m36.zil",
+          "39": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m37.zil",
+          "40": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m38.zil",
+          "41": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m39.zil",
+          "42": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m40.zil",
+          "43": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m41.zil",
+          "44": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m42.zil",
+          "45": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m43.zil",
+          "46": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m44.zil",
+          "47": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m45.zil",
+          "48": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m46.zil",
+          "49": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m47.zil",
+          "50": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m48.zil",
+          "51": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m49.zil",
+          "52": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m50.zil",
+          "53": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m51.zil",
+          "54": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m52.zil",
+          "55": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m53.zil",
+          "56": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m54.zil",
+          "57": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m55.zil",
+          "58": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m56.zil",
+          "59": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m57.zil",
+          "60": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m58.zil",
+          "61": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m59.zil",
+          "62": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m60.zil",
+          "63": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m61.zil",
+          "64": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m62.zil",
+          "65": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m63.zil",
+          "66": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m64.zil",
+          "67": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m65.zil",
+          "68": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m66.zil",
+          "69": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m67.zil",
+          "70": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m68.zil",
+          "71": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m69.zil",
+          "72": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m70.zil",
+          "73": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m71.zil",
+          "74": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m72.zil",
+          "75": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m73.zil",
+          "76": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m74.zil",
+          "77": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m75.zil",
+          "78": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m76.zil",
+          "79": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m77.zil",
+          "80": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m78.zil",
+          "81": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m79.zil",
+          "82": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m80.zil",
+          "83": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m81.zil",
+          "84": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m82.zil",
+          "85": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m83.zil",
+          "86": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m84.zil",
+          "87": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m85.zil",
+          "88": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m86.zil",
+          "89": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m87.zil",
+          "90": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m88.zil",
+          "91": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m89.zil",
+          "92": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m90.zil",
+          "93": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m91.zil",
+          "94": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m92.zil",
+          "95": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m93.zil",
+          "96": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m94.zil",
+          "97": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m95.zil",
+          "98": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m96.zil",
+          "99": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m97.zil",
+          "100": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m98.zil",
+          "101": "/workspace/zil-push-main/out/runs/restart-epoch-retain-window-01/workflow/2500/block-01/sources/zil/m99.zil"
+        },
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "frontend_stats": {
+          "function_types": null,
+          "initialization": {
+            "executed_functions": 0,
+            "reused_functions": 1,
+            "retained_queries": 6,
+            "candidate_reused_functions": 2504,
+            "candidate_executed_functions": 1,
+            "equal_function_results": 2505,
+            "changed_function_results": 0,
+            "shared_program_reuses": 0,
+            "initialization_inputs_built": 0,
+            "candidate_inputs_built": 0,
+            "dependency_signatures_checked": 0,
+            "resource_transfers_executed": 0,
+            "resource_transfers_reused": 0,
+            "retained_candidate_queries": 2505,
+            "product_admission_functions_checked": 1,
+            "product_function_queries_executed": 1,
+            "product_function_queries_reused": 2504,
+            "product_global_obligations_executed": 0,
+            "product_global_obligations_reused": 1,
+            "product_plan_rows_replaced": 0,
+            "product_semantic_functions_compared": 1,
+            "product_relocated_function_bindings": 0
+          },
+          "producer": {
+            "admission_classifier_hits": 1,
+            "fused_distributed_items": 2505,
+            "classified_modules": 0,
+            "rebound_scalar_modules": 0,
+            "rebound_frontend_modules": 0,
+            "rebound_restored_item_deep_clones": 0,
+            "rebound_core_function_deep_clones": 0,
+            "rebound_source_map_validations": 0,
+            "classifier_nodes": 0,
+            "preflight_modules": 1,
+            "normalize_modules": 1,
+            "plain_prepare_modules": 1,
+            "plain_lifetimes_modules": 1,
+            "restore_modules": 1,
+            "lower_modules": 1,
+            "reused_lower_modules": 101,
+            "reused_lower_items": 24,
+            "executed_lower_items": 1,
+            "copied_lower_map_entries": 392,
+            "receipt_hits": 10242,
+            "receipt_nodes": 295992,
+            "receipt_budget_misses": 0,
+            "lower_budget_misses": 0,
+            "visited_nodes": 605,
+            "syntax_clone_receipt_nodes": 12,
+            "normalized_item_deep_clones": 1,
+            "normalized_recipe_hits": 2504,
+            "normalized_materializations": 0,
+            "normalized_reconstruction_nodes": 0,
+            "normalized_reconstruction_work": 0,
+            "owned_restore_items": 1,
+            "plain_header_items": 1,
+            "restored_module_deep_clones": 0,
+            "retained_normalized_items": 2504,
+            "retained_restored_modules": 101,
+            "retained_restored_items": 24,
+            "restored_item_deep_clones": 0,
+            "retained_lower_cores": 101,
+            "retained_lower_source_maps": 101,
+            "cloned_source_map_entries": 0,
+            "cloned_source_bytes": 0,
+            "function_input_hashes": 1,
+            "function_input_reuses": 2504,
+            "function_input_text_comparisons": 25,
+            "function_input_binding_hashes": 1,
+            "context_ns": 0,
+            "production_ns": 0,
+            "reuse_ns": 0,
+            "assembly_ns": 0,
+            "total_ns": 0,
+            "environment_cold": 0,
+            "environment_source_layout_changed": 0,
+            "environment_headers_changed": 0,
+            "environment_imports_changed": 0,
+            "environment_target_changed": 0,
+            "environment_context_changed": 0,
+            "env_limit_max_source_bytes_changed": 0,
+            "env_limit_max_tokens_changed": 0,
+            "env_limit_max_nodes_changed": 0,
+            "env_limit_max_functions_changed": 0,
+            "env_limit_max_blocks_changed": 0,
+            "env_limit_max_instructions_changed": 0,
+            "env_limit_max_locals_changed": 0,
+            "env_limit_max_values_changed": 0,
+            "env_limit_max_analysis_steps_changed": 0,
+            "env_limit_max_ct_steps_changed": 0,
+            "env_limit_max_call_depth_changed": 0,
+            "allowance_work_increase": 0,
+            "allowance_work_decrease": 0,
+            "allowance_nodes_increase": 0,
+            "allowance_nodes_decrease": 0
+          },
+          "materialization": {
+            "executed_modules": 1,
+            "reused_modules": 101,
+            "cloned_modules": 1,
+            "receipt_budget_misses": 0
+          }
+        },
+        "types_push_work": {
+          "context_rebuilds": 0,
+          "sparse_batches": 1,
+          "body_checks": 1,
+          "position_rebindings": 0,
+          "retained_functions": 2504,
+          "receipt_tree_updates": 1,
+          "signature_updates": 0,
+          "signature_readers_checked": 0
+        },
+        "raw_inference_work": {
+          "full_runs": 0,
+          "sparse_batches": 1,
+          "replay_fallbacks": 0,
+          "closure_bodies_checked": 1,
+          "closure_bodies_reused": 2504,
+          "name_functions_checked": 1,
+          "name_functions_reused": 2504,
+          "dependency_bodies_checked": 1,
+          "dependency_bodies_reused": 2504
+        },
+        "ct_plain_work": {
+          "observer_schema": 1,
+          "scope": "plain admission attempt; extra fallback work unknown",
+          "shape_checks": 1,
+          "shape_reuses": 2504,
+          "body_checks": 1,
+          "body_reuses": 2504,
+          "declaration_modules": 102,
+          "receipt_context_matches": 1,
+          "fallbacks": 0
+        },
+        "phase_timings_ns": {
+          "parse": 76163,
+          "expand": 6679489,
+          "types": 116015,
+          "analyze": 116626,
+          "verify": 8700027,
+          "lower": 10416,
+          "codegen": 268595927,
+          "ct": 4412228
+        },
+        "driver_timings_ns": {},
+        "materialization_ns": 0
+      }
+    ]
+  }
+}

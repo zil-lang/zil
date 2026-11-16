@@ -1,0 +1,9 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-push-main/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.17s
+     Running tests/retained_native_publication.rs (/workspace/zil-target-closed-body/debug/deps/retained_native_publication-5f773b43dd7d5c17)
+
+running 1 test
+test resident_final_values_retain_restore_and_reject_current_invalid_source ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.38s
+

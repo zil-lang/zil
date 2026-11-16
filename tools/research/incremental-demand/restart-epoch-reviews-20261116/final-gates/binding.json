@@ -1,0 +1,16 @@
+{
+  "source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+  "tree": "35116da8321766cf49106143bd699faada166dbc",
+  "DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
+  "LLVM_rebuilt": false,
+  "host_env": {
+    "CARGO_TARGET_DIR": "/workspace/zil-target-closed-body",
+    "CARGO_BUILD_JOBS": "4",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "ZIL_TEST_NATIVE_LINK_PROFILE": "/workspace/.zil-environment/native-link-v1/manifest"
+  },
+  "unchanged_gate_reuse": {
+    "Expand124_CT76_backend299": "bcf409b37 and previousf19/f629 receipts: API/model/Expand/CT unchanged frombcf; backend299 passed onb197120ce687c516b87665e7aa3fe4b1732ad7e9 with native-products/include-ignored, no backend diff since; reuse exact receipt. Types/driver/Source/publication/strict/fmt/release rerun after driver failure fallback + life N-1 fixture fix."
+  }
+}

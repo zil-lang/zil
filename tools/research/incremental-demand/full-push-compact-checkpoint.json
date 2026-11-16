@@ -1,389 +1,134 @@
 {
-  "schema": "zil.compiler-pain-continuation.v3",
+  "schema": "zil.compiler-pain-continuation.v4",
   "construction_branch": "research/full-push-native",
-  "compiled_source": "f19fc847c5774a2472bd3af85019b5c937546010",
-  "compiled_tree": "c4aeeccf0ba4bfd92d2fb2587365444d75bed105",
-  "binary_sha256": "68867c4c0333cbceac34e6d688a9581702c7ef337b4ace34a88458df21e72e85",
-  "tool_source": "0f9d4d78ea3e5dace184dc63a3d5cfecaafd86d6",
+  "compiled_source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+  "compiled_tree": "35116da8321766cf49106143bd699faada166dbc",
+  "binary_sha256": "302d58db48f53cd4bc1952f2a9032ead5a6d479314d24eb2ca344f558c2c113e",
+  "binary": "out/binaries/4a23edc7d06bc18cbed1fb958fdaacd886d9607a/zil",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "Full dependency/result/current-layout-item chain implemented and all planned same-source windows completed. Finite native/check workflows and disk beat Rust, but individual hot/restart/interface losses and >10k capacity remain. No universal win/main merge.",
+  "status": "Complete restart/function/current-accounting/analysis/native-history chain implemented, all affected correctness and release gates passed. User requested direct logic optimization, so no additional comparison window. No universal Rust win/main merge.",
   "SDK18_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
   "LLVM_rebuilt": false,
   "research_defaults_enabled": false,
   "main_merge": false,
-  "implementation": [
-    "Expand retains scalar raw products across remote signature edits under complete consumed namespace and exact current imports; public InputContext remains full. CT records exact positive/negative/ambiguous lexical hint reads per body, preserves raw owner/target/limits and original ordered costs.",
-    "Backend headers use a FunctionId map and each body binds its own full header and all direct callee headers. Inventory/global/entry/policy changes still invalidate; current LIR binding and admission remain.",
-    "Completed machine-value cutoff also binds full source-call/block/instruction projection owners; equal machine bytes alone cannot authorize partition reuse.",
-    "Current full CGU planner still chooses layout/import closure. Reuse of actual raw items requires complete source value equality, current owner/role and every consumed private import name. Prototype/prelude creation remains current; counters measure actual reused items.",
-    "Closed linkage is recomputed for current units; exact complete unpruned input/options/policy may reuse a completed checked prune transform. First nonempty production checks original complete units. Independent Verify/current preflight/full O2/LLVM Verify preserved. No new persisted Source-to-Machine authority."
-  ],
-  "acceptance": {
-    "executed_on_f19": {
-      "backend": 299,
-      "driver": 219,
+  "current_acceptance": {
+    "source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+    "tree": "35116da8321766cf49106143bd699faada166dbc",
+    "branch": "research/full-push-native",
+    "binary": "out/binaries/4a23edc7d06bc18cbed1fb958fdaacd886d9607a/zil",
+    "binary_sha256": "302d58db48f53cd4bc1952f2a9032ead5a6d479314d24eb2ca344f558c2c113e",
+    "all_affected_gates_passed": true,
+    "actual_passed_here": {
+      "Types": 110,
+      "driver": 224,
       "Source": 9,
       "native_publication": 1,
+      "mechanical": true,
       "strict": true,
       "fmt": true,
       "release": true
     },
-    "reused_unchanged_from_f629": {
-      "Expand": 124,
-      "CT": 76,
-      "reason": "Only backend test fixtures/counters changed; production and these tests unchanged"
-    },
-    "earliest_failures": "Expand121/3; backend293/6; controller03 precompiler tuple-key error. All raw first failures retained.",
-    "full_native": {
-      "execution_complete": true,
-      "accepted": false,
-      "candidate_rust_accepted": true,
-      "main_regression_accepted": null,
-      "rows": 324,
-      "quality_cells": 108
-    },
-    "source_bound_runtime_cases": 51,
-    "runtime_R_over_B_GM": 4.137381218685457,
-    "check_windows": {
-      "requests": 306,
-      "quality_cells": 102,
-      "all_valid": true,
-      "report": "native-dependency-reviews-20261116/check-coverage.json",
-      "scenarios": [
-        "2505functions simple chain",
-        "2505functions simple diamond",
-        "5005functions simple wide"
-      ],
-      "workflow_wait_reduction_vs_rust": [
-        0.46141780724719705,
-        0.31364942371664783,
-        0.4345652782337711
-      ]
-    },
-    "cache_lifecycle": {
-      "requests": 144,
-      "quality_cells": 48,
-      "source_bound_runtime_cases": 20,
-      "all_Rust_runtime_gates_passed": true,
-      "report": "native-dependency-reviews-20261116/cache-time-space.json",
-      "cleaning_boundary": "Separate retain and full clear-on-restart windows; same original cold source identities, six requests two blocks. Clearing occurs after cold+unchanged, before private edit. Not partial history GC, equal quota, a symmetric full-product clean or complete end-to-end timer. ZIL program/IR retained; Rust target including executable cleared. Candidate-boundary delete_ns combines ZIL+Rust cache deletion and cannot be assigned to either language."
-    },
-    "total_original_requests": 774,
-    "total_functional_cells": 258,
-    "total_source_bound_runtime_cases": 71
-  },
-  "current_formal_f19": {
-    "compiler_source": "f19fc847c5774a2472bd3af85019b5c937546010",
-    "tree": "c4aeeccf0ba4bfd92d2fb2587365444d75bed105",
-    "binary_sha256": "68867c4c0333cbceac34e6d688a9581702c7ef337b4ace34a88458df21e72e85",
-    "tool_source": "0f9d4d78ea3e5dace184dc63a3d5cfecaafd86d6",
-    "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-    "window": "out/runs/native-dependency-full-window-01",
-    "quality": {
-      "execution_complete": true,
-      "accepted": false,
-      "candidate_rust_accepted": true,
-      "main_regression_accepted": null,
-      "rows": 324,
-      "quality_cells": 108
-    },
-    "runtime_cases": 51,
-    "runtime_R_over_B_GM": 4.137381218685457,
-    "frequency_policy": "Each request exactly once in predeclared 18-request workflow including eight private edits; two balanced blocks, median complete total. No invented industry frequency. Compile quality scoped to separately named finite runtime protocol.",
-    "disk_scope": "Explicit user caches/artifacts incl diagnostic IR, global inode dedup/lstat st_blocks at request boundaries, not transient peaks; SDK/host Cargo/evidence excluded. Restore hardlink topology is not a new disk measurement.",
-    "sizes": {
-      "1000": {
-        "main_role": "actual main9170",
-        "total_wait_median_ms": {
-          "baseline": 8288.3202055,
-          "candidate": 6620.212674,
-          "rust": 8876.6672205
-        },
-        "candidate_wait_reduction_vs_rust": 0.2542006465319423,
-        "compile_median_ms": {
-          "cold": {
-            "baseline": 1726.6612525,
-            "candidate": 936.7359280000001,
-            "rust": 1287.6210035
-          },
-          "broad": {
-            "baseline": 1527.7959725,
-            "candidate": 674.810035,
-            "rust": 1096.752018
-          },
-          "interface": {
-            "baseline": 438.61999000000003,
-            "candidate": 755.4153565,
-            "rust": 677.437712
-          },
-          "warm-restart": {
-            "baseline": 182.924987,
-            "candidate": 311.187681,
-            "rust": 19.526798499999998
-          },
-          "restore": {
-            "baseline": 195.5228575,
-            "candidate": 361.862505,
-            "rust": 1098.6962065
-          },
-          "unchanged": {
-            "baseline": 177.733712,
-            "candidate": 22.021318,
-            "rust": 18.198358
-          },
-          "eight_private": {
-            "baseline": 2882.4707065000002,
-            "candidate": 2762.05591,
-            "rust": 3572.350109
-          }
-        },
-        "disk": {
-          "baseline": {
-            "boundary_peak_physical_bytes_by_block": [
-              24543232,
-              24543232
-            ],
-            "median_boundary_peak_MiB": 23.40625,
-            "eight_private_growth_bytes_by_block": [
-              12419072,
-              12419072
-            ],
-            "median_eight_private_growth_MiB": 11.84375
-          },
-          "candidate": {
-            "boundary_peak_physical_bytes_by_block": [
-              9510912,
-              9527296
-            ],
-            "median_boundary_peak_MiB": 9.078125,
-            "eight_private_growth_bytes_by_block": [
-              1286144,
-              1277952
-            ],
-            "median_eight_private_growth_MiB": 1.22265625
-          },
-          "rust": {
-            "boundary_peak_physical_bytes_by_block": [
-              20107264,
-              20107264
-            ],
-            "median_boundary_peak_MiB": 19.17578125,
-            "eight_private_growth_bytes_by_block": [
-              5373952,
-              5373952
-            ],
-            "median_eight_private_growth_MiB": 5.125
-          }
-        },
-        "runtime_R_over_B_range": [
-          1.3894864848736708,
-          1.9676871241958243
+    "exact_unchanged_reuse": {
+      "backend": {
+        "source": "b197120ce687c516b87665e7aa3fe4b1732ad7e9",
+        "tree": "fbb01957e4f668416ccff6281f4a2de5ea1dea9d",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--offline",
+          "-p",
+          "zil-backend-llvm",
+          "--features",
+          "native-products",
+          "--lib",
+          "--",
+          "--include-ignored"
         ],
-        "runtime_rust_gate_all_pass": true,
-        "runtime_main_gate_all_pass": true
+        "start": "2026-11-16T03:08:30.726157+00:00",
+        "end": "2026-11-16T03:08:56.258687+00:00",
+        "exit_code": 0,
+        "valid": true,
+        "test_results": [
+          [
+            "ok",
+            "299",
+            "0",
+            "0"
+          ]
+        ],
+        "log_sha256": "155a261625430e6a28f76b3b6791234ba6777a9606da48ac1e7d26c0bb9d9637"
       },
-      "2500": {
-        "main_role": "actual main9170",
-        "total_wait_median_ms": {
-          "baseline": 11514.2393985,
-          "candidate": 8212.005323,
-          "rust": 9271.3045695
-        },
-        "candidate_wait_reduction_vs_rust": 0.11425568414447296,
-        "compile_median_ms": {
-          "cold": {
-            "baseline": 2511.9996665,
-            "candidate": 1051.1364645,
-            "rust": 1434.9171755
-          },
-          "broad": {
-            "baseline": 2171.5816095,
-            "candidate": 1386.450404,
-            "rust": 1163.5623544999999
-          },
-          "interface": {
-            "baseline": 849.0279185,
-            "candidate": 1008.8258840000001,
-            "rust": 780.3234055
-          },
-          "warm-restart": {
-            "baseline": 229.50492100000002,
-            "candidate": 376.6791455,
-            "rust": 46.577501
-          },
-          "restore": {
-            "baseline": 181.31259849999998,
-            "candidate": 353.458761,
-            "rust": 1152.140884
-          },
-          "unchanged": {
-            "baseline": 221.538623,
-            "candidate": 14.7055605,
-            "rust": 23.6960325
-          },
-          "eight_private": {
-            "baseline": 4142.238371,
-            "candidate": 2940.834261,
-            "rust": 3375.539538
-          }
-        },
-        "disk": {
-          "baseline": {
-            "boundary_peak_physical_bytes_by_block": [
-              30220288,
-              30220288
-            ],
-            "median_boundary_peak_MiB": 28.8203125,
-            "eight_private_growth_bytes_by_block": [
-              15597568,
-              15597568
-            ],
-            "median_eight_private_growth_MiB": 14.875
-          },
-          "candidate": {
-            "boundary_peak_physical_bytes_by_block": [
-              13680640,
-              13885440
-            ],
-            "median_boundary_peak_MiB": 13.14453125,
-            "eight_private_growth_bytes_by_block": [
-              1232896,
-              1282048
-            ],
-            "median_eight_private_growth_MiB": 1.19921875
-          },
-          "rust": {
-            "boundary_peak_physical_bytes_by_block": [
-              44580864,
-              44580864
-            ],
-            "median_boundary_peak_MiB": 42.515625,
-            "eight_private_growth_bytes_by_block": [
-              12087296,
-              12087296
-            ],
-            "median_eight_private_growth_MiB": 11.52734375
-          }
-        },
-        "runtime_R_over_B_range": [
-          1.2275555853258768,
-          1.7463497155905883
-        ],
-        "runtime_rust_gate_all_pass": true,
-        "runtime_main_gate_all_pass": true
-      },
-      "5105": {
-        "main_role": "ResourceLimit; no performance ratio",
-        "total_wait_median_ms": {
-          "candidate": 24822.8493015,
-          "rust": 31119.471770000004
-        },
-        "candidate_wait_reduction_vs_rust": 0.2023370613433778,
-        "compile_median_ms": {
-          "cold": {
-            "candidate": 3623.2037259999997,
-            "rust": 6065.107861
-          },
-          "broad": {
-            "candidate": 2791.1343415,
-            "rust": 4969.6422705
-          },
-          "interface": {
-            "candidate": 2194.8285255,
-            "rust": 1800.4282954999999
-          },
-          "warm-restart": {
-            "candidate": 1272.7157705,
-            "rust": 32.1921035
-          },
-          "restore": {
-            "candidate": 1309.931829,
-            "rust": 5405.8876445000005
-          },
-          "unchanged": {
-            "candidate": 21.2082455,
-            "rust": 18.138372
-          },
-          "eight_private": {
-            "candidate": 10961.711888499998,
-            "rust": 9893.920642000001
-          }
-        },
-        "disk": {
-          "candidate": {
-            "boundary_peak_physical_bytes_by_block": [
-              49020928,
-              49233920
-            ],
-            "median_boundary_peak_MiB": 46.8515625,
-            "eight_private_growth_bytes_by_block": [
-              1466368,
-              1556480
-            ],
-            "median_eight_private_growth_MiB": 1.44140625
-          },
-          "rust": {
-            "boundary_peak_physical_bytes_by_block": [
-              76394496,
-              76394496
-            ],
-            "median_boundary_peak_MiB": 72.85546875,
-            "eight_private_growth_bytes_by_block": [
-              29863936,
-              29863936
-            ],
-            "median_eight_private_growth_MiB": 28.48046875
-          }
-        },
-        "runtime_R_over_B_range": [
-          24.38798094597821,
-          33.42271774315384
-        ],
-        "runtime_rust_gate_all_pass": true,
-        "runtime_main_gate_all_pass": null
-      }
-    }
+      "Expand124_CT76": "Unchanged since bcf/f19/f629; original immutable receipts retain exact bindings."
+    },
+    "review": "restart-cost-astra-design-02.md; exact 4a23 frozen confirmation; read-only Astra not independent testing.",
+    "no_new_comparative_performance": true,
+    "last_measured_source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+    "last_measured_binary_sha256": "57de85daefac2ec5f562d15f01bd4f54aafeb4f53838da975671cc49dd809bf2",
+    "main": "9170bb4210554392e36eb7528596612596ebef80",
+    "no_main_merge": true,
+    "SDK18_DSO_sha256": "785a2413d05149ba84789a588f5ca2d4d6b1ef34248ca282789acd4f3133c1d2",
+    "LLVM_rebuilt": false,
+    "full_bcf_raw": "local out/runs/restart-epoch-{retain,full}-window-01 only; published original receipt subset explicitly indexed, not full cache/artifact recovery",
+    "source_scope": "Complete function cache\u2192current Types recording/fee replay\u2192Analyze epoch activation\u2192Verify\u2192bounded completed machine history\u2192transform/partition/diagnostic/object key; isolated disk-candidate retry preserves genuine successful epochs."
   },
-  "new_performance_not_assigned_to_prior_sources": true,
-  "unresolved": [
-    "New5105 retained restart1.597s+firstedit2.773s=4.370s, Rust0.0239+1.508=1.532s. Clear restart3.798+edit1.196=4.994s vsRust6.386+1.275=7.661s. Retaining remains0.624s faster for ZIL pair; clearing is not a solution. Whole-Typed hit bypasses upstream parser/producer/inference/CT epochs. Existing disk format lacks their actual owners/dependencies/fees; do not hydrate them from Typed validity/hash or move rebuilding outside timers. Source/Astra reports contain exact paths and bounded next options.",
-    "Clear2500 restart1.858s vsRust1.644s loses; retained2500 nextprivate0.747s vs0.502s loses. Cache policies are separate windows, not a symmetric full-product cleanup/partial-GC/industry-frequency result.",
-    "5105 eight private edits10.962s vs Rust9.894s; retained-cache restart1.273s vs0.032s; interface2.195s vs1.800s.",
-    "2500 broad1.386s vsRust1.164s; interface1.009s vs0.780s.1000 interface0.755s vs0.677s. Full-workflow lead does not close individual losses.",
-    "Actual positions-to-interface adjacency still invalidates all frontend modules and CT owners; two independent static reviews confirmed mapped-placement optimization opportunity. Do not introduce broad raw namespace or old-position authority to fix this.",
-    "Current5105/private002 codegen980.56ms: machine274.09, partition186.25, objects483.98, link21.03; CT14.71ms/Expand46.95ms/current Verify48.01ms. Prioritize repeated backend work over smaller isolated visitors.",
-    "This profile native product capture is disabled by existing minimum-average-LIR threshold39.5<64. Do not attribute these gains to active SDK18 per-function captures or repeat rejected140 heuristic without new evidence.",
-    "10105/25105 original capacity remains rejected by default1M-token and10000-function whole-project contracts. Current code does not claim capacity success.",
-    "Finite synthetic single-crate O2/no-debug corpus; industrial workspaces, generics/macros/async/debug/test/minute-scale and partial history GC not established."
-  ],
-  "rust_source_policy": {
-    "rustc": "58cf8f9c35b355199727627d07ae34a4e2846d67",
-    "cargo": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
-    "references": [
-      "rustc_middle/dep_graph/graph.rs:791-825 result green;rustc_query_impl/execution.rs:418 current recorded dependencies",
-      "rustc_codegen_ssa/base.rs:1238 CGU reuse,842 skip green; rustc_codegen_llvm/base.rs:64 module after reuse decision",
-      "rustc_middle/query/on_disk_cache.rs:346 offset loading;rustc_incremental/persist/fs.rs:364 hardlink/lock,590 current/live GC",
-      "Cargo fingerprint/mod.rs:499 Fresh; save.rs:60-92 promotion/serialization/deletion; LLVM O2 MergeFunctions and ThinLocal already present"
+  "current_recovery": "evidence/restart-function-chain-20261116/RESTORE.json",
+  "recovery_scope": "Current complete cache restoration chain correctness/release binaries, all first gate failures and read-only reviews; prior bcf original request receipt subset only. No new performance window and not a full bcf cache/artifact backup; SDK18/native-link are fixed V32 dependencies.",
+  "fresh_full_recovery": {
+    "archive_bytes": 19598435,
+    "files": 96,
+    "main_commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "parts": 1,
+    "raw_bytes": 61849972,
+    "restore_dir": "/workspace/zil-recovery/restart-function-chain-fresh-01",
+    "scope": "Current complete cache restoration chain correctness/release binaries, all first gate failures and read-only reviews; prior bcf original request receipt subset only. No new performance window and not a full bcf cache/artifact backup; SDK18/native-link are fixed V32 dependencies.",
+    "sha256": "5dfb202b0a8656f3f55adaa29e476187f09902131d4be8ff6cbbc77c99b279af",
+    "source_commits": {
+      "compiler": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+      "measured": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+      "tools": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a"
+    },
+    "status": "verified"
+  },
+  "last_measured": {
+    "source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+    "binary_sha256": "57de85daefac2ec5f562d15f01bd4f54aafeb4f53838da975671cc49dd809bf2",
+    "report": "restart-epoch-reviews-20261116/review.md",
+    "retain_results": "restart-epoch-reviews-20261116/bcf-retained-lifecycle.json",
+    "native_results": "restart-epoch-reviews-20261116/bcf-native-workflow.json",
+    "original_receipt_subset": "restart-epoch-reviews-20261116/published-receipts.json",
+    "full_raw_local_only": [
+      "out/runs/restart-epoch-retain-window-01",
+      "out/runs/restart-epoch-full-window-01"
     ],
-    "every_future_direction": "Actual Rust implementation, exact ZIL consumer/input/cost difference, facts vs hypotheses, preserve stronger current checks, one whole-chain acceptance."
+    "qualification": "396 original requests,132 quality cells,61 runtime Rust gates passed on bcf; accepted=false due actual-main5105 ResourceLimit. Restart+firstedit still loses. Full5105 flow28.926s vs previous f19 separate-window24.823s is a retained regression, not new-source performance."
   },
-  "recovery": {
-    "current_formal": "https://github.com/zil-lang/zil/blob/afc97106d3b9ce9dc8eaa5a529c3dde72900e199/tools/research/incremental-demand/evidence/native-dependency-formal-20261116/RESTORE.json",
-    "prior027_formal": "https://github.com/zil-lang/zil/blob/05f270ebe13169ad7a089ad98d6d327bab834bcd/tools/research/incremental-demand/evidence/call-classes-formal-20261115/RESTORE.json",
-    "prior027_core_negative_capacity": "https://github.com/zil-lang/zil/blob/53c077e723fbd3aa43e96962260d4834d33ce96b/tools/research/incremental-demand/evidence/call-classes-20261115/RESTORE.json",
-    "prior_rust_source_audit": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/evidence/rust-pain-audit-20261116/RESTORE.json",
-    "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
-    "historical98fa": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c formal59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628; never relabelled",
-    "current_formal_fresh_verified": true,
-    "current_core": "evidence/native-dependency-20261116/RESTORE.json",
-    "current_core_fresh_verified": true,
-    "current_formal_local_raw_retired": true
+  "previous_f19": {
+    "source": "f19fc847c5774a2472bd3af85019b5c937546010",
+    "delivery": "7b604bef1c4d1f665cffc1c42c2a43b60d92c928",
+    "checkpoint": "https://github.com/zil-lang/zil/blob/7b604bef1c4d1f665cffc1c42c2a43b60d92c928/tools/research/incremental-demand/full-push-compact-checkpoint.json",
+    "full_recovery": [
+      "https://github.com/zil-lang/zil/blob/7b604bef1c4d1f665cffc1c42c2a43b60d92c928/tools/research/incremental-demand/evidence/native-dependency-20261116/RESTORE.json",
+      "https://github.com/zil-lang/zil/blob/afc97106d3b9ce9dc8eaa5a529c3dde72900e199/tools/research/incremental-demand/evidence/native-dependency-formal-20261116/RESTORE.json"
+    ]
   },
-  "local_retirements": [
-    "closed-project-window-05 original raw retired only after immutable committed archive/parts/fresh receipt and every local file hash match; full restore from05f270 above.",
-    "expanded-large-capacity-check-01 and expanded-large-capacity-native-01 retired by same proof against53c077 above; ledger out/runs/native-dependency-retired-capacity-01.json. Host evidence storage only, not product savings.",
-    "Current f19 formal native raw retired after immutable afc97106d archive+allparts+fresh receipt+every236872localfile hash; ledger is in current core. Current check/cache raw and binaries retained."
+  "first_failures": [
+    "5a324 Types108/1: new quota fixture used final blocks instead of actual allocated fees",
+    "d7 mechanical E0616: new test attempted private analysis field; replaced by two real project requests",
+    "b197 Types109/1: N-1 inference failure unwrapped by new test; preserve ordinary pre-Types error",
+    "4c82 driver219/5: actual self.clear fallback destroyed successful producer/push/Verify epochs; fixed by disk-origin selection and isolated retry, original five assertions preserved"
   ],
-  "next": "Prioritize actual restart+first-edit and eight-private absolute waits. Whole-Typed cache cannot mint missing upstream owners/fees. Bounded full-chain options: real fine-grained disk consumer records with current binding/replay, or explicitly measured normal cold-session initialization preserving object cache (count all work, may lose); downstream reuse exact local checked-add/class/reference facts under complete current inputs, representative/import decisions and original checks. Do not promise all4221ms machine+partition bucket is removable or alter O2/budgets/Verify.",
-  "main_merge_assessment": "Hold whole research branch: it contains research tools/evidence and large production divergence. Clean production/test extraction and main product acceptance are not complete; no goal/archive/research evidence merged into main."
+  "next_priority": [
+    "Continue logic optimization of current global machine transforms and CGU planning on repeated private edits; retained pre-change5105 restart timing bucket machine1.087s/partition.315s is a locator, not guaranteed removable time.",
+    "Track checked-add local outputs, real scalar callee dependencies and call-class DAG/class representatives/address/protected inventory before reusing changed-input transformations. Global/unsupported changes keep the original full pass and original-model preflight.",
+    "Cold process still needs actual Parse/Expand/RawInference/PlainCT/Analyze products; terminal Typed/hash/old Arc cannot fabricate their epochs. No hidden idle/background work.",
+    "After this remaining costly chain is changed, schedule one actual-main/candidate/Rust O2/CGU16/jobs1 window separating check/native and accounting restart+firstedit and retained disk. Do not repeat the old negative matrix while no relevant logic changed."
+  ],
+  "limits": [
+    "Finite scalar102file one-crate coverage is not industrial workspace/generic/macro/async/debug/test/minute-scale coverage.",
+    "10105/25105 default token and whole-project10000function capacity remain rejected; do not raise or replenish numeric budgets.",
+    "Current new cache and bounded downstream history have unmeasured encode/decode/disk/RSS costs. No measured net speed/space claim for4a23.",
+    "Current research branch includes process/evidence; goal/archive never merge main."
+  ],
+  "local_storage": "Old native-dependency evidence dirs are reversibly sparse-excluded, blobs remain in Git+remote; prior check/cache duplicates retired only after full hash proof at7b60 ledger. No current bcf raw deleted; no product disk savings inferred."
 }

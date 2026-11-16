@@ -1,0 +1,17 @@
+{
+  "source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+  "tree": "34df7372f666f32bcca59c0b78f185a68ca75ca0",
+  "command": [
+    "cargo",
+    "fmt",
+    "--all",
+    "--",
+    "--check"
+  ],
+  "start": "2026-11-16T02:12:26.290809+00:00",
+  "end": "2026-11-16T02:12:35.611450+00:00",
+  "exit_code": 0,
+  "valid": true,
+  "test_results": [],
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

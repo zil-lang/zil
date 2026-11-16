@@ -1,0 +1,21 @@
+# 保留缓存重启与首改：结果和后续施工
+
+已测源码仅bcf409b37c5e5733c57376c0b6123b76321574a9。原实现通过完整真实provider初始化push状态，首改只检查1个函数，但初始化有成本。5105重启2.725s、首改1.223s，联合3.948s；同窗Rust0.0189s、1.285s，联合1.304s。当前仍未超过Rust。旧f19联合4.370s属于不同窗口，不能据此证明配对算法净收益。
+
+完整18请求原生流程：1000/2500/5105为6.807/8.367/28.926s，同窗Rust8.458/9.410/32.233s。旧f19对应6.620/8.212/24.823s；5.1k明显退化保留，跨窗Rust也变化。main5.1k默认Expand限额，不能计算该档main性能比。两窗口总396原始请求、132功能格、61个持续运行Rust质量门通过；全局accepted=false、candidate_rust_accepted=true并列保留。
+
+用户要求发现落后后直接优化，不继续追加同一负例的大矩阵。当前接续改为将既有FunctionSession真正接入push重建：复用当前Core、完整上下文和签名读取验证后的原CFG及原费用，同一次检查记录真实push上下文；匹配不到时原路重建。不得从Typed下游值或hash伪造parser/producer/CT授权。稀疏编辑保留原函数缓存epoch并跳过重复manifest写入。当前源码的新性能尚未测，不沿用bcf数字。
+
+后端原始5.1k/block00重启收据显示对象16/16命中，machine1.087s、partition.315s、diagnostic.080s；完整全局变换仍是主要未关闭卡点，不能归因于LLVM缓存未命中。默认预算、独立Verify、完整O2、研究默认关闭不变。
+
+此目录发布摘要、门日志及审阅。两份原始窗口的完整raw（含所有cache/artifact）仍保留本机out/runs/restart-epoch-{retain,full}-window-01，尚未发布新的完整恢复包；不把本摘要冒称原始全量恢复。旧f19/更旧窗口固定原提交和RESTORE，未改写。
+
+5a324acdd为首次FunctionSession整链候选，已推送。统一批机械检查通过、Types108过/1失败；失败是新增预算反例将最终CFG块数当作实际Builder计费，基线fixture本身限额失败。修正使用真实context/rows费用，原失败日志和候选SHA保留。Astra指出的life试探miss双计费边界已在后续源码计费之前明确回退一次原Builder；不是调高默认预算。后续实现同时修复真实TypesEpoch到Analyze provider的提前恢复，以及已有四个machine history到完成transform/partition/object key的断点。后续源码性能未测。
+
+最终逻辑源码4a23edc7d06bc18cbed1fb958fdaacd886d9607a。除FunctionCache单次组合外，已接真实Types/Candidate双owner的Analyze提前恢复，以及既有四槽machine历史持有完整Transform/Partition/Diagnostic/ObjectKey产物；两成功出口才记录，当前策略/保护集合和原全部输入比较仍生效，无新磁盘机器授权。
+
+统一回归发现原候选回退的self.clear会丢弃成功epoch，4c82的driver219过/5失败保留，未改原五个反例断言。现以Entry私有来源标记区分磁盘候选与当前进程生成值，只有实际磁盘命中可触发原拒绝候选防御回退；同一不可变输入在独立同容量会话重算，成功才替换、失败保留原成功状态。实际restored_reused_functions进入JSON和attempt累加，仅用于回退选择，不是权限。最终Driver224与Types110均通过；backend299在b197通过且此后生产/测试blob无差异，按精确源码复用。源码边界独审确认见Astra冻结增量，不把未测速度当新收益。
+
+本次没有新增Rust对比性能窗。尚未消除冷进程首次Expand/CT/Analyze以及machine/partition的全部成本，也未实现一般单函数编辑的完整局部机器变换依赖传播。新增函数缓存有编码/解码、磁盘和内存代价，四槽完成链有有限内存保留代价，当前新版本尚无时间/空间净收益数字；不能拿bcf或f19结果填这些空白。
+
+最终源码4a23edc7d06bc18cbed1fb958fdaacd886d9607a实际通过Types110、Driver224、Source9、native publication1、mechanical/strict/fmt/release；backend299按b197精确无差异收据复用。发布release二进制sha256 302d58db48f53cd4bc1952f2a9032ead5a6d479314d24eb2ca344f558c2c113e。无新的性能比较；研究开关默认关闭，main不合。
