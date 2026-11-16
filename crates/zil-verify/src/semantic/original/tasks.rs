@@ -115,15 +115,18 @@ impl CheckedOriginal {
                 active,
                 b,
             )?;
-            if !self.task_zero_domain(module, context, &prototype.result, env, active, b, 0)? {
-                retained.retained.push(RetainedPart::All {
-                    path: vec![LifeTypeProjection::Result],
-                    parents: vec![ClassPart::All {
-                        ty: prototype.result.clone(),
-                        path: vec![],
-                    }],
-                });
-            }
+            // Preserve the symbolic Result directory even when this result
+            // happens to materialize N0. All(T) is not a stored target or an
+            // invented payload permission; the actual frame/result consumer
+            // expands it independently. The failure Context excludes Result
+            // explicitly below and still returns only its real inputs.
+            retained.retained.push(RetainedPart::All {
+                path: vec![LifeTypeProjection::Result],
+                parents: vec![ClassPart::All {
+                    ty: prototype.result.clone(),
+                    path: vec![],
+                }],
+            });
             let worker_definition = context.definition(module, worker, b)?;
             for requirement in &worker_definition.requirements {
                 self.obligation(
@@ -709,10 +712,7 @@ impl CheckedOriginal {
             Ty::Carrier {
                 child, retained, ..
             } => {
-                retained.domain.is_empty()
-                    && retained.ports.is_empty()
-                    && retained.retained.is_empty()
-                    && retained.nominal.is_empty()
+                self.retained_zero_domain(module,context,&retained,env,active,b,depth+1)?
                     && self.task_zero_domain(module, context, &child, env, active, b, depth + 1)?
             }
             Ty::Code {

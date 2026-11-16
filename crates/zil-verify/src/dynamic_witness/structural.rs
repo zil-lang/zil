@@ -38,13 +38,18 @@ fn walk(
     }
     match ty {
         Type::BorrowedStorage { storage, .. } => walk(module, storage, bound, active, b, depth + 1),
-        Type::Address { .. } | Type::Desc(_) => {
-            if bound == DynStructuralBound::Copy {
-                return Err(bad(
-                    "borrowed storage is outside the sealed finite Copy field obligation",
-                ));
+        Type::Address { mutable, .. } => {
+            if bound == DynStructuralBound::Copy && *mutable {
+                return Err(bad("an exclusive address cannot satisfy Copy"));
             }
-            // Dropping the head never drops or copies its pointee.
+            // Copying or dropping a shared head never copies or drops its
+            // pointee. Target validity and the complete child κ remain
+            // separate obligations of the actual source/borrow kernels.
+            Ok(())
+        }
+        Type::Desc(_) => {
+            // A copied description is another observation descriptor, not an
+            // execution window or a second owner of the described resource.
             Ok(())
         }
         Type::Tuple(fields) => {
@@ -162,5 +167,23 @@ fn walk(
         _ => Err(bad(
             "actual type has no complete finite structural value qualification",
         )),
+    }
+}
+
+
+#[cfg(test)]
+mod reference_copy_tests {
+    use super::*;
+    #[test]
+    fn shared_heads_are_copy_without_qualifying_their_pointee_or_exclusive_sibling(){
+        let(module,_)=crate::tests::baseline();let limits=Limits::default();let mut b=Budget::new(&limits);
+        let owner=Type::Managed(Box::new(Type::ByteBuffer));
+        assert!(actual(&module,&owner,DynStructuralBound::Copy,&mut b).is_err());
+        let shared=Type::Address{mutable:false,inner:Box::new(owner.clone())};
+        actual(&module,&shared,DynStructuralBound::Copy,&mut b).unwrap();
+        actual(&module,&Type::Desc(Box::new(owner.clone())),DynStructuralBound::Copy,&mut b).unwrap();
+        let exclusive=Type::Address{mutable:true,inner:Box::new(owner)};
+        assert!(actual(&module,&exclusive,DynStructuralBound::Copy,&mut b).is_err());
+        assert!(actual(&module,&Type::Tuple(vec![shared,exclusive]),DynStructuralBound::Copy,&mut b).is_err());
     }
 }

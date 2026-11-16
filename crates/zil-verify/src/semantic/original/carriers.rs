@@ -116,3 +116,52 @@ mod retained_call_inference_tests {
         assert!(original.unify(&value,&erased,&mut b).is_err());
     }
 }
+
+impl CheckedOriginal {
+    /// Symbolic directories are not required to be textually empty at N0.
+    /// An All(T) row stays present; only a full original proof that T has no
+    /// classes can establish zero. Unknown T and every explicit Life remain.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn retained_zero_domain(&mut self,module:&TypedModule,context:&CheckedContext,shape:&Retained,env:&Env,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<bool>{
+        b.spend(1)?;if depth>=b.limits.max_call_depth.min(128){return Err(limit("original carrier zero-domain depth exceeded"));}
+        if !self.class_sequence_zero(module,context,&shape.domain,env,active,b,depth+1)?{return Ok(false);}
+        for port in &shape.ports{b.spend(1)?;match port{
+            PortPart::One{..}=>return Ok(false),
+            PortPart::FromType{ty,classes}=>if !self.task_zero_domain(module,context,ty,env,active,b,depth+1)?||!self.class_sequence_zero(module,context,classes,env,active,b,depth+1)?{return Ok(false);},
+        }}
+        for row in &shape.retained{b.spend(1)?;match row{
+            RetainedPart::One{..}=>return Ok(false),
+            RetainedPart::All{parents,..}=>if !self.class_sequence_zero(module,context,parents,env,active,b,depth+1)?{return Ok(false);},
+        }}
+        for row in &shape.nominal{b.spend(1)?;match row{
+            NominalPart::One{..}=>return Ok(false),
+            NominalPart::FromType{ty,classes,..}=>if !self.task_zero_domain(module,context,ty,env,active,b,depth+1)?||!self.class_sequence_zero(module,context,classes,env,active,b,depth+1)?{return Ok(false);},
+        }}Ok(true)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn class_sequence_zero(&mut self,module:&TypedModule,context:&CheckedContext,parts:&[ClassPart],env:&Env,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<bool>{
+        for part in parts{b.spend(1)?;match part{
+            ClassPart::One(_)=>return Ok(false),
+            ClassPart::All{ty,path}=>{b.spend(path.len())?;if !self.task_zero_domain(module,context,ty,env,active,b,depth+1)?{return Ok(false);}},
+        }}Ok(true)
+    }
+}
+
+
+#[cfg(test)]
+mod symbolic_zero_result_tests {
+    use super::*;
+    #[test]
+    fn an_explicit_zero_result_row_is_neutral_but_unknown_or_lifetime_contexts_are_not(){
+        let limits=Limits::default();let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/local-closure-complete-head.wire"),&limits).unwrap();
+        let mut b=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut b).unwrap();
+        let mut original=CheckedOriginal::default();let mut active=ActiveQueries::new();
+        let env=Env{lexical:vec![],bounds:vec![],invocation:vec![],self_type:None};
+        let result=|ty|Retained{retained:vec![RetainedPart::All{path:vec![LifeTypeProjection::Result],parents:vec![ClassPart::All{ty,path:vec![]}]}],..Retained::default()};
+        assert!(original.retained_zero_domain(&module,&context,&result(Ty::Atom(Type::I32)),&env,&mut active,&mut b,0).unwrap());
+        let owner=SemanticDefinitionId{module:zil_base::ModuleId(0),index:0};
+        assert!(!original.retained_zero_domain(&module,&context,&result(Ty::Variable(owner,0)),&env,&mut active,&mut b,0).unwrap());
+        let life=Retained{domain:vec![ClassPart::One(Life::Formal(owner,0))],..Retained::default()};
+        assert!(!original.retained_zero_domain(&module,&context,&life,&env,&mut active,&mut b,0).unwrap());
+    }
+}

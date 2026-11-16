@@ -43,7 +43,7 @@ impl CheckedOriginal {
                 },
                 Ty::Tuple(fields)=>{for field in fields{if !self.closed_value(module,context,&field,env,active,b)?{return Ok(false);}}true},
                 Ty::Array(child,_)|Ty::Store(child)|Ty::Managed(child)=>self.closed_value(module,context,&child,env,active,b)?,
-                Ty::Carrier{child,retained,..}=>{if !retained.domain.is_empty()||!retained.ports.is_empty()||!retained.retained.is_empty()||!retained.nominal.is_empty(){return Ok(false);}self.closed_value(module,context,&child,env,active,b)?},
+                Ty::Carrier{child,retained,..}=>{if !self.retained_zero_domain(module,context,&retained,env,active,b,0)?{return Ok(false);}self.closed_value(module,context,&child,env,active,b)?},
                 Ty::ErrorUnion(error,result)=>self.closed_value(module,context,&error,env,active,b)?&&self.closed_value(module,context,&result,env,active,b)?,
                 Ty::Dyn(value)=>{if !value.owned||value.explicit_life(b)?{return Ok(false);}let mut types=Vec::new();value.types(&mut types,b)?;for ty in types{if !self.closed_value(module,context,ty,env,active,b)?{return Ok(false);}}true},
                 Ty::Function(id)=>self.checked.contains(&id),
