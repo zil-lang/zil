@@ -1,0 +1,29 @@
+{
+  "source_base": "3d305ded6c1d1c963057c7f320a94162283af2dd",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261116T213213Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-expand/src/generic_check.rs": "29c538c7eabf1f11473d4db64ef51dbfbe0c08787761b596256dab66c3d55e38",
+    "crates/zil-expand/src/generic_factory.rs": "8b525903073855255ee9a01a60fbe6e6db9e0a396a632be9f56b4a143dee8e66",
+    "crates/zil-expand/src/generic_store.rs": "1b79c5872c8e4b885ad4c58b2cb59310a0837ef4b472b983c6141f73be7b33b9",
+    "crates/zil-types/src/semantics/world_protocol_values.rs": "1fc4677effbd5a0d21353cbf5f3255be4795069e789ad884634ee5ca73651c86"
+  },
+  "artifacts": {
+    "source.patch": "0768c50359569664b6e15bfd08db844063aefd8b357c2e13a0359a5be3f0c380",
+    "untracked/crates/zil-types/src/semantics/world_protocol_values.rs": "1fc4677effbd5a0d21353cbf5f3255be4795069e789ad884634ee5ca73651c86",
+    "supporting-tools/run-alpha-candidate.sh": "31fadc4b40984808371f8446781fad8888d738ab25850ae505f9180ff0f33f70",
+    "supporting-tools/check-alpha-core-chain.py": "b6794b9aee82f5c577c8665cfffef1a8c402be5ecbd433099be70904903157ec",
+    "supporting-tools/run-native-alpha.py": "666bb3245e60f9299bca022cc87f727525bf5364c30fe4d2a133688304e6e0f8",
+    "supporting-tools/run-native-alpha-plan.json": "eacd70077354e42d48f7632c4ad88b1d303f76980a7f64bee035ba233d8d328e",
+    "supporting-tools/run-native-alpha-manual.txt": "1fd5960890c6fe1157fafafabf0252d25591b920c55c49ea3ff39df9e489ba4a",
+    "supporting-tools/backup-language-wip.py": "4c2e76f9ec9bd2bb51343bbf89d48e6715d27504dcff52646c4725bd3de6d472",
+    "supporting-tools/check-all-task-helper-sources.py": "fb6110dd85a9fe355036b8390bab8fe3de1cc4c73f19cdbb196066cee1fe7982",
+    "supporting-tools/check-task-helper-native-cases.py": "3b3f484f8d15bf19f4cab9fffe6f8b39dfe27915546aa4e7f31cd1ca27dbe400",
+    "supporting-tools/check-task-frame-observer.py": "9f2eada808d337839a78ac7f0e2e0a1af20b21c7c8df661588fcbbf15a1892fa",
+    "supporting-tools/check-extra-originals.py": "b84d34aeaad8dead1fc3f1d93e319f3b4fdc944cf1a25821801dda1920932879",
+    "supporting-tools/check-alpha-nearest-complete.py": "df2a1d02e36ea066d27752073440a1be81956f800a20f0af493ca8ccf923ce44",
+    "supporting-tools/run-core-alpha-units.py": "964e56e67f6dbe5deebc655ca21c18418131339704c5a559c6bdf56e02b83ffe"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}
