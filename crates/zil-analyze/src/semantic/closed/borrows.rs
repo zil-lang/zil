@@ -346,7 +346,12 @@ impl Check<'_, '_> {
             }
             geometry.life.slots[0].mode = StoredBorrowMode::SharedAddress;
         }
-        self.outer_role(instance, function, &parent, expected, b, depth + 1)
+        let proven = self.outer_role(instance, function, &parent, expected, b, depth + 1)?;
+        if proven {
+            b.lookup(b.semantic_reborrow_regions.len(), WORK)?;
+            b.semantic_reborrow_regions.insert((function.id, *value));
+        }
+        Ok(proven)
     }
 
     pub(super) fn borrow_root(

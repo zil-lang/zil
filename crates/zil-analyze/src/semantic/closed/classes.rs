@@ -1392,6 +1392,13 @@ impl Check<'_, '_> {
                 // shared/exclusive mode and consuming state independently.
                 Ok(selected)
             }
+            InstructionKind::TakeVariantField { local, path }
+                if self.dyn_sum_type(&function.locals.get(local.0 as usize)
+                    .ok_or_else(|| fail("Dyn arm extraction has no actual local"))?.ty, b)? =>
+            {
+                self.dyn_owned_local_projection(instance, function, id, *local, path,
+                    (block, index), b, depth + 1)
+            }
             InstructionKind::ReadVariant { value: parent, variant, index: field } => {
                 self.projected_shared_value(instance, function, id, *parent,
                     PlaceProjection::Variant(zil_ir::VariantProjection { variant: *variant, index: *field }),

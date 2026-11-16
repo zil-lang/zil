@@ -1108,7 +1108,8 @@ pub(super) fn check(
             b.spend(row.position.path.len().saturating_add(1), WORK)?;
             if row.position.base != StorageBase::Result || !row.position.path.is_empty()
                 || !matches!(row.binder, StorageBinder::Invocation(_)) { continue; }
-            if checker.reference_result_role(function, row.position.class, b, 0)? == Some(row.binder) {
+            if checker.reference_result_role(function, row.position.class, b, 0)? == Some(row.binder)
+                || checker.input_reference_result_role(function, row.position.class, row.binder, b)? {
                 b.lookup(b.semantic_reference_results.len(), WORK)?;
                 b.semantic_reference_results.insert((function.id, row.position.class, row.binder));
             }

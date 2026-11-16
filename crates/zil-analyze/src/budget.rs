@@ -100,6 +100,7 @@ pub(super) struct Budget {
     // This is a class-role fact, never a loan or terminal cleanup proof.
     pub(super) semantic_reference_results: BTreeSet<(FunctionId, u32, zil_ir::StorageBinder)>,
     pub(super) semantic_reference_locals: BTreeSet<(FunctionId, zil_ir::LocalId)>,
+    pub(super) semantic_reborrow_regions: BTreeSet<(FunctionId, zil_ir::ValueId)>,
     // Exact constructor occurrences whose complete original class value and
     // actual header embedding have both been proved. No target/loan facts.
     pub(super) semantic_aggregate_classes:
@@ -285,6 +286,7 @@ impl Budget {
             semantic_dyn_functions_proven: BTreeSet::new(),
             semantic_reference_results: BTreeSet::new(),
             semantic_reference_locals: BTreeSet::new(),
+            semantic_reborrow_regions: BTreeSet::new(),
             semantic_aggregate_classes: BTreeMap::new(),
             stored_synchronous_abis: BTreeSet::new(),
             partial_depth: limits.max_call_depth,

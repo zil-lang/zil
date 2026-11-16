@@ -575,6 +575,122 @@ impl Check<'_, '_> {
         Ok(Some(binder))
     }
 
+    /// A returned capture may carry a call-local input region rather than a
+    /// mutable declaration region. The original equations qualify its header;
+    /// the independent returned-source walk qualifies every physical capture.
+    pub(super) fn input_reference_result_role(
+        &self,
+        callee: &TypedFunction,
+        child: u32,
+        binder: StorageBinder,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let Type::Closure(id) = &callee.return_type else {
+            return Ok(false);
+        };
+        let header = callee
+            .storage_life
+            .as_ref()
+            .ok_or_else(|| fail("input result role has no actual function header"))?;
+        b.spend(
+            header.bindings.len().saturating_add(header.classes.len()),
+            WORK,
+        )?;
+        if header.bindings.iter().any(|row| {
+            matches!(row.position.base, StorageBase::Parameter(_)) && row.binder == binder
+        }) || header.classes.iter().any(|row| {
+            matches!(row.position.base, StorageBase::Parameter(_)) && row.binder == binder
+        }) {
+            // This is already an ordinary input-grounded row; it requires no
+            // exceptional result-role receipt or duplicate return-source walk.
+            return Ok(false);
+        }
+        let inputs = self.call_result_input_binders(callee, binder, b)?;
+        if inputs.is_empty() {
+            return Ok(false);
+        }
+        let closure = self
+            .module
+            .closures
+            .get(id.0 as usize)
+            .filter(|row| row.id == *id)
+            .ok_or_else(|| fail("input result role has no actual closure"))?;
+        let life = closure
+            .storage_life
+            .as_ref()
+            .ok_or_else(|| fail("input result role has no complete closure domain"))?;
+        let bounds = callee
+            .callable_return_contract
+            .as_ref()
+            .filter(|contract| contract.closure == *id)
+            .and_then(|contract| contract.capture_sources.as_ref())
+            .ok_or_else(|| fail("input result role has no complete capture source upper"))?;
+        let mut count = 0usize;
+        for row in &life.bindings {
+            b.spend(row.position.path.len().saturating_add(1), WORK)?;
+            if row.binder != StorageBinder::Fixed(child) {
+                continue;
+            }
+            let StorageBase::Capture(capture) = row.position.base else {
+                continue;
+            };
+            if !row.position.path.is_empty() {
+                return Ok(false);
+            }
+            let Some(Type::Address { mutable: false, .. }) = closure.captures.get(capture as usize)
+            else {
+                return Ok(false);
+            };
+            let capture_type = &closure.captures[capture as usize];
+            b.spend(bounds.len(), WORK)?;
+            let mut matches = bounds.iter().filter(|bound| bound.position == row.position);
+            let Some(bound) = matches.next() else {
+                return Ok(false);
+            };
+            if matches.next().is_some() || bound.sources.is_empty() {
+                return Ok(false);
+            }
+            for source in &bound.sources {
+                crate::dyn_metadata::recipe(source, b)?;
+                let StorageSource::Exact(position) = source else {
+                    return Ok(false);
+                };
+                let StorageBase::Parameter(parameter) = position.base else {
+                    return Ok(false);
+                };
+                b.spend(header.bindings.len().saturating_add(inputs.len()), WORK)?;
+                if !header.bindings.iter().any(|input| {
+                    input.position.base == position.base
+                        && input.position.path.is_empty()
+                        && inputs.contains(&input.binder)
+                }) {
+                    return Ok(false);
+                }
+                let Some(input) = callee
+                    .parameters
+                    .get(parameter as usize)
+                    .and_then(|id| callee.locals.get(id.0 as usize))
+                else {
+                    return Ok(false);
+                };
+                if !crate::class_flow::reference_grounding::input_leaf(
+                    &input.ty,
+                    &position.path,
+                    capture_type,
+                    b,
+                )? {
+                    return Ok(false);
+                }
+            }
+            count += 1;
+        }
+        if count == 0 {
+            return Ok(false);
+        }
+        crate::retained::check_sources(self.module, callee, b)?;
+        Ok(true)
+    }
+
     /// A declaration region exported through an opaque result is a new
     /// invocation role, not an equation with one of its possible input lives.
     /// The caller's original result supplies its occurrence; every callee world

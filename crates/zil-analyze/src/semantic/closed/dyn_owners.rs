@@ -239,6 +239,39 @@ impl Check<'_, '_> {
     ) -> CompileResult<Value> {
         operations::available_before(function, (at.0, at.1, SemanticSiteEdge::Before), parent, b)?;
         let parent = self.ssa_value(instance, function, parent, b, depth + 1)?;
+        self.dyn_owned_sum_child(function, result, parent, error_arm, b, depth + 1)
+    }
+    pub(super) fn dyn_owned_local_projection(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        result: ValueId,
+        local: LocalId,
+        path: &[PlaceProjection],
+        at: (BlockId, usize),
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
+        let [PlaceProjection::ErrorArm(error_arm)] = path else {
+            return Err(unknown(
+                "Dyn local projection needs its exact complete sum arm",
+            ));
+        };
+        operations::initialized_local_before(function, at, local, b)?;
+        let parent = self.local_value(instance, function, local, at, b, depth + 1)?;
+        // The actual resource CFG separately proves the selected active arm,
+        // consuming slot, outstanding loans and subsequent partial cleanup.
+        self.dyn_owned_sum_child(function, result, parent, *error_arm, b, depth + 1)
+    }
+    fn dyn_owned_sum_child(
+        &self,
+        function: &TypedFunction,
+        result: ValueId,
+        parent: Value,
+        error_arm: bool,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Value> {
         let Type::ErrorUnion {
             error,
             result: success,

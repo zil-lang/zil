@@ -3221,6 +3221,7 @@ impl Solver<'_, '_> {
                             b,
                         )?;
                     }
+                    self.record_environment_read(frame, index, target.id, b)?;
                     let actual = self.expression(frame, value, b, depth + 1)?;
                     self.unify(actual, expected, depth + 1, b)?;
                     Self::push(&mut self.numeric, expected, b)?;

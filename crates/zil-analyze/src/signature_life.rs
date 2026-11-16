@@ -715,6 +715,50 @@ fn relation_inner(
             }
             Ok(())
         }
+        fn qualified_slots(
+            &mut self,
+            life: &zil_ir::StorageLifeShape,
+            base: StorageBase,
+            prefix: &[LifeTypeProjection],
+        ) -> CompileResult<()> {
+            for slot in &life.slots {
+                if slot.binder >= life.binder_count {
+                    return Err(bad(
+                        "qualified physical slot leaves its complete class domain",
+                    ));
+                }
+                let row = self
+                    .c
+                    .bindings
+                    .get(self.borrow)
+                    .ok_or_else(|| bad("qualified signature omits its actual physical slot"))?;
+                let class = self
+                    .c
+                    .classes
+                    .get(self.class + slot.binder as usize)
+                    .ok_or_else(|| {
+                        bad("qualified physical slot leaves its complete class domain")
+                    })?;
+                let path_matches = row.position.path.len() == prefix.len() + slot.path.len()
+                    && prefix.iter().zip(&row.position.path).all(|(a, z)|
+                        matches!((a, z), (LifeTypeProjection::Place(a), zil_ir::ContractProjection::Place(z)) if a == z))
+                    && slot.path.iter().zip(&row.position.path[prefix.len()..]).all(|(a, z)|
+                        matches!(z, zil_ir::ContractProjection::Place(z) if a == z));
+                if row.position.base != base
+                    || !path_matches
+                    || class.position.base != base
+                    || class.position.path != prefix
+                    || class.position.class != slot.binder
+                    || row.binder != class.binder
+                {
+                    return Err(bad(
+                        "qualified physical slot changes its exact class relation",
+                    ));
+                }
+                self.borrow += 1;
+            }
+            Ok(())
+        }
         fn compound_child(
             &mut self,
             ty: &Type,
@@ -733,6 +777,7 @@ fn relation_inner(
                     }
                 }
                 Type::BorrowedStorage { life, .. } => {
+                    self.qualified_slots(life, base, path)?;
                     if life.binder_count as usize > self.c.classes.len().saturating_sub(self.class)
                     {
                         return Err(bad("compound signature omits child classes"));
@@ -1023,6 +1068,9 @@ fn relation_inner(
                     || life.binder_count as usize > self.c.classes.len().saturating_sub(self.class)
                 {
                     return Err(bad("signature omits qualified class domain"));
+                }
+                if !pointed {
+                    self.qualified_slots(life, base, &[])?;
                 }
                 for local in 0..life.binder_count {
                     let row = &self.c.classes[self.class];
@@ -1409,6 +1457,90 @@ mod tests {
                 binder: StorageBinder::Invocation(class),
             }],
         }
+    }
+    #[test]
+    fn qualified_value_consumes_physical_slots_and_complete_classes() {
+        let holder = Type::BorrowedStorage {
+            storage: Box::new(Type::Record {
+                name: "Holder".into(),
+                fields: vec![("pointer".into(), address(Type::I32))],
+            }),
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: vec![zil_ir::StorageLifeSlot {
+                    path: vec![PlaceProjection::Field(0)],
+                    binder: 0,
+                    mode: StoredBorrowMode::SharedAddress,
+                }],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        };
+        let mut header = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 1,
+            static_bindings: vec![],
+            bindings: vec![
+                StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Parameter(0),
+                        path: vec![],
+                    },
+                    binder: StorageBinder::Invocation(0),
+                },
+                StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Result,
+                        path: vec![zil_ir::ContractProjection::Place(PlaceProjection::Field(0))],
+                    },
+                    binder: StorageBinder::Invocation(0),
+                },
+            ],
+            classes: vec![SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base: StorageBase::Result,
+                    path: vec![],
+                    class: 0,
+                },
+                binder: StorageBinder::Invocation(0),
+            }],
+        };
+        let check = |header: &StorageLifeContract| {
+            function_relation(&[address(Type::I32)], &holder, header, false, &[])
+        };
+        check(&header).unwrap();
+        header.bindings[1].position.path =
+            vec![zil_ir::ContractProjection::Place(PlaceProjection::Field(1))];
+        assert!(check(&header).is_err());
+        header.bindings[1].position.path =
+            vec![zil_ir::ContractProjection::Place(PlaceProjection::Field(0))];
+        header.bindings[1].binder = StorageBinder::Invocation(1);
+        assert!(check(&header).is_err());
+        header.bindings.pop();
+        assert!(check(&header).is_err());
+        // A reference to the carrier has one outer physical occurrence and
+        // the complete pointee class; it does not inline the carrier's fields.
+        let pointed = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 2,
+            static_bindings: vec![],
+            bindings: vec![StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Parameter(0),
+                    path: vec![],
+                },
+                binder: StorageBinder::Invocation(0),
+            }],
+            classes: vec![SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base: StorageBase::Parameter(0),
+                    path: vec![LifeTypeProjection::Pointee],
+                    class: 0,
+                },
+                binder: StorageBinder::Invocation(1),
+            }],
+        };
+        function_relation(&[address(holder)], &Type::Unit, &pointed, false, &[]).unwrap();
     }
     #[test]
     fn proved_local_result_role_is_exact_and_never_an_outer_address_permission() {
