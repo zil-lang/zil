@@ -4,6 +4,83 @@ use super::*;
 use crate::semantic::value::Value;
 
 impl Check<'_, '_> {
+    fn abstract_copy_type(&self, ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown("abstract Copy receiver exceeds its finite capture directory"));
+        }
+        if let Type::Closure(id) = ty {
+            let definition = self.module.closures.get(id.0 as usize).filter(|d| d.id == *id)
+                .ok_or_else(|| fail("abstract Copy receiver has no exact environment"))?;
+            if definition.kind != CallableKind::Fn { return Ok(false); }
+            self.capture_directory(*id, b)?;
+            for capture in &definition.captures {
+                if !self.abstract_copy_type(capture, b, depth + 1)? { return Ok(false); }
+            }
+            return Ok(true);
+        }
+        original::nominal::predicate_actual(ty, original::Predicate::Copy, self.inventory, b, depth + 1)
+    }
+
+    /// A copied callable still comes from the selected initialized original
+    /// place. Matching environment types cannot replace the actual Load or
+    /// physical field read, and this proof never takes an environment address.
+    #[allow(clippy::too_many_arguments)]
+    fn abstract_copy_place(
+        &self, instance: &SemanticInstance, function: &TypedFunction,
+        id: ValueId, source: &original::borrow_places::Source, path: &[u32],
+        b: &mut Budget, depth: usize,
+    ) -> CompileResult<()> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown("abstract copied receiver exceeds its finite read ancestry"));
+        }
+        if source.indirect || source.index.is_some() || source.expression.is_some() {
+            return Err(unknown("abstract copied receiver needs its exact direct original place"));
+        }
+        let (block, index, producer) = self.defining(function, id, b)?;
+        operations::available_before(function, (block, index + 1, SemanticSiteEdge::Before), id, b)?;
+        match &producer.kind {
+            InstructionKind::ExtractField { aggregate, index: field } => {
+                if path.last() != Some(field) {
+                    return Err(fail("abstract copied receiver selects another physical field"));
+                }
+                operations::available_before(function, (block, index, SemanticSiteEdge::Before), *aggregate, b)?;
+                self.abstract_copy_place(instance, function, *aggregate, source, &path[..path.len()-1], b, depth + 1)?;
+            }
+            InstructionKind::Load(local) | InstructionKind::ReadPackageField { local, .. } => {
+                let selected = match &producer.kind {
+                    InstructionKind::Load(_) => path.is_empty(),
+                    InstructionKind::ReadPackageField { index, .. } => path == [*index],
+                    _ => false,
+                };
+                if !selected || self.anchored_local(instance, function,
+                    source.anchor.ok_or_else(|| fail("abstract copied receiver has no original anchor"))?, b)? != *local {
+                    return Err(fail("abstract copied receiver selects another original local"));
+                }
+                operations::initialized_local_before(function, (block, index), *local, b)?;
+                let root = self.local_value(instance, function, *local, (block, index), b, depth + 1)?;
+                if !self.capture_values_equal(&root, &source.root, b)? {
+                    return Err(fail("abstract copied receiver changes its complete original root domain"));
+                }
+            }
+            InstructionKind::ReadCapture { index } => {
+                let Some(original::LocalAnchor::Environment(ordinal)) = source.anchor else {
+                    return Err(fail("abstract copied receiver replaces an original local by a capture"));
+                };
+                if !path.is_empty() || self.environment_capture(instance, function, ordinal, b)? != *index {
+                    return Err(fail("abstract copied receiver selects another original capture"));
+                }
+                let root = self.capture_whole_value(instance, function, *index, b, depth + 1)?;
+                if !self.capture_values_equal(&root, &source.root, b)? {
+                    return Err(fail("abstract copied receiver changes its complete captured root domain"));
+                }
+            }
+            _ => return Err(unknown("abstract copied receiver needs its exact initialized read opcode")),
+        }
+        Ok(())
+    }
+
     pub(super) fn abstract_operation(
         &self,
         instance: &SemanticInstance,
@@ -49,16 +126,22 @@ impl Check<'_, '_> {
                 .filter(|b| b.id == block)
                 .and_then(|b| b.instructions.get(index))
                 .ok_or_else(|| fail("abstract invocation has no actual instruction"))?;
-            let (callee, kind, arguments) = match &instruction.kind {
+            let (callee, local_callee, kind, arguments, copied) = match &instruction.kind {
                 InstructionKind::CallClosureBorrowed {
                     callee,
                     kind,
                     arguments,
-                } => (*callee, *kind, arguments),
+                } => (Some(*callee), None, *kind, arguments, false),
+                InstructionKind::CallClosure { callee, arguments }
+                    if boundary.place.is_some() => (Some(*callee), None, CallableKind::Fn, arguments, true),
+                InstructionKind::CallClosureShared { callee, arguments }
+                    if boundary.place.is_some() => (None, Some(*callee), CallableKind::Fn, arguments, false),
+                InstructionKind::CallClosureMut { callee, arguments }
+                    if boundary.place.is_some() => (None, Some(*callee), CallableKind::FnMut, arguments, false),
                 InstructionKind::CallClosureOnce { callee, arguments }
                     if boundary.place.is_some() =>
                 {
-                    (*callee, CallableKind::FnOnce, arguments)
+                    (Some(*callee), None, CallableKind::FnOnce, arguments, false)
                 }
                 _ => {
                     return Err(unknown(
@@ -71,16 +154,39 @@ impl Check<'_, '_> {
                     "abstract callable needs its complete requested invocation ABI and receiver mode",
                 ));
             }
-            operations::available_before(
-                function,
-                (block, index, SemanticSiteEdge::Before),
-                callee,
-                b,
-            )?;
+            if let Some(callee) = callee {
+                operations::available_before(function, (block, index, SemanticSiteEdge::Before), callee, b)?;
+            }
             if let Some(source) = &boundary.place {
-                if kind == CallableKind::FnOnce {
+                if let Some(local) = local_callee {
+                    if source.indirect || !source.path.is_empty() || source.index.is_some() || source.expression.is_some()
+                        || self.anchored_local(instance, function, source.anchor
+                            .ok_or_else(|| fail("abstract local invocation has no original anchor"))?, b)? != local {
+                        return Err(fail("abstract local invocation changes its exact original place"));
+                    }
+                    operations::initialized_local_before(function, (block, index), local, b)?;
+                    let declaration = function.locals.get(local.0 as usize).filter(|item| item.id == local)
+                        .ok_or_else(|| fail("abstract local receiver has no exact local declaration"))?;
+                    if declaration.ty != boundary.subject.ty || kind == CallableKind::FnMut && !declaration.mutable {
+                        return Err(fail("abstract local invocation changes its complete receiver type or mode"));
+                    }
+                    let actual = self.local_value(instance, function, local, (block, index), b, 0)?;
+                    if !self.capture_values_equal(&actual, &source.root, b)? {
+                        return Err(fail("abstract local invocation changes its full original root domain"));
+                    }
+                } else if copied {
+                    let callee = callee.ok_or_else(|| fail("abstract copied receiver loses its actual SSA"))?;
+                    self.abstract_copy_place(instance, function, callee, source, &source.path, b, 0)?;
+                    let actual = self.ssa_value(instance, function, callee, b, 0)?;
+                    if !self.capture_values_equal(&actual, &boundary.subject, b)?
+                        || !self.abstract_copy_type(&boundary.subject.ty, b, 0)? {
+                        return Err(fail("abstract copied invocation changes its full original receiver or Copy capability"));
+                    }
+                } else if kind == CallableKind::FnOnce {
+                    let callee = callee.ok_or_else(|| fail("abstract owned receiver loses its actual SSA"))?;
                     self.checked_owned_place(instance, function, callee, source, b)?;
                 } else {
+                    let callee = callee.ok_or_else(|| fail("abstract borrowed receiver loses its actual SSA"))?;
                     self.checked_borrow_place(
                         instance, function, callee, source, false, false, b, 0,
                     )?;
@@ -105,6 +211,7 @@ impl Check<'_, '_> {
                     ));
                 }
             } else {
+                let callee = callee.ok_or_else(|| fail("abstract borrowed parameter loses its actual SSA"))?;
                 let parameter = self.anchored_local(
                     instance,
                     function,
@@ -182,6 +289,15 @@ impl Check<'_, '_> {
                 .ok_or_else(|| {
                     fail("abstract receiver has no matching actual environment definition")
                 })?;
+            let allowed = match kind {
+                CallableKind::Fn => definition.kind == CallableKind::Fn,
+                CallableKind::FnMut => matches!(definition.kind, CallableKind::Fn | CallableKind::FnMut),
+                CallableKind::FnOnce => matches!(definition.kind, CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce),
+                CallableKind::FunctionPointer => false,
+            };
+            if !allowed {
+                return Err(fail("abstract opcode selects an environment with another actual callable mode"));
+            }
             let mut context = instance;
             let mut found = false;
             for _ in 0..=b.partial_depth {
