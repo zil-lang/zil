@@ -67,6 +67,69 @@ fn definition(
         matches!(payload, Type::AsyncRegistration { .. }),
     )
 }
+fn static_capture(
+    module: &TypedModule,
+    closure: &ClosureDefinition,
+    capture: u32,
+    budget: &mut Budget,
+    span: Span,
+) -> CompileResult<bool> {
+    let Some(ty) = closure.captures.get(capture as usize) else {
+        return Err(fail(span, "ClosedEnvironment capture ordinal is absent"));
+    };
+    if !matches!(ty, Type::Address { mutable: false, inner }
+        if matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8))
+    {
+        return Ok(false);
+    }
+    let Some(contract) = &closure.storage_life else { return Ok(false); };
+    crate::signature_life::charge(contract, budget)?;
+    let position = StoragePosition { base: StorageBase::Capture(capture), path: Vec::new() };
+    let mut statics = 0;
+    for actual in &contract.static_bindings {
+        budget.spend(actual.path.len().saturating_add(1), "ClosedEnvironment Static capture occurrence")?;
+        statics += usize::from(actual == &position);
+    }
+    if statics == 0 { return Ok(false); }
+    if statics != 1 || contract.bindings.iter().any(|row| row.position == position)
+        || module.functions.get(closure.function.0 as usize)
+            .and_then(|function| function.storage_life.as_ref()) != Some(contract)
+    {
+        return Err(fail(span, "ClosedEnvironment constant capture changes its complete actual header occurrence"));
+    }
+    let mut constructors = 0usize;
+    for function in &module.functions {
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                budget.spend(1, "ClosedEnvironment every actual constant constructor")?;
+                let InstructionKind::MakeClosure { closure: id, captures } = &instruction.kind else { continue; };
+                if *id != closure.id { continue; }
+                if captures.len() != closure.captures.len() {
+                    return Err(fail(instruction.span, "ClosedEnvironment constructor changes its complete capture vector"));
+                }
+                let operand = captures[capture as usize];
+                if function.values.get(operand.0 as usize) != Some(ty) {
+                    return Err(fail(instruction.span, "ClosedEnvironment constant capture changes its actual byte-view type"));
+                }
+                crate::retained::check_dyn_static_return(module, function, operand, &[], budget)
+                    .map_err(|mut errors| {
+                        for error in &mut errors {
+                            error.message = format!("ClosedEnvironment constant capture: {}", error.message);
+                            error.notes.push(format!("actual closure {} capture {}, constructor function {} {}, block {}, SSA {}",
+                                closure.id.0, capture, function.id.0, function.name, block.id.0, operand.0));
+                        }
+                        errors
+                    })?;
+                constructors += 1;
+            }
+        }
+    }
+    if constructors == 0 {
+        return Err(fail(span, "ClosedEnvironment constant capture has no actual constructor"));
+    }
+    Ok(true)
+}
+
 fn closed(
     module: &TypedModule,
     root: ClosureId,
@@ -113,7 +176,14 @@ fn closed(
         }
         foreign_scoped::entry(module, c, budget)?;
         functions.push(c.function);
-        let mut types = c.captures.iter().collect::<Vec<_>>();
+        let mut types = Vec::new();
+        for (capture, ty) in c.captures.iter().enumerate() {
+            let capture = u32::try_from(capture)
+                .map_err(|_| fail(span, "ClosedEnvironment capture ordinal overflows"))?;
+            if !static_capture(module, c, capture, budget, span)? {
+                types.push(ty);
+            }
+        }
         while let Some(t) = types.pop() {
             budget.spend(1, "registration stored environment shape")?;
             match t {

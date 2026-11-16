@@ -3,6 +3,8 @@ use super::*;
 use std::collections::BTreeMap;
 mod closed_capture;
 mod concrete;
+#[cfg(test)]
+mod tests;
 #[derive(Clone, Default, PartialEq, Eq)]
 struct Origins {
     unknown: bool,
@@ -216,7 +218,33 @@ pub(crate) fn require(
     budget: &mut Budget,
     span: Option<zil_base::Span>,
 ) -> CompileResult<()> {
-    match require_origin(module, f, Some(local), None, budget, span) {
+    require_local(module, f, local, at, budget, span, true)
+}
+
+/// An original declaration cannot obtain a missing cleanup premise from its
+/// callers. A local producer graph or a universal current-occupant Closed
+/// proof may discharge it; whole-program caller specialization may not.
+pub(crate) fn require_original(
+    module: &TypedModule,
+    f: &TypedFunction,
+    local: LocalId,
+    at: (usize, usize),
+    budget: &mut Budget,
+    span: Option<zil_base::Span>,
+) -> CompileResult<()> {
+    require_local(module, f, local, at, budget, span, false)
+}
+
+fn require_local(
+    module: &TypedModule,
+    f: &TypedFunction,
+    local: LocalId,
+    at: (usize, usize),
+    budget: &mut Budget,
+    span: Option<zil_base::Span>,
+    callers: bool,
+) -> CompileResult<()> {
+    match require_origin(module, f, Some(local), None, budget, span, callers) {
         Ok(()) => Ok(()),
         Err(errors)
             if errors
@@ -241,7 +269,7 @@ pub(crate) fn require_value(
     budget: &mut Budget,
     span: Option<zil_base::Span>,
 ) -> CompileResult<()> {
-    require_origin(module, f, None, Some(value), budget, span)
+    require_origin(module, f, None, Some(value), budget, span, true)
 }
 fn require_origin(
     module: &TypedModule,
@@ -250,6 +278,7 @@ fn require_origin(
     value: Option<ValueId>,
     budget: &mut Budget,
     span: Option<zil_base::Span>,
+    callers: bool,
 ) -> CompileResult<()> {
     let ty = if let Some(local) = local {
         &f.locals
@@ -282,9 +311,15 @@ fn require_origin(
     let closed;
     let origins = if symbolic.parameters.is_empty() && symbolic.captures.is_empty() {
         symbolic
-    } else {
+    } else if callers {
         closed = concrete::settle(module, f.id, symbolic, budget)?;
         &closed
+    } else {
+        let mut errors = fail(span.unwrap_or(f.span),
+            "original Task cleanup needs a declaration-local root or an independent Closed proof");
+        errors[0].notes.push(format!("original cleanup actual function {} {}, unresolved incoming parameters {:?}, captures {:?}",
+            f.id.0, f.name, symbolic.parameters, symbolic.captures));
+        return Err(errors);
     };
     budget.spend(
         origins.workers.len().saturating_add(1),

@@ -31,6 +31,7 @@ mod port_origins;
 pub(super) use drop_sync::{
     needs_proof as needs_synchronous_proof, once_cleanup_closed, once_cleanup_has_no_task,
     require as require_synchronous_drop, require_value as require_synchronous_value,
+    require_original as require_original_synchronous_drop,
     require_worker as require_synchronous_worker,
 };
 fn empty_context() -> zil_ir::RetainedLifeShape {

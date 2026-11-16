@@ -3511,6 +3511,24 @@ impl Flow<'_> {
                         return Err(error("DropOwnedArray requires a finite owning array local"));
                     }
                     let mut fact = copied(state, Place::Local(*local), budget)?;
+                    if check && f.call_kind == CallKind::Direct
+                        && !budget.semantic_cleanup_sites.is_empty()
+                        && matches!(i.kind, InstructionKind::DropManaged { .. })
+                    {
+                        let point = (f.id, f.blocks[b].id, position, *local, None);
+                        budget.lookup(budget.semantic_cleanup_sites.len(), "original Task cleanup source isolation")?;
+                        if budget.semantic_cleanup_sites.contains(&point)
+                            && fact.life.contains(&Life::Available)
+                            && state.sums.may_live_task(*local, &f.locals[local.0 as usize].ty, budget)?
+                        {
+                            // Raw whole-program cleanup may close actual
+                            // caller origins. Original Gamma must instead
+                            // prove this body's source or a current Closed
+                            // fact from the converged ledger above.
+                            tasks::require_original_synchronous_drop(
+                                self.module, f, *local, (b, position), budget, Some(i.span))?;
+                        }
+                    }
                     if check
                         && f.call_kind == CallKind::Direct
                         && fact.life.contains(&Life::Available)

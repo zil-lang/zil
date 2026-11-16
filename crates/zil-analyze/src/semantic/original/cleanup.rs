@@ -264,7 +264,7 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
             continue;
         }
         let proof = match function.call_kind {
-            CallKind::Direct => crate::tasks::require_synchronous_drop(
+            CallKind::Direct => crate::tasks::require_original_synchronous_drop(
                 module, function, local, (block.0 as usize, position), b, Some(instruction.span)),
             CallKind::Suspend => {
                 b.lookup(frames.len(), WORK)?;
