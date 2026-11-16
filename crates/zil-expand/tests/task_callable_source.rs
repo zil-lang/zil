@@ -67,3 +67,90 @@ fn scalar_observer_and_mutable_callable_check_the_original_body() {
         );
     }
 }
+
+#[test]
+fn returned_owned_task_signature_keeps_context_ports_and_creator_selection() {
+    for (text, selected) in [
+        (
+            include_str!(
+                "../../../tests/language-readiness/task-owner-transport/returned-task-result-fnonce.zil"
+            ),
+            0,
+        ),
+        (
+            include_str!(
+                "../../../tests/language-readiness/task-owner-transport/returned-second-task-fnonce.zil"
+            ),
+            1,
+        ),
+    ] {
+        let core = expand(text).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+        let function = core
+            .functions
+            .iter()
+            .find(|function| function.name == "keep")
+            .unwrap();
+        let returned = function.callable_return.as_ref().unwrap();
+        let zil_ir::Type::Managed(payload) = &returned.result else {
+            panic!("owning Task result lost its carrier: {:?}", returned.result);
+        };
+        let zil_ir::Type::Task {
+            result,
+            retained_life,
+        } = payload.as_ref()
+        else {
+            panic!("owning result lost its complete Task type: {payload:?}");
+        };
+        assert_eq!(result.as_ref(), &zil_ir::Type::I32);
+        assert_eq!(retained_life.binder_count, 1);
+        assert_eq!(retained_life.ports.len(), 1);
+        assert_eq!(retained_life.ports[0].binder, 0);
+        assert_eq!(
+            retained_life.ports[0].mode,
+            zil_ir::StoredBorrowMode::ExclusiveAddress
+        );
+        assert_eq!(
+            retained_life.ports[0].leaf,
+            zil_ir::Type::Address {
+                mutable: true,
+                inner: Box::new(zil_ir::Type::I32)
+            }
+        );
+        assert_eq!(
+            retained_life.retained,
+            [zil_ir::StorageRetainedBinding {
+                path: vec![zil_ir::LifeTypeProjection::Parameter(0)],
+                class: 0,
+                binder: 0,
+            }]
+        );
+        assert!(retained_life.nominal_arguments.is_empty());
+        let original = returned.source_life.as_ref().unwrap();
+        assert_eq!(original.fixed.len(), 1);
+        assert_eq!(original.fixed[0].input.parameter, selected);
+        let life = returned.life.as_ref().unwrap();
+        assert_eq!(life.fixed_binder_count, 1);
+        assert_eq!(life.invocation_binder_count, 0);
+        assert_eq!(
+            life.classes,
+            [zil_ir::SignatureLifeClassBinding {
+                position: zil_ir::SignatureLifeClass {
+                    base: zil_ir::StorageBase::Result,
+                    path: vec![zil_ir::LifeTypeProjection::Pointee],
+                    class: 0,
+                },
+                binder: zil_ir::StorageBinder::Fixed(0),
+            }]
+        );
+        assert_eq!(
+            life.bindings,
+            [zil_ir::StorageLifeBinding {
+                position: zil_ir::StoragePosition {
+                    base: zil_ir::StorageBase::Result,
+                    path: vec![zil_ir::ContractProjection::RetainedPort(0)],
+                },
+                binder: zil_ir::StorageBinder::Fixed(0),
+            }]
+        );
+    }
+}

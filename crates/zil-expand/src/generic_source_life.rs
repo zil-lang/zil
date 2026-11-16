@@ -281,6 +281,21 @@ struct Check<'a, 'b, 'l> {
     budget: &'b mut Budget<'l>,
 }
 impl Fact {
+    fn complete(&self) -> bool {
+        match self {
+            Self::Unknown | Self::StoreElement(_) => false,
+            Self::Named(_, fields) | Self::Tuple(fields) => fields.iter().all(Self::complete),
+            Self::Address(life, inner) => {
+                life.as_ref().is_none_or(|life| life.complete()) && inner.complete()
+            }
+            Self::Error(error, result) => error.complete() && result.complete(),
+            Self::List(inner) => inner.complete(),
+            Self::Function(parameters, result) => {
+                parameters.iter().all(Self::complete) && result.complete()
+            }
+            _ => true,
+        }
+    }
     fn has_retained_class(&self) -> bool {
         match self {
             Self::Address(life, inner) => {
@@ -1868,14 +1883,240 @@ impl Check<'_, '_, '_> {
             ExprKind::Call { callee, arguments } => {
                 self.expr(callee, scope, env, None, depth + 1)?;
                 let mut actuals = Vec::new();
+                let mut deferred = false;
                 for arg in arguments {
-                    actuals.push(self.expr(&arg.value, scope, env, None, depth + 1)?);
+                    self.budget
+                        .lineage_bytes(std::mem::size_of::<Option<Fact>>(), arg.span)?;
+                    if self.empty_variant(&arg.value, env, depth + 1)? {
+                        // A genuine empty constructor has no runtime operands.
+                        // Observe every other argument once, in source order,
+                        // before using their independent facts as its context.
+                        deferred = true;
+                        actuals.push(None);
+                    } else {
+                        actuals.push(Some(self.expr(&arg.value, scope, env, None, depth + 1)?));
+                    }
                 }
+                if deferred {
+                    let contexts =
+                        self.empty_call_contexts(e, scope, env, wanted, &actuals, depth + 1)?;
+                    for (index, arg) in arguments.iter().enumerate() {
+                        if actuals[index].is_none() {
+                            let context =
+                                contexts.as_ref().and_then(|contexts| contexts.get(index));
+                            actuals[index] =
+                                Some(self.expr(&arg.value, scope, env, context, depth + 1)?);
+                        }
+                    }
+                }
+                self.budget.lineage_bytes(
+                    actuals.len().saturating_mul(std::mem::size_of::<Fact>()),
+                    e.span,
+                )?;
+                let actuals = actuals
+                    .into_iter()
+                    .map(|actual| actual.expect("every original argument checked"))
+                    .collect::<Vec<_>>();
                 self.finish_call(e, scope, env, wanted, depth, &actuals)?
             }
             _ => unreachable!("source fact expression dispatcher"),
         };
         Ok(actual)
+    }
+
+    // Only a real zero-payload variant may wait for its parent's context. A
+    // same-named function, unresolved call or recursive result is not empty.
+    fn empty_variant(&mut self, expression: &Expr, env: &Facts, depth: usize) -> R<bool> {
+        self.budget.node(expression.span, depth)?;
+        if let ExprKind::Group(inner) = &expression.kind {
+            return self.empty_variant(inner, env, depth + 1);
+        }
+        let ExprKind::Call { callee, arguments } = &expression.kind else {
+            return Ok(false);
+        };
+        if !arguments.is_empty() {
+            return Ok(false);
+        }
+        let Some((name, variant, explicit)) = enums::constructor(callee) else {
+            return Ok(false);
+        };
+        if explicit.is_some() {
+            return Ok(false);
+        }
+        self.lookup(env.len(), name.len(), expression.span)?;
+        if env.contains_key(name) {
+            return Ok(false);
+        }
+        for declaration in &self.enums {
+            self.budget.text(&declaration.name, expression.span)?;
+            self.budget.text(name, expression.span)?;
+            if declaration.name != name {
+                continue;
+            }
+            for candidate in &declaration.variants {
+                self.budget.text(&candidate.name, expression.span)?;
+                self.budget.text(variant, expression.span)?;
+                if candidate.name == variant {
+                    return Ok(match &candidate.fields {
+                        VariantFields::Unit => true,
+                        VariantFields::Tuple(fields) => fields.is_empty(),
+                        VariantFields::Record(_) => false,
+                    });
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    fn empty_call_contexts(
+        &mut self,
+        expression: &Expr,
+        caller: &Scope<'_>,
+        env: &Facts,
+        wanted: Option<&Fact>,
+        actuals: &[Option<Fact>],
+        depth: usize,
+    ) -> R<Option<Vec<Fact>>> {
+        let ExprKind::Call { callee, .. } = &expression.kind else {
+            unreachable!()
+        };
+        let (callee, explicit) = match &callee.kind {
+            ExprKind::TypeApply { callee, arguments } => {
+                (callee.as_ref(), Some(arguments.as_slice()))
+            }
+            _ => (callee.as_ref(), None),
+        };
+        let ExprKind::Name(name) = &callee.kind else {
+            return Ok(None);
+        };
+        self.lookup(env.len(), name.len(), expression.span)?;
+        if let Some(fact) = env.get(name) {
+            if explicit.is_none()
+                && let Fact::Function(parameters, _) = fact
+                && parameters.len() == actuals.len()
+            {
+                self.budget.lineage_bytes(
+                    parameters.len().saturating_mul(std::mem::size_of::<Fact>()),
+                    expression.span,
+                )?;
+                let mut contexts = Vec::new();
+                for parameter in parameters {
+                    contexts.push(self.copy(parameter, expression.span)?);
+                }
+                return Ok(Some(contexts));
+            }
+            return Ok(None);
+        }
+        for owner in 0..self.functions.len() {
+            self.pay(expression.span, 1)?;
+            let function = self.functions[owner];
+            self.budget.text(&function.name, expression.span)?;
+            if !self.standalone[owner] || function.name != *name {
+                continue;
+            }
+            if function.params.len() != actuals.len() {
+                return Err(error(
+                    expression.span,
+                    "contextual source call argument arity differs",
+                ));
+            }
+            let definition = Scope {
+                owner,
+                parameters: &function.generics,
+                host: self.hosts[owner],
+                impl_target: self.impl_targets.get(&owner).copied(),
+            };
+            let mut map =
+                self.free_call_actuals(owner, explicit, caller, expression.span, depth + 1)?;
+            self.budget.lineage_bytes(
+                function
+                    .params
+                    .len()
+                    .saturating_mul(std::mem::size_of::<Fact>()),
+                expression.span,
+            )?;
+            let mut formals = Vec::new();
+            let mut invariant = false;
+            for parameter in &function.params {
+                let formal = self.ty(&parameter.ty, &definition, depth + 1)?;
+                invariant |= formal.has_class();
+                formals.push(formal);
+            }
+            for (formal, actual) in formals.iter().zip(actuals) {
+                if let Some(actual) = actual {
+                    self.infer(formal, actual, &mut map, expression.span, invariant)?;
+                }
+            }
+            if let (Some(result), Some(wanted)) = (&function.return_type, wanted) {
+                let result = self.ty(result, &definition, depth + 1)?;
+                self.infer(
+                    &result,
+                    wanted,
+                    &mut map,
+                    expression.span,
+                    result.has_class(),
+                )?;
+            }
+            // A missing payload does not choose a phantom lifetime. Only
+            // explicit actuals, other arguments, or the real receiving context
+            // may complete these formals; unresolved classes stay unresolved.
+            self.budget.lineage_bytes(
+                formals.len().saturating_mul(std::mem::size_of::<Fact>()),
+                expression.span,
+            )?;
+            let mut contexts = Vec::new();
+            for formal in formals {
+                let context = self.substitute(&formal, &map, expression.span)?;
+                self.work(&context, expression.span)?;
+                if !context.complete() {
+                    return Ok(None);
+                }
+                contexts.push(context);
+            }
+            return Ok(Some(contexts));
+        }
+        Ok(None)
+    }
+
+    fn free_call_actuals(
+        &mut self,
+        owner: usize,
+        explicit: Option<&[GenericArg]>,
+        caller: &Scope<'_>,
+        span: Span,
+        depth: usize,
+    ) -> R<Substitutions> {
+        let function = self.functions[owner];
+        let mut map = Substitutions::new();
+        if let Some(args) = explicit {
+            if function
+                .generics
+                .iter()
+                .any(|p| !matches!(p.kind, GenericParamKind::Type(_)))
+                && args.len() == function.generics.len()
+            {
+                for (ordinal, (formal, arg)) in function.generics.iter().zip(args).enumerate() {
+                    let fact = self.full_free_actual(formal, arg, caller, span, depth + 1)?;
+                    self.lookup(map.len(), 2, span)?;
+                    map.insert(Binder(owner, ordinal), fact);
+                }
+            } else {
+                for ((ordinal, _), arg) in function
+                    .generics
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, p)| !matches!(p.kind, GenericParamKind::Lifetime))
+                    .zip(args)
+                {
+                    if let GenericArg::Type(ty) = arg {
+                        let fact = self.ty(ty, caller, depth + 1)?;
+                        self.lookup(map.len(), 2, span)?;
+                        map.insert(Binder(owner, ordinal), fact);
+                    }
+                }
+            }
+        }
+        Ok(map)
     }
 
     // Call classification and substitution run after every actual expression.
@@ -1991,37 +2232,13 @@ impl Check<'_, '_, '_> {
                     host: self.hosts[owner],
                     impl_target: self.impl_targets.get(&owner).copied(),
                 };
-                let mut map = Substitutions::new();
-                if let Some(args) = explicit {
-                    if f.generics
-                        .iter()
-                        .any(|p| !matches!(p.kind, GenericParamKind::Type(_)))
-                        && args.len() == f.generics.len()
-                    {
-                        for (ordinal, (formal, arg)) in f.generics.iter().zip(args).enumerate() {
-                            let fact =
-                                self.full_free_actual(formal, arg, scope, e.span, depth + 1)?;
-                            self.lookup(map.len(), 2, e.span)?;
-                            map.insert(Binder(owner, ordinal), fact);
-                        }
-                    } else {
-                        // Keep the old short and all-Type path's work
-                        // and ordinal behavior unchanged.
-                        for ((ordinal, _), arg) in f
-                            .generics
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, p)| !matches!(p.kind, GenericParamKind::Lifetime))
-                            .zip(args)
-                        {
-                            if let GenericArg::Type(t) = arg {
-                                let fact = self.ty(t, scope, depth + 1)?;
-                                self.lookup(map.len(), 2, e.span)?;
-                                map.insert(Binder(owner, ordinal), fact);
-                            }
-                        }
-                    }
-                }
+                let mut map = self.free_call_actuals(
+                    owner,
+                    explicit.map(Vec::as_slice),
+                    scope,
+                    e.span,
+                    depth,
+                )?;
                 let result = f
                     .return_type
                     .as_ref()

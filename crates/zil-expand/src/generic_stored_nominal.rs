@@ -774,6 +774,28 @@ impl<'a> Engine<'a> {
                 next_elided,
                 depth + 1,
             ),
+            TypeKind::Named { path: name, args }
+                if name.as_slice() == ["Managed"]
+                    && matches!(args.as_slice(), [GenericArg::Type(resource)]
+                        if crate::receivers::bare_resource_syntax(resource, &|_| None)) =>
+            {
+                let [GenericArg::Type(resource)] = args.as_mut_slice() else {
+                    unreachable!("one actual resource selected above")
+                };
+                // Desc<R> and Managed<R> both select R's logical domain at
+                // Pointee. Ownership adds no physical Address or extra port;
+                // keep the resource's exact Context occurrences once.
+                self.storage_header(
+                    resource,
+                    base,
+                    path,
+                    type_path,
+                    occurrences,
+                    stored,
+                    next_elided,
+                    depth + 1,
+                )
+            }
             TypeKind::Reference {
                 lifetime, inner, ..
             } => {

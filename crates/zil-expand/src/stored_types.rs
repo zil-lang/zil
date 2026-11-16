@@ -220,6 +220,105 @@ impl Catalog {
                 }
                 Ok(Type::Tuple(result))
             }
+            s::TypeKind::Error { error, result } => Ok(Type::ErrorUnion {
+                error: Box::new(self.pointer_parameter_type(error, nominals, budget, depth + 1)?),
+                result: Box::new(self.pointer_parameter_type(
+                    result,
+                    nominals,
+                    budget,
+                    depth + 1,
+                )?),
+            }),
+            s::TypeKind::Named { path, args } if path.as_slice() == ["Managed"] => {
+                let [s::GenericArg::Type(resource)] = args.as_slice() else {
+                    return Err(invalid(
+                        source.span,
+                        "Managed requires one actual resource type",
+                    ));
+                };
+                if !receivers::bare_resource_syntax(resource, &|_| None) {
+                    return Err(invalid(
+                        source.span,
+                        "rich Managed signature requires an actual resource payload",
+                    ));
+                }
+                let Type::Desc(payload) =
+                    self.pointer_parameter_type(resource, nominals, budget, depth + 1)?
+                else {
+                    return Err(invalid(
+                        source.span,
+                        "rich Managed signature contains another resource carrier",
+                    ));
+                };
+                Ok(Type::Managed(payload))
+            }
+            s::TypeKind::Named { path, args } if path.as_slice() == ["Task"] => {
+                // The public resource renderer owns the full Context ordinal,
+                // class partition and result-link construction. Restore each
+                // actual leaf through this catalog instead of losing qualified
+                // children in its contextless physical spelling.
+                budget.ty_depth(source, depth)?;
+                let physical = type_ref(source);
+                let Type::Desc(mut payload) = physical else {
+                    return Err(invalid(
+                        source.span,
+                        "rich Task signature has an incomplete Context",
+                    ));
+                };
+                let Type::Task {
+                    result,
+                    retained_life,
+                } = payload.as_mut()
+                else {
+                    return Err(invalid(
+                        source.span,
+                        "rich Task signature lacks its actual resource type",
+                    ));
+                };
+                let Some(s::GenericArg::Type(source_result)) = args.first() else {
+                    return Err(invalid(source.span, "rich Task signature omits its result"));
+                };
+                *result = Box::new(self.pointer_parameter_type(
+                    source_result,
+                    nominals,
+                    budget,
+                    depth + 1,
+                )?);
+                if let Some(s::GenericArg::Type(context)) = args.get(1) {
+                    let sources = match &context.kind {
+                        s::TypeKind::Tuple(fields) => fields.as_slice(),
+                        _ => std::slice::from_ref(context),
+                    };
+                    let mut port = 0usize;
+                    for source in sources {
+                        budget.ty_depth(source, depth + 1)?;
+                        if type_ref(source).is_b0_scalar() {
+                            continue;
+                        }
+                        let actual =
+                            self.pointer_parameter_type(source, nominals, budget, depth + 1)?;
+                        let entry = retained_life.ports.get_mut(port).ok_or_else(|| {
+                            invalid(source.span, "rich Task Context port is absent")
+                        })?;
+                        entry.leaf = actual;
+                        port += 1;
+                    }
+                    if port != retained_life.ports.len() {
+                        return Err(invalid(
+                            source.span,
+                            "rich Task Context has extra physical ports",
+                        ));
+                    }
+                }
+                let actual = Type::Desc(payload);
+                if contains_unresolved(&actual) {
+                    return Err(invalid(
+                        source.span,
+                        "rich Task signature contains an unresolved actual type",
+                    ));
+                }
+                Ok(actual)
+            }
             s::TypeKind::Named { path, args } if path.len() == 1 && args.is_empty() => {
                 for instance in &self.instances {
                     budget.node(source.span, depth)?;
@@ -1294,6 +1393,16 @@ fn contains_unresolved(ty: &Type) -> bool {
         Type::Address { inner, .. } | Type::Desc(inner) | Type::Managed(inner) => {
             contains_unresolved(inner)
         }
+        Type::Task {
+            result,
+            retained_life,
+        } => {
+            contains_unresolved(result)
+                || retained_life
+                    .ports
+                    .iter()
+                    .any(|port| contains_unresolved(&port.leaf))
+        }
         Type::Tuple(fields) => fields.iter().any(contains_unresolved),
         Type::Array { element, .. } | Type::Slice { element } => contains_unresolved(element),
         Type::ErrorUnion { error, result } => {
@@ -1841,6 +1950,92 @@ pub(super) fn instantiate_enum_joint(
 mod source_tests {
     use super::*;
     use zil_base::{FileId, ModuleId};
+
+    #[test]
+    fn callable_task_type_keeps_complete_context_ordinals_and_result_link() {
+        let source = zil_base::SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "task-signature.zil",
+            "fn input<life a,life b>(value:Managed<Task<&'a i32,(i32,&'a i32,&'b mut i32)>>){}",
+        );
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let s::ItemKind::Function(function) = &syntax.items[0].kind else {
+            panic!()
+        };
+        let limits = zil_base::Limits::default();
+        let mut budget = generics::Budget::new(&limits);
+        let ty = Catalog::default()
+            .pointer_parameter_type(&function.params[0].ty, &BTreeMap::new(), &mut budget, 0)
+            .unwrap();
+        let Type::Managed(task) = ty else { panic!() };
+        let Type::Task {
+            result,
+            retained_life,
+        } = *task
+        else {
+            panic!()
+        };
+        assert_eq!(
+            *result,
+            Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32)
+            }
+        );
+        assert_eq!(retained_life.binder_count, 2);
+        assert_eq!(retained_life.ports.len(), 2);
+        assert_eq!(retained_life.ports[0].binder, 0);
+        assert_eq!(retained_life.ports[1].binder, 1);
+        assert_eq!(
+            retained_life.retained,
+            [
+                zil_ir::StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::Parameter(1)],
+                    class: 0,
+                    binder: 0
+                },
+                zil_ir::StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::Parameter(2)],
+                    class: 0,
+                    binder: 1
+                },
+                zil_ir::StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::Result],
+                    class: 0,
+                    binder: 0
+                },
+            ]
+        );
+        for ty in [
+            "Managed<Managed<Task<i32>>>",
+            "Managed<Task<&'b i32,&'a i32>>",
+            "Managed<Task<i32,&'a Missing>>",
+        ] {
+            let source = zil_base::SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "bad-task-signature.zil",
+                format!("fn input<life a,life b>(value:{ty}){{}}"),
+            );
+            let syntax = zil_syntax::parse(&source).into_result().unwrap();
+            let s::ItemKind::Function(function) = &syntax.items[0].kind else {
+                panic!()
+            };
+            let mut budget = generics::Budget::new(&limits);
+            assert!(
+                Catalog::default()
+                    .pointer_parameter_type(
+                        &function.params[0].ty,
+                        &BTreeMap::new(),
+                        &mut budget,
+                        0
+                    )
+                    .is_err(),
+                "{ty}"
+            );
+        }
+    }
 
     #[test]
     fn slice_iterator_reaches_complete_core() {
