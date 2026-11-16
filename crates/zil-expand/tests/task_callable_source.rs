@@ -331,3 +331,99 @@ fn qualified_task_worker_cannot_equate_distinct_caller_classes() {
         );
     }
 }
+
+#[test]
+fn pending_once_returns_the_selected_owned_task_with_empty_context() {
+    let text = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/once-pending-returned-task-cleanup.zil"
+    );
+    let core = expand(text).unwrap_or_else(|errors| panic!("{errors:?}"));
+    assert!(core.unsupported.is_empty(), "{:?}", core.unsupported);
+    assert!(core.semantic.is_some());
+    let keep = core
+        .functions
+        .iter()
+        .find(|function| function.name == "keep")
+        .unwrap();
+    for parameter in &keep.parameters[..2] {
+        assert_eq!(parameter.mode, zil_ir::PassingMode::Give);
+        let zil_ir::Type::Desc(payload) = &parameter.ty else {
+            panic!("{:?}", parameter.ty)
+        };
+        let zil_ir::Type::Task {
+            result,
+            retained_life,
+        } = payload.as_ref()
+        else {
+            panic!("{payload:?}")
+        };
+        assert_eq!(result.as_ref(), &zil_ir::Type::I32);
+        assert_eq!(retained_life.binder_count, 0);
+        assert!(retained_life.ports.is_empty());
+        assert!(retained_life.retained.is_empty());
+        assert!(retained_life.nominal_arguments.is_empty());
+    }
+    let result = &keep.callable_return.as_ref().unwrap().result;
+    let zil_ir::Type::Managed(payload) = result else {
+        panic!("{result:?}")
+    };
+    assert_eq!(
+        payload.as_ref(),
+        match &keep.parameters[1].ty {
+            zil_ir::Type::Desc(payload) => payload.as_ref(),
+            _ => unreachable!(),
+        }
+    );
+    let zil_ir::CoreStatementKind::Return(Some(closure)) =
+        &keep.body.statements.last().unwrap().kind
+    else {
+        panic!()
+    };
+    let zil_ir::CoreExprKind::Closure {
+        move_capture, body, ..
+    } = &closure.kind
+    else {
+        panic!("{closure:?}")
+    };
+    assert!(*move_capture);
+    let zil_ir::CoreStatementKind::Return(Some(value)) = &body.statements.last().unwrap().kind
+    else {
+        panic!()
+    };
+    assert!(
+        matches!(&value.kind, zil_ir::CoreExprKind::Unary { op: zil_ir::UnaryOp::Give, operand }
+        if matches!(&operand.kind, zil_ir::CoreExprKind::Name(name) if name == "selected"))
+    );
+}
+
+#[test]
+fn task_give_preserves_owner_transfer_and_rejects_descriptors_or_repeated_moves() {
+    let valid = "fn relay<F:Fn()->i32>(f:&F,give selected:Task<i32>)->Task<i32> contract{result(give)}{let moved=give selected;return give moved;}fn main(){}";
+    let core = expand(valid).unwrap_or_else(|errors| panic!("{errors:?}"));
+    assert!(core.unsupported.is_empty(), "{:?}", core.unsupported);
+    for invalid in [
+        valid.replace("give selected:Task<i32>", "selected:Task<i32>"),
+        valid.replace(
+            "return give moved;",
+            "let duplicate=give moved;return give moved;",
+        ),
+    ] {
+        let errors = expand(&invalid).unwrap_err();
+        assert!(
+            errors.iter().any(|error| error.phase == Phase::Expand
+                && error.category == zil_base::ResultCategory::SafeReject
+                && matches!(
+                    error.message.as_str(),
+                    "give requires an actual owned resource; descriptions do not own"
+                        | "owned resource used after give"
+                )),
+            "{errors:?}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|error| error.category == zil_base::ResultCategory::Unsupported),
+            "{errors:?}"
+        );
+    }
+}

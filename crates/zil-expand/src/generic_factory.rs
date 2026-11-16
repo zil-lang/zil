@@ -143,6 +143,27 @@ impl Check<'_, '_, '_> {
         if dependent(ty, &self.variables) {
             return Ok(false);
         }
+        if let TypeKind::Named { path, args } = &group(ty).kind
+            && path.as_slice() == ["Managed"]
+            && let [GenericArg::Type(resource)] = args.as_slice()
+            && stores::explicit_task_result(resource)
+        {
+            // A Task owner is a finite handle with its complete declared
+            // result and Context. This is a Value signature, not evidence of
+            // Copy, SyncDrop, Closed or an available execution root.
+            self.budget.ty(ty)?;
+            self.traits.store_types(
+                resource,
+                &self.bounds,
+                &self.variables,
+                self.budget,
+                self.callable.as_ref().map_or(
+                    callable::StoreCallbacks::None,
+                    callable::CallableTemplates::store_callbacks,
+                ),
+            )?;
+            return Ok(true);
+        }
         if let TypeKind::Error { error, result } = &group(ty).kind {
             return Ok(self.local_owned_signature_type(error, active, depth + 1)?
                 && self.local_owned_signature_type(result, active, depth + 1)?);

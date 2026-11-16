@@ -137,11 +137,16 @@ pub(super) fn result(name: &str, element: &TypeRef, span: Span) -> TypeRef {
 
 /// Source result modes are deliberately finite. No arbitrary contract is
 /// accepted merely because the function happens to mention a Store.
+// The absent Context argument is the declared empty domain, not an unknown
+// or inferred retained domain. This recognizes syntax only; Give/creation
+// establishes ownership and the ordinary type consumers check every child.
 pub(super) fn explicit_task_result(ty: &TypeRef) -> bool {
     matches!(&grouped(ty).kind,
         TypeKind::Named { path, args }
             if path.as_slice() == ["Task"]
-                && matches!(args.as_slice(), [GenericArg::Type(_), GenericArg::Type(_)]))
+                && matches!(args.as_slice(),
+                    [GenericArg::Type(_)]
+                    | [GenericArg::Type(_), GenericArg::Type(_)]))
 }
 pub(super) fn result_mode(function: &Function) -> R<zil_ir::PassingMode> {
     use zil_ir::PassingMode;

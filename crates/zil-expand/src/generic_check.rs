@@ -1856,6 +1856,37 @@ impl Check<'_, '_, '_> {
             _ => false,
         })
     }
+    // Recognize a real Task transfer before expression checking consumes its
+    // source. A bare Name is a description and never establishes ownership.
+    fn task_transfer_expression(&mut self, expression: &Expr, state: &State) -> R<bool> {
+        self.tick(expression.span)?;
+        match &expression.kind {
+            ExprKind::Group(inner) | ExprKind::Ascribed { value: inner, .. } => {
+                self.task_transfer_expression(inner, state)
+            }
+            ExprKind::Unary {
+                op: UnaryOp::Give,
+                operand,
+            } => {
+                let mut operand = operand.as_ref();
+                while let ExprKind::Group(inner) = &operand.kind {
+                    self.tick(operand.span)?;
+                    operand = inner;
+                }
+                Ok(matches!(&operand.kind, ExprKind::Name(name)
+                    if state.locals.get(name).is_some_and(|local|
+                        local.owned_resource && stores::explicit_task_result(&local.ty))))
+            }
+            ExprKind::If {
+                then_value,
+                else_value,
+                ..
+            } => Ok(self.task_transfer_expression(then_value, state)?
+                && self.task_transfer_expression(else_value, state)?),
+            _ => Ok(false),
+        }
+    }
+
     /// Concrete resource calls use the existing resource result contract,
     /// rather than the separate Store-only generic result profile. This only
     /// classifies a new local; declaration/return validity is checked normally.
@@ -2488,6 +2519,7 @@ impl Check<'_, '_, '_> {
                 || self.concrete_helper_resource(&local.ty)
                 || stores::explicit_task_result(&local.ty))
             && (local.owned_resource
+                || stores::explicit_task_result(&local.ty)
                 || self.two_input_state_constructor()
                 || self
                     .callable
@@ -4524,7 +4556,24 @@ impl Check<'_, '_, '_> {
             ExprKind::Unary {
                 op: UnaryOp::Give,
                 operand,
-            } => self.managed_field_transfer(operand, state),
+            } => {
+                // A checked give supplies the owning value, while a bare Task
+                // annotation describes its resource header. Only this actual
+                // transfer may fill an explicit Managed<Task<...>> context.
+                let actual = self.managed_field_transfer(operand, state)?;
+                if stores::explicit_task_result(&actual)
+                    && let Some(expected) = expected
+                    && let TypeKind::Named { path, args } = &group(expected).kind
+                    && path.as_slice() == ["Managed"]
+                    && let [GenericArg::Type(inner)] = args.as_slice()
+                    && stores::explicit_task_result(inner)
+                {
+                    role_check::same(&actual, inner, e.span, self.class_scope, self.budget)?;
+                    self.budget.ty(expected)?;
+                    return Ok(expected.clone());
+                }
+                Ok(actual)
+            }
             ExprKind::Unary { op, operand } => {
                 let ty = self.expr(operand, state, expected, false)?;
                 if dependent(&ty, &self.variables) {
@@ -6300,6 +6349,7 @@ impl Check<'_, '_, '_> {
                         || self.callable.as_ref().is_some_and(|bounds| {
                             bounds.owned_factory || bounds.retained_registration
                         })
+                        || self.task_transfer_expression(value, state)?
                     {
                         resource_flow.owns = self.owned_resource_expression(value, state)?;
                     }
@@ -6397,6 +6447,7 @@ impl Check<'_, '_, '_> {
                     local.owned_resource = owns_resource
                         && (declaration_resource
                             || registration_created
+                            || stores::explicit_task_result(&local.ty)
                             || self.concrete_helper_resource(&local.ty));
                     if stores::element(&local.ty).is_some() {
                         if owns_store {
