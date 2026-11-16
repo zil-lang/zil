@@ -26,7 +26,7 @@ impl CheckedOriginal {
     pub(super) fn relate_value(&mut self,actual:&Ty,expected:&Ty,b:&mut Budget)->Check<()> {
         let actual=self.resolved(actual,b)?;let expected=self.resolved(expected,b)?;
         match (&actual,&expected) {
-            (Ty::Address{mutable:a,life:source,inner:x},Ty::Address{mutable:z,life:target,inner:y}) if a==z=>{self.unify(x,y,b)?;self.relate_outer(source,target,b)},
+            (Ty::Address{mutable:a,life:source,inner:x},Ty::Address{mutable:z,life:target,inner:y}) if a==z||(*a&&!*z)=>{self.unify(x,y,b)?;self.relate_outer(source,target,b)},
             (Ty::Desc{life:source,inner:x},Ty::Desc{life:target,inner:y})=>{self.unify(x,y,b)?;self.relate_outer(source,target,b)},
             _=>self.unify(&actual,&expected,b),
         }
