@@ -431,9 +431,35 @@ mod tests {
         retain(&expected, &mut budget).unwrap();
         assert!(field_equal(&owner, None, 0, &expected, &mut budget).unwrap());
         assert!(!field_equal(&owner, None, 1, &expected, &mut budget).unwrap());
-        assert_eq!(budget.geometry_field_equalities.len(), 1);
         assert!(field_equal(&owner, None, 0, &expected, &mut budget).unwrap());
         assert!(field_equal(&owner, None, 2, &expected, &mut budget).is_err());
+        let mut temporary = Arc::new(Geometry::new(Type::I32, value::empty()));
+        let registered_roots = budget.geometry_types.len();
+        assert!(field_equal(&owner, None, 0, &temporary, &mut budget).unwrap());
+        assert_eq!(budget.geometry_types.len(), registered_roots);
+        assert_eq!(Arc::strong_count(&temporary), 1);
+        // The same temporary address may later hold another complete Type;
+        // it acquired no borrowed-pointer cache entry from this comparison.
+        let changed = Arc::get_mut(&mut temporary).unwrap();
+        changed.ty = Type::U32;
+        changed.invalidate();
+        assert!(!field_equal(&owner, None, 0, &temporary, &mut budget).unwrap());
+        assert_eq!(budget.geometry_types.len(), registered_roots);
+
+        let mut other_budget = Budget::new(&zil_base::Limits::default());
+        let _ = copy_geometry(&Type::F64, &value::empty(), &mut other_budget).unwrap();
+        let other_epoch = copy_geometry(&Type::U32, &value::empty(), &mut other_budget).unwrap();
+        assert!(!field_equal(&owner, None, 0, &other_epoch, &mut budget).unwrap());
+
+        let mut oversized = value::empty();
+        oversized.binder_count = 1;
+        oversized.slots.push(StorageLifeSlot {
+            path: vec![LifeTypeProjection::Pointee; budget.partial_depth + 1],
+            binder: 0,
+            mode: StoredBorrowMode::SharedAddress,
+        });
+        let unbounded = Arc::new(Geometry::new(Type::I32, oversized));
+        assert!(field_equal(&owner, None, 0, &unbounded, &mut budget).is_err());
     }
 
     #[test]

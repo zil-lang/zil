@@ -358,13 +358,16 @@ pub(super) fn borrowed(
     register(&owner, &receipt, b)?;
     Ok(owner)
 }
-pub(super) fn owned(owner: &Arc<Geometry>, b: &mut Budget) -> CompileResult<Receipt> {
-    b.spend(1, "semantic geometry immutable receipt")?;
-    if let Some(receipt) = owner.receipt.get().filter(|row| {
+fn current_receipt<'a>(owner: &'a Geometry, b: &Budget) -> Option<&'a Receipt> {
+    owner.receipt.get().filter(|row| {
         row.module == b.geometry_module
             && row.limits == limits(b)
             && Arc::ptr_eq(&row.epoch, &b.geometry_epoch)
-    }) {
+    })
+}
+pub(super) fn owned(owner: &Arc<Geometry>, b: &mut Budget) -> CompileResult<Receipt> {
+    b.spend(1, "semantic geometry immutable receipt")?;
+    if let Some(receipt) = current_receipt(owner, b) {
         return Ok(receipt.clone());
     }
     let (raw_work, shape_work) = bounds(&owner.ty, &owner.life, b)?;
@@ -397,14 +400,13 @@ pub(super) fn field_equal(
     let actual = node(owner, Node::Field(variant, field))?;
     b.spend(1, "semantic geometry physical field selector")?;
     let owner_receipt = owned(owner, b)?;
-    let expected_receipt = owned(expected, b)?;
     let key = (owner_receipt.type_id, variant, field);
     b.lookup(
         b.geometry_child_types.len(),
         "semantic geometry physical child Type query",
     )?;
-    let id = if let Some(id) = b.geometry_child_types.get(&key).copied() {
-        id
+    let (id, raw_work) = if let Some(row) = b.geometry_child_types.get(&key).copied() {
+        row
     } else {
         let before = b.remaining();
         crate::dyn_metadata::ty(actual, b)?;
@@ -418,21 +420,22 @@ pub(super) fn field_equal(
             b.geometry_child_types.len(),
             "semantic geometry physical child Type publication",
         )?;
-        b.geometry_child_types.insert(key, id);
-        id
+        b.spend(1, "semantic geometry child raw comparison bound")?;
+        b.geometry_child_types.insert(key, (id, raw));
+        (id, raw)
     };
-    let equal = id == expected_receipt.type_id;
-    if equal {
-        b.lookup(
-            b.geometry_field_equalities.len(),
-            "complete nominal child equality publication",
-        )?;
-        b.geometry_field_equalities.insert((
-            &owner.ty as *const Type as usize,
-            variant,
-            field,
-            &expected.ty as *const Type as usize,
-        ));
+    b.spend(1, "semantic geometry immutable field Type receipt")?;
+    if let Some(receipt) = current_receipt(expected, b) {
+        return Ok(id == receipt.type_id);
     }
-    Ok(equal)
+    // This consumer compares only a physical child Type. A temporary expected
+    // value need not become a globally retained geometry merely for equality.
+    // Preserve full raw Type AND domain validation, then compare every Type
+    // component directly; hashes or actual class images grant no shortcut.
+    let (expected_work, _) = bounds(&expected.ty, &expected.life, b)?;
+    b.spend(
+        raw_work.max(expected_work),
+        "complete nominal child Type equality comparison",
+    )?;
+    Ok(actual == &expected.ty)
 }

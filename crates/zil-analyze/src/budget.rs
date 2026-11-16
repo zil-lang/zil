@@ -47,8 +47,8 @@ pub(super) struct Budget {
     >,
     pub(super) geometry_next_type: usize,
     pub(super) geometry_next_value: usize,
-    pub(super) geometry_child_types: BTreeMap<(usize, Option<usize>, usize), usize>,
-    pub(super) geometry_field_equalities: BTreeSet<(usize, Option<usize>, usize, usize)>,
+    // Exact child Type identity and its complete bounded comparison work.
+    pub(super) geometry_child_types: BTreeMap<(usize, Option<usize>, usize), (usize, usize)>,
     cost_profiling: bool,
     costs: BTreeMap<String, (usize, usize)>,
     metadata_costs: BTreeMap<(&'static str, &'static str, u32), (usize, usize)>,
@@ -254,7 +254,6 @@ impl Budget {
             geometry_next_type: 0,
             geometry_next_value: 0,
             geometry_child_types: BTreeMap::new(),
-            geometry_field_equalities: BTreeSet::new(),
             cost_profiling: matches!(
                 std::env::var("ZIL_ANALYZE_PROFILE_COSTS").as_deref(),
                 Ok("1")
