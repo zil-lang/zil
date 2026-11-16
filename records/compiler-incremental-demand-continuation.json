@@ -1,492 +1,91 @@
 {
   "task": "G10.5.1.15",
-  "status": "Full dependency/result/current-layout-item chain implemented and all planned same-source windows completed. Finite native/check workflows and disk beat Rust, but individual hot/restart/interface losses and >10k capacity remain. No universal win/main merge.",
-  "updated_Asia_Shanghai": "2026-11-16T07:22:01.546780+08:00",
-  "read_goal": "af3a34f7cd45977a4007051c62257e6d3ffd2069",
-  "source": "f19fc847c5774a2472bd3af85019b5c937546010",
-  "tree": "c4aeeccf0ba4bfd92d2fb2587365444d75bed105",
-  "binary_sha256": "68867c4c0333cbceac34e6d688a9581702c7ef337b4ace34a88458df21e72e85",
-  "delivery": "7b604bef1c4d1f665cffc1c42c2a43b60d92c928",
+  "status": "Complete restart cache/function/current-accounting/analysis/native-history chain implemented and affected gates/release passed. Direct logic optimization; no new performance matrix. Full Rust target and main merge remain open.",
+  "updated_Asia_Shanghai": "2026-11-16T11:25:04.563834+08:00",
+  "read_goal": "3f7bc64ecfb78160f227607a67c91be4271715af",
+  "source": "4a23edc7d06bc18cbed1fb958fdaacd886d9607a",
+  "tree": "35116da8321766cf49106143bd699faada166dbc",
+  "binary_sha256": "302d58db48f53cd4bc1952f2a9032ead5a6d479314d24eb2ca344f558c2c113e",
+  "delivery": "8bb24b85412b4b388d3c3f266786ef36ebe05e6f",
   "branch": "research/full-push-native",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "report": "https://github.com/zil-lang/zil/blob/7b604bef1c4d1f665cffc1c42c2a43b60d92c928/tools/research/incremental-demand/full-push-compact-checkpoint.md",
-  "exact_bindings": "https://github.com/zil-lang/zil/blob/7b604bef1c4d1f665cffc1c42c2a43b60d92c928/tools/research/incremental-demand/full-push-compact-checkpoint.json",
-  "native_report": "https://github.com/zil-lang/zil/blob/7b604bef1c4d1f665cffc1c42c2a43b60d92c928/tools/research/incremental-demand/native-dependency-reviews-20261116/weighted-coverage.json",
-  "check_report": "https://github.com/zil-lang/zil/blob/7b604bef1c4d1f665cffc1c42c2a43b60d92c928/tools/research/incremental-demand/native-dependency-reviews-20261116/check-coverage.json",
-  "cache_report": "https://github.com/zil-lang/zil/blob/7b604bef1c4d1f665cffc1c42c2a43b60d92c928/tools/research/incremental-demand/native-dependency-reviews-20261116/cache-time-space.json",
-  "core_recovery": "https://github.com/zil-lang/zil/blob/7b604bef1c4d1f665cffc1c42c2a43b60d92c928/tools/research/incremental-demand/evidence/native-dependency-20261116/RESTORE.json",
-  "formal_recovery": "https://github.com/zil-lang/zil/blob/afc97106d3b9ce9dc8eaa5a529c3dde72900e199/tools/research/incremental-demand/evidence/native-dependency-formal-20261116/RESTORE.json",
+  "report": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/full-push-compact-checkpoint.md",
+  "exact_bindings": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/full-push-compact-checkpoint.json",
+  "acceptance": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/restart-epoch-reviews-20261116/current-acceptance.json",
+  "review": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/restart-epoch-reviews-20261116/restart-cost-astra-design-02.md",
+  "recovery": "https://github.com/zil-lang/zil/blob/8bb24b85412b4b388d3c3f266786ef36ebe05e6f/tools/research/incremental-demand/evidence/restart-function-chain-20261116/RESTORE.json",
   "implementation": [
-    "Expand retains scalar raw products across remote signature edits under complete consumed namespace and exact current imports; public InputContext remains full. CT records exact positive/negative/ambiguous lexical hint reads per body, preserves raw owner/target/limits and original ordered costs.",
-    "Backend headers use a FunctionId map and each body binds its own full header and all direct callee headers. Inventory/global/entry/policy changes still invalidate; current LIR binding and admission remain.",
-    "Completed machine-value cutoff also binds full source-call/block/instruction projection owners; equal machine bytes alone cannot authorize partition reuse.",
-    "Current full CGU planner still chooses layout/import closure. Reuse of actual raw items requires complete source value equality, current owner/role and every consumed private import name. Prototype/prelude creation remains current; counters measure actual reused items.",
-    "Closed linkage is recomputed for current units; exact complete unpruned input/options/policy may reuse a completed checked prune transform. First nonempty production checks original complete units. Independent Verify/current preflight/full O2/LLVM Verify preserved. No new persisted Source-to-Machine authority."
+    "FunctionSession CFGs and original six fees replay in the same current Types recording, complete current Core/namespace/signature reads, fallback on incomplete metadata; no fabricated frontend epochs.",
+    "Life speculation misses execute one current Builder before any speculative charge; sparse requests skip rewriting unchanged function-cache manifest.",
+    "Exact real Typed/Candidate owner checkpoint activates AnalysisSession before its provider even if the raw query slot was evicted.",
+    "Existing four MachineProduct slots own completed transform/partition/diagnostic/object-key chains; full TransformPolicy/protected sets and original PartitionInput gates; both successful exits publish, no new persistent SourceMachine authority.",
+    "Actual decoded-candidate hits have a private origin marker and a logged counter. Defensive immutable-input rebuild uses separate same-capacity session; success replaces active state, failure preserves genuine successful epochs."
   ],
-  "gates_and_current_windows": {
-    "executed_on_f19": {
-      "backend": 299,
-      "driver": 219,
+  "current_gates": {
+    "actual_on_source": {
+      "Types": 110,
+      "driver": 224,
       "Source": 9,
       "native_publication": 1,
+      "mechanical": true,
       "strict": true,
       "fmt": true,
       "release": true
     },
-    "reused_unchanged_from_f629": {
-      "Expand": 124,
-      "CT": 76,
-      "reason": "Only backend test fixtures/counters changed; production and these tests unchanged"
-    },
-    "earliest_failures": "Expand121/3; backend293/6; controller03 precompiler tuple-key error. All raw first failures retained.",
-    "full_native": {
-      "execution_complete": true,
-      "accepted": false,
-      "candidate_rust_accepted": true,
-      "main_regression_accepted": null,
-      "rows": 324,
-      "quality_cells": 108
-    },
-    "source_bound_runtime_cases": 51,
-    "runtime_R_over_B_GM": 4.137381218685457,
-    "check_windows": {
-      "requests": 306,
-      "quality_cells": 102,
-      "all_valid": true,
-      "report": "native-dependency-reviews-20261116/check-coverage.json",
-      "scenarios": [
-        "2505functions simple chain",
-        "2505functions simple diamond",
-        "5005functions simple wide"
+    "backend299_reused_from": "b197120ce687c516b87665e7aa3fe4b1732ad7e9; entire backend/API unchanged since that passing receipt",
+    "Expand124_CT76": "reused exact unchanged source from earlier receipts",
+    "new_correctness_observation": "102 files/default capacity:303 eligible CFGs reused on real restart; following private edit checks1. Not a measured performance ratio.",
+    "first_failures": "5a324 Types108/1 new fee-fixture; d7 E0616 new test; b197 Types109/1 N-1 inference fixture; 4c82 driver219/5 actual whole-session clear regression. All retained and original five assertions preserved."
+  },
+  "last_measured": {
+    "source": "bcf409b37c5e5733c57376c0b6123b76321574a9",
+    "requests": 396,
+    "quality_cells": 132,
+    "source_bound_runtime_cases": 61,
+    "candidate_rust_accepted": true,
+    "accepted": false,
+    "reason_global_not_accepted": "actual main5105 ResourceLimit; no main regression ratio",
+    "native_flow_candidate_rust_s": [
+      [
+        6.807,
+        8.458
       ],
-      "workflow_wait_reduction_vs_rust": [
-        0.46141780724719705,
-        0.31364942371664783,
-        0.4345652782337711
+      [
+        8.367,
+        9.41
+      ],
+      [
+        28.926,
+        32.233
       ]
-    },
-    "cache_lifecycle": {
-      "requests": 144,
-      "quality_cells": 48,
-      "source_bound_runtime_cases": 20,
-      "all_Rust_runtime_gates_passed": true,
-      "report": "native-dependency-reviews-20261116/cache-time-space.json",
-      "cleaning_boundary": "Separate retain and full clear-on-restart windows; same original cold source identities, six requests two blocks. Clearing occurs after cold+unchanged, before private edit. Not partial history GC, equal quota, a symmetric full-product clean or complete end-to-end timer. ZIL program/IR retained; Rust target including executable cleared. Candidate-boundary delete_ns combines ZIL+Rust cache deletion and cannot be assigned to either language."
-    },
-    "total_original_requests": 774,
-    "total_functional_cells": 258,
-    "total_source_bound_runtime_cases": 71
-  },
-  "current_formal_f19": {
-    "compiler_source": "f19fc847c5774a2472bd3af85019b5c937546010",
-    "tree": "c4aeeccf0ba4bfd92d2fb2587365444d75bed105",
-    "binary_sha256": "68867c4c0333cbceac34e6d688a9581702c7ef337b4ace34a88458df21e72e85",
-    "tool_source": "0f9d4d78ea3e5dace184dc63a3d5cfecaafd86d6",
-    "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-    "window": "out/runs/native-dependency-full-window-01",
-    "quality": {
-      "execution_complete": true,
-      "accepted": false,
-      "candidate_rust_accepted": true,
-      "main_regression_accepted": null,
-      "rows": 324,
-      "quality_cells": 108
-    },
-    "runtime_cases": 51,
-    "runtime_R_over_B_GM": 4.137381218685457,
-    "frequency_policy": "Each request exactly once in predeclared 18-request workflow including eight private edits; two balanced blocks, median complete total. No invented industry frequency. Compile quality scoped to separately named finite runtime protocol.",
-    "disk_scope": "Explicit user caches/artifacts incl diagnostic IR, global inode dedup/lstat st_blocks at request boundaries, not transient peaks; SDK/host Cargo/evidence excluded. Restore hardlink topology is not a new disk measurement.",
-    "sizes": {
-      "1000": {
-        "main_role": "actual main9170",
-        "total_wait_median_ms": {
-          "baseline": 8288.3202055,
-          "candidate": 6620.212674,
-          "rust": 8876.6672205
-        },
-        "candidate_wait_reduction_vs_rust": 0.2542006465319423,
-        "compile_median_ms": {
-          "cold": {
-            "baseline": 1726.6612525,
-            "candidate": 936.7359280000001,
-            "rust": 1287.6210035
-          },
-          "broad": {
-            "baseline": 1527.7959725,
-            "candidate": 674.810035,
-            "rust": 1096.752018
-          },
-          "interface": {
-            "baseline": 438.61999000000003,
-            "candidate": 755.4153565,
-            "rust": 677.437712
-          },
-          "warm-restart": {
-            "baseline": 182.924987,
-            "candidate": 311.187681,
-            "rust": 19.526798499999998
-          },
-          "restore": {
-            "baseline": 195.5228575,
-            "candidate": 361.862505,
-            "rust": 1098.6962065
-          },
-          "unchanged": {
-            "baseline": 177.733712,
-            "candidate": 22.021318,
-            "rust": 18.198358
-          },
-          "eight_private": {
-            "baseline": 2882.4707065000002,
-            "candidate": 2762.05591,
-            "rust": 3572.350109
-          }
-        },
-        "disk": {
-          "baseline": {
-            "boundary_peak_physical_bytes_by_block": [
-              24543232,
-              24543232
-            ],
-            "median_boundary_peak_MiB": 23.40625,
-            "eight_private_growth_bytes_by_block": [
-              12419072,
-              12419072
-            ],
-            "median_eight_private_growth_MiB": 11.84375
-          },
-          "candidate": {
-            "boundary_peak_physical_bytes_by_block": [
-              9510912,
-              9527296
-            ],
-            "median_boundary_peak_MiB": 9.078125,
-            "eight_private_growth_bytes_by_block": [
-              1286144,
-              1277952
-            ],
-            "median_eight_private_growth_MiB": 1.22265625
-          },
-          "rust": {
-            "boundary_peak_physical_bytes_by_block": [
-              20107264,
-              20107264
-            ],
-            "median_boundary_peak_MiB": 19.17578125,
-            "eight_private_growth_bytes_by_block": [
-              5373952,
-              5373952
-            ],
-            "median_eight_private_growth_MiB": 5.125
-          }
-        },
-        "runtime_R_over_B_range": [
-          1.3894864848736708,
-          1.9676871241958243
-        ],
-        "runtime_rust_gate_all_pass": true,
-        "runtime_main_gate_all_pass": true
-      },
-      "2500": {
-        "main_role": "actual main9170",
-        "total_wait_median_ms": {
-          "baseline": 11514.2393985,
-          "candidate": 8212.005323,
-          "rust": 9271.3045695
-        },
-        "candidate_wait_reduction_vs_rust": 0.11425568414447296,
-        "compile_median_ms": {
-          "cold": {
-            "baseline": 2511.9996665,
-            "candidate": 1051.1364645,
-            "rust": 1434.9171755
-          },
-          "broad": {
-            "baseline": 2171.5816095,
-            "candidate": 1386.450404,
-            "rust": 1163.5623544999999
-          },
-          "interface": {
-            "baseline": 849.0279185,
-            "candidate": 1008.8258840000001,
-            "rust": 780.3234055
-          },
-          "warm-restart": {
-            "baseline": 229.50492100000002,
-            "candidate": 376.6791455,
-            "rust": 46.577501
-          },
-          "restore": {
-            "baseline": 181.31259849999998,
-            "candidate": 353.458761,
-            "rust": 1152.140884
-          },
-          "unchanged": {
-            "baseline": 221.538623,
-            "candidate": 14.7055605,
-            "rust": 23.6960325
-          },
-          "eight_private": {
-            "baseline": 4142.238371,
-            "candidate": 2940.834261,
-            "rust": 3375.539538
-          }
-        },
-        "disk": {
-          "baseline": {
-            "boundary_peak_physical_bytes_by_block": [
-              30220288,
-              30220288
-            ],
-            "median_boundary_peak_MiB": 28.8203125,
-            "eight_private_growth_bytes_by_block": [
-              15597568,
-              15597568
-            ],
-            "median_eight_private_growth_MiB": 14.875
-          },
-          "candidate": {
-            "boundary_peak_physical_bytes_by_block": [
-              13680640,
-              13885440
-            ],
-            "median_boundary_peak_MiB": 13.14453125,
-            "eight_private_growth_bytes_by_block": [
-              1232896,
-              1282048
-            ],
-            "median_eight_private_growth_MiB": 1.19921875
-          },
-          "rust": {
-            "boundary_peak_physical_bytes_by_block": [
-              44580864,
-              44580864
-            ],
-            "median_boundary_peak_MiB": 42.515625,
-            "eight_private_growth_bytes_by_block": [
-              12087296,
-              12087296
-            ],
-            "median_eight_private_growth_MiB": 11.52734375
-          }
-        },
-        "runtime_R_over_B_range": [
-          1.2275555853258768,
-          1.7463497155905883
-        ],
-        "runtime_rust_gate_all_pass": true,
-        "runtime_main_gate_all_pass": true
-      },
-      "5105": {
-        "main_role": "ResourceLimit; no performance ratio",
-        "total_wait_median_ms": {
-          "candidate": 24822.8493015,
-          "rust": 31119.471770000004
-        },
-        "candidate_wait_reduction_vs_rust": 0.2023370613433778,
-        "compile_median_ms": {
-          "cold": {
-            "candidate": 3623.2037259999997,
-            "rust": 6065.107861
-          },
-          "broad": {
-            "candidate": 2791.1343415,
-            "rust": 4969.6422705
-          },
-          "interface": {
-            "candidate": 2194.8285255,
-            "rust": 1800.4282954999999
-          },
-          "warm-restart": {
-            "candidate": 1272.7157705,
-            "rust": 32.1921035
-          },
-          "restore": {
-            "candidate": 1309.931829,
-            "rust": 5405.8876445000005
-          },
-          "unchanged": {
-            "candidate": 21.2082455,
-            "rust": 18.138372
-          },
-          "eight_private": {
-            "candidate": 10961.711888499998,
-            "rust": 9893.920642000001
-          }
-        },
-        "disk": {
-          "candidate": {
-            "boundary_peak_physical_bytes_by_block": [
-              49020928,
-              49233920
-            ],
-            "median_boundary_peak_MiB": 46.8515625,
-            "eight_private_growth_bytes_by_block": [
-              1466368,
-              1556480
-            ],
-            "median_eight_private_growth_MiB": 1.44140625
-          },
-          "rust": {
-            "boundary_peak_physical_bytes_by_block": [
-              76394496,
-              76394496
-            ],
-            "median_boundary_peak_MiB": 72.85546875,
-            "eight_private_growth_bytes_by_block": [
-              29863936,
-              29863936
-            ],
-            "median_eight_private_growth_MiB": 28.48046875
-          }
-        },
-        "runtime_R_over_B_range": [
-          24.38798094597821,
-          33.42271774315384
-        ],
-        "runtime_rust_gate_all_pass": true,
-        "runtime_main_gate_all_pass": null
-      }
-    }
-  },
-  "negative_and_limits": [
-    "New5105 retained restart1.597s+firstedit2.773s=4.370s, Rust0.0239+1.508=1.532s. Clear restart3.798+edit1.196=4.994s vsRust6.386+1.275=7.661s. Retaining remains0.624s faster for ZIL pair; clearing is not a solution. Whole-Typed hit bypasses upstream parser/producer/inference/CT epochs. Existing disk format lacks their actual owners/dependencies/fees; do not hydrate them from Typed validity/hash or move rebuilding outside timers. Source/Astra reports contain exact paths and bounded next options.",
-    "Clear2500 restart1.858s vsRust1.644s loses; retained2500 nextprivate0.747s vs0.502s loses. Cache policies are separate windows, not a symmetric full-product cleanup/partial-GC/industry-frequency result.",
-    "5105 eight private edits10.962s vs Rust9.894s; retained-cache restart1.273s vs0.032s; interface2.195s vs1.800s.",
-    "2500 broad1.386s vsRust1.164s; interface1.009s vs0.780s.1000 interface0.755s vs0.677s. Full-workflow lead does not close individual losses.",
-    "Actual positions-to-interface adjacency still invalidates all frontend modules and CT owners; two independent static reviews confirmed mapped-placement optimization opportunity. Do not introduce broad raw namespace or old-position authority to fix this.",
-    "Current5105/private002 codegen980.56ms: machine274.09, partition186.25, objects483.98, link21.03; CT14.71ms/Expand46.95ms/current Verify48.01ms. Prioritize repeated backend work over smaller isolated visitors.",
-    "This profile native product capture is disabled by existing minimum-average-LIR threshold39.5<64. Do not attribute these gains to active SDK18 per-function captures or repeat rejected140 heuristic without new evidence.",
-    "10105/25105 original capacity remains rejected by default1M-token and10000-function whole-project contracts. Current code does not claim capacity success.",
-    "Finite synthetic single-crate O2/no-debug corpus; industrial workspaces, generics/macros/async/debug/test/minute-scale and partial history GC not established."
-  ],
-  "actual_Rust_source_policy": {
-    "rustc": "58cf8f9c35b355199727627d07ae34a4e2846d67",
-    "cargo": "5f94df4789f005f9a352888e8355ffc645b7ed0e",
-    "references": [
-      "rustc_middle/dep_graph/graph.rs:791-825 result green;rustc_query_impl/execution.rs:418 current recorded dependencies",
-      "rustc_codegen_ssa/base.rs:1238 CGU reuse,842 skip green; rustc_codegen_llvm/base.rs:64 module after reuse decision",
-      "rustc_middle/query/on_disk_cache.rs:346 offset loading;rustc_incremental/persist/fs.rs:364 hardlink/lock,590 current/live GC",
-      "Cargo fingerprint/mod.rs:499 Fresh; save.rs:60-92 promotion/serialization/deletion; LLVM O2 MergeFunctions and ThinLocal already present"
     ],
-    "every_future_direction": "Actual Rust implementation, exact ZIL consumer/input/cost difference, facts vs hypotheses, preserve stronger current checks, one whole-chain acceptance."
+    "retained_5105_restart_plus_firstedit_candidate_rust_s": [
+      3.948,
+      1.304
+    ],
+    "earlier_f19_flow_5105_s": 24.823,
+    "qualification": "Different windows, Rust control drift; bcf regression retained, no paired causal claim; none of these numbers belong to4a23. Original request receipt subset published, full bcf cache/artifact raw still local and not in the current recovery package."
   },
-  "custody": {
-    "current_formal": "https://github.com/zil-lang/zil/blob/afc97106d3b9ce9dc8eaa5a529c3dde72900e199/tools/research/incremental-demand/evidence/native-dependency-formal-20261116/RESTORE.json",
-    "prior027_formal": "https://github.com/zil-lang/zil/blob/05f270ebe13169ad7a089ad98d6d327bab834bcd/tools/research/incremental-demand/evidence/call-classes-formal-20261115/RESTORE.json",
-    "prior027_core_negative_capacity": "https://github.com/zil-lang/zil/blob/53c077e723fbd3aa43e96962260d4834d33ce96b/tools/research/incremental-demand/evidence/call-classes-20261115/RESTORE.json",
-    "prior_rust_source_audit": "https://github.com/zil-lang/zil/blob/7be53850d4f95059a9fe3e73bba17db711bce81d/tools/research/incremental-demand/evidence/rust-pain-audit-20261116/RESTORE.json",
-    "SDK18_native_link": "https://github.com/zil-lang/zil/blob/1eecf9b81a4929dde79e4fa98cd0ee40fb74af75/research/incremental-demand-full-chain-20261113-v32-recovery/RESTORE.json",
-    "historical98fa": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c formal59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628; never relabelled",
-    "current_formal_fresh_verified": true,
-    "current_core": "evidence/native-dependency-20261116/RESTORE.json",
-    "current_core_fresh_verified": true,
-    "current_formal_local_raw_retired": true
+  "current_recovery": {
+    "parts": 1,
+    "bytes": 19598435,
+    "files": 96,
+    "raw_bytes": 61849972,
+    "fresh_full_file_hash_verified": true,
+    "sha256": "5dfb202b0a8656f3f55adaa29e476187f09902131d4be8ff6cbbc77c99b279af",
+    "SDK18_native_link": "Fixed V32 dependency; no LLVM rebuild",
+    "scope": "Current exact source binaries/correctness/failures/reviews plus prior bcf original receipt subset, not a full bcf raw backup"
   },
-  "next": "Prioritize actual restart+first-edit and eight-private absolute waits. Whole-Typed cache cannot mint missing upstream owners/fees. Bounded full-chain options: real fine-grained disk consumer records with current binding/replay, or explicitly measured normal cold-session initialization preserving object cache (count all work, may lose); downstream reuse exact local checked-add/class/reference facts under complete current inputs, representative/import decisions and original checks. Do not promise all4221ms machine+partition bucket is removable or alter O2/budgets/Verify.",
+  "remaining": [
+    "General private edits still trigger global machine transforms/CGU planning; implement actual local output/callee/DAG/class representative/address/protected dependencies before another full performance window.",
+    "Cold process actual upstream producer restoration is incomplete; do not infer epochs from terminal Typed/hash or hide baseline work outside timers.",
+    "New encoding/decoding/disk and bounded downstream RSS costs unmeasured; no current net performance or space claim.",
+    "Default token/whole-project10000function capacity remains; finite scalar single-crate coverage excludes industrial workspace/generic/macro/async/debug/test/minute-scale projects."
+  ],
   "main_merge": false,
-  "main_merge_assessment": "Hold whole research branch: it contains research tools/evidence and large production divergence. Clean production/test extraction and main product acceptance are not complete; no goal/archive/research evidence merged into main.",
   "research_defaults_enabled": false,
-  "LLVM_rebuilt": false,
-  "previous_record": {
-    "immutable_goal": "af3a34f7cd45977a4007051c62257e6d3ffd2069",
-    "path": "records/compiler-incremental-demand-continuation.json",
-    "source": "027695318436fcb1f8994d0dc9802a0b2349c362",
-    "delivery": "7be53850d4f95059a9fe3e73bba17db711bce81d"
-  },
-  "historical_98fa_record_as_read": {
-    "task": "G10.5.1.15",
-    "status": "Active complete-chain implementation; native cohort chain integrated and measured, global push and universal Rust lead remain open",
-    "read_goal": "c108d17c36940cc16667027faa8ae31ae6f9f048",
-    "source": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c",
-    "delivery": "59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628",
-    "branch": "research/full-push-native",
-    "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-    "report": "https://github.com/zil-lang/zil/blob/59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628/tools/research/incremental-demand/full-push-compact-checkpoint.md",
-    "exact_bindings": "https://github.com/zil-lang/zil/blob/59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628/tools/research/incremental-demand/full-push-compact-checkpoint.json",
-    "binary_sha256": "d905664388e30eb3aef415af43fe1ac4c00d5469c537f03308efcb179b29ccef",
-    "measurement_tool_source": "0db08422dde4de3c222b2c72c444c9f375476612",
-    "change": "Build-local weak completed LLVM-stage/MIR/MC products share identical closed scalar bodies across functions and actual CGUs, preserving current symbols/numbering and complete ELF bytes. Actual attribute values are bound independently of module-local printer slot IDs.",
-    "protocol": {
-      "source": "Original20x20x16,425 declarations,22files; no simpler sample",
-      "matching": "main/candidate/Rust CGU16,O2,jobs1; check separate; 9 scenarios and exact named parents;2blocks sequential alternating",
-      "limits": "Default budgets, independent Verify/model preflight/LLVM before-after Verify, full O2 unchanged",
-      "boundary": "ZIL resident versus Cargo/rustc newprocess; ZIL LLVM23.1.4 versus Rust LLVM23.1.1; OS caches not flushed; only2blocks"
-    },
-    "checks": {
-      "tested_source": "d662fdd802904229ec9f052096cd292c2eb15979",
-      "native": 86,
-      "backend": 269,
-      "driver": 211,
-      "scalar_source": 9,
-      "retained_source": 1,
-      "fmt": "passed",
-      "strict_workspace_clippy": "passed",
-      "current_source": "98fa timer-only change, independently proven source-equivalent functional receipt reuse; release newly built, no false claim of suite reruns",
-      "measurement": "Each mode102valid=54measured+48parents;1080native outcomes;30wholeELF equal pairs;CGU contents/exports checked"
-    },
-    "matched": {
-      "unit": "ms medians; GM by matched block, not quotient of medians",
-      "o2": {
-        "cold": {
-          "main": 6068.696,
-          "candidate": 5900.643,
-          "rust": 6610.611,
-          "gm_c_rust": 0.89261
-        },
-        "private": {
-          "main": 1653.883,
-          "candidate": 486.954,
-          "rust": 668.458,
-          "gm_c_rust": 0.701641
-        },
-        "broad": {
-          "main": 5014.444,
-          "candidate": 4611.263,
-          "rust": 5557.019,
-          "gm_c_rust": 0.829947
-        }
-      },
-      "full18cells": "https://github.com/zil-lang/zil/blob/59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628/tools/research/incremental-demand/full-push-compact-checkpoint.md"
-    },
-    "actual_consumers": {
-      "each_cold_block": {
-        "IR_stage_replays": 494,
-        "machine_function_replays": 237,
-        "MC_replayed_functions_total": 237,
-        "MI_walks_skipped": 78962,
-        "fresh_fallbacks": 0
-      },
-      "scope": "Stage events are not independent functions. New cohort replays are zero for private/multi/recovery; existing-prior reuse is reported separately."
-    },
-    "negative": {
-      "check_cold": "candidate1150.152/Rust1120.832ms; GM1.040626",
-      "native_unchanged": "candidate10.513385/194.170320ms, residentCPU about.01/.18s; GMvsRust2.508032, cause unresolved",
-      "scope": "No stable/significant/universal superiority; no cross-window causal attribution",
-      "first_failures": "Cpp/Rust fixture compile failures, DSOLocal fixture pollution, target-capability admission, #attribute-slot miss, firstO2 timer-child gate failure and analysis schema KeyError retained in raw"
-    },
-    "raw": {
-      "local_closed": "/workspace/zil-push-main/out/runs/cohort-three-arm-02-{check,o2};01 and native-cohort-* first failures retained",
-      "current_archive": "V32 CAS publication in progress; no fixed commit claimed yet",
-      "previous_fixed_recovery": "8ee98e6820158865ede7d68dd63e069f62ca076f",
-      "previous_scope": "V31 formal536 including cold regression, actually fresh restored; not a substitute for current98fa raw"
-    },
-    "retirement": {
-      "active_feature_branch": "One compiler integration branch/worktree, disjoint ownership; no micro branches",
-      "additional_retired": "task/compiler-thinlto-private-imports@8072f23187a77f2e63686696111a8e0e71e8be7b deleted with exact-tip lease; source and NoGo remain ancestor of fixed archive bd063dc66d4a1497393084889e6ed184b0cf5619",
-      "retained": "a6 reactive ref lacks proven durable source closure, retained pending archive; active language/dyn refs untouched",
-      "prior_cleanup": "9remote/8local/8trees plus95stale local tracking aliases and b770local branch retired with source/conclusions preserved"
-    },
-    "continuation": {
-      "next": "Implement one ClosedBody proof chain across IR/MIR/MC: closed hits avoid full external World serialization; fresh misses still prove producer before/after World equality; WorldBound products remain separate. All current input/dependency/Verify/restore checks retained. Not yet implemented/validated at this checkpoint.",
-      "remaining": "ReactiveGraph still evaluates BodyKey; downstream sparse real consumers do not yet constitute one global push scheduler. Outer project keys/aggregation, full World/model/preflight, partition/object keys and publishing remain costs.",
-      "integration": "No main merge; research defaults remain off; implement whole functional chain then consolidated tests, targeted debugging only for real failures."
-    },
-    "historical_record": {
-      "commit": "c108d17c36940cc16667027faa8ae31ae6f9f048",
-      "path": "records/compiler-incremental-demand-continuation.json",
-      "note": "Full prior decisions/results remain in this fixed Git blob and fixed archives; replaced stale107KB cumulative current-state document with this compact latest index."
-    }
-  },
-  "historical_98fa": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c formal59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628; never relabelled"
+  "independent_verify_default_budgets_full_O2_preserved": true,
+  "previous_record": "https://github.com/zil-lang/zil/blob/3f7bc64ecfb78160f227607a67c91be4271715af/records/compiler-incremental-demand-continuation.json",
+  "previous_f19_delivery": "7b604bef1c4d1f665cffc1c42c2a43b60d92c928",
+  "original_98fa_measurement_binding": "98fa664743c4a2d94b5dc1eba5b61c7c1867ca4c/59fd0df5cf98cbb0dd57cbbdfaa3a8fe8160d628 only"
 }
