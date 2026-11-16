@@ -27,7 +27,7 @@ pub(crate) struct Structure{
     type_success:BTreeSet<(usize,usize,Profile)>,
     recipe_success:BTreeSet<(RecipeKey,Profile)>,
     declaration_success:BTreeSet<(usize,Option<SemanticDefinitionId>,Profile)>,
-    resource_success:BTreeSet<(usize,Profile)>,
+    resource_success:BTreeMap<(usize,Profile),usize>,
     owners:BTreeMap<(OwnerKey,SemanticDefinitionId),usize>,
     shared_types:BTreeMap<usize,std::rc::Rc<crate::semantic::CheckedTypeData>>,
 }
@@ -41,7 +41,7 @@ impl Structure{
             program:module.semantic.as_ref().map(|program|program as *const SemanticModule as usize),
             declarations:(module.dyn_declarations.as_ptr() as usize,module.dyn_declarations.len()),
             types:BTreeSet::new(),recipes:BTreeSet::new(),declaration_nodes:BTreeSet::new(),
-            type_success:BTreeSet::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeSet::new(),owners:BTreeMap::new(),shared_types:BTreeMap::new(),
+            type_success:BTreeSet::new(),recipe_success:BTreeSet::new(),declaration_success:BTreeSet::new(),resource_success:BTreeMap::new(),owners:BTreeMap::new(),shared_types:BTreeMap::new(),
         };
         for function in &module.functions{
             result.ty(&function.return_type,b)?;
@@ -149,10 +149,12 @@ impl DynRecipeVisitor for Register<'_>{
 pub(super) fn type_known(ty:&Type,depth:usize,b:&mut Budget)->Check<bool>{
     if !cacheable(ty){return Ok(false);}
     let Some(state)=&b.structural else{return Ok(false);};
-    let fee=lookup(state.types.len()).saturating_add(lookup(state.type_success.len()));
+    // Only a registered, still-live immutable node can enter type_success.
+    // A second tree search for its membership repeats that established fact.
+    let fee=lookup(state.type_success.len());
     b.spend(fee)?;
     let state=b.structural.as_ref().unwrap();let ptr=ty as *const Type as usize;
-    Ok(state.types.contains(&ptr)&&state.type_success.contains(&(ptr,depth,profile(b))))
+    Ok(state.type_success.contains(&(ptr,depth,profile(b))))
 }
 pub(super) fn type_success(ty:&Type,depth:usize,b:&mut Budget)->Check<()>{
     if !cacheable(ty){return Ok(());}
@@ -202,21 +204,21 @@ pub(crate) fn owner_success(program:&SemanticModule,declarations:&[DynDeclaratio
     let fee=lookup(state.owners.len()).saturating_add(2);b.spend(fee)?;
     b.structural.as_mut().unwrap().owners.insert((owner_key(owner),requested),index);Ok(())
 }
-pub(crate) fn resource_known(module:&TypedModule,record:&Type,b:&mut Budget)->Check<bool>{
-    let Some(state)=&b.structural else{return Ok(false);};
-    if state.module!=module as *const TypedModule as usize{return Ok(false);}
-    let ptr=record as *const Type as usize;let fee=lookup(state.types.len()).saturating_add(lookup(state.resource_success.len()));
+pub(crate) fn resource_known(module:&TypedModule,record:&Type,b:&mut Budget)->Check<Option<usize>>{
+    let Some(state)=&b.structural else{return Ok(None);};
+    if state.module!=module as *const TypedModule as usize{return Ok(None);}
+    let ptr=record as *const Type as usize;let fee=lookup(state.resource_success.len());
     b.spend(fee)?;let state=b.structural.as_ref().unwrap();
-    Ok(state.types.contains(&ptr)&&state.resource_success.contains(&(ptr,profile(b))))
+    Ok(state.resource_success.get(&(ptr,profile(b))).copied())
 }
-pub(crate) fn resource_success(module:&TypedModule,record:&Type,b:&mut Budget)->Check<()>{
+pub(crate) fn resource_success(module:&TypedModule,record:&Type,index:usize,b:&mut Budget)->Check<()>{
     let Some(state)=&b.structural else{return Ok(());};let ptr=record as *const Type as usize;
     if state.module!=module as *const TypedModule as usize{return Ok(());}
     let membership=lookup(state.types.len());b.spend(membership)?;
     if !b.structural.as_ref().unwrap().types.contains(&ptr){return Ok(());}
     let state=b.structural.as_ref().unwrap();
     let key=(ptr,profile(b));let fee=lookup(state.resource_success.len()).saturating_add(2);b.spend(fee)?;
-    b.structural.as_mut().unwrap().resource_success.insert(key);Ok(())
+    b.structural.as_mut().unwrap().resource_success.insert(key,index);Ok(())
 }
 
 /// Owned storage for an exact registered immutable input node. This memo owns

@@ -371,6 +371,7 @@ struct Budget {
     remaining: usize,
     structural: Option<dynamic_metadata::Structure>,
     diagnostic_costs: Option<BTreeMap<(&'static str, u32), (usize, usize)>>,
+    diagnostic_metadata_caller: Option<&'static std::panic::Location<'static>>,
     callable_source_functions: Vec<FunctionId>,
     pending_callable_sources: Vec<FunctionId>,
     returned_environment_sources: bool,
@@ -502,6 +503,7 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             structural: None,
             diagnostic_costs: std::env::var_os("ZIL_VERIFY_PROFILE_COSTS").map(|_| BTreeMap::new()),
+            diagnostic_metadata_caller: None,
             callable_source_functions: Vec::new(),
             pending_callable_sources: Vec::new(),
             returned_environment_sources: false,
@@ -598,7 +600,8 @@ impl Budget {
     fn spend(&mut self, amount: usize) -> Check<()> {
         let location = std::panic::Location::caller();
         if let Some(costs) = &mut self.diagnostic_costs {
-            let row = costs.entry((location.file(), location.line())).or_default();
+            let attributed=self.diagnostic_metadata_caller.unwrap_or(location);
+            let row = costs.entry((attributed.file(), attributed.line())).or_default();
             row.0 = row.0.saturating_add(amount);
             row.1 = row.1.saturating_add(1);
         }

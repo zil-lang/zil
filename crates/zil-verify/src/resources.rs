@@ -183,36 +183,29 @@ pub(super) fn check_type_for(
     if inner.as_ref() == &Type::ByteBuffer {
         return byte_buffers::check_carrier(module, ty, span, budget);
     }
-    let Type::Record { name, .. } = inner.as_ref() else {
-        return Err(unsupported(
-            "resource payload must be a finite Copy record",
-            span,
-        ));
-    };
-    charge_payload(inner, budget)?;
-    if dynamic_metadata::resource_known(module,inner,budget)?{return Ok(());}
-    check_type(inner, span)?;
-    // Equal-length string comparison examines at most name.len() bytes. The
-    // table has unique names, so at most one full payload comparison follows.
-    budget.spend(
-        module
-            .resources
-            .len()
-            .saturating_mul(name.len().saturating_add(1)),
-    )?;
-    if !module
-        .resources
-        .iter()
-        .any(|r| &r.name == name && &r.payload == inner.as_ref())
-    {
-        return Err(reject(
-            "E-VERIFY-RESOURCE",
-            span,
-            "resource type is absent from its nominal definition table",
-        ));
+    record_payload(module,inner,span,budget).map(|_|())
+}
+
+/// Borrow the one exact immutable resource declaration. This is static type
+/// qualification only: no ownership epoch, Description source, loan or cleanup
+/// fact enters this directory. True payload copies/equality outside this lookup
+/// retain their own charge_payload/metadata prepayment.
+fn record_payload<'m>(module:&'m TypedModule,record:&Type,span:Option<Span>,budget:&mut Budget)->Check<&'m ResourceDefinition>{
+    let Type::Record{name,..}=record else{return Err(unsupported("resource payload must be a finite Copy record",span));};
+    if let Some(index)=dynamic_metadata::resource_known(module,record,budget)?{
+        budget.spend(1)?;
+        return module.resources.get(index).ok_or_else(||reject("E-VERIFY-RESOURCE",span,"checked resource declaration index is absent"));
     }
-    dynamic_metadata::resource_success(module,inner,budget)?;
-    Ok(())
+    // A cold payload still pays for every field, name byte and complete Eq.
+    // A directory hit borrows that established row and does none of that work.
+    charge_payload(record,budget)?;
+    check_type(record,span)?;
+    budget.spend(module.resources.len().saturating_mul(name.len().saturating_add(1)))?;
+    let index=module.resources.iter().position(|row|&row.name==name&&&row.payload==record)
+        .ok_or_else(||reject("E-VERIFY-RESOURCE",span,"resource type is absent from its nominal definition table"))?;
+    dynamic_metadata::resource_success(module,record,index,budget)?;
+    budget.spend(1)?;
+    Ok(&module.resources[index])
 }
 
 pub(super) fn check_definitions(

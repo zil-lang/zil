@@ -424,14 +424,33 @@ fn enum_resource<'a>(
     )?;
     let mut selected = None;
     for resource in &module.resources {
-        budget.type_work(payload, false, "Enum resource query identity")?;
-        budget.type_work(&resource.payload, false, "Enum resource candidate identity")?;
         budget.spend(
             name.len().min(resource.name.len()).saturating_add(1),
             "Enum resource name identity",
         )?;
-        let same_payload = resource.payload == *payload;
         let same_name = resource.name == *name;
+        // Record equality includes its nominal name. An unrelated constructor
+        // or Record name cannot equal this payload; avoid traversing its whole
+        // fields merely to discover that mismatch. A matching resource label
+        // still takes the full comparison, including malformed declarations.
+        let comparable_payload = if let Type::Record {
+            name: candidate, ..
+        } = &resource.payload
+        {
+            budget.spend(
+                name.len().min(candidate.len()).saturating_add(1),
+                "Enum resource payload name identity",
+            )?;
+            candidate == name
+        } else {
+            false
+        };
+        if !same_name && !comparable_payload {
+            continue;
+        }
+        budget.type_work(payload, false, "Enum resource query identity")?;
+        budget.type_work(&resource.payload, false, "Enum resource candidate identity")?;
+        let same_payload = resource.payload == *payload;
         if same_name || same_payload {
             if name.is_empty() || !same_name || !same_payload || selected.is_some() {
                 return Err(reject(

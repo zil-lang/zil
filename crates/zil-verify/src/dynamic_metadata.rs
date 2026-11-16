@@ -53,8 +53,13 @@ fn retained(
     }
     Ok(())
 }
+#[track_caller]
 pub(super) fn ty(root: &Type, b: &mut Budget) -> Check<()> {
-    ty_at(root, 0, b)
+    let previous=b.diagnostic_metadata_caller;
+    if b.diagnostic_costs.is_some(){b.diagnostic_metadata_caller=Some(std::panic::Location::caller());}
+    let result=ty_at(root, 0, b);
+    b.diagnostic_metadata_caller=previous;
+    result
 }
 fn ty_at(root: &Type, initial_depth: usize, b: &mut Budget) -> Check<()> {
     type_walk(root,initial_depth,true,b)
@@ -195,15 +200,39 @@ pub(crate) fn bounds_type_parts(ty:&Type,life:&StorageLifeShape,classes:&[Storag
 
 /// Prepayment for the one real owned child copy made by a fresh constructor.
 /// This is the same complete DTV visitor without allocating a temporary DTV.
+#[track_caller]
 pub(crate) fn copy_type_parts(ty:&Type,life:&StorageLifeShape,classes:&[StorageBinder],b:&mut Budget)->Check<()>{
-    let work=&mut RecipeWork{b,nodes:0};
+    let previous=b.diagnostic_metadata_caller;
+    if b.diagnostic_costs.is_some(){b.diagnostic_metadata_caller=Some(std::panic::Location::caller());}
+    let result=(||{let work=&mut RecipeWork{b,nodes:0};
     work.node(0)?;work.ty(ty,1)?;work.life(life,1)?;work.rows(classes.len(),1)?;
-    for _ in classes{work.node(1)?;}Ok(())
+    for _ in classes{work.node(1)?;}Ok(())})();
+    b.diagnostic_metadata_caller=previous;
+    result
 }
 
 #[cfg(test)]
 mod borrowed_parts_tests {
     use super::*;
+    #[test]
+    fn metadata_caller_attribution_restores_outer_on_success_and_error_without_changing_work(){
+        let value=DynTypeValue{ty:Type::Tuple(vec![Type::I32]),life:StorageLifeShape{binder_count:0,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:vec![]};
+        let outer=std::panic::Location::caller();
+        for kind in 0..3{
+            let limits=Limits{max_call_depth:0,..Limits::default()};
+            let mut profiled=Budget::new(&limits);let mut control=Budget::new(&limits);
+            profiled.diagnostic_costs=Some(BTreeMap::new());control.diagnostic_costs=None;
+            profiled.diagnostic_metadata_caller=Some(outer);
+            let run=|b:&mut Budget|match kind{0=>ty(&value.ty,b),1=>recipe(&value,b),_=>copy_type_parts(&value.ty,&value.life,&value.classes,b)};
+            assert!(run(&mut profiled).is_err());assert!(run(&mut control).is_err());
+            assert_eq!(profiled.remaining,control.remaining);
+            assert!(std::ptr::eq(profiled.diagnostic_metadata_caller.unwrap(),outer));
+            profiled.limits.max_call_depth=128;control.limits.max_call_depth=128;
+            run(&mut profiled).unwrap();run(&mut control).unwrap();
+            assert_eq!(profiled.remaining,control.remaining);
+            assert!(std::ptr::eq(profiled.diagnostic_metadata_caller.unwrap(),outer));
+        }
+    }
     #[test]
     fn borrowed_dtv_preserves_public_visitor_quotas_and_depths() {
         let value=DynTypeValue{
@@ -759,8 +788,13 @@ impl DynRecipeVisitor for RecipeWork<'_> {
         self.rows(value.len(), depth)
     }
 }
+#[track_caller]
 pub(super) fn recipe<T: DynRecipeMetadata>(value: &T, b: &mut Budget) -> Check<()> {
-    value.visit_dyn_metadata(&mut RecipeWork { b, nodes: 0 }, 0)
+    let previous=b.diagnostic_metadata_caller;
+    if b.diagnostic_costs.is_some(){b.diagnostic_metadata_caller=Some(std::panic::Location::caller());}
+    let result=value.visit_dyn_metadata(&mut RecipeWork { b, nodes: 0 }, 0);
+    b.diagnostic_metadata_caller=previous;
+    result
 }
 /// A registered immutable recipe may reuse only its structural bounds. This
 /// is not a prepayment for cloning/comparing it, or a semantic obligation.
