@@ -511,6 +511,41 @@ pub(super) mod tests {
         source.origins.push(requests::Occurrence::Class{position:SignatureLifeClass{class:1,..position},binder:source_term.image,origin:headers::symbol(source_term)});
         assert!(source_relation(&receiver,0,&required,&source,&mut b).is_err());
     }
+    #[test]
+    fn same_image_fixed_permutation_still_requires_actual_entry_classes_raw_and_wire(){
+        let limits=Limits::default();
+        let(phantom,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../semantic/fixtures/phantom-closure-complete-creator.wire"),&limits).unwrap();
+        let ty=phantom.life_instances[0].ty.clone();let Type::BorrowedStorage{life,..}=&ty else{panic!("complete original phantom nominal")};
+        assert_eq!(life.binder_count,1);
+        let(mut module,mut receiver)=fixture(2,0);
+        module.life_declarations=phantom.life_declarations.clone();module.life_instances=phantom.life_instances.clone();
+        let header=StorageLifeContract{fixed_binder_count:2,invocation_binder_count:0,bindings:vec![],static_bindings:vec![],classes:vec![
+            SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Capture(0),path:vec![],class:0},binder:StorageBinder::Fixed(0)},
+            SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Capture(1),path:vec![],class:0},binder:StorageBinder::Fixed(1)},
+            SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Result,path:vec![],class:0},binder:StorageBinder::Fixed(0)},
+        ]};
+        module.closures[0].captures=vec![ty.clone(),ty.clone()];module.closures[0].result=ty.clone();module.closures[0].storage_life=Some(header.clone());
+        module.functions[0].return_type=ty.clone();module.functions[0].values=vec![ty.clone()];module.functions[0].storage_life=Some(header);
+        receiver.raw.classes=vec![StorageBinder::Fixed(0);2];for term in &mut receiver.terms{term.image=StorageBinder::Fixed(0);}
+        assert_eq!(receiver.terms[0].image,receiver.terms[1].image);assert_ne!(receiver.terms[0].origin,receiver.terms[1].origin);
+        let output=terms::Value::anchored(&DynTypeValue{ty:ty.clone(),life:life.clone(),classes:vec![StorageBinder::Fixed(0)]},terms::Owner::Function(FunctionId(42)),terms::Root::DeclarationType(0),&mut Budget::new(&limits)).unwrap();
+        let shape=Shape{parameters:vec![],parameter_modes:vec![],result:output,result_mode:PassingMode::Infer,call_kind:CallKind::Direct};
+        let scope=DynInstantiationScope{fixed_binder_count:1,invocation_binder_count:0};
+        assert!(check_shape(&module,&receiver,CallableKind::Fn,&shape,scope,true,&mut Budget::new(&limits)).is_err());
+        for swap in [false,true]{
+            let mut proposed=module.clone();
+            if swap{proposed.closures[0].storage_life.as_mut().unwrap().classes[2].binder=StorageBinder::Fixed(1);proposed.functions[0].storage_life=proposed.closures[0].storage_life.clone();}
+            for wire in [false,true]{
+                let decoded;let current=if wire{let bytes=zil_ir::wire::encode_module_candidate(&proposed,&CandidatePlan::empty_for(&proposed),&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;&decoded}else{&proposed};
+                // The original P/R source can differ from the receiver's own
+                // domain even when both receiver classes have one image. This
+                // structural request never substitutes for actual entry proof.
+                check_shape_with_source(current,&receiver,CallableKind::Fn,&shape,Some(&shape),scope,true,&mut Budget::new(&limits)).unwrap();
+                let result=crate::class_flow::check(current,&current.functions[0],&[true],&mut Budget::new(&limits));
+                if swap{assert!(result.is_err(),"same-image header swap, wire {wire}");}else{result.unwrap();}
+            }
+        }
+    }
     fn signature(result: terms::Value) -> signatures::Resolved {
         signatures::Resolved {
             parameters: vec![],
