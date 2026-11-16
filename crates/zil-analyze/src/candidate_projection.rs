@@ -5,6 +5,8 @@ use super::*;
 use std::collections::{HashMap, hash_map::DefaultHasher};
 use std::hash::Hasher;
 
+type InputKey = (Fingerprint, Vec<FunctionId>, u64);
+
 struct Input<'a> {
     function: &'a TypedFunction,
     hash: bootstrap::InputHasher,
@@ -54,10 +56,7 @@ impl<'a> Inputs<'a> {
         semantic_body_eq(old, function)
     }
 
-    pub(super) fn input(
-        &mut self,
-        function: &'a TypedFunction,
-    ) -> Option<((Fingerprint, Vec<FunctionId>, u64), bool)> {
+    pub(super) fn input(&mut self, function: &'a TypedFunction) -> Option<(InputKey, bool)> {
         if self.remaining == 0 {
             let mut hash = bootstrap::InputHasher::new();
             let callees = scalar_projection(function, &mut hash)?;
