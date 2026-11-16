@@ -3355,7 +3355,9 @@ pub fn main()->i32=>0",
             if label == "private" {
                 let work = report.function_type_work.as_ref().unwrap();
                 assert_eq!((work.body_key_executions, work.body_key_reuses), (1, 422));
-                assert_eq!((work.executed_functions, work.reused_functions), (3, 422));
+                // The two foreign declarations and their two unsafe wrappers
+                // still execute; scalar key construction is not a CFG hit.
+                assert_eq!((work.executed_functions, work.reused_functions), (5, 420));
                 assert_eq!(work.cfg_relocated_functions, 20);
                 let producer = report.producer_work.as_ref().unwrap();
                 assert_eq!(
@@ -3466,21 +3468,20 @@ pub fn main()->i32=>0",
                 assert_eq!(program(&session), program(&fresh));
                 let work = report.function_type_work.as_ref().unwrap();
                 assert_eq!((work.body_key_executions, work.body_key_reuses), (0, 423));
-                assert_eq!((work.executed_functions, work.reused_functions), (2, 423));
+                assert_eq!((work.executed_functions, work.reused_functions), (4, 421));
                 let publication = report.semantic_cache_publication.as_ref().unwrap();
                 assert_eq!(
-                    publication.serialized_functions + publication.reused_functions,
-                    425
+                    (
+                        publication.serialized_functions,
+                        publication.reused_functions
+                    ),
+                    (4, 421)
                 );
-                // Every ordinary scalar row reuses its complete relative body.
-                // The two foreign declarations may retain absolute locations.
-                assert!(publication.serialized_functions <= 2);
-                assert!(publication.reused_functions >= 423);
             }
             if label == "recovery" {
                 let work = report.function_type_work.as_ref().unwrap();
                 assert_eq!((work.body_key_executions, work.body_key_reuses), (1, 422));
-                assert_eq!((work.executed_functions, work.reused_functions), (3, 422));
+                assert_eq!((work.executed_functions, work.reused_functions), (5, 420));
                 let publication = report.semantic_cache_publication.as_ref().unwrap();
                 assert_eq!(
                     (
