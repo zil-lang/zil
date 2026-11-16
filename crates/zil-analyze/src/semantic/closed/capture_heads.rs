@@ -638,9 +638,11 @@ impl Check<'_, '_> {
         };
         if self.has_ghost_capture(*id, b)? {
             self.ghost_capture_directory(*id, b)?;
-            crate::semantic::value::resolved(instance, value, self.inventory, b, 0)?;
-            // No physical borrowed head exists in this independently checked
-            // data-free directory. Its nonzero ghost domain is kept separately.
+            self.resolved(instance, value, b, 0)?;
+            // This lane compares the complete intrinsic domain, including an
+            // original moved reference role. SSA images use the independently
+            // reconstructed producer; they cannot certify their own claim.
+            // Actual captured targets remain obligations of the source CFG.
             return Ok(Vec::new());
         }
         let directory = self.capture_directory(*id, b)?;

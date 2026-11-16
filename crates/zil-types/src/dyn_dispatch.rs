@@ -245,16 +245,22 @@ pub(super) fn contextual_contract(slot: &DynSlot, interface: &DynInterface) -> D
     expected.effects = slot.contract.effects.clone();
     let result_binder = context_result_binder(slot, interface);
     if borrowed_result(&slot.result) {
+        // A declaration upper includes independently proved static data as
+        // well as compatible receiver/port data. Static is a typed source,
+        // not an equation between a persistent class and the static endpoint.
+        let mut sources = vec![StorageSource::Static {
+            leaf: slot.result.clone(),
+            mode: StoredBorrowMode::SharedAddress,
+        }];
+        if result_binder == Some(StorageBinder::Invocation(0)) {
+            sources.push(StorageSource::OwnedView {
+                head: receiver_position(),
+                leaf: slot.result.clone(),
+                mode: StoredBorrowMode::SharedAddress,
+            });
+        }
         expected.result = Some(DynResultSource::Borrow {
-            sources: if result_binder == Some(StorageBinder::Invocation(0)) {
-                vec![StorageSource::OwnedView {
-                    head: receiver_position(),
-                    leaf: slot.result.clone(),
-                    mode: StoredBorrowMode::SharedAddress,
-                }]
-            } else {
-                Vec::new()
-            },
+            sources,
             mutable: false,
         });
     }
