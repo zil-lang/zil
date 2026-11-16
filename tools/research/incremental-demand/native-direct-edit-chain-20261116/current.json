@@ -1,14 +1,15 @@
 {
   "schema": "zil.native-direct-edit-current-chain.v1",
-  "source": "1be7f77757fe32c22acdb1b3975981828cc3b131",
-  "production_source": "5a2220f51e85233840c86ea8545464dcc1f4d3d5",
-  "binary_sha256": "2a20b22543cb2143834a24b11f751f3b49a218583dd9f5e8a2bfe1400779c659",
+  "source": "0d59085766dd8f8601d1cc399e2ed7f1e2050608",
+  "production_source": "0d59085766dd8f8601d1cc399e2ed7f1e2050608",
+  "binary_sha256": "780f92f7505dbff58ed734acc6edcbfdd3e72ce11760fba83d99e97f061359d0",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
   "scope": "Original5105functions/102files/843875sourcebytes, two balanced blocks; native O2/CGU16/compilerjobs1, explicit bounded-class-imports128-v3 defaultoff. Closeprocess/edit/newprocess first request; resident request clock, startup separate. Not CLI exit or OS-cold.",
   "result": "Direct firstedit STILL SLOWER than Rust; comprehensive/main merge gates OPEN.",
   "execution_complete": true,
   "counts": {
-    "compiler_requests": 30,
+    "formal_workflow_requests": 30,
+    "quality_profile_build_requests": 12,
     "functional_cells": 10,
     "sustained_runtime_cases": 4
   },
@@ -20,145 +21,145 @@
     "cold": {
       "wall_ms_by_block": {
         "candidate": [
-          5064.559198,
-          4103.95622
+          4687.045987,
+          4139.394275
         ],
         "rust": [
-          7667.272464,
-          8479.166519
+          6810.018065,
+          9012.240841
         ]
       },
       "median_ms": {
-        "candidate": 4584.2577089999995,
-        "rust": 8073.2194915
+        "candidate": 4413.220131,
+        "rust": 7911.1294530000005
       },
-      "candidate_over_rust_paired_GM": 0.5654251931467129
+      "candidate_over_rust_paired_GM": 0.5622474288267608
     },
     "unchanged": {
       "wall_ms_by_block": {
         "candidate": [
-          34.712282,
-          27.209568
+          38.427194,
+          57.351516
         ],
         "rust": [
-          35.011796,
-          79.721999
+          39.60152,
+          35.999706
         ]
       },
       "median_ms": {
-        "candidate": 30.960925000000003,
-        "rust": 57.36689749999999
+        "candidate": 47.889354999999995,
+        "rust": 37.800613
       },
-      "candidate_over_rust_paired_GM": 0.58170945304083
+      "candidate_over_rust_paired_GM": 1.243329914386812
     },
     "private-001": {
       "wall_ms_by_block": {
         "candidate": [
-          2701.956009,
-          2408.617922
+          2917.660092,
+          2836.835692
         ],
         "rust": [
-          1455.919434,
-          1470.005563
+          1143.447593,
+          1674.486188
         ]
       },
       "median_ms": {
-        "candidate": 2555.2869655,
-        "rust": 1462.9624985
+        "candidate": 2877.2478920000003,
+        "rust": 1408.9668905
       },
-      "candidate_over_rust_paired_GM": 1.7437930122092056
+      "candidate_over_rust_paired_GM": 2.0791485593162276
     },
     "recovery": {
       "wall_ms_by_block": {
         "candidate": [
-          2301.720741,
-          2216.19092
+          1800.132636,
+          2232.709853
         ],
         "rust": [
-          5700.137706,
-          6765.21608
+          6357.685076,
+          6414.531847
         ]
       },
       "median_ms": {
-        "candidate": 2258.9558305,
-        "rust": 6232.676893
+        "candidate": 2016.4212444999998,
+        "rust": 6386.1084615
       },
-      "candidate_over_rust_paired_GM": 0.36370258780356657
+      "candidate_over_rust_paired_GM": 0.3139325940395489
     },
     "error": {
       "wall_ms_by_block": {
         "candidate": [
-          1880.148647,
-          2090.62031
+          1406.158365,
+          1971.622584
         ],
         "rust": [
-          2360.39713,
-          2090.942482
+          1854.847416,
+          1957.117181
         ]
       },
       "median_ms": {
-        "candidate": 1985.3844785,
-        "rust": 2225.669806
+        "candidate": 1688.8904745,
+        "rust": 1905.9822985
       },
-      "candidate_over_rust_paired_GM": 0.8924216419175488
+      "candidate_over_rust_paired_GM": 0.8739095796007118
     }
   },
   "runtime_ms": {
     "5105/cold": {
-      "candidate": 31.798848,
-      "rust": 202.421302
+      "candidate": 32.8423395,
+      "rust": 215.0291555
     },
     "5105/unchanged": {
-      "candidate": 32.1128175,
-      "rust": 194.633443
+      "candidate": 32.4302855,
+      "rust": 202.528074
     },
     "5105/private-001": {
-      "candidate": 35.2596195,
-      "rust": 199.8767295
+      "candidate": 35.5977025,
+      "rust": 206.87486
     },
     "5105/recovery": {
-      "candidate": 30.693998,
-      "rust": 204.493137
+      "candidate": 35.6328215,
+      "rust": 217.999597
     }
   },
   "user_disk_boundary_peak_physical_bytes": [
     {
       "block": 0,
-      "candidate": 30371840,
-      "rust": 62361600
+      "candidate": 30359552,
+      "rust": 76734464
     },
     {
       "block": 1,
-      "candidate": 30359552,
-      "rust": 62365696
+      "candidate": 30371840,
+      "rust": 61546496
     }
   ],
   "direct_firstedit_costs": [
     {
       "block": 0,
-      "wall_ms": 2701.956009,
+      "wall_ms": 2917.660092,
       "phases_ms": {
-        "analyze": 123.902699,
-        "codegen": 707.58688,
-        "ct": 114.184482,
-        "expand": 1107.847506,
-        "lower": 4.179234,
-        "parse": 0.132213,
-        "types": 124.28654,
-        "verify": 76.276063
+        "analyze": 138.601618,
+        "codegen": 858.678834,
+        "ct": 114.933698,
+        "expand": 351.358422,
+        "lower": 6.386375,
+        "parse": 0.223292,
+        "types": 775.506958,
+        "verify": 81.298706
       },
       "backend_ms": {
-        "diagnostic": 21.063287,
-        "link_execution": 30.203329,
-        "link_key": 28.901438,
-        "machine_emit": 135.325946,
-        "machine": 365.380912,
-        "machine_preflight": 34.536976,
-        "machine_transform": 226.164899,
-        "object": 195.687004,
-        "other": 1.327709,
-        "partition": 64.471327,
-        "total": 707.035006
+        "diagnostic": 21.679028,
+        "link_execution": 51.343507,
+        "link_key": 29.813229,
+        "machine_emit": 202.962362,
+        "machine": 504.087,
+        "machine_preflight": 43.762075,
+        "machine_transform": 296.854015,
+        "object": 181.669281,
+        "other": 1.227979,
+        "partition": 68.300555,
+        "total": 858.120579
       },
       "analyze": {
         "candidate_inputs_built": 244,
@@ -172,65 +173,29 @@
     },
     {
       "block": 1,
-      "wall_ms": 2408.617922,
+      "wall_ms": 2836.835692,
       "phases_ms": {
-        "analyze": 111.878559,
-        "codegen": 765.149328,
-        "ct": 469.820199,
-        "expand": 322.530159,
-        "lower": 3.325483,
-        "parse": 0.130319,
-        "types": 131.446462,
-        "verify": 69.247908
+        "analyze": 137.700904,
+        "codegen": 1001.127449,
+        "ct": 134.795347,
+        "expand": 444.089139,
+        "lower": 3.830097,
+        "parse": 3.966095,
+        "types": 141.094081,
+        "verify": 92.093121
       },
       "backend_ms": {
-        "diagnostic": 25.424691,
-        "link_execution": 57.275041,
-        "link_key": 31.707901,
-        "machine_emit": 151.209768,
-        "machine": 387.379944,
-        "machine_preflight": 35.774807,
-        "machine_transform": 230.897877,
-        "object": 183.120855,
-        "other": 2.051817,
-        "partition": 77.630635,
-        "total": 764.590884
-      },
-      "analyze": {
-        "candidate_inputs_built": 244,
-        "candidate_input_projection_reuses": 4857,
-        "candidate_output_projection_reuses": 4857
-      },
-      "verify": {
-        "function_proofs_checked": 2167,
-        "function_proofs_reused": 2936
-      }
-    },
-    {
-      "block": 0,
-      "wall_ms": 2543.856487,
-      "phases_ms": {
-        "analyze": 127.909216,
-        "codegen": 1415.462138,
-        "ct": 83.412731,
-        "expand": 286.285133,
-        "lower": 4.621321,
-        "parse": 0.126981,
-        "types": 135.372197,
-        "verify": 68.077241
-      },
-      "backend_ms": {
-        "diagnostic": 37.003627,
-        "link_execution": 25.948477,
-        "link_key": 31.98163,
-        "machine_emit": 147.777156,
-        "machine": 1074.592951,
-        "machine_preflight": 663.935625,
-        "machine_transform": 923.059209,
-        "object": 164.256329,
-        "other": 11.643814,
-        "partition": 69.590245,
-        "total": 1415.017073
+        "diagnostic": 53.590631,
+        "link_execution": 31.546767,
+        "link_key": 30.127339,
+        "machine_emit": 246.731236,
+        "machine": 568.02539,
+        "machine_preflight": 38.194909,
+        "machine_transform": 316.11115,
+        "object": 192.732017,
+        "other": 1.440379,
+        "partition": 122.816461,
+        "total": 1000.278984
       },
       "analyze": {
         "candidate_inputs_built": 244,
@@ -246,28 +211,59 @@
   "changes": [
     "Analyze exact current scalar-leaf projection sharing; fresh function IDs/names bind every result",
     "Independently implemented Verify current-invocation success templates; exact body/plan/current world and valid relative diagnostic spans; original fee replay, ordinary failure fallback",
-    "Current CGU fused definition/class-declaration pruning, immutable body-owner reference sharing; one complete ORIGINAL validation before any deletion, actual-unit preflight/Builder/fullO2 retained"
+    "Current CGU fused definition/class-declaration pruning, immutable body-owner reference sharing; one complete ORIGINAL validation before any deletion, actual-unit preflight/Builder/fullO2 retained",
+    "Immutable scalar source-site transport retains original binding and current ordinal prefix; replaces three same-address AST transport traversals and map reinsertion. Original work/temppeak/releases replay only on full transport fit; low-budget ordinary interleaving and mutable clone/rewrite paths retained. Optional rows bounded64KiB/current temporary headroom."
   ],
   "checks": {
-    "gates36_source": "5a2220f51e85233840c86ea8545464dcc1f4d3d5",
-    "gates36_pass": {
-      "analyze": 310,
-      "verify": 657,
-      "backend": 359,
-      "driver": 233,
+    "gates38_source": "0d59085766dd8f8601d1cc399e2ed7f1e2050608",
+    "gates38_pass": {
+      "strict_alltargets_Dwarnings": true,
+      "driver": 234,
       "native_publication": 2,
-      "fmt": true
+      "fmt": true,
+      "release_incremental0": true
     },
-    "gates36_failure": "Clippy type_complexity in candidate_projection return type; private alias only fixed in source1be, negative receipt retained",
-    "gates37_pass": [
-      "strict alltargets includingVerify -Dwarnings",
-      "fmt",
-      "release CARGO_INCREMENTAL0"
-    ],
-    "unchanged_subtree_reuse": "gates35 source8ad: IR93/Types118/API105/toolsquality27/recording2; Expand130 earlier unchanged receipt",
-    "reviews": "Analyze nonauthor Ptolemy PASS; Verify and fused prune nonauthor root PASS, independent A/V implementations; source1be differs only private alias from functional test source5a"
+    "reused": "Unchanged Analyze310/Verify657/backend359 gates36 source5a; IR93/Types118/API105/tools27+2 gates35 source8ad; Expand130 earlier unchanged subtree. No repeat whole old matrix.",
+    "source_site_checks": "Original clone executor equals optimized current parser-owned walk across all six fees/remaining budget and N/N-1 work/nodes/temporary/depth, empty-site and nested/grouped-type cases, independent parser restart, corrupt cache/current Source checks.",
+    "reviews": "Astra implemented source-site chain; nonauthor root reviewed exact current-owner/ordinal-prefix/ledger/fallback and ordinaryclone boundaries before source0d freeze. Prior A/V independent reviews retained in window15 result."
   },
-  "remaining_bottlenecks": "Source/Core restart reconstruction persists: all5105 lower, full CT work; firstedit Expand322.5/1107.8ms and CT114.2/469.8ms vary across blocks, do not assign causal speedup from crosswindow changes. Backend707.6/765.1ms remains. New reuse counters are not goal acceptance.",
-  "raw": "out/runs/direct-firstedit-performance-direct-15",
-  "limitations": "Generated large executable only; industrial multi-crate/proc-macro/build.rs/minute/GB scenarios unmeasured. Disk request-boundary peaks exclude SDK/host/evidence; no transient peak or universal claim. SDK18 reused, LLVM not rebuilt, no full evidence pack. Prior13/12/10/09/08 and check54a/native7e/98fa/021997 remain source-bound."
+  "remaining_bottlenecks": "Formal firstedit: block0 Types775.5ms and backend858.7ms; block1 backend1001.1ms (machine568.0/partition122.8/object192.7). Current Source/Core, CT and machine planning/partition reconstruction remain. Source-site transport removal did not establish end-to-end speed improvement: window16 still2.877/Rust1.409s; no causal attribution from crosswindow/block variation. Industrial/defaultmain/fullCLI gates remain open.",
+  "raw": "out/runs/direct-firstedit-performance-direct-16",
+  "limitations": "Generated large executable only; industrial multi-crate/proc-macro/build.rs/minute/GB scenarios unmeasured. Disk request-boundary peaks exclude SDK/host/evidence; no transient peak or universal claim. SDK18 reused, LLVM not rebuilt, no full evidence pack. Prior13/12/10/09/08 and check54a/native7e/98fa/021997 remain source-bound.",
+  "disk_accounting": "Maximum of simultaneous per-arm totals at observed request boundaries, globally inode-deduplicated st_blocks*512. Only original30 workflow rows; quality wrappers separate. Never sum category maxima from different instants. SDK/evidence/host excluded; not transient peak.",
+  "prior_disk_aggregation_corrections": [
+    {
+      "window": "13",
+      "source": "8ad2bfb5c9604dfdd761dd9fd48ebab7a94fe547",
+      "corrected_same_snapshot_peaks": [
+        {
+          "block": 0,
+          "candidate": 30367744,
+          "rust": 61546496
+        },
+        {
+          "block": 1,
+          "candidate": 30339072,
+          "rust": 61546496
+        }
+      ]
+    },
+    {
+      "window": "15",
+      "source": "1be7f77757fe32c22acdb1b3975981828cc3b131",
+      "corrected_same_snapshot_peaks": [
+        {
+          "block": 0,
+          "candidate": 30367744,
+          "rust": 61546496
+        },
+        {
+          "block": 1,
+          "candidate": 30355456,
+          "rust": 61550592
+        }
+      ]
+    }
+  ],
+  "previous_formal_result": "https://github.com/zil-lang/zil/blob/41a0d6d958039a213e8fd68494ea2b69f6a8515e/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json (window15 compilation/runtime unchanged; its disk aggregate corrected here)"
 }

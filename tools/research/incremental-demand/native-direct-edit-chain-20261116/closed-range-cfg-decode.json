@@ -121,13 +121,13 @@
   "user_disk_observed_boundary_peak_bytes": [
     {
       "block": 0,
-      "candidate": 30371840,
-      "rust": 62361600
+      "candidate": 30367744,
+      "rust": 61546496
     },
     {
       "block": 1,
-      "candidate": 30343168,
-      "rust": 62361600
+      "candidate": 30339072,
+      "rust": 61546496
     }
   ],
   "effect_observed": {
@@ -139,5 +139,6 @@
   "checks": "gates35: strict,IR93,Types118,API105,backend356,driver233,publication2,quality27,recording2,fmt,release PASS. Unchanged Analyze307/Expand130 receipts reused.",
   "raw": "out/runs/direct-firstedit-performance-direct-13",
   "profile_diagnostic": "out/runs/native-direct-profile-14; not comparative performance",
-  "limitations": "Generated large single executable only; industrial multi-crate/proc-macro/build.rs/minute/GB scenarios unmeasured. Old54a check,7e,98fa,021997 results remain source-bound. SDK18 reused, LLVM not rebuilt, no evidence pack."
+  "limitations": "Generated large single executable only; industrial multi-crate/proc-macro/build.rs/minute/GB scenarios unmeasured. Old54a check,7e,98fa,021997 results remain source-bound. SDK18 reused, LLVM not rebuilt, no evidence pack.",
+  "disk_aggregation_correction": "Peak of each simultaneous per-arm total, globally deduplicated inode counts. Earlier category-maximum sum slightly overcounted; original snapshots unchanged."
 }

@@ -1,11 +1,9 @@
 # 编译效率恢复入口
 
-唯一施工分支 `research/full-push-native`。最后正式源码 **1be7f77757fe32c22acdb1b3975981828cc3b131**，二进制SHA256 `2a20b22543cb2143834a24b11f751f3b49a218583dd9f5e8a2bfe1400779c659`。window15原30请求/10功能格/4运行格完整且运行质量过；直接首改 **2.555s / Rust1.463s仍输**、冷4.584/R8.073s，用户缓存/产物边界峰约29/R59.47MiB。[当前精简结果](native-direct-edit-chain-20261116/current.md)。不把13/12/10/09/08或check54a、原生7e、98fa/021997数字转记本源。
+唯一施工分支 `research/full-push-native`。最后正式源码 **0d59085766dd8f8601d1cc399e2ed7f1e2050608**，二进制SHA256 `780f92f7505dbff58ed734acc6edcbfdd3e72ce11760fba83d99e97f061359d0`；window16原30请求/10功能格/4运行格完整且运行质量过。直接首改 **2.877s / Rust1.409s，仍落后**，冷4.413/R7.911s。[当前精简结果](native-direct-edit-chain-20261116/current.md)。旧15/13/12/10/09/08、check54a、原生7e、98fa/021997数字不转记此源。
 
-本提交新增只读标量来源表运输优化，**未测**：保留当前完整绑定，复用本次每项费用信息，省去同地址搬出/搬回；逻辑前缀/原费用和空间峰保持，额度不足走原顺序。先读gates38收据，缺失才集中补driver/native发布/strict/fmt/release，再正式native窗口16。1be/window15数字不转记此新源。
+闭合参数范围/实际CFG压缩/跨CGU纯事实/原始解码共享、Analyze投影共享与独立Verify当前叶函数复用、CGU合并剪枝后，又完成本次不可变标量来源表运输优化。原始完整来源绑定保持，仅省同地址的三次运输遍历及映射重插；逻辑前缀、原费用/临时峰/释放和紧额度原错误顺序保持，真正克隆/改写路径不变。gates38strict/driver234/native发布2/fmt/release过；未变A310/V657/backend359等按差异复用，先读现存收据，不重排全套旧测试。
 
-已实现闭合实参范围→实际CFG压缩→跨CGU纯调用事实、原始解码共享、本请求Analyze投影共享/独立Verify叶函数检查复用及物理CGU合并剪枝。gates36功能Analyze310/Verify657/backend359/driver233/native发布2全部过；Clippy局部别名修正后gates37 strict/fmt/release过。先读实际收据，不重排全套旧测试。
+仍全5105Source/Core与CT及机器规划/分区重建，按结果JSON阶段分账继续实际消费者链。性能计数不替代绝对等待目标，不因profile/分块波动推定原因。本轮Astra已完成此链实现并由root独立复核，代理已暂停/关闭，无待等任务。
 
-目标仍未达到：重启仍全5105Source/Core重建与完整CT，Expand/CT分块耗时波动，后端约0.7–0.8s；优先按Rust按需生成顺序定位并改实际消费者，不能只增对象命中或复用计数。本轮Astra在只读核此断点，先核代理/工作树和现存结果再接续。
-
-SDK18/native-link复用已安装版本，不建LLVM、不全量打包。只比较实际main/当前/Rust，同nativeO2/CGU16/compilerjobs1；原输入/257功能域/完整运行门/当前输入绑定/原预算/独立Verify保持，研究默认关闭。计时为resident请求、启动单列，普通CLI全进程另算。工业多crate/proc-macro/build.rs与分钟/GB级未测，实际main9170默认ResourceLimit保留，全面/main门开放；goal/archive不合main。
+磁盘按同一时点全局inode去重后求边界峰；13/15旧分类峰相加的略高估已修正。SDK18/native-link复用，不建LLVM、不全量打包。只比较实际main/当前/Rust，同nativeO2/CGU16/compilerjobs1，原输入/257域/完整运行门/当前输入绑定/原预算/独立Verify保持，研究默认关。resident请求/启动分开，普通CLI另计。工业多crate/proc-macro/build.rs与分钟/GB级未测，实际main9170默认ResourceLimit保留，全面/main门开放；goal/archive不合main。

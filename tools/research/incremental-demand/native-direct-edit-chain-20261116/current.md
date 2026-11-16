@@ -1,11 +1,10 @@
 # 原生直接首改当前结果
 
-正式源码 `1be7f77757fe32c22acdb1b3975981828cc3b131`（生产5a222，别名修正1be7）；window15原30请求/10功能格/4运行格完整，运行质量通过。native同O2/CGU16/compilerjobs1、原5105函数/102文件、257功能域；研究默认关闭，独立Verify/原预算/完整O2保持。
+正式源码 `0d59085766dd8f8601d1cc399e2ed7f1e2050608`，window16原30请求/10功能格/4运行格完整，运行质量通过。同nativeO2/CGU16/compilerjobs1、原5105函数/102文件/257域；独立Verify/原预算/完整O2/研究默认关保持。
 
-- 冷编译 **4.584s / Rust8.073s**；直接首改 **2.555s / Rust1.463s，仍落后**。
-- 无改resident **30.96ms / Rust57.37ms**；恢复 **2.259s / Rust6.233s**。计时为请求、启动单列，不冒充普通CLI完整进程或OS冷；单窗两块，不据跨窗口漂移宣称稳定净收益。
-- 用户边界产物/缓存峰约 **28.95–28.97MiB / Rust59.47MiB**，仅本生成项目，非工业GB级/瞬时峰。
-- Analyze实际输入投影244、复用4857，输出投影复用4857；独立Verify新检查2167、当前请求复用2936。完整Source/Core重建仍在，不能以计数代替速度达标。
-- 首改Expand两块1107.8/322.5ms、CT114.2/469.8ms，后端707.6/765.1ms；后续优先消除原Source/Core及后端重建。Astra继续按真实实现定位，不因profile差额假定原因。
+- 冷编译 **4.413s / Rust7.911s**；直接首改 **2.877s / Rust1.409s，仍落后**。
+- 用户缓存/产物同一时点边界峰 **28.95–28.96MiB / Rust58.70–73.18MiB**。修正了此前分类不同时点峰值相加的略高估；原始快照不改，已全局inode去重，非工业GB级或瞬时峰。
+- Analyze每块4857输入/输出投影复用、独立Verify2936当前成功复用保持。新只读来源运输省去三次同地址AST遍历及映射重插，完整初始来源绑定、逻辑有效范围/全部原费用和低额度错误顺序保持；原克隆/改写路径保留。
+- 当前Source/Core、CT及机器规划/分区仍重建。首改第一块Types775.5ms/后端858.7ms，第二块后端1001.1ms（机器568.0/分区122.8/对象192.7）。本窗没有证明整链提速；不以局部删遍历或跨窗口漂移宣称达标。
 
-集中功能回归Analyze310/Verify657/backend359/driver233/native发布2全部通过。首次Clippy类型复杂度失败保留；局部别名修正后strict/fmt/release过，未重排已过整套测试。实际main9170默认ResourceLimit保留，无main比值；全面/main合入门开放，工业多crate/proc-macro/build.rs与分钟级未测。旧数字各归原源码。[详细精简记录](current.json)。
+本批strict/driver234/native发布2/fmt/release全部过；未变Analyze310/Verify657/backend359/IR93/Types118/API105/Expand130按差异复用。窗口15的1be数据固定在41a0d6d95，不转记新源；其磁盘合计修正见当前记录。实际main9170默认ResourceLimit保留，无main比值，全面/main/工业多crate/proc-macro/build.rs/分钟级门开放。resident请求与启动单列，不冒充普通CLI完整退出或OS冷。SDK18复用，不建LLVM、不全量打包。[精简记录](current.json)。
