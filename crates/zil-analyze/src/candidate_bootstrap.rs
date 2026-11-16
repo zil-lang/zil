@@ -4,23 +4,27 @@ use super::*;
 use std::collections::{HashMap, hash_map::DefaultHasher};
 use std::hash::Hasher;
 
+#[derive(Clone)]
 pub(super) struct InputHasher {
     input: FingerprintBuilder,
     body: DefaultHasher,
 }
 impl InputHasher {
-    pub(super) fn new(function: &TypedFunction) -> Self {
+    pub(super) fn new() -> Self {
         let mut input = FingerprintBuilder::new();
-        "zil-analyze-scalar-input-v1".hash(&mut input);
-        function.id.hash(&mut input);
-        function.name.hash(&mut input);
+        "zil-analyze-scalar-input-v2".hash(&mut input);
         Self {
             input,
             body: DefaultHasher::new(),
         }
     }
-    pub(super) fn finish_input(self) -> (Fingerprint, u64) {
-        (self.input.digest(), self.body.finish())
+    pub(super) fn finish_input(&self, function: &TypedFunction) -> (Fingerprint, u64) {
+        // Put the per-function identity after the complete body so a current
+        // equal-body projection can share the SHA state, never its final key.
+        let mut input = self.input.clone();
+        function.id.hash(&mut input);
+        function.name.hash(&mut input);
+        (input.digest(), self.body.finish())
     }
 }
 impl Hasher for InputHasher {

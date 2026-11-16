@@ -17,6 +17,8 @@ pub struct AnalysisStats {
     pub initialization_inputs_built: usize,
     pub retained_candidate_queries: usize,
     pub candidate_inputs_built: usize,
+    pub candidate_input_projection_reuses: usize,
+    pub candidate_output_projection_reuses: usize,
     pub dependency_signatures_checked: usize,
     pub resource_transfers_executed: usize,
     pub resource_transfers_reused: usize,

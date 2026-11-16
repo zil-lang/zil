@@ -1086,11 +1086,12 @@ pub fn build_view_with_cancellation_and_session(
                     removals.push(count);
                     continue;
                 }
-                // prune() validates this COMPLETE original unpruned unit before
+                // Fused pruning validates this COMPLETE original unpruned unit before
                 // any nonempty deletion. Its resulting unit still goes through
                 // current API preflight/Builder/full O2/LLVM verification below.
                 let Some(stats) =
-                    crate::machine_closed_prune::prune(unit, cancelled).map_err(api_error)?
+                    crate::machine_closed_prune::prune_closed_unit(unit, &class_symbols, cancelled)
+                        .map_err(api_error)?
                 else {
                     return Err(vec![Diagnostic::new(
                         Phase::Link,
@@ -1100,23 +1101,7 @@ pub fn build_view_with_cancellation_and_session(
                         None,
                     )]);
                 };
-                let declaration_prune = crate::machine_closed_prune::prune_class_declarations(
-                    unit,
-                    &class_symbols,
-                    cancelled,
-                )
-                .map_err(api_error)?;
                 check_cancelled(cancelled)?;
-                // None is cancellation, already rejected by the shared token.
-                if declaration_prune.is_none() {
-                    return Err(vec![Diagnostic::new(
-                        Phase::Link,
-                        ResultCategory::Cancelled,
-                        "E-LLVM-API-CANCELLED",
-                        "class declaration pruning cancelled",
-                        None,
-                    )]);
-                }
                 checked += usize::from(stats.removed_count != 0);
                 removed += stats.removed_count;
                 removals.push(stats.removed_count);

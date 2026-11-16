@@ -1,11 +1,11 @@
 //! Structured global reachability after closed-executable internalization.
 //!
-//! Only unreachable local function definitions may be removed. Globals, types,
-//! declarations and nonlocal definitions survive. A nonempty plan must pass
+//! Remove unreachable local definitions and unused current class declarations.
+//! Globals, types, ordinary declarations and nonlocal definitions survive. A nonempty plan must pass
 //! complete ORIGINAL unit validation before any deletion; callers still retain
 //! their production budgets and all actual-unit preflight/Builder/O2 checks.
-use std::collections::HashMap;
-use zil_llvm_api::model::{Item, Module, Val};
+use std::collections::{BTreeSet, HashMap};
+use zil_llvm_api::model::{Block, Item, Module, SharedVec, Val};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Stats {
@@ -24,6 +24,7 @@ fn enqueue(index: usize, live: &mut [bool], pending: &mut Vec<usize>) {
 // Traverse aggregate constants iteratively. Direct calls and address operands
 // have identical reachability significance; neither can authorize an alias.
 // None means cancellation; false means an unknown value forbids pruning.
+#[cfg(test)]
 fn enqueue_symbols(
     value: &Val,
     names: &HashMap<&str, usize>,
@@ -69,6 +70,7 @@ fn enqueue_symbols(
 /// Apply only to an already-internalized, complete physical codegen unit.
 /// Ok(None) is cancellation and leaves the module untouched. Validation errors
 /// also leave it untouched, including errors in otherwise dead definitions.
+#[cfg(test)]
 pub(crate) fn prune(
     module: &mut Module,
     cancelled: &(dyn Fn() -> bool + Sync),
@@ -177,6 +179,7 @@ pub(crate) fn prune(
 /// must not spread a changed member's class spelling to unrelated objects.
 /// Ordinary declarations are untouched. All original unit fields are validated
 /// before any deletion, including otherwise unused malformed prototypes.
+#[cfg(test)]
 pub(crate) fn prune_class_declarations(
     module: &mut Module,
     classes: &std::collections::BTreeSet<String>,
@@ -266,6 +269,191 @@ pub(crate) fn prune_class_declarations(
     }
     module.items = retained.into();
     Ok(Some(count))
+}
+
+#[derive(Default)]
+struct Reads {
+    functions: Vec<usize>,
+    // Charge every logical use, even when actual immutable bodies share this
+    // observation. Saturation only disables optional declaration pruning.
+    operands: usize,
+}
+
+fn observe(
+    value: &Val,
+    names: &HashMap<&str, usize>,
+    reads: &mut Reads,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Option<bool> {
+    let mut values = Vec::new();
+    let mut first = Some(value);
+    while let Some(value) = first.take().or_else(|| values.pop()) {
+        if cancelled() {
+            return None;
+        }
+        reads.operands = reads.operands.saturating_add(1).min(1_000_001);
+        match value {
+            Val::Global(name) => {
+                if let Some(&index) = names.get(name.as_str()) {
+                    reads.functions.push(index);
+                }
+            }
+            Val::Array(args) => values.extend(args.iter().map(|arg| &arg.value)),
+            Val::Gep { ptr, indices, .. } => {
+                values.push(ptr);
+                values.extend(indices.iter().map(|arg| &arg.value));
+            }
+            Val::Invalid(_) => return Some(false),
+            Val::Local(_)
+            | Val::Int(_)
+            | Val::F32(_)
+            | Val::F64(_)
+            | Val::Bool(_)
+            | Val::Null
+            | Val::Zero
+            | Val::Undef
+            | Val::Poison
+            | Val::Bytes(_) => {}
+        }
+    }
+    Some(true)
+}
+
+/// Stage both old pruning results against one COMPLETE original unit. Live
+/// declarations are discovered by the same actual global-reference walk as
+/// definitions, so there is no second graph, intermediate clone or validation.
+/// Unknown values refuse both deletions; cancellation never publishes either.
+pub(crate) fn prune_closed_unit(
+    module: &mut Module,
+    classes: &BTreeSet<String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<Option<Stats>, zil_llvm_api::Error> {
+    if cancelled() {
+        return Ok(None);
+    }
+    let mut names = HashMap::new();
+    let mut live = vec![false; module.items.len()];
+    let mut pending = Vec::new();
+    for (index, item) in module.items.iter().enumerate() {
+        if cancelled() {
+            return Ok(None);
+        }
+        if let Item::Function(f) = item {
+            if names.insert(f.name.as_str(), index).is_some() {
+                zil_llvm_api::validate_module(module)?;
+                return Ok(Some(Stats::default()));
+            }
+            if f.blocks.is_some() && !f.linkage.is_local() {
+                enqueue(index, &mut live, &mut pending);
+            }
+        }
+    }
+    // The old declaration pass admits at most one million operand values over
+    // the retained unit, including nested constants and repeated body uses.
+    // For known values its pending-stack bound is implied by this same total.
+    let mut declaration_budget = Some(1_000_000usize);
+    for item in &module.items {
+        if cancelled() {
+            return Ok(None);
+        }
+        if let Item::Global(g) = item
+            && let Some(value) = &g.initializer
+        {
+            let mut reads = Reads::default();
+            match observe(value, &names, &mut reads, cancelled) {
+                None => return Ok(None),
+                Some(false) => return Ok(Some(Stats::default())),
+                Some(true) => {}
+            }
+            declaration_budget = declaration_budget.and_then(|n| n.checked_sub(reads.operands));
+            for index in reads.functions {
+                enqueue(index, &mut live, &mut pending);
+            }
+        }
+    }
+    let mut bodies = HashMap::<usize, (&SharedVec<Block>, Reads)>::new();
+    while let Some(index) = pending.pop() {
+        if cancelled() {
+            return Ok(None);
+        }
+        let Item::Function(f) = &module.items[index] else {
+            unreachable!("only function items are queued")
+        };
+        let Some(blocks) = &f.blocks else {
+            continue;
+        };
+        let key = blocks.as_ptr() as usize;
+        if !bodies.get(&key).is_some_and(|(old, _)| old.ptr_eq(blocks)) {
+            let mut reads = Reads::default();
+            for block in blocks {
+                for inst in &block.instructions {
+                    if cancelled() {
+                        return Ok(None);
+                    }
+                    for value in inst.op.values() {
+                        match observe(value, &names, &mut reads, cancelled) {
+                            None => return Ok(None),
+                            Some(false) => return Ok(Some(Stats::default())),
+                            Some(true) => {}
+                        }
+                    }
+                }
+            }
+            bodies.insert(key, (blocks, reads));
+        }
+        let reads = &bodies[&key].1;
+        declaration_budget = declaration_budget.and_then(|n| n.checked_sub(reads.operands));
+        for &index in &reads.functions {
+            if cancelled() {
+                return Ok(None);
+            }
+            enqueue(index, &mut live, &mut pending);
+        }
+    }
+    let mut remove = vec![false; module.items.len()];
+    let mut stats = Stats::default();
+    let mut count = 0;
+    for (index, item) in module.items.iter().enumerate() {
+        if cancelled() {
+            return Ok(None);
+        }
+        if let Item::Function(f) = item {
+            if f.blocks.is_some() && f.linkage.is_local() && !live[index] {
+                remove[index] = true;
+                stats.removed_names.push(f.name.clone());
+            } else if f.blocks.is_none()
+                && declaration_budget.is_some()
+                && classes.contains(&f.name)
+                && !live[index]
+            {
+                remove[index] = true;
+            }
+            count += usize::from(remove[index]);
+        }
+    }
+    stats.removed_count = stats.removed_names.len();
+    if count == 0 {
+        return Ok(Some(stats));
+    }
+    if cancelled() {
+        return Ok(None);
+    }
+    // Includes every dead body and unused prototype, before either deletion.
+    zil_llvm_api::validate_module(module)?;
+    let mut retained = Vec::with_capacity(module.items.len() - count);
+    for (index, item) in module.items.iter().enumerate() {
+        if cancelled() {
+            return Ok(None);
+        }
+        if !remove[index] {
+            retained.push(item.clone());
+        }
+    }
+    if cancelled() {
+        return Ok(None);
+    }
+    module.items = retained.into();
+    Ok(Some(stats))
 }
 
 #[cfg(test)]
@@ -522,5 +710,148 @@ mod tests {
         let before = malformed.clone();
         assert!(prune_class_declarations(&mut malformed, &classes, &|| false).is_err());
         assert_eq!(malformed, before);
+    }
+
+    fn fused_fixture() -> (Module, BTreeSet<String>) {
+        let classes: BTreeSet<String> = [
+            "zil.class.live",
+            "zil.class.dead_only",
+            "zil.class.unused",
+            "zil.class.global",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+        let mut functions: Vec<_> = classes
+            .iter()
+            .map(|name| {
+                let mut f = leaf(name, Linkage::External);
+                f.blocks = None;
+                f
+            })
+            .collect();
+        let root = caller("main", Linkage::External, "zil.class.live");
+        let mut same_body = root.clone();
+        same_body.name = "export_same_body".into();
+        functions.extend([
+            root,
+            same_body,
+            caller("dead", Linkage::Internal, "zil.class.dead_only"),
+        ]);
+        let mut foreign = leaf("ordinary.foreign", Linkage::External);
+        foreign.blocks = None;
+        functions.push(foreign);
+        let mut m = module(functions);
+        m.items.push(Item::Global(Global {
+            name: "private_table".into(),
+            linkage: Linkage::Private,
+            ty: Ty::array(1, Ty::Ptr),
+            initializer: Some(Val::Array(vec![Arg::new(
+                Ty::Ptr,
+                Val::Global("zil.class.global".into()),
+            )])),
+            constant: true,
+            unnamed_addr: false,
+            alignment: 8,
+        }));
+        (m, classes)
+    }
+
+    #[test]
+    fn fused_pruning_matches_two_pass_outputs_and_definition_statistics() {
+        let (original, classes) = fused_fixture();
+        for classes in [classes, BTreeSet::new()] {
+            let mut expected = original.clone();
+            let stats = prune(&mut expected, &|| false).unwrap().unwrap();
+            prune_class_declarations(&mut expected, &classes, &|| false)
+                .unwrap()
+                .unwrap();
+            let mut actual = original.clone();
+            assert_eq!(
+                prune_closed_unit(&mut actual, &classes, &|| false).unwrap(),
+                Some(stats)
+            );
+            assert_eq!(actual, expected);
+            zil_llvm_api::validate_module(&actual).unwrap();
+            let again = actual.clone();
+            assert_eq!(
+                prune_closed_unit(&mut actual, &classes, &|| false).unwrap(),
+                Some(Stats::default())
+            );
+            assert_eq!(actual, again);
+        }
+    }
+
+    #[test]
+    fn fused_pruning_checks_dead_bodies_and_unused_prototypes_before_either_deletion() {
+        let (original, classes) = fused_fixture();
+        for name in ["dead", "zil.class.unused"] {
+            let mut m = original.clone();
+            for item in &mut m.items {
+                if let Item::Function(f) = item
+                    && f.name == name
+                {
+                    if let Some(blocks) = f.blocks.as_mut() {
+                        blocks[0].instructions = vec![Inst::new(
+                            None,
+                            Op::Return(Some(Arg::new(Ty::Int(32), Val::Local("missing".into())))),
+                        )];
+                    } else {
+                        f.signature.result = Ty::Int(0);
+                    }
+                }
+            }
+            let before = m.clone();
+            let expected = zil_llvm_api::validate_module(&m).unwrap_err().to_string();
+            assert_eq!(
+                prune_closed_unit(&mut m, &classes, &|| false)
+                    .unwrap_err()
+                    .to_string(),
+                expected
+            );
+            assert_eq!(m, before);
+        }
+        let mut unknown = original.clone();
+        for item in &mut unknown.items {
+            if let Item::Function(f) = item
+                && f.name == "main"
+            {
+                f.blocks.as_mut().unwrap()[0].instructions = vec![Inst::new(
+                    None,
+                    Op::Return(Some(Arg::new(Ty::Int(32), Val::Invalid("unknown".into())))),
+                )];
+            }
+        }
+        let before = unknown.clone();
+        assert_eq!(
+            prune_closed_unit(&mut unknown, &classes, &|| false).unwrap(),
+            Some(Stats::default())
+        );
+        assert_eq!(unknown, before);
+    }
+
+    #[test]
+    fn fused_pruning_cancellation_keeps_both_deletions_atomic() {
+        let (original, classes) = fused_fixture();
+        let polls = AtomicUsize::new(0);
+        let mut measured = original.clone();
+        prune_closed_unit(&mut measured, &classes, &|| {
+            polls.fetch_add(1, Ordering::Relaxed);
+            false
+        })
+        .unwrap()
+        .unwrap();
+        let total = polls.load(Ordering::Relaxed);
+        for stop in [0, total / 2, total - 2, total - 1] {
+            let polls = AtomicUsize::new(0);
+            let mut m = original.clone();
+            assert!(
+                prune_closed_unit(&mut m, &classes, &|| polls.fetch_add(1, Ordering::Relaxed)
+                    >= stop)
+                .unwrap()
+                .is_none()
+            );
+            assert_eq!(m, original);
+        }
     }
 }

@@ -18,6 +18,7 @@
 use super::*;
 mod closure_instances;
 pub(super) mod inventory;
+pub(super) mod leaf_templates;
 mod lexical;
 mod raw_tree;
 mod resource_inventory;

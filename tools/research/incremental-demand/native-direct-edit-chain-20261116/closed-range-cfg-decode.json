@@ -1,0 +1,143 @@
+{
+  "source": "8ad2bfb5c9604dfdd761dd9fd48ebab7a94fe547",
+  "binary_sha256": "ab6e9d293e238a02b102ea97f35eca235702138a7f61042695fdc430235eb0db",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "scope": "Native resident request window13: close process, edit, first request in new process; startup separately recorded. Original5105 functions/102files/843875source bytes, two balanced blocks, O2/CGU16/compilerjobs1, explicit default-off bounded-class-imports128-v3. Not ordinary CLI process-exit or OS-cold.",
+  "execution_complete": true,
+  "counts": {
+    "requests": 30,
+    "functional_cells": 10,
+    "sustained_runtime_cases": 4
+  },
+  "functional_quality_valid": true,
+  "runtime_candidate_rust_accepted": true,
+  "accepted": false,
+  "reason": "Native direct-first-edit still slower than Rust; actual main ResourceLimit, no main ratio. Comprehensive/industrial gate open.",
+  "compile_ms": {
+    "cold": {
+      "wall_ms_by_block": {
+        "candidate": [
+          5345.971289,
+          3728.721125
+        ],
+        "rust": [
+          6981.640495,
+          8448.158807
+        ]
+      },
+      "median_ms": {
+        "candidate": 4537.3462070000005,
+        "rust": 7714.899651
+      },
+      "candidate_over_rust_paired_GM": 0.5813443916720811
+    },
+    "unchanged": {
+      "wall_ms_by_block": {
+        "candidate": [
+          34.104,
+          47.580759
+        ],
+        "rust": [
+          28.608394,
+          29.068539
+        ]
+      },
+      "median_ms": {
+        "candidate": 40.8423795,
+        "rust": 28.838466500000003
+      },
+      "candidate_over_rust_paired_GM": 1.3968829007990962
+    },
+    "private-001": {
+      "wall_ms_by_block": {
+        "candidate": [
+          2366.981713,
+          3266.159992
+        ],
+        "rust": [
+          1535.275911,
+          1431.575124
+        ]
+      },
+      "median_ms": {
+        "candidate": 2816.5708525,
+        "rust": 1483.4255174999998
+      },
+      "candidate_over_rust_paired_GM": 1.875494907306724
+    },
+    "recovery": {
+      "wall_ms_by_block": {
+        "candidate": [
+          2523.64857,
+          2365.890104
+        ],
+        "rust": [
+          6524.864685,
+          6443.128592
+        ]
+      },
+      "median_ms": {
+        "candidate": 2444.7693369999997,
+        "rust": 6483.9966385
+      },
+      "candidate_over_rust_paired_GM": 0.3768578517645176
+    },
+    "error": {
+      "wall_ms_by_block": {
+        "candidate": [
+          1721.390049,
+          2364.05983
+        ],
+        "rust": [
+          2272.990386,
+          2155.248019
+        ]
+      },
+      "median_ms": {
+        "candidate": 2042.7249395000001,
+        "rust": 2214.1192025
+      },
+      "candidate_over_rust_paired_GM": 0.911426074897233
+    }
+  },
+  "runtime_ms": {
+    "5105/cold": {
+      "candidate": 31.458501,
+      "rust": 202.2065505
+    },
+    "5105/unchanged": {
+      "candidate": 33.179075,
+      "rust": 209.650252
+    },
+    "5105/private-001": {
+      "candidate": 36.5812715,
+      "rust": 198.03457600000002
+    },
+    "5105/recovery": {
+      "candidate": 33.9927275,
+      "rust": 209.85918199999998
+    }
+  },
+  "user_disk_observed_boundary_peak_bytes": [
+    {
+      "block": 0,
+      "candidate": 30371840,
+      "rust": 62361600
+    },
+    {
+      "block": 1,
+      "candidate": 30343168,
+      "rust": 62361600
+    }
+  ],
+  "effect_observed": {
+    "decoded_functions": 374,
+    "reused_decoded_functions": 4727,
+    "block0_firstedit_dirty_optimize_emit_ms": 152.63,
+    "block0_firstedit_codegen_ms": 738.15
+  },
+  "checks": "gates35: strict,IR93,Types118,API105,backend356,driver233,publication2,quality27,recording2,fmt,release PASS. Unchanged Analyze307/Expand130 receipts reused.",
+  "raw": "out/runs/direct-firstedit-performance-direct-13",
+  "profile_diagnostic": "out/runs/native-direct-profile-14; not comparative performance",
+  "limitations": "Generated large single executable only; industrial multi-crate/proc-macro/build.rs/minute/GB scenarios unmeasured. Old54a check,7e,98fa,021997 results remain source-bound. SDK18 reused, LLVM not rebuilt, no evidence pack."
+}

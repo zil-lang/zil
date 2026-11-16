@@ -970,6 +970,8 @@ fn check_module(
         ));
     }
     let mut graphs = Vec::with_capacity(module.functions.len());
+    // Fresh request-local successes only; Wire remains the ordinary reference path.
+    let mut leaf_templates = incremental::leaf_templates::Templates::default();
     for (function, function_plan) in module.functions.iter().zip(&plan.functions) {
         if function_plan.function != function.id {
             return Err(reject(
@@ -978,14 +980,25 @@ fn check_module(
                 "candidate function order or identity is incorrect",
             ));
         }
-        let graph = check_function_with_reuse(
-            module,
-            function,
-            function_plan,
-            &mut budget,
-            limits,
-            reuse.as_deref_mut(),
-        )?;
+        let graph = if identity == VerificationIdentity::Product {
+            leaf_templates.check(
+                module,
+                function,
+                function_plan,
+                &mut budget,
+                limits,
+                reuse.as_deref_mut(),
+            )?
+        } else {
+            check_function_with_reuse(
+                module,
+                function,
+                function_plan,
+                &mut budget,
+                limits,
+                reuse.as_deref_mut(),
+            )?
+        };
         if budget
             .private_slot_functions
             .as_ref()

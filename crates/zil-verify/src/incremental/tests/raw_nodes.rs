@@ -125,8 +125,14 @@ fn persistent_private_delta_reuses_ranges_and_keeps_current_authority() {
     assert_eq!(stats.raw_inventory_functions_checked, 1);
     assert_eq!(stats.resource_inventory_functions_checked, 0);
     assert_eq!(stats.resource_inventory_functions_reused, 16);
-    assert_eq!(stats.region_functions_reused, 15);
-    assert_eq!(stats.lexical_cleanup_functions_reused, 15);
+    // Each current product request checks both distinct bodies freshly;
+    // the remaining equal leaves share only those current successful proofs.
+    assert_eq!(stats.function_proofs_checked, 2);
+    assert_eq!(stats.function_proofs_reused, 14);
+    assert_eq!(stats.region_functions_checked, 2);
+    assert_eq!(stats.region_functions_reused, 14);
+    assert_eq!(stats.lexical_cleanup_functions_checked, 2);
+    assert_eq!(stats.lexical_cleanup_functions_reused, 14);
     assert_eq!(stats.closure_instance_functions_checked, 0);
     assert_eq!(stats.closure_instance_functions_reused, 16);
     assert!(stats.raw_shape_ranges_reused < 15);

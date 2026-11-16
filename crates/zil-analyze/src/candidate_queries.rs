@@ -9,6 +9,8 @@ use zil_base::{Fingerprint, FingerprintBuilder};
 
 #[path = "candidate_bootstrap.rs"]
 mod bootstrap;
+#[path = "candidate_projection.rs"]
+mod projection;
 
 /// Results from the most recent successful Analyze epoch. An equal `output`
 /// means the raw FunctionPlan is equal; it says nothing about unchanged machine
@@ -117,6 +119,7 @@ pub(super) struct Queries {
     bootstrap_templates: usize,
     bootstrap_initialization_reuses: usize,
     bootstrap_stage_reuses: [usize; 3],
+    input_projection_reuses: usize,
 }
 
 impl Queries {
@@ -128,6 +131,7 @@ impl Queries {
         stats.bootstrap_local_reuses = self.bootstrap_stage_reuses[0];
         stats.bootstrap_scope_reuses = self.bootstrap_stage_reuses[1];
         stats.bootstrap_hold_reuses = self.bootstrap_stage_reuses[2];
+        stats.candidate_input_projection_reuses = self.input_projection_reuses;
         self.resources.record_stats(stats);
     }
 
@@ -151,6 +155,7 @@ impl Queries {
             bootstrap_templates: 0,
             bootstrap_initialization_reuses: 0,
             bootstrap_stage_reuses: [0; 3],
+            input_projection_reuses: 0,
         }
     }
 
@@ -194,6 +199,7 @@ impl Queries {
         let context = context.digest();
         let mut work = BTreeMap::new();
         let mut templates = bootstrap::Templates::new(self.limits.max_analysis_steps);
+        let mut projections = projection::Inputs::new(self.limits.max_analysis_steps);
         let mut signatures = BTreeMap::<FunctionId, Option<Signature>>::new();
         'functions: for function in &module.functions {
             let prior = self.prior.get(&function.id).cloned();
@@ -214,10 +220,11 @@ impl Queries {
                     prior.body_selector,
                 )
             } else {
-                let Some(input) = scalar_input(function) else {
+                let Some((input, reused)) = projections.input(function) else {
                     continue;
                 };
-                self.inputs_built += 1;
+                self.inputs_built += usize::from(!reused);
+                self.input_projection_reuses += usize::from(reused);
                 input
             };
             let mut dependencies = Vec::with_capacity(ids.len());
@@ -483,6 +490,7 @@ impl Queries {
         stats.dependency_signatures_checked = self.dependency_signatures_checked;
         let mut entries = BTreeMap::new();
         let mut results = Vec::with_capacity(plan.functions.len());
+        let mut outputs = projection::Outputs::default();
         let previous: BTreeMap<_, _> = self
             .previous_results
             .iter()
@@ -494,7 +502,7 @@ impl Queries {
                 .get(&function.id)
                 .filter(|work| !work.executed && work.costs.iter().all(Option::is_some))
                 .and_then(|work| work.prior.as_ref())
-                .map_or_else(|| output_fingerprint(result), |prior| prior.output);
+                .map_or_else(|| outputs.fingerprint(result), |prior| prior.output);
             let (input, dependencies, reused, function_scoped) = if let Some(work) = self
                 .work
                 .get(&function.id)
@@ -554,6 +562,7 @@ impl Queries {
                 function_scoped,
             });
         }
+        stats.candidate_output_projection_reuses = outputs.reuses;
         let resources = self.resources.finish(stats);
         (
             Arc::new(entries),
@@ -707,14 +716,16 @@ fn scalar_envelope(function: &TypedFunction) -> bool {
         && scalar(&function.return_type)
 }
 
-fn scalar_input(function: &TypedFunction) -> Option<(Fingerprint, Vec<FunctionId>, u64)> {
+fn scalar_projection(
+    function: &TypedFunction,
+    mut hash: impl std::hash::Hasher,
+) -> Option<Vec<FunctionId>> {
     if !scalar_envelope(function)
         || !function.locals.iter().all(|local| scalar(&local.ty))
         || !function.values.iter().all(scalar)
     {
         return None;
     }
-    let mut hash = bootstrap::InputHasher::new(function);
     let mut callees = BTreeSet::new();
     function.parameters.hash(&mut hash);
     function.return_type.hash(&mut hash);
@@ -808,23 +819,26 @@ fn scalar_input(function: &TypedFunction) -> Option<(Fingerprint, Vec<FunctionId
             Terminator::Trap => 4u8.hash(&mut hash),
         }
     }
-    let (input, selector) = hash.finish_input();
-    Some((input, callees.into_iter().collect(), selector))
+    Some(callees.into_iter().collect())
 }
 
-fn output_fingerprint(result: &FunctionPlan) -> Fingerprint {
+fn output_projection(result: &FunctionPlan) -> FingerprintBuilder {
+    let FunctionPlan {
+        function: _,
+        blocks,
+        holds,
+    } = result;
     let mut hash = FingerprintBuilder::new();
-    "zil-analyze-function-plan-v1".hash(&mut hash);
-    result.function.hash(&mut hash);
-    result.blocks.len().hash(&mut hash);
-    for block in &result.blocks {
+    "zil-analyze-function-plan-v2".hash(&mut hash);
+    blocks.len().hash(&mut hash);
+    for block in blocks {
         (block.block, &block.initialized_in, &block.initialized_out).hash(&mut hash);
     }
-    result.holds.len().hash(&mut hash);
-    for hold in &result.holds {
+    holds.len().hash(&mut hash);
+    for hold in holds {
         (hold.value, &hold.roots).hash(&mut hash);
     }
-    hash.digest()
+    hash
 }
 
 #[cfg(test)]
