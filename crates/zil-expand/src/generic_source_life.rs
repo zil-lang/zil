@@ -1636,73 +1636,10 @@ impl Check<'_, '_, '_> {
         depth: usize,
     ) -> R<Fact> {
         let actual = match &e.kind {
-            ExprKind::Try(inner) => {
-                if let ExprKind::Call { callee, arguments } = &inner.kind
-                    && matches!(&callee.kind, ExprKind::Name(name)
-                        if name == "task_create" && !env.contains_key(name))
-                    && let Some(ExprKind::Name(worker_name)) =
-                        arguments.first().map(|arg| &arg.value.kind)
-                {
-                    self.budget.text(worker_name, e.span)?;
-                    let mut worker = None;
-                    for owner in 0..self.functions.len() {
-                        self.pay(e.span, 1)?;
-                        let function = self.functions[owner];
-                        self.budget.text(&function.name, e.span)?;
-                        self.pay(e.span, function.generics.len().saturating_add(1))?;
-                        if &function.name == worker_name
-                            && self.standalone[owner]
-                            && (function.generics.is_empty()
-                                || crate::lifetimes::only_life(function))
-                        {
-                            worker = Some((owner, function));
-                            break;
-                        }
-                    }
-                    if let Some((owner, worker)) = worker
-                        && arguments.len() == worker.params.len() + 1
-                    {
-                        let definition = Scope {
-                            owner,
-                            parameters: &worker.generics,
-                            host: self.hosts[owner],
-                            impl_target: self.impl_targets.get(&owner).copied(),
-                        };
-                        let result = worker
-                            .return_type
-                            .as_ref()
-                            .map(|ty| self.ty(ty, &definition, depth + 1))
-                            .transpose()?
-                            .unwrap_or(Fact::Unknown);
-                        let mut ports = Vec::new();
-                        for (parameter, argument) in worker.params.iter().zip(&arguments[1..]) {
-                            self.budget.node(parameter.ty.span, depth + 1)?;
-                            let actual = self.expr(&argument.value, scope, env, None, depth + 1)?;
-                            if matches!(parameter.ty.kind, TypeKind::Reference { .. }) {
-                                if !matches!(actual, Fact::Address(..)) {
-                                    return Ok(Fact::Unknown);
-                                }
-                                ports.push(actual);
-                            }
-                        }
-                        if !ports.is_empty() {
-                            let context = if ports.len() == 1 {
-                                ports.pop().unwrap()
-                            } else {
-                                Fact::Tuple(ports)
-                            };
-                            return Ok(Fact::Named(
-                                Head::Plain(vec!["Task".into()]),
-                                vec![result, context],
-                            ));
-                        }
-                    }
-                }
-                match self.expr(inner, scope, env, None, depth + 1)? {
-                    Fact::Error(_, result) => *result,
-                    _ => Fact::Unknown,
-                }
-            }
+            ExprKind::Try(inner) => match self.expr(inner, scope, env, None, depth + 1)? {
+                Fact::Error(_, result) => *result,
+                _ => Fact::Unknown,
+            },
             _ => unreachable!("source fact expression dispatcher"),
         };
         Ok(actual)
@@ -2128,6 +2065,178 @@ impl Check<'_, '_, '_> {
         Ok(None)
     }
 
+    // Resolve the real static value expression, including its ordered written
+    // actuals. A same-spelled local is never a declaration reference.
+    fn function_target<'e>(
+        &mut self,
+        expression: &'e Expr,
+        env: &Facts,
+        depth: usize,
+    ) -> R<Option<(usize, Option<&'e [GenericArg]>)>> {
+        self.budget.node(expression.span, depth)?;
+        if let ExprKind::Group(inner) = &expression.kind {
+            return self.function_target(inner, env, depth + 1);
+        }
+        let (callee, actuals) = match &expression.kind {
+            ExprKind::TypeApply { callee, arguments } => {
+                (callee.as_ref(), Some(arguments.as_slice()))
+            }
+            _ => (expression, None),
+        };
+        let ExprKind::Name(name) = &callee.kind else {
+            return Ok(None);
+        };
+        self.lookup(env.len(), name.len(), expression.span)?;
+        if env.contains_key(name) {
+            return Ok(None);
+        }
+        let mut selected = None;
+        for owner in 0..self.functions.len() {
+            self.pay(expression.span, 1)?;
+            let function = self.functions[owner];
+            self.budget.text(&function.name, expression.span)?;
+            self.budget.text(name, expression.span)?;
+            if self.standalone[owner] && function.name == *name {
+                if selected.replace(owner).is_some() {
+                    return Err(error(
+                        expression.span,
+                        "source function value has ambiguous declarations",
+                    ));
+                }
+            }
+        }
+        Ok(selected.map(|owner| (owner, actuals)))
+    }
+
+    fn function_fact(
+        &mut self,
+        owner: usize,
+        actuals: &Substitutions,
+        span: Span,
+        depth: usize,
+    ) -> R<Fact> {
+        let function = self.functions[owner];
+        let definition = Scope {
+            owner,
+            parameters: &function.generics,
+            host: self.hosts[owner],
+            impl_target: self.impl_targets.get(&owner).copied(),
+        };
+        self.budget.lineage_bytes(
+            function
+                .params
+                .len()
+                .saturating_mul(std::mem::size_of::<Fact>()),
+            span,
+        )?;
+        let mut parameters = Vec::new();
+        for parameter in &function.params {
+            let formal = self.ty(&parameter.ty, &definition, depth + 1)?;
+            parameters.push(self.substitute(&formal, actuals, span)?);
+        }
+        let result = if let Some(result) = &function.return_type {
+            let formal = self.ty(result, &definition, depth + 1)?;
+            self.substitute(&formal, actuals, span)?
+        } else {
+            Fact::Tuple(Vec::new())
+        };
+        Ok(Fact::Function(parameters, Box::new(result)))
+    }
+
+    fn task_call_fact(
+        &mut self,
+        arguments: &[Argument],
+        actuals: &[Fact],
+        caller: &Scope<'_>,
+        env: &Facts,
+        span: Span,
+        depth: usize,
+    ) -> R<Option<Fact>> {
+        self.budget.node(span, depth)?;
+        let Some(worker) = arguments.first() else {
+            return Err(error(span, "task_create requires its actual static worker"));
+        };
+        let Some((owner, written)) = self.function_target(&worker.value, env, depth + 1)? else {
+            return Ok(None);
+        };
+        let function = self.functions[owner];
+        if function.params.len().checked_add(1) != Some(actuals.len()) {
+            return Err(error(
+                span,
+                "task_create actual arity differs from its worker",
+            ));
+        }
+        let definition = Scope {
+            owner,
+            parameters: &function.generics,
+            host: self.hosts[owner],
+            impl_target: self.impl_targets.get(&owner).copied(),
+        };
+        let written = self.free_call_actuals(owner, written, caller, span, depth + 1)?;
+        let mut inferred = Substitutions::new();
+        // Each operand was already observed once by expr_call. Infer from
+        // those facts without evaluating any source expression a second time.
+        for (parameter, actual) in function.params.iter().zip(&actuals[1..]) {
+            let formal = self.ty(&parameter.ty, &definition, depth + 1)?;
+            self.infer(&formal, actual, &mut inferred, span, formal.has_class())?;
+        }
+        // Written caller classes are exact constraints, not variables that an
+        // incoming operand may overwrite or a later Task use may equate.
+        for (binder, required) in written {
+            self.lookup(inferred.len(), 2, span)?;
+            if let Some(actual) = inferred.get(&binder) {
+                self.compatible_position(&required, actual, span, true)?;
+            }
+            inferred.insert(binder, required);
+        }
+        let Fact::Function(parameters, result) =
+            self.function_fact(owner, &inferred, span, depth + 1)?
+        else {
+            unreachable!("original function signature")
+        };
+        let mut ports = Vec::new();
+        for ((parameter, selected), actual) in
+            function.params.iter().zip(&parameters).zip(&actuals[1..])
+        {
+            self.compatible(selected, actual, span)?;
+            if matches!(grouped(&parameter.ty).kind, TypeKind::Reference { .. }) {
+                if !matches!(actual, Fact::Address(..)) {
+                    return Err(unsupported(
+                        span,
+                        "Task input needs its actual complete source address",
+                    ));
+                }
+                // Retain each real input's whole class domain. Shared formal
+                // classes do not collapse distinct sources or loan roots.
+                self.budget
+                    .lineage_bytes(std::mem::size_of::<Fact>(), span)?;
+                ports.push(self.copy(actual, span)?);
+            }
+        }
+        self.budget.lineage_bytes(
+            5usize
+                .saturating_mul(std::mem::size_of::<Fact>())
+                .saturating_add(2 * std::mem::size_of::<String>())
+                .saturating_add("TaskCreateError".len() + "Task".len()),
+            span,
+        )?;
+        let mut arguments = vec![*result];
+        if !ports.is_empty() {
+            arguments.push(if ports.len() == 1 {
+                ports.pop().unwrap()
+            } else {
+                Fact::Tuple(ports)
+            });
+        }
+        Ok(Some(Fact::Error(
+            Box::new(Fact::Named(
+                Head::Plain(vec!["TaskCreateError".into()]),
+                Vec::new(),
+            )),
+            Box::new(Fact::Named(Head::Plain(vec!["Task".into()]), arguments)),
+        )))
+    }
+
     fn free_call_actuals(
         &mut self,
         owner: usize,
@@ -2139,31 +2248,30 @@ impl Check<'_, '_, '_> {
         let function = self.functions[owner];
         let mut map = Substitutions::new();
         if let Some(args) = explicit {
-            if function
+            let full = args
+                .iter()
+                .any(|arg| matches!(arg, GenericArg::Lifetime(_)));
+            let count = function
                 .generics
                 .iter()
-                .any(|p| !matches!(p.kind, GenericParamKind::Type(_)))
-                && args.len() == function.generics.len()
+                .filter(|formal| full || !matches!(formal.kind, GenericParamKind::Lifetime))
+                .count();
+            if args.len() != count {
+                return Err(error(
+                    span,
+                    "source function application has another mixed actual arity",
+                ));
+            }
+            for ((ordinal, formal), arg) in function
+                .generics
+                .iter()
+                .enumerate()
+                .filter(|(_, formal)| full || !matches!(formal.kind, GenericParamKind::Lifetime))
+                .zip(args)
             {
-                for (ordinal, (formal, arg)) in function.generics.iter().zip(args).enumerate() {
-                    let fact = self.full_free_actual(formal, arg, caller, span, depth + 1)?;
-                    self.lookup(map.len(), 2, span)?;
-                    map.insert(Binder(owner, ordinal), fact);
-                }
-            } else {
-                for ((ordinal, _), arg) in function
-                    .generics
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, p)| !matches!(p.kind, GenericParamKind::Lifetime))
-                    .zip(args)
-                {
-                    if let GenericArg::Type(ty) = arg {
-                        let fact = self.ty(ty, caller, depth + 1)?;
-                        self.lookup(map.len(), 2, span)?;
-                        map.insert(Binder(owner, ordinal), fact);
-                    }
-                }
+                let fact = self.full_free_actual(formal, arg, caller, span, depth + 1)?;
+                self.lookup(map.len(), 2, span)?;
+                map.insert(Binder(owner, ordinal), fact);
             }
         }
         Ok(map)
@@ -2309,6 +2417,13 @@ impl Check<'_, '_, '_> {
                     output = self.substitute(&result, &map, e.span)?;
                 }
                 break;
+            }
+        }
+        if root == Some("task_create") && !declared_function && !shadowed {
+            if let Some(task) =
+                self.task_call_fact(arguments, actuals, scope, env, e.span, depth + 1)?
+            {
+                return Ok(task);
             }
         }
         if matches!(output, Fact::Unknown)
@@ -2880,7 +2995,12 @@ impl Check<'_, '_, '_> {
                         self.ty(ty, scope, depth + 1)?;
                     }
                 }
-                Fact::Unknown
+                if let Some((owner, explicit)) = self.function_target(e, env, depth + 1)? {
+                    let map = self.free_call_actuals(owner, explicit, scope, e.span, depth + 1)?;
+                    self.function_fact(owner, &map, e.span, depth + 1)?
+                } else {
+                    Fact::Unknown
+                }
             }
             _ => unreachable!("source fact expression dispatcher"),
         };

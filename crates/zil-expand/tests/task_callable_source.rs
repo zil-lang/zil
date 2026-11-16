@@ -154,3 +154,143 @@ fn returned_owned_task_signature_keeps_context_ports_and_creator_selection() {
         );
     }
 }
+
+#[test]
+fn qualified_task_workers_keep_both_inputs_and_original_life_actuals() {
+    for source in [
+        include_str!("task_worker_actual_fixtures/equal-shared-formal-positive.zil"),
+        include_str!("task_worker_actual_fixtures/returned-shared-formal-positive.zil"),
+    ] {
+        for text in [
+            source.to_owned(),
+            source
+                .replace(
+                    "fn worker<life a>(input:&'a mut i32)",
+                    "fn worker<life worker_life,life phantom>(input:&'worker_life mut i32)",
+                )
+                .replace("worker::<'a>", "worker::<'a,'a>"),
+        ] {
+            let core = expand(&text).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+            assert!(core.unsupported.is_empty(), "{:?}", core.unsupported);
+            let keep = core
+                .functions
+                .iter()
+                .find(|function| function.name == "keep")
+                .unwrap();
+            assert_eq!(keep.parameters.len(), 2);
+            for parameter in &keep.parameters {
+                assert_eq!(parameter.mode, zil_ir::PassingMode::Give);
+                let ty = match &parameter.ty {
+                    zil_ir::Type::Managed(inner) => inner.as_ref(),
+                    ty => ty,
+                };
+                let zil_ir::Type::Task {
+                    result,
+                    retained_life,
+                } = ty
+                else {
+                    panic!("complete Task input was lost: {ty:?}")
+                };
+                assert_eq!(result.as_ref(), &zil_ir::Type::I32);
+                assert_eq!(retained_life.binder_count, 1);
+                assert_eq!(retained_life.ports.len(), 1);
+                assert_eq!(retained_life.ports[0].binder, 0);
+                assert_eq!(
+                    retained_life.ports[0].mode,
+                    zil_ir::StoredBorrowMode::ExclusiveAddress
+                );
+                assert_eq!(
+                    retained_life.ports[0].leaf,
+                    zil_ir::Type::Address {
+                        mutable: true,
+                        inner: Box::new(zil_ir::Type::I32),
+                    }
+                );
+            }
+            // Inspect the frozen source operations, rather than producer names
+            // of subsequently specialized workers. Both actual input names and
+            // every written Life ordinal, including phantom, must survive.
+            let mut inputs = Vec::new();
+            for definition in &core.semantic.as_ref().unwrap().definitions {
+                let zil_ir::SemanticDefinitionBody::FunctionWithBody {
+                    parameters,
+                    body: zil_ir::SemanticOriginalFunctionBody::Defined(body),
+                    ..
+                } = &definition.body
+                else {
+                    continue;
+                };
+                if parameters
+                    .first()
+                    .is_none_or(|parameter| parameter.name != "first")
+                {
+                    continue;
+                }
+                for statement in &body.statements {
+                    let zil_ir::CoreStatementKind::Binding {
+                        initializer: Some(value),
+                        ..
+                    } = &statement.kind
+                    else {
+                        continue;
+                    };
+                    let zil_ir::CoreExprKind::Try(call) = &value.kind else {
+                        continue;
+                    };
+                    let zil_ir::CoreExprKind::Call { callee, arguments } = &call.kind else {
+                        panic!()
+                    };
+                    assert!(
+                        matches!(&callee.kind, zil_ir::CoreExprKind::Name(name) if name == "task_create")
+                    );
+                    let [worker, input] = arguments.as_slice() else {
+                        panic!()
+                    };
+                    let zil_ir::CoreExprKind::GenericApply { callee, arguments } = &worker.kind
+                    else {
+                        panic!("written worker application disappeared: {worker:?}")
+                    };
+                    assert!(
+                        matches!(&callee.kind, zil_ir::CoreExprKind::Name(name) if name == "worker")
+                    );
+                    let expected = if text.contains("life phantom") { 2 } else { 1 };
+                    assert_eq!(arguments.len(), expected);
+                    assert!(arguments.iter().all(|argument| matches!(argument,
+                        zil_ir::CoreGenericArgument::Lifetime(name) if name == "a")));
+                    let zil_ir::CoreExprKind::Name(input) = &input.kind else {
+                        panic!()
+                    };
+                    inputs.push(input.as_str());
+                }
+            }
+            assert_eq!(inputs.len(), 2);
+            assert_eq!(inputs[0], "first");
+            assert!(matches!(inputs[1], "second" | "second_input"));
+        }
+    }
+}
+
+#[test]
+fn qualified_task_worker_cannot_equate_distinct_caller_classes() {
+    for source in [
+        include_str!("task_worker_actual_fixtures/equal-shared-formal-positive.zil"),
+        include_str!("task_worker_actual_fixtures/returned-shared-formal-positive.zil"),
+    ] {
+        let text = source
+            .replace("fn pair<life a>(", "fn pair<life a,life b>(")
+            .replace("second:&'a mut i32", "second:&'b mut i32")
+            .replace("second_input:&'a mut i32", "second_input:&'b mut i32");
+        let errors = expand(&text).expect_err("written worker a cannot absorb caller b");
+        assert!(
+            errors.iter().any(|error| error.phase == Phase::Expand
+                && error.category == zil_base::ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|error| error.category == zil_base::ResultCategory::Unsupported),
+            "{errors:?}"
+        );
+    }
+}
