@@ -774,6 +774,22 @@ fn port_class(
         return Err(err("retained capture class path exceeds depth"));
     }
     match (ty, path.split_first()) {
+        (Type::Managed(payload), Some((ContractProjection::RetainedPort(port), [])))
+            if matches!(payload.as_ref(), Type::Task { .. }) => {
+            // RetainedPort is a physical occurrence. Its ordinal need not be
+            // its logical class, and the owner adds a Pointee boundary. Keep
+            // the exact full Task directory, including unrelated/phantom N.
+            crate::tasks::require_closed_context(payload)?;
+            let Type::Task { retained_life, .. } = payload.as_ref() else { unreachable!() };
+            crate::dyn_metadata::retained_shape(retained_life, b)?;
+            let row = retained_life.ports.get(*port as usize)
+                .ok_or_else(|| err("retained Task capture selects an absent physical port"))?;
+            if row.binder >= retained_life.binder_count {
+                return Err(err("retained Task port leaves its full intrinsic class domain"));
+            }
+            pay(b, 2)?;
+            Ok((vec![LifeTypeProjection::Pointee], row.binder))
+        }
         (
             Type::OwnedDyn { interface } | Type::Dyn { interface },
             Some((ContractProjection::RetainedPort(port), [])),
@@ -855,9 +871,13 @@ fn port_class(
             at.insert(0, LifeTypeProjection::Place(PlaceProjection::Field(*index)));
             Ok((at, class))
         }
-        _ => Err(err(
-            "retained class needs its complete actual carrier relation",
-        )),
+        _ => {
+            crate::dyn_metadata::ty(ty, b)?;
+            pay(b, path.len().saturating_add(192))?;
+            let mut errors = err("retained class needs its complete actual carrier relation");
+            errors[0].notes.push(format!("actual retained carrier {ty:?}; physical leaf path {path:?}"));
+            Err(errors)
+        }
     }
 }
 fn header_port_class(
@@ -868,7 +888,17 @@ fn header_port_class(
     path: &[ContractProjection],
     b: &mut Budget,
 ) -> CompileResult<StorageBinder> {
-    let (at, class) = port_class(module, ty, path, b)?;
+    let (at, class) = match port_class(module, ty, path, b) {
+        Ok(selected) => selected,
+        Err(mut errors) => {
+            if errors.iter().any(|error| error.category == zil_base::ResultCategory::ResourceLimit) { return Err(errors); }
+            pay(b, 192)?;
+            for error in &mut errors {
+                error.notes.push(format!("returned source header function {} base {base:?}", f.id.0));
+            }
+            return Err(errors);
+        }
+    };
     let life = f
         .storage_life
         .as_ref()
@@ -1041,7 +1071,18 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
             continue;
         }
         for returned in &c.returned {
-            let actual = resolve(&c, *returned, &path, &mut BTreeSet::new(), 0, b)?;
+            let actual = match resolve(&c, *returned, &path, &mut BTreeSet::new(), 0, b) {
+                Ok(sources) => sources,
+                Err(mut errors) => {
+                    if errors.iter().any(|error| error.category == zil_base::ResultCategory::ResourceLimit) { return Err(errors); }
+                    pay(b, path.len().saturating_add(192))?;
+                    for error in &mut errors {
+                        error.notes.push(format!("actual returned capture source function {} returned SSA {} full leaf path {path:?} hidden closure {}",
+                            f.id.0, returned.0, contract.closure.0));
+                    }
+                    return Err(errors);
+                }
+            };
             let mut covered = !actual.is_empty();
             for source in &actual {
                 covered &= match source {
