@@ -652,6 +652,7 @@ impl Sites {
         if matches!(
             i.kind,
             InstructionKind::Call { .. }
+                | InstructionKind::SuspendCall { .. }
                 | InstructionKind::ForeignCall { .. }
                 | InstructionKind::CallIndirect { .. }
                 | InstructionKind::CallDynSlot { .. }

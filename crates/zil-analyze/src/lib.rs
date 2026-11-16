@@ -145,6 +145,7 @@ fn analyze_budgeted_context(
     budget.semantic_reference_results.clear();
     budget.semantic_reference_locals.clear();
     budget.semantic_reborrow_regions.clear();
+    budget.stored_synchronous_abis.clear();
     // The common incremental/reuse entry cannot bypass the public raw entry's
     // semantic-program gate. No partial ghost model enters fingerprinting.
     match context {

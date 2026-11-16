@@ -126,9 +126,11 @@ pub(super) fn sites(
     if !b.dyn_contexts {
         return Ok(());
     }
-    let InstructionKind::Call { function, .. } = instruction.kind else {
-        return Ok(());
-    };
+    let (InstructionKind::Call { function, .. }
+        | InstructionKind::SuspendCall { function, .. }) = instruction.kind else {
+            return Ok(());
+        };
+    if !synchronous_abi::ordinary_call(&instruction.kind, b)? { return Ok(()); }
     let f = module
         .functions
         .get(function.0 as usize)
@@ -444,10 +446,9 @@ pub(super) fn accesses(
                 }
             }
         }
-        InstructionKind::Call {
-            function,
-            arguments,
-        } => {
+        InstructionKind::Call { function, arguments }
+        | InstructionKind::SuspendCall { function, arguments }
+            if synchronous_abi::ordinary_call(&i.kind, b)? => {
             for (source, write) in &summaries[function.0 as usize].dyn_accesses {
                 let actual = substitute(source, arguments, values, state, b)?;
                 if actual.targets.is_empty() {

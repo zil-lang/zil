@@ -2204,9 +2204,24 @@ impl Check<'_, '_> {
             }
         }
         if !found { return Err(fail("Static closure result lacks its exact actual source upper")); }
-        // The exact BodyCall consumer checks every target world, input and ABI;
-        // the retained flow checks each real return path against this source.
-        crate::retained::check_sources(self.module, target, b)?;
+        // This is a byte-view producer, not a callable factory. Its actual
+        // reachable returns must derive from literal storage; a factory's
+        // capture_sources contract cannot stand in for this result relation.
+        let initialization = crate::shared_initialization(target, b)?;
+        let mut returned = false;
+        for (block, reachable) in target.blocks.iter().zip(&initialization.reachable) {
+            b.spend(1, WORK)?;
+            if !*reachable { continue; }
+            match block.terminator {
+                Terminator::Return(Some(value)) => {
+                    crate::retained::check_dyn_static_return(self.module, target, value, &[], b)?;
+                    returned = true;
+                }
+                Terminator::Return(None) => return Err(fail("Static byte producer omits its actual returned SSA")),
+                _ => {}
+            }
+        }
+        if !returned { return Err(fail("Static byte producer has no grounded actual return")); }
         Ok(output)
     }
 

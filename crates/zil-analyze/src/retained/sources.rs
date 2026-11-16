@@ -318,13 +318,13 @@ fn resolve(
         // each final returned leaf must have a nonempty external base.
         return Ok(Sources::new());
     }
-    let result = match c
+    let producer = c
         .defs
         .get(v.0 as usize)
         .copied()
         .flatten()
-        .ok_or_else(|| err("source value has no actual definition"))?
-    {
+        .ok_or_else(|| err("source value has no actual definition"))?;
+    let result = match producer {
         InstructionKind::StaticUtf8 { .. } => {
             if !path.is_empty()
                 || !matches!(c.f.values.get(v.0 as usize),Some(Type::Address{mutable:false,inner})if matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8))
@@ -458,10 +458,9 @@ fn resolve(
                 })]))
             }
         }
-        InstructionKind::Call {
-            function,
-            arguments,
-        } => {
+        InstructionKind::Call { function, arguments }
+        | InstructionKind::SuspendCall { function, arguments }
+            if crate::stored_flow::synchronous_abi::ordinary_call(producer, b)? => {
             let target = c
                 .module
                 .functions
@@ -919,7 +918,9 @@ fn mutable_calls(
                         kind: CallableKind::FnMut,
                         ..
                     } => return Ok(true),
-                    InstructionKind::Call { function, .. } => pending.push(function),
+                    InstructionKind::Call { function, .. }
+                    | InstructionKind::SuspendCall { function, .. }
+                        if crate::stored_flow::synchronous_abi::ordinary_call(&instruction.kind, b)? => pending.push(function),
                     _ => {}
                 }
             }

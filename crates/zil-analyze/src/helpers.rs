@@ -84,9 +84,9 @@ fn origins(
                 | InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
                 | InstructionKind::ReborrowAddress { .. } => Origin::EMPTY,
-                InstructionKind::Call {
-                    function: callee, ..
-                } => {
+                InstructionKind::Call { function: callee, .. }
+                | InstructionKind::SuspendCall { function: callee, .. }
+                    if crate::stored_flow::synchronous_abi::ordinary_call(&instruction.kind, budget)? => {
                     let producer = module
                         .functions
                         .get(callee.0 as usize)
@@ -251,9 +251,9 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 // Fresh result alone does not replace that contract with the
                 // stronger identity proof. New aggregate transfers do need it.
                 has_aggregate |= aggregate_operand(&instruction.kind);
-                if let InstructionKind::Call {
-                    function: callee, ..
-                } = instruction.kind
+                if let (InstructionKind::Call { function: callee, .. }
+                    | InstructionKind::SuspendCall { function: callee, .. }) = instruction.kind
+                    && crate::stored_flow::synchronous_abi::ordinary_call(&instruction.kind, budget)?
                 {
                     let callee = callee.0 as usize;
                     let target = module
@@ -400,12 +400,11 @@ fn forwarded<'a>(
     checked: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<Option<Forwarded<'a>>> {
-    let InstructionKind::Call {
-        function: callee,
-        arguments,
-    } = &instruction.kind
-    else {
-        return Ok(None);
+    let (callee, arguments) = match &instruction.kind {
+        InstructionKind::Call { function, arguments }
+        | InstructionKind::SuspendCall { function, arguments }
+            if crate::stored_flow::synchronous_abi::ordinary_call(&instruction.kind, budget)? => (function, arguments),
+        _ => return Ok(None),
     };
     budget.spend(arguments.len(), "helper forwarded environment scan")?;
     let environments = arguments
@@ -1097,9 +1096,9 @@ pub(super) fn finish_deferred(module: &TypedModule, budget: &mut Budget) -> Comp
                 "exclusive helper actual caller coverage",
             )?;
             for instruction in &block.instructions {
-                if let InstructionKind::Call {
-                    function: callee, ..
-                } = instruction.kind
+                if let (InstructionKind::Call { function: callee, .. }
+                    | InstructionKind::SuspendCall { function: callee, .. }) = instruction.kind
+                    && crate::stored_flow::synchronous_abi::ordinary_call(&instruction.kind, budget)?
                 {
                     budget.lookup(
                         budget.pending_exclusive_helpers.len(),

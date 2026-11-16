@@ -1078,9 +1078,11 @@ pub(super) fn sites(
         return Ok(());
     }
     fee(b, 1)?;
-    let InstructionKind::Call { function, .. } = &instruction.kind else {
-        return Ok(());
-    };
+    let (InstructionKind::Call { function, .. }
+        | InstructionKind::SuspendCall { function, .. }) = &instruction.kind else {
+            return Ok(());
+        };
+    if !synchronous_abi::ordinary_call(&instruction.kind, b)? { return Ok(()); }
     let callee = module
         .functions
         .get(function.0 as usize)

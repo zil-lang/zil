@@ -835,10 +835,9 @@ impl Flow {
                         }
                         consumer = Consumer::Copy;
                     }
-                    InstructionKind::Call {
-                        function,
-                        arguments,
-                    } => {
+                    InstructionKind::Call { function, arguments }
+                    | InstructionKind::SuspendCall { function, arguments }
+                        if crate::stored_flow::synchronous_abi::ordinary_call(&i.kind, b)? => {
                         let callee = module
                             .functions
                             .get(function.0 as usize)

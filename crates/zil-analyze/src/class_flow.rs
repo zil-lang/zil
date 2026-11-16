@@ -2600,10 +2600,9 @@ fn check_with(
                         )?;
                     }
                 }
-                InstructionKind::Call {
-                    function,
-                    arguments,
-                } => {
+                InstructionKind::Call { function, arguments }
+                | InstructionKind::SuspendCall { function, arguments }
+                    if crate::stored_flow::synchronous_abi::ordinary_call(&i.kind, b)? => {
                     let callee = &module.functions[function.0 as usize];
                     reference_grounding.call(module, callee, arguments, out, &values, b)?;
                     if let Some(c) = &callee.storage_life {

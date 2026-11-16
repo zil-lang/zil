@@ -30,7 +30,7 @@ pub(super) mod enum_address;
 mod mutex;
 mod nominal;
 mod nominal_zero;
-mod synchronous_abi;
+pub(crate) mod synchronous_abi;
 pub(super) fn synchronous_callback_module(
     module: &TypedModule,
     b: &mut Budget,
@@ -481,12 +481,11 @@ fn package_return_candidates(
         }
         fee(b, block.instructions.len())?;
         for instruction in &block.instructions {
-            let InstructionKind::Call {
-                function,
-                arguments,
-            } = &instruction.kind
-            else {
-                continue;
+            let (function, arguments) = match &instruction.kind {
+                InstructionKind::Call { function, arguments }
+                | InstructionKind::SuspendCall { function, arguments }
+                    if synchronous_abi::ordinary_call(&instruction.kind, b)? => (function, arguments),
+                _ => continue,
             };
             let callee = &module.functions[function.0 as usize];
             if callee.foreign.is_some()
@@ -4024,7 +4023,9 @@ fn slot_loan_ids(
                         b,
                     )?;
                 }
-                InstructionKind::Call { function, .. } => {
+                InstructionKind::Call { function, .. }
+                | InstructionKind::SuspendCall { function, .. }
+                    if synchronous_abi::ordinary_call(&instruction.kind, b)? => {
                     let callee = module
                         .functions
                         .get(function.0 as usize)
@@ -4688,10 +4689,9 @@ fn transfer(
             }
         }
         InstructionKind::UnsafeEnter { .. } | InstructionKind::UnsafeExit { .. } => {}
-        InstructionKind::Call {
-            function,
-            arguments,
-        } => {
+        InstructionKind::Call { function, arguments }
+        | InstructionKind::SuspendCall { function, arguments }
+            if synchronous_abi::ordinary_call(&i.kind, b)? => {
             let callee = module
                 .functions
                 .get(function.0 as usize)
@@ -5569,7 +5569,6 @@ fn transfer(
                 | InstructionKind::AddressField { .. }
                 | InstructionKind::AddressIndex { .. }
                 | InstructionKind::AddressSlice { .. }
-                | InstructionKind::Call { .. }
                 | InstructionKind::BorrowCapture { .. }
                 | InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosureShared { .. }
@@ -5585,6 +5584,7 @@ fn transfer(
             || ordinary_error_borrow(f, i, b)?
             || pure_copy::ordinary_package_borrow(module, f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?
+            || synchronous_abi::ordinary_call(&i.kind, b)?
             || mutex_operation)
         && matches!(value_type(f, result)?, Type::Address { .. })
     {
@@ -5626,7 +5626,7 @@ fn transfer(
         out.pointer.loans.insert(id);
     }
     if let Some(result) = i.result
-        && matches!(i.kind, InstructionKind::Call { .. })
+        && synchronous_abi::ordinary_call(&i.kind, b)?
         && carrier(value_type(f, result)?).is_some()
     {
         let mut next = f.values.len();
@@ -7027,10 +7027,9 @@ fn windows(
                             }
                         }
                     }
-                    InstructionKind::Call {
-                        function,
-                        arguments,
-                    } => {
+                    InstructionKind::Call { function, arguments }
+                    | InstructionKind::SuspendCall { function, arguments }
+                        if synchronous_abi::ordinary_call(&instruction.kind, b)? => {
                         let callee = &module.functions[function.0 as usize];
                         if !summaries[function.0 as usize].head_accesses.is_empty() {
                             for (target, write) in &summaries[function.0 as usize].head_accesses {
@@ -7943,9 +7942,11 @@ fn derive_cfg(
             if b.stored_slot_updates {
                 for block in &f.blocks {
                     for instruction in &block.instructions {
-                        let InstructionKind::Call { function, .. } = &instruction.kind else {
-                            continue;
-                        };
+                        let (InstructionKind::Call { function, .. }
+                            | InstructionKind::SuspendCall { function, .. }) = &instruction.kind else {
+                                continue;
+                            };
+                        if !synchronous_abi::ordinary_call(&instruction.kind, b)? { continue; }
                         let callee = module
                             .functions
                             .get(function.0 as usize)
@@ -8754,6 +8755,7 @@ fn actual_instructions(
                 && !pure_copy::operation(&i.kind)
                 && !pure_copy::ordinary_owned_union(f, i, b)?
                 && !pure_copy::ordinary_package_borrow(module, f, i, b)?
+                && !synchronous_abi::ordinary_call(&i.kind, b)?
                 && !matches!(
                     &i.kind,
                     InstructionKind::StaticUtf8 { .. }
@@ -9248,10 +9250,9 @@ fn actual_instructions(
                         _ => {}
                     }
                 }
-                InstructionKind::Call {
-                    function,
-                    arguments,
-                } => {
+                InstructionKind::Call { function, arguments }
+                | InstructionKind::SuspendCall { function, arguments }
+                    if synchronous_abi::ordinary_call(&i.kind, b)? => {
                     let target = module
                         .functions
                         .get(function.0 as usize)
