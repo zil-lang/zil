@@ -174,7 +174,8 @@ impl<'a> Engine<'a> {
             } if root != destination.clone()
                 && state.owners.get(&root).is_some_and(|owner| owner.task) =>
             {
-                b.spend(source_width(&state.owner(&root,b)?.sources))?;
+                let source_width_work = source_width(&state.owner(&root,b)?.sources);
+                b.spend(source_width_work)?;
                 let owner = state.owner(&root, b)?.clone();
                 if !owner.owned {
                     return Err(bad(
@@ -458,7 +459,8 @@ impl<'a> Engine<'a> {
         let [Value::Owner { root, borrowed }] = values else {
             return Err(bad("Task operation has no exact original owner slot"));
         };
-        b.spend(source_width(&state.owner(root,b)?.sources))?;
+        let source_width_work = source_width(&state.owner(root,b)?.sources);
+        b.spend(source_width_work)?;
         let owner = state.owner(root, b)?.clone();
         if !owner.task {
             return Err(bad(
