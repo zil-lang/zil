@@ -102,6 +102,13 @@ pub(super) struct Budget {
     pub(super) semantic_reference_results: BTreeSet<(FunctionId, u32, zil_ir::StorageBinder)>,
     pub(super) semantic_reference_locals: BTreeSet<(FunctionId, zil_ir::LocalId)>,
     pub(super) semantic_reborrow_regions: BTreeSet<(FunctionId, zil_ir::ValueId)>,
+    // Exact original saved-field receiving views, checked against the actual
+    // parameter/read/Return SSA and complete invariant child in this run.
+    pub(super) semantic_receiving_returns:
+        BTreeSet<(FunctionId, zil_ir::BlockId, ValueId, zil_ir::StorageBinder)>,
+    // Complete original field sigma and actual SSA source, with invariant
+    // child checked at the real constructor. Outer use is directional only.
+    pub(super) semantic_constructor_views: BTreeSet<(FunctionId, ValueId, u32)>,
     // Exact constructor occurrences whose complete original class value and
     // actual header embedding have both been proved. No target/loan facts.
     pub(super) semantic_aggregate_classes:
@@ -288,6 +295,8 @@ impl Budget {
             semantic_reference_results: BTreeSet::new(),
             semantic_reference_locals: BTreeSet::new(),
             semantic_reborrow_regions: BTreeSet::new(),
+            semantic_receiving_returns: BTreeSet::new(),
+            semantic_constructor_views: BTreeSet::new(),
             semantic_aggregate_classes: BTreeMap::new(),
             stored_synchronous_abis: BTreeSet::new(),
             partial_depth: limits.max_call_depth,

@@ -1367,6 +1367,18 @@ impl Check<'_, '_> {
                 // requested mode, fresh borrow and whole pointee class value.
                 self.static_closure_result(instance, block, index, inner, ty, b)
             },
+            InstructionKind::ReadAddress { address } => {
+                operations::available_before(function, (block, index, SemanticSiteEdge::Before), *address, b)?;
+                let parent = self.ssa_value(instance, function, *address, b, depth + 1)?;
+                let child = self.pointee(&parent, b)?;
+                if !geometry::same_type(&child.ty, ty, b)? {
+                    return Err(fail("actual pointer-slot read changes its complete original child Type"));
+                }
+                // This is the stored pointer's whole domain, not a new view of
+                // the slot. Actual pointer provenance and parents remain in
+                // the memory/loan pass for this exact ReadAddress operation.
+                Ok(child)
+            }
             InstructionKind::LoadStoredBorrow { storage, path, mode } => {
                 operations::available_before(function, (block, index, SemanticSiteEdge::Before), *storage, b)?;
                 let root = self.ssa_value(instance, function, *storage, b, depth + 1)?;
@@ -1604,11 +1616,17 @@ impl Check<'_, '_> {
                         value::borrowed_scalar(field, self.inventory, b)?
                     };
                     let actual = self.ssa_value(instance, function, *operand, b, depth + 1)?;
-                    if !actual.equal_paid(&field, b)?
-                        && !self.outer_call_role(instance, function, (block, index), ordinal, *operand,
-                            &actual, &field, b, depth + 1)?
-                    {
-                        return Err(fail("actual aggregate child changes its complete original data or directed outer role"));
+                    if !actual.equal_paid(&field, b)? {
+                        if !self.outer_call_role(instance, function, (block, index), ordinal, *operand,
+                            &actual, &field, b, depth + 1)? {
+                            b.spend(actual.classes.len().saturating_add(field.classes.len()).saturating_mul(128).saturating_add(256), WORK)?;
+                            let mut errors = fail("actual aggregate child changes its complete original data or directed outer role");
+                            errors[0].notes.push(format!("actual function {} aggregate SSA {} field {} operand SSA {}: {:?}; independently reconstructed original field {:?}", function.id.0, id.0, ordinal, operand.0, actual, field));
+                            return Err(errors);
+                        }
+                        let ordinal = u32::try_from(ordinal).map_err(|_| fail("actual constructor field ordinal overflows"))?;
+                        b.lookup(b.semantic_constructor_views.len(), WORK)?;
+                        b.semantic_constructor_views.insert((function.id, id, ordinal));
                     }
                 }
                 Ok(expected)
@@ -2211,7 +2229,7 @@ impl Check<'_, '_> {
             }
             if matches!(value.ty, Type::Address { .. } | Type::Desc(_)) || self.dyn_sum_type(&value.ty, b)? {
                 for child in &value.life.retained {
-                    if child.path.as_slice() != [LifeTypeProjection::Pointee]
+                    if child.path.first() != Some(&LifeTypeProjection::Pointee)
                         && !(self.dyn_sum_type(&value.ty, b)? && child.path.as_slice() ==
                             [LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))]) {
                         return Err(unknown(
@@ -2324,6 +2342,13 @@ impl Check<'_, '_> {
             }
         };
         if actual != expected {
+            // A genuine reborrow can carry a fresh physical loan while this
+            // receiving use retains the original parent region. The complete
+            // inner value and actual SSA ancestry are checked by outer_role;
+            // the original source expression's sigma is never rewritten.
+            if self.outer_role(instance, function, &actual, &expected, b, 0)? {
+                return Ok(expected);
+            }
             return Err(fail(
                 "actual whole type/class value differs from its original operand constraint",
             ));

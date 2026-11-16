@@ -391,6 +391,59 @@ impl Solver<'_, '_> {
         }
         Ok(())
     }
+    /// Read-only receiving adaptation changes the outer access of one use.
+    /// The original expression sigma and all inner nominal classes remain
+    /// intact; the actual reborrow and its parents are checked at emission.
+    pub(super) fn shared_receiving_value(
+        &mut self, frame: &mut Frame, expression: &SemanticOriginalExpr,
+        actual: Term, expected: Term, b: &mut Budget, depth: usize,
+    ) -> CompileResult<Option<Term>> {
+        self.step(depth, b)?;
+        let (Kind::Address { mutable, life: source, inner },
+            Kind::Address { mutable: false, life: target, inner: wanted }) =
+            (&self.state.arena[self.type_root(actual, b)?], &self.state.arena[self.type_root(expected, b)?])
+        else { return Ok(None); };
+        let (mutable, source, inner, target, wanted) = (*mutable, *source, *inner, *target, *wanted);
+        self.unify(inner, wanted, depth + 1, b)?;
+        if !mutable && self.same_original(source, target, b, depth + 1)? {
+            return Ok(None);
+        }
+        let root = self.root(target, b)?;
+        if matches!(self.state.arena[root], Kind::LifeVariable(None)) {
+            self.unify(target, source, depth + 1, b)?;
+        } else if !self.call_source_allows(frame, source, target, b, depth + 1)? {
+            // A saved shared pointer read through an actual borrowed input can
+            // be received for that input's head lifetime. This is a directed
+            // field view: neither its source sigma nor any child class changes.
+            let Some(place) = self.place(frame, expression, false, b, depth + 1)? else {
+                if mutable { return Err(fail("original shared receiving view exceeds its complete source lifetime bound")); }
+                return Ok(None);
+            };
+            let Some(LocalAnchor::Parameter(parameter)) = place.anchor else { return Ok(None); };
+            if mutable || place.path.is_empty()
+                || !self.same_original(place.selected, actual, b, depth + 1)? {
+                return Ok(None);
+            }
+            let Some(input) = frame.parameters.get(parameter as usize).copied() else {
+                return Err(fail("original receiving field loses its genuine input"));
+            };
+            if !self.same_original(input, place.root, b, depth + 1)? { return Ok(None); }
+            let Kind::Address { life: head, .. } = self.state.arena[self.type_root(input, b)?] else {
+                return Ok(None);
+            };
+            if !self.same_original(head, target, b, depth + 1)? { return Ok(None); }
+            let received = self.term(Kind::Address { mutable: false, life: target, inner }, b)?;
+            b.lookup(self.state.receiving_places.len(), WORK)?;
+            if self.state.receiving_places.insert((frame.definition, expression.id), ReceivingPlace {
+                parameter, path: place.path, root: place.root, source: actual, target: received,
+            }).is_some() {
+                return Err(fail("original receiving field repeats its exact use occurrence"));
+            }
+            return Ok(Some(received));
+        }
+        Ok(Some(self.term(Kind::Address { mutable: false, life: target, inner }, b)?))
+    }
+
     /// Source Name expressions denote the original address value. Reborrowing
     /// it for one call does not consume that reference or equate a new SSA head.
     pub(super) fn borrowed_argument_expected(
@@ -435,7 +488,13 @@ impl Solver<'_, '_> {
             };
             if let CoreExprKind::Ascribed { ty, .. } = &value.kind {
                 let expected = self.recipe(frame, ty, b, depth + 1)?;
+                let term = self.shared_receiving_value(frame, inner, term, expected, b, depth + 1)?.unwrap_or(term);
                 self.unify(term, expected, depth + 1, b)?;
+                b.lookup(frame.expressions.len(), WORK)?;
+                if frame.expressions.insert(value.id, expected).is_some() {
+                    return Err(fail("original reborrowed argument node is reused"));
+                }
+                return Ok(expected);
             }
             b.lookup(frame.expressions.len(), WORK)?;
             if frame.expressions.insert(value.id, term).is_some() {
@@ -594,5 +653,21 @@ impl Solver<'_, '_> {
             _ => actual,
         };
         self.unify(actual, expected, depth + 1, b)
+    }
+}
+
+impl Checked {
+    pub(in crate::semantic) fn receiving_field(
+        &self, context: &SemanticInstance, node: NodeId, program: &SemanticModule,
+        inventory: &Inventory<'_>, b: &mut Budget,
+    ) -> CompileResult<Option<(u32, Vec<u32>, crate::semantic::value::Value,
+        crate::semantic::value::Value, crate::semantic::value::Value)>> {
+        b.lookup(self.receiving_places.len(), WORK)?;
+        let Some(row) = self.receiving_places.get(&(context.definition, node)) else { return Ok(None); };
+        b.spend(row.path.len(), WORK)?;
+        Ok(Some((row.parameter, row.path.clone(),
+            self.value(row.root, context, program, inventory, b, 0)?,
+            self.value(row.source, context, program, inventory, b, 0)?,
+            self.value(row.target, context, program, inventory, b, 0)?)))
     }
 }

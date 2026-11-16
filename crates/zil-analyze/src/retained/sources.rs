@@ -995,10 +995,10 @@ pub(super) fn check(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> 
                 b.type_work(leaf, false, "static capture upper complete leaf")?;
                 if *mode != StoredBorrowMode::SharedAddress
                     || leaf != expected
-                    || !matches!(leaf,Type::Address{mutable:false,inner}if **inner==Type::U8 || matches!(inner.as_ref(),Type::Slice{element}if **element==Type::U8))
+                    || !matches!(leaf, Type::Address { mutable: false, .. })
                 {
                     return Err(err(
-                        "static capture upper changes the complete immutable byte leaf or mode",
+                        "static capture upper changes the complete immutable leaf or mode",
                     ));
                 }
                 continue;

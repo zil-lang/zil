@@ -18,6 +18,31 @@ impl Check<'_, '_> {
         if self.outer_role(instance, function, actual, expected, b, depth + 1)? {
             return Ok(true);
         }
+        if self.outer_call_role_direct(instance, function, at, ordinal, operand, actual, expected, b, depth + 1)? {
+            return Ok(true);
+        }
+        // Source sequencing may stage a real argument through initialized
+        // locals. Follow every actual reaching Store, preserving the complete
+        // value, rather than requiring a new original node for a compiler Load.
+        let origins = self.call_operand_origins(function, operand, b)?;
+        if origins.len() == 1 && origins[0] == operand { return Ok(false); }
+        for source in origins {
+            let value = self.ssa_value(instance, function, source, b, depth + 1)?;
+            if !self.capture_values_equal(&value, actual, b)?
+                || !self.outer_call_role_direct(instance, function, at, ordinal, source, &value, expected, b, depth + 1)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn outer_call_role_direct(
+        &self, instance: &SemanticInstance, function: &TypedFunction,
+        at: (BlockId, usize), ordinal: usize, operand: ValueId,
+        actual: &Value, expected: &Value, b: &mut Budget, depth: usize,
+    ) -> CompileResult<bool> {
+        if depth > b.partial_depth { return Err(unknown("actual call operand transport exceeds its complete depth")); }
         if !geometry::same_type(&actual.ty, &expected.ty, b)? {
             return Ok(false);
         }
@@ -121,5 +146,78 @@ impl Check<'_, '_> {
         Err(unknown(
             "actual call region source ancestry exceeds its complete depth",
         ))
+    }
+}
+
+impl Check<'_, '_> {
+    fn call_operand_origins(&self, function: &TypedFunction, operand: ValueId,
+        b: &mut Budget) -> CompileResult<Vec<ValueId>> {
+        let initialized = crate::shared_initialization(function, b)?;
+        let mut values = vec![operand];
+        let mut seen_values = BTreeSet::new();
+        let mut seen_locals = BTreeSet::new();
+        let mut origins = BTreeSet::new();
+        while let Some(value) = values.pop() {
+            b.lookup(seen_values.len(), WORK)?;
+            if !seen_values.insert(value) { continue; }
+            let (block, instruction, producer) = self.defining(function, value, b)?;
+            let local = match producer.kind {
+                InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => local,
+                InstructionKind::ReborrowAddress { address, .. } => {
+                    operations::available_before(function, (block, instruction, SemanticSiteEdge::Before), address, b)?;
+                    self.push_value(&mut values, address, b)?;
+                    continue;
+                }
+                _ => { b.lookup(origins.len(), WORK)?; origins.insert(value); continue; }
+            };
+            operations::initialized_local_before(function, (block, instruction), local, b)?;
+            let mut pending = vec![(block, instruction)];
+            while let Some((block_id, end)) = pending.pop() {
+                b.lookup(seen_locals.len(), WORK)?;
+                if !seen_locals.insert((local, block_id, end)) { continue; }
+                let block = function.blocks.get(block_id.0 as usize).filter(|row| row.id == block_id)
+                    .ok_or_else(|| fail("call staging local has no actual block"))?;
+                let mut assigned = false;
+                for (index, instruction) in block.instructions.iter().enumerate().take(end).rev() {
+                    b.spend(1, WORK)?;
+                    match instruction.kind {
+                        InstructionKind::Store { local: target, value: source } if target == local => {
+                            operations::available_before(function, (block_id, index, SemanticSiteEdge::Before), source, b)?;
+                            if function.values.get(source.0 as usize) != function.values.get(value.0 as usize) {
+                                return Err(fail("call staging Store changes its complete physical type"));
+                            }
+                            self.push_value(&mut values, source, b)?;
+                            assigned = true;
+                            break;
+                        }
+                        InstructionKind::StorageLive(target) | InstructionKind::StorageDead(target)
+                        | InstructionKind::TakeLocal { local: target } if target == local => {
+                            return Err(fail("call staging read crosses a vacant activation"));
+                        }
+                        InstructionKind::BindPackageCapture { local: target, .. } if target == local => {
+                            b.lookup(origins.len(), WORK)?; origins.insert(value); assigned = true; break;
+                        }
+                        _ => {}
+                    }
+                }
+                if assigned { continue; }
+                if block_id == function.entry {
+                    if !function.parameters.contains(&local) {
+                        return Err(fail("call staging read has no initialized original input"));
+                    }
+                    b.lookup(origins.len(), WORK)?; origins.insert(value);
+                }
+                for predecessor in &initialized.predecessors[block_id.0 as usize] {
+                    b.spend(1, WORK)?;
+                    if initialized.reachable[*predecessor] {
+                        let source = &function.blocks[*predecessor];
+                        self.push_value(&mut pending, (source.id, source.instructions.len()), b)?;
+                    }
+                }
+            }
+        }
+        if origins.is_empty() { return Err(fail("call staging cycle has no concrete incoming source")); }
+        b.spend(origins.len(), WORK)?;
+        Ok(origins.into_iter().collect())
     }
 }

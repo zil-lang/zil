@@ -301,6 +301,7 @@ mod tests {
             rigid: vec![],
             next_rigid: 0,
             grounded: Some(vec![]),
+            point: None,
         };
         let a = equations.fresh(true, &mut budget).unwrap();
         let b = equations.fresh(true, &mut budget).unwrap();

@@ -406,6 +406,87 @@ pub(super) fn check_address_domain(
     pointee(&Value::from_geometry(geometry, classes), inventory, b)?;
     Ok(())
 }
+// A raw nested reference does not carry a second StorageLifeShape in its
+// Type. Recover that exact local shape from the complete parent forest. This
+// only reconstructs coordinates; no class image, loan or lifetime is invented.
+fn nested_reference_shape(
+    child: &Type, parent: &StorageLifeShape, b: &mut Budget,
+) -> CompileResult<StorageLifeShape> {
+    let mode = match child {
+        Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
+        Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
+        Type::Desc(_) => StoredBorrowMode::WritableDescription,
+        _ => return Err(fail("nested reference shape selects another physical constructor")),
+    };
+    let mut direct = BTreeMap::new();
+    for row in &parent.retained {
+        b.spend(row.path.len().saturating_add(1), WORK)?;
+        if row.path.as_slice() != [LifeTypeProjection::Pointee] { continue; }
+        if row.binder >= parent.binder_count || row.class as usize >= b.helper_nodes {
+            return Err(fail("nested reference child coordinate is outside its full domain"));
+        }
+        b.lookup(direct.len(), WORK)?;
+        if direct.insert(row.class, row.binder).is_some() {
+            return Err(fail("nested reference repeats a complete child class coordinate"));
+        }
+    }
+    let count = u32::try_from(direct.len()).map_err(|_| fail("nested reference child domain overflows"))?;
+    let mut reverse = BTreeMap::new();
+    for (ordinal, (class, parent)) in direct.iter().enumerate() {
+        b.spend(1, WORK)?;
+        if *class as usize != ordinal { return Err(fail("nested reference child domain omits an original class")); }
+        b.lookup(reverse.len(), WORK)?;
+        match reverse.entry(*parent) {
+            std::collections::btree_map::Entry::Vacant(entry) => { entry.insert(Some(*class)); }
+            std::collections::btree_map::Entry::Occupied(mut entry) => { entry.insert(None); }
+        }
+    }
+    let binder = |parent: u32, b: &mut Budget| -> CompileResult<u32> {
+        b.lookup(reverse.len(), WORK)?;
+        reverse.get(&parent).copied().flatten().ok_or_else(||
+            fail("nested reference child forest has no unique complete local class coordinate"))
+    };
+    let mut retained = Vec::new();
+    for row in &parent.retained {
+        b.spend(row.path.len().saturating_add(1), WORK)?;
+        let Some(path) = row.path.strip_prefix(&[LifeTypeProjection::Pointee]) else { continue; };
+        if path.is_empty() { continue; }
+        let mut selected = Vec::new();
+        for step in path { put(&mut selected, step.clone(), b)?; }
+        put(&mut retained, StorageRetainedBinding { path: selected, class: row.class,
+            binder: binder(row.binder, b)? }, b)?;
+    }
+    let mut nominal_arguments = Vec::new();
+    for row in &parent.nominal_arguments {
+        b.spend(row.path.len().saturating_add(1), WORK)?;
+        let Some(path) = row.path.strip_prefix(&[LifeTypeProjection::Pointee]) else { continue; };
+        let mut selected = Vec::new();
+        for step in path { put(&mut selected, step.clone(), b)?; }
+        put(&mut nominal_arguments, NominalLifeArgument { path: selected,
+            declaration: row.declaration, argument: row.argument, binder: binder(row.binder, b)? }, b)?;
+    }
+    if count == 0 {
+        if !super::original::strings::is_byte_type(child) || !retained.is_empty() || !nominal_arguments.is_empty() {
+            return Err(fail("nested raw reference omits its real outer class occurrence"));
+        }
+        return Ok(empty());
+    }
+    let mut slots = Vec::new();
+    put(&mut slots, StorageLifeSlot { path: Vec::new(), binder: 0, mode }, b)?;
+    Ok(StorageLifeShape { binder_count: count, slots, retained, nominal_arguments })
+}
+
+/// Check only the complete physical forest with fresh binder-coordinate
+/// symbols. This supplies no actual class equation or original premise.
+pub(super) fn check_address_domain(
+    ty: &Type, life: &StorageLifeShape, inventory: &Inventory<'_>, b: &mut Budget,
+) -> CompileResult<()> {
+    let geometry = inventory.geometry.resolved(ty, life, b)?;
+    let mut classes = Vec::new();
+    for binder in 0..life.binder_count { put(&mut classes, Class::Local(binder), b)?; }
+    pointee(&Value::from_geometry(geometry, classes), inventory, b)?;
+    Ok(())
+}
 pub(super) fn pointee(
     input: &Value,
     inventory: &Inventory<'_>,
@@ -441,11 +522,7 @@ pub(super) fn pointee(
                 nominal_arguments: Vec::new(),
             }
         }
-        Type::Address { .. } | Type::Desc(_) => {
-            return Err(unknown(
-                "nested raw pointee needs its complete intrinsic shape",
-            ));
-        }
+        Type::Address { .. } | Type::Desc(_) => nested_reference_shape(inner, &input.life, b)?,
         _ => {
             crate::stored_flow::validate_plain_nominal_zero(
                 inventory.module,
@@ -1582,11 +1659,7 @@ fn resolved_parts(
                         nominal_arguments: Vec::new(),
                     }
                 }
-                Type::Address { .. } | Type::Desc(_) => {
-                    return Err(unknown(
-                        "nested raw reference child requires its independently reconstructed whole local shape",
-                    ));
-                }
+                Type::Address { .. } | Type::Desc(_) => nested_reference_shape(inner, life, b)?,
                 _ => {
                     crate::stored_flow::validate_plain_nominal_zero(
                         inventory.module,
@@ -1748,6 +1821,25 @@ mod geometry_tests {
             &merged.geometry,
             &separate.geometry
         ));
+    }
+
+    #[test]
+    fn nested_raw_reference_reconstructs_the_whole_child_without_class_images() {
+        let mut budget = Budget::new(&zil_base::Limits::default());
+        let first = address(false, Class::Local(7), scalar(Type::I32), &mut budget).unwrap();
+        let middle = address(true, Class::Local(9), first, &mut budget).unwrap();
+        let outer = address(false, Class::Local(11), middle.copy(&mut budget).unwrap(), &mut budget).unwrap();
+        assert_eq!(nested_reference_shape(&middle.ty, &outer.life, &mut budget).unwrap(), middle.life);
+        let coincident = outer.with_classes(vec![Class::Local(3); outer.classes.len()], &mut budget).unwrap();
+        assert_eq!(nested_reference_shape(&middle.ty, &coincident.life, &mut budget).unwrap(), middle.life);
+        assert_eq!(middle.life.binder_count, 2);
+        assert_eq!(middle.life.slots[0].mode, StoredBorrowMode::ExclusiveAddress);
+        let mut missing = outer.life.clone();
+        missing.retained.retain(|row| !(row.path.as_slice() == [LifeTypeProjection::Pointee] && row.class == 1));
+        assert!(nested_reference_shape(&middle.ty, &missing, &mut budget).is_err());
+        let mut repeated = outer.life.clone();
+        repeated.retained.push(repeated.retained[0].clone());
+        assert!(nested_reference_shape(&middle.ty, &repeated, &mut budget).is_err());
     }
 
     #[test]
