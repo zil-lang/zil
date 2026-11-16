@@ -2,11 +2,14 @@
 //! Original tables supply conditional obligations only after the head bridge;
 //! neither equal lifetime images nor a proposed output phase creates a root.
 use super::*;
+#[path = "world_protocol_values.rs"]
+mod carrier;
 use std::collections::BTreeSet;
 const OPEN: u8 = 1;
 const CLOSING: u8 = 2;
 const CLOSED: u8 = 4;
 const UNKNOWN: u8 = 7;
+const RETIRED: u8 = 8;
 fn bit(state: ProtocolState) -> u8 {
     match state {
         ProtocolState::Open => OPEN,
@@ -16,6 +19,9 @@ fn bit(state: ProtocolState) -> u8 {
 }
 fn mask(states: &[ProtocolState]) -> u8 {
     states.iter().fold(0, |m, s| m | bit(*s))
+}
+fn output_mask(states: &[ProtocolState]) -> u8 {
+    if states.is_empty() { RETIRED } else { mask(states) }
 }
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Root {
@@ -30,6 +36,9 @@ struct Outcome {
 #[derive(Clone, PartialEq, Eq)]
 enum Value {
     Plain,
+    Vacant,
+    Variant { tag: u32, fields: Vec<Value>, phases: BTreeMap<Root, u8>, fresh: bool },
+    Choice(Vec<Value>),
     Integer(i64),
     Root(Root, bool, bool, Option<u8>),
     Poll {
@@ -57,7 +66,8 @@ impl Value {
                 .iter()
                 .chain(no)
                 .fold(1, |w, o| w.saturating_add(o.phases.len()).saturating_add(1)),
-            Self::Tuple(v) => v.iter().fold(1, |w, v| w.saturating_add(v.work())),
+            Self::Tuple(v) | Self::Choice(v) => v.iter().fold(1, |w, v| w.saturating_add(v.work())),
+            Self::Variant { fields, phases, .. } => fields.iter().fold(phases.len().saturating_add(1), |w, v| w.saturating_add(v.work())),
             _ => 1,
         }
     }
@@ -82,10 +92,12 @@ impl Value {
             {
                 *fresh = false
             }
-            Self::Tuple(values) => {
-                for value in values {
-                    value.invalidate(root, replace, previous);
-                }
+            Self::Tuple(values) | Self::Choice(values) => {
+                for value in values { value.invalidate(root, replace, previous); }
+            }
+            Self::Variant { fields, phases, fresh, .. } => {
+                if phases.contains_key(&root) { *fresh = false; }
+                for value in fields { value.invalidate(root, replace, previous); }
             }
             _ => {}
         }
@@ -95,10 +107,8 @@ impl Value {
             Self::Root(root, true, _, _) => {
                 output.insert(*root);
             }
-            Self::Tuple(v) => {
-                for v in v {
-                    v.roots(output);
-                }
+            Self::Tuple(v) | Self::Choice(v) | Self::Variant { fields: v, .. } => {
+                for v in v { v.roots(output); }
             }
             _ => {}
         }
@@ -148,6 +158,7 @@ impl State {
     fn change(&mut self, world: &mut World<'_, '_>, root: Root, phase: u8, replace: bool) -> R<()> {
         world.pay(self.work())?;
         let previous = self.phases.get(&root).copied().unwrap_or(UNKNOWN);
+        if previous == RETIRED && !replace { return Ok(()); }
         for value in self.locals.iter_mut().chain(&mut self.values).flatten() {
             value.invalidate(root, replace, previous);
         }
@@ -156,7 +167,7 @@ impl State {
     }
     fn root(&self, value: &Value) -> R<Root> {
         if let Value::Root(root, true, _, _) = value {
-            if self.phases.contains_key(root) {
+            if self.phases.get(root).is_some_and(|phase| *phase != 0 && *phase & RETIRED == 0) {
                 return Ok(*root);
             }
         }
@@ -213,10 +224,8 @@ fn cleanup_roots(
                 "actual cleanup loses an earlier registration generation's owning responsibility",
             ));
         }
-        Value::Tuple(values) => {
-            for value in values {
-                cleanup_roots(world, state, value, roots)?;
-            }
+        Value::Tuple(values) | Value::Choice(values) | Value::Variant { fields: values, .. } => {
+            for value in values { cleanup_roots(world, state, value, roots)?; }
         }
         _ => {}
     }
@@ -311,7 +320,7 @@ fn call(
             let mut output = 0;
             for row in &contract.exits {
                 if row.exit == exit && bit(row.input) & *phase != 0 {
-                    output |= mask(&row.output);
+                    output |= output_mask(&row.output);
                 }
             }
             if output == 0 {
@@ -402,49 +411,109 @@ fn instruction(
             }
             Value::Plain
         }
-        InstructionKind::UnpackTuple { local, fields } => {
+        InstructionKind::TakeTupleField { local, path }
+        | InstructionKind::TakeVariantField { local, path } => carrier::take_local(world, state, *local, path)?,
+        InstructionKind::TakePackageField { local, index } => carrier::take_local(world, state, *local, &[PlaceProjection::Field(*index)])?,
+        InstructionKind::ReadPackageField { local, index } => {
             let value = state.local(*local, world)?;
-            let values = match value {
-                Value::Tuple(values) => values,
-                _ => {
-                    world.pay(fields.len())?;
-                    vec![Value::Plain; fields.len()]
-                }
-            };
-            if fields.len() != values.len() {
-                return Err(bad(
-                    "actual protocol tuple destructuring changes field arity",
-                ));
-            }
-            world.pay(fields.len())?;
-            for (local, value) in fields.iter().zip(values) {
-                *state
-                    .locals
-                    .get_mut(local.0 as usize)
-                    .ok_or_else(|| bad("protocol tuple destination is absent"))? = Some(value);
-            }
-            *state
-                .locals
-                .get_mut(local.0 as usize)
-                .ok_or_else(|| bad("protocol cleanup local is absent"))? = None;
+            let value = carrier::project(world, value, &[PlaceProjection::Field(*index)])?;
+            carrier::copy_projection(world, value)?
+        }
+        InstructionKind::DescribePackageField { local, index } => {
+            let value = state.local(*local, world)?;
+            carrier::project(world, value, &[PlaceProjection::Field(*index)])?
+        }
+        InstructionKind::BorrowPlaceLocal { local, path, .. } => {
+            let value = state.local(*local, world)?;
+            carrier::project(world, value, path)?
+        }
+        InstructionKind::BorrowPlaceAddress { address, path, .. } => {
+            let value = state.get(*address, world)?;
+            carrier::project(world, value, path)?
+        }
+        InstructionKind::BorrowFieldLocal { local, path, .. } => {
+            world.pay(path.len())?;
+            let path: Vec<_> = path.iter().map(|field| PlaceProjection::Field(*field)).collect();
+            let value = state.local(*local, world)?;
+            carrier::project(world, value, &path)?
+        }
+        InstructionKind::ReadVariantLocal { local, path } => {
+            world.pay(path.len())?;
+            let path: Vec<_> = path.iter().copied().map(PlaceProjection::Variant).collect();
+            let value = state.local(*local, world)?;
+            let value = carrier::project(world, value, &path)?;
+            carrier::copy_projection(world, value)?
+        }
+        InstructionKind::BorrowVariantLocal { local, path, .. } => {
+            world.pay(path.len())?;
+            let path: Vec<_> = path.iter().copied().map(PlaceProjection::Variant).collect();
+            let value = state.local(*local, world)?;
+            carrier::project(world, value, &path)?
+        }
+        InstructionKind::BorrowVariantAddress { address, path, .. } => {
+            world.pay(path.len())?;
+            let path: Vec<_> = path.iter().copied().map(PlaceProjection::Variant).collect();
+            let value = state.get(*address, world)?;
+            carrier::project(world, value, &path)?
+        }
+        InstructionKind::ReadVariant { value, variant, index } => {
+            let value = state.get(*value, world)?;
+            let value = carrier::project(world, value, &[PlaceProjection::Variant(VariantProjection { variant: *variant, index: *index })])?;
+            carrier::copy_projection(world, value)?
+        }
+        InstructionKind::TakeErrorUnion { value, is_error } => carrier::take_value(world, state, *value, &[PlaceProjection::ErrorArm(*is_error)])?,
+        InstructionKind::ReadErrorUnion { value, is_error } => {
+            let value = state.get(*value, world)?;
+            let value = carrier::project(world, value, &[PlaceProjection::ErrorArm(*is_error)])?;
+            carrier::copy_projection(world, value)?
+        }
+        InstructionKind::MakeErrorUnion { value, is_error } => {
+            let value = state.get(*value, world)?;
+            carrier::variant(world, state, u32::from(*is_error), vec![value])?
+        }
+        InstructionKind::DropPackageField { local, index } => {
+            let old = carrier::take_local(world, state, *local, &[PlaceProjection::Field(*index)])?;
+            let mut roots = BTreeSet::new();
+            cleanup_roots(world, state, &old, &mut roots)?;
+            for root in roots { state.change(world, root, RETIRED, true)?; }
             Value::Plain
         }
-        InstructionKind::UnpackVariant { local, fields, .. } => {
+        InstructionKind::StorePackageField { local, index, value } => {
+            let value = state.get(*value, world)?;
+            let old = carrier::replace_local(world, state, *local, &[PlaceProjection::Field(*index)], value)?;
+            // Store is not a cleanup instruction. An old owning field must
+            // already have been taken or explicitly dropped at this point.
+            carrier::copy_projection(world, old)?;
+            Value::Plain
+        }
+        InstructionKind::UpdateField { aggregate, index, value } => {
+            let aggregate = state.get(*aggregate, world)?;
+            let mut aggregate = carrier::copy_projection(world, aggregate)?;
+            let value = state.get(*value, world)?;
+            let Value::Tuple(fields) = &mut aggregate else { return Err(pending("actual protocol field update lacks its complete parent aggregate")); };
+            let field = fields.get_mut(*index as usize).ok_or_else(|| bad("actual protocol update field is absent"))?;
+            carrier::copy_projection(world, std::mem::replace(field, value))?;
+            aggregate
+        }
+        InstructionKind::UnpackTuple { local, fields } => {
             let value = state.local(*local, world)?;
-            let mut roots = BTreeSet::new();
-            world.pay(value.work().saturating_add(fields.len()))?;
-            value.roots(&mut roots);
-            if !roots.is_empty() {
-                return Err(pending(
-                    "actual owning protocol enum payload needs its complete root projection",
-                ));
+            carrier::tuple_arity(world, &value, fields.len(), 0)?;
+            world.pay(fields.len())?;
+            for (ordinal, destination) in fields.iter().enumerate() {
+                let index = u32::try_from(ordinal).map_err(|_| bad("actual protocol tuple field ordinal overflows"))?;
+                let value = carrier::take_local(world, state, *local, &[PlaceProjection::Field(index)])?;
+                *state.locals.get_mut(destination.0 as usize).ok_or_else(|| bad("protocol tuple destination is absent"))? = Some(value);
             }
-            for local in fields {
-                *state
-                    .locals
-                    .get_mut(local.0 as usize)
-                    .ok_or_else(|| bad("protocol variant destination is absent"))? =
-                    Some(Value::Plain);
+            state.locals[local.0 as usize] = None;
+            Value::Plain
+        }
+        InstructionKind::UnpackVariant { local, variant, fields } => {
+            world.pay(fields.len())?;
+            for (ordinal, destination) in fields.iter().enumerate() {
+                let index = u32::try_from(ordinal).map_err(|_| bad("actual protocol variant field ordinal overflows"))?;
+                let value = carrier::take_local(world, state, *local,
+                    &[PlaceProjection::Variant(VariantProjection { variant: *variant, index })])?;
+                *state.locals.get_mut(destination.0 as usize).ok_or_else(|| bad("protocol variant destination is absent"))? = Some(value);
             }
             state.locals[local.0 as usize] = None;
             Value::Plain
@@ -524,36 +593,36 @@ fn instruction(
             }
             // Unchecked finish can return only through its runtime CLOSED
             // guard. A failed guard traps without freeing or continuing.
-            state.change(world, root, CLOSED, true)?;
+            state.change(world, root, RETIRED, true)?;
             Value::Plain
         }
-        InstructionKind::VariantTag { value } => match state.get(*value, world)? {
-            Value::Poll { fresh, outcomes } => Value::Tag { fresh, outcomes },
-            _ => Value::Plain,
-        },
-        InstructionKind::VariantTagLocal { local, path } if path.is_empty() => {
-            match state.local(*local, world)? {
-                Value::Poll { fresh, outcomes } => Value::Tag { fresh, outcomes },
-                _ => Value::Plain,
-            }
+        InstructionKind::VariantTag { value } | InstructionKind::ErrorTag { value } => {
+            let value = state.get(*value, world)?;
+            carrier::tag(world, &value)?
         }
-        InstructionKind::PlaceTagLocal { local, path } if path.is_empty() => {
-            match state.local(*local, world)? {
-                Value::Poll { fresh, outcomes } => Value::Tag { fresh, outcomes },
-                _ => Value::Plain,
-            }
+        InstructionKind::VariantTagLocal { local, path } => {
+            world.pay(path.len())?;
+            let path: Vec<_> = path.iter().copied().map(PlaceProjection::Variant).collect();
+            let value = state.local(*local, world)?;
+            let value = carrier::project(world, value, &path)?;
+            carrier::tag(world, &value)?
         }
-        InstructionKind::VariantTagAddress { address, path } if path.is_empty() => {
-            match state.get(*address, world)? {
-                Value::Poll { fresh, outcomes } => Value::Tag { fresh, outcomes },
-                _ => Value::Plain,
-            }
+        InstructionKind::PlaceTagLocal { local, path } => {
+            let value = state.local(*local, world)?;
+            let value = carrier::project(world, value, path)?;
+            carrier::tag(world, &value)?
         }
-        InstructionKind::PlaceTagAddress { address, path } if path.is_empty() => {
-            match state.get(*address, world)? {
-                Value::Poll { fresh, outcomes } => Value::Tag { fresh, outcomes },
-                _ => Value::Plain,
-            }
+        InstructionKind::VariantTagAddress { address, path } => {
+            world.pay(path.len())?;
+            let path: Vec<_> = path.iter().copied().map(PlaceProjection::Variant).collect();
+            let value = state.get(*address, world)?;
+            let value = carrier::project(world, value, &path)?;
+            carrier::tag(world, &value)?
+        }
+        InstructionKind::PlaceTagAddress { address, path } => {
+            let value = state.get(*address, world)?;
+            let value = carrier::project(world, value, path)?;
+            carrier::tag(world, &value)?
         }
         InstructionKind::Constant(Constant::I32(v)) => Value::Integer(*v as i64),
         InstructionKind::Constant(Constant::Bool(v)) => Value::Integer(i64::from(*v)),
@@ -609,13 +678,13 @@ fn instruction(
                             "actual protocol field is outside its complete aggregate",
                         ));
                     }
-                    values.remove(*index as usize)
+                    carrier::copy_projection(world, values.remove(*index as usize))?
                 }
                 _ => Value::Plain,
             }
         }
         InstructionKind::MakeVariant { variant, .. }
-            if f.return_type == tasks::poll_type(&Type::Unit) =>
+            if instruction.result.and_then(|id| f.values.get(id.0 as usize)) == Some(&tasks::poll_type(&Type::Unit)) =>
         {
             world.pay(state.phases.len().saturating_add(1))?;
             Value::Poll {
@@ -625,6 +694,10 @@ fn instruction(
                     phases: state.phases.clone(),
                 }],
             }
+        }
+        InstructionKind::MakeVariant { variant, fields } => {
+            let values = operand_values(world, state, fields)?;
+            carrier::variant(world, state, *variant, values)?
         }
         InstructionKind::Call {
             function,
@@ -651,8 +724,8 @@ fn instruction(
             unknown(world, state, &values, true)?;
             Value::Plain
         }
-        InstructionKind::TaskCreate { arguments, .. }
-        | InstructionKind::TaskCreateOwned { arguments, .. } => {
+        InstructionKind::TaskCreateOwned { arguments, .. } => carrier::create_owned(world, state, f, instruction.result, arguments)?,
+        InstructionKind::TaskCreate { arguments, .. } => {
             let values = operand_values(world, state, arguments)?;
             unknown(world, state, &values, false)?;
             Value::Plain
@@ -688,7 +761,7 @@ fn instruction(
                         "actual lexical registration cleanup lacks Closed for this generation",
                     ));
                 }
-                state.change(world, root, CLOSED, true)?;
+                state.change(world, root, RETIRED, true)?;
             }
             *state
                 .locals
@@ -715,7 +788,6 @@ fn instruction(
         | InstructionKind::TaskPollClose { .. }
         | InstructionKind::TaskRequestCancel { .. }
         | InstructionKind::TaskFinishDestroy { .. }
-        | InstructionKind::ReadVariant { .. }
         | InstructionKind::ReadCapture { .. }
         | InstructionKind::TakeCapture { .. }
         | InstructionKind::DescribeCapture { .. }
@@ -753,7 +825,22 @@ fn instruction(
             .values
             .get(result.0 as usize)
             .ok_or_else(|| bad("protocol result has no complete actual type"))?;
+        let value = if matches!(&instruction.kind,
+            InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. }
+            | InstructionKind::DescribeLocal { .. } | InstructionKind::ReborrowAddress { .. }
+            | InstructionKind::DescribeAddress { .. } | InstructionKind::DescribePackageField { .. }
+            | InstructionKind::BorrowPlaceLocal { .. } | InstructionKind::BorrowPlaceAddress { .. }
+            | InstructionKind::BorrowFieldLocal { .. } | InstructionKind::BorrowVariantLocal { .. }
+            | InstructionKind::BorrowVariantAddress { .. }) { carrier::borrowed(world, value)? } else { value };
         let mut value = if matches!(value, Value::Plain) && async_head(world, ty)? {
+            if !matches!(&instruction.kind,
+                InstructionKind::Call { .. } | InstructionKind::SuspendCall { .. }
+                | InstructionKind::ForeignCall { .. } | InstructionKind::CallIndirect { .. }
+                | InstructionKind::CallClosure { .. } | InstructionKind::CallClosureOnce { .. }
+                | InstructionKind::CallClosureBorrowed { .. } | InstructionKind::CallClosureShared { .. }
+                | InstructionKind::CallClosureMut { .. } | InstructionKind::TaskPoll { .. }) {
+                return Err(pending("actual protocol projection has no exact existing parent root"));
+            }
             let root = Root::Created(result);
             state.change(world, root, UNKNOWN, true)?;
             Value::Root(root, true, true, None)
@@ -853,7 +940,7 @@ fn returned(
                 .ok_or_else(|| {
                     bad("actual reachable return is absent from the original protocol relation")
                 })?;
-            if phase == 0 || phase & !mask(&row.output) != 0 {
+            if phase == 0 || phase & !output_mask(&row.output) != 0 {
                 return Err(bad(
                     "actual CFG exceeds its original per-result protocol phase relation",
                 ));
@@ -959,6 +1046,11 @@ pub(super) fn check(
                     else_block,
                 } => {
                     let condition = state.get(condition, world)?;
+                    let condition = if let Value::Tag { fresh, outcomes } = condition {
+                        world.pay(outcomes.len())?;
+                        let (yes, no) = outcomes.into_iter().partition(|outcome| outcome.tag != 0);
+                        Value::Predicate { fresh, yes, no }
+                    } else { condition };
                     match condition {
                         Value::Predicate {
                             fresh: true,
