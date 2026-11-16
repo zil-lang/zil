@@ -191,6 +191,9 @@ pub enum DiskCacheStatus {
     Rebuilt,
     /// Current source replay reused resident frontend state without disk decode.
     Resident,
+    /// A disk result matched real current frontend production; its actual
+    /// producer/consumer epochs are now available to subsequent edits.
+    Hydrated,
 }
 impl DiskCacheStatus {
     fn as_str(self) -> &'static str {
@@ -200,6 +203,7 @@ impl DiskCacheStatus {
             Self::Hit => "hit",
             Self::Rebuilt => "rebuilt",
             Self::Resident => "resident",
+            Self::Hydrated => "hydrated",
         }
     }
 }

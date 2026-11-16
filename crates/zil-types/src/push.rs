@@ -78,18 +78,36 @@ impl TypesPushSession {
         target: &TargetProfile,
         limits: &Limits,
     ) -> CompileResult<TypedUpdate> {
+        self.apply_with_output_anchor(prepared, target, limits, None)
+    }
+
+    /// Run current Types checks and accounting before interning their output
+    /// against one raw result anchor. Only complete value equality adopts an
+    /// owner; the anchor supplies neither checking authority nor context/fees.
+    /// Any checkpoint binds the actual returned owners. Stats and changes
+    /// continue to describe the current checking work, not owner adoption.
+    pub fn apply_with_output_anchor(
+        &mut self,
+        prepared: &PreparedProgram,
+        target: &TargetProfile,
+        limits: &Limits,
+        anchor: Option<&Arc<TypedProgram>>,
+    ) -> CompileResult<TypedUpdate> {
         if let Some(update) = self.try_sparse(prepared, target, limits) {
-            let (context, update) = update;
+            let (mut context, mut update) = update;
+            update.program = adopt_output_anchor(update.program, anchor);
+            context.program = update.program.clone();
             self.current = Some(Arc::new(context));
             return Ok(update);
         }
-        self.rebuild(prepared, target, limits)
+        self.rebuild(prepared, target, limits, anchor)
     }
     fn rebuild(
         &mut self,
         prepared: &PreparedProgram,
         target: &TargetProfile,
         limits: &Limits,
+        anchor: Option<&Arc<TypedProgram>>,
     ) -> CompileResult<TypedUpdate> {
         let mut recording = Recording::default();
         let result = if prepared.identity_inference(limits) && prepared.produced().is_some() {
@@ -109,7 +127,7 @@ impl TypesPushSession {
         } else {
             check_prepared_program(prepared, target, limits)?
         };
-        let program = Arc::new(result);
+        let program = adopt_output_anchor(Arc::new(result), anchor);
         let context = prepared
             .produced()
             .and_then(|produced| recording.finish(produced, program.clone(), target, limits));
@@ -448,6 +466,30 @@ impl TypesPushSession {
         };
         Some((context, update))
     }
+}
+
+/// Result interning only, after successful current production. Full Eq includes
+/// diagnostic positions and all nested CFG/header data; relative equality and
+/// fingerprints cannot select an old owner. No anchor history is retained.
+fn adopt_output_anchor(
+    mut program: Arc<TypedProgram>,
+    anchor: Option<&Arc<TypedProgram>>,
+) -> Arc<TypedProgram> {
+    let Some(anchor) = anchor else {
+        return program;
+    };
+    if program.as_ref() == anchor.as_ref() {
+        return anchor.clone();
+    }
+    for (index, function) in anchor.module.functions.iter().enumerate() {
+        if program.module.functions.get(index) == Some(function) {
+            Arc::make_mut(&mut program)
+                .module
+                .functions
+                .set_owner(index, anchor.module.functions.owner(index).unwrap().clone());
+        }
+    }
+    program
 }
 
 struct Work {
@@ -1113,6 +1155,236 @@ mod tests {
     fn scalar_module() -> &'static str {
         "fn first(x:i32)->i32 {let a=x+1;let b=a*2;return b+3;} fn second(x:i32)->i32 {let a=x+2;let b=a*3;return b+4;} fn third(x:i32)->i32 {let a=x+3;let b=a*4;return b+5;}"
     }
+
+    #[test]
+    fn output_anchor_adopts_equal_result_after_real_checks_and_binds_checkpoint() {
+        let limits = Limits::default();
+        let target = TargetProfile::default();
+        let mut expand = ExpandSession::default();
+        let initial = produced(&mut expand, &[parse(0, scalar_module(), &limits)], &limits);
+        let input = prepared(&initial, &limits);
+        let anchor = Arc::new(fresh(&input, &limits).unwrap());
+        let mut ordinary = TypesPushSession::default();
+        let expected = apply(&mut ordinary, &input, &limits).unwrap();
+        let mut session = TypesPushSession::default();
+        let actual = session
+            .apply_with_output_anchor(&input, &target, &limits, Some(&anchor))
+            .unwrap();
+        assert_eq!(actual.stats, expected.stats);
+        assert_eq!(actual.changes, expected.changes);
+        assert_eq!(actual.stats.body_checks, 3);
+        assert!(Arc::ptr_eq(&actual.program, &anchor));
+        assert!(!Arc::ptr_eq(&expected.program, &anchor));
+        let context = session.current.as_ref().unwrap();
+        let ordinary_context = ordinary.current.as_ref().unwrap();
+        assert!(Arc::ptr_eq(&context.program, &actual.program));
+        assert_eq!(context.limits, limits);
+        assert_eq!(context.target, target);
+        assert_eq!(context.context_cost, ordinary_context.context_cost);
+        assert_eq!(context.fixed_tail, ordinary_context.fixed_tail);
+        assert_eq!(context.signature_work, ordinary_context.signature_work);
+        assert_eq!(context.signature_costs, ordinary_context.signature_costs);
+        assert_eq!(context.interface_costs, ordinary_context.interface_costs);
+        assert_eq!(context.project_base, ordinary_context.project_base);
+        let total = context.rows.total().unwrap();
+        let ordinary_total = ordinary_context.rows.total().unwrap();
+        assert!(total.cfg.iter().any(|&cost| cost > 0));
+        assert_eq!(total.cfg, ordinary_total.cfg);
+        assert_eq!(
+            (total.names, total.shape, total.visibility, total.header),
+            (
+                ordinary_total.names,
+                ordinary_total.shape,
+                ordinary_total.visibility,
+                ordinary_total.header,
+            )
+        );
+        assert_eq!(
+            (total.post.shared, total.post.bytes, total.post.stores),
+            (
+                ordinary_total.post.shared,
+                ordinary_total.post.bytes,
+                ordinary_total.post.stores,
+            )
+        );
+        let mut checkpoint = session.checkpoint_for(&actual.program).unwrap();
+        assert!(session.checkpoint_for(&expected.program).is_none());
+        assert!(
+            session
+                .checkpoint_for(&Arc::new(anchor.as_ref().clone()))
+                .is_none()
+        );
+
+        let next = produced(
+            &mut expand,
+            &[parse(0, &scalar_module().replace("x+1", "x+7"), &limits)],
+            &limits,
+        );
+        let next = prepared(&next, &limits);
+        let edited = apply(&mut checkpoint, &next, &limits).unwrap();
+        assert_eq!(edited.stats.context_rebuilds, 0);
+        assert_eq!(edited.stats.body_checks, 1);
+        assert_eq!(edited.program.as_ref(), &fresh(&next, &limits).unwrap());
+        for index in [1, 2] {
+            assert!(Arc::ptr_eq(
+                edited.program.module.functions.owner(index).unwrap(),
+                anchor.module.functions.owner(index).unwrap()
+            ));
+        }
+    }
+
+    #[test]
+    fn output_anchor_requires_every_function_field_and_whole_program_equality() {
+        let limits = Limits::default();
+        let mut expand = ExpandSession::default();
+        let source = produced(&mut expand, &[parse(0, scalar_module(), &limits)], &limits);
+        let input = prepared(&source, &limits);
+        let expected = fresh(&input, &limits).unwrap();
+        let mutations: &[fn(&mut TypedFunction)] = &[
+            |f| f.id = FunctionId(99),
+            |f| f.span.start += 1,
+            |f| f.locals[0].span.start += 1,
+            |f| f.locals[0].mutable = !f.locals[0].mutable,
+            |f| f.values[0] = Type::Bool,
+            |f| f.blocks[0].instructions[0].span.start += 1,
+            |f| f.blocks[0].id = BlockId(99),
+            |f| f.entry = BlockId(99),
+            |f| f.name.push_str("_other"),
+            |f| f.return_type = Type::Bool,
+            |f| f.reference_return_bound = Some(vec![0]),
+        ];
+        for mutate in mutations {
+            let mut anchor = expected.clone();
+            mutate(&mut anchor.module.functions[0]);
+            let anchor = Arc::new(anchor);
+            let mut session = TypesPushSession::default();
+            let actual = session
+                .apply_with_output_anchor(&input, &TargetProfile::default(), &limits, Some(&anchor))
+                .unwrap();
+            assert_eq!(actual.program.as_ref(), &expected);
+            assert!(!Arc::ptr_eq(&actual.program, &anchor));
+            assert!(!Arc::ptr_eq(
+                actual.program.module.functions.owner(0).unwrap(),
+                anchor.module.functions.owner(0).unwrap()
+            ));
+            for index in [1, 2] {
+                assert!(Arc::ptr_eq(
+                    actual.program.module.functions.owner(index).unwrap(),
+                    anchor.module.functions.owner(index).unwrap()
+                ));
+            }
+            assert!(session.checkpoint_for(&actual.program).is_some());
+            assert!(session.checkpoint_for(&anchor).is_none());
+        }
+
+        let mut anchor = expected.clone();
+        anchor.module.schema_version += 1;
+        let anchor = Arc::new(anchor);
+        let mut session = TypesPushSession::default();
+        let actual = session
+            .apply_with_output_anchor(&input, &TargetProfile::default(), &limits, Some(&anchor))
+            .unwrap();
+        assert_eq!(actual.program.as_ref(), &expected);
+        assert!(!Arc::ptr_eq(&actual.program, &anchor));
+        for index in 0..expected.module.functions.len() {
+            assert!(Arc::ptr_eq(
+                actual.program.module.functions.owner(index).unwrap(),
+                anchor.module.functions.owner(index).unwrap()
+            ));
+        }
+        assert!(session.checkpoint_for(&actual.program).is_some());
+        assert!(session.checkpoint_for(&anchor).is_none());
+    }
+
+    #[test]
+    fn sparse_output_anchor_keeps_current_work_and_checkpoint_owner() {
+        let limits = Limits::default();
+        let mut expand = ExpandSession::default();
+        let mut session = TypesPushSession::default();
+        let initial = produced(&mut expand, &[parse(0, scalar_module(), &limits)], &limits);
+        apply(&mut session, &prepared(&initial, &limits), &limits).unwrap();
+        let next = produced(
+            &mut expand,
+            &[parse(0, &scalar_module().replace("x+1", "x+7"), &limits)],
+            &limits,
+        );
+        let next = prepared(&next, &limits);
+        let anchor = Arc::new(fresh(&next, &limits).unwrap());
+        let actual = session
+            .apply_with_output_anchor(&next, &TargetProfile::default(), &limits, Some(&anchor))
+            .unwrap();
+        assert_eq!(actual.stats.context_rebuilds, 0);
+        assert_eq!(actual.stats.body_checks, 1);
+        assert!(Arc::ptr_eq(&actual.program, &anchor));
+        let checkpoint = session.checkpoint_for(&actual.program).unwrap();
+        assert!(Arc::ptr_eq(
+            &checkpoint.current.as_ref().unwrap().program,
+            &actual.program
+        ));
+    }
+
+    #[test]
+    fn output_anchor_cannot_bypass_errors_limits_or_create_unrecorded_context() {
+        let limits = Limits::default();
+        let target = TargetProfile::default();
+        let mut expand = ExpandSession::default();
+        let source = produced(&mut expand, &[parse(0, scalar_module(), &limits)], &limits);
+        let input = prepared(&source, &limits);
+        let anchor = Arc::new(fresh(&input, &limits).unwrap());
+        let mut session = TypesPushSession::default();
+        session
+            .apply_with_output_anchor(&input, &target, &limits, Some(&anchor))
+            .unwrap();
+        let successful = session.current.clone().unwrap();
+        for column in 0..6 {
+            let mut small = limits.clone();
+            match column {
+                0 => small.max_blocks = 0,
+                1 => small.max_locals = 0,
+                2 => small.max_values = 0,
+                3 => small.max_instructions = 0,
+                4 => small.max_analysis_steps = 0,
+                _ => small.max_nodes = 0,
+            }
+            assert_eq!(
+                session
+                    .apply_with_output_anchor(&input, &target, &small, Some(&anchor))
+                    .unwrap_err(),
+                fresh(&input, &small).unwrap_err()
+            );
+            assert!(Arc::ptr_eq(session.current.as_ref().unwrap(), &successful));
+        }
+        let bad = produced(
+            &mut expand,
+            &[parse(
+                0,
+                &scalar_module().replace("return b+3", "return missing"),
+                &limits,
+            )],
+            &limits,
+        );
+        let bad = prepared(&bad, &limits);
+        assert_eq!(
+            session
+                .apply_with_output_anchor(&bad, &target, &limits, Some(&anchor))
+                .unwrap_err(),
+            fresh(&bad, &limits).unwrap_err()
+        );
+        assert!(Arc::ptr_eq(session.current.as_ref().unwrap(), &successful));
+
+        let shared = Arc::new(source.program().as_ref().clone());
+        let unsealed = infer_shared_program_for_ct(&shared, &limits)
+            .unwrap()
+            .into_prepared();
+        let actual = session
+            .apply_with_output_anchor(&unsealed, &target, &limits, Some(&anchor))
+            .unwrap();
+        assert_eq!(actual.stats.body_checks, 3);
+        assert!(Arc::ptr_eq(&actual.program, &anchor));
+        assert!(session.current.is_none());
+        assert!(session.checkpoint_for(&actual.program).is_none());
+    }
+
     #[test]
     fn actual_sparse_cfg_consumers_share_untouched_leaves_and_match_fresh() {
         let limits = Limits::default();

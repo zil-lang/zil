@@ -193,6 +193,10 @@ impl ProjectTypedOwner {
     pub(super) fn program(&self) -> &Arc<TypedProgram> {
         &self.program
     }
+    pub(super) fn has_analysis_epoch(&self, key: &QueryKey) -> bool {
+        self.matching_epoch(key)
+            .is_some_and(|epoch| epoch.analysis.get().is_some())
+    }
     fn matching_epoch(&self, key: &QueryKey) -> Option<&TypesEpoch> {
         let epoch = self.epoch.as_deref()?;
         (epoch.key == *key && Arc::ptr_eq(&epoch.program.upgrade()?, &self.program))

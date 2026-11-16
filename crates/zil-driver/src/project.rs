@@ -154,10 +154,18 @@ enum LoadedProject {
     Parsed(Vec<LoadedSyntax>),
     Prepared(Vec<LoadedSyntax>, Box<CompileReport>),
     Semantic(Box<(TypedProgram, CandidatePlan)>),
+    /// A push-session disk candidate is only a result anchor. Discovery has
+    /// executed the ordinary parser over the same immutable reads so the real
+    /// producer/consumer epochs and canonical path hints can be established.
+    Hydrating(Vec<LoadedSyntax>, Box<(TypedProgram, CandidatePlan)>),
     /// Current source/import replay completed; only resident raw candidates may
     /// be tried before the ordinary disk/source fallbacks. No Verify authority.
     Resident,
 }
+
+#[cfg(test)]
+#[path = "restart_tests.rs"]
+mod restart_tests;
 
 pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> CompileReport {
     CompilationSession::default().compile_project(project, options)
@@ -434,6 +442,7 @@ impl CompilationSession {
             Some(LoadedProject::Parsed(syntax)) => (Some(syntax), None, None),
             Some(LoadedProject::Prepared(syntax, report)) => (Some(syntax), None, Some(report)),
             Some(LoadedProject::Semantic(pair)) => (None, Some(pair), None),
+            Some(LoadedProject::Hydrating(syntax, pair)) => (Some(syntax), Some(pair), None),
             Some(LoadedProject::Resident) => (None, None, None),
             None => (None, None, None),
         };
@@ -555,11 +564,15 @@ impl CompilationSession {
             )
         };
         let discovery_pending = match &loaded {
-            Ok(LoadedProject::Parsed(syntax)) if options.stop_after != Stage::Parse => options
-                .project
-                .is_none()
-                .then(|| discovery_cache::Pending::new(&project, syntax, options))
-                .flatten(),
+            Ok(LoadedProject::Parsed(syntax) | LoadedProject::Hydrating(syntax, _))
+                if options.stop_after != Stage::Parse =>
+            {
+                options
+                    .project
+                    .is_none()
+                    .then(|| discovery_cache::Pending::new(&project, syntax, options))
+                    .flatten()
+            }
             _ => None,
         };
         let discovery_ns = discovery_start.map(|start| start.elapsed().as_nanos());
@@ -708,6 +721,12 @@ impl CompilationSession {
                 stable_source.as_ref(),
             );
         }
+        // A terminal disk value contains no parser/producer/CT/Types/Analyze
+        // epochs. In a push session execute those real providers once, while
+        // retaining the disk value only as a complete-result equality anchor.
+        // Otherwise the first edit pays for every missing upstream provider
+        // and loses the immutable owners just checked by Verify/backend.
+        let mut output_anchor = None;
         if let Some(store) = &semantic {
             let cache_start = cost_start(options.profile_compilation);
             let restored = preloaded_semantic.or_else(|| store.load(options).map(Box::new));
@@ -719,55 +738,60 @@ impl CompilationSession {
             {
                 store.remember_packed_epoch(options, &mut self.semantic_publication);
                 let (typed, candidate) = *pair;
-                let before = Box::new(report.clone());
-                let imported = self.query_with_disposition(
-                    key(Phase::Types, true),
-                    &[],
-                    options,
-                    report,
-                    observer,
-                    || {
-                        Ok(RawSnapshot::ProjectTyped(
-                            super::session::ProjectTypedOwner::restored(typed),
-                        ))
-                    },
-                    QueryDisposition::Reused,
-                );
-                let attempt = imported.and_then(|(raw, snapshot)| {
-                    let RawSnapshot::ProjectTyped(typed) = raw else {
-                        return Err(infra(
-                            "E-QUERY-KIND",
-                            "restored frontend has another snapshot kind",
-                        ));
-                    };
-                    report.phase = Phase::Types;
-                    report.cache_hit = true;
-                    report.disk_cache = DiskCacheStatus::Hit;
-                    report.scalar_interfaces = typed.interfaces.clone();
-                    self.finish_typed(
+                if options.push_reuse {
+                    output_anchor = Some(Arc::new(typed));
+                    report.disk_cache = DiskCacheStatus::Rebuilt;
+                } else {
+                    let before = Box::new(report.clone());
+                    let imported = self.query_with_disposition(
+                        key(Phase::Types, true),
+                        &[],
                         options,
                         report,
                         observer,
-                        TypedInput::CachedProgram(typed.program().clone(), Arc::new(candidate)),
-                        snapshot,
-                        artifacts.clone(),
-                        stable_source.as_ref(),
-                    )
-                });
-                match attempt {
-                    Ok(()) => return Ok(()),
-                    Err(errors) => {
-                        // A decodable but rejected candidate cannot change the
-                        // source result. Remove imported raw queries and rerun
-                        // the current sources; cancellation is never retried.
-                        self.clear();
-                        if options.cancellation.is_cancelled()
-                            || !matches!(report.phase, Phase::Types | Phase::Analyze)
-                        {
-                            return Err(errors);
+                        || {
+                            Ok(RawSnapshot::ProjectTyped(
+                                super::session::ProjectTypedOwner::restored(typed),
+                            ))
+                        },
+                        QueryDisposition::Reused,
+                    );
+                    let attempt = imported.and_then(|(raw, snapshot)| {
+                        let RawSnapshot::ProjectTyped(typed) = raw else {
+                            return Err(infra(
+                                "E-QUERY-KIND",
+                                "restored frontend has another snapshot kind",
+                            ));
+                        };
+                        report.phase = Phase::Types;
+                        report.cache_hit = true;
+                        report.disk_cache = DiskCacheStatus::Hit;
+                        report.scalar_interfaces = typed.interfaces.clone();
+                        self.finish_typed(
+                            options,
+                            report,
+                            observer,
+                            TypedInput::CachedProgram(typed.program().clone(), Arc::new(candidate)),
+                            snapshot,
+                            artifacts.clone(),
+                            stable_source.as_ref(),
+                        )
+                    });
+                    match attempt {
+                        Ok(()) => return Ok(()),
+                        Err(errors) => {
+                            // A decodable but rejected candidate cannot change the
+                            // source result. Remove imported raw queries and rerun
+                            // the current sources; cancellation is never retried.
+                            self.clear();
+                            if options.cancellation.is_cancelled()
+                                || !matches!(report.phase, Phase::Types | Phase::Analyze)
+                            {
+                                return Err(errors);
+                            }
+                            report.restart_attempt(*before, "rejected_semantic_candidate", errors);
+                            report.disk_cache = DiskCacheStatus::Rebuilt;
                         }
-                        report.restart_attempt(*before, "rejected_semantic_candidate", errors);
-                        report.disk_cache = DiskCacheStatus::Rebuilt;
                     }
                 }
             }
@@ -1498,7 +1522,12 @@ impl CompilationSession {
             || {
                 if options.push_reuse {
                     return push_types
-                        .apply(&prepared, &options.target, &options.limits)
+                        .apply_with_output_anchor(
+                            &prepared,
+                            &options.target,
+                            &options.limits,
+                            output_anchor.as_ref(),
+                        )
                         .map(|update| {
                             types_push_work = Some(Box::new(update.stats));
                             RawSnapshot::ProjectTyped(super::session::ProjectTypedOwner::product(
@@ -1587,6 +1616,33 @@ impl CompilationSession {
             artifacts.clone(),
             stable_source.as_ref(),
         );
+        if result.is_ok()
+            && output_anchor
+                .as_ref()
+                .is_some_and(|anchor| Arc::ptr_eq(anchor, typed.program()))
+            && typed.has_analysis_epoch(&typed_snapshot.key)
+            && self
+                .retained_producer_epoch(
+                    &key(Phase::Expand, selection_needed || artifact_needed),
+                    &project.modules,
+                    options,
+                )
+                .is_some_and(|epoch| {
+                    epoch
+                        .raw_inference
+                        .get()
+                        .and_then(|session| session.checkpoint_for(&epoch.core))
+                        .is_some()
+                        && epoch
+                            .plain_source
+                            .get()
+                            .and_then(|session| session.checkpoint_for(&epoch.core))
+                            .is_some()
+                })
+        {
+            report.disk_cache = DiskCacheStatus::Hydrated;
+            report.cache_hit = true;
+        }
         let persistence_start = cost_start(options.profile_compilation);
         if result.is_ok()
             && let Some(store) = &semantic
@@ -2223,15 +2279,20 @@ fn load_sources_profiled(
         }
         return Ok(LoadedProject::Resident);
     }
+    let mut semantic_anchor = None;
     if options.project.is_none()
         && let Some(pair) =
             single_file_semantic_profiled(project, options, session, stats.as_deref_mut())
     {
-        return Ok(LoadedProject::Semantic(Box::new(pair)));
+        if options.push_reuse {
+            semantic_anchor = Some(Box::new(pair));
+        } else {
+            return Ok(LoadedProject::Semantic(Box::new(pair)));
+        }
     }
     let mut prefetched = BTreeMap::new();
     let receipt_started = stats.as_ref().map(|_| Instant::now());
-    let discovery = if options.project.is_none() {
+    let discovery = if options.project.is_none() && semantic_anchor.is_none() {
         discovery_cache::load(project, &root_path, options, session, stats.as_deref_mut())?
     } else {
         None
@@ -2254,8 +2315,12 @@ fn load_sources_profiled(
             && let Some(pair) =
                 exact_discovered_semantic_profiled(&attempt.project, options, stats.as_deref_mut())
         {
-            *project = attempt.project;
-            return Ok(LoadedProject::Semantic(Box::new(pair)));
+            if options.push_reuse {
+                semantic_anchor = Some(Box::new(pair));
+            } else {
+                *project = attempt.project;
+                return Ok(LoadedProject::Semantic(Box::new(pair)));
+            }
         }
         // A receipt mismatch or semantic miss restores the original ordered
         // parser. Reuse immutable reads when it discovers the same canonical
@@ -2513,7 +2578,10 @@ fn load_sources_profiled(
         });
         index += 1;
     }
-    Ok(LoadedProject::Parsed(syntax))
+    Ok(match semantic_anchor {
+        Some(pair) => LoadedProject::Hydrating(syntax, pair),
+        None => LoadedProject::Parsed(syntax),
+    })
 }
 
 fn charge_ct_usage(
@@ -2583,6 +2651,7 @@ mod filesystem_discovery_tests {
         match load_sources(&mut p, path, &mut options.clone(), session)? {
             LoadedProject::Parsed(syntax) => Ok(syntax),
             LoadedProject::Prepared(_, _)
+            | LoadedProject::Hydrating(_, _)
             | LoadedProject::Semantic(_)
             | LoadedProject::Resident => {
                 panic!("this control expects ordinary syntax discovery")
