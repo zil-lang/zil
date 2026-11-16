@@ -9,6 +9,7 @@ mod completed;
 #[path = "semantic_member_instance.rs"]
 mod member_instance;
 pub(crate) use member_instance::check as check_static_member_instance;
+pub(crate) use member_instance::build_requests as static_member_requests;
 
 pub(crate) fn original_scope<'a>(
     module: &'a TypedModule,
@@ -67,6 +68,7 @@ pub(crate) struct OriginalMemberReceipt {
     pub(crate) trait_signature: SemanticDefinitionId,
     pub(crate) source: DynDefinitionScope,
     pub(crate) environment: EvalEnv,
+    pub(crate) trait_environment: EvalEnv,
     pub(crate) expected_signature: CheckedSignature,
     pub(crate) actual_signature: CheckedSignature,
     pub(crate) trait_contract: DynContractRecipe,

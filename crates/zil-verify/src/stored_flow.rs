@@ -614,6 +614,9 @@ struct Summary {
     dyn_effects: Vec<DynEffect>,
     dyn_effects_known: bool,
     dyn_after: Vec<(u32, dyn_ports::Rows)>,
+    // Actual Return snapshots for original contracts, including shared and
+    // Task inputs. These facts never publish a caller permission update.
+    contract_after: Vec<(u32, dyn_ports::Rows)>,
     dyn_capture_after: Vec<(u32, dyn_ports::Rows)>,
     result: Vec<(Path, Vec<Source>)>,
     receiver_results: Vec<Path>,
@@ -6513,6 +6516,10 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
         dyn_providers::work(s, b)?;
         source_work(&s.dyn_result_parents, b)?;
         for (_, rows) in &s.dyn_after {
+            dyn_ports::work(rows, b)?;
+        }
+        b.spend(s.contract_after.len())?;
+        for (_, rows) in &s.contract_after {
             dyn_ports::work(rows, b)?;
         }
         for (_, rows) in &s.dyn_capture_after {

@@ -90,3 +90,63 @@ pub(in crate::dynamic_witness) fn instantiate(module:&TypedModule,owner:&Semanti
     }
     contracts::charge(module,c,b)
 }
+
+fn borrow(leaf:&requests::Leaf)->Option<(&requests::Borrow,StoredBorrowMode)>{
+    match &leaf.kind{requests::LeafKind::Physical{outer,mode}|requests::LeafKind::RetainedPort{outer,mode,..}=>Some((outer,*mode)),requests::LeafKind::OwningHead=>None}
+}
+fn inner_matches(source:&requests::Leaf,target:&requests::Leaf,b:&mut Budget)->Check<bool>{
+    dynamic_metadata::ty(&source.ty,b)?;dynamic_metadata::ty(&target.ty,b)?;
+    let types=match(&source.ty,&target.ty){
+        (Type::Address{mutable:input,inner},Type::Address{mutable:output,inner:result})=>(!*output||*input)&&inner==result,
+        (Type::Desc(input),Type::Desc(output))=>input==output,
+        _=>false,
+    };
+    let(Some((_,input)),Some((_,output)))=(borrow(source),borrow(target))else{return Ok(false);};
+    let mode=input==output||matches!((input,output),(StoredBorrowMode::ExclusiveAddress,StoredBorrowMode::SharedAddress)|(StoredBorrowMode::WritableDescription,StoredBorrowMode::ReadOnlyDescription));
+    b.spend(source.classes.len().saturating_mul(target.classes.len()).saturating_add(1))?;
+    Ok(types&&mode&&source.classes.len()==target.classes.len()&&source.classes.iter().all(|a|target.classes.iter().filter(|z|z.path==a.path&&z.class==a.class&&z.binder==a.binder&&z.origin==a.origin).count()==1))
+}
+fn fixed_matches(source:&requests::Leaf,target:&requests::Leaf,b:&mut Budget)->Check<bool>{
+    let(Some((requests::Borrow::Variable{binder:input,..},_)),Some((requests::Borrow::Variable{binder:output,..},_)))=(borrow(source),borrow(target))else{return Ok(false);};
+    Ok(matches!(input,StorageBinder::Fixed(_))&&input==output&&inner_matches(source,target,b)?)
+}
+fn push_source(sources:&mut Vec<StorageSource>,source:&StorageSource,b:&mut Budget)->Check<()>{
+    dynamic_metadata::source(source,b)?;
+    for old in sources.iter(){dynamic_metadata::source(old,b)?;}
+    if !sources.contains(source){dynamic_metadata::source(source,b)?;b.spend(1)?;sources.push(source.clone());}Ok(())
+}
+
+/// Instantiate a certified default over the real concrete Self directory.
+/// This is a declaration upper only: actual sources, parents, after-state,
+/// cleanup and effects still require the independent executable CFG consumer.
+pub(in crate::dynamic_witness) fn instantiate_definition(module:&TypedModule,owner:&SemanticDynOwner,recipe:&DynSignatureRecipe,signature:&mut signatures::Resolved,receiver:&terms::Value,scope:DynInstantiationScope,b:&mut Budget)->Check<()>{
+    if !canonical(module,owner,recipe,b)?{return Ok(());}
+    let Some(head_value)=signature.parameters.first()else{return Err(bad("default definition lacks its original receiver"));};
+    let mutable=match head_value.ty{Type::Address{mutable,..}=>mutable,_=>return Ok(())};
+    let head_binder=head_value.life.slots.iter().find(|row|row.path.is_empty()).and_then(|row|head_value.classes.get(row.binder as usize)).copied();
+    let leaves=inventory::self_leaves(module,receiver,scope,b)?;
+    let mut arguments=Vec::new();
+    for(index,value)in signature.parameters.iter().enumerate().skip(1){for mut leaf in inventory::self_leaves(module,value,scope,b)?{leaf.source.base=StorageBase::Parameter(index as u32);b.spend(1)?;arguments.push(leaf);}}
+    let result=if matches!(signature.result.ty,Type::Address{..})&&!signature.result.life.slots.is_empty(){inventory::self_leaves(module,&signature.result,scope,b)?.into_iter().find(|leaf|leaf.source.path.is_empty())}else{None};
+    let short=result.as_ref().is_some_and(|result|matches!(borrow(result),Some((requests::Borrow::Variable{binder,..},_))if Some(*binder)==head_binder));
+    let c=&mut signature.contract;
+    for leaf in &leaves{
+        let Some((outer,mode))=borrow(leaf)else{continue;};
+        let requests::Borrow::Variable{..}=outer else{continue;};
+        dynamic_metadata::position(&leaf.source,b)?;
+        let mut position=leaf.source.clone();position.base=StorageBase::Parameter(0);
+        b.spend(position.path.len().saturating_mul(5).saturating_add(9))?;
+        c.requires.as_mut().ok_or_else(||bad("default definition requirements disappeared"))?.push(DynRequirement::Read(position.clone()));
+        c.call.as_mut().ok_or_else(||bad("default definition access disappeared"))?.reads.push(position.clone());
+        if mutable&&matches!(mode,StoredBorrowMode::ExclusiveAddress|StoredBorrowMode::WritableDescription){c.requires.as_mut().unwrap().push(DynRequirement::Write(position.clone()));c.call.as_mut().unwrap().writes.push(position.clone());}
+        let mut sources=vec![StorageSource::Exact(position.clone())];
+        if mutable{for argument in &arguments{if fixed_matches(argument,leaf,b)?{push_source(&mut sources,&StorageSource::Exact(argument.source.clone()),b)?;}}}
+        c.guarantees.as_mut().ok_or_else(||bad("default definition after-state disappeared"))?.push(DynGuarantee::StorageSources(StorageSourceBinding{position:position.clone(),sources}));
+        if let(Some(result),Some(DynResultSource::Borrow{sources,..}))=(&result,&mut c.result){
+            if fixed_matches(leaf,result,b)?{push_source(sources,&StorageSource::Exact(position.clone()),b)?;}
+            if short&&inner_matches(leaf,result,b)?{push_source(sources,&StorageSource::ReborrowedLeaf{source:position,head:head(0)},b)?;}
+        }
+    }
+    if let(Some(result),Some(DynResultSource::Borrow{sources,..}))=(&result,&mut c.result){for argument in &arguments{if fixed_matches(argument,result,b)?{push_source(sources,&StorageSource::Exact(argument.source.clone()),b)?;}}}
+    contracts::charge(module,c,b)
+}

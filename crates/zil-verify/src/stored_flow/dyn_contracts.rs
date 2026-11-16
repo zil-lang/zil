@@ -119,9 +119,34 @@ fn source_upper(module:&TypedModule,request:&ContractRequest,actual:&Source,uppe
     let output=crate::dynamic_ports::physical_path(&request.result.ty,result_path,b)?;
     let output_position=StoragePosition{base:StorageBase::Result,path:result_path.iter().copied().map(ContractProjection::Place).collect()};
     let variable_outer=variable_outer(request,&output_position,b)?;
-    if !contains_source(actual,position.as_ref(),upper,output,matches!(request.origin,Origin::TableSlot{..}),variable_outer,b)?{return Err(bad("actual returned target exceeds its independently instantiated original source upper"));}Ok(())
+    let child=match request.origin{Origin::TableSlot{..}=>true,Origin::Definition{..}=>{
+        // Ordinary direct calls already transport the exact summary's complete
+        // parents. A short-head upper only classifies data rooted in this Self;
+        // it does not add a target or construct a parent from a declaration.
+        b.spend(request.expected_header.bindings.len().saturating_mul(2))?;
+        let head=StoragePosition{base:StorageBase::Parameter(0),path:vec![]};
+        let input=request.expected_header.bindings.iter().find(|row|row.position==head).map(|row|row.binder);
+        let output=request.expected_header.bindings.iter().find(|row|row.position==output_position).map(|row|row.binder);
+        input.is_some()&&input==output
+    },Origin::Callable{..}=>false};
+    if !contains_source(actual,position.as_ref(),upper,output,child,variable_outer,b)?{return Err(bad("actual returned target exceeds its independently instantiated original source upper"));}Ok(())
 }
 fn after_upper(module:&TypedModule,request:&ContractRequest,upper:&StorageSourceBinding,summary:&Summary,b:&mut Budget)->Check<()>{
+    if matches!(request.origin,Origin::Definition{..})&&upper.position.path.iter().any(|step|matches!(step,ContractProjection::RetainedPort(_))){
+        let StorageBase::Parameter(parameter)=upper.position.base else{return Err(bad("definition retained after-state has no actual parameter"));};
+        if parameter!=0{return Err(bad("definition retained after-state lacks a complete original Self inventory"));}
+        b.spend(request.self_leaves.len().saturating_mul(upper.position.path.len().saturating_add(1)))?;
+        let mut leaves=request.self_leaves.iter().filter(|leaf|leaf.source.base==StorageBase::Result&&leaf.source.path==upper.position.path&&matches!(leaf.kind,crate::dynamic_witness::requests::LeafKind::RetainedPort{..}));
+        let leaf=leaves.next().ok_or_else(||bad("definition after-state selects an absent complete Self port"))?;
+        if leaves.next().is_some(){return Err(bad("definition after-state repeats a complete Self port"));}
+        let rows=summary.contract_after.iter().find(|(index,_)|*index==parameter).ok_or_else(||bad("actual Return omits its retained parameter snapshot"))?;
+        let at=super::dyn_ports::find(&rows.1,&upper.position.path,b)?.ok_or_else(||bad("actual Return omits an original retained after-state port"))?;
+        let actual=&rows.1.0[at].1;
+        if !actual.known{return Err(bad("actual retained after-state is Unknown, not known empty"));}
+        let variable=matches!(&leaf.kind,crate::dynamic_witness::requests::LeafKind::RetainedPort{outer:crate::dynamic_witness::requests::Borrow::Variable{..},..})&&!request.expected_header.static_bindings.contains(&upper.position)&&!request.actual_header.as_ref().is_some_and(|header|header.static_bindings.contains(&upper.position));
+        for source in &actual.permission.sources{let selected=position(request,module,source,b)?;if !contains_source(source,selected.as_ref(),&upper.sources,&leaf.ty,false,variable,b)?{return Err(bad("actual retained after-state target exceeds its independently instantiated original upper"));}}
+        return Ok(());
+    }
     let mut actual_paths=Vec::new();
     let output;
     if let (Origin::TableSlot{table,..},StorageBase::Parameter(0),[ContractProjection::RetainedPort(port)])=(&request.origin,upper.position.base,upper.position.path.as_slice()){
@@ -144,7 +169,7 @@ fn after_upper(module:&TypedModule,request:&ContractRequest,upper:&StorageSource
         if actual.2.is_empty(){return Err(bad("actual after-state leaf is Unknown, not known empty"));}
         let destination=StoragePosition{base:StorageBase::Parameter(parameter),path:path.iter().copied().map(ContractProjection::Place).collect()};
         let mut variable=variable_outer(request,&destination,b)?;
-        if !variable&&parameter==0&&matches!(request.origin,Origin::TableSlot{..})&&!request.expected_header.static_bindings.contains(&destination)&&!request.actual_header.as_ref().is_some_and(|header|header.static_bindings.contains(&destination)){
+        if !variable&&parameter==0&&matches!(request.origin,Origin::TableSlot{..}|Origin::Definition{..})&&!request.expected_header.static_bindings.contains(&destination)&&!request.actual_header.as_ref().is_some_and(|header|header.static_bindings.contains(&destination)){
             // The header records a qualified Self as one complete intrinsic
             // boundary. Its stored variable leaves are authenticated by the
             // complete Self inventory, not flattened into extra header rows.

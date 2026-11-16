@@ -940,7 +940,7 @@ fn actual_recipes(
         })
         .collect()
 }
-fn scoped_type_recipe(
+pub(super) fn scoped_type_recipe(
     module: &TypedModule,
     owner: &SemanticDynOwner,
     p: &DynTypePattern,
@@ -2566,6 +2566,7 @@ pub(super) fn select_member(
         let expected_signature = outside_signature(proofs, context, caller, expected_signature, b)?;
         let actual_signature = outside_signature(proofs, context, caller, actual_signature, b)?;
         let environment = outside_environment(proofs, context, &actual_env, b)?;
+        let trait_environment = outside_environment(proofs, context, &expected_env, b)?;
         let parent = outside_environment(proofs, context, parent, b)?;
         let mut arguments = vec![];
         for a in &application.arguments {
@@ -2615,6 +2616,7 @@ pub(super) fn select_member(
             trait_signature: expected.id,
             source: selection.body.scope,
             environment,
+            trait_environment,
             expected_signature,
             actual_signature,
             trait_contract: selection.signature.signature.contract.clone(),
