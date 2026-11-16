@@ -27,12 +27,15 @@ fn semantic_hints(
     let plan = CandidatePlan::empty_for(&module);
     let slots: Vec<_> = module.functions.iter().map(|_| OnceLock::new()).collect();
     let inputs: Vec<_> = module.functions.iter().zip(&slots).collect();
-    let segments: Vec<WireSegment> = zil_ir::wire::encode_module_candidate_segments(
+    let mut plans = vec![None; plan.functions.len()];
+    let segments: Vec<WireSegment> = zil_ir::wire::encode_module_candidate_plan_segments(
         &module,
         &plan,
         &inputs,
+        &mut plans,
         limits,
         &mut FunctionEncodingStats::default(),
+        &mut zil_ir::wire::FunctionPlanEncodingStats::default(),
     )
     .unwrap();
     let bytes: Vec<_> = segments
