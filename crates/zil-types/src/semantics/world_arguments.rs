@@ -214,7 +214,18 @@ pub(super) fn satisfy(
             return Err(diagnostic);
         };
         parents.push(edge.parent);
-        source = roles::snapshot_source(&edge.source, world.limits, world.left)?;
+        let incoming = roles::snapshot_source(&edge.source, world.limits, world.left)?;
+        source = match incoming {
+            // The edge keeps the source occupant's original role. A checked
+            // contextual loan can name that role symbolically, while the call
+            // target above has already been normalized in this same Gamma.
+            // Normalize each real edge's image before comparing; this never
+            // creates an edge or identifies either actual storage root.
+            roles::Source::Class(image) => {
+                roles::Source::Class(world.class(caller.id, &image, implicit)?)
+            }
+            roles::Source::Static => roles::Source::Static,
+        };
     }
     if parents.is_empty() {
         return Err(bad(
