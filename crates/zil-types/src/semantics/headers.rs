@@ -87,6 +87,17 @@ pub(super) fn program(
         {
             continue;
         }
+        // This scalar-read proposal applies only to this complete physical
+        // capture family. Check eligibility before looking for scalar read
+        // occurrences: Package/whole-value captures are instead reconstructed
+        // from their exact creator selections by the whole-capture pass.
+        pay(left, definition.captures.len())?;
+        if definition.captures.iter().any(|ty| {
+            !ty.is_b0_scalar()
+                && !matches!(ty, Type::Address { mutable: false, inner } if inner.is_b0_scalar())
+        }) {
+            continue;
+        }
         let (SemanticDefinitionBody::Function { sites, .. }
         | SemanticDefinitionBody::FunctionWithBody { sites, .. }) = &original.body
         else {

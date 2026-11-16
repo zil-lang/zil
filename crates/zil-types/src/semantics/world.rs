@@ -1252,6 +1252,18 @@ impl World<'_, '_> {
             }
             let recipe = self.original_recipe(original, site.recipe)?;
             match (&site.action, &recipe.kind) {
+                (SemanticSiteAction::BodyCall { .. }, SemanticSiteRecipeKind::OriginalCall)
+                    if edge == SemanticSiteEdge::After =>
+                {
+                    if let Some((operand, value, source)) = borrow_roles::call_result(
+                        self, instance, original, function, site, values, locals, implicit,
+                    )? {
+                        *values.get_mut(operand.0 as usize).ok_or_else(|| {
+                            bad("call loan result leaves its actual SSA directory")
+                        })? = Some(value);
+                        self.value_role_sources.insert(operand, source);
+                    }
+                }
                 (
                     SemanticSiteAction::DeclareLocal {
                         local: SemanticLocalTarget::Typed(local),

@@ -205,9 +205,14 @@ pub(super) fn satisfy(
                 "call outer-role adapter contains a cyclic or non-root occurrence",
             ));
         }
-        let edge = world.reborrows.get(head).ok_or_else(|| {
-            bad("call outer-role adapter is not a real reaching ReborrowAddress edge")
-        })?;
+        let Some(edge) = world.reborrows.get(head) else {
+            world.pay(256)?;
+            let mut diagnostic =
+                bad("call outer-role adapter is not a real reaching ReborrowAddress edge");
+            diagnostic.notes.push(format!("exact outer-role boundary: point {:?}, caller {:?}, callee {:?}, original site {:?}, parameter {}, argument {:?}, mint {:?}; source {:?}, target {:?}",
+                world.current_point, caller.id, callee.map(|row| row.id), site.recipe, parameter, operand, head, source, target));
+            return Err(diagnostic);
+        };
         parents.push(edge.parent);
         source = roles::snapshot_source(&edge.source, world.limits, world.left)?;
     }

@@ -309,6 +309,96 @@ fn trace(
     }
     Ok(())
 }
+/// A sealed call can carry the original contextual-loan theorem itself; an
+/// extra TypeUse read is not required to manufacture the same source boundary.
+/// Run after its real result SSA exists so the ordinary trace still validates
+/// every actual input, field, Store borrow, alias and live root.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn call_result(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    original: &SemanticDefinition,
+    function: &TypedFunction,
+    site: &SemanticSite,
+    values: &[Option<SharedType>],
+    locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<Option<(ValueId, SharedType, roles::Source)>> {
+    {
+        let ledger = world.ledger;
+        let proof = ledger.original.borrow();
+        let proof = proof
+            .as_ref()
+            .ok_or_else(|| bad("call loan has no complete original Gamma"))?;
+        world.pay(index::search(proof.borrow_roles.len()))?;
+        if proof
+            .borrow_roles
+            .range((original.id, NodeId(0))..=(original.id, NodeId(u32::MAX)))
+            .next()
+            .is_none()
+        {
+            return Ok(None);
+        }
+    }
+    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+        return Ok(None);
+    };
+    world.pay(site_nodes.len())?;
+    let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
+    let Some(node) = nodes.next() else {
+        return Ok(None);
+    };
+    if nodes.next().is_some() {
+        return Err(bad(
+            "call loan has ambiguous original occurrence correspondence",
+        ));
+    }
+    let SemanticOriginalNode::Expression(node) = node.node else {
+        return Ok(None);
+    };
+    {
+        let ledger = world.ledger;
+        let proof = ledger.original.borrow();
+        let proof = proof
+            .as_ref()
+            .ok_or_else(|| bad("call loan lost its complete original Gamma"))?;
+        world.pay(index::search(proof.borrow_roles.len()))?;
+        if !proof.borrow_roles.contains_key(&(original.id, node)) {
+            return Ok(None);
+        }
+    }
+    let SemanticSiteAddress::Typed {
+        block,
+        instruction,
+        edge: SemanticSiteEdge::After,
+    } = site.at
+    else {
+        return Err(bad("call loan is not its actual post-result boundary"));
+    };
+    world.pay(function.blocks.len())?;
+    let operand = function
+        .blocks
+        .iter()
+        .find(|row| row.id == block)
+        .and_then(|row| row.instructions.get(instruction as usize))
+        .and_then(|op| op.result)
+        .ok_or_else(|| bad("call loan has no exact emitted result SSA"))?;
+    let actual = world.get(values, operand)?;
+    let expected = world.ty(
+        instance.id,
+        &SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0),
+            source: SemanticOriginalTypeSource::Expression(node),
+        },
+        World::type_of(&actual)?,
+    )?;
+    apply(
+        world, instance, original, function, site, operand, &actual, &expected, values, locals,
+        implicit,
+    )
+    .map(|result| result.map(|(value, source)| (operand, value, source)))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn apply(
     world: &mut World<'_, '_>,
