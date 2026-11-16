@@ -330,8 +330,12 @@ fn retained_types_reactivates_analysis_before_replacing_its_evicted_query_slot()
         .iter()
         .find_map(|(key, raw)| matches!(raw, RawSnapshot::Candidate(_)).then(|| key.clone()))
         .unwrap();
+    // A second real project replaces the active Analyze provider while the
+    // first project's genuine Types epoch remains in the bounded raw cache.
+    let other = dir.0.join("other.zil");
+    fs::write(&other, "pub fn main()->i32=>9;").unwrap();
+    success(&session.compile_path(&other, &options));
     session.raw.remove(&analyze);
-    session.analysis = zil_analyze::AnalysisSession::default();
     let restored = session.compile_path(&path, &options);
     success(&restored);
     assert!(restored.types_push_work.is_none());
