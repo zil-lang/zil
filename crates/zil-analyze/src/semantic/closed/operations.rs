@@ -1408,6 +1408,26 @@ impl Check<'_, '_> {
     }
 
     pub(super) fn sites(&self, b: &mut Budget) -> CompileResult<()> {
+        // These directories contain only references to the complete immutable
+        // event table. They answer presence/location queries; every original
+        // recipe, actual event, duplicate and state obligation is still checked.
+        let mut emitted_recipes = BTreeSet::new();
+        let mut operation_sites: BTreeMap<
+            (SemanticInstanceId, BlockId, usize), Vec<&SemanticSite>,
+        > = BTreeMap::new();
+        for site in &self.program.sites {
+            b.spend(1, WORK)?;
+            b.lookup(emitted_recipes.len(), WORK)?;
+            emitted_recipes.insert((site.instance, site.recipe));
+            if let SemanticSiteAddress::Typed { block, instruction, .. } = site.at {
+                b.lookup(operation_sites.len(), WORK)?;
+                let rows = operation_sites.entry((site.instance, block, instruction as usize)).or_default();
+                let relocation = if rows.len() == rows.capacity() { rows.len() } else { 0 };
+                b.spend(relocation.saturating_add(1), WORK)?;
+                rows.try_reserve(1).map_err(|_| fail("actual semantic event directory allocation failed"))?;
+                rows.push(site);
+            }
+        }
         for instance in &self.program.instances {
             let SemanticInstanceTarget::Function(target) = &instance.target else {
                 continue;
@@ -1542,13 +1562,8 @@ impl Check<'_, '_> {
             }
             let original_nodes = self.inventory.original_index(definition.id, b)?;
             for recipe in recipes {
-                b.spend(self.program.sites.len(), WORK)?;
-                if !self
-                    .program
-                    .sites
-                    .iter()
-                    .any(|site| site.instance == instance.id && site.recipe == recipe.id)
-                {
+                b.lookup(emitted_recipes.len(), WORK)?;
+                if !emitted_recipes.contains(&(instance.id, recipe.id)) {
                     let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
                         &definition.body
                     else {
@@ -1594,7 +1609,7 @@ impl Check<'_, '_> {
             }
             for block in &function.blocks {
                 for (index, instruction) in block.instructions.iter().enumerate() {
-                    b.spend(self.program.sites.len().saturating_add(1), WORK)?;
+                    b.spend(1, WORK)?;
                     if let InstructionKind::Store { local, value } = instruction.kind {
                         if !function
                             .locals
@@ -1670,7 +1685,10 @@ impl Check<'_, '_> {
                         _ => None,
                     };
                     if let Some(kind) = requires {
-                        let count = self.program.sites.iter().filter(|site| site.instance == instance.id
+                        b.lookup(operation_sites.len(), WORK)?;
+                        let rows = operation_sites.get(&(instance.id, block.id, index)).map(Vec::as_slice).unwrap_or(&[]);
+                        b.spend(rows.len(), WORK)?;
+                        let count = rows.iter().copied().filter(|site| site.instance == instance.id
                             && matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, .. } if actual == block.id && instruction as usize == index)
                             && matches!((&site.action, kind), (SemanticSiteAction::Call { .. }, 0) | (SemanticSiteAction::CallableCall { .. }, 1) | (SemanticSiteAction::Closure { .. }, 2) | (SemanticSiteAction::BodyCall { .. }, 0 | 1 | 3))).count();
                         if count != 1 {
