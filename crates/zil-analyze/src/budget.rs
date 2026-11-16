@@ -882,6 +882,10 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
     {
         return Ok(());
     }
+    if let Type::Address { inner, .. } = ty
+        && matches!(inner.as_ref(), Type::Address { .. }) {
+        return legacy_value(inner, span, module);
+    }
     if matches!(ty, Type::Address { inner, .. }
         if super::resources::product::nested(inner))
     {

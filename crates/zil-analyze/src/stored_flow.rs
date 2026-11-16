@@ -11,6 +11,7 @@ mod live_words;
 pub(super) mod owned_byte_views;
 mod permission_access;
 mod receiver_results;
+mod raw_references;
 mod receiving_returns;
 mod returned_upper;
 #[cfg(test)]
@@ -553,6 +554,8 @@ fn package_return_candidates(
 /// Port numbers have meaning only within the actual carrier namespace.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum PortOrigin {
+    // Actual raw input pointer cells, distinct from their slot address.
+    RawReference { depth: u32 },
     Task {
         carrier: Vec<zil_ir::ContractProjection>,
         port: u32,
@@ -732,6 +735,7 @@ struct State {
     /// External addressed carriers have real cells too. Parameter position is
     /// not their target identity; each leaf starts with a symbolic target.
     external: BTreeMap<HoldRoot, BTreeMap<Path, Permission>>,
+    raw_cells: BTreeMap<Target, Permission>,
     captures: BTreeMap<u32, Value>,
     // A bound view aliases environment storage, never activation storage.
     capture_views: BTreeMap<LocalId, u32>,
@@ -877,6 +881,7 @@ pub(super) fn target_width(target: &Target) -> usize {
                 | PortOrigin::Task { carrier, .. }
                 | PortOrigin::MutexPayload { carrier },
             ) => carrier.len(),
+            Some(PortOrigin::RawReference { .. }) => 1,
             _ => 0,
         })
 }
@@ -1034,6 +1039,11 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
         ordered(b, out.external.len(), 0)?;
         out.external.insert(*index, charged.slots);
     }
+    for (cell, value) in &s.raw_cells {
+        ordered(b, out.raw_cells.len(), target_width(cell))?;
+        fee(b, target_width(cell))?;
+        out.raw_cells.insert(cell.clone(), copy_permission(value, b)?);
+    }
     Ok(out)
 }
 fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
@@ -1079,6 +1089,10 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
             )?;
             target_work(&permission.targets, b)?;
         }
+    }
+    for (cell, value) in &s.raw_cells {
+        fee(b, target_width(cell).saturating_add(1))?;
+        permission_clone_work(value, b)?;
     }
     Ok(())
 }
@@ -1294,6 +1308,11 @@ fn state_merge(to: &mut State, from: &State, b: &mut Budget) -> CompileResult<()
             fee(b, path.len().saturating_add(1))?;
             union(target.entry(path.clone()).or_default(), permission, b)?;
         }
+    }
+    for (cell, value) in &from.raw_cells {
+        ordered(b, to.raw_cells.len(), target_width(cell))?;
+        fee(b, target_width(cell))?;
+        union(to.raw_cells.entry(cell.clone()).or_default(), value, b)?;
     }
     Ok(())
 }
@@ -2807,7 +2826,9 @@ fn returns(
             let HoldRoot::Parameter(index) = source.base else {
                 return Err(failure("result retains local/captured target"));
             };
-            if (if matches!(source.retained_port, Some(PortOrigin::MutexPayload { .. })) {
+            if (if let Some(PortOrigin::RawReference { depth }) = source.retained_port {
+                raw_references::binding(f, index, depth, b)?
+            } else if matches!(source.retained_port, Some(PortOrigin::MutexPayload { .. })) {
                 mutex::source_binding(f, source, b)?
             } else if source.retained_port.is_some() {
                 task_address::source_binding(module, f, source, b)?
@@ -3466,6 +3487,7 @@ fn seed_value(
     task_address::seed(module, ty, base, &mut value, loans, b)?;
     dyn_address::seed(module, ty, base, &mut value, loans, b)?;
     mutex::seed(module, ty, base, &mut value, loans, b)?;
+    raw_references::seed(ty, base, state, loans, b)?;
     Ok(value)
 }
 fn seed(
@@ -3842,6 +3864,10 @@ fn substitute(
         .ok_or_else(|| failure("call actual is outside values"))?;
     let mut result = if let Some(port) = &source.retained_port {
         match port {
+            PortOrigin::RawReference { depth } => {
+                if !source.stored.is_empty() { return Err(failure("raw reference substitution cannot discard a stored carrier path")); }
+                raw_references::substitute(state, &value.pointer, *depth, b)?
+            }
             PortOrigin::Task { carrier, port } => {
                 task_address::select_carrier(value, &source.stored, carrier, *port, b)?
             }
@@ -5428,6 +5454,9 @@ fn transfer(
             let Type::Address { inner, .. } = value_type(f, *address)? else {
                 return Err(failure("read transfer lacks an actual Address"));
             };
+            if raw_references::shared(inner) {
+                out.pointer = raw_references::read(state, &get(*address)?.pointer, false, b)?;
+            }
             if shared_array_shape(inner, b)? {
                 let Type::Array { length, .. } = inner.as_ref() else {
                     unreachable!()
@@ -5454,6 +5483,10 @@ fn transfer(
             let Type::Address { inner, .. } = value_type(f, *address)? else {
                 return Err(failure("write base is not an actual Address"));
             };
+            if matches!(inner.as_ref(), Type::Address { .. }) {
+                return Err(vec![Diagnostic::unsupported(Phase::Analyze,
+                    "raw pointer-cell replacement requires its complete actual Store protocol", Some(i.span))]);
+            }
             b.type_work(inner, true, "stored profile actual ordinary write payload")?;
             if !inner.is_copy_value() {
                 return Err(failure(
@@ -6818,6 +6851,11 @@ fn windows(
                             array_snapshot::check(&state, pointer(*address)?, *length, b)?;
                         }
                         access.check(pointer(*address)?, false, apart, b)?;
+                        record_head_access(head_accesses, pointer(*address)?, false, b)?;
+                        if let Type::Address { inner, .. } = value_type(f, *address)?
+                            && raw_references::shared(inner) {
+                            raw_references::read(&state, pointer(*address)?, true, b)?;
+                        }
                     }
                     InstructionKind::SliceLength { address }
                     | InstructionKind::ReborrowAddress {
@@ -7065,6 +7103,7 @@ fn windows(
                     | InstructionKind::SuspendCall { function, arguments }
                         if synchronous_abi::ordinary_call(&i.kind, b)? => {
                         let callee = &module.functions[function.0 as usize];
+                        raw_references::call(callee, &summaries[function.0 as usize], arguments, values, &state, b)?;
                         if !summaries[function.0 as usize].head_accesses.is_empty() {
                             for (target, write) in &summaries[function.0 as usize].head_accesses {
                                 let actual = substitute(target, arguments, values, &state, b)?;
@@ -9179,6 +9218,7 @@ fn actual_instructions(
                     };
                     b.type_work(inner, true, "stored actual ordinary read payload")?;
                     if !inner.is_copy_value()
+                        && !raw_references::shared(inner)
                         && !shared_array_shape(inner, b)?
                         && !pure_read(module, inner, b)?
                         && !pure_inline(module, inner, b)?
