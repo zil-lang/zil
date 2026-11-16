@@ -387,8 +387,11 @@ pub(crate) fn partition_classes_reusing(
 ) -> Option<ClassPartition> {
     let previous = previous.filter(|previous| previous.has_completed_roles());
     let observed = layout::CurrentGraph::read(&module, previous.and_then(Materialization::graph));
-    let grouping = observed
-        .as_ref()
+    // First requests have no retained grouping to compare. Capture the raw
+    // persistent inputs below; build the reuse-only projection if a later
+    // resident request actually asks for it.
+    let grouping = previous
+        .and(observed.as_ref())
         .and_then(|observed| layout::Grouping::read(&module, lir, entry, count, classes, observed));
     let cache = cache_root
         .and_then(|root| {
@@ -459,7 +462,7 @@ pub(crate) fn partition_classes_reusing(
         && valid_declaration_prelude(&module)
     {
         let source = module.clone();
-        let (units, reused) = cached.replay_reusing_counted(module, previous);
+        let (units, reused) = cached.replay_observed(module, previous, observed.as_ref());
         let materialization = Materialization::completed_with_graph(
             source,
             &cached,
@@ -467,7 +470,8 @@ pub(crate) fn partition_classes_reusing(
             reused,
             observed.expect("checked current graph"),
             grouping,
-        );
+        )
+        .defer_grouping(lir, entry, count, classes);
         // A reused in-process recipe is published under the CURRENT complete
         // key. It must never report the previous module's disk layout key.
         let layout_key = cache.as_ref().map(|cache| cache.key().to_hex());
@@ -529,6 +533,7 @@ pub(crate) fn partition_classes_reusing(
                 observed,
                 grouping,
             )
+            .defer_grouping(lir, entry, count, classes)
         } else {
             Materialization::new(source, layout, &plan.units, reused)
         }
@@ -990,7 +995,7 @@ fn partition_view_once_observed(
             definitions: definitions.iter().map(|&id| defs[id].index).collect(),
         });
     }
-    let (units, reused) = layout.replay_reusing_counted(module, previous);
+    let (units, reused) = layout.replay_observed(module, previous, observed);
     *reused_items = reused;
     *recorded = Some(layout);
     Plan {

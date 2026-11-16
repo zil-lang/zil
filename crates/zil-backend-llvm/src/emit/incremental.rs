@@ -28,12 +28,15 @@ pub(crate) struct Session {
     pub(crate) source_projection_traversals: usize,
     pub(crate) source_projection_instruction_visits: usize,
     pub(crate) source_projection_reuses: usize,
+    pub(crate) source_projection_admission_reuses: usize,
     context_identity: Arc<()>,
     pub(crate) products: crate::incremental::ScalarProducts,
     product_count: usize,
     pub(super) output_bodies: zil_ir::PersistentVec<m::SharedVec<m::Item>>,
     pub(crate) eligible: bool,
     admitted: Arc<BTreeMap<FunctionId, Vec<FunctionId>>>,
+    // Exact current admission output, consumed later in this same request.
+    admission_sources: Arc<BTreeMap<FunctionId, Arc<SourceProjection>>>,
     machine_history: std::collections::VecDeque<Arc<whole::MachineProduct>>,
     metadata_budget: metadata_budget::Cache,
     representation: representation::Cache,
@@ -155,8 +158,35 @@ struct Entry {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct SourceProjection {
-    slots: Vec<Vec<Option<FunctionId>>>,
+    block_lengths: Vec<usize>,
+    slots: Vec<(usize, usize, FunctionId)>,
     observed: Vec<FunctionId>,
+}
+impl SourceProjection {
+    fn empty(function: &TypedFunction) -> Self {
+        Self {
+            block_lengths: function
+                .blocks
+                .iter()
+                .map(|block| block.instructions.len())
+                .collect(),
+            slots: Vec::new(),
+            observed: vec![function.id],
+        }
+    }
+    fn finish(&mut self, id: FunctionId) {
+        if self.slots.is_empty() {
+            return;
+        }
+        self.observed = std::iter::once(id)
+            .chain(self.slots.iter().map(|&(_, _, callee)| callee))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+    }
+    fn same_slots(&self, other: &Self) -> bool {
+        self.block_lengths == other.block_lengths && self.slots == other.slots
+    }
 }
 fn scalar(ty: &Type) -> bool {
     matches!(
@@ -164,7 +194,11 @@ fn scalar(ty: &Type) -> bool {
         Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16
     )
 }
-fn eligible(f: &TypedFunction, previous: Option<&Entry>) -> Option<Vec<FunctionId>> {
+fn eligible(
+    f: &TypedFunction,
+    previous: Option<&Entry>,
+    observe: bool,
+) -> Option<(Vec<FunctionId>, Option<Arc<SourceProjection>>)> {
     if f.environment.is_some()
         || f.storage_life.is_some()
         || f.call_kind != zil_ir::CallKind::Direct
@@ -180,32 +214,50 @@ fn eligible(f: &TypedFunction, previous: Option<&Entry>) -> Option<Vec<FunctionI
     {
         return None;
     }
-    if let Some(previous) = previous.filter(|previous| previous.input.blocks.ptr_eq(&f.blocks)) {
-        return Some(previous.callees.clone());
+    if let Some(previous) = previous.filter(|previous| {
+        previous.input.blocks.ptr_eq(&f.blocks) && (!observe || previous.source.is_some())
+    }) {
+        return Some((
+            previous.callees.clone(),
+            observe.then(|| previous.source.clone()).flatten(),
+        ));
     }
     let mut callees = BTreeSet::new();
-    for instruction in f.blocks.iter().flat_map(|block| &block.instructions) {
-        match &instruction.kind {
-            InstructionKind::Constant(c) if scalar(&c.ty()) => {}
-            InstructionKind::Call { function, .. }
-            | InstructionKind::ForeignCall { function, .. } => {
-                callees.insert(*function);
+    let mut source = observe.then(|| SourceProjection::empty(f));
+    for (block_index, block) in f.blocks.iter().enumerate() {
+        for (instruction_index, instruction) in block.instructions.iter().enumerate() {
+            match &instruction.kind {
+                InstructionKind::Constant(c) if scalar(&c.ty()) => {}
+                InstructionKind::Call { function, .. }
+                | InstructionKind::ForeignCall { function, .. } => {
+                    callees.insert(*function);
+                    if matches!(&instruction.kind, InstructionKind::Call { .. })
+                        && let Some(source) = &mut source
+                    {
+                        source
+                            .slots
+                            .push((block_index, instruction_index, *function));
+                    }
+                }
+                InstructionKind::Load(_)
+                | InstructionKind::Store { .. }
+                | InstructionKind::StorageLive(_)
+                | InstructionKind::StorageDead(_)
+                | InstructionKind::ScopeEnter { .. }
+                | InstructionKind::ScopeExit { .. }
+                | InstructionKind::UnsafeEnter { .. }
+                | InstructionKind::UnsafeExit { .. }
+                | InstructionKind::Unary { .. }
+                | InstructionKind::Binary { .. }
+                | InstructionKind::ConvertInteger { .. } => {}
+                _ => return None,
             }
-            InstructionKind::Load(_)
-            | InstructionKind::Store { .. }
-            | InstructionKind::StorageLive(_)
-            | InstructionKind::StorageDead(_)
-            | InstructionKind::ScopeEnter { .. }
-            | InstructionKind::ScopeExit { .. }
-            | InstructionKind::UnsafeEnter { .. }
-            | InstructionKind::UnsafeExit { .. }
-            | InstructionKind::Unary { .. }
-            | InstructionKind::Binary { .. }
-            | InstructionKind::ConvertInteger { .. } => {}
-            _ => return None,
         }
     }
-    Some(callees.into_iter().collect())
+    if let Some(source) = &mut source {
+        source.finish(f.id);
+    }
+    Some((callees.into_iter().collect(), source.map(Arc::new)))
 }
 fn scalar_abi(id: FunctionId, plans: &large_copy_abi::Plans) -> bool {
     plans
@@ -308,6 +360,7 @@ impl Session {
         self.source_projection_traversals = 0;
         self.source_projection_instruction_visits = 0;
         self.source_projection_reuses = 0;
+        self.source_projection_admission_reuses = 0;
         self.eligible = false;
         self.product_count = 0;
         // The source fingerprint is diagnostic identity; the function consumer
@@ -416,6 +469,7 @@ impl Session {
             .iter()
             .map(|f| (f.id, f))
             .collect::<BTreeMap<_, _>>();
+        let mut admission_sources = BTreeMap::new();
         self.admitted = Arc::new(
             lir.functions
                 .iter()
@@ -437,8 +491,11 @@ impl Session {
                     {
                         return None;
                     }
-                    let callees =
-                        eligible(function, self.entries.get(&function.id).map(Arc::as_ref))?;
+                    let (callees, source) = eligible(
+                        function,
+                        self.entries.get(&function.id).map(Arc::as_ref),
+                        scalar_policy,
+                    )?;
                     if !callees.iter().all(|id| {
                         functions.get(id).is_some_and(|callee| {
                             callee.environment.is_none()
@@ -453,10 +510,14 @@ impl Session {
                     }) {
                         return None;
                     }
+                    if let Some(source) = source {
+                        admission_sources.insert(function.id, source);
+                    }
                     Some((function.id, callees))
                 })
                 .collect(),
         );
+        self.admission_sources = Arc::new(admission_sources);
         // A partial function cache cannot certify equality of current generated
         // helpers, runtimes, tables or worker machines. Keep that old proof's
         // entire closed scalar domain, independently of per-function admission.
@@ -529,6 +590,12 @@ impl Session {
                 .is_some_and(|context| context.scalar_policy);
         let source = if !consumes_calls {
             None
+        } else if let Some(source) = self.admission_sources.get(&function.id) {
+            // The real admission above already consumed these exact blocks,
+            // call positions and callee IDs. No second instruction walk or
+            // dense allocation of non-call slots is needed on first emission.
+            self.source_projection_admission_reuses += 1;
+            Some(source.clone())
         } else if let Some(source) = self
             .entries
             .get(&function.id)
@@ -539,30 +606,19 @@ impl Session {
             Some(source.clone())
         } else {
             self.source_projection_traversals += 1;
-            let mut observed = BTreeSet::from([function.id]);
-            let slots = function
-                .blocks
-                .iter()
-                .map(|block| {
-                    block
-                        .instructions
-                        .iter()
-                        .map(|instruction| {
-                            self.source_projection_instruction_visits += 1;
-                            if let InstructionKind::Call { function, .. } = &instruction.kind {
-                                observed.insert(*function);
-                                Some(*function)
-                            } else {
-                                None
-                            }
-                        })
-                        .collect()
-                })
-                .collect();
-            Some(Arc::new(SourceProjection {
-                slots,
-                observed: observed.into_iter().collect(),
-            }))
+            let mut source = SourceProjection::empty(function);
+            for (block_index, block) in function.blocks.iter().enumerate() {
+                for (instruction_index, instruction) in block.instructions.iter().enumerate() {
+                    self.source_projection_instruction_visits += 1;
+                    if let InstructionKind::Call { function, .. } = &instruction.kind {
+                        source
+                            .slots
+                            .push((block_index, instruction_index, *function));
+                    }
+                }
+            }
+            source.finish(function.id);
+            Some(Arc::new(source))
         };
         let facts = if let (Some(source), Some(summaries)) = (&source, summaries) {
             source
@@ -609,9 +665,7 @@ impl Session {
             };
         let source_identity = old
             .filter(|old| match (&old.source, &source) {
-                (Some(old), Some(current)) => {
-                    Arc::ptr_eq(old, current) || old.slots == current.slots
-                }
+                (Some(old), Some(current)) => Arc::ptr_eq(old, current) || old.same_slots(current),
                 (None, None) => true,
                 _ => false,
             })

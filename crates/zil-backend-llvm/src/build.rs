@@ -421,6 +421,8 @@ pub fn build_view_with_cancellation_and_session(
         session.summary.source_projection_instruction_visits =
             session.lower.source_projection_instruction_visits;
         session.summary.source_projection_reuses = session.lower.source_projection_reuses;
+        session.summary.source_projection_admission_reuses =
+            session.lower.source_projection_admission_reuses;
     }
     let mut task_abis = if verified.task_interfaces().is_empty() {
         Vec::new()

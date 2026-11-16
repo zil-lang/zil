@@ -61,6 +61,7 @@ pub struct BackendSessionSummary {
     pub source_projection_traversals: usize,
     pub source_projection_instruction_visits: usize,
     pub source_projection_reuses: usize,
+    pub source_projection_admission_reuses: usize,
     pub native_history_restored_units: usize,
     pub native_history_retained_epochs: usize,
     /// Encoded payload of distinct opaque native products retained by this

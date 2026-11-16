@@ -155,9 +155,6 @@ impl CurrentGraph {
             bound,
         })
     }
-    pub(super) fn calls(&self) -> Vec<std::sync::Arc<BTreeSet<String>>> {
-        self.rows.iter().map(|row| row.calls.clone()).collect()
-    }
     pub(super) fn references(&self, index: usize) -> &BTreeSet<String> {
         &self.rows[index].references
     }
@@ -642,7 +639,18 @@ impl Layout {
         module: Module,
         previous: Option<&super::Materialization>,
     ) -> (Vec<Module>, usize) {
+        self.replay_observed(module, previous, None)
+    }
+    pub(super) fn replay_observed(
+        &self,
+        module: Module,
+        previous: Option<&super::Materialization>,
+        observed: Option<&CurrentGraph>,
+    ) -> (Vec<Module>, usize) {
         use super::materialization::{DEFINITION, IMPORT_BODY};
+        // Raw current values, never a cached fingerprint, permit skipping a
+        // mutation walk. A stale observation falls back to the original walk.
+        let observed = observed.filter(|graph| graph.matches(&module));
         let reuse = previous.and_then(|previous| previous.bind(&module, self));
         let mut complete = self
             .units
@@ -729,6 +737,14 @@ impl Layout {
                     )
                 })
                 .collect::<BTreeMap<_, _>>();
+            let needs_rewrite = |index| {
+                observed.is_none_or(|graph| {
+                    graph
+                        .direct_calls(index)
+                        .iter()
+                        .any(|name| clone_names.contains_key(name))
+                })
+            };
             let mut items = Vec::with_capacity(
                 unit.prelude.len()
                     + unit.declarations.len()
@@ -758,7 +774,9 @@ impl Layout {
                 };
                 function.linkage = Linkage::Internal;
                 function.name = clone_names[&function.name].clone();
-                rewrite_direct_calls(&mut function, &clone_names);
+                if needs_rewrite(index) {
+                    rewrite_direct_calls(&mut function, &clone_names);
+                }
                 items.push(Item::Function(function));
             }
             for &index in &unit.definitions {
@@ -770,7 +788,9 @@ impl Layout {
                     items.push(previous);
                     continue;
                 }
-                if let Item::Function(function) = &mut item {
+                if let Item::Function(function) = &mut item
+                    && needs_rewrite(index)
+                {
                     rewrite_direct_calls(function, &clone_names);
                 }
                 items.push(item);

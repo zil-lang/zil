@@ -6,7 +6,7 @@
 //! restrict the candidate domain; complete Function equality authorizes a class.
 //! Definitions, linkage, attributes, local names and all address uses survive.
 use std::collections::{BTreeSet, HashMap};
-use zil_llvm_api::model::{Arg, Function, Item, Linkage, Module, Op, Ty, Val};
+use zil_llvm_api::model::{Arg, Block, Function, Item, Linkage, Module, Op, SharedVec, Ty, Val};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Stats {
@@ -23,16 +23,22 @@ pub(crate) struct Cache {
     triple: String,
     context: Vec<(Function, bool)>,
     functions: Vec<std::sync::Arc<FunctionReads>>,
+    /// Reuse from either the previous epoch or another current function.
     pub(crate) reused_inputs: usize,
     pub(crate) rebuilt_inputs: usize,
     pub(crate) reused_keys: usize,
     pub(crate) rebuilt_keys: usize,
+    /// Subsets of reuse performed within this request, including a cold restart.
+    pub(crate) shared_inputs: usize,
+    pub(crate) shared_keys: usize,
+    pub(crate) body_owners: usize,
+    pub(crate) address_scans: usize,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct FunctionReads {
     input: Function,
-    addresses: BTreeSet<String>,
-    dependencies: Option<BTreeSet<usize>>,
+    addresses: std::sync::Arc<BTreeSet<String>>,
+    dependencies: std::sync::Arc<Option<BTreeSet<usize>>>,
     cost: usize,
     normalized: Option<Normalized>,
 }
@@ -41,6 +47,26 @@ struct Normalized {
     callees: Vec<(usize, String)>,
     function: Function,
     selector: zil_base::Fingerprint,
+}
+
+// Only the definition's own symbol is omitted, exactly as in normalized_key.
+// Its candidate role and address exclusions are checked separately below.
+fn same_class_header(left: &Function, right: &Function) -> bool {
+    left.linkage == right.linkage && left.signature == right.signature && left.attrs == right.attrs
+}
+
+fn body_owner(function: &Function) -> Option<*const Vec<Block>> {
+    // Use the Arc-owned Vec, not its slice pointer (empty slices can alias).
+    // This only selects a bucket; the borrowed current module keeps all owners
+    // alive and every hit also checks SharedVec::ptr_eq. Never retain this map.
+    function
+        .blocks
+        .as_ref()
+        .map(|blocks| std::ptr::from_ref(&**blocks))
+}
+
+fn same_body_owner(left: &Function, right: &Function) -> bool {
+    matches!((&left.blocks, &right.blocks), (Some(left), Some(right)) if left.ptr_eq(right))
 }
 
 fn function_addresses(
@@ -457,6 +483,11 @@ fn canonicalize_inner(
         context,
         ..Cache::default()
     };
+    // Request-local only: complete current callee headers/name resolution are
+    // fixed for this entire computation. A transform that splits a SharedVec
+    // creates another owner and misses, even when the contents happen to equal.
+    let mut body_inputs: HashMap<*const Vec<Block>, Vec<usize>> = HashMap::new();
+    let mut input_owners = Vec::with_capacity(count);
     for (index, function) in functions.iter().enumerate() {
         if cancelled() {
             return None;
@@ -464,25 +495,69 @@ fn canonicalize_inner(
         let old = previous
             .and_then(|old| old.functions.get(index))
             .filter(|old| old.input == **function);
+        let owner = body_owner(function);
+        let candidates = owner.and_then(|owner| body_inputs.get(&owner));
+        let body = candidates.and_then(|candidates| {
+            candidates
+                .iter()
+                .copied()
+                .find(|&other| same_body_owner(function, &cache.functions[other].input))
+        });
+        let shared = candidates.and_then(|candidates| {
+            candidates.iter().copied().find(|&other| {
+                let input = &cache.functions[other].input;
+                same_body_owner(function, input) && same_class_header(function, input)
+            })
+        });
+        input_owners.push(shared.unwrap_or(index));
         let reads = if compatible { old.cloned() } else { None };
         let reads = if let Some(reads) = reads {
             cache.reused_inputs += 1;
             reads
+        } else if let Some(other) = shared {
+            cache.reused_inputs += 1;
+            cache.shared_inputs += 1;
+            let shared = &cache.functions[other];
+            std::sync::Arc::new(FunctionReads {
+                input: (*function).clone(),
+                addresses: shared.addresses.clone(),
+                dependencies: shared.dependencies.clone(),
+                cost: shared.cost,
+                normalized: shared.normalized.clone(),
+            })
         } else {
             cache.rebuilt_inputs += 1;
             std::sync::Arc::new(FunctionReads {
                 input: (*function).clone(),
-                addresses: match old {
-                    Some(old) => old.addresses.clone(),
-                    None => function_addresses(function, cancelled)?,
+                addresses: if let Some(other) = body {
+                    cache.functions[other].addresses.clone()
+                } else if let Some(old) = old {
+                    old.addresses.clone()
+                } else {
+                    cache.address_scans += usize::from(function.blocks.is_some());
+                    std::sync::Arc::new(function_addresses(function, cancelled)?)
                 },
-                dependencies: dependencies(function, &functions, &names, cancelled),
-                cost: function.cost(),
+                dependencies: std::sync::Arc::new(dependencies(
+                    function, &functions, &names, cancelled,
+                )),
+                cost: body.map_or_else(|| function.cost(), |other| cache.functions[other].cost),
                 normalized: None,
             })
         };
-        addresses.extend(reads.addresses.iter().cloned());
+        // The address contribution is independent of the header or candidate
+        // role. Union it once per actual body, including unsupported bodies.
+        if body.is_none() {
+            addresses.extend(reads.addresses.iter().cloned());
+        }
         cache.functions.push(reads);
+        if shared.is_none()
+            && let Some(owner) = owner
+        {
+            if body.is_none() {
+                cache.body_owners += 1;
+            }
+            body_inputs.entry(owner).or_default().push(index);
+        }
     }
     let mut outstanding = vec![None; count];
     let mut parents = vec![Vec::new(); count];
@@ -494,7 +569,7 @@ fn canonicalize_inner(
         if !generated(&function.name) || addresses.contains(&function.name) {
             continue;
         }
-        let Some(deps) = cache.functions[index].dependencies.as_ref() else {
+        let Some(deps) = cache.functions[index].dependencies.as_ref().as_ref() else {
             continue;
         };
         outstanding[index] = Some(deps.len());
@@ -505,7 +580,7 @@ fn canonicalize_inner(
             parents[callee].push(index);
         }
     }
-    let mut representatives = vec![None; count];
+    let mut representatives: Vec<Option<usize>> = vec![None; count];
     let mut stable_names: Vec<Option<String>> = vec![None; count];
     let mut implementations = std::collections::BTreeMap::new();
     let source_cost = cache
@@ -516,6 +591,7 @@ fn canonicalize_inner(
     // Cached selectors only locate a bucket. Complete normalized Function Eq
     // still authorizes every class, including deliberate hash collisions.
     let mut classes: HashMap<zil_base::Fingerprint, Vec<(Function, usize)>> = HashMap::new();
+    let mut current_keys: HashMap<usize, Normalized> = HashMap::new();
     let mut class_count = 0usize;
     let mut stats = Stats::default();
     while !ready.is_empty() {
@@ -524,16 +600,20 @@ fn canonicalize_inner(
             if cancelled() {
                 return None;
             }
-            let callees = if stable {
-                cache.functions[index]
-                    .dependencies
-                    .as_ref()?
-                    .iter()
-                    .map(|&callee| Some((callee, stable_names[callee].as_ref()?.clone())))
-                    .collect::<Option<Vec<_>>>()?
-            } else {
-                Vec::new()
-            };
+            let callees = cache.functions[index]
+                .dependencies
+                .as_ref()
+                .as_ref()?
+                .iter()
+                .map(|&callee| {
+                    let name = if stable {
+                        stable_names[callee].as_ref()?.clone()
+                    } else {
+                        functions[representatives[callee]?].name.clone()
+                    };
+                    Some((callee, name))
+                })
+                .collect::<Option<Vec<_>>>()?;
             let cached = stable
                 .then(|| cache.functions[index].normalized.as_ref())
                 .flatten()
@@ -541,6 +621,13 @@ fn canonicalize_inner(
             let normalized = if let Some(cached) = cached {
                 cache.reused_keys += 1;
                 cached.clone()
+            } else if let Some(shared) = current_keys
+                .get(&input_owners[index])
+                .filter(|shared| shared.callees == callees)
+            {
+                cache.reused_keys += 1;
+                cache.shared_keys += 1;
+                shared.clone()
             } else {
                 cache.rebuilt_keys += 1;
                 let function = normalized_key_inner(
@@ -555,18 +642,19 @@ fn canonicalize_inner(
                 let mut hash = crate::object_cache::BufferedHasher::new();
                 b"ZIL-CLOSED-CALL-CLASS-v1".hash(&mut hash);
                 function.hash(&mut hash);
-                let normalized = Normalized {
+                Normalized {
                     callees,
                     function,
                     selector: hash.digest(),
-                };
-                if stable {
-                    let mut reads = cache.functions[index].as_ref().clone();
-                    reads.normalized = Some(normalized.clone());
-                    cache.functions[index] = std::sync::Arc::new(reads);
                 }
-                normalized
             };
+            current_keys
+                .entry(input_owners[index])
+                .or_insert_with(|| normalized.clone());
+            if stable {
+                std::sync::Arc::make_mut(&mut cache.functions[index]).normalized =
+                    Some(normalized.clone());
+            }
             let bucket = classes.entry(normalized.selector).or_default();
             let rep = if let Some((_, rep)) =
                 bucket.iter().find(|(key, _)| *key == normalized.function)
@@ -639,6 +727,11 @@ fn canonicalize_inner(
     // Stage all changes in a COW clone: cancellation at any point cannot leave
     // an incompletely transformed original module or publish partial classes.
     let mut changed = module.clone();
+    // The replacement map is fixed. Rewrite an observed original body once,
+    // including non-candidates, and preserve sharing for downstream consumers.
+    let mut rewritten_bodies: HashMap<*const Vec<Block>, (usize, SharedVec<Block>, usize)> =
+        HashMap::new();
+    let mut function_index = 0;
     for item in &mut changed.items {
         if cancelled() {
             return None;
@@ -646,27 +739,42 @@ fn canonicalize_inner(
         let Item::Function(function) = item else {
             continue;
         };
-        if !function.blocks.iter().flatten().any(|block| block.instructions.iter().any(|inst| {
-            matches!(&inst.op, Op::Call { callee: Val::Global(name), .. } if replacements.contains_key(name))
-        })) {
+        let index = function_index;
+        function_index += 1;
+        let Some(owner) = body_owner(function) else {
+            continue;
+        };
+        if let Some((_, blocks, calls)) = rewritten_bodies
+            .get(&owner)
+            .filter(|(other, _, _)| same_body_owner(function, functions[*other]))
+        {
+            function.blocks = Some(blocks.clone());
+            stats.rewritten_calls += *calls;
             continue;
         }
-        for block in function.blocks.as_mut()?.iter_mut() {
-            for inst in &mut block.instructions {
-                if cancelled() {
-                    return None;
-                }
-                if let Op::Call {
-                    callee: Val::Global(name),
-                    ..
-                } = &mut inst.op
-                    && let Some(rep) = replacements.get(name)
-                {
-                    *name = rep.clone();
-                    stats.rewritten_calls += 1;
+        let mut calls = 0;
+        if function.blocks.iter().flatten().any(|block| block.instructions.iter().any(|inst| {
+            matches!(&inst.op, Op::Call { callee: Val::Global(name), .. } if replacements.contains_key(name))
+        })) {
+            for block in function.blocks.as_mut()?.iter_mut() {
+                for inst in &mut block.instructions {
+                    if cancelled() {
+                        return None;
+                    }
+                    if let Op::Call {
+                        callee: Val::Global(name),
+                        ..
+                    } = &mut inst.op
+                        && let Some(rep) = replacements.get(name)
+                    {
+                        *name = rep.clone();
+                        calls += 1;
+                    }
                 }
             }
         }
+        stats.rewritten_calls += calls;
+        rewritten_bodies.insert(owner, (index, function.blocks.as_ref()?.clone(), calls));
     }
     if cancelled() {
         return None;
@@ -687,6 +795,10 @@ fn canonicalize_inner(
     }
     Some((stats, symbols, cache))
 }
+
+#[cfg(test)]
+#[path = "machine_call_classes_tests.rs"]
+mod shared_body_tests;
 
 #[cfg(test)]
 mod tests {

@@ -3,7 +3,7 @@
 //! lifetime. They are not a verification receipt or persisted machine authority.
 use super::{direct_calls, layout};
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use zil_llvm_api::model::{Item, Module};
 
 pub(super) const PRELUDE: u8 = 0;
@@ -18,14 +18,24 @@ pub(crate) struct Materialization {
     pub(crate) reused_items: usize,
     pub(crate) constructed_items: usize,
     units: Vec<Module>,
-    inputs: Vec<UnitInputs>,
-    calls: Vec<Arc<BTreeSet<String>>>,
+    inputs: OnceLock<Vec<UnitInputs>>,
+    calls: OnceLock<Vec<Arc<BTreeSet<String>>>>,
     layout: Arc<layout::Layout>,
     graph: Option<Arc<layout::CurrentGraph>>,
-    grouping: Option<Arc<layout::Grouping>>,
+    grouping: OnceLock<Option<Arc<layout::Grouping>>>,
+    grouping_input: Option<Arc<GroupingInput>>,
     // Only the production path that rendered these exact layout roles sets
     // this association. Raw test/candidate recipes cannot lend role slots.
     completed_roles: bool,
+}
+// Only the raw LIR fields read by Grouping. Persistent functions retain their
+// actual owners without walking/copying every body on a one-request CLI run.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct GroupingInput {
+    lir: zil_ir::LirModule,
+    entry: crate::EntryPoint,
+    count: usize,
+    classes: BTreeSet<String>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct UnitInputs {
@@ -48,56 +58,6 @@ impl Materialization {
         units: &[Module],
         reused_items: usize,
     ) -> Self {
-        let calls = source
-            .items
-            .iter()
-            .map(|item| {
-                Arc::new(match item {
-                    Item::Function(function) => direct_calls(function),
-                    _ => BTreeSet::new(),
-                })
-            })
-            .collect();
-        Self::with_calls(source, layout, units, reused_items, calls)
-    }
-    /// Calls came from the current layout validator's complete body walk. They
-    /// are raw observed inputs, with the same ownership as this materialization.
-    fn with_calls(
-        source: Module,
-        layout: &layout::Layout,
-        units: &[Module],
-        reused_items: usize,
-        calls: Vec<Arc<BTreeSet<String>>>,
-    ) -> Self {
-        let inputs = layout
-            .units
-            .iter()
-            .map(|unit| {
-                let mut slots = BTreeMap::new();
-                let mut next = 0;
-                for (indices, role) in [(&unit.prelude, PRELUDE), (&unit.declarations, DECLARATION)]
-                {
-                    for &index in indices {
-                        slots.insert((index, role), next);
-                        next += 1;
-                    }
-                }
-                for &index in &unit.imports {
-                    slots.insert((index, IMPORT_DECLARATION), next);
-                    slots.insert((index, IMPORT_BODY), next + 1);
-                    next += 2;
-                }
-                for &index in &unit.definitions {
-                    slots.insert((index, DEFINITION), next);
-                    next += 1;
-                }
-                UnitInputs {
-                    owner: unit.owner,
-                    slots,
-                    names: import_names(&source, unit),
-                }
-            })
-            .collect();
         Self {
             reused_items,
             constructed_items: units
@@ -107,13 +67,114 @@ impl Materialization {
                 .saturating_sub(reused_items),
             source,
             units: units.to_vec(),
-            inputs,
-            calls,
+            inputs: OnceLock::new(),
+            calls: OnceLock::new(),
             layout: Arc::new(layout.clone()),
             graph: None,
-            grouping: None,
+            grouping: OnceLock::new(),
+            grouping_input: None,
             completed_roles: false,
         }
+    }
+    fn inputs(&self) -> &[UnitInputs] {
+        self.inputs.get_or_init(|| {
+            self.layout
+                .units
+                .iter()
+                .map(|unit| {
+                    let mut slots = BTreeMap::new();
+                    let mut next = 0;
+                    for (indices, role) in
+                        [(&unit.prelude, PRELUDE), (&unit.declarations, DECLARATION)]
+                    {
+                        for &index in indices {
+                            slots.insert((index, role), next);
+                            next += 1;
+                        }
+                    }
+                    for &index in &unit.imports {
+                        slots.insert((index, IMPORT_DECLARATION), next);
+                        slots.insert((index, IMPORT_BODY), next + 1);
+                        next += 2;
+                    }
+                    for &index in &unit.definitions {
+                        slots.insert((index, DEFINITION), next);
+                        next += 1;
+                    }
+                    UnitInputs {
+                        owner: unit.owner,
+                        slots,
+                        names: import_names(&self.source, unit),
+                    }
+                })
+                .collect()
+        })
+    }
+    fn calls(&self, index: usize) -> Option<&BTreeSet<String>> {
+        if let Some(graph) = self.graph() {
+            return Some(graph.direct_calls(index));
+        }
+        self.calls
+            .get_or_init(|| {
+                self.source
+                    .items
+                    .iter()
+                    .map(|item| {
+                        Arc::new(match item {
+                            Item::Function(function) => direct_calls(function),
+                            _ => BTreeSet::new(),
+                        })
+                    })
+                    .collect()
+            })
+            .get(index)
+            .map(Arc::as_ref)
+    }
+    pub(super) fn defer_grouping(
+        mut self,
+        lir: &zil_ir::LirView<'_>,
+        entry: crate::EntryPoint,
+        count: usize,
+        classes: &BTreeSet<String>,
+    ) -> Self {
+        if self.grouping.get().is_none() && self.graph.is_some() {
+            self.grouping_input = Some(Arc::new(GroupingInput {
+                lir: zil_ir::LirModule {
+                    schema_version: lir.schema_version,
+                    module_id: lir.module_id,
+                    verified_fingerprint: zil_base::Fingerprint::ZERO,
+                    target: lir.target.clone(),
+                    functions: lir.functions.clone(),
+                    closures: vec![],
+                    resources: vec![],
+                    layouts: vec![],
+                },
+                entry,
+                count,
+                classes: classes.clone(),
+            }));
+        }
+        self
+    }
+    fn grouping(&self) -> Option<&layout::Grouping> {
+        self.grouping
+            .get_or_init(|| {
+                let input = self.grouping_input.as_ref()?;
+                layout::Grouping::read(
+                    &self.source,
+                    &input.lir.as_view(),
+                    input.entry,
+                    input.count,
+                    &input.classes,
+                    self.graph()?,
+                )
+                .map(Arc::new)
+            })
+            .as_deref()
+    }
+    #[cfg(test)]
+    pub(super) fn has_reuse_inventory(&self) -> bool {
+        self.inputs.get().is_some() || self.calls.get().is_some() || self.grouping.get().is_some()
     }
     pub(super) fn with_graph(
         source: Module,
@@ -123,9 +184,11 @@ impl Materialization {
         graph: layout::CurrentGraph,
         grouping: Option<layout::Grouping>,
     ) -> Self {
-        let mut product = Self::with_calls(source, layout, units, reused_items, graph.calls());
+        let mut product = Self::new(source, layout, units, reused_items);
         product.graph = Some(Arc::new(graph));
-        product.grouping = grouping.map(Arc::new);
+        if let Some(grouping) = grouping {
+            let _ = product.grouping.set(Some(Arc::new(grouping)));
+        }
         product
     }
     pub(super) fn graph(&self) -> Option<&layout::CurrentGraph> {
@@ -157,15 +220,14 @@ impl Materialization {
         graph: &layout::CurrentGraph,
         grouping: &layout::Grouping,
     ) -> Option<Option<layout::Layout>> {
-        if !self.completed_roles || !self.grouping.as_ref()?.same_source_environment(grouping) {
+        if !self.completed_roles || !self.grouping()?.same_source_environment(grouping) {
             return None;
         }
         // This adapter handles a changed class domain. An unrelated current
         // call-graph change with the same classes still requires the original
         // planner and cannot lend this recipe's role-to-slot associations.
         if !self
-            .grouping
-            .as_ref()?
+            .grouping()?
             .class_inventory_changed(&self.source, classes)
         {
             return Some(None);
@@ -182,7 +244,7 @@ impl Materialization {
         ))
     }
     pub(super) fn layout_for(&self, grouping: &layout::Grouping) -> Option<&layout::Layout> {
-        (self.grouping.as_deref() == Some(grouping)).then_some(self.layout.as_ref())
+        (self.grouping() == Some(grouping)).then_some(self.layout.as_ref())
     }
     pub(super) fn bind<'a>(
         &'a self,
@@ -206,7 +268,7 @@ impl Materialization {
         let unit_indices = layout
             .units
             .iter()
-            .map(|unit| self.inputs.iter().position(|old| old.owner == unit.owner))
+            .map(|unit| self.inputs().iter().position(|old| old.owner == unit.owner))
             .collect::<Vec<_>>();
         // Full values authorize raw item reuse; position and hashes alone do not.
         let same = current
@@ -223,7 +285,8 @@ impl Materialization {
             .enumerate()
             .map(|(index, unit)| {
                 let names = import_names(current, unit);
-                let Some(old) = unit_indices[index].and_then(|index| self.inputs.get(index)) else {
+                let Some(old) = unit_indices[index].and_then(|index| self.inputs().get(index))
+                else {
                     return names.into_keys().collect();
                 };
                 names
@@ -288,7 +351,7 @@ impl Reuse<'_> {
         }
         let prior_unit = self.unit_indices.get(unit).copied().flatten()?;
         let index = self.source_indices.get(index).copied().flatten()?;
-        let input = self.previous.inputs.get(prior_unit)?;
+        let input = self.previous.inputs().get(prior_unit)?;
         if input.owner != owner {
             return None;
         }
@@ -296,8 +359,7 @@ impl Reuse<'_> {
         if matches!(role, IMPORT_BODY | DEFINITION)
             && self
                 .previous
-                .calls
-                .get(index)?
+                .calls(index)?
                 .iter()
                 .any(|name| changed.contains(name))
         {

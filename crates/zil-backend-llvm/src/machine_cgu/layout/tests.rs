@@ -546,29 +546,38 @@ fn class_disk_restart_replays_current_values_and_restores_materialization() {
         .unwrap();
     assert_eq!(restored.plan.units, layout.replay(current.clone()));
     let observed = CurrentGraph::read(&current, None).unwrap();
-    let grouping = Grouping::read(
-        &current,
-        &source.as_view(),
-        EntryPoint::None,
-        2,
-        &classes,
-        &observed,
+    assert!(
+        !restored
+            .materialization
+            .as_ref()
+            .unwrap()
+            .has_reuse_inventory()
     );
     assert_eq!(
         restored.materialization,
-        Some(super::super::Materialization::completed_with_graph(
-            current.clone(),
-            &layout,
-            &restored.plan.units,
-            0,
-            observed,
-            grouping,
-        ))
+        Some(
+            super::super::Materialization::completed_with_graph(
+                current.clone(),
+                &layout,
+                &restored.plan.units,
+                0,
+                observed,
+                None,
+            )
+            .defer_grouping(&source.as_view(), EntryPoint::None, 2, &classes)
+        )
     );
     let reused = build(current, restored.materialization.as_ref());
     assert!(reused.reused_layout);
     assert!(reused.materialization.as_ref().unwrap().reused_items > 0);
     assert_eq!(reused.plan.units, restored.plan.units);
+    assert!(
+        restored
+            .materialization
+            .as_ref()
+            .unwrap()
+            .has_reuse_inventory()
+    );
 
     // Body changes must select a different actual current key, not the disk
     // recipe's old bodies; replay never deserializes a machine body.
@@ -1087,6 +1096,13 @@ fn direct_restart_first_edit_derives_current_roles_after_old_exact_key_misses() 
     assert_eq!(current.plan.units, expected.units);
     assert_eq!(current.materialization.as_ref().unwrap().reused_items, 0);
     assert!(
+        !current
+            .materialization
+            .as_ref()
+            .unwrap()
+            .has_reuse_inventory()
+    );
+    assert!(
         current
             .materialization
             .as_ref()
@@ -1118,8 +1134,147 @@ fn direct_restart_first_edit_derives_current_roles_after_old_exact_key_misses() 
     .unwrap();
     assert!(restarted.reused_layout);
     assert_eq!(restarted.plan.units, expected.units);
+    assert!(
+        !restarted
+            .materialization
+            .as_ref()
+            .unwrap()
+            .has_reuse_inventory()
+    );
     for unit in &restarted.plan.units {
         zil_llvm_api::validate_module(unit).unwrap();
+    }
+}
+
+#[test]
+fn current_replay_keeps_unrewritten_body_owners_and_refuses_stale_reads() {
+    let (module, source) = fixture();
+    let (original, layout) = planned(&module, &source);
+    let graph = CurrentGraph::read(&module, None).unwrap();
+    let (current, reused) = layout.replay_observed(module.clone(), None, Some(&graph));
+    assert_eq!(reused, 0);
+    assert_eq!(current, original.units);
+    let blocks = |module: &Module| {
+        module
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(function) if function.name == "zil.fn.2" => function.blocks.clone(),
+                _ => None,
+            })
+            .unwrap()
+    };
+    // This definition shares a unit with imported bodies, but has no direct
+    // calls to rewrite. Avoiding a mutable traversal preserves its raw owner.
+    assert!(blocks(&module).ptr_eq(&blocks(&current[0])));
+    assert!(!blocks(&module).ptr_eq(&blocks(&original.units[0])));
+
+    let mut changed = module.clone();
+    changed.items[5] = Item::Function(function("zil.fn.2", Some("zil.fn.1")));
+    assert!(!graph.matches(&changed));
+    let expected = layout.replay(changed.clone());
+    let (actual, _) = layout.replay_observed(changed, None, Some(&graph));
+    assert_eq!(
+        actual, expected,
+        "old no-call rows cannot suppress a new call rewrite"
+    );
+    for unit in &actual {
+        zil_llvm_api::validate_module(unit).unwrap();
+    }
+}
+
+#[test]
+fn direct_first_edit_checks_current_callee_header_and_local_state() {
+    let (module, source) = fixture();
+    let classes = BTreeSet::new();
+    let directory = Directory::new();
+    let first = super::super::partition_classes_reusing(
+        module.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        &classes,
+        Some(&directory.0),
+        None,
+    )
+    .unwrap();
+    let old_key = first.pending.as_ref().unwrap().key();
+    first.pending.unwrap().pin().unwrap().commit();
+    drop(first.materialization);
+    drop(first.plan);
+
+    let mut callee = module.clone();
+    callee.items[3] = Item::Function(function("zil.fn.0", Some("foreign")));
+    let mut header = module.clone();
+    let Item::Function(function) = &mut header.items[4] else {
+        unreachable!()
+    };
+    function.attrs.push(Attr::NoInline);
+    let mut local_state = module;
+    let Item::Function(function) = &mut local_state.items[4] else {
+        unreachable!()
+    };
+    function.blocks.as_mut().unwrap()[0].instructions.insert(
+        0,
+        Inst::new(
+            Some("state.read".into()),
+            Op::Load {
+                ty: Ty::Int(32),
+                ptr: Val::Global("state".into()),
+                align: 4,
+            },
+        ),
+    );
+    for (label, edited, rejected) in [
+        ("callee", callee, false),
+        ("header", header, false),
+        ("local-state", local_state, true),
+    ] {
+        zil_llvm_api::validate_module(&edited).unwrap();
+        let cache = class_cache(&directory, &edited, &source, &classes);
+        assert_ne!(cache.key(), old_key, "{label}");
+        assert!(
+            cache.read().is_none(),
+            "first request already contains the edit"
+        );
+        let mut recorded = None;
+        let original = super::super::partition_view_once(
+            edited.clone(),
+            &source.as_view(),
+            EntryPoint::None,
+            2,
+            true,
+            true,
+            &mut recorded,
+            None,
+            &mut 0,
+            &classes,
+        );
+        assert_eq!(original.fallback.is_some(), rejected, "{label}");
+        let current = super::super::partition_classes_reusing(
+            edited,
+            &source.as_view(),
+            EntryPoint::None,
+            2,
+            &classes,
+            Some(&directory.0),
+            None,
+        );
+        assert_eq!(current.is_none(), rejected, "{label}");
+        if let Some(current) = current {
+            assert!(!current.reused_layout);
+            assert_eq!(current.plan.units, original.units, "{label}");
+            assert!(
+                !current
+                    .materialization
+                    .as_ref()
+                    .unwrap()
+                    .has_reuse_inventory()
+            );
+            for unit in &current.plan.units {
+                zil_llvm_api::validate_module(unit).unwrap();
+            }
+        }
     }
 }
 
@@ -1162,16 +1317,18 @@ fn current_shared_body_observations_keep_original_work_and_current_symbol_bindin
 #[test]
 fn class_adaptation_preserves_source_grouping_and_original_copy_budget() {
     let (original, source, classes) = split_class_fixture(7);
+    let directory = Directory::new();
     let first = super::super::partition_classes_reusing(
         original,
         &source.as_view(),
         EntryPoint::None,
         16,
         &classes,
-        None,
+        Some(&directory.0),
         None,
     )
     .unwrap();
+    first.pending.unwrap().pin().unwrap().commit();
     let (changed, _, split) = split_class_fixture(19);
     let mut moved = source.clone();
     moved.functions[4].span.file = FileId(6);
@@ -1227,6 +1384,33 @@ fn class_adaptation_preserves_source_grouping_and_original_copy_budget() {
     }
     instructions.push(last);
     zil_llvm_api::validate_module(&oversized).unwrap();
+    let mut recorded = None;
+    let original = super::super::partition_view_once(
+        oversized.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        16,
+        true,
+        true,
+        &mut recorded,
+        None,
+        &mut 0,
+        &split,
+    );
+    assert!(original.fallback.is_some());
+    assert!(recorded.is_none());
+    let current_cache = Cache::new(
+        &directory.0,
+        &oversized,
+        &source.as_view(),
+        EntryPoint::None,
+        16,
+        true,
+        CallImportPolicy::Complete,
+    )
+    .unwrap()
+    .with_classes(&split);
+    assert!(current_cache.read().is_none());
     for previous in [first.materialization.as_ref(), None] {
         assert!(
             super::super::partition_classes_reusing(
@@ -1235,7 +1419,7 @@ fn class_adaptation_preserves_source_grouping_and_original_copy_budget() {
                 EntryPoint::None,
                 16,
                 &split,
-                None,
+                Some(&directory.0),
                 previous,
             )
             .is_none()

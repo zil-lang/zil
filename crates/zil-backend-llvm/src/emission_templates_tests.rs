@@ -90,8 +90,66 @@ fn restart_templates_match_fresh_multi_block_emission_and_changed_literals() {
             assert_eq!(actual, expected);
             assert_eq!(session.reused_body_templates, 1);
             assert_eq!(session.produced_body_templates, 2);
+            if policy {
+                assert_eq!(session.source_projection_admission_reuses, 3);
+                assert_eq!(session.source_projection_traversals, 0);
+                assert_eq!(session.source_projection_instruction_visits, 0);
+            }
         }
     }
+}
+
+#[test]
+fn restart_admission_projection_tracks_actual_current_call_slots() {
+    let leafs = fixture();
+    let mut functions = leafs.module().functions.iter().cloned().collect::<Vec<_>>();
+    let mut caller = function(
+        3,
+        "caller",
+        Type::I32,
+        vec![Type::I32, Type::I32],
+        vec![block(
+            0,
+            vec![
+                load(0, 0),
+                instruction(
+                    Some(1),
+                    InstructionKind::Call {
+                        function: FunctionId(0),
+                        arguments: vec![ValueId(0)],
+                    },
+                ),
+            ],
+            Terminator::Return(Some(ValueId(1))),
+        )],
+    );
+    caller.parameters = vec![LocalId(0)];
+    caller.locals = vec![local(0, Type::I32, false)].into();
+    functions.push(caller);
+    let mut claims = vec![vec![(vec![0], vec![0]); 3]; 3];
+    claims.push(vec![(vec![0], vec![0])]);
+    let original = checked(functions.clone(), claims.clone());
+    let mut session = crate::emit::incremental::Session::default();
+    let raw = lir(&original);
+    assert_eq!(
+        lower(&original, &raw, true, Some(&mut session)).unwrap(),
+        lower(&original, &raw, true, None).unwrap()
+    );
+    let products = session.products.clone();
+    functions[3].blocks[0].instructions[1].kind = InstructionKind::Call {
+        function: FunctionId(1),
+        arguments: vec![ValueId(0)],
+    };
+    let current = checked(functions, claims);
+    let raw = lir(&current);
+    assert_eq!(
+        lower(&current, &raw, true, Some(&mut session)).unwrap(),
+        lower(&current, &raw, true, None).unwrap()
+    );
+    assert_ne!(products, session.products);
+    assert_eq!(session.source_projection_admission_reuses, 4);
+    assert_eq!(session.source_projection_traversals, 0);
+    assert_eq!(session.source_projection_instruction_visits, 0);
 }
 
 #[test]

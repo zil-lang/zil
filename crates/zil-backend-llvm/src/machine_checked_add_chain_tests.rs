@@ -1,6 +1,76 @@
 //! Bounded machine-model regressions; source/native and formal quality remain separate.
 use super::*;
 use zil_llvm_api::model::{Attr, Linkage, Param, Signature};
+
+#[test]
+fn restart_shared_bodies_plan_once_and_keep_current_headers() {
+    let mut module = tiny(8, true, &[1, 2, 3]);
+    let original = function(&mut module).clone();
+    for index in 0..64 {
+        let mut copy = original.clone();
+        copy.name = format!("copy{index}");
+        module.items.push(Item::Function(copy));
+    }
+    // A valid distinct header must not borrow the conservative full-input
+    // result, even when its executable blocks still have the same owner.
+    let mut distinct = original.clone();
+    distinct.name = "distinct_header".into();
+    distinct.linkage = Linkage::Internal;
+    module.items.push(Item::Function(distinct));
+    let mut expected = module.clone();
+    let expected_removed = fold_checked_add_chains(&mut expected);
+    let mut cache = Cache::default();
+    assert_eq!(
+        fold_checked_add_chains_cached(&mut module, &mut cache),
+        expected_removed
+    );
+    assert_eq!(module, expected);
+    assert_eq!((cache.checked_functions, cache.reused_functions), (2, 64));
+    let first = match &module.items[2] {
+        Item::Function(f) => f,
+        _ => unreachable!(),
+    };
+    for item in &module.items[3..67] {
+        let Item::Function(copy) = item else {
+            unreachable!()
+        };
+        assert!(
+            first
+                .blocks
+                .as_ref()
+                .unwrap()
+                .ptr_eq(copy.blocks.as_ref().unwrap())
+        );
+        assert_ne!(first.name, copy.name);
+    }
+}
+
+#[test]
+fn restart_shared_chain_does_not_reuse_changed_body_or_bad_current_context() {
+    let mut module = tiny(8, true, &[1, 2]);
+    let original = function(&mut module).clone();
+    let mut changed = original.clone();
+    changed.name = "changed_body".into();
+    if let Op::Call { args, .. } = &mut changed.blocks.as_mut().unwrap()[1].instructions[0].op {
+        args[1].value = Val::Int(4);
+    } else {
+        unreachable!()
+    }
+    module.items.push(Item::Function(changed));
+    let mut expected = module.clone();
+    fold_checked_add_chains(&mut expected);
+    let mut cache = Cache::default();
+    fold_checked_add_chains_cached(&mut module, &mut cache);
+    assert_eq!(module, expected);
+    assert_eq!((cache.checked_functions, cache.reused_functions), (2, 0));
+    let mut invalid = tiny(8, true, &[1, 2]);
+    invalid.items.push(Item::Function(original)); // duplicate real symbol
+    let before = invalid.clone();
+    let error = validate_module(&invalid).unwrap_err();
+    assert_eq!(fold_checked_add_chains_cached(&mut invalid, &mut cache), 0);
+    assert_eq!(invalid, before);
+    assert_eq!(validate_module(&invalid).unwrap_err(), error);
+}
 use zil_llvm_api::validate_module;
 
 fn tiny(bits: u32, signed: bool, constants: &[i128]) -> Module {

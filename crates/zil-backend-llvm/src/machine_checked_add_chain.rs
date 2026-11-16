@@ -48,6 +48,24 @@ struct CachedFunction {
     removed_checks: usize,
 }
 
+// The planner reads blocks, with current declarations bound by the whole-model
+// preflight above. Keep every header field except the emitted outer symbol in
+// this conservative comparison. Actual shared block ownership is request-local;
+// it grants neither a persisted key nor a checker capability.
+fn same_body_input(left: &Function, right: &Function) -> bool {
+    let Function {
+        name: _,
+        linkage,
+        signature,
+        attrs,
+        blocks,
+    } = right;
+    left.linkage == *linkage
+        && left.signature == *signature
+        && left.attrs == *attrs
+        && matches!((&left.blocks, blocks), (Some(left), Some(right)) if left.ptr_eq(right))
+}
+
 fn cacheable(module: &Module) -> bool {
     if module.items.len() > MAX_CACHE_ITEMS {
         return false;
@@ -739,6 +757,10 @@ pub(crate) fn fold_checked_add_chains_cached_with_preflight(
         .as_ref()
         .filter(|epoch| epoch.context == context);
     let mut functions = BTreeMap::new();
+    // Emission templates share real immutable blocks across different names.
+    // Retain those input owners until all lookups finish, so slice addresses
+    // cannot be recycled. Equality of all other Function fields still binds.
+    let mut bodies = BTreeMap::<usize, Arc<CachedFunction>>::new();
     let mut outputs = Vec::new();
     let mut removed_checks = 0;
     for (index, item) in module.items.iter().enumerate() {
@@ -751,9 +773,28 @@ pub(crate) fn fold_checked_add_chains_cached_with_preflight(
         let prior = previous
             .and_then(|epoch| epoch.functions.get(&function.name))
             .filter(|entry| entry.input == *function);
+        let body = function
+            .blocks
+            .as_ref()
+            .expect("current definition")
+            .as_ptr() as usize;
+        let shared = bodies
+            .get(&body)
+            .filter(|entry| same_body_input(&entry.input, function));
         let entry = if let Some(prior) = prior {
             cache.reused_functions += 1;
             prior.clone()
+        } else if let Some(shared) = shared {
+            cache.reused_functions += 1;
+            Arc::new(CachedFunction {
+                input: function.clone(),
+                output: shared.output.as_ref().map(|output| {
+                    let mut current = function.clone();
+                    current.blocks = output.blocks.clone();
+                    current
+                }),
+                removed_checks: shared.removed_checks,
+            })
         } else {
             cache.checked_functions += 1;
             let chains = function_chains(function, &intrinsics);
@@ -775,6 +816,7 @@ pub(crate) fn fold_checked_add_chains_cached_with_preflight(
             outputs.push((index, output.clone()));
         }
         removed_checks += entry.removed_checks;
+        bodies.entry(body).or_insert_with(|| entry.clone());
         functions.insert(function.name.clone(), entry);
     }
     // The whole original was checked above; all replacements are staged before
