@@ -256,8 +256,9 @@ pub(crate) fn partition_classes_reusing(
     entry: EntryPoint,
     count: usize,
     classes: &BTreeSet<String>,
+    cache_root: Option<&std::path::Path>,
     previous: Option<&Materialization>,
-) -> Option<(Plan, Option<Materialization>)> {
+) -> Option<(Plan, Option<layout::Pending>, Option<Materialization>)> {
     let source = module.clone();
     let mut layout = None;
     let mut reused = 0;
@@ -278,10 +279,26 @@ pub(crate) fn partition_classes_reusing(
     if plan.fallback.is_some() {
         return None;
     }
+    // Publish the actual completed pre-prune plan through the same successful
+    // native transaction as ordinary layouts; do not reconstruct it from ELF.
+    let pending = cache_root
+        .and_then(|root| {
+            layout::Cache::new(
+                root,
+                &source,
+                lir,
+                entry,
+                count,
+                true,
+                CallImportPolicy::Complete,
+            )
+        })
+        .zip(layout.as_ref())
+        .and_then(|(cache, layout)| cache.with_classes(classes).pending(layout));
     let materialization = layout
         .as_ref()
         .map(|layout| Materialization::new(source, layout, &plan.units, reused));
-    Some((plan, materialization))
+    Some((plan, pending, materialization))
 }
 
 struct CachedPartitionOptions<'a> {
@@ -1949,12 +1966,13 @@ mod tests {
                 &|| false,
             )
             .unwrap();
-            let (mut plan, _) = partition_classes_reusing(
+            let (mut plan, _, _) = partition_classes_reusing(
                 input,
                 &source.as_view(),
                 EntryPoint::None,
                 16,
                 &classes,
+                None,
                 None,
             )
             .unwrap();
@@ -2024,6 +2042,7 @@ mod tests {
                 EntryPoint::None,
                 16,
                 &classes,
+                None,
                 None
             )
             .is_none()

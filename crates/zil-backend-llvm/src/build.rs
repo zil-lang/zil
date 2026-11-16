@@ -677,6 +677,7 @@ pub fn build_view_with_cancellation_and_session(
                 options.emit.entry,
                 options.codegen.units,
                 &class_symbols,
+                options.object_cache.as_deref(),
                 previous,
             )
         };
@@ -837,12 +838,14 @@ pub fn build_view_with_cancellation_and_session(
                 pending_layout = pending;
                 (plan, None, None, recipe)
             } else if !class_symbols.is_empty() {
-                let (plan, current) = class_plan.expect("complete current class import plan");
+                let (plan, pending, current) =
+                    class_plan.expect("complete current class import plan");
                 if let (Some(current), Some(session)) = (current.as_ref(), session.as_deref_mut()) {
                     session.summary.reused_partition_items = current.reused_items;
                     session.summary.rebuilt_partition_items = current.constructed_items;
                 }
                 materialization = current;
+                pending_layout = pending;
                 (plan, None, None, None)
             } else if call_classes_enabled {
                 let previous = previous_partition

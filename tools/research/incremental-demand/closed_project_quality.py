@@ -85,7 +85,8 @@ def layout_roles(units, items, model, complete_imports):
                 name = pending.pop()
                 if name not in owners or owners[name] == index or name in closure:
                     continue
-                require(re.fullmatch(r'zil\.fn\.\d+', name), 'only scalar source definitions may be imported')
+                require(re.fullmatch(r'zil\.fn\.\d+', name) or name in model.get('classes', ()),
+                        'imports need a current scalar source or full-body validated class definition')
                 closure.add(name)
                 pending.extend(model['calls'].get(name, set()))
             require(imported[index] == closure, 'imports must contain the complete current transitive call closure')
@@ -143,7 +144,8 @@ def scalar_model(llvm):
             'globals/address/callback/exception LLVM outside scalar ABI scope')
     headers = list(re.finditer(r'(?m)^(declare|define) (.+?) @([A-Za-z0-9_.]+)\(([^\n]*)\)([^\n]*)$', text))
     require(headers and sum(line.startswith(('declare ', 'define ')) for line in text.splitlines()) == len(headers), 'unknown scalar function envelope')
-    signatures, calls, definitions = {}, {}, set()
+    signatures, calls, definitions, bodies = {}, {}, set(), {}
+    classes = set()
     intrinsics = {'llvm.trap': ('void', ''),
                   **{f'llvm.{op}.with.overflow.i32': ('{ i32, i1 }', 'i32, i32') for op in ('sadd', 'ssub', 'smul')}}
     for h in headers:
@@ -155,13 +157,18 @@ def scalar_model(llvm):
             require(result in ('i32', 'void') and all(re.fullmatch(r'i32(?: %[A-Za-z0-9_.]+)?', p) for p in params.split(', ') if p)
                     and suffix in (' {', ' nonlazybind', ''), 'unknown scalar C integer ABI')
             require((kind == 'declare' and name in ('getchar', 'putchar')) or
-                    (kind == 'define' and (name == 'main' or re.fullmatch(r'zil\.fn\.\d+', name))), 'unknown scalar foreign/definition role')
+                    (kind == 'define' and (name == 'main' or re.fullmatch(r'zil\.fn\.\d+', name)
+                                           or re.fullmatch(r'zil\.class\.[0-9a-f]{64}', name))),
+                    'unknown scalar foreign/definition role')
+            if name.startswith('zil.class.'):
+                classes.add(name)
         signatures[name] = (result, params)
         if kind == 'define':
             definitions.add(name)
             end = text.find('\n}', h.end())
             require(end >= 0, 'incomplete scalar definition')
             body = text[h.end():end]
+            bodies[name] = (result, params, suffix, body)
             refs = re.findall(r'@([A-Za-z0-9_.]+)', body)
             direct = re.findall(r'\bcall [^\n@]*@([A-Za-z0-9_.]+)\(', body)
             require(refs == direct and len(re.findall(r'\bcall\b', body)) == len(direct), 'address-taken or indirect scalar call refused')
@@ -169,7 +176,60 @@ def scalar_model(llvm):
     require(signatures.get('main') == ('i32', '') and signatures.get('getchar') == ('i32', '')
             and signatures.get('putchar') == ('i32', 'i32'), 'exact C main/getchar/putchar ABI required')
     require(all(ref in signatures for refs in calls.values() for ref in refs), 'undeclared scalar call')
-    return {'definitions': definitions, 'calls': calls, 'foreign': {'getchar', 'putchar'}}
+    # The spelling only locates candidates. Every class must be an exact clone
+    # of a current source definition, including signature, SSA, blocks and calls.
+    source_bodies = {}
+    for name, body in bodies.items():
+        if re.fullmatch(r'zil\.fn\.\d+', name):
+            source_bodies.setdefault(body, []).append(name)
+    class_sources = {}
+    parents = {name: [] for name in classes}
+    remaining = {}
+    for name in classes:
+        require(bodies[name] in source_bodies, 'class lacks an equal complete current source body')
+        class_sources[name] = sorted(source_bodies[bodies[name]])
+        require(calls[name] <= classes | intrinsics.keys(), 'class must contain only pure class/intrinsic direct calls')
+        require(signatures[name][0] == 'i32', 'class requires the finite i32 result ABI')
+        allowed_ops = {'add', 'sub', 'mul', 'udiv', 'sdiv', 'urem', 'srem',
+                       'shl', 'lshr', 'ashr', 'and', 'or', 'xor', 'icmp',
+                       'trunc', 'zext', 'sext', 'extractvalue', 'call', 'phi',
+                       'br', 'ret', 'unreachable', 'select'}
+        body = bodies[name][3]
+        require(not re.search(r'\b(?:ptr|undef|poison|zeroinitializer)\b', body)
+                and all(bits in ('1', '32') for bits in re.findall(r'\bi(\d+)\b', body)),
+                'class pointer/undefined/nonprofile scalar value')
+        for line in body.splitlines():
+            line = line.strip()
+            if not line or re.fullmatch(r'[A-Za-z0-9_.]+:', line):
+                continue
+            instruction = re.fullmatch(r'(?:%[A-Za-z0-9_.]+ = )?([a-z]+)(?: (.*))?', line)
+            require(instruction and instruction[1] in allowed_ops, 'unknown or impure class operation')
+            if instruction[1] == 'call':
+                call = re.fullmatch(r'(.+?) @([A-Za-z0-9_.]+)\((.*)\)', instruction[2])
+                require(call and call[2] in signatures, 'class direct call envelope')
+                result, params = signatures[call[2]]
+                actual = call[3].split(', ') if call[3] else []
+                expected = params.split(', ') if params else []
+                require(call[1] == result and len(actual) == len(expected)
+                        and all(re.fullmatch(r'i32 (?:%[A-Za-z0-9_.]+|-?\d+)', arg)
+                                and param.split(' ')[0] == 'i32'
+                                for arg, param in zip(actual, expected)),
+                        'class direct call must match complete current scalar ABI')
+        dependencies = calls[name] & classes
+        remaining[name] = len(dependencies)
+        for dependency in dependencies:
+            parents[dependency].append(name)
+    ready = [name for name in classes if remaining[name] == 0]
+    visited = 0
+    while ready:
+        visited += 1
+        for parent in parents[ready.pop()]:
+            remaining[parent] -= 1
+            if remaining[parent] == 0:
+                ready.append(parent)
+    require(visited == len(classes), 'class implementations must form an acyclic pure call graph')
+    return {'definitions': definitions, 'calls': calls, 'foreign': {'getchar', 'putchar'},
+            'classes': classes, 'class_sources': class_sources}
 
 
 def elf_table(data, executable=False):
@@ -453,7 +513,8 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
         owners = {name: i for i, names in enumerate(expected) for name in names}
         canonical_actual = [a-p for a, p in zip(actual, private)]
         removed = set.union(*expected)-set.union(*canonical_actual)
-        allowed = {name for name in owners if re.fullmatch(r'zil\.fn\.\d+(?:\.lc1)?', name)}-cross
+        allowed = {name for name in owners if re.fullmatch(r'zil\.fn\.\d+(?:\.lc1)?', name)
+                   or name in model.get('classes', ())}-cross
         if not removed <= allowed:
             continue
         for item, names, clones in zip(objects, expected, private):

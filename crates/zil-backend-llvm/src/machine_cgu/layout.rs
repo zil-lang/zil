@@ -433,6 +433,16 @@ impl Cache {
         let layout = Layout::decode(&bytes[HEADER..])?;
         layout.valid(module, lir, count).then_some(layout)
     }
+    // A stable-class recipe is never interchangeable with the ordinary source
+    // import policy, even if their complete machine inputs happen to agree.
+    pub(super) fn with_classes(mut self, classes: &BTreeSet<String>) -> Self {
+        let mut state = BufferedHasher::new();
+        b"ZIL-CGU-STABLE-CLASSES-v1".hash(&mut state);
+        self.key.hash(&mut state);
+        classes.hash(&mut state);
+        self.key = state.digest();
+        self
+    }
     pub(super) fn pending(self, layout: &Layout) -> Option<Pending> {
         let path = entry_path(&self.root.join(DIRECTORY), self.key);
         Some(Pending {

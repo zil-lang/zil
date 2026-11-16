@@ -215,6 +215,48 @@ class ClosedProjectTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 quality.scalar_model(bad.encode())
 
+    def test_stable_classes_need_full_current_source_bodies_and_pure_acyclic_calls(self):
+        name = 'zil.class.'+'a'*64
+        header = ('declare i32 @getchar() nonlazybind\n'
+                  'declare i32 @putchar(i32) nonlazybind\n'
+                  'define i32 @main() {\n ret i32 0\n}\n')
+        body = '() {\n ret i32 23\n}\n'
+        source = header+'define i32 @zil.fn.1'+body+'define i32 @'+name+body
+        model = quality.scalar_model(source.encode())
+        self.assertEqual(model['classes'], {name})
+        self.assertEqual(model['class_sources'], {name: ['zil.fn.1']})
+        bads = [source.replace('ret i32 23', 'ret i32 24', 1),
+                source.replace('define i32 @'+name, 'define void @'+name),
+                source.replace('define i32 @zil.fn.1', 'define i32 @unrelated'),
+                source.replace(name, 'zil.class.not-a-receipt')]
+        for bad_body in ('() {\n %x = load i32, ptr null\n ret i32 %x\n}\n',
+                         '() {\n ret i32 poison\n}\n'):
+            bads.append(header+'define i32 @zil.fn.1'+bad_body+'define i32 @'+name+bad_body)
+        for target in ('getchar', name, 'zil.fn.1'):
+            called = '() {\n %x = call i32 @'+target+'()\n ret i32 %x\n}\n'
+            bads.append(header+'define i32 @zil.fn.1'+called+'define i32 @'+name+called)
+        for bad in bads:
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                quality.scalar_model(bad.encode())
+
+    def test_full_import_closure_accepts_only_validated_class_members(self):
+        name = 'zil.class.'+'b'*64
+        items = [('define', 'main'), ('define', name)]
+        units = [dict(owner=i, definitions=([i] if i < 2 else []),
+                      imports=([1] if i == 0 else []), prelude=[], declarations=[])
+                 for i in range(16)]
+        model = dict(calls={'main': {name}, name: set()}, classes={name})
+        expected, cross, imported = quality.layout_roles(units, items, model, True)
+        self.assertEqual(expected[1], {name})
+        self.assertEqual(cross, set())
+        self.assertTrue(imported)
+        with self.assertRaises(ValueError):
+            quality.layout_roles(units, items, dict(model, classes=set()), True)
+        units[0]['imports'] = []
+        units[2]['imports'] = [1]
+        with self.assertRaises(ValueError):
+            quality.layout_roles(units, items, model, True)
+
     def test_physical_entry_and_cross_symbol_bindings_are_not_just_names(self):
         model = {'definitions': {'main', 'zil.fn.1'}, 'foreign': {'getchar', 'putchar'}}
         for name in ('main', 'zil.fn.1'):

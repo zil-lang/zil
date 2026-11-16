@@ -369,3 +369,74 @@ fn layout_cache_publishes_only_on_commit_and_corruption_falls_back() {
         .commit();
     assert!(cache().load(&module, &source.as_view(), 2).is_none());
 }
+
+#[test]
+fn stable_class_layout_publishes_the_actual_plan_only_on_commit() {
+    let (_, source) = fixture();
+    let mut module = Module {
+        triple: source.target.triple.clone(),
+        fingerprint: "stable-classes".into(),
+        items: vec![
+            Item::Function(function("zil.fn.0", Some("zil.fn.1"))),
+            Item::Function(function("zil.fn.1", None)),
+            Item::Function(function("zil.fn.2", None)),
+        ]
+        .into(),
+    };
+    let (_, classes) =
+        crate::machine_call_classes::canonicalize_stable(&mut module, &BTreeSet::new(), &|| false)
+            .unwrap();
+    assert!(!classes.is_empty());
+    let dir = Directory::new();
+    let build = || {
+        crate::machine_cgu::partition_classes_reusing(
+            module.clone(),
+            &source.as_view(),
+            EntryPoint::None,
+            2,
+            &classes,
+            Some(&dir.0),
+            None,
+        )
+        .unwrap()
+    };
+    let (plan, pending, _) = build();
+    drop(pending.unwrap());
+    assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 0);
+    let (_, pending, _) = build();
+    let pending = pending.unwrap().pin().unwrap();
+    let path = pending.path().to_owned();
+    assert!(!path.exists());
+    pending.commit();
+    let bytes = fs::read(path).unwrap();
+    assert_eq!(&bytes[..8], MAGIC);
+    assert_eq!(Fingerprint::of(&bytes[HEADER..]).0, bytes[40..HEADER]);
+    let actual = Layout::decode(&bytes[HEADER..]).unwrap();
+    assert_eq!(actual.replay(module.clone()), plan.units);
+    let ordinary = Cache::new(
+        &dir.0,
+        &module,
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        true,
+        CallImportPolicy::Complete,
+    )
+    .unwrap();
+    let ordinary_key = ordinary.key;
+    let class_key = Cache::new(
+        &dir.0,
+        &module,
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        true,
+        CallImportPolicy::Complete,
+    )
+    .unwrap()
+    .with_classes(&classes)
+    .key;
+    assert_ne!(ordinary_key, class_key);
+    assert_eq!(bytes[8..40], class_key.0);
+    assert!(ordinary.load(&module, &source.as_view(), 2).is_none());
+}
