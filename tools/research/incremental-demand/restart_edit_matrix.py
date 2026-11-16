@@ -19,6 +19,31 @@ INSTALLED = Path('tools/research/incremental-demand/restart_edit_matrix.py')
 NAMES = ('cold', 'unchanged', 'private-001', 'error', 'recovery')
 
 
+def summarize_disks(rows, metrics):
+    result = []
+    for size in sorted({row['preset'] for row in rows}):
+        for block in sorted({row['block'] for row in rows if row['preset'] == size}):
+            selected = [row for row in rows if row['preset'] == size and row['block'] == block]
+            boundaries = {row['request']: row['disk_after'] for row in selected}
+            if not set(NAMES) <= set(boundaries):
+                raise ValueError('incomplete direct restart edit disk history')
+            categories = sorted({name for row in selected for name in row['disk_after']['categories']})
+            def count(snapshot, category, metric):
+                return snapshot['categories'].get(category, {}).get(metric, 0)
+            first, last = selected[0]['disk_before'], selected[-1]['disk_after']
+            result.append({'preset': size, 'block': block, 'categories': {category: {
+                'observed_boundary_peak': {metric: max(count(row[edge], category, metric)
+                    for row in selected for edge in ('disk_before', 'disk_after')) for metric in metrics},
+                'growth_from_empty': {metric: count(last, category, metric)-count(first, category, metric)
+                    for metric in metrics},
+                'growth_from_cold': {metric: count(last, category, metric)-count(boundaries['cold'], category, metric)
+                    for metric in metrics},
+                'direct_restart_edit_growth': {metric: count(boundaries['private-001'], category, metric)
+                    -count(boundaries['unchanged'], category, metric) for metric in metrics}}
+                for category in categories}, 'transient_peak': None})
+    return result
+
+
 def main(argv=None):
     sys.dont_write_bytecode = True
     bootstrap = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
@@ -89,7 +114,8 @@ def main(argv=None):
         manifest['direct_restart_edit_policy'] = policy
         return generate_original(args, workloads, manifest)
 
-    report_original = compose(matrix.report, history=history)
+    report_original = compose(matrix.report, history=history,
+        disk_summary=lambda rows: summarize_disks(rows, matrix.large.METRICS))
     def report(args, manifest, rows, pairs, runtime):
         require(len(lifecycle) == (args.blocks + 1) * 2,
                 'both arms restart in every workflow block and runtime profile')

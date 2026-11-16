@@ -1933,11 +1933,17 @@ mod tests {
         );
         zil_verify::verify_module(restored.module, plan, &target, &limits).unwrap();
         let product = products.iter().find(|product| product.reused).unwrap();
-        let mut forged = typed.module.functions[product.id.0 as usize].clone();
+        let actual = &typed.module.functions[product.id.0 as usize];
+        assert!(
+            product
+                .canonical_encoding(actual, &wire_limits, wire_limits.max_source_bytes)
+                .is_some()
+        );
+        let mut forged = actual.clone();
         forged.span.end += 1;
         assert!(
             product
-                .canonical_encoding(&forged, &limits, limits.max_source_bytes)
+                .canonical_encoding(&forged, &wire_limits, wire_limits.max_source_bytes)
                 .is_none()
         );
         // Old raw plan slots may outlive a transport-limit change. They are
