@@ -138,3 +138,55 @@ impl Check<'_, '_> {
             .ok_or_else(|| fail("parameter header loses its original whole class"))
     }
 }
+
+impl Check<'_, '_> {
+    /// Executable parameter selectors use the independently checked original
+    /// signature just like header embeddings. The header locates an occurrence;
+    /// it cannot supply its own semantic image or any parameter permission.
+    pub(super) fn parameter_address_claim(
+        &self, instance: &SemanticInstance, input: &SemanticTypeValue,
+        b: &mut Budget, depth: usize,
+    ) -> CompileResult<Option<Value>> {
+        let SemanticTypeValue::Resolved { ty: Type::Address { .. }, life, classes } = input else { return Ok(None); };
+        if !classes.iter().any(|class| matches!(class,
+            SemanticClassExpr::OuterOccurrence { operand: SemanticOperand::Parameter(_), .. }
+            | SemanticClassExpr::IntrinsicClass { operand: SemanticOperand::Parameter(_), .. })) { return Ok(None); }
+        let SemanticTypeValue::Resolved { ty, .. } = input else { unreachable!() };
+        crate::semantic::value::check_address_domain(ty, life, self.inventory, b)?;
+        if classes.len() != life.binder_count as usize { return Err(fail("parameter claim omits its complete class domain")); }
+        let SemanticInstanceTarget::Function(target) = &instance.target else { return Err(fail("parameter claim has no actual function")); };
+        let function = self.inventory.function(target, b)?;
+        let contract = function.storage_life.as_ref().ok_or_else(|| fail("parameter claim lacks its actual complete header"))?;
+        let mut images = Vec::new();
+        for expression in classes {
+            let image = match expression {
+                SemanticClassExpr::OuterOccurrence { operand: SemanticOperand::Parameter(parameter), path, mode } => {
+                    let mut selected = None;
+                    for row in &contract.bindings {
+                        b.spend(row.position.path.len().saturating_add(path.len()).saturating_add(1), WORK)?;
+                        if row.position.base == StorageBase::Parameter(*parameter)
+                            && row.position.path.len() == path.len()
+                            && path.iter().zip(&row.position.path).all(|(original, actual)| matches!((original,actual),
+                                (LifeTypeProjection::Place(a), ContractProjection::Place(z)) if a == z)) {
+                            if selected.replace(row.binder).is_some() { return Err(fail("parameter claim repeats its actual outer selector")); }
+                        }
+                    }
+                    self.parameter_header_class(instance, selected.ok_or_else(|| fail("parameter claim selects no actual outer binder"))?, *parameter, path, Some(*mode), None, b)?
+                }
+                SemanticClassExpr::IntrinsicClass { operand: SemanticOperand::Parameter(parameter), path, class } => {
+                    let mut selected = None;
+                    for row in &contract.classes {
+                        b.spend(row.position.path.len().saturating_add(path.len()).saturating_add(1), WORK)?;
+                        if row.position.base == StorageBase::Parameter(*parameter) && row.position.path == *path && row.position.class == *class {
+                            if selected.replace(row.binder).is_some() { return Err(fail("parameter claim repeats its actual intrinsic selector")); }
+                        }
+                    }
+                    self.parameter_header_class(instance, selected.ok_or_else(|| fail("parameter claim selects no actual intrinsic binder"))?, *parameter, path, None, Some(*class), b)?
+                }
+                _ => crate::semantic::value::class(instance, expression, self.inventory, b, depth + 1)?,
+            };
+            self.push_value(&mut images, image, b)?;
+        }
+        Ok(Some(Value::from_geometry(self.inventory.geometry.resolved(ty, life, b)?, images)))
+    }
+}

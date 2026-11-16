@@ -421,6 +421,9 @@ impl Check<'_, '_> {
         let geometry = self.inventory.geometry.resolved(ty, life, b)?;
         let ty = &geometry.ty;
         let life = &geometry.life;
+        if let Some(value) = self.parameter_address_claim(context, input, b, depth + 1)? {
+            return Ok(value);
+        }
         if let Some(SemanticClassExpr::IntrinsicClass {
             operand: SemanticOperand::Value(source), path, ..
         }) = classes.first() && path.is_empty() {

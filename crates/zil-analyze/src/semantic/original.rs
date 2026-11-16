@@ -1547,6 +1547,13 @@ impl Solver<'_, '_> {
             b,
         )?;
         let answer: CompileResult<Term> = (|| {
+            // Constrain exposed Type variables from the true receiving
+            // recipe before lexical hints. This does not form a dependent
+            // nominal result before its input directory has been solved.
+            if let Some(node) = call_node
+                && let Some(wanted) = self.receiving_for(caller, node, b)? {
+                self.input_recipe_hint(&frame, &signature.result, wanted, b, depth + 1)?;
+            }
             for (ordinal, parameter) in signature.parameters.iter().enumerate() {
                 b.spend(1, WORK)?;
                 if let Some(Some(actual)) = input_hints.and_then(|hints| hints.get(ordinal)) {

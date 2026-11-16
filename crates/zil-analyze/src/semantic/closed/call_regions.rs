@@ -163,11 +163,6 @@ impl Check<'_, '_> {
             let (block, instruction, producer) = self.defining(function, value, b)?;
             let local = match producer.kind {
                 InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => local,
-                InstructionKind::ReborrowAddress { address, .. } => {
-                    operations::available_before(function, (block, instruction, SemanticSiteEdge::Before), address, b)?;
-                    self.push_value(&mut values, address, b)?;
-                    continue;
-                }
                 _ => { b.lookup(origins.len(), WORK)?; origins.insert(value); continue; }
             };
             operations::initialized_local_before(function, (block, instruction), local, b)?;

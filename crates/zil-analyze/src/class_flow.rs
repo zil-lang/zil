@@ -19,6 +19,13 @@ struct Ports {
     array_elements: Vec<usize>,
     raw_whole: Vec<usize>,
 }
+/// Read-only whole reference geometry at a genuine function coordinate.
+/// No classes, initialized occupant or loan are exported by this query.
+pub(crate) fn raw_reference_shape(module: &TypedModule, function: &TypedFunction,
+    operand: SemanticOperand, ty: &Type, b: &mut Budget,
+) -> CompileResult<Option<StorageLifeShape>> {
+    raw_references::shape(module, function, operand, ty, b)
+}
 fn physical_class_slots(
     ty: &Type,
     prefix: &mut Vec<PlaceProjection>,
