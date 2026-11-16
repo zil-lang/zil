@@ -173,6 +173,77 @@ fn frame_store_instruction(
     Ok(true)
 }
 
+fn frame_tag_local_instruction(
+    module: &TypedModule,
+    f: &TypedFunction,
+    instruction: &Instruction,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let InstructionKind::PlaceTagLocal { local, path } = &instruction.kind else { return Ok(false); };
+    let root = local_type(f, *local, Some(instruction.span))?;
+    if !path.is_empty()
+        || !matches!(root, Type::Enum { .. } | Type::ErrorUnion { .. })
+        || record(root, budget)? || !complete_aggregate(module, root, budget)?
+    {
+        return Err(vec![Diagnostic::unsupported(Phase::Analyze,
+            "task PlaceTagLocal requires a complete owning Sum local root and empty path", Some(instruction.span))]);
+    }
+    // The ordinary Sum/initialization kernel proves the current tag and
+    // initialized occupant. Eligibility neither selects nor cleans an arm.
+    Ok(true)
+}
+
+fn static_byte_view(t: &Type) -> bool {
+    matches!(t, Type::Address { mutable: false, inner }
+        if inner.as_ref() == &Type::U8
+            || matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8))
+}
+
+fn frame_static_read_instruction(
+    module: &TypedModule,
+    f: &TypedFunction,
+    instruction: &Instruction,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let (address, result) = match instruction.kind {
+        InstructionKind::StaticUtf8 { .. } => {
+            let value = instruction.result.ok_or_else(|| fail(instruction.span, "Task literal has no actual result"))?;
+            (value, value)
+        }
+        InstructionKind::SliceLength { address }
+        | InstructionKind::AddressIndex { address, .. }
+        | InstructionKind::AddressSlice { address, .. }
+        | InstructionKind::ReadAddress { address } => {
+            let result = instruction.result.ok_or_else(|| fail(instruction.span, "Task static read has no actual result"))?;
+            (address, result)
+        }
+        _ => return Ok(false),
+    };
+    if !static_byte_view(value_type(f, address, Some(instruction.span))?) {
+        return Ok(false);
+    }
+    let source = value_type(f, address, Some(instruction.span))?;
+    let slice = matches!(source, Type::Address { mutable: false, inner }
+        if matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8));
+    let result = value_type(f, result, Some(instruction.span))?;
+    let valid = match instruction.kind {
+        InstructionKind::SliceLength { .. } => slice && *result == Type::I64,
+        InstructionKind::ReadAddress { .. } => !slice && *result == Type::U8,
+        InstructionKind::AddressIndex { .. } => slice && matches!(result,
+            Type::Address { mutable: false, inner } if inner.as_ref() == &Type::U8),
+        _ => slice && matches!(result, Type::Address { mutable: false, inner }
+            if matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8)),
+    };
+    if !valid { return Err(fail(instruction.span, "Task static read changes its complete actual result")); }
+    match crate::retained::check_dyn_static_return(module, f, address, &[], budget) {
+        Ok(()) => Ok(true),
+        Err(errors) if errors.iter().any(|error| error.category == zil_base::ResultCategory::ResourceLimit) => Err(errors),
+        // A nonliteral address may still use an independently admitted
+        // borrowed-driver operation. The Static category supplies no access.
+        Err(_) => Ok(false),
+    }
+}
+
 fn record(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     budget.type_work(t, false, "actual owned task type")?;
     let mut pending = vec![t];
@@ -1201,6 +1272,8 @@ fn helper_graph_uncached(
                 budget.spend(1, "actual owning task profile")?;
                 if frame_store_instruction(module, f, i, budget)?
                     || frame_closure_instruction(module, f, i, budget)?
+                    || frame_tag_local_instruction(module, f, i, budget)?
+                    || frame_static_read_instruction(module, f, i, budget)?
                 {
                     continue;
                 }
@@ -1391,24 +1464,12 @@ pub(super) fn profile(
             budget.spend(1, "actual owning task profile")?;
             if frame_store_instruction(module, f, i, budget)?
                 || frame_closure_instruction(module, f, i, budget)?
+                || frame_tag_local_instruction(module, f, i, budget)?
+                || frame_static_read_instruction(module, f, i, budget)?
             {
                 continue;
             }
             match &i.kind {
-                InstructionKind::PlaceTagLocal { local, path } => {
-                    budget.spend(1, "complete Enum frame tag root")?;
-                    let root = local_type(f, *local, Some(i.span))?;
-                    if !path.is_empty()
-                        || !matches!(root, Type::Enum { .. })
-                        || record(root, budget)?
-                    {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "task PlaceTagLocal requires a complete owning Enum local root and empty path",
-                            Some(i.span),
-                        )]);
-                    }
-                }
                 InstructionKind::Call { function, .. }
                 | InstructionKind::ForeignCall { function, .. } => {
                     driver_call(module, *function, budget, Some(i.span))?

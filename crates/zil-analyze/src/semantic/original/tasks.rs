@@ -347,6 +347,12 @@ impl Solver<'_, '_> {
     // proved-zero pointee. Unknown/opaque domains retain the symbolic All.
     fn task_known_domain(&self, term: Term, b: &mut Budget, depth: usize) -> CompileResult<Option<Vec<Term>>> {
         self.step(depth, b)?;
+        if let Some(environment) = self.task_registration_environment(term, b)? {
+            // Opaque registration carriers preserve their environment's
+            // complete class domain. This is an original type equation, not
+            // ClosedEnvironment/SyncDrop or a phase fact for the owner.
+            return self.task_known_domain(environment, b, depth + 1);
+        }
         if self.capability(term, SemanticBuiltinTrait::ClosedEnvironment, b, depth + 1)? {
             return Ok(Some(Vec::new()));
         }
@@ -641,6 +647,18 @@ impl Solver<'_, '_> {
         Ok((target, parameters, result, modes, result_mode, call_kind, actuals))
     }
 
+    fn task_registration_environment(&self, term: Term, b: &mut Budget) -> CompileResult<Option<Term>> {
+        let root = self.type_root(term, b)?;
+        match self.state.arena[root] {
+            Kind::Wrapped(Wrapper::Registration | Wrapper::AsyncRegistration, environment) => Ok(Some(environment)),
+            Kind::Wrapped(Wrapper::Managed, payload) => match self.state.arena[self.type_root(payload, b)?] {
+                Kind::Wrapped(Wrapper::Registration | Wrapper::AsyncRegistration, environment) => Ok(Some(environment)),
+                _ => Ok(None),
+            },
+            _ => Ok(None),
+        }
+    }
+
     // Collect explicit original input occurrences. The actual kernel checks
     // which physical inputs/keepers realize these occurrences at every PC.
     fn task_input_shape(
@@ -764,6 +782,18 @@ impl Solver<'_, '_> {
                 Ok(())
             }
             Kind::Wrapped(_, element) => {
+                if let Some(environment) = self.task_registration_environment(term, b)? {
+                    // ClosedEnvironment describes the callback's free-class
+                    // domain, not this opaque owner's teardown protocol.
+                    // AsyncRegistration intentionally has no such capability.
+                    // Keep its complete whole input in task_input_domain;
+                    // actual constructor, ports, phase and drain are checked
+                    // by the independent registration/Task/resource kernels.
+                    if !self.capability(environment, SemanticBuiltinTrait::ClosedEnvironment, b, depth + 1)? {
+                        return Err(unknown("Task registration input needs its complete original callback environment domain"));
+                    }
+                    return Ok(());
+                }
                 if !self.capability(
                     *element,
                     SemanticBuiltinTrait::ClosedEnvironment,

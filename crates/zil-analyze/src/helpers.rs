@@ -804,6 +804,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 None,
             )]);
         }
+        let mut owning_mutable = false;
         for (role, (_, local)) in claim.roles.iter().zip(&candidates) {
             budget.spend(1, "helper actual role envelope")?;
             let (closure, borrowed) =
@@ -968,6 +969,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             {
                 return Err(bad("helper environment identity or cleanup mode differs"));
             }
+            let owned_mutable = role.kind == CallableKind::FnMut
+                && borrowed.is_none() && !returned && role.cleanup == CallableCleanup::Owned;
+            owning_mutable |= owned_mutable;
             if !matches!(
                 (definition.kind, role.kind),
                 (
@@ -980,7 +984,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             ) || (role.kind == CallableKind::FnOnce && borrowed.is_some())
                 || (role.kind == CallableKind::FnMut
                     && borrowed != Some(true)
-                    && !(returned && borrowed.is_none()))
+                    && !(returned && borrowed.is_none()) && !owned_mutable)
             {
                 return Err(bad(
                     "helper parameter cannot provide the requested call mode",
@@ -1029,6 +1033,20 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     "helper Hold/Call/write envelope differs from its concrete captures",
                 ));
             }
+        }
+        if owning_mutable {
+            // An owning parameter may be moved into a mutable activation.
+            // Prove every reaching occupant/consumption and each actual call
+            // through forward's precise CFG, including local write permission;
+            // a matching closure Type or a flow-insensitive role is insufficient.
+            if budget.forward_functions.len() < module.functions.len() {
+                let extra = module.functions.len() - budget.forward_functions.len();
+                budget.spend(extra, "owning mutable helper precise CFG selection")?;
+                budget.forward_functions.try_reserve_exact(extra)
+                    .map_err(|_| bad("owning mutable helper CFG allocation failed"))?;
+                budget.forward_functions.resize(module.functions.len(), false);
+            }
+            budget.forward_functions[index] = true;
         }
         flow::check(module, function, claim, &candidates, &checked, budget)?;
         checked[index] = true;
