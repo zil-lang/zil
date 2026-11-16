@@ -166,9 +166,20 @@ impl Ledger {
                 "actual closure changed its early formed header",
             ));
         }
+        let (program, owner) = self.original_closure_definition(closure, left)?
+            .ok_or_else(|| invalid(Span::default(), "formed capture has no immutable original closure origin"))?;
+        super::headers::validate_formed_header(
+            program, self, owner, parameters, captures, result, header, embedding, values, limits, left,
+        )?;
+        Ok(true)
+    }
+    fn original_closure_definition(
+        &self, closure: ClosureId, left: &mut usize,
+    ) -> R<Option<(&SemanticModule, SemanticDefinitionId)>> {
         let program = self.original.context().map(|context| &context.semantic)
             .or_else(|| self.frozen.as_deref().map(|frozen| &frozen.semantic))
-            .ok_or_else(|| invalid(Span::default(), "formed capture lacks its immutable original program"))?;
+            ;
+        let Some(program) = program else { return Ok(None); };
         pay(left, self.frames.len(), Span::default())?;
         let mut origin = None;
         for frame in self.frames.values().filter(|frame| frame.parent.is_some_and(|(_, id)| id == closure)) {
@@ -176,7 +187,7 @@ impl Ledger {
                 return Err(invalid(Span::default(), "formed capture has several actual entry origins"));
             }
         }
-        let origin = origin.ok_or_else(|| invalid(Span::default(), "formed capture has no actual entry origin"))?;
+        let Some(origin) = origin else { return Ok(None); };
         pay(left, program.instances.len(), Span::default())?;
         let mut owner = None;
         for instance in &program.instances {
@@ -189,12 +200,25 @@ impl Ledger {
                 owner = Some(instance.definition);
             }
         }
-        let owner = owner.ok_or_else(|| invalid(Span::default(), "formed capture has no exact original closure definition"))?;
-        super::headers::validate_formed_header(
-            program, self, owner, parameters, captures, result, header, embedding, values, limits, left,
-        )?;
-        Ok(true)
+        Ok(owner.map(|owner| (program, owner)))
     }
+
+    /// Only an immutable original capability theorem for this exact actual
+    /// closure. It grants neither synchronous cleanup nor a registration ABI.
+    pub(crate) fn original_closed_environment(
+        &self, closure: ClosureId, limits: &Limits, left: &mut usize,
+    ) -> R<Option<bool>> {
+        let Some((program, owner)) = self.original_closure_definition(closure, left)? else { return Ok(None); };
+        let proof = self.original.borrow();
+        if let Some(proof) = proof.as_ref() {
+            return proof.closed_closure_environment(program, owner, limits, left);
+        }
+        if let Some(frozen) = self.frozen.as_deref() {
+            return frozen.original.closed_closure_environment(program, owner, limits, left);
+        }
+        Ok(None)
+    }
+
     pub(crate) fn active_expression(
         &self,
         function: FunctionId,

@@ -385,7 +385,7 @@ impl Builder<'_, '_> {
                 ));
             }
             self.closures.factory_self_contained(id, callback.span)?;
-            closed_environment_for(self.closures, id, callback.span, asynchronous)?;
+            closed_environment_for(self.closures, id, callback.span, asynchronous, false)?;
             if threaded {
                 self.closures.snapshot(
                     self.closures
@@ -521,14 +521,19 @@ pub(super) fn closed_environment(
     root: ClosureId,
     span: Span,
 ) -> R<()> {
-    closed_environment_for(state, root, span, false)
+    closed_environment_for(state, root, span, false, true)
 }
 fn closed_environment_for(
     state: &mut closures::State,
     root: ClosureId,
     span: Span,
     asynchronous: bool,
+    ordinary_bound: bool,
 ) -> R<()> {
+    // The same false `asynchronous` flag also names a real synchronous C
+    // registration. Only the ordinary generic CE property uses this theorem;
+    // registration's independent synchronous environment checks stay intact.
+    let owned_environment = ordinary_bound && state.original_closed_environment(root)? == Some(true);
     let mut deferred_static = false;
     let mut pending = vec![root];
     let mut seen = BTreeSet::new();
@@ -570,6 +575,24 @@ fn closed_environment_for(
         while let Some(t) = types.pop() {
             pay(&mut work, 1)?;
             match t {
+                Type::Task { result, retained_life } if owned_environment => {
+                    pay(&mut work, retained_life.ports.len().saturating_add(retained_life.retained.len())
+                        .saturating_add(retained_life.nominal_arguments.len()).saturating_add(1))?;
+                    tasks::require_closed_context(t, span)?;
+                    if !retained_life.ports.is_empty() {
+                        return Err(error("E-CLOSED-ENVIRONMENT", span, "actual Task environment retains an external borrowed input port"));
+                    }
+                    // All variable/phantom/nominal classes remain in the Task.
+                    // The source theorem proves they do not denote an outside
+                    // loan; this does not prove NoExternal users or SyncDrop.
+                    types.push(result);
+                }
+                Type::AsyncRegistration { environment } if owned_environment => {
+                    types.push(environment);
+                }
+                Type::Mutex { payload } if owned_environment => {
+                    types.push(payload);
+                }
                 Type::AsyncRegistration { .. } => {
                     return Err(unsupported(
                         span,

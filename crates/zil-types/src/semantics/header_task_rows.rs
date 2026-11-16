@@ -22,6 +22,8 @@ fn leaf(
     bindings: &mut Vec<(StoragePosition, SemanticClassExpr)>,
     classes: &mut Vec<(SignatureLifeClass, SemanticClassExpr)>,
     covered: &mut [bool],
+    life: &StorageLifeShape,
+    expanded: &mut [bool],
     limits: &Limits,
     left: &mut usize,
     depth: usize,
@@ -39,6 +41,8 @@ fn leaf(
             bindings,
             classes,
             covered,
+            life,
+            expanded,
             limits,
             left,
             depth + 1,
@@ -95,6 +99,19 @@ fn leaf(
             image.clone(),
         ));
         covered[index] = true;
+        // The complete child forest may already name this exact Task class.
+        // Mark only the identical selector/ordinal/parent coordinate as
+        // represented. Whole Managed and inner Task paths remain distinct.
+        pay(left, life.retained.len())?;
+        let mut represented = None;
+        for (ordinal, row) in life.retained.iter().enumerate() {
+            path(left, limits, row.path.len())?;
+            if row.path != *intrinsic || row.class as usize != class { continue; }
+            if row.binder as usize != index || represented.replace(ordinal).is_some() {
+                return Err(bad("Task header child forest conflicts at one complete intrinsic coordinate"));
+            }
+        }
+        if let Some(row) = represented { expanded[row] = true; }
     }
     Ok(())
 }
@@ -139,12 +156,11 @@ fn child(
                 return Err(bad("Task header child has ambiguous original class images"));
             }
         }
-        let (row, image) = selected
+        let (_, image) = selected
             .ok_or_else(|| bad("Task header child omits an original retained class image"))?;
         if image >= source.len() {
             return Err(bad("Task header child exceeds its full original domain"));
         }
-        expanded[row] = true;
         images.push(image);
     }
     let mut physical = selector.into_iter().collect::<Vec<_>>();
@@ -159,6 +175,8 @@ fn child(
         bindings,
         classes,
         covered,
+        life,
+        expanded,
         limits,
         left,
         0,
@@ -192,6 +210,8 @@ pub(super) fn append(
                 bindings,
                 classes,
                 covered,
+                life,
+                expanded,
                 limits,
                 left,
                 0,
@@ -374,6 +394,22 @@ mod tests {
                     SignatureLifeClass {
                         base: StorageBase::Parameter(0),
                         path: vec![LifeTypeProjection::Pointee, LifeTypeProjection::Pointee],
+                        class: 1
+                    },
+                    classes[0].clone()
+                ),
+                (
+                    SignatureLifeClass {
+                        base: StorageBase::Parameter(0),
+                        path: vec![LifeTypeProjection::Pointee],
+                        class: 0
+                    },
+                    classes[1].clone()
+                ),
+                (
+                    SignatureLifeClass {
+                        base: StorageBase::Parameter(0),
+                        path: vec![LifeTypeProjection::Pointee],
                         class: 1
                     },
                     classes[0].clone()

@@ -885,6 +885,10 @@ impl State {
 
     /// Retained factories cannot borrow the internal work ledger directly.
     /// Recheck a newly admitted complete Store parent on the same request.
+    pub(super) fn original_closed_environment(&mut self, closure: ClosureId) -> R<Option<bool>> {
+        self.semantic_emission.original_closed_environment(closure, &self.limits, &mut self.work_left)
+    }
+
     pub(super) fn ordinary_store_capture(&mut self, ty: &Type, span: Span) -> R<bool> {
         dynamic_store::owned_capture(ty, &mut self.work_left, &self.limits, span)
     }

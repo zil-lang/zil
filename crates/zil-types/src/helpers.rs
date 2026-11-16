@@ -262,11 +262,17 @@ pub(super) fn validate_template(
                 return Err(reject());
             }
         }
-        for ty in [&bounds[0].result, &function.return_type] {
-            prepay(ty, function.span)?;
-            if !closures::owned_signature_value(ty) {
-                return Err(reject());
-            }
+        prepay(&bounds[0].result, function.span)?;
+        if !(closures::owned_signature_value(&bounds[0].result)
+            || bounds[0].parameters.is_empty() && closures::task_result_head(&bounds[0].result)) {
+            return Err(reject());
+        }
+        // A callback's returned owner is independent from this helper's own
+        // result. Match the established zero-input callable Task boundary;
+        // do not turn Task into ordinary owned-data/SyncDrop/container rights.
+        prepay(&function.return_type, function.span)?;
+        if !closures::owned_signature_value(&function.return_type) {
+            return Err(reject());
         }
         if borrowed_owned {
             for ty in bounds[0]

@@ -1,5 +1,39 @@
 //! Original nominal/resource construction before actual opcode matching.
 use super::*;
+impl Proof {
+    /// Prove the complete original environment's CE property under its own
+    /// declaration Gamma. Runtime move modes and every concrete child remain
+    /// independently checked by the actual environment consumer.
+    pub(in crate::semantics) fn closed_closure_environment(
+        &self, program: &SemanticModule, owner: SemanticDefinitionId,
+        limits: &Limits, left: &mut usize,
+    ) -> R<Option<bool>> {
+        *left = left.checked_sub(self.complete.len().saturating_add(1).ilog2() as usize + 1)
+            .ok_or_else(|| Diagnostic::limit(Phase::Types, "original environment capability lookup work exceeded", None))?;
+        if !self.complete.contains(&owner) { return Ok(None); }
+        let mut check = super::nominal_where::borrowed_check(program, self, owner, limits, left)?;
+        let declaration = check.definition(owner)?;
+        if declaration.kind != SemanticDefinitionKind::Closure { return Ok(None); }
+        check.pay(self.borrowed_capture_heads.len().saturating_add(1).ilog2() as usize + 1, 0)?;
+        if self.borrowed_capture_heads.contains(&owner) { return Ok(Some(false)); }
+        let mut known = Some(true);
+        for (ordinal, slot) in declaration.environment.iter().enumerate() {
+            check.pay(1, 0)?;
+            let value = match &slot.kind {
+                SemanticFormal::Type { .. } => {
+                    let ordinal = u32::try_from(ordinal).map_err(|_| bad("original environment capability ordinal overflows"))?;
+                    check.sealed_capability(owner, &SemanticTypeRecipe::Environment { scope: SemanticScopeRef::Ancestor(0), ordinal },
+                        SemanticBuiltinTrait::ClosedEnvironment, 1)?
+                }
+                SemanticFormal::Lifetime => Some(false),
+                SemanticFormal::Const { carrier } => check.sealed_capability(owner, carrier, SemanticBuiltinTrait::ClosedEnvironment, 1)?,
+            };
+            known = match (known, value) { (Some(a), Some(b)) => Some(a && b), _ => None };
+        }
+        Ok(known)
+    }
+}
+
 impl Check<'_, '_> {
     /// Registration construction may synchronously destroy the transferred
     /// environment on allocation/install failure and after drain. This proves
@@ -1251,15 +1285,56 @@ impl Check<'_, '_> {
                 }
                 Some(all)
             }
-            SemanticTypeRecipe::Opaque { .. } => {
-                match self.closed_opaque_result(&ty, depth + 1)? {
-                    Some((definition, result)) => {
-                        self.contexts.push(definition);
-                        let result = self.sealed_capability(definition, &result, kind, depth + 1);
-                        self.contexts.pop();
-                        result?
+            SemanticTypeRecipe::Opaque { definition, arguments, hidden } => {
+                let source = self.definition(*definition)?;
+                if kind == SemanticBuiltinTrait::ClosedEnvironment
+                    && source.parent.is_none() && source.environment.is_empty()
+                    && self.proof.complete.contains(definition)
+                    && matches!(&source.body, SemanticDefinitionBody::FunctionWithBody {
+                        signature: SemanticSignatureRecipe { result: SemanticTypeRecipe::Opaque { definition: declared, .. }, .. },
+                        foreign: None, body: SemanticOriginalFunctionBody::Defined(_), ..
+                    } if declared == definition)
+                {
+                    // An opaque capability depends on its complete all-return
+                    // equation and caller obligations, not a zero-class domain.
+                    self.call_requirements(owner, source, arguments, depth + 1)?;
+                    let result = self.proof.types.get(&(*definition, Query::Result))
+                        .ok_or_else(|| bad("opaque capability lacks its complete all-return original equation"))?;
+                    let result = copy_recipe(result, self.limits, self.left)?;
+                    self.contexts.push(*definition);
+                    let declared = (|| {
+                        if !matches!(hidden.as_ref(), SemanticTypeRecipe::OriginalType {
+                            scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
+                        }) {
+                            let hidden = self.resolve(*definition, hidden, depth + 1)?;
+                            self.same(&hidden, &result)?;
+                        }
+                        self.sealed_capability(*definition, &result, kind, depth + 1)
+                    })();
+                    self.contexts.pop();
+                    let declared = declared?;
+                    // Full mixed kinds, Const carriers and lexical domains are
+                    // validated even when the declaration theorem is universal.
+                    let specialized = super::super::instantiate::ty(
+                        self.program, &self.proof, &result,
+                        super::super::instantiate::DomainMapping {
+                            source: *definition, use_definition: owner, arguments, parent_call: None,
+                        }, self.limits, self.left,
+                    )?;
+                    if declared == Some(true) { Some(true) }
+                    else { self.sealed_capability(owner, &specialized, kind, depth + 1)? }
+                } else {
+                    // Other lexical parents still require their exact original
+                    // application boundary; no receiver/ancestor is guessed.
+                    match self.closed_opaque_result(&ty, depth + 1)? {
+                        Some((definition, result)) => {
+                            self.contexts.push(definition);
+                            let result = self.sealed_capability(definition, &result, kind, depth + 1);
+                            self.contexts.pop();
+                            result?
+                        }
+                        None => None,
                     }
-                    None => None,
                 }
             }
             SemanticTypeRecipe::Exact(exact) => Some(
