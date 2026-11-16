@@ -163,5 +163,85 @@
     "restore": "Concatenate part-01, part-02a, part-02b, part-02c, part-02d, base64-decode once, then extract gzip"
   },
   "source_head": "55726391a9c48f69f889f5af64a161441877c904",
-  "acceptance": "ALPHA NOT ACCEPTED; remaining core and extra source, raw/Wire, complete native and strict checks remain open"
+  "acceptance": "ALPHA NOT ACCEPTED; remaining core and extra source, raw/Wire, complete native and strict checks remain open",
+  "latest_resource_policy_review": {
+    "date": "2026-11-16",
+    "candidate": "d7b1f1c54dac1b9fecbe92455e0759eb57516a5a",
+    "alpha_profile": "alpha-25m-v1",
+    "standard_10m": {
+      "positive_passed": 10,
+      "total": 13,
+      "correct_negatives": 4
+    },
+    "explicit_alpha_25m": {
+      "positive_passed": 12,
+      "total": 13,
+      "correct_negatives": 4,
+      "remaining": "owning-collections Verify Unsupported buffer projection/creator chain"
+    },
+    "extra_complete_sources": {
+      "passed": 11,
+      "total": 14,
+      "remaining": [
+        "short external view actual expression emission",
+        "short inline dynamic result contract consumer",
+        "owned projected multi-source signature grounding"
+      ]
+    },
+    "ordinary_application": "original callable occupant error passed; independent Verify still ResourceLimit at world33/54 under25M; not accepted",
+    "cli_profile_tests": {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    "core_units": {
+      "ir": [
+        103,
+        0
+      ],
+      "expand": [
+        171,
+        4
+      ],
+      "types": [
+        96,
+        0
+      ],
+      "analyze": [
+        305,
+        0
+      ],
+      "verify": [
+        817,
+        15
+      ]
+    },
+    "evidence_root": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-explicit-policy-and-original-transfers",
+    "policy_decision": "Keep standard default10M and pressure tests. Explicit frozen Alpha25M only changes max_analysis_steps; every safety obligation and independent Verify remains. Never treat quota adjustment as semantic feature fix.",
+    "alpha_accepted": false,
+    "github_recovery": {
+      "path": "language/20261116T120904Z-approved-source-recovery/recovery.tar.gz",
+      "local_archive": "/workspace/.zil-env/approved-crates-recovery-20261116T120904Z/recovery.tar.gz",
+      "source_head": "d7b1f1c54dac1b9fecbe92455e0759eb57516a5a",
+      "size": 1276481,
+      "sha256": "bd17ff96022bf0762f22a61939b2b67ce0331f02954813ce135cf1482ece5767",
+      "encoding": "base64",
+      "remote_commit": "12a6ba16bd03f57d4e30a79d3aebbd749e92f47c",
+      "remote_paths": [
+        "language/20261116T120904Z-approved-source-recovery/recovery.tar.gz.base64.part-01-of-11",
+        "language/20261116T120904Z-approved-source-recovery/recovery.tar.gz.base64.part-02-of-11",
+        "language/20261116T120904Z-approved-source-recovery/recovery.tar.gz.base64.part-03-of-11",
+        "language/20261116T120904Z-approved-source-recovery/recovery.tar.gz.base64.part-04-of-11",
+        "language/20261116T120904Z-approved-source-recovery/recovery.tar.gz.base64.part-05-of-11",
+        "language/20261116T120904Z-approved-source-recovery/recovery.tar.gz.base64.part-06-of-11",
+        "language/20261116T120904Z-approved-source-recovery/recovery.tar.gz.base64.part-07-of-11",
+        "language/20261116T120904Z-approved-source-recovery/recovery.tar.gz.base64.part-08-of-11",
+        "language/20261116T120904Z-approved-source-recovery/recovery.tar.gz.base64.part-09-of-11",
+        "language/20261116T120904Z-approved-source-recovery/recovery.tar.gz.base64.part-10-of-11",
+        "language/20261116T120904Z-approved-source-recovery/recovery.tar.gz.base64.part-11-of-11"
+      ],
+      "readback_verified": true,
+      "restore": "Concatenate parts01 through11 in numeric order, base64-decode once, then extract gzip"
+    }
+  }
 }

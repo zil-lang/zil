@@ -22,6 +22,8 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 
 ## 通用语言可用性并行收敛
 
+2026-11-16 新候选 `d7b1f1c54` 完整Source：显式Alpha25M为12/13、正确负例4/4，标准默认10M保持10/13；两种配置分别记账。额外14完整Source为11/14，原应用越过原callable occupant错误后仍V25M超限，Alpha未接受。真实CLI配置/缓存隔离/resident测试3/0；组件IR103/0、Expand171/4、Types96/0、A305/0、V817/15。剩余真实语义/旧Wire由完整链负责人并行闭合。Astra指出不应把固定10M软件配额独占功能验收；显式Alpha配置不改安全证明，详workflow最新条款。crates限定恢复截至d7b已在`archive/source-history@12a6ba16b`逐片读回核实，11片按数字顺序连接解码；不等于正式源分支发布或Alpha验收。
+
 2026-11-16（Asia/Shanghai）继续按完整功能链施工。最新完整候选 `5efb8ea85` 正向 **11/13**、预期安全负例 **4/4**；ownership默认10M及threads完整链新通过，小型原生整链16/16，Alpha仍未接受。用户指出4/13回退后，A/V独立Astra核证为σ/r消费者未同步及sealed builtin人工scheme鲜化错误；现已恢复并超过旧10/13，不回撤必要独立call region、不造Source目录padding。余collections为A实际trait借入角色；iteration已到V真实resource CFG尾部，约10,003,915诊断N出现fresh replay差异，正核费用重现性而不盲调pin。原应用已越Types预算，现A默认预算；额外借入迭代仍A manager原σ/wanted混用。fc626额外14原Source为7通过，Context原3及nested/wrapped/loop已过，短view/两scope/holder完整目录/static计费收口继续。组件IR103/0、Expand170/1、Types96/0、Analyze304/0、Verify801/22；旧Wire、真实scope和费用分别处理。GitHub限定crates恢复已读回固定`a1478015f`，源码至8db及当时WIP；恢复需按part01/02a/02b/02c/02d连接。详见[回退路径审计](records/language-alpha-integration-regression-review-20261116.json)和[执行记录](records/language-alpha-execution.json)。
 
 2026-11-15（Asia/Shanghai）用户要求停止施工并由 root 本人审核，不使用子代理审查。全部实施与审查代理及构建已停止；最新完整候选243c05a73仍正向1/13、预期负例4/4，Alpha未接受。源码fd028ceb3与全部活动WIP已同步/固定归档90d7881b并读回校验。具体算法不一致、完整消费者遗漏、调度问题及已更新执行约束见[亲自审核](records/language-alpha-personal-workflow-audit-20261115.md)；仅文档与现场保全，不自动恢复施工。
