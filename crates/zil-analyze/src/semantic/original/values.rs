@@ -870,6 +870,7 @@ impl Checked {
                     | InstructionKind::CallClosureOnce { .. }
                     | InstructionKind::CallClosureShared { .. }
                     | InstructionKind::CallClosureMut { .. }
+                    | InstructionKind::CallClosureBorrowed { .. }
             )
         {
             return Err(fail("original result role changed its actual call family"));

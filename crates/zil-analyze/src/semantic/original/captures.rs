@@ -315,3 +315,51 @@ impl Checked {
         }
     }
 }
+
+impl Checked {
+    pub(in crate::semantic) fn borrowed_closure_receiver(
+        &self, context: &SemanticInstance, site: SemanticSiteId,
+        program: &SemanticModule, inventory: &Inventory<'_>, b: &mut Budget,
+    ) -> CompileResult<borrow_places::Source> {
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
+            &inventory.definition(context.definition, b)?.body else {
+                return Err(fail("borrowed closure receiver has no complete original body"));
+            };
+        let mut node = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.site != site { continue; }
+            let SemanticOriginalNode::Expression(id) = link.node else {
+                return Err(fail("borrowed closure call selects an original statement"));
+            };
+            if node.replace(id).is_some() {
+                return Err(fail("borrowed closure call repeats its original expression"));
+            }
+        }
+        let node = node.ok_or_else(|| fail("borrowed closure call has no original expression"))?;
+        b.lookup(self.calls.len(), WORK)?;
+        if !self.calls.get(&(context.definition, node)).is_some_and(|call| call.closure) {
+            return Err(fail("borrowed closure receiver has no independently resolved original call"));
+        }
+        let directory = inventory.original_index(context.definition, b)?;
+        let CoreExprKind::Call { callee, .. } = &directory.get_expr(node, b)?.kind else {
+            return Err(fail("borrowed closure receiver has another original operation"));
+        };
+        if !matches!(callee.kind, CoreExprKind::Name(_)) {
+            return Err(unknown("borrowed known closure needs its exact lexical callee place"));
+        }
+        b.lookup(self.local_reads.len(), WORK)?;
+        b.lookup(self.environment_reads.len(), WORK)?;
+        let local = self.local_reads.get(&(context.definition, callee.id)).copied();
+        let captured = self.environment_reads.get(&(context.definition, callee.id)).copied();
+        let anchor = match (local, captured) {
+            (Some(anchor), None) => anchor,
+            (None, Some(ordinal)) => LocalAnchor::Environment(ordinal),
+            _ => return Err(fail("borrowed closure receiver has no unique original local or capture read")),
+        };
+        let root = self.source_value(context, SemanticScopeRef::Ancestor(0),
+            &SemanticOriginalTypeSource::Expression(callee.id), program, inventory, b)?;
+        Ok(borrow_places::Source { role: None, anchor: Some(anchor), expression: None,
+            index: None, inner: root.copy(b)?, root, path: Vec::new(), indirect: false, slice: None })
+    }
+}

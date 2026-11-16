@@ -202,6 +202,52 @@ impl Check<'_, '_> {
         selected.ok_or_else(|| fail("call output has no exact original receipt"))
     }
 
+    // Independent physical header slots may denote the same declared
+    // original lifetime. Prove that equation in every actual world, rather
+    // than requiring equal slot numbers or equating their runtime loans.
+    pub(super) fn call_result_input_binders(&self, callee: &TypedFunction,
+        result: StorageBinder, b: &mut Budget) -> CompileResult<Vec<StorageBinder>> {
+        let contract = callee.storage_life.as_ref()
+            .ok_or_else(|| fail("call class source has no complete actual header"))?;
+        let mut candidates = Vec::new();
+        for (base, binder) in contract.bindings.iter().map(|row| (row.position.base, row.binder))
+            .chain(contract.classes.iter().map(|row| (row.position.base, row.binder)))
+        {
+            b.spend(candidates.len().saturating_add(1), WORK)?;
+            if matches!(base, StorageBase::Parameter(_)) && !candidates.contains(&binder) {
+                self.push_value(&mut candidates, binder, b)?;
+            }
+        }
+        b.spend(candidates.len(), WORK)?;
+        if candidates.contains(&result) {
+            let mut exact = Vec::new();
+            self.push_value(&mut exact, result, b)?;
+            return Ok(exact);
+        }
+        if candidates.is_empty() { return Ok(Vec::new()); }
+        let worlds = self.function_worlds(callee.id, b)?;
+        if worlds.is_empty() { return Err(fail("call result class has no original callee world")); }
+        for world in worlds {
+            let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
+                &self.inventory.definition(world.definition, b)?.body else {
+                    return Err(fail("call class equation omits its complete original declaration"));
+                };
+            // This checks all source parameters, full result domain and exact
+            // embeddings against the independently checked original recipes.
+            self.header_relation(world, callee, signature, b)?;
+            let original = self.header_class(world, result, b)?;
+            let mut proven = Vec::new();
+            for candidate in candidates {
+                b.spend(1, WORK)?;
+                if self.header_class(world, candidate, b)? == original {
+                    self.push_value(&mut proven, candidate, b)?;
+                }
+            }
+            candidates = proven;
+        }
+        Ok(candidates)
+    }
+
     pub(super) fn outer_role(
         &self,
         instance: &SemanticInstance,

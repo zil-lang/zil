@@ -1113,11 +1113,13 @@ impl Check<'_, '_> {
                     | InstructionKind::CallClosureOnce { .. }
                     | InstructionKind::CallClosureShared { .. }
                     | InstructionKind::CallClosureMut { .. }
+                    | InstructionKind::CallClosureBorrowed { .. }
                         if closure =>
                     {
                         let (operand, arguments) = match &instruction.kind {
                             InstructionKind::CallClosure { callee, arguments }
-                            | InstructionKind::CallClosureOnce { callee, arguments } => {
+                            | InstructionKind::CallClosureOnce { callee, arguments }
+                            | InstructionKind::CallClosureBorrowed { callee, arguments, .. } => {
                                 (SemanticOperand::Value(*callee), arguments)
                             }
                             InstructionKind::CallClosureShared { callee, arguments }
@@ -1130,10 +1132,32 @@ impl Check<'_, '_> {
                                 ));
                             }
                         };
-                        let Type::Closure(id) = self.operand(instance, &operand, point, b)? else {
-                            return Err(fail(
-                                "original closure callee has another complete actual type",
-                            ));
+                        let receiver = self.operand(instance, &operand, point, b)?;
+                        let id = if let InstructionKind::CallClosureBorrowed { callee, kind, .. } = instruction.kind {
+                            let Type::Address { mutable, inner } = &receiver else {
+                                return Err(fail("borrowed known closure has no actual environment address"));
+                            };
+                            let Type::Closure(id) = inner.as_ref() else {
+                                return Err(fail("borrowed known closure changes its complete pointee type"));
+                            };
+                            if !matches!(kind, CallableKind::Fn | CallableKind::FnMut)
+                                || kind == CallableKind::FnMut && !*mutable {
+                                return Err(fail("borrowed known closure changes its original invocation mode"));
+                            }
+                            let original = self.original.borrowed_closure_receiver(instance, site.recipe,
+                                self.program, self.inventory, b)?;
+                            self.checked_borrow_place(instance, point.function, callee, &original,
+                                false, false, b, 0)?;
+                            let whole = self.ssa_value(instance, point.function, callee, b, 0)?;
+                            if !self.pointee(&whole, b)?.equal_paid(&original.root, b)? {
+                                return Err(fail("borrowed known closure changes its complete original environment value"));
+                            }
+                            *id
+                        } else {
+                            let Type::Closure(id) = receiver else {
+                                return Err(fail("original closure callee has another complete actual type"));
+                            };
+                            id
                         };
                         let callee = self
                             .module
@@ -1141,6 +1165,13 @@ impl Check<'_, '_> {
                             .get(id.0 as usize)
                             .filter(|callee| callee.id == id)
                             .ok_or_else(|| fail("original closure call has no actual entry"))?;
+                        if let InstructionKind::CallClosureBorrowed { kind, .. } = instruction.kind
+                            && !matches!((callee.kind, kind),
+                                (CallableKind::Fn, CallableKind::Fn)
+                                | (CallableKind::Fn | CallableKind::FnMut, CallableKind::FnMut))
+                        {
+                            return Err(fail("borrowed known closure entry has another complete callable role"));
+                        }
                         b.spend(callee.parameters.len(), WORK)?;
                         for parameter in &callee.parameters {
                             crate::dyn_metadata::ty(parameter, b)?;
@@ -1552,6 +1583,11 @@ impl Check<'_, '_> {
                     b,
                 );
                 if let Err(mut errors) = checked {
+                    if errors.iter().any(|error| error.category == zil_base::ResultCategory::ResourceLimit) {
+                        // Optional contextual formatting must not replace the
+                        // actual exhausted proof's category, caller or ledger.
+                        return Err(errors);
+                    }
                     b.spend(192, WORK)?;
                     for error in &mut errors {
                         error.notes.push(format!("actual semantic instance {}:{} original definition {}:{} function {} recipe {} at block {} instruction {} {:?}",

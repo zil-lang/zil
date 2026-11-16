@@ -1374,11 +1374,21 @@ impl Check<'_, '_> {
                     (block, index), b, depth + 1)?;
                 self.static_closure_result(instance, block, index, &receiver.ty, ty, b)
             }
-            InstructionKind::CallClosureBorrowed { .. } => self
-                .abstract_operation(instance, function, block, index, b)?
-                .ok_or_else(|| {
-                    unknown("borrowed callable result has no complete original invocation role")
-                }),
+            InstructionKind::CallClosureBorrowed { callee, .. } => {
+                if let Some(result) = self.abstract_operation(instance, function, block, index, b)? {
+                    return Ok(result);
+                }
+                let receiver = self.ssa_value(instance, function, *callee, b, depth + 1)?;
+                let Type::Address { inner, .. } = &receiver.ty else {
+                    return Err(fail("borrowed known callable result has no actual environment address"));
+                };
+                if !matches!(inner.as_ref(), Type::Closure(_)) {
+                    return Err(fail("borrowed known callable result changes its actual closure identity"));
+                }
+                // BodyCall separately proves the exact original lexical place,
+                // requested mode, fresh borrow and whole pointee class value.
+                self.static_closure_result(instance, block, index, inner, ty, b)
+            },
             InstructionKind::LoadStoredBorrow { storage, path, mode } => {
                 operations::available_before(function, (block, index, SemanticSiteEdge::Before), *storage, b)?;
                 let root = self.ssa_value(instance, function, *storage, b, depth + 1)?;
@@ -1813,10 +1823,11 @@ impl Check<'_, '_> {
                     }
                     let binder = result
                         .ok_or_else(|| fail("callee result omits an intrinsic class occurrence"))?;
+                    let input_binders = self.call_result_input_binders(callee, binder, b)?;
                     let mut source = None;
                     for row in &contract.bindings {
-                        b.spend(row.position.path.len() + 1, WORK)?;
-                        if row.binder != binder {
+                        b.spend(row.position.path.len().saturating_add(input_binders.len() + 1), WORK)?;
+                        if !input_binders.contains(&row.binder) {
                             continue;
                         }
                         let StorageBase::Parameter(parameter) = row.position.base else {
@@ -1866,8 +1877,8 @@ impl Check<'_, '_> {
                         // Fixed/input-class sources require the same exact
                         // real header occurrence; no result class self-proof.
                         for row in &contract.classes {
-                            b.spend(row.position.path.len() + 1, WORK)?;
-                            if row.binder != binder {
+                            b.spend(row.position.path.len().saturating_add(input_binders.len() + 1), WORK)?;
+                            if !input_binders.contains(&row.binder) {
                                 continue;
                             }
                             let StorageBase::Parameter(parameter) = row.position.base else {

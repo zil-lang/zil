@@ -193,6 +193,8 @@ pub(super) fn module(module: &TypedModule, b: &mut Budget) -> CompileResult<bool
                     | InstructionKind::ConvertInteger { .. }
                     | InstructionKind::MakeClosure { .. }
                     | InstructionKind::ReadCapture { .. }
+                    | InstructionKind::BorrowCapture { .. }
+                    | InstructionKind::TakeCapture { .. }
                     | InstructionKind::WriteCapture { .. }
                     | InstructionKind::DropClosure { .. } => None,
                     // In particular FunctionRef/CallIndirect, SuspendCall,
