@@ -22,6 +22,7 @@ mod scoped_threads;
 mod closure_calls;
 mod code_calls;
 mod type_uses;
+mod callable_sources;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
@@ -91,6 +92,9 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
         let closure=entry.environment.ok_or_else(||bad("pending Closure entry lacks its environment identity"))?;
         let relation=entry.storage_life.as_ref().ok_or_else(||bad("pending Closure entry complete header is Unknown"))?;
         if cursor.expected.ty!=Type::Closure(closure)||cursor.expected.life.binder_count!=relation.fixed_binder_count||cursor.expected.classes.len()!=relation.fixed_binder_count as usize||cursor.arguments.len()!=definition.parameters.len()||cursor.sealed.len()!=definition.environment.len() {return Err(bad("pending Closure cursor contradicts its fully checked actual entry/domain"));}
+        b.spend(checked_worlds.len())?;
+        let actual=checked_worlds.iter().find(|(id,_)|*id==instance.id).ok_or_else(||bad("pending Closure cursor has no exact completed original world"))?;
+        context.finish_closure_cursor(module,cursor,&actual.1,b)?;
         // The caller-side cursor may instantiate the generic creator's rigid
         // lifetime into another caller domain. Its original recipe and every
         // actual Call substitution are checked separately; no global union
@@ -660,7 +664,17 @@ impl CheckedContext {
             InstructionKind::CallIndirect{callee,arguments}|InstructionKind::CallClosure{callee,arguments}|InstructionKind::CallClosureOnce{callee,arguments}|InstructionKind::CallClosureBorrowed{callee,arguments,..}=>(value_at(values,*callee)?,arguments),
             InstructionKind::CallClosureShared{callee,arguments}|InstructionKind::CallClosureMut{callee,arguments}=>(state.locals.get(callee.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual callable local is not initialized"))?,arguments),_=>return Err(bad("actual opcode is not a closure invocation")),
         };
-        if !self.same_type(environment,actual,&expected,b)?{return Err(bad("actual callee occupant differs from its original full callable type"));}
+        let invocation_borrow;
+        let original_value=if matches!(opcode,InstructionKind::CallClosureBorrowed{..})
+            &&matches!(expected.ty,Type::Closure(_))&&matches!(actual.ty,Type::Address{..}){
+            let InstructionKind::CallClosureBorrowed{callee,..}=opcode else{unreachable!()};
+            let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=caller.target else{return Err(bad("borrowed callable has no actual original caller entry"));};
+            let f=module.functions.get(function.0 as usize).filter(|f|f.id==function).ok_or_else(||bad("borrowed callable actual caller entry is absent"))?;
+            let node=self.original_callable_source(module,caller,site,b)?;
+            self.original_projection_source(module,caller,f,*callee,caller.definition,node,true,b)?;
+            invocation_borrow=self.child_value(module,actual,&[LifeTypeProjection::Pointee],b)?;&invocation_borrow
+        }else{actual};
+        if !self.same_type(environment,original_value,&expected,b)?{return Err(bad("actual callee occupant differs from its original full callable type").with_note(format!("original {:?}, site {:?}; actual {:?} domain {}, expected {:?} domain {}",caller.definition,site.recipe,original_value.ty,original_value.life.binder_count,expected.ty,expected.life.binder_count)));}
         if matches!(opcode,InstructionKind::CallIndirect{..}){return self.indirect_call(module,caller,site,actual,arguments,values,environment,external,active,b);}
         let id=match &actual.ty {Type::Closure(id)=>*id,Type::Address{inner,..}=>match inner.as_ref(){Type::Closure(id)=>*id,_=>return Err(bad("borrowed callee does not address a concrete Closure"))},_=>return Err(unsupported("actual callable requires its full code/trait dispatch proof",None))};
         b.spend(module.closures.len())?;
@@ -828,11 +842,22 @@ impl CheckedContext {
         // claim, but cannot re-enter the full Task instruction/WF consumer.
         // Its later frame/site obligations remain mandatory at module exit.
         let mut actual=self.construct_value(module,ty,life,classes,b)?;
+        let closure_cursor=self.original_closure_claim(&actual,expected,b)?;
         for (index,expression) in expressions.iter().enumerate() {
             let source=self.expression_origin(expression,environment,b)?;
             let expected_origin=expected.origins.get(index).ok_or_else(||bad(&format!("nominal claim original domain is incomplete [at {:?}, original {:?}, claim type {:?}, claim domain {}, claim classes {}, expected type {:?}, expected domain {}, expected classes {}, expected origins {}]",environment.at,environment.lexical.first().map(|frame|frame.definition),ty,life.binder_count,expressions.len(),expected.ty,expected.life.binder_count,expected.classes.len(),expected.origins.len())))?;
             if let Some(origin)=self.nominal_claim_origin(&actual.origins[index],expected_origin,source.as_ref(),environment,b)?{actual.origins[index]=origin;}
-            else if let Some(origin)=source{actual.origins[index]=origin;}
+            else if let Some(origin)=source{
+                if closure_cursor&&!self.same_origin(environment,&origin,expected_origin,b)?{return Err(bad("closure claim changes its exact original intrinsic occurrence"));}
+                actual.origins[index]=origin;
+            }
+            else if closure_cursor{
+                // An Implicit/Formal image is not an assertion that this κ is
+                // a new outer Life identity. Keep the exact original closure
+                // Receiver index, backed by the mandatory complete cursor.
+                super::nominal_origins::charge_origin(expected_origin,b)?;
+                actual.origins[index]=expected_origin.clone();
+            }
         }
         self.claim_static_obligations(&mut actual,expected,b)?;
         if !self.same_type(environment,&actual,expected,b)? {return Err(bad("site complete type/class claim differs from its original scoped recipe").with_note(format!("original {:?}, actual point {:?}; domains {}/{}, class images {:?}/{:?}",environment.lexical.first().map(|frame|frame.definition),environment.at,actual.life.binder_count,expected.life.binder_count,&actual.classes[..actual.classes.len().min(6)],&expected.classes[..expected.classes.len().min(6)])));}

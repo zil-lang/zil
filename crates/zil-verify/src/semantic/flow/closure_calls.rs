@@ -2,7 +2,53 @@
 //! creator environments and independent parameter/result intrinsic domains.
 //! Borrowing an environment supplies no permission beyond the normal kernels.
 use super::*;
+fn cursor_actual_work(value:&CheckedActual,b:&mut Budget)->Check<()>{
+    match value{
+        CheckedActual::Type(value)=>value.charge_clone(b),
+        CheckedActual::Const{carrier,value}=>{carrier.charge_clone(b)?;dynamic_metadata::constant(value,b)},
+        CheckedActual::Life(key)=>cursor_key_work(key,b),
+    }
+}
+fn cursor_key_work(key:&ClassKey,b:&mut Budget)->Check<()>{b.spend(1)?;match key{ClassKey::Outer{path,..}|ClassKey::Intrinsic{path,..}=>b.spend(path.len()),_=>Ok(())}}
+fn cursor_environment_work(env:&EvalEnv,b:&mut Budget)->Check<()>{
+    b.spend(env.lexical.len().saturating_add(env.assumptions.len()).saturating_add(env.images.len()).saturating_add(env.bounds.len()))?;
+    for frame in &env.lexical{for value in frame.actuals.iter().chain(&frame.environment){cursor_actual_work(value,b)?;}if let Some(value)=&frame.self_type{value.charge_clone(b)?;}}
+    for(a,z)in &env.images{cursor_key_work(a,b)?;cursor_key_work(z,b)?;}
+    for key in env.bounds.iter().flat_map(|frame|&frame.classes).chain(&env.invocations){cursor_key_work(key,b)?;}
+    Ok(())
+}
 impl CheckedContext {
+    pub(in crate::semantic) fn finish_closure_cursor(&self,module:&TypedModule,cursor:&ClosureCursor,actual:&EvalEnv,b:&mut Budget)->Check<()>{
+        let instance=self.instance(module,cursor.instance,b)?;
+        let definition=self.definition(module,instance.definition,b)?;
+        if actual.lexical.first().is_none_or(|row|row.key!=ScopeKey::Instance(instance.id)||row.definition!=definition.id){return Err(bad("pending closure cursor selects another completed original world"));}
+        cursor_environment_work(&cursor.environment,b)?;
+        for value in cursor.arguments.iter().chain(&cursor.sealed){cursor_actual_work(value,b)?;}
+        let mut wanted=cursor.environment.clone();
+        if let Some(parent)=definition.parent{
+            let at=wanted.lexical.iter().position(|row|row.definition==parent).ok_or_else(||bad("pending closure cursor omits its exact original lexical parent"))?;
+            wanted.lexical.drain(..at);
+        }else{wanted.lexical.clear();}
+        wanted.lexical.insert(0,LexicalFrame{definition:definition.id,key:ScopeKey::Instance(instance.id),actuals:cursor.arguments.clone(),environment:cursor.sealed.clone(),self_type:None});
+        if actual.lexical.len()!=wanted.lexical.len(){return Err(bad("pending closure cursor changes its complete lexical ancestry"));}
+        let mut boundary=trait_members::Boundary::default();
+        for(a,z)in actual.lexical.iter().zip(&wanted.lexical){
+            b.spend(a.actuals.len().saturating_add(a.environment.len()).saturating_add(1))?;
+            if a.definition!=z.definition||a.actuals.len()!=z.actuals.len()||a.environment.len()!=z.environment.len(){return Err(bad("pending closure cursor changes its complete original mixed frames"));}
+            boundary.scope(a.key,z.key,b)?;
+            for(a,z)in a.actuals.iter().zip(&z.actuals).chain(a.environment.iter().zip(&z.environment)){boundary.actual(self,&wanted,a,z,b)?;}
+            match(&a.self_type,&z.self_type){(Some(a),Some(z))=>boundary.value(self,&wanted,a,z,b)?,(None,None)=>{},_=>return Err(bad("pending closure cursor changes its actual Self scope"))}
+        }
+        let constructors=self.closure_boundaries.borrow();b.spend(constructors.len())?;
+        let mut found=false;
+        for constructor in constructors.iter().filter(|row|row.child==instance.id){
+            let projected=boundary.project_type(self,&wanted,&constructor.value,b)?;
+            if !self.same_type(&wanted,&projected,&cursor.expected,b)?{return Err(bad("pending closure cursor changes its fully sealed constructor domain or outside image"));}
+            found=true;
+        }
+        if !found{return Err(bad("pending closure cursor has no complete actual constructor boundary"));}
+        Ok(())
+    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn closure_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,id:ClosureId,receiver:&CheckedType,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
         let closure=crate::closures::definition(module,id,None)?;
@@ -18,6 +64,7 @@ impl CheckedContext {
             let definition=self.definition(module,instance.definition,b)?;
             if definition.kind!=SemanticDefinitionKind::Closure||instance.environment.as_ref().is_none_or(|row|row.closure!=SemanticClosureTarget::Typed(id)){return Err(bad("closure call actual entry world changes its exact original closure identity"));}
             let SemanticDefinitionBody::FunctionWithBody{signature:recipe,..}=&definition.body else{return Err(bad("closure call original entry omits its complete body/signature"));};
+            let mut pending_parent=None;
             let world=if self.seals.borrow().contains_key(&instance.id){self.environment_for_instance(module,instance.id,active,b)?}else{
                 // Calls may precede a generic factory's actual body pass.
                 // Interpret only its original environment sources here; this
@@ -29,7 +76,7 @@ impl CheckedContext {
                     if !matches!((&formal.kind,&value),(SemanticFormal::Type{..},CheckedActual::Type(_))|(SemanticFormal::Lifetime,CheckedActual::Life(_))|(SemanticFormal::Const{..},CheckedActual::Const{..})){return Err(bad("closure call provisional environment changes an original formal kind"));}sealed.push(value);
                 }
                 let world=self.environment_for_instance_with_seal(module,instance.id,Some(&sealed),active,b)?;
-                self.register_closure_cursor(instance.id,&parent,&world.lexical[0].actuals,&sealed,receiver,b)?;world
+                pending_parent=Some(parent);world
             };
             self.evaluate_requirements(module,&definition.requirements,&world,RequirementMode::DeclarationPremise,external,active,b)?;
             for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{self.evaluate_requirements(module,requirements,&world,RequirementMode::DeclarationPremise,external,active,b)?;}}
@@ -47,6 +94,12 @@ impl CheckedContext {
                 boundary.class(self,environment,&key,&receiver.classes[class as usize],b)?;
             }
             let owner=CheckedType{type_cell: crate::semantic::CheckedTypeData::new(Type::Closure(id)),life:StorageLifeShape{binder_count:header.fixed_binder_count,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:free,origins:(0..header.fixed_binder_count).map(|class|IntrinsicOrigin::Existing{scope:ScopeKey::Instance(instance.id),operand:OperandKey::Receiver,path:vec![],class}).collect(),statics:receiver.statics.clone()};
+            if let Some(parent)=pending_parent{
+                // The pending creator is expressed in this actual entry
+                // world's complete parent domain. The caller receiver is a
+                // separate outside image, checked by the joint boundary below.
+                self.register_closure_cursor(instance.id,&parent,&world.lexical[0].actuals,&world.lexical[0].environment,&owner,b)?;
+            }
             boundary.value(self,environment,&owner,receiver,b)?;
             for(parameter,_)in &mut signature.parameters{*parameter=boundary.project_type(self,environment,parameter,b)?;}
             signature.result=boundary.project_type(self,environment,&signature.result,b)?;

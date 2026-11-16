@@ -3,6 +3,24 @@
 //! that image. All records remain provisional until the whole entry pass ends.
 use super::*;
 impl CheckedContext {
+    /// Only the exact independently interpreted original closure cursor may
+    /// supply its intrinsic Receiver indices to an image-only raw claim. Its
+    /// constructor/seal and full specialization are still discharged at exit.
+    pub(super) fn original_closure_claim(&self,actual:&CheckedType,expected:&CheckedType,b:&mut Budget)->Check<bool>{
+        if !matches!(expected.ty,Type::Closure(_))||actual.ty!=expected.ty||actual.life!=expected.life||actual.origins.len()!=expected.origins.len(){return Ok(false);}
+        let cursors=self.pending_closures.borrow();b.spend(cursors.len())?;
+        for cursor in cursors.iter(){
+            cursor.expected.charge_clone(b)?;
+            for origin in cursor.expected.origins.iter().chain(&expected.origins){nominal_origins::charge_origin(origin,b)?;}
+            if cursor.expected!=*expected{continue;}
+            for(class,origin)in expected.origins.iter().enumerate(){
+                b.spend(1)?;
+                if origin!=&(IntrinsicOrigin::Existing{scope:ScopeKey::Instance(cursor.instance),operand:OperandKey::Receiver,path:vec![],class:class as u32}){return Ok(false);}
+            }
+            return Ok(true);
+        }
+        Ok(false)
+    }
     pub(super) fn original_closure_value(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,creator:ScopeKey,environment:&EvalEnv,b:&mut Budget)->Check<Option<CheckedType>> {
         let node=self.original.borrow().as_ref().ok_or_else(||bad("original closure source has no checked body"))?.closure_creation(module,definition,source,b)?;
         let Some(node)=node else{return Ok(None);};
