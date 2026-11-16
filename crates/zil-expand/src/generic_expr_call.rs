@@ -379,9 +379,10 @@ impl Engine<'_> {
                 name.as_str(),
                 "task_create" | "task_create_owned" | "task_await"
             ) {
-                let Some(first) = arguments.first() else {
+                let Some(first) = arguments.first_mut() else {
                     return Err(error(e.span, "task_create requires a static worker"));
                 };
+                self.materialize_task_worker(&mut first.value, env, depth + 1)?;
                 let worker = stores::call_name(&first.value)
                     .ok_or_else(|| error(first.span, "task_create worker must be static"))?;
                 let signature = self
@@ -615,6 +616,113 @@ impl Engine<'_> {
         }
 
         Ok(None)
+    }
+
+    // Life applications are original-domain constraints, not runtime value
+    // operators. Materialize only a resolved static worker's physical code
+    // value, retaining the original expression events and frozen application.
+    fn materialize_task_worker(&mut self, value: &mut Expr, env: &Env, depth: usize) -> R<()> {
+        self.budget.node(value.span, depth)?;
+        if let ExprKind::Group(inner) = &mut value.kind {
+            return self.materialize_task_worker(inner, env, depth + 1);
+        }
+        let ExprKind::TypeApply { callee, arguments } = &value.kind else {
+            return Ok(());
+        };
+        let ExprKind::Name(name) = &callee.kind else {
+            return Err(error(
+                value.span,
+                "qualified Task worker needs its exact static declaration",
+            ));
+        };
+        if env.contains_key(name) {
+            return Err(error(
+                value.span,
+                "a local value cannot supply a static Task worker application",
+            ));
+        }
+        // The signature catalog may already contain erased physical headers.
+        // Written actuals are checked against the retained source declaration,
+        // including phantom Life and the original full mixed ordinal order.
+        let mut original = None;
+        let original_module = self.original_module;
+        for item in &original_module.items {
+            self.budget.node(item.span, depth + 1)?;
+            if let ItemKind::Function(function) = &item.kind {
+                self.budget.text(&function.name, value.span)?;
+                self.budget.text(name, value.span)?;
+                if function.name == *name {
+                    original = Some(function);
+                    break;
+                }
+            }
+        }
+        let original = original.ok_or_else(|| {
+            error(
+                value.span,
+                "qualified Task worker has no original declaration",
+            )
+        })?;
+        let full = arguments
+            .iter()
+            .any(|argument| matches!(argument, GenericArg::Lifetime(_)));
+        let count = original
+            .generics
+            .iter()
+            .filter(|formal| full || !matches!(formal.kind, GenericParamKind::Lifetime))
+            .count();
+        if arguments.len() != count {
+            return Err(error(
+                value.span,
+                "qualified Task worker has another mixed actual arity",
+            ));
+        }
+        let mut actuals = Vec::new();
+        for (formal, actual) in original
+            .generics
+            .iter()
+            .filter(|formal| full || !matches!(formal.kind, GenericParamKind::Lifetime))
+            .zip(arguments)
+        {
+            self.budget.node(formal.span, depth + 1)?;
+            match (&formal.kind, actual) {
+                (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                    self.source_life(name, value.span)?;
+                }
+                (GenericParamKind::Type(_), GenericArg::Type(_))
+                | (GenericParamKind::Const(_), GenericArg::Type(_) | GenericArg::Const(_)) => {
+                    let ty = consts::argument(actual, Some(formal), &mut self.budget)?;
+                    self.budget.lineage_push(&mut actuals, ty, value.span)?;
+                }
+                _ => {
+                    return Err(error(
+                        value.span,
+                        "qualified Task worker actual kind differs from its full formal",
+                    ));
+                }
+            }
+        }
+        self.budget.text(name, value.span)?;
+        let selected = if original
+            .generics
+            .iter()
+            .any(|formal| !matches!(formal.kind, GenericParamKind::Lifetime))
+        {
+            self.instantiate(name, actuals, value.span)?
+        } else {
+            name.clone()
+        };
+        let ExprKind::TypeApply { mut callee, .. } =
+            std::mem::replace(&mut value.kind, ExprKind::Literal(Literal::Bool(false)))
+        else {
+            unreachable!()
+        };
+        callee.kind = ExprKind::Name(selected);
+        // Group preserves both original root and child markers. It introduces
+        // no runtime evaluation; the complete original GenericApply remains in
+        // Source's frozen body for every independent call/worker consumer.
+        value.kind = ExprKind::Group(callee);
+        Ok(())
     }
     pub(super) fn expr_call_normal(
         &mut self,

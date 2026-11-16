@@ -180,14 +180,18 @@ fn qualified_task_workers_keep_both_inputs_and_original_life_actuals() {
             assert_eq!(keep.parameters.len(), 2);
             for parameter in &keep.parameters {
                 assert_eq!(parameter.mode, zil_ir::PassingMode::Give);
-                let ty = match &parameter.ty {
-                    zil_ir::Type::Managed(inner) => inner.as_ref(),
-                    ty => ty,
+                // Core retains the resource observation type and the separate
+                // Give mode; the owning carrier is formed by the next stage.
+                let zil_ir::Type::Desc(ty) = &parameter.ty else {
+                    panic!(
+                        "given Task input lost its resource header: {:?}",
+                        parameter.ty
+                    )
                 };
                 let zil_ir::Type::Task {
                     result,
                     retained_life,
-                } = ty
+                } = ty.as_ref()
                 else {
                     panic!("complete Task input was lost: {ty:?}")
                 };
@@ -207,6 +211,39 @@ fn qualified_task_workers_keep_both_inputs_and_original_life_actuals() {
                     }
                 );
             }
+            let pair = core
+                .functions
+                .iter()
+                .find(|function| function.name == "pair")
+                .unwrap();
+            let mut physical_workers = 0;
+            for statement in &pair.body.statements {
+                let zil_ir::CoreStatementKind::Binding {
+                    initializer: Some(value),
+                    ..
+                } = &statement.kind
+                else {
+                    continue;
+                };
+                let zil_ir::CoreExprKind::Try(call) = &value.kind else {
+                    continue;
+                };
+                let zil_ir::CoreExprKind::Call { callee, arguments } = &call.kind else {
+                    panic!("{call:?}")
+                };
+                assert!(
+                    matches!(&callee.kind, zil_ir::CoreExprKind::Name(name) if name == "task_create")
+                );
+                let [worker, _] = arguments.as_slice() else {
+                    panic!()
+                };
+                assert!(
+                    matches!(&worker.kind, zil_ir::CoreExprKind::Name(name) if name == "worker"),
+                    "qualified worker must be an actual code value, never a later-capability placeholder: {worker:?}"
+                );
+                physical_workers += 1;
+            }
+            assert_eq!(physical_workers, 2);
             // Inspect the frozen source operations, rather than producer names
             // of subsequently specialized workers. Both actual input names and
             // every written Life ordinal, including phantom, must survive.
