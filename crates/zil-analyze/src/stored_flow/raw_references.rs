@@ -27,9 +27,15 @@ pub(super) fn seed(ty: &Type, base: HoldRoot, state: &mut State,
             mutable: *mutable, receiver_head: false });
         b.stored_exclusive_loans |= *mutable;
         ordered(b, state.raw_cells.len(), target_width(&cell))?;
-        if state.raw_cells.insert(cell, Permission { targets: Targets::from([target]), loans: Loans::from([id]) }).is_some() {
+        fee(b, target_width(&cell).saturating_add(target_width(&target)).saturating_add(2))?;
+        // Symbolic input dependence only: caller substitution selects its
+        // actual extra categories. This set creates no permission or loan.
+        let upper = Targets::from([target.clone()]);
+        if state.raw_cells.insert(cell.clone(), Permission { targets: Targets::from([target]), loans: Loans::from([id]) }).is_some() {
             return Err(failure("raw reference input repeats its actual pointer cell"));
         }
+        ordered(b, state.raw_upper.len(), target_width(&cell))?;
+        state.raw_upper.insert(cell, upper);
         ty = inner;
     }
     Ok(())
@@ -67,7 +73,7 @@ pub(super) fn read(state: &State, address: &Permission, complete: bool,
             state.raw_cells.get(target)
         };
         match permission {
-            Some(value) if !complete || !value.targets.is_empty() => union(&mut out, value, b)?,
+            Some(value) if !complete || !value.targets.is_empty() => { union(&mut out, value, b)?; }
             _ if !complete => {},
             _ => return Err(failure("raw pointer read has an unresolved or vacant actual incoming cell")),
         }
@@ -134,4 +140,43 @@ pub(super) fn call(callee: &TypedFunction, summary: &Facts, arguments: &[ValueId
         for _ in 0..depth { permission = read(state, &permission, true, b)?; }
     }
     Ok(())
+}
+
+/// Extra candidate categories belong to the value stored in a real pointer
+/// cell. They stay separate from the permission returned by read().
+pub(super) fn upper(state: &State, address: &Permission, b: &mut Budget) -> CompileResult<Targets> {
+    let mut out = Targets::new();
+    for cell in &address.targets {
+        fee(b, target_width(cell).saturating_add(1))?;
+        let extra = if let HoldRoot::Local(local) = cell.base
+            && cell.retained_port.is_none() && cell.stored.is_empty() && cell.place.is_empty()
+            && cell.heap_element.is_none() && cell.heap_parents.is_empty() {
+            ordered(b, state.locals.len(), 0)?;
+            state.locals.get(&local).map(|value| &value.source_upper)
+        } else {
+            ordered(b, state.raw_upper.len(), target_width(cell))?;
+            state.raw_upper.get(cell)
+        };
+        let Some(extra) = extra else { continue; };
+        for target in extra {
+            ordered(b, out.len(), target_width(target))?;
+            fee(b, target_width(target))?;
+            out.insert(target.clone());
+        }
+    }
+    Ok(out)
+}
+
+pub(super) fn substitute_upper(source: &Target, arguments: &[ValueId], values: &[Value],
+    state: &State, b: &mut Budget) -> CompileResult<Targets> {
+    let Some(PortOrigin::RawReference { depth }) = source.retained_port else { return Ok(Targets::new()); };
+    if depth == 0 || depth as usize > b.partial_depth || !source.stored.is_empty() {
+        return Err(failure("raw category dependence changes its actual pointer-cell namespace"));
+    }
+    let HoldRoot::Parameter(parameter) = source.base else { return Err(failure("raw category dependence is outside its original input")); };
+    let value = arguments.get(parameter as usize).and_then(|value| values.get(value.0 as usize))
+        .ok_or_else(|| failure("raw category dependence has no actual argument"))?;
+    let mut pointer = copy_permission(&value.pointer, b)?;
+    for _ in 1..depth { pointer = read(state, &pointer, false, b)?; }
+    upper(state, &pointer, b)
 }

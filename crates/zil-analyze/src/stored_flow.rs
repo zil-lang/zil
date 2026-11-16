@@ -736,6 +736,8 @@ struct State {
     /// not their target identity; each leaf starts with a symbolic target.
     external: BTreeMap<HoldRoot, BTreeMap<Path, Permission>>,
     raw_cells: BTreeMap<Target, Permission>,
+    // Candidate source categories only; never part of a raw cell permission.
+    raw_upper: BTreeMap<Target, Targets>,
     captures: BTreeMap<u32, Value>,
     // A bound view aliases environment storage, never activation storage.
     capture_views: BTreeMap<LocalId, u32>,
@@ -1043,6 +1045,12 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
         fee(b, target_width(cell))?;
         out.raw_cells.insert(cell.clone(), copy_permission(value, b)?);
     }
+    for (cell, upper) in &s.raw_upper {
+        ordered(b, out.raw_upper.len(), target_width(cell))?;
+        fee(b, target_width(cell))?;
+        target_work(upper, b)?;
+        out.raw_upper.insert(cell.clone(), upper.clone());
+    }
     Ok(out)
 }
 fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
@@ -1092,6 +1100,10 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
     for (cell, value) in &s.raw_cells {
         fee(b, target_width(cell).saturating_add(1))?;
         permission_clone_work(value, b)?;
+    }
+    for (cell, upper) in &s.raw_upper {
+        fee(b, target_width(cell).saturating_add(1))?;
+        target_work(upper, b)?;
     }
     Ok(())
 }
@@ -1314,6 +1326,16 @@ fn state_merge(to: &mut State, from: &State, b: &mut Budget) -> CompileResult<()
         ordered(b, to.raw_cells.len(), target_width(cell))?;
         fee(b, target_width(cell))?;
         union(to.raw_cells.entry(cell.clone()).or_default(), value, b)?;
+    }
+    for (cell, upper) in &from.raw_upper {
+        ordered(b, to.raw_upper.len(), target_width(cell))?;
+        fee(b, target_width(cell))?;
+        let target = to.raw_upper.entry(cell.clone()).or_default();
+        for category in upper {
+            ordered(b, target.len(), target_width(category))?;
+            fee(b, target_width(category))?;
+            target.insert(category.clone());
+        }
     }
     Ok(())
 }
@@ -4751,6 +4773,8 @@ fn transfer(
                 out.source_upper = dyn_address::upper_substitute(&summary.returned_source_upper, arguments, values, state, b)?;
                 if let Some(sources) = summary.returned.get(&Vec::new()) {
                     for source in sources {
+                        let raw = raw_references::substitute_upper(source, arguments, values, state, b)?;
+                        dyn_address::upper_union(&mut out.source_upper, &raw, b)?;
                         if source.stored.is_empty() && source.retained_port.is_none()
                             && let HoldRoot::Parameter(index) = source.base {
                             let argument = *arguments.get(index as usize)
@@ -5457,6 +5481,7 @@ fn transfer(
             };
             if raw_references::shared(inner) {
                 out.pointer = raw_references::read(state, &get(*address)?.pointer, false, b)?;
+                out.source_upper = raw_references::upper(state, &get(*address)?.pointer, b)?;
             }
             if shared_array_shape(inner, b)? {
                 let Type::Array { length, .. } = inner.as_ref() else {
