@@ -7029,7 +7029,7 @@ fn windows(
                     }
                     InstructionKind::Call { function, arguments }
                     | InstructionKind::SuspendCall { function, arguments }
-                        if synchronous_abi::ordinary_call(&instruction.kind, b)? => {
+                        if synchronous_abi::ordinary_call(&i.kind, b)? => {
                         let callee = &module.functions[function.0 as usize];
                         if !summaries[function.0 as usize].head_accesses.is_empty() {
                             for (target, write) in &summaries[function.0 as usize].head_accesses {
