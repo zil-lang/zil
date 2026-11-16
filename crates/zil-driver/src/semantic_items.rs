@@ -1648,7 +1648,7 @@ mod tests {
         assert_eq!(assembled, encode(&typed, &candidate, &limits).unwrap());
         assert_eq!(
             decode(&assembled, &limits).unwrap(),
-            ((*typed).clone(), candidate.clone())
+            ((*typed).clone(), (*candidate).clone())
         );
         let mut forged = bytes.clone();
         forged[16..20].copy_from_slice(&u32::MAX.to_le_bytes());
@@ -2005,7 +2005,7 @@ mod tests {
         let (decoded, plan) = current.load(&options).unwrap();
         assert_eq!(
             (decoded.clone(), plan.clone()),
-            ((*typed).clone(), candidate)
+            ((*typed).clone(), (*candidate).clone())
         );
         zil_verify::verify_module(decoded.module, plan, &typed.module.target, &options.limits)
             .unwrap();
