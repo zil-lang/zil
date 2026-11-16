@@ -171,6 +171,58 @@ impl Solver<'_, '_> {
         }
         Ok(Some(value))
     }
+    /// A mutable binding's region is below each independently checked RHS.
+    /// These are lower-bound dependencies, not equations with the label and
+    /// not an assertion that the current physical cell still has that RHS.
+    pub(super) fn reference_region_sources(
+        &self, frame: &Frame, owner: SemanticDefinitionId, ordinal: u32,
+        b: &mut Budget, depth: usize,
+    ) -> CompileResult<Option<Vec<Term>>> {
+        self.step(depth, b)?;
+        let mut current = Some(frame.definition);
+        let mut in_scope = false;
+        for _ in depth..=b.partial_depth {
+            let Some(scope) = current else { break; };
+            if scope == owner { in_scope = true; break; }
+            current = self.inventory.definition(scope, b)?.parent;
+        }
+        if !in_scope { return Ok(None); }
+        let mut selected = None;
+        b.lookup(self.state.reference_roles.len(), WORK)?;
+        for ((scope, _), role) in self.state.reference_roles
+            .range((owner, NodeId(0))..=(owner, NodeId(u32::MAX))) {
+            b.spend(1, WORK)?;
+            if role.ordinal != ordinal { continue; }
+            if selected.is_some() { return Err(fail("reference region has competing original declarations")); }
+            let Kind::Address { mutable: false, life, inner } =
+                self.state.arena[self.type_root(role.value, b)?] else {
+                return Err(fail("reference region changes its complete shared value constructor"));
+            };
+            if !matches!(self.state.arena[self.root(life, b)?], Kind::Life(Life::Implicit(at, index)) if at == owner && index == ordinal) {
+                return Err(fail("reference region leaves its exact original binding occurrence"));
+            }
+            if role.writes.is_empty() { return Err(fail("reference region has no genuine original initializer")); }
+            let mut sources = Vec::new();
+            for write in &role.writes {
+                b.spend(1, WORK)?;
+                if self.reference_static_source(*scope, write.expression, b, depth + 1)? { continue; }
+                let Kind::Address { mutable: false, life: source, inner: child } =
+                    self.state.arena[self.type_root(write.value, b)?] else {
+                    return Err(fail("reference region source changes its full original constructor"));
+                };
+                if !self.same_original(inner, child, b, depth + 1)? {
+                    return Err(fail("reference region source changes its invariant whole pointee domain"));
+                }
+                // A self-copy supplies no new bound. In particular it cannot
+                // bootstrap an otherwise unsupported or cyclic source.
+                if !self.same_original(source, life, b, depth + 1)? {
+                    Self::push(&mut sources, source, b)?;
+                }
+            }
+            selected = Some(sources);
+        }
+        Ok(selected)
+    }
     pub(super) fn reference_assignment_target(
         &self,
         frame: &Frame,

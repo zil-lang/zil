@@ -457,6 +457,12 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<bool> {
+        self.call_source_allows_inner(frame, source, target, &mut BTreeSet::new(), b, depth)
+    }
+    fn call_source_allows_inner(
+        &mut self, frame: &Frame, source: Term, target: Term,
+        active: &mut BTreeSet<(SemanticDefinitionId, u32)>, b: &mut Budget, depth: usize,
+    ) -> CompileResult<bool> {
         self.step(depth, b)?;
         if self.same_original(source, target, b, depth + 1)? {
             return Ok(true);
@@ -481,6 +487,21 @@ impl Solver<'_, '_> {
                     }
                 }
             }
+        }
+        if let Kind::Life(Life::Implicit(owner, ordinal)) =
+            self.state.arena[self.root(target, b)?]
+            && let Some(parents) = self.reference_region_sources(frame, owner, ordinal, b, depth + 1)? {
+            b.lookup(active.len(), WORK)?;
+            if !active.insert((owner, ordinal)) { return Ok(false); }
+            let mut allowed = false;
+            for parent in parents {
+                // The target label is below every real RHS. A proven path
+                // source >= one such parent therefore proves source >= label.
+                // Evaluate every dependency; none creates a global LifeEqual.
+                allowed |= self.call_source_allows_inner(frame, source, parent, active, b, depth + 1)?;
+            }
+            active.remove(&(owner, ordinal));
+            if allowed { return Ok(true); }
         }
         self.view_upper_allows(frame, source, target, &mut BTreeSet::new(), b, depth + 1)
     }
