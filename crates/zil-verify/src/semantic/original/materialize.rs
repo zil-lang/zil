@@ -137,10 +137,11 @@ impl CheckedOriginal {
             let(owner,node,role,_)=self.call_regions.get(id).ok_or_else(||bad("original Call region has no complete source role"))?;
             let original=module.semantic.as_ref().and_then(|program|program.definitions.iter().find(|row|row.id==*owner)).ok_or_else(||bad("original Call region owner is absent"))?;
             let SemanticDefinitionBody::FunctionWithBody{sites,..}=&original.body else{return Err(bad("original Call region owner has no complete body"));};
-            let(position,identity)=self.original_call_site(*owner,*node,b)?;
+            let constructor=role.first()==Some(&(u32::MAX-1));
+            let(position,identity)=if constructor{let rows=self.source_grammar.as_ref().ok_or_else(||bad("original constructor region has no immutable source grammar"))?.recipes(*owner,SemanticOriginalNode::Expression(*node),&[index::Role::Construct],b)?;let [row]=rows.as_slice()else{return Err(bad("original constructor region has no unique true Construct occurrence"));};*row}else{self.original_call_site(*owner,*node,b)?};
             let site=sites.get(position).filter(|site|site.id==identity).ok_or_else(||bad("original Call region selects another immutable operation"))?;
             b.spend(site.occurrence_path.len().saturating_add(original.implicit_lifetimes.len()).saturating_add(role.len()).saturating_add(1))?;
-            let mut path=site.occurrence_path.clone();path.push(u32::MAX);path.extend_from_slice(role);
+            let mut path=site.occurrence_path.clone();if !constructor{path.push(u32::MAX);}path.extend_from_slice(role);
             let mut rows=original.implicit_lifetimes.iter().filter(|row|row.occurrence_path==path);
             let row=rows.next().ok_or_else(||unsupported("original inferred Call region lacks its independent full-ordinal Source occurrence",None))?;
             if rows.next().is_some(){return Err(bad("original Call region has several full-ordinal lifetime occurrences"));}
