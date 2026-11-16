@@ -104,6 +104,47 @@ impl Check<'_, '_> {
         }
         Ok(true)
     }
+    /// Reconstruct the whole physical domain, using local class labels only
+    /// to form its shape. These labels never escape as occurrence evidence.
+    pub(super) fn dyn_value_domain(
+        &self,
+        ty: &Type,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<Value>> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown("Dyn value domain exceeds its complete type depth"));
+        }
+        match ty {
+            Type::Dyn { .. } | Type::OwnedDyn { .. } => {
+                self.dyn_value_type(ty, b, depth + 1)?;
+                let life = value::dyn_domain(ty, self.inventory, b)?;
+                let mut classes = Vec::new();
+                for ordinal in 0..life.binder_count {
+                    self.push_value(&mut classes, value::Class::Local(ordinal), b)?;
+                }
+                crate::dyn_metadata::ty(ty, b)?;
+                Ok(Some(Value::new(ty.clone(), life, classes)))
+            }
+            Type::ErrorUnion { error, result } => {
+                let Some(result) = self.dyn_value_domain(result, b, depth + 1)? else {
+                    return Ok(None);
+                };
+                self.zero_data(error, b, depth + 1)?;
+                crate::dyn_metadata::ty(error, b)?;
+                Ok(Some(value::error_union(value::scalar(error.as_ref().clone()), result, b)?))
+            }
+            Type::Address { mutable, inner } => {
+                let Some(inner) = self.dyn_value_domain(inner, b, depth + 1)? else {
+                    return Ok(None);
+                };
+                let outer = value::Class::Local(inner.life.binder_count);
+                Ok(Some(value::address(*mutable, outer, inner, b)?))
+            }
+            _ => Ok(None),
+        }
+    }
     fn dyn_owner_arguments(
         &self,
         actuals: &[DynGenericActual],

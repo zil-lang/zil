@@ -483,7 +483,7 @@ impl Check<'_, '_> {
                 && let Some(source) = &boundary.receiver_place
             {
                 let required = self.pointee(expected, b)?;
-                if required != source.inner {
+                if !self.capture_values_equal(&required, &source.inner, b)? {
                     return Err(fail(
                         "projected trait receiver changes its complete child domain",
                     ));

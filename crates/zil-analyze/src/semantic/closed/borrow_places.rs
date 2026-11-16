@@ -100,7 +100,7 @@ impl Check<'_, '_> {
         };
         if matches {
             let root = self.local_value(instance, function, local, (block, index), b, 0)?;
-            if root != source.root
+            if !self.capture_values_equal(&root, &source.root, b)?
                 || self.borrow_field_type(&root.ty, &source.path, b)? != &source.inner.ty
             {
                 return Err(fail(
@@ -643,7 +643,8 @@ impl Check<'_, '_> {
                 )
             }
         };
-        if root != source.root || indirect != (source.indirect || address_input) {
+        if !self.capture_values_equal(&root, &source.root, b)?
+            || indirect != (source.indirect || address_input) {
             return Err(fail(
                 "actual borrowed root changes its original whole classes or pointer boundary",
             ));

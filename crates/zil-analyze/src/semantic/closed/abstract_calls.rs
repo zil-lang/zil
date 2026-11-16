@@ -97,7 +97,7 @@ impl Check<'_, '_> {
                         ));
                     }
                 }
-                if source.inner != boundary.subject {
+                if !self.capture_values_equal(&source.inner, &boundary.subject, b)? {
                     return Err(fail(
                         "abstract place invocation changes its full original child domain",
                     ));

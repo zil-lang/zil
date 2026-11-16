@@ -21,6 +21,21 @@ impl Check<'_, '_> {
         }
         Ok(value)
     }
+    /// Compare complete values after applying only exact creator-bound
+    /// captured-head equations. No geometry, class or occurrence is omitted.
+    pub(super) fn capture_values_equal(
+        &self,
+        left: &Value,
+        right: &Value,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        if left.equal_paid(right, b)? {
+            return Ok(true);
+        }
+        let left = self.capture_class_value(left.copy(b)?, b)?;
+        let right = self.capture_class_value(right.copy(b)?, b)?;
+        left.equal_paid(&right, b)
+    }
     pub(super) fn capture_class_image(
         &self,
         mut class: Class,

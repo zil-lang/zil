@@ -1446,7 +1446,9 @@ impl Check<'_, '_> {
         let mut operation_sites: BTreeMap<
             (SemanticInstanceId, BlockId, usize), Vec<&SemanticSite>,
         > = BTreeMap::new();
+        self.inventory.profile_step("event directory", b);
         for site in &self.program.sites {
+            self.inventory.profile_site(site, b);
             b.spend(1, WORK)?;
             b.lookup(emitted_recipes.len(), WORK)?;
             emitted_recipes.insert((site.instance, site.recipe));
@@ -1460,6 +1462,8 @@ impl Check<'_, '_> {
             }
         }
         for instance in &self.program.instances {
+            self.inventory.profile_step("world entry", b);
+            self.inventory.profile_instance(instance, b);
             let SemanticInstanceTarget::Function(target) = &instance.target else {
                 continue;
             };
@@ -1503,7 +1507,9 @@ impl Check<'_, '_> {
             let initialization = crate::shared_initialization(function, b)?;
             let mut declared = BTreeMap::new();
             let mut declared_values = BTreeMap::new();
+            self.inventory.profile_step("local declarations", b);
             for site in &self.program.sites {
+                self.inventory.profile_site(site, b);
                 b.spend(1, WORK)?;
                 if site.instance != instance.id {
                     continue;
@@ -1543,7 +1549,9 @@ impl Check<'_, '_> {
                     ));
                 }
             }
+            self.inventory.profile_step("original operations", b);
             for site in &self.program.sites {
+                self.inventory.profile_site(site, b);
                 b.spend(1, WORK)?;
                 if site.instance != instance.id {
                     continue;
@@ -1597,7 +1605,9 @@ impl Check<'_, '_> {
                 }
             }
             let original_nodes = self.inventory.original_index(definition.id, b)?;
+            self.inventory.profile_step("recipe coverage", b);
             for recipe in recipes {
+                self.inventory.profile_recipe(recipe.id, b);
                 b.lookup(emitted_recipes.len(), WORK)?;
                 if !emitted_recipes.contains(&(instance.id, recipe.id)) {
                     let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
@@ -1643,8 +1653,10 @@ impl Check<'_, '_> {
                     return Err(errors);
                 }
             }
+            self.inventory.profile_step("actual CFG coverage", b);
             for block in &function.blocks {
                 for (index, instruction) in block.instructions.iter().enumerate() {
+                    self.inventory.profile_operation(block.id, index, b);
                     b.spend(1, WORK)?;
                     if let InstructionKind::Store { local, value } = instruction.kind {
                         if !function
@@ -1735,6 +1747,7 @@ impl Check<'_, '_> {
                     }
                 }
                 if let Terminator::Return(value) = block.terminator {
+                    self.inventory.profile_operation(block.id, block.instructions.len(), b);
                     b.spend(1, WORK)?;
                     if self.uses_full_value(&function.return_type, b)? {
                         let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
@@ -1781,6 +1794,7 @@ impl Check<'_, '_> {
         }
         // A hidden environment cannot authenticate itself. Every concrete
         // entry is sealed at its actual creator's MakeClosure, even if unused.
+        self.inventory.profile_stage("closure creation coverage", b);
         for closure in &self.module.closures {
             b.spend(self.program.sites.len(), WORK)?;
             if !self.program.sites.iter().any(|site| matches!(site.action, SemanticSiteAction::Closure { closure: SemanticClosureTarget::Typed(id), .. } if id == closure.id)) {

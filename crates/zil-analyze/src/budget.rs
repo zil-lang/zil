@@ -600,6 +600,23 @@ impl Budget {
     pub(super) fn cost_profiling(&self) -> bool {
         self.cost_profiling
     }
+    pub(super) fn geometry_cost_notes(&self) -> Vec<String> {
+        if !self.cost_profiling { return Vec::new(); }
+        // A fixed small selection exposes cold/hot constructor work even when
+        // those categories fall below the generic top-24 diagnostic cutoff.
+        [
+            "semantic geometry constructor operands",
+            "semantic geometry constructor query",
+            "semantic geometry constructor candidates",
+            "semantic geometry constructor identity",
+            "semantic geometry constructor owned copy",
+            "semantic geometry constructor record allocation",
+            "semantic geometry owned copy",
+            "semantic geometry immutable receipt",
+        ].into_iter().filter_map(|name| self.costs.get(name).map(|(calls, work)| {
+            format!("analysis geometry charge {name}: {work} work in {calls} calls")
+        })).collect()
+    }
 
     #[track_caller]
     pub(super) fn product(

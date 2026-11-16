@@ -267,6 +267,15 @@ impl Check<'_, '_> {
         if classes.len() != life.binder_count as usize {
             return Err(fail("semantic value omits a complete class occurrence"));
         }
+        if let Some(domain) = self.dyn_value_domain(ty, b, 0)? {
+            crate::dyn_metadata::shape(&domain.life, b)?;
+            if domain.life != *life {
+                return Err(fail("semantic Dyn value changes its complete Context, sum or pointer domain"));
+            }
+            self.actual_type(ty, b)?;
+            crate::dyn_metadata::ty(ty, b)?;
+            return Ok(ty.clone());
+        }
         match ty {
             Type::Address { .. } if original::strings::is_byte_type(ty) && empty(life) => {}
             Type::BorrowedStorage {
@@ -709,6 +718,7 @@ impl Check<'_, '_> {
     }
     fn instances(&self, b: &mut Budget) -> CompileResult<()> {
         for instance in &self.program.instances {
+            self.inventory.profile_instance(instance, b);
             let definition = self.inventory.definition(instance.definition, b)?;
             if matches!(instance.target, SemanticInstanceTarget::Scope)
                 && matches!(definition.body, SemanticDefinitionBody::Scope(_))
@@ -1026,10 +1036,15 @@ pub(super) fn check(
         trait_queries: std::cell::RefCell::new(Vec::new()),
         nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),
     };
+    inventory.profile_stage("dyn_tables", b);
     checker.dyn_tables(b)?;
+    inventory.profile_stage("instances", b);
     checker.instances(b)?;
+    inventory.profile_stage("sites", b);
     checker.sites(b)?;
+    inventory.profile_stage("constructor class sources", b);
     checker.constructor_class_sources(b)?;
+    inventory.profile_stage("completed world publication", b);
     // Publish only a completed intrinsic-domain result. Raw Some(0), an
     // absent environment, or scalar-looking entry ABI alone is not evidence.
     let mut zero = BTreeSet::new();

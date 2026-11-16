@@ -22,6 +22,20 @@ enum DynDefinitionLocation {
     Source { module: usize, declaration: usize },
 }
 
+// Optional profiling coordinates only. These numeric IDs locate the active
+// immutable world/site; they are never read by a semantic decision.
+#[derive(Clone, Copy, Default)]
+struct ProfilePoint {
+    stage: &'static str,
+    step: &'static str,
+    instance: Option<SemanticInstanceId>,
+    definition: Option<SemanticDefinitionId>,
+    function: Option<FunctionId>,
+    site_instance: Option<SemanticInstanceId>,
+    recipe: Option<SemanticSiteId>,
+    operation: Option<(BlockId, usize, SemanticSiteEdge)>,
+}
+
 struct Inventory<'a> {
     module: &'a TypedModule,
     program: &'a SemanticModule,
@@ -51,6 +65,7 @@ struct Inventory<'a> {
     call_anchors: std::cell::RefCell<BTreeMap<SemanticDefinitionId, BTreeMap<zil_base::NodeId, SemanticSiteId>>>,
     emitted_sites: std::cell::RefCell<BTreeMap<usize, BTreeMap<(SemanticInstanceId, SemanticSiteId), usize>>>,
     function_worlds: std::cell::RefCell<BTreeMap<usize, BTreeMap<FunctionId, Vec<usize>>>>,
+    profile_point: std::cell::Cell<ProfilePoint>,
 }
 impl<'a> Inventory<'a> {
     fn new(
@@ -82,6 +97,7 @@ impl<'a> Inventory<'a> {
             call_anchors: std::cell::RefCell::new(BTreeMap::new()),
             emitted_sites: std::cell::RefCell::new(BTreeMap::new()),
             function_worlds: std::cell::RefCell::new(BTreeMap::new()),
+            profile_point: std::cell::Cell::new(ProfilePoint::default()),
         };
         let mut identities: Vec<(&zil_ir::LifeDeclarationIdentity, usize)> = Vec::new();
         for definition in &program.definitions {
@@ -151,6 +167,82 @@ impl<'a> Inventory<'a> {
             }
         }
         Ok(inventory)
+    }
+    fn profile_stage(&self, stage: &'static str, b: &Budget) {
+        if b.cost_profiling() {
+            self.profile_point.set(ProfilePoint { stage, ..ProfilePoint::default() });
+        }
+    }
+    fn profile_step(&self, step: &'static str, b: &Budget) {
+        if b.cost_profiling() {
+            let mut point = self.profile_point.get();
+            point.step = step;
+            point.site_instance = None;
+            point.recipe = None;
+            point.operation = None;
+            self.profile_point.set(point);
+        }
+    }
+    fn profile_instance(&self, instance: &SemanticInstance, b: &Budget) {
+        if b.cost_profiling() {
+            let old = self.profile_point.get();
+            self.profile_point.set(ProfilePoint {
+                stage: old.stage,
+                step: old.step,
+                instance: Some(instance.id),
+                definition: Some(instance.definition),
+                function: match instance.target {
+                    SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) => Some(id),
+                    _ => None,
+                },
+                ..ProfilePoint::default()
+            });
+        }
+    }
+    fn profile_site(&self, site: &SemanticSite, b: &Budget) {
+        if b.cost_profiling() {
+            let mut point = self.profile_point.get();
+            point.site_instance = Some(site.instance);
+            point.recipe = Some(site.recipe);
+            point.operation = match site.at {
+                SemanticSiteAddress::Typed { block, instruction, edge } => Some((block, instruction as usize, edge)),
+                _ => None,
+            };
+            self.profile_point.set(point);
+        }
+    }
+    fn profile_recipe(&self, recipe: SemanticSiteId, b: &Budget) {
+        if b.cost_profiling() {
+            let mut point = self.profile_point.get();
+            point.site_instance = point.instance;
+            point.recipe = Some(recipe);
+            point.operation = None;
+            self.profile_point.set(point);
+        }
+    }
+    fn profile_operation(&self, block: BlockId, instruction: usize, b: &Budget) {
+        if b.cost_profiling() {
+            let mut point = self.profile_point.get();
+            point.site_instance = None;
+            point.recipe = None;
+            point.operation = Some((block, instruction, SemanticSiteEdge::Before));
+            self.profile_point.set(point);
+        }
+    }
+    fn profile_errors(&self, mut errors: Vec<zil_base::Diagnostic>, b: &Budget) -> Vec<zil_base::Diagnostic> {
+        if b.cost_profiling() {
+            let point = self.profile_point.get();
+            for error in errors.iter_mut().take(4) {
+                error.notes.push(format!(
+                    "analysis original context module {} phase {} step {} world {:?} definition {:?} function {:?} examined-site-world {:?} recipe {:?} operation {:?} metadata profile ({},{})",
+                    self.module.module_id.0, point.stage, point.step, point.instance,
+                    point.definition, point.function, point.site_instance, point.recipe,
+                    point.operation, b.partial_depth, b.helper_nodes,
+                ));
+                error.notes.extend(b.geometry_cost_notes());
+            }
+        }
+        errors
     }
     fn index_top_level_name(&mut self, definition: &'a SemanticDefinition, b: &mut Budget) -> CompileResult<()> {
         if definition.parent.is_some() { return Ok(()); }
@@ -768,8 +860,11 @@ pub(super) fn pending(
             )]);
         }
     }
-    inventory.parents(program, b)?;
-    inventory.sites(program, b)?;
-    let original = original::check(module, program, &inventory, b)?;
-    closed::check(module, program, &inventory, &original, b)
+    inventory.profile_stage("inventory parents", b);
+    inventory.parents(program, b).map_err(|errors| inventory.profile_errors(errors, b))?;
+    inventory.profile_stage("inventory sites", b);
+    inventory.sites(program, b).map_err(|errors| inventory.profile_errors(errors, b))?;
+    inventory.profile_stage("original definitions", b);
+    let original = original::check(module, program, &inventory, b).map_err(|errors| inventory.profile_errors(errors, b))?;
+    closed::check(module, program, &inventory, &original, b).map_err(|errors| inventory.profile_errors(errors, b))
 }
