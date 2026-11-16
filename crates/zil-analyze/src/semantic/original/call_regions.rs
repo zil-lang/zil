@@ -471,6 +471,16 @@ impl Solver<'_, '_> {
 }
 
 impl Checked {
+    /// A Name used by this call still denotes its independently resolved
+    /// original local/capture, even if no extra TypeUse was emitted for it.
+    pub(in crate::semantic) fn call_input_anchor(
+        &self, owner: SemanticDefinitionId, node: NodeId, b: &mut Budget,
+    ) -> CompileResult<Option<LocalAnchor>> {
+        b.lookup(self.local_reads.len(), WORK)?;
+        if let Some(anchor) = self.local_reads.get(&(owner, node)) { return Ok(Some(*anchor)); }
+        b.lookup(self.environment_reads.len(), WORK)?;
+        Ok(self.environment_reads.get(&(owner, node)).copied().map(LocalAnchor::Environment))
+    }
     /// Read only this independently checked region's original incoming rows.
     /// A caller still binds the exact original argument node to actual SSA.
     pub(in crate::semantic) fn call_region_nodes(

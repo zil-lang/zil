@@ -69,6 +69,20 @@ impl Check<'_, '_> {
             for call in self.inventory.sites_at(self.program, instance.id, at.0, at.1, SemanticSiteEdge::After, b)? {
                 let nodes = self.original.call_region_nodes(instance, call.recipe, ordinal, target, &source, self.inventory, b)?;
                 if nodes.is_empty() { continue; }
+                // An implicit method reborrow may have no separate TypeUse.
+                // Bind the original Name to its actual Load/Take/Borrow local;
+                // equal Types or lifetime uppers never select this identity.
+                for node in &nodes {
+                    if let Some(anchor) = self.original.call_input_anchor(instance.definition, *node, b)? {
+                        let (_, _, read) = self.defining(function, source_operand, b)?;
+                        if matches!(read.kind, InstructionKind::Load(_) | InstructionKind::TakeLocal { .. }
+                            | InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. }
+                            | InstructionKind::ReborrowAddress { .. }) {
+                            let local = self.anchored_local(instance, function, anchor, b)?;
+                            if self.receiver_local(function, source_operand, b, depth + 1)? == local { return Ok(true); }
+                        }
+                    }
+                }
                 for site in self.inventory.sites_for_value(self.program, instance.id, source_operand, b)? {
                     let SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(value), .. } = site.action else { continue; };
                     if value != source_operand { continue; }

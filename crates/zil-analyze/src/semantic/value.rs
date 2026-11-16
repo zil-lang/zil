@@ -309,8 +309,10 @@ fn reference(
     let mut classes = Vec::new();
     let outer = intern(&mut classes, class, b)?;
     let mut retained = Vec::new();
+    let mut child_binders = Vec::new();
     for (index, class) in inner.classes.iter().enumerate() {
         let binder = intern(&mut classes, class.clone(), b)?;
+        put(&mut child_binders, binder, b)?;
         put(
             &mut retained,
             StorageRetainedBinding {
@@ -321,6 +323,28 @@ fn reference(
             },
             b,
         )?;
+    }
+    // Transport the complete child forest. Direct Pointee rows above retain
+    // every intrinsic class, including phantom ones; descendants keep their
+    // own ordered paths and complete nominal argument ordinals as well.
+    for row in &inner.life.retained {
+        let mut path = Vec::new();
+        put(&mut path, LifeTypeProjection::Pointee, b)?;
+        for step in &row.path { put(&mut path, step.clone(), b)?; }
+        let binder = *child_binders.get(row.binder as usize)
+            .ok_or_else(|| fail("address child retained row leaves its intrinsic domain"))?;
+        put(&mut retained, StorageRetainedBinding { path, class: row.class, binder }, b)?;
+    }
+    let mut nominal_arguments = Vec::new();
+    for row in &inner.life.nominal_arguments {
+        let mut path = Vec::new();
+        put(&mut path, LifeTypeProjection::Pointee, b)?;
+        for step in &row.path { put(&mut path, step.clone(), b)?; }
+        let binder = *child_binders.get(row.binder as usize)
+            .ok_or_else(|| fail("address child nominal row leaves its intrinsic domain"))?;
+        put(&mut nominal_arguments, NominalLifeArgument {
+            path, declaration: row.declaration, argument: row.argument, binder,
+        }, b)?;
     }
     let binder_count =
         u32::try_from(classes.len()).map_err(|_| fail("address complete domain overflow"))?;
@@ -337,7 +361,7 @@ fn reference(
             }],
 
             retained,
-            nominal_arguments: Vec::new(),
+            nominal_arguments,
         },
         b,
     )?;
@@ -370,6 +394,17 @@ pub(super) fn dyn_domain(
         retained: interface.retained_life.retained.clone(),
         nominal_arguments: interface.retained_life.nominal_arguments.clone(),
     })
+}
+/// Check only the complete physical forest with fresh binder-coordinate
+/// symbols. This supplies no actual class equation or original premise.
+pub(super) fn check_address_domain(
+    ty: &Type, life: &StorageLifeShape, inventory: &Inventory<'_>, b: &mut Budget,
+) -> CompileResult<()> {
+    let geometry = inventory.geometry.resolved(ty, life, b)?;
+    let mut classes = Vec::new();
+    for binder in 0..life.binder_count { put(&mut classes, Class::Local(binder), b)?; }
+    pointee(&Value::from_geometry(geometry, classes), inventory, b)?;
+    Ok(())
 }
 pub(super) fn pointee(
     input: &Value,
@@ -421,10 +456,11 @@ pub(super) fn pointee(
             empty()
         }
     };
-    if input.life.retained.len() != life.binder_count as usize {
-        return Err(fail("whole pointee omits complete child class occurrences"));
+    if input.classes.len() != input.life.binder_count as usize {
+        return Err(fail("whole address omits its complete class image"));
     }
     let mut classes = Vec::new();
+    let mut local_classes = Vec::new();
     for index in 0..life.binder_count {
         let mut selected = None;
         for row in &input.life.retained {
@@ -442,8 +478,18 @@ pub(super) fn pointee(
             .get(binder as usize)
             .ok_or_else(|| fail("whole pointee class is out of range"))?;
         put(&mut classes, class.clone(), b)?;
+        put(&mut local_classes, Class::Local(binder), b)?;
     }
     let geometry = geometry::project(&input.geometry, geometry::Child::Inner, &life, b)?;
+    if !(super::original::strings::is_byte_type(&input.ty) && empty_shape(&input.life) && input.classes.is_empty()) {
+        let [slot] = input.life.slots.as_slice() else { return Err(fail("whole address has no unique outer slot")); };
+        let Type::Address { mutable, .. } = input.ty else { unreachable!() };
+        let expected = address(mutable, Class::Local(slot.binder),
+            Value::from_geometry(std::sync::Arc::clone(&geometry), local_classes), b)?;
+        if expected.life != input.life {
+            return Err(fail("whole address changes its complete Pointee class or nominal forest"));
+        }
+    }
     Ok(Value::from_geometry(geometry, classes))
 }
 
@@ -1506,7 +1552,6 @@ fn resolved_parts(
                     } else {
                         StoredBorrowMode::SharedAddress
                     }
-                || !life.nominal_arguments.is_empty()
             {
                 return Err(fail("semantic address loses its exact outer occurrence"));
             }
@@ -1552,11 +1597,6 @@ fn resolved_parts(
                     empty()
                 }
             };
-            if life.retained.len() != child_life.binder_count as usize {
-                return Err(fail(
-                    "semantic address omits or duplicates a Pointee class occurrence",
-                ));
-            }
             let mut child_expressions = Vec::new();
             let mut local_classes = Vec::new();
             for child in 0..child_life.binder_count {
@@ -1708,6 +1748,52 @@ mod geometry_tests {
             &merged.geometry,
             &separate.geometry
         ));
+    }
+
+    #[test]
+    fn address_transports_complete_child_forest_and_phantom_actuals() {
+        let mut budget = Budget::new(&zil_base::Limits::default());
+        let declaration = LifeDeclarationId {
+            module: zil_base::ModuleId(0), declaration: zil_base::NodeId(7), compiler: false,
+        };
+        let child_life = StorageLifeShape {
+            binder_count: 2,
+            slots: vec![StorageLifeSlot { path: vec![PlaceProjection::Field(0)], binder: 0,
+                mode: StoredBorrowMode::SharedAddress }],
+            retained: vec![StorageRetainedBinding { path: vec![LifeTypeProjection::Place(PlaceProjection::Field(1))], class: 0, binder: 0 }],
+            nominal_arguments: vec![
+                NominalLifeArgument { path: Vec::new(), declaration, argument: 2, binder: 0 },
+                NominalLifeArgument { path: Vec::new(), declaration, argument: 4, binder: 1 },
+            ],
+        };
+        let child = Value::new(Type::BorrowedStorage {
+            storage: Box::new(Type::Record { name: "Holder".into(), fields: vec![
+                ("pointer".into(), Type::Address { mutable: false, inner: Box::new(Type::I32) }),
+                ("callback".into(), Type::Closure(ClosureId(0))),
+            ] }), life: child_life.clone(),
+        }, child_life.clone(), vec![Class::Local(7), Class::Local(9)]);
+        let parent = address(false, Class::Local(3), child.copy(&mut budget).unwrap(), &mut budget).unwrap();
+        assert_eq!(parent.life.binder_count, 3);
+        assert_eq!(parent.life.slots.len(), 1);
+        assert!(parent.life.slots[0].path.is_empty());
+        assert_eq!(parent.life.retained, vec![
+            StorageRetainedBinding { path: vec![LifeTypeProjection::Pointee], class: 0, binder: 1 },
+            StorageRetainedBinding { path: vec![LifeTypeProjection::Pointee], class: 1, binder: 2 },
+            StorageRetainedBinding { path: vec![LifeTypeProjection::Pointee, LifeTypeProjection::Place(PlaceProjection::Field(1))], class: 0, binder: 1 },
+        ]);
+        assert_eq!(parent.life.nominal_arguments, vec![
+            NominalLifeArgument { path: vec![LifeTypeProjection::Pointee], declaration, argument: 2, binder: 1 },
+            NominalLifeArgument { path: vec![LifeTypeProjection::Pointee], declaration, argument: 4, binder: 2 },
+        ]);
+        let coincident = parent.with_classes(vec![Class::Local(3); 3], &mut budget).unwrap();
+        assert_eq!(coincident.life, parent.life);
+        assert_eq!(coincident.life.binder_count, 3);
+        let mut missing = child.copy(&mut budget).unwrap();
+        missing.classes.pop();
+        assert!(address(false, Class::Local(3), missing, &mut budget).is_err());
+        let mut dangling = child;
+        dangling.geometry_mut(&mut budget).unwrap().life.nominal_arguments[1].binder = 2;
+        assert!(address(false, Class::Local(3), dangling, &mut budget).is_err());
     }
 
     #[test]

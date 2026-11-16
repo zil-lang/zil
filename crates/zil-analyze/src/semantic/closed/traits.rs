@@ -500,9 +500,20 @@ impl Check<'_, '_> {
                     actual == *expected
                 };
                 if !valid {
-                    return Err(fail(
-                        "actual trait argument changes its full intrinsic classes or outer call role",
+                    let before = b.remaining();
+                    crate::dyn_metadata::ty(&actual.ty, b)?;
+                    crate::dyn_metadata::shape(&actual.life, b)?;
+                    crate::dyn_metadata::ty(&expected.ty, b)?;
+                    crate::dyn_metadata::shape(&expected.life, b)?;
+                    let work = before - b.remaining();
+                    b.spend(work.saturating_mul(256).saturating_add(actual.classes.len().saturating_add(expected.classes.len()).saturating_mul(512)).saturating_add(1024), WORK)?;
+                    let mut errors = fail("actual trait argument changes its full intrinsic classes or outer call role");
+                    errors[0].notes.push(format!(
+                        "trait original member {}:{} receiver declaration {:?} method slot {}; actual function {} call block {} instruction {} recipe {} parameter {} operand {}; independent source sigma {actual:?}; independent call adapter {expected:?}",
+                        boundary.method.module.0, boundary.method.index, boundary.declaration,
+                        boundary.member, function.id.0, block.0, index, site.0, ordinal, argument.0,
                     ));
+                    return Err(errors);
                 }
             }
         }

@@ -132,33 +132,30 @@ impl Solver<'_, '_> {
                     "original Store operation selects another resource family",
                 ));
             };
-            let descriptor = if matches!(
-                self.state.arena[selected],
-                Kind::Wrapped(Wrapper::Managed, _)
-            ) {
-                let wanted = if matches!(intrinsic, sealed::Intrinsic::StoreAt | sealed::Intrinsic::StoreAtMut) {
-                    match self.receiving_for(frame, node, b)? {
-                        Some(expected) => match self.state.arena[self.type_root(expected, b)?] {
-                            Kind::Address { life, inner, .. } => {
-                                self.unify(inner, element, depth + 1, b)?;
-                                Some(life)
-                            }
-                            _ => None,
-                        },
-                        None => None,
-                    }
-                } else { None };
-                self.describe_argument_role(frame, &arguments[0], &place, selected, wanted, b, depth + 1)?
+            let descriptor = if matches!(self.state.arena[selected], Kind::Wrapped(Wrapper::Managed, _)) {
+                // The manager is an original description occurrence sigma.
+                // A contextual result must not rewrite that argument value.
+                self.describe_argument(frame, &arguments[0], &place, selected, b, depth + 1)?
             } else {
                 selected
             };
             let descriptor = self.type_root(descriptor, b)?;
             let Kind::Desc { life, .. } = self.state.arena[descriptor] else {
-                return Err(fail(
-                    "original Store view lacks its exact descriptor lifetime",
-                ));
+                return Err(fail("original Store view lacks its exact descriptor lifetime"));
             };
-            manager_life = Some(life);
+            let returned_life = if matches!(intrinsic, sealed::Intrinsic::StoreAt | sealed::Intrinsic::StoreAtMut) {
+                match self.receiving_for(frame, node, b)? {
+                    Some(expected) => match self.state.arena[self.type_root(expected, b)?] {
+                        Kind::Address { life: wanted, inner, .. } => {
+                            self.unify(inner, element, depth + 1, b)?;
+                            self.select_view_life(frame, life, Some(life), Some(wanted), None, b, depth + 1)?
+                        }
+                        _ => life,
+                    },
+                    None => life,
+                }
+            } else { life };
+            manager_life = Some(returned_life);
             Self::push(&mut inputs, place.root, b)?;
             Self::push(&mut inputs, place.selected, b)?;
             b.lookup(self.state.intrinsic_anchors.len(), WORK)?;

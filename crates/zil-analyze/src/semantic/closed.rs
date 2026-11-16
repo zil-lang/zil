@@ -280,7 +280,9 @@ impl Check<'_, '_> {
             Type::BorrowedStorage {
                 life: intrinsic, ..
             } if intrinsic == life => {}
-            Type::Address { .. } if life.binder_count == 1 => {}
+            Type::Address { inner, .. } if !matches!(inner.as_ref(), Type::MutexGuard { .. }) => {
+                value::check_address_domain(ty, life, self.inventory, b)?;
+            }
             Type::MutexGuard { .. }
                 if life.binder_count == 1
                     && life.slots.is_empty()

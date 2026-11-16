@@ -2109,10 +2109,17 @@ impl Solver<'_, '_> {
                             };
                             let lives =
                                 self.invocation_actuals(signature.invocation_lifetimes, b)?;
+                            if parameters.len() != signature.parameters.len() {
+                                return Err(fail("original known closure changes its declared parameter arity"));
+                            }
                             let mut opened = Vec::new();
-                            for parameter in parameters {
+                            for (parameter, declared) in parameters.into_iter().zip(&signature.parameters) {
                                 let parameter =
                                     self.open_invocations(parameter, target, &lives, b, depth + 1)?;
+                                // Only the genuine original signature grants a
+                                // call outer role. A whole T instantiated as an
+                                // Address remains an invariant complete Type.
+                                self.mark_call_parameter(parameter, &declared.ty, b)?;
                                 Self::push(&mut opened, parameter, b)?;
                             }
                             let parameters = opened;
