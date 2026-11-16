@@ -279,8 +279,28 @@ impl Engine<'_, '_> {
     ) -> R<Option<BTreeSet<Requirement>>> {
         let definition = self.definition(owner)?;
         let SemanticDefinitionBody::FunctionWithBody {
-            foreign: None, body: SemanticOriginalFunctionBody::Defined(_), sites, ..
+            signature, foreign, body, sites, ..
         } = &definition.body else { return Ok(None); };
+        if foreign.is_some() {
+            // The independently checked concrete C declaration cannot acquire
+            // a Task or its environment through primitive scalar operands.
+            // Addresses, handles, code and aggregate/abstract types remain
+            // outside this leaf domain, even if their machine layout is scalar.
+            self.pay(signature.parameters.len().saturating_add(1), depth)?;
+            let scalar = |ty: &SemanticTypeRecipe| matches!(ty,
+                SemanticTypeRecipe::Atom(zil_ir::Type::Unit | zil_ir::Type::Bool
+                    | zil_ir::Type::I8 | zil_ir::Type::I16 | zil_ir::Type::I32 | zil_ir::Type::I64
+                    | zil_ir::Type::U8 | zil_ir::Type::U16 | zil_ir::Type::U32 | zil_ir::Type::U64
+                    | zil_ir::Type::Isize | zil_ir::Type::Usize | zil_ir::Type::F32 | zil_ir::Type::F64));
+            return Ok((signature.call_kind == CallKind::Direct
+                && signature.bound_lifetimes == 0 && signature.invocation_lifetimes == 0
+                && foreign.as_ref().is_some_and(|declaration| declaration.abi == "C" && !declaration.symbol.is_empty())
+                && matches!(body, SemanticOriginalFunctionBody::External)
+                && scalar(&signature.result)
+                && signature.parameters.iter().all(|parameter| scalar(&parameter.ty)))
+                .then(BTreeSet::new));
+        }
+        if !matches!(body, SemanticOriginalFunctionBody::Defined(_)) { return Ok(None); }
         self.pay(sites.len().saturating_add(self.proof.types.len()), depth)?;
         let mut types = Vec::new();
         for ((domain, _), ty) in &self.proof.types {
@@ -860,6 +880,61 @@ impl Engine<'_, '_> {
         incoming: Option<&State>,
         depth: usize,
     ) -> R<Option<Value>> {
+        self.task_return_application(owner, node, target, arguments, None, state, incoming, depth + 1)
+    }
+
+    /// Only the actual consumed closure supplies this environment. No type,
+    /// matching layout or unrelated creator can stand in for these captures.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn task_return_callable(
+        &mut self,
+        owner: SemanticDefinitionId,
+        node: NodeId,
+        callee_node: NodeId,
+        callee: &Value,
+        arguments: &[Value],
+        state: &mut State,
+        depth: usize,
+    ) -> R<Option<Value>> {
+        let Value::Closure { definition, captures } = callee else { return Ok(None); };
+        let Some(site) = self.site(owner, node, depth + 1)? else { return Ok(None); };
+        self.pay(lookup_work(self.proof.callable_calls.len()).saturating_add(lookup_work(self.proof.kinds.len())), depth)?;
+        if !self.proof.callable_calls.get(&(owner, site)).is_some_and(|call|
+            call.kind == CallableKind::FnOnce && call.callee_node == callee_node)
+            || !matches!(self.proof.kinds.get(definition),
+                Some(CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce))
+        { return Ok(None); }
+        let incoming = self.copy(state, depth + 1)?;
+        let mut outgoing = self.copy(state, depth + 1)?;
+        let mut exposed = BTreeSet::new();
+        self.pay(callee.work(), depth)?;
+        callee.roots(&mut exposed);
+        for argument in arguments {
+            self.pay(argument.work(), depth)?;
+            argument.roots(&mut exposed);
+        }
+        for root in exposed {
+            self.change(&mut outgoing, root, UNKNOWN, false, depth + 1)?;
+            outgoing.task_sync.remove(&root);
+        }
+        let result = self.task_return_application(owner, node, *definition, arguments,
+            Some(captures), &mut outgoing, Some(&incoming), depth + 1)?;
+        if result.is_some() { *state = outgoing; }
+        Ok(result)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn task_return_application(
+        &mut self,
+        owner: SemanticDefinitionId,
+        node: NodeId,
+        target: SemanticDefinitionId,
+        arguments: &[Value],
+        captures: Option<&BTreeMap<String, Value>>,
+        state: &mut State,
+        incoming: Option<&State>,
+        depth: usize,
+    ) -> R<Option<Value>> {
         if self.active.contains(&target) {
             return Ok(None);
         }
@@ -897,15 +972,13 @@ impl Engine<'_, '_> {
         let mut phases: BTreeMap<Root, u8> = BTreeMap::new();
         for exit in &exits {
             for (root, phase) in &exit.phases {
-                let mapped = if let Root::Parameter(definition, ordinal) = root {
-                    if *definition != target {
-                        return Err(failure("Task return changes its original parameter domain"));
-                    }
-                    let value = arguments
-                        .get(*ordinal as usize)
-                        .ok_or_else(|| failure("Task return omits its real input owner"))?;
-                    let mapped = self.root(value, state, depth + 1)?;
-                    if !matches!(value, Value::Root(_, true, true, _)) {
+                if matches!(root, Root::Capture(..)) && captures.is_none() { return Ok(None); }
+                let input = matches!(root, Root::Parameter(..) | Root::Capture(..) | Root::Projection(..));
+                let mapped = if input {
+                    let value = self.original_input(*root, target, arguments, captures, depth + 1)?
+                        .ok_or_else(|| failure("Task return input is an inactive original alternative"))?;
+                    let mapped = self.root(&value, incoming.unwrap_or(state), depth + 1)?;
+                    if !matches!(value, Value::Root(_, true, true, None)) {
                         return Err(pending(
                             "Task owning return through a borrowed head requires its exact storage take/refill relation",
                         ));
@@ -917,12 +990,8 @@ impl Engine<'_, '_> {
                     }
                     mapped
                 } else {
-                    if matches!(root, Root::Capture(_, _))
-                        && self.proof.kinds.get(&target) != Some(&CallableKind::FnOnce)
-                    {
-                        return Err(pending(
-                            "Task return from reusable capture requires its complete take/refill correspondence",
-                        ));
+                    if !matches!(root, Root::Created(domain, _) | Root::Result(domain, _, _) if *domain == target) {
+                        return Err(failure("Task return mint is not its original constructor or call result"));
                     }
                     let slot = u32::try_from(roots.len())
                         .map_err(|_| failure("Task return root index overflow"))?;
@@ -942,7 +1011,8 @@ impl Engine<'_, '_> {
             for root in exit.phases.keys() {
                 let mapped = roots[root];
                 let requirements = match exit.synchronous.get(root) {
-                    Some(requirements) => self.instantiate_task_requirements(target, requirements, arguments, incoming.unwrap_or(state), depth + 1)?,
+                    Some(requirements) => self.instantiate_graph_requirements(target, requirements, arguments, captures,
+                        incoming.unwrap_or(state), &mut BTreeSet::new(), depth + 1)?,
                     None => None,
                 };
                 self.pay(requirements.as_ref().map_or(1, |r| r.len().saturating_add(1)), depth)?;
@@ -968,7 +1038,7 @@ impl Engine<'_, '_> {
         }
         let mut values = Vec::with_capacity(exits.len());
         for exit in exits {
-            values.push(self.task_rehome(exit.value, &roots, target, arguments, depth + 1)?)
+            values.push(self.task_rehome(exit.value, &roots, target, arguments, captures, depth + 1)?)
         }
         self.choice(values, depth + 1).map(Some)
     }
@@ -978,12 +1048,13 @@ impl Engine<'_, '_> {
         roots: &BTreeMap<Root, Root>,
         target: SemanticDefinitionId,
         arguments: &[Value],
+        captures: Option<&BTreeMap<String, Value>>,
         depth: usize,
     ) -> R<Value> {
         self.pay(1, depth)?;
         Ok(match value {
             Value::Cleanup { source: Some(source), .. } => {
-                self.original_input(source, target, arguments, None, depth + 1)?
+                self.original_input(source, target, arguments, captures, depth + 1)?
                     .ok_or_else(|| pending("returned callable source is in an inactive original input alternative"))?
             }
             Value::Root(root, live, owning, prior) => Value::Root(
@@ -996,44 +1067,44 @@ impl Engine<'_, '_> {
             ),
             Value::Error { is_error, payload } => Value::Error {
                 is_error,
-                payload: Box::new(self.task_rehome(*payload, roots, target, arguments, depth + 1)?),
+                payload: Box::new(self.task_rehome(*payload, roots, target, arguments, captures, depth + 1)?),
             },
             Value::Boxed(value) => {
-                Value::Boxed(Box::new(self.task_rehome(*value, roots, target, arguments, depth + 1)?))
+                Value::Boxed(Box::new(self.task_rehome(*value, roots, target, arguments, captures, depth + 1)?))
             }
             Value::Tuple(values) => Value::Tuple(
                 values
                     .into_iter()
-                    .map(|value| self.task_rehome(value, roots, target, arguments, depth + 1))
+                    .map(|value| self.task_rehome(value, roots, target, arguments, captures, depth + 1))
                     .collect::<R<_>>()?,
             ),
             Value::Choice(values) => Value::Choice(
                 values
                     .into_iter()
-                    .map(|value| self.task_rehome(value, roots, target, arguments, depth + 1))
+                    .map(|value| self.task_rehome(value, roots, target, arguments, captures, depth + 1))
                     .collect::<R<_>>()?,
             ),
             Value::Variant { name, fields } => Value::Variant {
                 name,
                 fields: fields
                     .into_iter()
-                    .map(|value| self.task_rehome(value, roots, target, arguments, depth + 1))
+                    .map(|value| self.task_rehome(value, roots, target, arguments, captures, depth + 1))
                     .collect::<R<_>>()?,
             },
             Value::Fields(values) => Value::Fields(
                 values
                     .into_iter()
-                    .map(|(name, value)| Ok((name, self.task_rehome(value, roots, target, arguments, depth + 1)?)))
+                    .map(|(name, value)| Ok((name, self.task_rehome(value, roots, target, arguments, captures, depth + 1)?)))
                     .collect::<R<_>>()?,
             ),
             Value::Closure {
                 definition,
-                captures,
+                captures: environment,
             } => Value::Closure {
                 definition,
-                captures: captures
+                captures: environment
                     .into_iter()
-                    .map(|(name, value)| Ok((name, self.task_rehome(value, roots, target, arguments, depth + 1)?)))
+                    .map(|(name, value)| Ok((name, self.task_rehome(value, roots, target, arguments, captures, depth + 1)?)))
                     .collect::<R<_>>()?,
             },
             Value::Poll { .. } | Value::Valid { .. } => {

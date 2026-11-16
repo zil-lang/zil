@@ -2453,7 +2453,17 @@ impl<'a> Engine<'a, '_> {
                         if let (Some(site), Some(callee)) = (site, graph_callee) {
                             self.record_graph_call(owner, site, callee, &values, state, depth + 1)?;
                         }
-                        self.call(owner, expr, arguments, &values, state, depth + 1)?
+                        // Preserve the exact consumed closure's returned owner
+                        // before its code call is summarized as unknown effects.
+                        // Its independently checked consuming exits still govern
+                        // every capture not returned by this application.
+                        let returned = if once {
+                            let prepared = self.value_copy(&state.temporaries[callee_slot], depth + 1)?;
+                            self.task_return_callable(owner, expr.id, callee_base.id,
+                                &prepared, &values, state, depth + 1)?
+                        } else { None };
+                        if let Some(returned) = returned { returned }
+                        else { self.call(owner, expr, arguments, &values, state, depth + 1)? }
                     } else {
                         Value::Plain
                     };
