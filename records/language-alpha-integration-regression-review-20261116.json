@@ -243,5 +243,136 @@
       "readback_verified": true,
       "restore": "Concatenate parts01 through11 in numeric order, base64-decode once, then extract gzip"
     }
+  },
+  "latest_native_and_path_audit": {
+    "date": "2026-11-16",
+    "alpha_accepted": false,
+    "native_ownership": {
+      "candidate": "7bb14a728643f92f1d79c4bee0ed6fc8f4551857",
+      "backends": [
+        "clang",
+        "llvm-api"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "executions_per_backend": 140,
+      "executions_total": 280,
+      "status": "Pass",
+      "includes": "Original complete five-module project, normal replacement and allocator-failure cleanup; assertions unchanged",
+      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-complete-task-cleanup-dependencies-and-full-type-diagnostics/alpha-ownership-native/receipt.json"
+    },
+    "latest_complete_source_profile": {
+      "candidate": "ef227429d5db3cb4096f041cdcec3cfaef0ce84b",
+      "profile": "alpha-25m-v1",
+      "positive": [
+        12,
+        13
+      ],
+      "correct_negative": [
+        4,
+        4
+      ],
+      "collections": "V incorrectly required unused generated method definitions to have an actual call request; Astra independently audited all four exact worlds and existing Definition contract consumer"
+    },
+    "additional_functional_gaps": [
+      "Dynamic return region and borrowed parameter referent fixes saved, awaiting same-version validation",
+      "Nested closure class images now identical; retained origins differed; independently sealed origin preservation saved awaiting actual test",
+      "RecordConstructor joint Type/Const/Life inference, Construct source roles and actual loans saved; first build exposed one substitution API call corrected without new solver",
+      "Owning replacement helper rejected qualified complete headers; full relation-resource proof fix saved awaiting complete application test",
+      "A shared binding, raw nested reference and retained output relations still under implementation"
+    ],
+    "budget_policy": "25M remains explicit candidate calibration. Complete ordinary application still had a genuine owning replacement endpoint obligation after crossing that quota under diagnostic64M; higher quota is never counted as a semantic fix. Final finite Alpha quota and default choice require complete success calibration.",
+    "source_branch_sync": {
+      "source_head": "7c70980c57ef211e535a06aeca58e86a3e78de60",
+      "source_tree": "69df83c9545c9a0264aa067fe91deafa69cabc10",
+      "base": "c5eb67b42ff532541c7d2e91ab556b68f4726b55",
+      "base_tree": "0ff63040f1dabd5ba51ebb66e440f9ce0a2b8335",
+      "count": 39,
+      "parts": [
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0000.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0001.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0002.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0003.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0004.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0005.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0006.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0007.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0008.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0009.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0010.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0011.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0012.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0013.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0014.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0015.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0016.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0017.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0018.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0019.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0020.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0021.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0022.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0023.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0024.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0025.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0026.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0027.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0028.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0029.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0030.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0031.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0032.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0033.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0034.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0035.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0036.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0037.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0038.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0039.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0040.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0041.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0042.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0043.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0044.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0045.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0046.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0047.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0048.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0049.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0050.json",
+        "/workspace/.zil-env/source-branch-sync-delta-7c709/0051.json"
+      ],
+      "scope": "Only exact committed files in existing public zil-lang/zil source branch, including Rust/Source/C tests, normative specs/profile, repository tools and Cargo lock. No WIP, goal, credentials or other workspace files.",
+      "remote_commit": "c30083e05f6763423e1197f3e0bc0ac38064ee72",
+      "remote_branch": "task/language-alpha",
+      "readback_tree_verified": true
+    },
+    "approved_crates_recovery": {
+      "path": "language/20261116T125921Z-approved-source-recovery/recovery.tar.gz",
+      "local_archive": "/workspace/.zil-env/approved-crates-recovery-20261116T125921Z/recovery.tar.gz",
+      "source_head": "8fdc05db7149893ad7abb8c65371918bfc77f54a",
+      "size": 1427064,
+      "sha256": "e97f7590b1d9e52925af020b049ed748adfef733b08d07e194ecaee17428e4c9",
+      "encoding": "base64",
+      "remote_commit": "1f2471b2f537c971975ab1aa233d39c8da715bd7",
+      "remote_paths": [
+        "language/20261116T125921Z-approved-source-recovery/recovery.tar.gz.base64.part-01-of-12",
+        "language/20261116T125921Z-approved-source-recovery/recovery.tar.gz.base64.part-02-of-12",
+        "language/20261116T125921Z-approved-source-recovery/recovery.tar.gz.base64.part-03-of-12",
+        "language/20261116T125921Z-approved-source-recovery/recovery.tar.gz.base64.part-04-of-12",
+        "language/20261116T125921Z-approved-source-recovery/recovery.tar.gz.base64.part-05-of-12",
+        "language/20261116T125921Z-approved-source-recovery/recovery.tar.gz.base64.part-06-of-12",
+        "language/20261116T125921Z-approved-source-recovery/recovery.tar.gz.base64.part-07-of-12",
+        "language/20261116T125921Z-approved-source-recovery/recovery.tar.gz.base64.part-08-of-12",
+        "language/20261116T125921Z-approved-source-recovery/recovery.tar.gz.base64.part-09-of-12",
+        "language/20261116T125921Z-approved-source-recovery/recovery.tar.gz.base64.part-10-of-12",
+        "language/20261116T125921Z-approved-source-recovery/recovery.tar.gz.base64.part-11-of-12",
+        "language/20261116T125921Z-approved-source-recovery/recovery.tar.gz.base64.part-12-of-12"
+      ],
+      "readback_verified": true,
+      "restore": "Concatenate parts01 through12 in numeric order, base64-decode once, then extract gzip"
+    }
   }
 }
