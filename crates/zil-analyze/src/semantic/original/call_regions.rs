@@ -431,9 +431,19 @@ impl Solver<'_, '_> {
             self.unify(input.life, target, depth + 1, b)?;
             if let Some(source) = input.source.life {
                 if !self.call_source_allows(frame, source, target, b, depth + 1)? {
-                    return Err(fail(
-                        "original call outer exceeds one of its complete incoming source bounds",
-                    ));
+                    let mut errors = fail("original call outer exceeds one of its complete incoming source bounds");
+                    let mut describe = |term: Term| -> CompileResult<String> {
+                        Ok(match &self.state.arena[self.root(term, b)?] {
+                            Kind::Life(life) => format!("{life:?}"),
+                            kind => format!("term {} kind {:?}", term, std::mem::discriminant(kind)),
+                        })
+                    };
+                    let source_note = describe(source)?;
+                    let target_note = describe(target)?;
+                    let upper_note = match input.source.upper { Some(upper) => describe(upper)?, None => "none".into() };
+                    errors[0].notes.push(format!("call {:?} prototype {:?} original argument {} source node {:?}: sigma {}; target {}; actual input {}; upper {}",
+                        call, prototype, input.ordinal, input.source.node, source_note, target_note, input.source.input, upper_note));
+                    return Err(errors);
                 }
             }
         }

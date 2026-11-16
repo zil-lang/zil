@@ -110,6 +110,10 @@ pub(super) struct Budget {
     // child checked at the real constructor. Outer use is directional only.
     pub(super) semantic_constructor_views: BTreeSet<(FunctionId, ValueId, u32)>,
     pub(super) semantic_raw_writes: BTreeSet<(FunctionId, zil_ir::BlockId, usize)>,
+    // Geometry only, reconstructed from the complete original value at a real
+    // immutable actual coordinate. No classes, targets, loans or capabilities.
+    pub(super) semantic_raw_value_shapes: BTreeMap<(FunctionId, ValueId), zil_ir::StorageLifeShape>,
+    pub(super) semantic_raw_local_shapes: BTreeMap<(FunctionId, zil_ir::LocalId), zil_ir::StorageLifeShape>,
     // Exact constructor occurrences whose complete original class value and
     // actual header embedding have both been proved. No target/loan facts.
     pub(super) semantic_aggregate_classes:
@@ -299,6 +303,8 @@ impl Budget {
             semantic_receiving_returns: BTreeSet::new(),
             semantic_constructor_views: BTreeSet::new(),
             semantic_raw_writes: BTreeSet::new(),
+            semantic_raw_value_shapes: BTreeMap::new(),
+            semantic_raw_local_shapes: BTreeMap::new(),
             semantic_aggregate_classes: BTreeMap::new(),
             stored_synchronous_abis: BTreeSet::new(),
             partial_depth: limits.max_call_depth,

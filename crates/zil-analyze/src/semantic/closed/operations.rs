@@ -1703,6 +1703,42 @@ impl Check<'_, '_> {
                     return Err(errors);
                 }
             }
+            // Primitive BorrowLocal/ReadAddress and call-adapter SSA may have
+            // no TypeUse of their own. Reuse the actual original whole-value
+            // reconstruction; inferring geometry from equal erased Types or
+            // through a Reborrow edge would lose outer/child alias structure.
+            let nested = |ty: &Type| matches!(ty, Type::Address { inner, .. }
+                if matches!(inner.as_ref(), Type::Address { .. } | Type::Desc(_)));
+            for (ordinal, ty) in function.values.iter().enumerate() {
+                b.spend(1, WORK)?;
+                if !nested(ty) { continue; }
+                let id = ValueId(u32::try_from(ordinal).map_err(|_| fail("raw geometry SSA ordinal overflow"))?);
+                let value = self.ssa_value(instance, function, id, b, 0).map_err(|mut errors| {
+                    for error in &mut errors {
+                        error.notes.push(format!("complete raw geometry producer function {} SSA {} original instance {:?}, Type {:?}", function.id.0, id.0, instance.id, ty));
+                    }
+                    errors
+                })?;
+                if !geometry::same_type(&value.ty, ty, b)? {
+                    return Err(fail("raw geometry reconstruction changes its complete actual Type"));
+                }
+                crate::dyn_metadata::shape(&value.life, b)?;
+                b.lookup(b.semantic_raw_value_shapes.len(), WORK)?;
+                if let Some(old) = b.semantic_raw_value_shapes.get(&(function.id, id)).cloned() {
+                    crate::dyn_metadata::shape(&old, b)?;
+                    if old != value.life { return Err(fail("raw SSA has different complete original geometries in its actual worlds")); }
+                } else { b.semantic_raw_value_shapes.insert((function.id, id), value.life.clone()); }
+            }
+            for (local, value) in &declared_values {
+                b.spend(1, WORK)?;
+                if !nested(&value.ty) { continue; }
+                crate::dyn_metadata::shape(&value.life, b)?;
+                b.lookup(b.semantic_raw_local_shapes.len(), WORK)?;
+                if let Some(old) = b.semantic_raw_local_shapes.get(&(function.id, *local)).cloned() {
+                    crate::dyn_metadata::shape(&old, b)?;
+                    if old != value.life { return Err(fail("raw local has different complete declared geometries in its actual worlds")); }
+                } else { b.semantic_raw_local_shapes.insert((function.id, *local), value.life.clone()); }
+            }
             self.inventory.profile_step("actual CFG coverage", b);
             for block in &function.blocks {
                 for (index, instruction) in block.instructions.iter().enumerate() {

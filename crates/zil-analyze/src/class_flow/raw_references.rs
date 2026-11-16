@@ -23,6 +23,23 @@ pub(super) fn shape(
 
 pub(super) fn complete_shape(module: &TypedModule, function: &TypedFunction,
     operand: SemanticOperand, ty: &Type, b: &mut Budget) -> CompileResult<Option<StorageLifeShape>> {
+    if b.initialization.as_ref().is_some_and(|init| init.module == module as *const TypedModule as usize) {
+        let shape = match operand {
+            SemanticOperand::Value(value) => {
+                b.lookup(b.semantic_raw_value_shapes.len(), "complete original raw SSA geometry")?;
+                b.semantic_raw_value_shapes.get(&(function.id, value))
+            }
+            SemanticOperand::Local(local) => {
+                b.lookup(b.semantic_raw_local_shapes.len(), "complete original raw local geometry")?;
+                b.semantic_raw_local_shapes.get(&(function.id, local))
+            }
+            _ => None,
+        }.cloned();
+        if let Some(shape) = shape {
+            super::super::dyn_metadata::shape(&shape, b)?;
+            return Ok(Some(shape));
+        }
+    }
     let mut values = BTreeSet::new();
     let mut locals = BTreeSet::new();
     match operand {
@@ -205,11 +222,13 @@ pub(super) fn complete_shape(module: &TypedModule, function: &TypedFunction,
         }
     }
     selected.map(Some).ok_or_else(|| {
-        vec![Diagnostic::unsupported(
+        let mut diagnostic = Diagnostic::unsupported(
             Phase::Analyze,
             "nested raw reference has no complete original SSA/local or actual parameter geometry",
             None,
-        )]
+        );
+        diagnostic.notes.push(format!("actual function {} operand {:?}, complete Type {:?}", function.id.0, operand, ty));
+        vec![diagnostic]
     })
 }
 
