@@ -546,6 +546,92 @@ impl Sites {
         self.active(&ancestry(&p.loans, loans, b)?, b)
     }
     #[allow(clippy::too_many_arguments)]
+    fn disjoint_value(&self, value: &Value, state: &State, active: &Loans, loans: &[Loan],
+        apart: &mut BTreeSet<(Target, Target)>, b: &mut Budget) -> CompileResult<()> {
+        for permission in std::iter::once(&value.pointer)
+            .chain(std::iter::once(&value.store_description))
+            .chain(std::iter::once(&value.held))
+            .chain(value.slots.values()).chain(value.task_ports.values()).chain(value.dyn_ports.values())
+        {
+            fee(b, 1)?;
+            if !permission.targets.is_empty() {
+                use_permission(permission, true, active, loans, apart, b)?;
+            } else if !permission.loans.is_empty() {
+                return Err(failure("byte view call footprint lacks its grounded target"));
+            }
+        }
+        // Captured mutable storage is read from its current real cell, not
+        // from the creator's stale snapshot or from its lifetime class.
+        let environment = environment_memory::current(value, state, b)?;
+        for permission in environment.values() {
+            fee(b, 1)?;
+            if !permission.targets.is_empty() {
+                use_permission(permission, true, active, loans, apart, b)?;
+            } else if !permission.loans.is_empty() {
+                return Err(failure("byte view captured footprint lacks its grounded target"));
+            }
+        }
+        Ok(())
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn disjoint_closure(&self, module: &TypedModule, f: &TypedFunction, i: &Instruction,
+        state: &State, values: &[Value], active: &Loans, loans: &[Loan],
+        apart: &mut BTreeSet<(Target, Target)>, b: &mut Budget) -> CompileResult<bool> {
+        let closure_type = |ty: &Type| match ty {
+            Type::Closure(id) => Some(*id),
+            Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)) => {
+                let Type::Closure(id) = inner.as_ref() else { unreachable!() }; Some(*id)
+            }
+            _ => None,
+        };
+        let id = match &i.kind {
+            InstructionKind::MakeClosure { closure, captures } => {
+                let definition = module.closures.get(closure.0 as usize)
+                    .filter(|definition| definition.id == *closure)
+                    .ok_or_else(|| failure("byte view closure footprint has no actual definition"))?;
+                fee(b, captures.len().saturating_add(1))?;
+                if captures.len() != definition.captures.len() {
+                    return Err(failure("byte view creator omits actual captured operands"));
+                }
+                *closure
+            }
+            InstructionKind::CallClosureShared { callee, .. }
+            | InstructionKind::CallClosureMut { callee, .. } => {
+                let local = f.locals.get(callee.0 as usize).filter(|local| local.id == *callee)
+                    .ok_or_else(|| failure("byte view callable has no actual local"))?;
+                let Some(id) = closure_type(&local.ty) else { return Ok(false); };
+                let actual = state.locals.get(callee)
+                    .ok_or_else(|| failure("byte view callable has no initialized current environment"))?;
+                self.disjoint_value(actual, state, active, loans, apart, b)?;
+                id
+            }
+            InstructionKind::CallClosure { callee, .. }
+            | InstructionKind::CallClosureOnce { callee, .. }
+            | InstructionKind::CallClosureBorrowed { callee, .. } => {
+                let Some(id) = closure_type(value_type(f, *callee)?) else { return Ok(false); };
+                id
+            }
+            _ => return Ok(false),
+        };
+        let definition = module.closures.get(id.0 as usize).filter(|definition| definition.id == id)
+            .ok_or_else(|| failure("byte view invocation changes its actual closure identity"))?;
+        let entry = module.functions.get(definition.function.0 as usize)
+            .filter(|entry| entry.id == definition.function)
+            .ok_or_else(|| failure("byte view invocation omits its actual entry"))?;
+        fee(b, 1)?;
+        if entry.foreign.is_some() || entry.environment != Some(id) || entry.call_kind != CallKind::Direct {
+            return Ok(false);
+        }
+        for input in resources::uses(&i.kind) {
+            let actual = values.get(input.0 as usize)
+                .ok_or_else(|| failure("byte view callable operand is absent"))?;
+            self.disjoint_value(actual, state, active, loans, apart, b)?;
+        }
+        // This is only a conflict-footprint check. The existing stored CFG,
+        // capture modes, call arguments/results and owning cleanup still run.
+        Ok(true)
+    }
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn check(
         &self,
         module: &TypedModule,
@@ -579,8 +665,33 @@ impl Sites {
                 | InstructionKind::WithScopedThread { .. }
                 | InstructionKind::WithSyncCell { .. }
         ) && self.active(active, b)?
+            && !self.disjoint_closure(module, f, i, state, values, active, loans, apart, b)?
         {
             return Err(closed(i.span));
+        }
+        // Moving or replacing an owning source must conflict with its live
+        // byte view even when the owner is not an Address operand of a call.
+        let owner = match &i.kind {
+            InstructionKind::TakeLocal { local } => Some((*local, Vec::new())),
+            InstructionKind::TakePackageField { local, index }
+            | InstructionKind::DropPackageField { local, index }
+            | InstructionKind::StorePackageField { local, index, .. } => {
+                fee(b, 1)?;
+                Some((*local, vec![PlaceProjection::Field(*index)]))
+            }
+            InstructionKind::TakeTupleField { local, path } => {
+                fee(b, path.len())?;
+                Some((*local, path.clone()))
+            }
+            _ => None,
+        };
+        if let Some((local, path)) = owner && self.active(active, b)? {
+            fee(b, path.len().saturating_add(1))?;
+            let permission = Permission { targets: BTreeSet::from([Target {
+                retained_port: None, base: HoldRoot::Local(local), place: path,
+                stored: Vec::new(), heap_parents: Vec::new(), heap_element: None,
+            }]), loans: Loans::new() };
+            use_permission(&permission, true, active, loans, apart, b)?;
         }
         if let InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } =
             i.kind

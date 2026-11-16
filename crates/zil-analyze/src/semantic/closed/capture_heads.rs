@@ -199,12 +199,23 @@ impl Check<'_, '_> {
                             self.captured_read(function, value, b)?;
                         }
                         InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
-                            let anchor = self.original.local_recipe_anchor(instance.definition, recipe, b)?
-                                .ok_or_else(|| fail("implicit name read lacks its exact original local binder"))?;
-                            if matches!(anchor, original::LocalAnchor::Environment(_))
-                                || self.anchored_local(instance, function, anchor, b)? != *local
-                            {
-                                return Err(fail("implicit name read substitutes another actual local for its original binder"));
+                            if let Some(anchor) = self.original.local_recipe_anchor(instance.definition, recipe, b)? {
+                                if matches!(anchor, original::LocalAnchor::Environment(_))
+                                    || self.anchored_local(instance, function, anchor, b)? != *local
+                                {
+                                    return Err(fail("implicit name read substitutes another actual local for its original binder"));
+                                }
+                            } else if let Some(ordinal) = self.original.capture_recipe_ordinal(instance.definition, recipe, b)? {
+                                // A moved Copy capture may be materialized in
+                                // an activation local. Follow its real producer;
+                                // matching names/types or slot order is not a
+                                // captured origin or an additional head loan.
+                                let capture = self.environment_capture(instance, function, ordinal, b)?;
+                                if self.capture_value_origin(function, value, b, 0)? != capture {
+                                    return Err(fail("implicit spilled capture read changes its original environment source"));
+                                }
+                            } else {
+                                return Err(fail("implicit name read lacks its exact original local or captured binder"));
                             }
                             let SemanticSiteRecipeKind::TypeUse { expected } = &recipe.kind else {
                                 return Err(fail("implicit local read has another original operation"));

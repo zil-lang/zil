@@ -151,6 +151,7 @@ pub(super) enum LocalAnchor {
 }
 #[derive(Clone)]
 struct ViewSelection {
+    local: Option<LocalAnchor>,
     occurrence: Term,
     upper: Option<Term>,
     selected: Term,
@@ -1785,7 +1786,10 @@ impl Solver<'_, '_> {
                         },
                         None => None,
                     };
-                    let life = self.select_view_life(frame, occurrence, source_life, wanted, b, depth + 1)?;
+                    let local = if !place.indirect && place.expression.is_none() && place.path.is_empty() {
+                        place.anchor.filter(|anchor| matches!(anchor, LocalAnchor::Binding(_)))
+                    } else { None };
+                    let life = self.select_view_life(frame, occurrence, source_life, wanted, local, b, depth + 1)?;
                     b.lookup(self.state.borrows.len(), WORK)?;
                     if self
                         .state
@@ -1793,7 +1797,7 @@ impl Solver<'_, '_> {
                         .insert(
                             (frame.definition, value.id),
                             Borrow {
-                                role: Some(ViewSelection { occurrence, upper: source_life, selected: life }),
+                                role: Some(ViewSelection { local, occurrence, upper: source_life, selected: life }),
                                 anchor: place.anchor,
                                 expression: place.expression,
                                 index: place.index,
@@ -5073,6 +5077,7 @@ impl Checked {
                                 self.life_value(role.occurrence, context, inventory, b)?,
                                 role.upper.map(|upper| self.life_value(upper, context, inventory, b)).transpose()?,
                                 self.life_value(role.selected, context, inventory, b)?,
+                                role.local,
                             ))
                         }).transpose()?,
                         anchor: source.anchor,

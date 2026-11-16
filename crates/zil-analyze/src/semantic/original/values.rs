@@ -35,6 +35,7 @@ impl Checked {
                     self.life_value(source.role.occurrence, context, inventory, b)?,
                     source.role.upper.map(|upper| self.life_value(upper, context, inventory, b)).transpose()?,
                     self.life_value(source.role.selected, context, inventory, b)?,
+                    source.role.local,
                 ),
                 anchor: source.anchor,
                 root: self.value(source.root, context, program, inventory, b, 0)?,

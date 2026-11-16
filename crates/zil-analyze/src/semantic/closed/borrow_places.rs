@@ -320,6 +320,20 @@ impl Check<'_, '_> {
                     fresh: true,
                 })
             }
+            InstructionKind::BorrowPackageField { local, index: field, mutable } => {
+                let actual = function.locals.get(local.0 as usize)
+                    .filter(|declaration| declaration.id == *local)
+                    .ok_or_else(|| fail("actual package field borrow has no local declaration"))?;
+                if !matches!(actual.ty, Type::Package { .. })
+                    || *mutable != *output_mutable
+                    || self.borrow_field_type(&actual.ty, &[*field], b)? != output_inner.as_ref()
+                {
+                    return Err(fail("actual package field borrow changes its complete leaf or mode"));
+                }
+                b.spend(1, WORK)?;
+                Ok(Origin { root: Root::Local(*local, block, index, false),
+                    path: vec![*field], index: None, fresh: true })
+            }
             InstructionKind::BorrowPlaceLocal {
                 local,
                 path,

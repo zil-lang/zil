@@ -9,10 +9,11 @@ impl Check<'_, '_> {
         &self,
         root: &Value,
         output: &Value,
-        role: &(value::Class, Option<value::Class>, value::Class),
+        role: &(value::Class, Option<value::Class>, value::Class, Option<original::LocalAnchor>),
+        anchor: Option<original::LocalAnchor>,
         b: &mut Budget,
     ) -> CompileResult<()> {
-        b.spend(3, WORK)?;
+        b.spend(4, WORK)?;
         let [slot] = output.life.slots.as_slice() else {
             return Err(fail("actual view role loses its exact outer occurrence"));
         };
@@ -20,7 +21,17 @@ impl Check<'_, '_> {
             return Err(fail("actual view changes its independently selected original lifetime role"));
         }
         match &role.1 {
-            None if role.0 != role.2 => return Err(fail("actual contextual view lacks its original projected input upper bound")),
+            None if role.0 != role.2 => {
+                if !matches!(role.3, Some(original::LocalAnchor::Binding(_)))
+                    || role.3 != anchor
+                    || !matches!((&role.0, &role.2), (value::Class::Implicit(a, _), value::Class::Implicit(z, _)) if a == z)
+                {
+                    return Err(fail("actual contextual view lacks its exact original local region or projected input upper bound"));
+                }
+                // The following physical-place check must independently bind
+                // this exact original local to its initialized actual root.
+                // A common region grants neither target Eq nor a parent loan.
+            }
             Some(upper) => {
                 if !matches!(root.ty, Type::Address { .. }) {
                     return Err(fail("actual view upper has no genuine original Address source"));
@@ -379,7 +390,7 @@ impl Check<'_, '_> {
                 ));
             }
             let role = source.role.as_ref().ok_or_else(|| fail("actual source borrow omits its independently checked occurrence role"))?;
-            self.checked_view_role(&source.root, &expected, role, b)?;
+            self.checked_view_role(&source.root, &expected, role, source.anchor, b)?;
             let Type::Address { mutable, .. } = expected.ty else {
                 return Err(fail("original borrow does not produce a reference"));
             };

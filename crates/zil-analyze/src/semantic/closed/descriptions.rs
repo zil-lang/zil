@@ -49,7 +49,7 @@ impl Check<'_, '_> {
             };
             let source = &original.source;
             let expected = original.output;
-            self.checked_view_role(&original.root, &expected, &original.role, b)?;
+            self.checked_view_role(&original.root, &expected, &original.role, Some(original.anchor), b)?;
             let Type::Managed(payload) = &source.ty else {
                 return Err(fail(
                     "implicit description source is not an original owning value",

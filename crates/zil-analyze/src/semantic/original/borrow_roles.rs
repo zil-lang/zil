@@ -40,6 +40,7 @@ impl Solver<'_, '_> {
         occurrence: Term,
         upper: Option<Term>,
         wanted: Option<Term>,
+        local: Option<LocalAnchor>,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Term> {
@@ -54,6 +55,15 @@ impl Solver<'_, '_> {
             return Ok(occurrence);
         }
         if self.same_original(occurrence, wanted, b, depth + 1)? {
+            return Ok(wanted);
+        }
+        // A local's view may adopt a contextual region in this same
+        // activation. This is directed region selection, not LifeEqual and
+        // not a source of a formal/ancestor lifetime or of alias permission.
+        if upper.is_none() && matches!(local, Some(LocalAnchor::Binding(_)))
+            && matches!(self.state.arena[wanted], Kind::Life(Life::Implicit(owner, _)) if owner == frame.definition)
+            && matches!(self.state.arena[self.root(occurrence, b)?], Kind::Life(Life::Implicit(owner, _)) if owner == frame.definition)
+        {
             return Ok(wanted);
         }
         let upper = upper.ok_or_else(|| {

@@ -11,7 +11,7 @@ pub(super) struct Description {
     pub(super) output: Term,
 }
 pub(in crate::semantic) struct Source {
-    pub(in crate::semantic) role: (crate::semantic::value::Class, Option<crate::semantic::value::Class>, crate::semantic::value::Class),
+    pub(in crate::semantic) role: (crate::semantic::value::Class, Option<crate::semantic::value::Class>, crate::semantic::value::Class, Option<LocalAnchor>),
     pub(in crate::semantic) anchor: LocalAnchor,
     pub(in crate::semantic) root: crate::semantic::value::Value,
     pub(in crate::semantic) path: Vec<u32>,
@@ -65,7 +65,7 @@ impl Solver<'_, '_> {
         let occurrence = self.term(Kind::Life(Life::Implicit(frame.definition, row)), b)?;
         let upper = self.description_upper(place, source, b, depth + 1)?;
         self.remember_view_upper(frame.definition, row, upper, b)?;
-        let life = self.select_view_life(frame, occurrence, upper, wanted, b, depth + 1)?;
+        let life = self.select_view_life(frame, occurrence, upper, wanted, None, b, depth + 1)?;
         let output = self.term(
             Kind::Desc {
                 life,
@@ -82,7 +82,7 @@ impl Solver<'_, '_> {
             .insert(
                 (frame.definition, value.id),
                 Description {
-                    role: ViewSelection { occurrence, upper, selected: life },
+                    role: ViewSelection { local: None, occurrence, upper, selected: life },
                     anchor,
                     root: place.root,
                     path,

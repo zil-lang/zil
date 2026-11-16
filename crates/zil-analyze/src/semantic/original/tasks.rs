@@ -293,13 +293,70 @@ impl Solver<'_, '_> {
     ) -> CompileResult<()> {
         self.step(depth, b)?;
         b.spend(left.work().saturating_add(right.work()), WORK)?;
-        if left.retained != right.retained || left.leaves.len() != right.leaves.len() {
-            return Err(fail(
-                "original Task equation changes its complete retained domain",
-            ));
+        // Leaf indices are private directory coordinates, not original
+        // lifetime identities. Each complete constructor and every edge is
+        // compared; repeated occurrences remain repeated and are not merged
+        // merely because a particular actual image happens to coincide.
+        self.unify(left.result, right.result, depth + 1, b)?;
+        self.task_sequence_unify(left, &left.retained.domain, right, &right.retained.domain, b, depth + 1)?;
+        if left.retained.ports.len() != right.retained.ports.len()
+            || left.retained.retained.len() != right.retained.retained.len()
+            || left.retained.nominal.len() != right.retained.nominal.len()
+        { return Err(fail("original Task equation changes its complete retained inventory")); }
+        for (a, z) in left.retained.ports.iter().zip(&right.retained.ports) {
+            match (a, z) {
+                (Port::One(at, am, ac), Port::One(zt, zm, zc)) if am == zm => {
+                    self.task_leaf_unify(left, *at, right, *zt, b, depth + 1)?;
+                    self.task_leaf_unify(left, *ac, right, *zc, b, depth + 1)?;
+                }
+                (Port::From(at, ac), Port::From(zt, zc)) => {
+                    self.task_leaf_unify(left, *at, right, *zt, b, depth + 1)?;
+                    self.task_sequence_unify(left, ac, right, zc, b, depth + 1)?;
+                }
+                _ => return Err(fail("original Task equation changes a complete input port or its access mode")),
+            }
         }
-        for (left, right) in left.terms().zip(right.terms()) {
-            self.unify(left, right, depth + 1, b)?;
+        for (a, z) in left.retained.retained.iter().zip(&right.retained.retained) {
+            match (a, z) {
+                (Retain::One(ap, ai, ac), Retain::One(zp, zi, zc)) if ap == zp && ai == zi =>
+                    self.task_leaf_unify(left, *ac, right, *zc, b, depth + 1)?,
+                (Retain::All(ap, ac), Retain::All(zp, zc)) if ap == zp =>
+                    self.task_sequence_unify(left, ac, right, zc, b, depth + 1)?,
+                _ => return Err(fail("original Task equation changes a complete retained child path")),
+            }
+        }
+        for (a, z) in left.retained.nominal.iter().zip(&right.retained.nominal) {
+            match (a, z) {
+                (Nominal::One(ap, ad, ai, ac), Nominal::One(zp, zd, zi, zc))
+                    if ap == zp && ad == zd && ai == zi =>
+                    self.task_leaf_unify(left, *ac, right, *zc, b, depth + 1)?,
+                (Nominal::From(ap, at, ac), Nominal::From(zp, zt, zc)) if ap == zp => {
+                    self.task_leaf_unify(left, *at, right, *zt, b, depth + 1)?;
+                    self.task_sequence_unify(left, ac, right, zc, b, depth + 1)?;
+                }
+                _ => return Err(fail("original Task equation changes a complete phantom nominal occurrence")),
+            }
+        }
+        Ok(())
+    }
+    fn task_leaf_unify(&mut self, left: &TaskType, a: usize, right: &TaskType, z: usize,
+        b: &mut Budget, depth: usize) -> CompileResult<()> {
+        self.step(depth, b)?;
+        let a = *left.leaves.get(a).ok_or_else(|| fail("original Task left leaf is outside its complete directory"))?;
+        let z = *right.leaves.get(z).ok_or_else(|| fail("original Task right leaf is outside its complete directory"))?;
+        self.unify(a, z, depth, b)
+    }
+    fn task_sequence_unify(&mut self, left: &TaskType, a: &[Sequence], right: &TaskType, z: &[Sequence],
+        b: &mut Budget, depth: usize) -> CompileResult<()> {
+        self.step(depth, b)?;
+        if a.len() != z.len() { return Err(fail("original Task equation changes its complete retained domain")); }
+        for (a, z) in a.iter().zip(z) {
+            match (a, z) {
+                (Sequence::One(a), Sequence::One(z)) => self.task_leaf_unify(left, *a, right, *z, b, depth)?,
+                (Sequence::All(a, ap), Sequence::All(z, zp)) if ap == zp =>
+                    self.task_leaf_unify(left, *a, right, *z, b, depth)?,
+                _ => return Err(fail("original Task equation changes its whole-domain projection")),
+            }
         }
         Ok(())
     }
