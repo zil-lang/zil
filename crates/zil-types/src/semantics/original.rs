@@ -2517,6 +2517,20 @@ impl<'a> Check<'a, '_> {
             let actual =
                 if let Some((_, role)) = roles.iter().find(|(node, _)| *node == argument.id) {
                     copy_recipe(role, self.limits, self.left)?
+                } else if matches!(
+                    &parameter.ty,
+                    SemanticTypeRecipe::Formal(SemanticFormalRef {
+                        scope: SemanticScopeRef::Ancestor(u32::MAX),
+                        ..
+                    })
+                ) && let Some(expected) = complete_parameter.as_ref()
+                    && let Some(view) =
+                        self.observe_shared_input(owner, argument, expected, variables, depth + 1)?
+                {
+                    // T was fixed by the complete wanted/inner domain. Passing
+                    // a shared view does not infer a different T from the
+                    // exclusive source or consume/copy that exclusive value.
+                    view
                 } else if matches!(&parameter.ty, SemanticTypeRecipe::Address { .. })
                     && matches!(&argument.kind, CoreExprKind::Name(_))
                 {

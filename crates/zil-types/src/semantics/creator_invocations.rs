@@ -128,7 +128,7 @@ impl Eval<'_, '_, '_> {
                 active: BTreeSet::new(),
                 invocation_probe: Some((scope, count)),
             };
-            let draft = probe.value(
+            let draft = probe.ty(
                 scope,
                 &SemanticTypeRecipe::OriginalType {
                     scope: SemanticScopeRef::Ancestor(0),
