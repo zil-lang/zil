@@ -408,7 +408,7 @@ pub(super) fn after_call(callee: &TypedFunction, summary: &Facts, arguments: &[V
             for parent in &input.pointer.loans { ordered(b, value.loans.len(), 0)?; value.loans.insert(*parent); }
         }
         target_work(&after.upper, b)?;
-        let upper_rows = after.upper.iter().cloned().collect::<Vec<_>>();
+        let upper_rows = after.upper.clone();
         let upper = dyn_address::upper_substitute(&upper_rows, arguments, values, state, b)?;
         let HoldRoot::Parameter(parameter) = cell.base else { return Err(failure("raw after-state changes its actual input identity")); };
         let depth = match cell.retained_port { None => 0, Some(PortOrigin::RawReference { depth }) => depth, _ => return Err(failure("raw after-state has a nonraw cell")) };
