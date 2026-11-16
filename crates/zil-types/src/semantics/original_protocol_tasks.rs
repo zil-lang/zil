@@ -181,8 +181,168 @@ impl Engine<'_, '_> {
 pub(super) struct Exit {
     pub value: Value,
     pub phases: BTreeMap<Root, u8>,
+    pub synchronous: BTreeMap<Root, BTreeSet<Root>>,
 }
 impl Engine<'_, '_> {
+    /// A finite original worker graph is independent of its actual Task input
+    /// owners. Those owners are checked separately and carried as symbolic
+    /// requirements through factories. Unknown calls and external providers
+    /// cannot be hidden by a matching result type or a completed cleanup pass.
+    fn synchronous_task_worker(
+        &mut self,
+        owner: SemanticDefinitionId,
+        active: &mut BTreeSet<SemanticDefinitionId>,
+        depth: usize,
+    ) -> R<bool> {
+        self.pay(active.len().saturating_add(lookup_work(self.synchronous_workers.len())), depth)?;
+        if let Some(known) = self.synchronous_workers.get(&owner) {
+            return Ok(*known);
+        }
+        if !active.insert(owner) {
+            return Ok(false);
+        }
+        let result = self.synchronous_task_worker_inner(owner, active, depth + 1)?;
+        active.remove(&owner);
+        self.pay(1, depth)?;
+        self.synchronous_workers.insert(owner, result);
+        Ok(result)
+    }
+    fn synchronous_task_worker_inner(
+        &mut self,
+        owner: SemanticDefinitionId,
+        active: &mut BTreeSet<SemanticDefinitionId>,
+        depth: usize,
+    ) -> R<bool> {
+        let definition = self.definition(owner)?;
+        let SemanticDefinitionBody::FunctionWithBody {
+            foreign: None, body: SemanticOriginalFunctionBody::Defined(_), sites, ..
+        } = &definition.body else { return Ok(false); };
+        self.pay(sites.len().saturating_add(self.proof.types.len()), depth)?;
+        // The complete local/parameter/result inventory also covers unused
+        // branches and resource teardown, rather than just the worker's name.
+        let mut types = Vec::new();
+        for ((domain, _), ty) in &self.proof.types {
+            if *domain == owner {
+                types.push(copy_recipe(ty, self.limits, self.left)?);
+            }
+        }
+        for ty in types {
+            if !self.synchronous_graph_type(owner, &ty, depth + 1)? {
+                return Ok(false);
+            }
+        }
+        for site in sites {
+            self.pay(1, depth)?;
+            if !matches!(site.kind, SemanticSiteRecipeKind::OriginalCall) {
+                continue;
+            }
+            if self.proof.compile_time_calls.contains(&(owner, site.id)) {
+                continue;
+            }
+            if let Some(call) = self.proof.intrinsics.get(&(owner, site.id)) {
+                let kind = call.kind.clone();
+                match kind {
+                    IntrinsicKind::TaskCreate { worker, .. } => {
+                        if !self.synchronous_task_worker(worker, active, depth + 1)? { return Ok(false); }
+                    }
+                    IntrinsicKind::TaskYield | IntrinsicKind::TaskOperation(_)
+                    | IntrinsicKind::NominalConstructor { .. }
+                    | IntrinsicKind::MutexCreate | IntrinsicKind::MutexLock
+                    | IntrinsicKind::MutexValue | IntrinsicKind::MutexUnlock
+                    | IntrinsicKind::StoreNew | IntrinsicKind::StoreReserve
+                    | IntrinsicKind::StorePush | IntrinsicKind::StorePop
+                    | IntrinsicKind::StoreLen | IntrinsicKind::StoreCapacity
+                    | IntrinsicKind::StoreBorrow { .. }
+                    | IntrinsicKind::BytesNew | IntrinsicKind::BytesReserve
+                    | IntrinsicKind::BytesTruncate | IntrinsicKind::BytesPush
+                    | IntrinsicKind::BytesLen | IntrinsicKind::BytesCapacity
+                    | IntrinsicKind::BytesBorrow { .. } | IntrinsicKind::Length
+                    | IntrinsicKind::Numeric { .. } => {}
+                    _ => return Ok(false),
+                }
+            } else if let Some(target) = self.proof.call_targets.get(&(owner, site.id)).copied() {
+                if !self.synchronous_task_worker(target, active, depth + 1)? { return Ok(false); }
+            } else {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+    fn synchronous_graph_type(
+        &mut self, owner: SemanticDefinitionId, ty: &SemanticTypeRecipe, depth: usize,
+    ) -> R<bool> {
+        self.pay(1, depth)?;
+        if self.task_head(owner, ty, depth + 1)?.is_some() || self.can_drop(owner, ty, depth + 1)? {
+            return Ok(true);
+        }
+        if let Some((error, result)) = cleanup::error_arms(self.program, self.proof, owner, ty, self.limits, self.left)? {
+            return Ok(self.synchronous_graph_type(owner, &error, depth + 1)?
+                && self.synchronous_graph_type(owner, &result, depth + 1)?);
+        }
+        if let Some(fields) = cleanup::fields(self.program, self.proof, owner, ty, self.limits, self.left)? {
+            for (_, field) in fields {
+                if !self.synchronous_graph_type(owner, &field, depth + 1)? { return Ok(false); }
+            }
+            return Ok(true);
+        }
+        Ok(false)
+    }
+    fn synchronous_task_inputs(
+        &mut self, values: &[Value], state: &State, depth: usize,
+    ) -> R<Option<BTreeSet<Root>>> {
+        let mut requirements = BTreeSet::new();
+        for value in values {
+            let Some(incoming) = self.synchronous_task_value(value, state, depth + 1)? else { return Ok(None); };
+            self.pay(incoming.len().saturating_add(1), depth)?;
+            requirements.extend(incoming);
+        }
+        Ok(Some(requirements))
+    }
+    fn synchronous_task_value(
+        &mut self, value: &Value, state: &State, depth: usize,
+    ) -> R<Option<BTreeSet<Root>>> {
+        self.pay(1, depth)?;
+        match value {
+            Value::Root(root, true, _, None) if state.tasks.contains(root) => {
+                if state.roots.get(root) == Some(&CLOSED) { return Ok(Some(BTreeSet::new())); }
+                if let Some(requirements) = state.task_sync.get(root) {
+                    self.pay(requirements.len().saturating_add(1), depth)?;
+                    Ok(Some(requirements.clone()))
+                } else { Ok(None) }
+            }
+            Value::Root(..) => Ok(None),
+            Value::Cleanup { owner, ty } => Ok(self.can_drop(*owner, ty, depth + 1)?.then(BTreeSet::new)),
+            Value::Error { payload, .. } | Value::Boxed(payload) => self.synchronous_task_value(payload, state, depth + 1),
+            Value::Tuple(values) | Value::Choice(values) | Value::Variant { fields: values, .. } => self.synchronous_task_inputs(values, state, depth + 1),
+            Value::Fields(fields) | Value::Closure { captures: fields, .. } => {
+                let mut requirements = BTreeSet::new();
+                for value in fields.values() {
+                    let Some(incoming) = self.synchronous_task_value(value, state, depth + 1)? else { return Ok(None); };
+                    self.pay(incoming.len().saturating_add(1), depth)?;
+                    requirements.extend(incoming);
+                }
+                Ok(Some(requirements))
+            }
+            Value::Plain | Value::Bool(_) => Ok(Some(BTreeSet::new())),
+            _ => Ok(None),
+        }
+    }
+    fn instantiate_task_requirements(
+        &mut self, target: SemanticDefinitionId, requirements: &BTreeSet<Root>,
+        arguments: &[Value], state: &State, depth: usize,
+    ) -> R<Option<BTreeSet<Root>>> {
+        self.pay(requirements.len(), depth)?;
+        let mut result = BTreeSet::new();
+        for requirement in requirements {
+            let Root::Parameter(owner, ordinal) = requirement else { return Ok(None); };
+            if *owner != target { return Ok(None); }
+            let argument = arguments.get(*ordinal as usize).ok_or_else(|| failure("Task cleanup graph omits its actual worker input"))?;
+            let Some(incoming) = self.synchronous_task_value(argument, state, depth + 1)? else { return Ok(None); };
+            self.pay(incoming.len().saturating_add(1), depth)?;
+            result.extend(incoming);
+        }
+        Ok(Some(result))
+    }
     pub(super) fn task_head(
         &mut self,
         owner: SemanticDefinitionId,
@@ -206,6 +366,8 @@ impl Engine<'_, '_> {
         self.pay(2, depth)?;
         state.roots.insert(root, UNKNOWN);
         state.tasks.insert(root);
+        // A parameter is a symbolic requirement, never a type-level promise.
+        state.task_sync.insert(root, BTreeSet::from([root]));
         Ok(Some(Value::Root(root, true, owning, None)))
     }
     pub(super) fn task_drop(
@@ -225,6 +387,10 @@ impl Engine<'_, '_> {
                 "original Task cleanup loses an earlier live task generation",
             ));
         }
+        self.pay(state.task_sync.len().saturating_add(1), depth)?;
+        if state.task_sync.get(&root).is_some_and(BTreeSet::is_empty) {
+            return Ok(());
+        }
         let original = self.definition(state.owner)?;
         let SemanticDefinitionBody::FunctionWithBody {
             signature,
@@ -240,7 +406,7 @@ impl Engine<'_, '_> {
             return Err(error(
                 "E-ORIGINAL-CLEANUP",
                 Span::default(),
-                "live original Task cleanup may suspend and lacks a Closed fact or a Suspend execution root",
+                "live original Task default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root",
             ));
         }
         // A genuine initialized/incoming owner preserves its frame's cleanup
@@ -289,10 +455,18 @@ impl Engine<'_, '_> {
                 }
                 let values = &values[1..];
                 if *await_result {
-                    return self.task_return_call(owner, node, *worker, values, state, depth + 1);
+                    return self.task_return_call(owner, node, *worker, values, state, None, depth + 1);
                 }
+                let synchronous = if self.synchronous_task_worker(*worker, &mut BTreeSet::new(), depth + 1)? {
+                    self.synchronous_task_inputs(values, state, depth + 1)?
+                } else {
+                    None
+                };
                 let root = Root::Created(owner, node);
                 self.change(state, root, OPEN, true, depth + 1)?;
+                if let Some(requirements) = synchronous {
+                    state.task_sync.insert(root, requirements);
+                }
                 self.pay(1, depth)?;
                 state.tasks.insert(root);
                 let failure = if *owned {
@@ -481,7 +655,14 @@ impl Engine<'_, '_> {
             }
         }
         let value = self.value_copy(&state.returned, depth + 1)?;
-        let exit = Exit { value, phases };
+        let mut synchronous = BTreeMap::new();
+        for root in phases.keys() {
+            if let Some(requirements) = state.task_sync.get(root) {
+                self.pay(requirements.len().saturating_add(1), depth)?;
+                synchronous.insert(*root, requirements.clone());
+            }
+        }
+        let exit = Exit { value, phases, synchronous };
         self.pay(
             self.task_exits.len().saturating_add(1).ilog2() as usize + 1,
             depth,
@@ -492,6 +673,8 @@ impl Engine<'_, '_> {
                     .saturating_add(exit.value.work())
                     .saturating_add(old.phases.len())
                     .saturating_add(exit.phases.len())
+                    .saturating_add(old.synchronous.values().fold(0usize, |n, r| n.saturating_add(r.len()).saturating_add(1)))
+                    .saturating_add(exit.synchronous.values().fold(0usize, |n, r| n.saturating_add(r.len()).saturating_add(1)))
             });
             self.pay(work, depth)?;
             if self.task_exits[&owner].iter().any(|old| old == &exit) {
@@ -517,6 +700,7 @@ impl Engine<'_, '_> {
         target: SemanticDefinitionId,
         arguments: &[Value],
         state: &mut State,
+        incoming: Option<&State>,
         depth: usize,
     ) -> R<Option<Value>> {
         if self.active.contains(&target) {
@@ -532,6 +716,7 @@ impl Engine<'_, '_> {
         let work = exits.iter().fold(exits.len(), |work, exit| {
             work.saturating_add(exit.value.work())
                 .saturating_add(exit.phases.len())
+                .saturating_add(exit.synchronous.values().fold(0usize, |n, r| n.saturating_add(r.len()).saturating_add(1)))
         });
         self.pay(work, depth)?;
         let exits = self.task_exits[&target].clone();
@@ -582,10 +767,34 @@ impl Engine<'_, '_> {
                 roots.insert(*root, mapped);
             }
         }
+        let mut synchronous: BTreeMap<Root, Option<BTreeSet<Root>>> = BTreeMap::new();
+        for exit in &exits {
+            for root in exit.phases.keys() {
+                let mapped = roots[root];
+                let requirements = match exit.synchronous.get(root) {
+                    Some(requirements) => self.instantiate_task_requirements(target, requirements, arguments, incoming.unwrap_or(state), depth + 1)?,
+                    None => None,
+                };
+                self.pay(requirements.as_ref().map_or(1, |r| r.len().saturating_add(1)), depth)?;
+                match synchronous.entry(mapped) {
+                    std::collections::btree_map::Entry::Vacant(entry) => { entry.insert(requirements); }
+                    std::collections::btree_map::Entry::Occupied(mut entry) => {
+                        match (entry.get_mut(), requirements) {
+                            (Some(previous), Some(incoming)) => previous.extend(incoming),
+                            (previous, _) => *previous = None,
+                        }
+                    }
+                }
+            }
+        }
         for (root, phase) in phases {
             let fresh = matches!(root,Root::Result(definition,at,_) if definition==owner&&at==node);
             self.change(state, root, phase, fresh, depth + 1)?;
             state.tasks.insert(root);
+            state.task_sync.remove(&root);
+            if let Some(Some(requirements)) = synchronous.remove(&root) {
+                state.task_sync.insert(root, requirements);
+            }
         }
         let mut values = Vec::with_capacity(exits.len());
         for exit in exits {

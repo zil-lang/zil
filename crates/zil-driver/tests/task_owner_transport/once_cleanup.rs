@@ -23,6 +23,10 @@ fn consuming_call_requires_closed_remaining_captures_before_delivering_its_resul
     zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
     let rejected = compile_source(&source(&polling), &options);
     assert_ne!(rejected.status, ResultCategory::Success, "{}", rejected.to_json());
-    assert!(rejected.diagnostics.iter().any(|d| d.code == "E-TASK-ABI" || d.code == "E-VERIFY-TASK"),
+    assert!(rejected.diagnostics.iter().any(|d| d.code == "E-TASK-ABI" || d.code == "E-VERIFY-TASK"
+        || (d.phase == zil_base::Phase::Types && d.code == "E-ORIGINAL-CLEANUP"
+            && d.message.contains("live original Task default Drop cleanup")
+            && d.message.contains("Closed fact")
+            && d.notes.iter().any(|note| note.contains("original consuming entry remaining capture")))),
         "{}", rejected.to_json());
 }

@@ -286,6 +286,7 @@ fn clone_proof(
             .saturating_add(source.task_name_sources.len())
             .saturating_add(source.protocol_complete.len())
             .saturating_add(source.cleanup_complete.len())
+            .saturating_add(source.consuming_cleanup.len())
             .saturating_add(source.associated_complete.len())
             .saturating_add(source.capture_names.len())
             .saturating_add(source.closure_move.len())

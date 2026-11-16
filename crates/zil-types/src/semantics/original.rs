@@ -216,6 +216,9 @@ pub(super) struct Proof {
     pub complete: BTreeSet<SemanticDefinitionId>,
     pub protocol_complete: BTreeSet<SemanticDefinitionId>,
     pub cleanup_complete: BTreeSet<SemanticDefinitionId>,
+    // Concrete reusable code adapted to Direct FnOnce must settle its actual
+    // remaining environment on every body exit. This is not SyncDrop(Type).
+    pub consuming_cleanup: BTreeSet<SemanticDefinitionId>,
     pub kinds: BTreeMap<SemanticDefinitionId, CallableKind>,
     pub call_targets: BTreeMap<(SemanticDefinitionId, SemanticSiteId), SemanticDefinitionId>,
     pub intrinsics: BTreeMap<(SemanticDefinitionId, SemanticSiteId), IntrinsicCall>,

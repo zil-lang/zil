@@ -238,6 +238,10 @@ struct State {
     // second provenance inventory when all complete results are already known.
     task_sources: Option<SourceBindings>,
     tasks: BTreeSet<Root>,
+    // Per actual generation, a proved synchronous task graph may depend on
+    // still-symbolic incoming Task owners. Empty requirements are unconditional;
+    // missing entries grant nothing. This never establishes Closed.
+    task_sync: BTreeMap<Root, BTreeSet<Root>>,
     reachable: bool,
     abrupt: Vec<State>,
     // Stacks preserve hidden lexical binders, including their stale Polls.
@@ -255,6 +259,7 @@ impl State {
                     self.roots
                         .len()
                         .saturating_add(self.tasks.len())
+                        .saturating_add(self.task_sync.values().fold(0usize, |n, r| n.saturating_add(r.len()).saturating_add(1)))
                         .saturating_add(self.returned.work())
                         .saturating_add(self.task_sources.as_ref().map_or(0, |bindings| {
                             bindings.iter().fold(1usize, |work, (query, sources)| {
@@ -373,6 +378,7 @@ struct Engine<'a, 'b> {
     task_exits: BTreeMap<SemanticDefinitionId, Vec<tasks::Exit>>,
     task_exit_count: usize,
     task_source_returns: BTreeSet<(SemanticDefinitionId, NodeId)>,
+    synchronous_workers: BTreeMap<SemanticDefinitionId, bool>,
 }
 impl<'a> Engine<'a, '_> {
     fn record_cost(&mut self, name: &'static str, before: usize, children: usize) {
@@ -800,6 +806,10 @@ impl<'a> Engine<'a, '_> {
             state.returned.invalidate(root, replace, previous);
             for value in &mut state.temporaries {
                 value.invalidate(root, replace, previous);
+            }
+            if replace {
+                // A new occupant cannot inherit its predecessor's graph.
+                state.task_sync.remove(&root);
             }
             state.roots.insert(root, phase);
             Ok(())
@@ -2002,6 +2012,7 @@ impl<'a> Engine<'a, '_> {
                 let roots: Vec<_> = state.roots.keys().copied().collect();
                 for root in roots {
                     self.change(state, root, UNKNOWN, false, depth)?;
+                    state.task_sync.remove(&root);
                 }
                 return self.unknown_call(owner, expression.id, values, state, depth);
             };
@@ -2132,14 +2143,18 @@ impl<'a> Engine<'a, '_> {
                 self.pay(value.work(), depth)?;
                 value.roots(&mut roots);
             }
-            // Missing tables cannot promise absence of a mutation.
+            // Preserve entry facts only for instantiating an independently
+            // proved returned-owner summary. Unknown effects invalidate the
+            // caller's surviving occupants, including synchronous graph facts.
+            let incoming = if roots.is_empty() { None } else { Some(self.copy(state, depth + 1)?) };
             for root in roots {
                 self.change(state, root, UNKNOWN, false, depth)?;
+                state.task_sync.remove(&root);
             }
             if let Some(site) = self.site(owner, node, depth + 1)? {
                 if let Some(target) = self.proof.call_targets.get(&(owner, site)).copied() {
                     if let Some(value) =
-                        self.task_return_call(owner, node, target, values, state, depth + 1)?
+                        self.task_return_call(owner, node, target, values, state, incoming.as_ref(), depth + 1)?
                     {
                         return Ok(value);
                     }
@@ -2834,6 +2849,16 @@ impl<'a> Engine<'a, '_> {
             *output = a.clone();
             self.pay(b.tasks.len(), depth)?;
             output.tasks.extend(b.tasks.iter().copied());
+            self.pay(a.task_sync.values().chain(b.task_sync.values()).fold(0usize,
+                |work, requirements| work.saturating_add(requirements.len()).saturating_add(1)), depth)?;
+            output.task_sync.retain(|root, requirements| {
+                if let Some(other) = b.task_sync.get(root) {
+                    requirements.extend(other.iter().copied());
+                    true
+                } else {
+                    false
+                }
+            });
             for exit in &b.abrupt {
                 let exit = self.copy(exit, depth + 1)?;
                 self.offer(&mut output.abrupt, exit, depth + 1)?;
@@ -4255,6 +4280,7 @@ impl<'a> Engine<'a, '_> {
                     owner,
                     task_sources: task_sources.then(BTreeMap::new),
                     tasks: BTreeSet::new(),
+                    task_sync: BTreeMap::new(),
                     reachable: true,
                     abrupt: Vec::new(),
                     names: BTreeMap::new(),
@@ -4411,6 +4437,16 @@ impl<'a> Engine<'a, '_> {
                                     "original reusable closure exits without refilling its captured owning responsibility",
                                 ));
                             }
+                            if self.proof.consuming_cleanup.contains(&owner) {
+                                // Adaptation consumes this exact environment
+                                // after the body, before its result is observable.
+                                // A Poll.Pending exit cannot borrow a later
+                                // caller branch to establish Closed here.
+                                self.drop_value(actual, &state, depth + 1).map_err(|mut diagnostic| {
+                                    diagnostic.notes.push(format!("original consuming entry remaining capture {:?} in {:?} is not synchronously settled at this body exit", name, owner));
+                                    diagnostic
+                                })?;
+                            }
                             let stack = state.names.get_mut(name).ok_or_else(|| {
                                 failure("original closure handoff lost its captured binding")
                             })?;
@@ -4543,6 +4579,7 @@ pub(super) fn check(
         task_exits: BTreeMap::new(),
         task_exit_count: 0,
         task_source_returns: BTreeSet::new(),
+        synchronous_workers: BTreeMap::new(),
     };
     let setup_before = *engine.left;
     engine.pay(
@@ -4839,6 +4876,7 @@ mod plain_layout_tests {
             task_exits: BTreeMap::new(),
             task_exit_count: 0,
             task_source_returns: BTreeSet::new(),
+        synchronous_workers: BTreeMap::new(),
         };
         let recipe = SemanticTypeRecipe::ErrorUnion {
             error: Box::new(SemanticTypeRecipe::Atom(Type::Unit)),
