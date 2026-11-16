@@ -14,9 +14,10 @@ pub(super) struct Receipt {
     shape_work: usize,
 }
 #[derive(Clone, Copy)]
-enum Node {
+pub(super) enum Node {
     Root,
     Field(Option<usize>, usize),
+    Payload,
 }
 #[derive(Clone)]
 pub(crate) struct TypeRecord {
@@ -146,7 +147,13 @@ fn hash<T: Hash + ?Sized>(value: &T, b: &mut Budget) -> CompileResult<u64> {
         Ok(digest)
     }
 }
-fn node(owner: &Geometry, selector: Node) -> CompileResult<&Type> {
+pub(super) fn node(owner: &Geometry, selector: Node) -> CompileResult<&Type> {
+    if matches!(selector, Node::Payload) {
+        return match &owner.ty {
+            Type::Managed(inner) | Type::Desc(inner) => Ok(inner.as_ref()),
+            _ => Err(fail("retained payload Type has another owning coordinate")),
+        };
+    }
     let Node::Field(variant, field) = selector else {
         return Ok(&owner.ty);
     };
@@ -321,9 +328,60 @@ fn register(owner: &Arc<Geometry>, receipt: &Receipt, b: &mut Budget) -> Compile
             module: receipt.module,
             nominal: None,
             type_id: receipt.type_id,
+            coordinate: Node::Root,
         },
     );
     let _ = owner.receipt.set(receipt.clone());
+    Ok(())
+}
+pub(super) fn retain_payload(parent: &Type, payload: &Type, b: &mut Budget) -> CompileResult<()> {
+    b.lookup(b.geometry_types.len(), "semantic geometry payload parent")?;
+    b.spend(1, "semantic geometry shared result")?;
+    let owner = b
+        .geometry_types
+        .get(&(parent as *const Type as usize))
+        .filter(|row| {
+            std::ptr::eq(&row.owner.ty, parent)
+                && row.raw_limits == limits(b)
+                && row.module == b.geometry_module
+        })
+        .map(|row| Arc::clone(&row.owner));
+    let Some(owner) = owner else {
+        return Ok(());
+    };
+    if !std::ptr::eq(node(&owner, Node::Payload)?, payload) {
+        return Err(fail("retained payload changes its exact parent Type"));
+    }
+    if registered_type(payload, b)?.is_some() {
+        return Ok(());
+    }
+    let before = b.remaining();
+    crate::dyn_metadata::ty(payload, b)?;
+    let raw_work = before - b.remaining();
+    let (digest, id) = type_candidates(payload, raw_work, b)?;
+    let type_id = match id {
+        Some(id) => id,
+        None => add_type(&owner, Node::Payload, digest, raw_work, b)?,
+    };
+    b.lookup(
+        b.geometry_types.len(),
+        "semantic geometry payload publication",
+    )?;
+    b.spend(1, "semantic geometry shared result")?;
+    let raw_limits = limits(b);
+    let module = b.geometry_module;
+    b.geometry_types.insert(
+        payload as *const Type as usize,
+        TypeEntry {
+            owner,
+            raw_work,
+            raw_limits,
+            module,
+            nominal: None,
+            type_id,
+            coordinate: Node::Payload,
+        },
+    );
     Ok(())
 }
 fn bounds(ty: &Type, life: &StorageLifeShape, b: &mut Budget) -> CompileResult<(usize, usize)> {

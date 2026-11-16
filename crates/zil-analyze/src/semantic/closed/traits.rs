@@ -16,9 +16,10 @@ pub(super) struct ActiveQuery {
 
 #[track_caller]
 fn charge_value(value: &Value, b: &mut Budget) -> CompileResult<()> {
-    crate::dyn_metadata::ty(&value.ty, b)?;
-    crate::dyn_metadata::shape(&value.life, b)?;
-    b.spend(value.classes.len(), WORK)
+    // A Value clone shares geometry and copies its current class vector. Raw
+    // bounds may be reused at this exact profile; no live trait fact is reused.
+    value.check_geometry(b)?;
+    b.spend(value.classes.len().saturating_add(1), WORK)
 }
 #[track_caller]
 fn charge_arguments(arguments: &[Argument], b: &mut Budget) -> CompileResult<()> {

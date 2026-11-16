@@ -46,6 +46,9 @@ impl std::ops::Deref for Value {
     }
 }
 impl Value {
+    pub(super) fn check_geometry(&self, b: &mut Budget) -> CompileResult<()> {
+        geometry::check_geometry(&self.geometry, b)
+    }
     pub(super) fn from_geometry(
         geometry: std::sync::Arc<geometry::Geometry>,
         classes: Vec<Class>,
@@ -590,7 +593,7 @@ pub(super) fn nominal(
         return Err(fail("semantic nominal value omits mixed arguments"));
     }
     let mut declared = None;
-    for item in &inventory.module.life_declarations {
+    for item in inventory.nominal_declarations(*declaration, b)? {
         b.spend(1, WORK)?;
         if item.id == *declaration && declared.replace(item).is_some() {
             return Err(fail("nominal declaration identity is duplicated"));
@@ -839,7 +842,7 @@ pub(super) fn nominal(
         nominal_arguments: nominal_rows,
     };
     let mut selected = None;
-    for (position, instance) in inventory.module.life_instances.iter().enumerate() {
+    for (position, instance) in inventory.nominal_instances(*declaration, b)? {
         b.spend(1, WORK)?;
         if instance.declaration != *declaration {
             continue;
@@ -1227,16 +1230,12 @@ pub(super) fn class(
         }
         SemanticClassExpr::Implicit { scope, ordinal } => {
             let context = ancestor(instance, *scope, inventory, b)?;
-            let count = inventory
-                .definition(context.definition, b)?
-                .implicit_lifetimes
-                .len();
-            b.spend(count, WORK)?;
+            b.spend(1, WORK)?;
             if !inventory
                 .definition(context.definition, b)?
                 .implicit_lifetimes
-                .iter()
-                .any(|row| row.ordinal == *ordinal)
+                .get(*ordinal as usize)
+                .is_some_and(|row| row.ordinal == *ordinal)
             {
                 return Err(fail(
                     "semantic implicit class has no real declaration occurrence",

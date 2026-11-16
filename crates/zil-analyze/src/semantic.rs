@@ -9,6 +9,7 @@ pub(super) mod frozen;
 pub(super) mod geometry;
 mod original;
 mod original_index;
+mod site_index;
 mod value;
 
 const WORK: &str = "original semantic program inventory";
@@ -65,6 +66,9 @@ struct Inventory<'a> {
     call_anchors: std::cell::RefCell<BTreeMap<SemanticDefinitionId, BTreeMap<zil_base::NodeId, SemanticSiteId>>>,
     emitted_sites: std::cell::RefCell<BTreeMap<usize, BTreeMap<(SemanticInstanceId, SemanticSiteId), usize>>>,
     function_worlds: std::cell::RefCell<BTreeMap<usize, BTreeMap<FunctionId, Vec<usize>>>>,
+    actual_site_indexes: std::cell::RefCell<BTreeMap<usize, site_index::Index>>,
+    life_declarations: BTreeMap<LifeDeclarationId, Vec<usize>>,
+    life_instances: BTreeMap<LifeDeclarationId, Vec<usize>>,
     profile_point: std::cell::Cell<ProfilePoint>,
 }
 impl<'a> Inventory<'a> {
@@ -97,6 +101,9 @@ impl<'a> Inventory<'a> {
             call_anchors: std::cell::RefCell::new(BTreeMap::new()),
             emitted_sites: std::cell::RefCell::new(BTreeMap::new()),
             function_worlds: std::cell::RefCell::new(BTreeMap::new()),
+            actual_site_indexes: std::cell::RefCell::new(BTreeMap::new()),
+            life_declarations: BTreeMap::new(),
+            life_instances: BTreeMap::new(),
             profile_point: std::cell::Cell::new(ProfilePoint::default()),
         };
         let mut identities: Vec<(&zil_ir::LifeDeclarationIdentity, usize)> = Vec::new();
@@ -158,6 +165,12 @@ impl<'a> Inventory<'a> {
             if inventory.functions.insert(function.id, function).is_some() {
                 return Err(fail("actual function identity is ambiguous"));
             }
+        }
+        for (position, declaration) in module.life_declarations.iter().enumerate() {
+            site_index::append(&mut inventory.life_declarations, declaration.id, position, b)?;
+        }
+        for (position, instance) in module.life_instances.iter().enumerate() {
+            site_index::append(&mut inventory.life_instances, instance.declaration, position, b)?;
         }
         for definition in inventory.definitions.values() {
             if matches!(definition.body, SemanticDefinitionBody::FunctionWithBody { .. }) {
@@ -415,6 +428,185 @@ impl<'a> Inventory<'a> {
             }
         }
         Ok(false)
+    }
+    fn ensure_actual_sites(&self, program: &SemanticModule, b: &mut Budget) -> CompileResult<bool> {
+        // A cache owner must be the held actual module or a module reached
+        // through the Inventory's held immutable CoreProgram. Temporaries scan.
+        if !self.owns_program(program, b)? {
+            return Ok(false);
+        }
+        let owner = program as *const SemanticModule as usize;
+        b.lookup(self.actual_site_indexes.borrow().len(), WORK)?;
+        if !self.actual_site_indexes.borrow().contains_key(&owner) {
+            let index = site_index::Index::new(program, b)?;
+            b.lookup(self.actual_site_indexes.borrow().len(), WORK)?;
+            self.actual_site_indexes.borrow_mut().insert(owner, index);
+        }
+        Ok(true)
+    }
+    fn sites_at<'p>(
+        &self,
+        program: &'p SemanticModule,
+        instance: SemanticInstanceId,
+        block: BlockId,
+        instruction: usize,
+        edge: SemanticSiteEdge,
+        b: &mut Budget,
+    ) -> CompileResult<Vec<&'p SemanticSite>> {
+        let Ok(instruction) = u32::try_from(instruction) else {
+            return Ok(Vec::new());
+        };
+        let matches = |site: &&SemanticSite| {
+            site.instance == instance
+                && matches!(site.at,
+            SemanticSiteAddress::Typed { block: actual, instruction: ordinal, edge: boundary }
+                if actual == block && ordinal == instruction && boundary == edge)
+        };
+        if !self.ensure_actual_sites(program, b)? {
+            let mut selected = Vec::new();
+            for site in &program.sites {
+                b.spend(1, WORK)?;
+                if matches(&site) {
+                    Self::push_site(&mut selected, site, b)?;
+                }
+            }
+            return Ok(selected);
+        }
+        let indexes = self.actual_site_indexes.borrow();
+        let index = indexes
+            .get(&(program as *const SemanticModule as usize))
+            .ok_or_else(|| fail("actual site owner is absent"))?;
+        let mut selected = Vec::new();
+        for position in index.address((instance, block, instruction, site_index::edge(edge)), b)? {
+            let site = program
+                .sites
+                .get(*position)
+                .filter(matches)
+                .ok_or_else(|| fail("actual site address changes its immutable coordinate"))?;
+            Self::push_site(&mut selected, site, b)?;
+        }
+        Ok(selected)
+    }
+    fn sites_for_value<'p>(
+        &self,
+        program: &'p SemanticModule,
+        instance: SemanticInstanceId,
+        value: ValueId,
+        b: &mut Budget,
+    ) -> CompileResult<Vec<&'p SemanticSite>> {
+        if !self.ensure_actual_sites(program, b)? {
+            let mut selected = Vec::new();
+            for site in &program.sites {
+                b.spend(1, WORK)?;
+                if site.instance == instance
+                    && site_index::operand(site) == Some(site_index::OperandKey::Value(value))
+                {
+                    Self::push_site(&mut selected, site, b)?;
+                }
+            }
+            return Ok(selected);
+        }
+        let indexes = self.actual_site_indexes.borrow();
+        let index = indexes
+            .get(&(program as *const SemanticModule as usize))
+            .ok_or_else(|| fail("actual operand owner is absent"))?;
+        let mut selected = Vec::new();
+        for position in index.operand(instance, site_index::OperandKey::Value(value), b)? {
+            let site = program
+                .sites
+                .get(*position)
+                .ok_or_else(|| fail("actual operand leaves its immutable event table"))?;
+            if site.instance != instance
+                || site_index::operand(site) != Some(site_index::OperandKey::Value(value))
+            {
+                return Err(fail("actual operand changes its original world or kind"));
+            }
+            Self::push_site(&mut selected, site, b)?;
+        }
+        Ok(selected)
+    }
+    fn push_site<'p>(
+        rows: &mut Vec<&'p SemanticSite>,
+        site: &'p SemanticSite,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        b.spend(
+            1 + if rows.len() == rows.capacity() {
+                rows.len()
+            } else {
+                0
+            },
+            WORK,
+        )?;
+        rows.try_reserve(1)
+            .map_err(|_| fail("actual event candidate allocation failed"))?;
+        rows.push(site);
+        Ok(())
+    }
+    fn nominal_declarations(
+        &self,
+        declaration: LifeDeclarationId,
+        b: &mut Budget,
+    ) -> CompileResult<Vec<&'a LifeNominalDeclaration>> {
+        b.lookup(self.life_declarations.len(), WORK)?;
+        let mut rows = Vec::new();
+        for position in self
+            .life_declarations
+            .get(&declaration)
+            .map_or(&[][..], Vec::as_slice)
+        {
+            b.spend(
+                1 + if rows.len() == rows.capacity() {
+                    rows.len()
+                } else {
+                    0
+                },
+                WORK,
+            )?;
+            rows.try_reserve(1)
+                .map_err(|_| fail("nominal declaration candidate allocation failed"))?;
+            rows.push(
+                self.module
+                    .life_declarations
+                    .get(*position)
+                    .filter(|row| row.id == declaration)
+                    .ok_or_else(|| fail("nominal declaration coordinate differs"))?,
+            );
+        }
+        Ok(rows)
+    }
+    fn nominal_instances(
+        &self,
+        declaration: LifeDeclarationId,
+        b: &mut Budget,
+    ) -> CompileResult<Vec<(usize, &'a LifeNominalInstance)>> {
+        b.lookup(self.life_instances.len(), WORK)?;
+        let mut rows = Vec::new();
+        for position in self
+            .life_instances
+            .get(&declaration)
+            .map_or(&[][..], Vec::as_slice)
+        {
+            b.spend(
+                1 + if rows.len() == rows.capacity() {
+                    rows.len()
+                } else {
+                    0
+                },
+                WORK,
+            )?;
+            rows.try_reserve(1)
+                .map_err(|_| fail("nominal instance candidate allocation failed"))?;
+            rows.push((
+                *position,
+                self.module
+                    .life_instances
+                    .get(*position)
+                    .filter(|row| row.declaration == declaration)
+                    .ok_or_else(|| fail("nominal instance coordinate differs"))?,
+            ));
+        }
+        Ok(rows)
     }
     fn emitted_site<'p>(
         &self,

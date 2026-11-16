@@ -78,6 +78,7 @@ pub(crate) struct TypeEntry {
     module: Option<usize>,
     pub nominal: Option<(usize, usize, usize)>, // module, type-depth limit, row
     type_id: usize,
+    coordinate: intern::Node,
 }
 
 pub(super) struct Inputs {
@@ -545,6 +546,17 @@ pub(super) fn has_current_receipt(
 ) -> CompileResult<bool> {
     intern::has_current_receipt(owner, budget)
 }
+pub(super) fn check_geometry(owner: &Arc<Geometry>, budget: &mut Budget) -> CompileResult<()> {
+    intern::owned(owner, budget)?;
+    Ok(())
+}
+pub(super) fn retain_payload(
+    parent: &Type,
+    payload: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    intern::retain_payload(parent, payload, budget)
+}
 pub(crate) fn bounded_work(ty: &Type, budget: &mut Budget) -> CompileResult<Option<usize>> {
     Ok(registered_type(ty, budget)?.map(|(_, work)| work))
 }
@@ -553,15 +565,19 @@ fn registered_type(ty: &Type, budget: &mut Budget) -> CompileResult<Option<(usiz
         budget.geometry_types.len(),
         "semantic geometry bounded root query",
     )?;
-    Ok(budget
+    let entry = budget
         .geometry_types
         .get(&(ty as *const Type as usize))
         .filter(|entry| {
-            std::ptr::eq(&entry.owner.ty, ty)
-                && entry.raw_limits == (budget.partial_depth, budget.helper_nodes)
+            entry.raw_limits == (budget.partial_depth, budget.helper_nodes)
                 && entry.module == budget.geometry_module
-        })
-        .map(|entry| (entry.type_id, entry.raw_work)))
+        });
+    match entry {
+        Some(entry) if std::ptr::eq(intern::node(&entry.owner, entry.coordinate)?, ty) => {
+            Ok(Some((entry.type_id, entry.raw_work)))
+        }
+        _ => Ok(None),
+    }
 }
 
 /// Exact Type equality only. Cached roots are owned until this request ends;

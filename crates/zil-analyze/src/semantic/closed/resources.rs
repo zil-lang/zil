@@ -138,7 +138,29 @@ impl Check<'_, '_> {
         let Type::Managed(payload) = ty else {
             return Err(fail("actual resource scope has no complete owning carrier"));
         };
-        match payload.as_ref() {
+        self.resource_payload_scope(ty, payload, b, depth)
+    }
+    /// Qualify a real owning or weak carrier's payload without manufacturing a
+    /// Managed Type. This grants neither an initialized owner nor a weak loan.
+    pub(super) fn borrowed_resource_scope(
+        &self,
+        ty: &Type,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(unknown(
+                "actual resource scope exceeds its bounded inventory depth",
+            ));
+        }
+        let (Type::Managed(payload) | Type::Desc(payload)) = ty else {
+            return Err(fail("actual resource scope has no complete carrier"));
+        };
+        self.resource_payload_scope(ty, payload, b, depth)
+    }
+    fn resource_payload_scope(&self, ty: &Type, payload: &Type, b: &mut Budget, depth: usize) -> CompileResult<()> {
+        match payload {
             Type::Mutex { payload } => self.mutex_payload(payload, b),
             Type::Task { result, .. } => {
                 self.zero_data(result, b, depth + 1)?;

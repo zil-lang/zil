@@ -13,7 +13,9 @@ impl Check<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<Option<Value>> {
         let mut selected = None;
-        for site in &self.program.sites {
+        for site in self.inventory.sites_at(
+            self.program, instance.id, block, index, SemanticSiteEdge::After, b,
+        )? {
             b.spend(1, WORK)?;
             if site.instance != instance.id
                 || !matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After } if actual == block && instruction as usize == index)

@@ -153,7 +153,9 @@ impl Check<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<Vec<Value>> {
         let mut selected = None;
-        for site in &self.program.sites {
+        for site in self.inventory.sites_at(
+            self.program, instance.id, block, index, SemanticSiteEdge::After, b,
+        )? {
             b.spend(1, WORK)?;
             if site.instance != instance.id
                 || !matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After } if actual == block && instruction as usize == index)
@@ -189,7 +191,9 @@ impl Check<'_, '_> {
     pub(super) fn static_call_result(&self, instance: &SemanticInstance, block: BlockId, index: usize,
         b: &mut Budget) -> CompileResult<Value> {
         let mut selected = None;
-        for site in &self.program.sites {
+        for site in self.inventory.sites_at(
+            self.program, instance.id, block, index, SemanticSiteEdge::After, b,
+        )? {
             b.spend(1, WORK)?;
             if site.instance != instance.id
                 || !matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After }
@@ -421,7 +425,7 @@ impl Check<'_, '_> {
             return Err(fail("actual borrow omits its complete original definition"));
         };
         let mut selected = None;
-        for site in &self.program.sites {
+        for site in self.inventory.sites_for_value(self.program, instance.id, id, b)? {
             b.spend(1, WORK)?;
             if site.instance != instance.id {
                 continue;

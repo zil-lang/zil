@@ -139,16 +139,14 @@ impl Check<'_, '_> {
                 }
                 Type::OwnedStore { element } => {
                     self.ordinary_type_at(element, b, depth + 1)?;
-                    crate::dyn_metadata::ty(inner, b)?;
-                    let owner = Type::Managed(inner.clone());
-                    return crate::ownership_store::ordinary_owned(self.module, &owner, b);
+                    geometry::retain_payload(ty, inner, b)?;
+                    return crate::ownership_store::payload_definition(self.module, inner, b);
                 }
                 Type::Registration { .. } | Type::AsyncRegistration { .. } => {
-                    crate::dyn_metadata::ty(inner, b)?;
-                    return self.resource_zero(&Type::Managed(inner.clone()), b, depth + 1);
+                    return self.borrowed_resource_scope(ty, b, depth + 1);
                 }
                 Type::Task { .. } => {
-                    return self.resource_zero(&Type::Managed(inner.clone()), b, depth + 1);
+                    return self.borrowed_resource_scope(ty, b, depth + 1);
                 }
                 Type::Record { .. } | Type::BorrowedStorage { .. } => {
                     return self.resource_nominal(inner, b, depth + 1);
@@ -287,9 +285,8 @@ impl Check<'_, '_> {
                     && life.slots.is_empty()
                     && life.retained.is_empty()
                     && life.nominal_arguments.is_empty() => {}
-            Type::Desc(inner) => {
-                crate::dyn_metadata::ty(inner, b)?;
-                self.resource_zero(&Type::Managed(inner.clone()), b, 0)?;
+            Type::Desc(_) => {
+                self.borrowed_resource_scope(ty, b, 0)?;
                 if life.binder_count != 1
                     || !life.retained.is_empty()
                     || !life.nominal_arguments.is_empty()
@@ -639,14 +636,15 @@ impl Check<'_, '_> {
                     result?;
                 }
                 SemanticRequirementRecipe::Structural { ty, bound } => {
-                    let ty = self.ty(context, ty, b, 0)?;
+                    let value = self.recipe_value(context, ty, b, 0)?;
+                    let ty = &value.ty;
                     let predicate = match bound {
                         DynStructuralBound::Copy => original::Predicate::Copy,
                         DynStructuralBound::Value => original::Predicate::Value,
                         DynStructuralBound::SyncDrop => original::Predicate::SyncDrop,
                         DynStructuralBound::StoreElement => original::Predicate::StoreElement,
                     };
-                    if !self.structural_actual(&ty, predicate, b, 0)? {
+                    if !self.structural_actual(ty, predicate, b, 0)? {
                         return Err(fail(
                             "actual type fails its original structural requirement",
                         ));
@@ -663,7 +661,8 @@ impl Check<'_, '_> {
                         self.capability_requirement(context, ty, *trait_kind, b)?;
                         continue;
                     }
-                    let ty = self.ty(context, ty, b, 0)?;
+                    let value = self.recipe_value(context, ty, b, 0)?;
+                    let ty = &value.ty;
                     let predicate = match trait_kind {
                         SemanticBuiltinTrait::Copy => original::Predicate::Copy,
                         SemanticBuiltinTrait::Value => original::Predicate::Value,
@@ -675,7 +674,7 @@ impl Check<'_, '_> {
                             ));
                         }
                     };
-                    if !self.structural_actual(&ty, predicate, b, 0)? {
+                    if !self.structural_actual(ty, predicate, b, 0)? {
                         return Err(fail("actual type fails its original sealed requirement"));
                     }
                 }
@@ -970,12 +969,13 @@ impl Check<'_, '_> {
                     .locals
                     .get(parameter.0 as usize)
                     .ok_or_else(|| fail("actual parameter local is absent"))?;
-                let expected = self.ty(instance, &parameter_recipe.ty, b, 0)?;
+                let expected_value = self.recipe_value(instance, &parameter_recipe.ty, b, 0)?;
+                let expected = &expected_value.ty;
                 if !matches!(
                     parameter_recipe.mode,
                     PassingMode::Infer | PassingMode::Copy
                 ) && !matches!(
-                    (&expected, parameter_recipe.mode),
+                    (expected, parameter_recipe.mode),
                     (Type::Address { mutable: false, .. }, PassingMode::Borrow)
                         | (Type::Address { mutable: true, .. }, PassingMode::BorrowMut)
                         | (Type::Managed(_), PassingMode::Give | PassingMode::Move)
@@ -985,14 +985,15 @@ impl Check<'_, '_> {
                         "semantic parameter mode needs an independently checked resource relation",
                     ));
                 }
-                self.actual_type(&expected, b)?;
-                if actual.ty != expected {
+                self.actual_type(expected, b)?;
+                if !geometry::same_type(&actual.ty, expected, b)? {
                     return Err(fail(
                         "actual parameter changes its complete original nominal substitution",
                     ));
                 }
             }
-            if function.return_type != self.ty(instance, &signature.result, b, 0)?
+            let expected_result = self.recipe_value(instance, &signature.result, b, 0)?;
+            if !geometry::same_type(&function.return_type, &expected_result.ty, b)?
                 || !(function.result_mode == signature.result_mode
                     || signature.result_mode == PassingMode::Infer)
             {
