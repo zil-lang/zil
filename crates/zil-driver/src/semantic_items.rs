@@ -256,6 +256,13 @@ impl SemanticPublicationSession {
             .fold(0usize, |bytes, raw| {
                 bytes.saturating_add(raw.shared_bytes().len())
             });
+        let retained_plan_bytes = old_plan_slots
+            .iter()
+            .take(plan_count)
+            .filter_map(Option::as_ref)
+            .fold(0usize, |bytes, raw| {
+                bytes.saturating_add(raw.shared_bytes().len())
+            });
         let mut bindings = publication_prefix(old_bindings, count);
         let dirty = previous.map_or_else(
             || (0..count).collect(),
@@ -330,7 +337,9 @@ impl SemanticPublicationSession {
                     product.canonical_encoding(
                         function,
                         limits,
-                        limits.max_source_bytes.saturating_sub(retained_other),
+                        limits
+                            .max_source_bytes
+                            .saturating_sub(retained_other.saturating_add(retained_plan_bytes)),
                     )
                 })
                 && raw
@@ -1882,12 +1891,16 @@ mod tests {
         let directory = directory();
         let path = directory.join("main.zil");
         let limits = Limits::default();
+        let wire_limits = Limits {
+            max_source_bytes: 16 * 1024,
+            ..limits.clone()
+        };
         let mut cold = CompilationSession::default();
         let (typed, _, _) = canonical_fixture(&mut cold, &path, CANONICAL_SOURCE);
         let target = typed.module.target.clone();
         let items = cold
             .function_types
-            .encode_item_products(&target, &limits, &mut FunctionEncodingStats::default())
+            .encode_item_products(&target, &wire_limits, &mut FunctionEncodingStats::default())
             .unwrap();
         let buffers = items
             .items
@@ -1900,7 +1913,7 @@ mod tests {
             &items.manifest,
             &mut |key| buffers.get(&key).cloned(),
             &target,
-            &limits,
+            &wire_limits,
         ));
         // No whole semantic candidate or prior publication survives the process.
         // Only the genuine per-function decoder owners are available.
@@ -1908,7 +1921,7 @@ mod tests {
         let (typed, candidate, products) = canonical_fixture(&mut current, &path, &edited);
         let mut publication = SemanticPublicationSession::default();
         let (segments, stats, prepared) = publication
-            .prepare_with_products(&typed, &candidate, &limits, false, Some(&products))
+            .prepare_with_products(&typed, &candidate, &wire_limits, false, Some(&products))
             .unwrap();
         assert_eq!((stats.serialized_functions, stats.reused_functions), (1, 2));
         publication.install(prepared);
@@ -1927,6 +1940,58 @@ mod tests {
                 .canonical_encoding(&forged, &limits, limits.max_source_bytes)
                 .is_none()
         );
+        // Old raw plan slots may outlive a transport-limit change. They are
+        // comparison hints only, but still occupy the shared encoding budget
+        // until the original writer replaces them. Leave room for BOTH domains.
+        let mut large = (*candidate).clone();
+        large.functions[0].holds = std::iter::repeat_with(|| zil_ir::ValueHold {
+            value: zil_ir::ValueId(0),
+            roots: vec![],
+        })
+        .take(2048)
+        .collect();
+        let function_slots = typed
+            .module
+            .functions
+            .iter()
+            .map(|_| OnceLock::new())
+            .collect::<Vec<_>>();
+        let mut plan_slots: zil_ir::PersistentVec<_> = vec![None; large.functions.len()].into();
+        zil_ir::wire::encode_module_candidate_persistent_segments(
+            &typed.module,
+            &large,
+            || typed.module.functions.iter().zip(&function_slots),
+            &mut plan_slots,
+            &limits,
+            &mut FunctionEncodingStats::default(),
+            &mut FunctionPlanEncodingStats::default(),
+        )
+        .unwrap();
+        assert!(
+            plan_slots
+                .iter()
+                .filter_map(Option::as_ref)
+                .map(|raw| raw.shared_bytes().len())
+                .sum::<usize>()
+                > wire_limits.max_source_bytes
+        );
+        let mut mixed = SemanticPublicationSession {
+            plan_slots,
+            plan_inputs: large.functions,
+            ..Default::default()
+        };
+        let (segments, stats, prepared) = mixed
+            .prepare_with_products(&typed, &candidate, &wire_limits, false, Some(&products))
+            .unwrap();
+        assert_eq!((stats.serialized_functions, stats.reused_functions), (3, 0));
+        mixed.install(prepared);
+        let logical = manifest(&segments, &mixed.bindings, &wire_limits).unwrap();
+        let (restored, plan) = decode_bound(&flatten(&segments), &logical, &wire_limits).unwrap();
+        assert_eq!(
+            (restored.clone(), plan.clone()),
+            ((*typed).clone(), (*candidate).clone())
+        );
+        zil_verify::verify_module(restored.module, plan, &target, &limits).unwrap();
         fs::remove_dir_all(directory).unwrap();
     }
 
