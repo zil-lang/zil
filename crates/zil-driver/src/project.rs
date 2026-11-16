@@ -3269,7 +3269,17 @@ pub fn main()->i32=>0",
                 .as_ref()
                 .unwrap()
                 .restored_reused_functions,
-            2
+            1
+        );
+        // Sparse push does not republish the function rebuild manifest. Its
+        // older body is a miss, so the changed function must be checked now.
+        assert_eq!(
+            restarted
+                .function_type_work
+                .as_ref()
+                .unwrap()
+                .executed_functions,
+            1
         );
         assert_eq!(restarted.verification_runs, 1);
         assert_eq!(restarted.disk_cache, DiskCacheStatus::Rebuilt);
