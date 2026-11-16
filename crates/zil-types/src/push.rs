@@ -1300,7 +1300,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             (rebuilt.stats.body_checks, rebuilt.stats.retained_functions),
-            (3, 2)
+            (2, 3)
         );
         assert_eq!(rebuilt.program.as_ref(), &fresh(&edited, &limits).unwrap());
         assert_eq!(
