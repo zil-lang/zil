@@ -986,6 +986,20 @@ pub(super) fn class(
                         ));
                     }
                 }
+                InstructionKind::BorrowCapture { index, mutable: output } => {
+                    let closure = function.environment
+                        .and_then(|id| inventory.module.closures.get(id.0 as usize))
+                        .filter(|closure| closure.function == function.id)
+                        .ok_or_else(|| fail("fresh capture occurrence has another actual environment"))?;
+                    let captured = closure.captures.get(*index as usize)
+                        .ok_or_else(|| fail("fresh capture occurrence leaves its actual capture directory"))?;
+                    crate::dyn_metadata::ty(captured, b)?;
+                    if output != mutable || captured != inner.as_ref()
+                        || *output && closure.kind == CallableKind::Fn
+                    {
+                        return Err(fail("fresh capture occurrence changes its complete child type or environment mode"));
+                    }
+                }
                 InstructionKind::ReborrowAddress {
                     address,
                     mutable: output,

@@ -2478,11 +2478,10 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     }
     super::signature_life::charge(c, b)?;
     fee(b, f.parameters.len())?;
-    if f.reference_return_bound.is_some() {
-        return Err(failure(
-            "stored signature contradicts another active profile",
-        ));
-    }
+    // A direct return-source upper and a complete class relation are
+    // independent obligations. lifetimes::headers already validates the
+    // former's exact parameter directory; returns() below checks both against
+    // every actual returned target, including projected inline input storage.
     if f.foreign.is_some() {
         fee(b, f.blocks.len().saturating_add(1))?;
         if f.call_kind != CallKind::Direct || f.environment.is_some() || !f.blocks.is_empty() {

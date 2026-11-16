@@ -1160,9 +1160,13 @@ impl Check<'_, '_> {
                 }
                 let header = self.header_class(instance, binder, b)?;
                 if header != *class {
-                    return Err(fail(
-                        "captured class differs from the sealed original environment",
-                    ));
+                    b.spend(192, WORK)?;
+                    let mut errors = fail("captured class differs from the sealed original environment");
+                    errors[0].notes.push(format!(
+                        "capture world {}:{} definition {}:{} entry {} capture {} child {} binder {:?}: original {:?}, actual header {:?}",
+                        instance.id.module.0, instance.id.index, instance.definition.module.0,
+                        instance.definition.index, closure.function.0, capture, child, binder, class, header));
+                    return Err(errors);
                 }
                 let slot = directory
                     .get_mut(index as usize)
@@ -1496,6 +1500,27 @@ impl Check<'_, '_> {
             }
             InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                 self.local_value(instance, function, *local, (block, index), b, depth + 1)
+            }
+            InstructionKind::BorrowCapture { index: capture, mutable } => {
+                if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
+                    return Ok(value);
+                }
+                let closure = function.environment
+                    .and_then(|id| self.module.closures.get(id.0 as usize))
+                    .filter(|entry| entry.function == function.id)
+                    .ok_or_else(|| fail("actual capture borrow has another complete environment entry"))?;
+                if *mutable && closure.kind == CallableKind::Fn {
+                    return Err(fail("actual shared environment cannot mutably borrow a capture"));
+                }
+                let whole = self.capture_whole_value(instance, function, *capture, b, depth + 1)?;
+                if !matches!(ty, Type::Address { mutable: output, inner }
+                    if output == mutable && inner.as_ref() == &whole.ty)
+                {
+                    return Err(fail("actual capture borrow changes its complete child type or mode"));
+                }
+                // A genuine per-operation head is separate from the captured
+                // child's full Fixed domain and grants no access/cleanup fact.
+                value::address(*mutable, Class::Reborrow(function.id, id), whole, b)
             }
             InstructionKind::ReadCapture { index: capture } | InstructionKind::TakeCapture { index: capture } => {
                 self.capture_whole_value(instance, function, *capture, b, depth + 1)
