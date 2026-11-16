@@ -49,7 +49,10 @@ impl CheckedOriginal {
                 let mut unique=Vec::new();for source in sources{let source=self.resolved_life(&source,b)?;b.spend(unique.len().saturating_add(1))?;if !unique.contains(&source){unique.push(source);}}
                 let first=unique.first().ok_or_else(||bad("original Call outer role has no inducing source"))?.clone();
                 let mut equal=true;for source in &unique{if !self.same_life(source,&first,b)?{equal=false;}}
-                if equal&&(!*formal||!matches!(first,Life::Local(..)|Life::CallRegion(_))){self.life_substitutions.insert(*id,first);}
+                // Static is an actual source obligation, not a value in the
+                // variable Life domain. An inferred formal still denotes this
+                // call's original region when all of its sources are Static.
+                if equal&&(!*formal||!matches!(first,Life::Static|Life::Local(..)|Life::CallRegion(_))){self.life_substitutions.insert(*id,first);}
                 else{let owner=self.current.ok_or_else(||bad("original Call region has no caller"))?;b.spend(ordinal.len())?;self.call_regions.insert(*id,(owner,node,ordinal.clone(),unique));self.life_substitutions.insert(*id,Life::CallRegion(*id));}
             }else{for source in sources{self.relate_outer(&source,&target,b)?;}}
         }Ok(())
@@ -109,11 +112,11 @@ impl CheckedOriginal {
         if let Some(rows)=self.outer_flows.get(&owner){for(source,target)in rows{
             // These are directed outer dependencies, never exact equalities
             // or the intrinsic classes inside a complete child type.
-            b.spend(1)?;result.push((if *source==Life::Static{SemanticOuterLifeRecipe::Static}else{SemanticOuterLifeRecipe::Class(self.reify_life(module,source,env,b)?)},self.reify_life(module,target,env,b)?));
+            b.spend(1)?;result.push((self.reify_outer(module,source,env,b)?,self.reify_life(module,target,env,b)?));
         }}
         for(id,(definition,_,_,sources))in &self.call_regions{if *definition!=owner{continue;}
             let target=self.reify_life(module,&Life::CallRegion(*id),env,b)?;
-            for source in sources{b.spend(1)?;result.push((if *source==Life::Static{SemanticOuterLifeRecipe::Static}else{SemanticOuterLifeRecipe::Class(self.reify_life(module,source,env,b)?)},target.clone()));}
+            for source in sources{b.spend(1)?;result.push((self.reify_outer(module,source,env,b)?,target.clone()));}
         }
         Ok(result)
     }
@@ -167,5 +170,30 @@ mod source_relation_tests {
         checked.call_regions.insert(99,(owner(),NodeId(9),vec![0,0],vec![local]));let region=Life::CallRegion(99);
         checked.relate_outer(&region,&a,&mut b).unwrap();checked.relate_outer(&z,&region,&mut b).unwrap();
         assert!(checked.check_outer_flows(&mut b).is_err(),"a later source must invalidate an earlier export that lacks its rigid bound");
+    }
+}
+
+#[cfg(test)]
+mod static_call_region_tests {
+    use super::*;
+
+    #[test]
+    fn a_static_call_source_preserves_the_formal_region_without_exact_equality() {
+        let limits=Limits::default();let mut b=Budget::new(&limits);
+        let owner=SemanticDefinitionId{module:zil_base::ModuleId(0),index:0};
+        let mut original=CheckedOriginal::default();original.current=Some(owner);
+        let fresh=original.fresh_life(&mut b).unwrap();
+        let Life::Infer(id)=fresh else{panic!("fresh call lifetime must be an inference role")};
+        original.outer_inferences.insert(id,vec![]);
+        original.relate_outer(&Life::Static,&fresh,&mut b).unwrap();
+        original.finish_call_heads(&[(id,vec![0,2],true)],NodeId(7),&mut b).unwrap();
+        let region=original.resolved_life(&fresh,&mut b).unwrap();
+        assert_eq!(region,Life::CallRegion(id));
+        let source=original.call_regions.get(&id).unwrap();
+        assert_eq!(source,&(owner,NodeId(7),vec![0,2],vec![Life::Static]));
+        let rigid=Life::Formal(owner,3);
+        assert!(original.outer_outlives(&region,&rigid,&mut BTreeSet::new(),&mut b).unwrap());
+        assert!(!original.same_life(&region,&Life::Static,&mut b).unwrap());
+        assert!(!original.same_life(&region,&rigid,&mut b).unwrap());
     }
 }

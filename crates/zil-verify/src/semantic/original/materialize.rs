@@ -99,7 +99,7 @@ impl CheckedOriginal {
         ConstValue::Binary(op,left,right)=>SemanticConstRecipe::Binary{op:*op,operand_type:Box::new(self.reify_type(module,&left.carrier,env,b)?),left:Box::new(self.reify_constant(module,left,env,b)?),right:Box::new(self.reify_constant(module,right,env,b)?)},
         ConstValue::Convert(source)=>SemanticConstRecipe::Convert{source_type:Box::new(self.reify_type(module,&source.carrier,env,b)?),target_type:Box::new(self.reify_type(module,&value.carrier,env,b)?),value:Box::new(self.reify_constant(module,source,env,b)?)},
     })}
-    fn reify_outer(&self,module:&TypedModule,life:&Life,env:&EvalEnv,b:&mut Budget)->Check<SemanticOuterLifeRecipe>{if *life==Life::Static{Ok(SemanticOuterLifeRecipe::Static)}else{Ok(SemanticOuterLifeRecipe::Class(self.reify_life(module,life,env,b)?))}}
+    pub(super) fn reify_outer(&self,module:&TypedModule,life:&Life,env:&EvalEnv,b:&mut Budget)->Check<SemanticOuterLifeRecipe>{let life=self.resolved_life(life,b)?;if life==Life::Static{Ok(SemanticOuterLifeRecipe::Static)}else{Ok(SemanticOuterLifeRecipe::Class(self.reify_life(module,&life,env,b)?))}}
     pub(super) fn reify_life(&self,module:&TypedModule,life:&Life,env:&EvalEnv,b:&mut Budget)->Check<SemanticLifeRecipe>{let resolved=self.resolved_life(life,b)?;let life=&resolved;b.spend(1)?;Ok(match life{
         Life::CallRegion(id)=>{
             let(owner,node,role,_)=self.call_regions.get(id).ok_or_else(||bad("original Call region has no complete source role"))?;
