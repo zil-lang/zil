@@ -1,8 +1,5 @@
 //! Original source bytes through the independent Verify boundary. Native
 //! execution and failure cleanup are measured by the consumer slice.
-#[path = "../../zil-ir/test-support/current_raw_fixtures.rs"]
-mod current_raw_fixtures;
-
 use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
 use zil_ir::InstructionKind;
 
@@ -95,9 +92,14 @@ fn callback_return_does_not_revive_a_borrowed_input_window() {
         zil_ir::wire::decode_module_candidate(archived, &limits).unwrap_err()[0].code,
         "E-WIRE-VERSION"
     );
-    let bytes = include_bytes!("../../../tests/borrowed-callable-arguments/v40/loan_revival.wire");
-    let migrated = current_raw_fixtures::rebuild(bytes, &limits);
-    let bytes = migrated.as_slice();
+    let archived =
+        include_bytes!("../../../tests/borrowed-callable-arguments/v40/loan_revival.wire");
+    assert_eq!(
+        zil_ir::wire::decode_module_candidate(archived, &limits).unwrap_err()[0].code,
+        "E-WIRE-VERSION"
+    );
+    let bytes =
+        include_bytes!("../../../tests/borrowed-callable-arguments/loan_revival.candidate.wire");
     let (typed, candidate) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();
     for errors in [
         zil_verify::verify_module(typed, candidate, &target, &limits).unwrap_err(),

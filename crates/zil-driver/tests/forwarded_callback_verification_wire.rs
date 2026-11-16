@@ -1,6 +1,5 @@
-//! Rebuildable Wire34 loan-revival mutation, preserving the historical Wire30/31/32 bytes.
-#[path = "../../zil-ir/test-support/current_raw_fixtures.rs"]
-mod current_raw_fixtures;
+//! Current Source-derived loan-revival mutation. Historical Wire bytes remain
+//! immutable version-rejection controls, never semantic producer witnesses.
 
 use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
 use zil_ir::InstructionKind;
@@ -16,10 +15,30 @@ fn control_and_minimal_transfer_mutation() {
         include_str!("../../../tests/borrowed-callable-arguments/loan_control.zil"),
     );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
-    let core = zil_expand::expand(&source, &ast).unwrap();
-    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+    let aliases = std::collections::BTreeMap::new();
+    let expanded = zil_expand::expand_program_with_semantics(
+        std::slice::from_ref(&source),
+        &[&ast],
+        &[Vec::new()],
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &aliases,
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap();
+    assert_eq!(expanded.len(), 1);
+    let mut typed = zil_types::check(&expanded[0].0.core, &target, &limits).unwrap();
     let mut candidate = zil_analyze::analyze(&typed, &limits).unwrap();
     zil_verify::verify_module(typed.clone(), candidate.clone(), &target, &limits).unwrap();
+    assert_eq!(
+        zil_ir::wire::encode_module_candidate(&typed, &candidate, &limits).unwrap(),
+        include_bytes!("../../../tests/borrowed-callable-arguments/loan_control.candidate.wire")
+            .as_slice(),
+        "current fixture must be the complete original Source producer output"
+    );
     let original = typed.clone();
     let main = typed
         .functions
@@ -54,10 +73,15 @@ fn control_and_minimal_transfer_mutation() {
         assert_eq!(errors[0].code, "E-BORROW-CONFLICT", "{errors:?}");
     }
     let frozen = include_bytes!("../../../tests/borrowed-callable-arguments/v40/loan_revival.wire");
-    let migrated = current_raw_fixtures::rebuild(frozen, &limits);
-    let errors = zil_verify::verify_module_bytes(&migrated, &target, &limits).unwrap_err();
+    assert_eq!(
+        zil_ir::wire::decode_module_candidate(frozen, &limits).unwrap_err()[0].code,
+        "E-WIRE-VERSION"
+    );
+    let current =
+        include_bytes!("../../../tests/borrowed-callable-arguments/loan_revival.candidate.wire");
+    let errors = zil_verify::verify_module_bytes(current, &target, &limits).unwrap_err();
     assert_eq!(errors[0].code, "E-BORROW-CONFLICT", "{errors:?}");
-    // The archived bytes stay immutable; the current reconstructed mutation
-    // must still equal the actual producer mutation byte for byte.
-    assert_eq!(migrated, bytes);
+    // The current Source output is mutated at precisely the original operand;
+    // all original definitions, sites, source names and plan claims remain.
+    assert_eq!(current.as_slice(), bytes);
 }
