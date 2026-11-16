@@ -126,7 +126,7 @@ fn dependencies(f: &Function) -> Option<BTreeSet<String>> {
     }
     (seen == reachable.len()).then_some(deps)
 }
-pub(super) fn mark(
+pub(crate) fn mark(
     module: &mut Module,
     protected: &BTreeSet<String>,
     preflight: &mut crate::machine_preflight::CurrentPreflight,
