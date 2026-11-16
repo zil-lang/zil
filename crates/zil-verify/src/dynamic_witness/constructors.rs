@@ -92,22 +92,24 @@ impl Rows {
         }
         Ok(())
     }
-    fn shape(self,b:&mut Budget)->Check<Shape>{
+    fn shape(self,b:&mut Budget)->Check<Shape>{self.shape_seeded(&[],b)}
+    fn shape_seeded(self,seed:&[terms::LifeTerm],b:&mut Budget)->Check<Shape>{
         b.spend(
             self.nominal
                 .len()
                 .saturating_add(self.slots.len())
                 .saturating_add(self.retained.len()),
         )?;
-        let occurrences = self
+        b.spend(seed.len())?;
+        let occurrences = seed.iter().copied().chain(self
             .nominal
             .iter()
-            .map(|(_, term)| *term)
+            .map(|(_, term)| *term))
             .chain(self.slots.iter().map(|(_, _, term)| *term))
             .chain(self.retained.iter().map(|(_, _, term)| *term))
             .collect::<Vec<_>>();
         let (partition, unique) = terms::partition(&occurrences, b)?;
-        let mut partition = partition.into_iter();
+        let mut partition = partition.into_iter().skip(seed.len());
         let mut nominal_arguments = Vec::with_capacity(self.nominal.len());
         for (mut row, _) in self.nominal {
             row.binder = partition
@@ -144,8 +146,9 @@ impl Rows {
         b.spend(unique.len())?;
         Ok(Shape{life,classes:unique.iter().map(|term|term.image).collect(),terms:unique})
     }
-    fn finish(self,mut ty:Type,qualified:bool,b:&mut Budget)->Check<terms::Value>{
-        let shape=self.shape(b)?;
+    fn finish(self,ty:Type,qualified:bool,b:&mut Budget)->Check<terms::Value>{self.finish_seeded(ty,qualified,&[],b)}
+    fn finish_seeded(self,mut ty:Type,qualified:bool,seed:&[terms::LifeTerm],b:&mut Budget)->Check<terms::Value>{
+        let shape=if seed.is_empty(){self.shape(b)?}else{self.shape_seeded(seed,b)?};
         dynamic_metadata::bounds_type(&ty,b)?;
         if qualified&&!shape.terms.is_empty(){
             dynamic_metadata::life_shape(&shape.life,b)?;
@@ -171,12 +174,14 @@ pub(super) fn address_view(child:View<'_>,term:Option<terms::LifeTerm>,mode:Stor
         StoredBorrowMode::SharedAddress|StoredBorrowMode::ExclusiveAddress=>Type::Address{mutable:mode==StoredBorrowMode::ExclusiveAddress,inner:Box::new(child.ty.clone())},
         _=>Type::Desc(Box::new(child.ty.clone())),
     };
-    rows.finish(ty,false,b)
+    b.spend(child.terms.len().saturating_add(1))?;
+    let seed=term.into_iter().chain(child.terms.iter().copied()).collect::<Vec<_>>();
+    rows.finish_seeded(ty,false,&seed,b)
 }
 pub(super) fn managed_view(child:View<'_>,b:&mut Budget)->Check<terms::Value>{
     let mut rows=Rows::default();rows.child(child,&[],&[LifeTypeProjection::Pointee],false,b)?;
     dynamic_metadata::ty(child.ty,b)?;
-    rows.finish(Type::Managed(Box::new(child.ty.clone())),false,b)
+    rows.finish_seeded(Type::Managed(Box::new(child.ty.clone())),false,child.terms,b)
 }
 pub(super) fn tuple_views(children:&[View<'_>],b:&mut Budget)->Check<terms::Value>{
     b.spend(children.len())?;let mut rows=Rows::default();let mut fields=Vec::with_capacity(children.len());
@@ -203,7 +208,11 @@ pub(super) fn shape_views(kind:crate::semantic::PhysicalConstructor,children:&[V
         }
         rows.child(children[0],&[],&[LifeTypeProjection::Pointee],false,b)?;
     }
-    rows.shape(b)
+    if kind==K::Tuple{rows.shape(b)}else{
+        b.spend(children[0].terms.len().saturating_add(1))?;
+        let seed=head.into_iter().chain(children[0].terms.iter().copied()).collect::<Vec<_>>();
+        rows.shape_seeded(&seed,b)
+    }
 }
 
 #[cfg(test)]
@@ -284,5 +293,33 @@ mod tests {
             borrowed.life.retained[0].path,
             [LifeTypeProjection::Pointee, LifeTypeProjection::Pointee]
         );
+    }
+}
+
+#[cfg(test)]
+mod wrapper_order_tests {
+    use super::*;
+    #[test]
+    fn fresh_wrappers_preserve_child_ordinals_despite_nominal_row_order_and_equal_images(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);
+        let term=|class|terms::LifeTerm{origin:terms::Origin{owner:terms::Owner::Function(FunctionId(0)),root:terms::Root::Receiver,class},image:StorageBinder::Fixed(0)};
+        let declaration=LifeDeclarationId{module:zil_base::ModuleId(0),declaration:zil_base::NodeId(80),compiler:false};
+        let life=StorageLifeShape{binder_count:2,slots:vec![],retained:vec![],nominal_arguments:vec![
+            NominalLifeArgument{path:vec![],declaration,argument:0,binder:1},
+            NominalLifeArgument{path:vec![],declaration,argument:1,binder:0},
+        ]};
+        let child=terms::Value{raw:DynTypeValue{ty:Type::BorrowedStorage{storage:Box::new(Type::Record{name:"WrapperOrder".into(),fields:vec![]}),life:life.clone()},life,classes:vec![StorageBinder::Fixed(0);2]},terms:vec![term(0),term(1)]};
+        // Logical constructor control: no SSA, source frame or permission is
+        // admitted by this standalone complete child-domain value.
+        let address=address(&child,term(2),StoredBorrowMode::SharedAddress,&mut b).unwrap();
+        let shape=shape_views(crate::semantic::PhysicalConstructor::SharedAddress,&[View::of(&child)],Some(term(2)),Some(StoredBorrowMode::SharedAddress),&mut b).unwrap();
+        assert_eq!(address.terms,vec![term(2),term(0),term(1)]);
+        assert_eq!(shape.terms,address.terms);assert_eq!(shape.life,address.life);
+        assert_eq!(address.life.slots[0].binder,0);
+        assert_eq!(address.life.retained.iter().map(|row|(row.class,row.binder)).collect::<Vec<_>>(),vec![(0,1),(1,2)]);
+        assert_eq!(address.life.nominal_arguments.iter().map(|row|(row.argument,row.binder)).collect::<Vec<_>>(),vec![(0,2),(1,1)]);
+        let managed=managed(&child,&mut b).unwrap();assert_eq!(managed.terms,child.terms);
+        let static_view=address_view(View::of(&child),None,StoredBorrowMode::SharedAddress,&mut b).unwrap();
+        assert_eq!(static_view.terms,child.terms);assert!(static_view.life.slots.is_empty());
     }
 }

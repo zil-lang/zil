@@ -78,9 +78,18 @@ impl CheckedContext {
             mapped_origins.push(origins.get(binder as usize).cloned().ok_or_else(||bad("reborrow child intrinsic origin is absent"))?);
             map.insert(binder,index);Ok(index)
         };
-        // Canonical occurrence order is nominal arguments, physical slots,
-        // then retained classes. Existing inner indices remain distinct even
-        // when all their outside class images compare equal.
+        // This is a fresh wrapper: its new head is first, followed by the
+        // existing whole child domain in its own ordinal order. Nominal row
+        // traversal must never renumber an existing child κ.
+        remap(new_outer)?;
+        let mut child=std::collections::BTreeMap::new();let mut child_binders=std::collections::BTreeSet::new();
+        for row in &parent.life.retained{b.spend(row.path.len().saturating_add(1))?;if row.path==[LifeTypeProjection::Pointee]{
+            if child.insert(row.class,row.binder).is_some()||!child_binders.insert(row.binder){return Err(bad("reborrow child domain has duplicate or coalesced intrinsic occurrences"));}
+        }}
+        for(class,(ordinal,binder))in child.iter().enumerate(){if *ordinal as usize!=class{return Err(bad("reborrow child domain omits an original intrinsic ordinal"));}remap(*binder)?;}
+        let old_outer=parent.life.slots[index].binder;
+        let old_outer_retained=parent.life.retained.iter().any(|row|row.binder==old_outer)||parent.life.nominal_arguments.iter().any(|row|row.binder==old_outer)||parent.life.slots.iter().enumerate().any(|(i,row)|i!=index&&row.binder==old_outer);
+        for binder in 0..parent.life.binder_count{if binder!=old_outer||old_outer_retained{remap(binder)?;}}
         for row in &mut value.life.nominal_arguments{row.binder=remap(row.binder)?;}
         for (i,row) in value.life.slots.iter_mut().enumerate(){if i==index{row.binder=remap(new_outer)?;row.mode=mode;}else{row.binder=remap(row.binder)?;}}
         for row in &mut value.life.retained{row.binder=remap(row.binder)?;}
