@@ -162,6 +162,47 @@ pub(super) fn empty() -> StorageLifeShape {
 pub(super) fn scalar(ty: Type) -> Value {
     Value::new(ty, empty(), Vec::new())
 }
+/// A sum retains the entire success domain even while its error arm is
+/// active. This whole-child directory is a type map, never an active-tag proof.
+pub(super) fn error_union(error: Value, result: Value, b: &mut Budget) -> CompileResult<Value> {
+    if !error.classes.is_empty() || error.life != empty() {
+        return Err(unknown(
+            "ErrorUnion needs its complete nonzero error-arm domain",
+        ));
+    }
+    if result.classes.len() != result.life.binder_count as usize {
+        return Err(fail("ErrorUnion success omits a complete intrinsic class"));
+    }
+    let mut retained = Vec::new();
+    for child in 0..result.life.binder_count {
+        put(
+            &mut retained,
+            StorageRetainedBinding {
+                path: vec![LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))],
+                class: child,
+                binder: child,
+            },
+            b,
+        )?;
+    }
+    let error = error.into_type(b)?;
+    let (result, _, classes) = result.into_parts(b)?;
+    b.spend(3, WORK)?;
+    Ok(Value::new(
+        Type::ErrorUnion {
+            error: Box::new(error),
+            result: Box::new(result),
+        },
+        StorageLifeShape {
+            binder_count: u32::try_from(classes.len())
+                .map_err(|_| fail("ErrorUnion complete domain overflows"))?,
+            slots: Vec::new(),
+            retained,
+            nominal_arguments: Vec::new(),
+        },
+        classes,
+    ))
+}
 pub(super) fn intern(rows: &mut Vec<Class>, class: Class, b: &mut Budget) -> CompileResult<u32> {
     b.spend(rows.len().saturating_add(1), WORK)?;
     if let Some(index) = rows.iter().position(|old| old == &class) {
@@ -224,6 +265,33 @@ pub(super) fn address(
     ))
 }
 
+pub(super) fn dyn_domain(
+    ty: &Type,
+    inventory: &Inventory<'_>,
+    b: &mut Budget,
+) -> CompileResult<StorageLifeShape> {
+    let (Type::Dyn { interface: id } | Type::OwnedDyn { interface: id }) = ty else {
+        return Err(fail("opaque Dyn domain query selects another constructor"));
+    };
+    let mut selected = None;
+    for interface in &inventory.module.dyn_interfaces {
+        b.spend(1, WORK)?;
+        if interface.id == *id && selected.replace(interface).is_some() {
+            return Err(fail(
+                "opaque Dyn domain has competing actual interface identities",
+            ));
+        }
+    }
+    let interface =
+        selected.ok_or_else(|| fail("opaque Dyn domain has no complete actual interface"))?;
+    crate::dyn_metadata::retained_shape(&interface.retained_life, b)?;
+    Ok(StorageLifeShape {
+        binder_count: interface.retained_life.binder_count,
+        slots: Vec::new(),
+        retained: interface.retained_life.retained.clone(),
+        nominal_arguments: interface.retained_life.nominal_arguments.clone(),
+    })
+}
 pub(super) fn pointee(
     input: &Value,
     inventory: &Inventory<'_>,
@@ -233,6 +301,7 @@ pub(super) fn pointee(
         return Err(fail("whole pointee query is not an Address"));
     };
     let life = match inner.as_ref() {
+        Type::Dyn { .. } | Type::OwnedDyn { .. } => dyn_domain(inner, inventory, b)?,
         Type::MutexGuard { .. } => mutex_guard_domain(inner, b)?,
         Type::BorrowedStorage { life, .. } => {
             crate::dyn_metadata::shape(life, b)?;
@@ -1213,6 +1282,40 @@ pub(super) fn resolved(
                 "semantic whole type and embedded lifetime shape differ",
             ));
         }
+        Type::Dyn { .. } | Type::OwnedDyn { .. } => {
+            if dyn_domain(ty, inventory, b)? != *life {
+                return Err(fail(
+                    "semantic Dyn value changes its complete Context domain",
+                ));
+            }
+        }
+        Type::ErrorUnion { error, result }
+            if matches!(result.as_ref(), Type::Dyn { .. } | Type::OwnedDyn { .. }) =>
+        {
+            crate::stored_flow::validate_plain_nominal_zero(
+                inventory.module,
+                error,
+                inventory.limits,
+                b,
+            )?;
+            let child = dyn_domain(result, inventory, b)?;
+            let mut locals = Vec::new();
+            for index in 0..child.binder_count {
+                put(&mut locals, Class::Local(index), b)?;
+            }
+            crate::dyn_metadata::ty(error, b)?;
+            crate::dyn_metadata::ty(result, b)?;
+            let expected = error_union(
+                scalar(error.as_ref().clone()),
+                Value::new(result.as_ref().clone(), child, locals),
+                b,
+            )?;
+            if expected.life != *life {
+                return Err(fail(
+                    "semantic ErrorUnion changes its complete Dyn child domain",
+                ));
+            }
+        }
         Type::Closure(id) => {
             let definition = inventory
                 .module
@@ -1280,6 +1383,7 @@ pub(super) fn resolved(
                 return Err(fail("semantic address loses its exact outer occurrence"));
             }
             let child_life = match inner.as_ref() {
+                Type::Dyn { .. } | Type::OwnedDyn { .. } => dyn_domain(inner, inventory, b)?,
                 Type::MutexGuard { .. } => mutex_guard_domain(inner, b)?,
                 Type::BorrowedStorage { life, .. } => {
                     crate::dyn_metadata::shape(life, b)?;
@@ -1403,6 +1507,44 @@ pub(super) fn resolved(
 #[cfg(test)]
 mod geometry_tests {
     use super::*;
+
+    #[test]
+    fn sum_preserves_unused_success_classes_and_whole_child_identity() {
+        let mut budget = Budget::new(&zil_base::Limits::default());
+        let success = Value::new(
+            Type::Closure(ClosureId(0)),
+            StorageLifeShape {
+                binder_count: 2,
+                slots: Vec::new(),
+                retained: Vec::new(),
+                nominal_arguments: Vec::new(),
+            },
+            vec![Class::Local(7), Class::Local(9)],
+        );
+        let sum = error_union(scalar(Type::U8), success, &mut budget).unwrap();
+        assert_eq!(sum.classes, vec![Class::Local(7), Class::Local(9)]);
+        assert_eq!(sum.life.binder_count, 2);
+        assert_eq!(sum.life.retained.len(), 2);
+        for (index, row) in sum.life.retained.iter().enumerate() {
+            assert_eq!(
+                row.path,
+                vec![LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))]
+            );
+            assert_eq!(row.class, index as u32);
+            assert_eq!(row.binder, index as u32);
+        }
+        let missing = Value::new(
+            Type::Closure(ClosureId(0)),
+            StorageLifeShape {
+                binder_count: 2,
+                slots: Vec::new(),
+                retained: Vec::new(),
+                nominal_arguments: Vec::new(),
+            },
+            vec![Class::Local(7)],
+        );
+        assert!(error_union(scalar(Type::U8), missing, &mut budget).is_err());
+    }
 
     #[test]
     fn shared_layout_keeps_independent_complete_class_images() {

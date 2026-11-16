@@ -480,15 +480,7 @@ impl Checked {
             Kind::ErrorUnion { error, result } => {
                 let error = self.value(*error, context, program, inventory, b, depth + 1)?;
                 let result = self.value(*result, context, program, inventory, b, depth + 1)?;
-                if !error.classes.is_empty() || !result.classes.is_empty() {
-                    return Err(unknown(
-                        "original ErrorUnion needs complete active-arm class occurrence transport",
-                    ));
-                }
-                Ok(value::scalar(Type::ErrorUnion {
-                    error: Box::new(error.into_type(b)?),
-                    result: Box::new(result.into_type(b)?),
-                }))
+                value::error_union(error, result, b)
             }
             Kind::Code {
                 kind,

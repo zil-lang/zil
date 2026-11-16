@@ -1697,7 +1697,12 @@ impl Solver<'_, '_> {
             }
         }
     }
-    fn dyn_domain_covered(&self, ty: &DynType, b: &mut Budget, depth: usize) -> CompileResult<()> {
+    pub(super) fn dyn_domain_covered(
+        &self,
+        ty: &DynType,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
         self.step(depth, b)?;
         let mut available = Vec::new();
         self.dyn_context_domain(&ty.context, &mut available, b, depth + 1)?;
@@ -1728,6 +1733,36 @@ impl Solver<'_, '_> {
             if !found {
                 return Err(fail(
                     "original Dyn Context omits a persistent trait or associated class domain, including phantom actuals",
+                ));
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn dyn_source_covered(
+        &self,
+        ty: &DynType,
+        source: Term,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.step(depth, b)?;
+        let mut available = Vec::new();
+        self.dyn_context_domain(&ty.context, &mut available, b, depth + 1)?;
+        let mut required = Vec::new();
+        self.dyn_domain(source, &mut required, b, depth + 1)?;
+        for need in required {
+            let mut found = false;
+            for have in &available {
+                match (need, *have) {
+                    (Domain::Life(a), Domain::Life(z)) | (Domain::Type(a), Domain::Type(z)) => {
+                        found |= self.same_original(a, z, b, depth + 1)?;
+                    }
+                    _ => {}
+                }
+            }
+            if !found {
+                return Err(fail(
+                    "owned Dyn Context omits a complete original Self class, including phantom occurrences",
                 ));
             }
         }

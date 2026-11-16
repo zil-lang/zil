@@ -317,15 +317,19 @@ impl Checked {
         let interface = selected.ok_or_else(|| {
             fail("original Dyn type has no exact actual application, Context and associated key")
         })?;
-        Ok(Value::new(if ty.owned {
+        Ok(Value::new(
+            if ty.owned {
                 Type::OwnedDyn { interface }
             } else {
                 Type::Dyn { interface }
-            }, StorageLifeShape {
+            },
+            StorageLifeShape {
                 binder_count: retained.binder_count,
                 slots: Vec::new(),
-                retained: Vec::new(),
-                nominal_arguments: Vec::new(),
-            }, classes))
+                retained: retained.retained,
+                nominal_arguments: retained.nominal_arguments,
+            },
+            classes,
+        ))
     }
 }

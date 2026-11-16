@@ -178,6 +178,13 @@ impl Check<'_, '_> {
             return original::nominal::predicate_actual(ty, predicate, self.inventory, b, depth);
         }
         match ty {
+            Type::OwnedDyn { .. } => {
+                // This is the owning carrier's invariant. Actual constructors
+                // prove Self:SyncDrop and every vtable's concrete cleanup; no
+                // property of the erased Self follows from this result.
+                self.dyn_value_type(ty, b, depth + 1)
+            }
+            Type::Dyn { .. } => Ok(false),
             Type::Closure(id) => {
                 self.capture_directory(*id, b)?;
                 let closure = self

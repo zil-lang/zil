@@ -20,6 +20,9 @@ impl Check<'_, '_> {
         }
         match ty {
             Type::Dyn { .. } | Type::OwnedDyn { .. } => {
+                if !empty(&value::dyn_domain(ty, self.inventory, b)?) {
+                    return Err(fail("zero-domain dynamic value retains complete Context classes"));
+                }
                 if !self.dyn_value_type(ty, b, depth + 1)? {
                     return Err(fail(
                         "dynamic zero-domain type has no complete original formation",

@@ -23,6 +23,7 @@ pub(in crate::semantic) struct ActualWrite {
     pub statement: NodeId,
     pub expression: NodeId,
     pub anchor: Option<LocalAnchor>,
+    pub static_literal: bool,
     pub value: crate::semantic::value::Value,
 }
 impl Solver<'_, '_> {
@@ -526,6 +527,32 @@ impl Checked {
             _ => Ok(None),
         }
     }
+    fn reference_static_literal(
+        &self,
+        owner: SemanticDefinitionId,
+        node: NodeId,
+        inventory: &Inventory<'_>,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<bool> {
+        b.spend(1, WORK)?;
+        if depth > b.partial_depth {
+            return Err(resource(
+                "reference static source syntax exceeds finite depth",
+            ));
+        }
+        b.lookup(self.string_literals.len(), WORK)?;
+        if self.string_literals.contains_key(&(owner, node)) {
+            return Ok(true);
+        }
+        let index = inventory.original_index(owner, b)?;
+        match &index.get_expr(node, b)?.kind {
+            CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
+                self.reference_static_literal(owner, inner.id, inventory, b, depth + 1)
+            }
+            _ => Ok(false),
+        }
+    }
     pub(in crate::semantic) fn reference_role(
         &self,
         context: &SemanticInstance,
@@ -553,6 +580,13 @@ impl Checked {
                     statement: write.statement,
                     expression: write.expression,
                     anchor,
+                    static_literal: self.reference_static_literal(
+                        context.definition,
+                        write.expression,
+                        inventory,
+                        b,
+                        0,
+                    )?,
                     value: self.value(write.value, context, program, inventory, b, 0)?,
                 },
                 b,

@@ -89,9 +89,7 @@ impl Check<'_, '_> {
                     "original dynamic receiver lost its complete interface application",
                 ));
             };
-            if !empty(&boundary.receiver.life)
-                || !boundary.receiver.classes.is_empty()
-                || !boundary.result.classes.is_empty()
+            if !boundary.result.classes.is_empty()
                 || !actuals.is_empty()
                 || !boundary.method_actuals.is_empty()
                 || boundary.call_kind != CallKind::Direct
@@ -151,6 +149,19 @@ impl Check<'_, '_> {
                 .receiver_anchor
                 .ok_or_else(|| fail("original dynamic receiver has no lexical head"))?;
             let local = self.anchored_local(instance, function, anchor, b)?;
+            let actual_receiver = self.local_value(instance, function, local, (block, index), b, 0)?;
+            let actual_receiver = if owned {
+                if !matches!(actual_receiver.ty, Type::OwnedDyn { interface } if interface == *expected) {
+                    return Err(fail("dynamic call changes its exact original owning interface"));
+                }
+                let (_, life, classes) = actual_receiver.into_parts(b)?;
+                Value::new(Type::Dyn { interface: *expected }, life, classes)
+            } else {
+                self.pointee(&actual_receiver, b)?
+            };
+            if !actual_receiver.equal_paid(&boundary.receiver, b)? {
+                return Err(fail("dynamic call changes its original complete Context class relation"));
+            }
             operations::available_before(
                 function,
                 (block, index, SemanticSiteEdge::Before),

@@ -112,25 +112,88 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> CompileResult<Type> {
         self.dyn_step(b, depth)?;
-        let ty=match recipe {
-            SemanticTypeRecipe::Atom(ty) if ty.is_b0_scalar() || matches!(ty,Type::ForeignHandle|Type::ByteBuffer)=>{ crate::dyn_metadata::ty(ty,b)?; ty.clone() },
-            SemanticTypeRecipe::Tuple(fields) if fields.is_empty()=>Type::Unit,
-            SemanticTypeRecipe::Tuple(fields)=>{
-                let mut result=Vec::new(); for field in fields { self.push_value(&mut result,self.dyn_zero_recipe(field,method,self_type,b,depth+1)?,b)?; } Type::Tuple(result)
+        let ty = match recipe {
+            SemanticTypeRecipe::Atom(ty)
+                if ty.is_b0_scalar() || matches!(ty, Type::ForeignHandle | Type::ByteBuffer) =>
+            {
+                crate::dyn_metadata::ty(ty, b)?;
+                ty.clone()
+            }
+            SemanticTypeRecipe::Tuple(fields) if fields.is_empty() => Type::Unit,
+            SemanticTypeRecipe::Tuple(fields) => {
+                let mut result = Vec::new();
+                for field in fields {
+                    self.push_value(
+                        &mut result,
+                        self.dyn_zero_recipe(field, method, self_type, b, depth + 1)?,
+                        b,
+                    )?;
+                }
+                Type::Tuple(result)
+            }
+            SemanticTypeRecipe::Nominal {
+                definition,
+                arguments,
+            } if arguments.is_empty() => self.nominal_actual(*definition, &[], b, depth + 1)?,
+            SemanticTypeRecipe::SelfType {
+                scope: SemanticScopeRef::Ancestor(1),
+            } => {
+                let declaration = self.inventory.definition(method, b)?;
+                if declaration.kind != SemanticDefinitionKind::Method
+                    || declaration.parent.is_none()
+                {
+                    return Err(fail("dynamic original Self has no exact method owner"));
+                }
+                let ty = self_type.ok_or_else(|| {
+                    unknown("public dynamic signature exposes an unerased Self occurrence")
+                })?;
+                crate::dyn_metadata::ty(ty, b)?;
+                ty.clone()
+            }
+            SemanticTypeRecipe::Managed(inner) => Type::Managed(Box::new(self.dyn_zero_recipe(
+                inner,
+                method,
+                self_type,
+                b,
+                depth + 1,
+            )?)),
+            SemanticTypeRecipe::OwnedStore(element) => Type::Managed(Box::new(Type::OwnedStore {
+                element: Box::new(self.dyn_zero_recipe(
+                    element,
+                    method,
+                    self_type,
+                    b,
+                    depth + 1,
+                )?),
+            })),
+            SemanticTypeRecipe::Slice(element) => Type::Slice {
+                element: Box::new(self.dyn_zero_recipe(
+                    element,
+                    method,
+                    self_type,
+                    b,
+                    depth + 1,
+                )?),
             },
-            SemanticTypeRecipe::Nominal { definition,arguments } if arguments.is_empty()=>self.nominal_actual(*definition,&[],b,depth+1)?,
-            SemanticTypeRecipe::SelfType { scope:SemanticScopeRef::Ancestor(1) }=>{
-                let declaration=self.inventory.definition(method,b)?;
-                if declaration.kind!=SemanticDefinitionKind::Method || declaration.parent.is_none() { return Err(fail("dynamic original Self has no exact method owner")); }
-                let ty=self_type.ok_or_else(||unknown("public dynamic signature exposes an unerased Self occurrence"))?;
-                crate::dyn_metadata::ty(ty,b)?; ty.clone()
+            SemanticTypeRecipe::ErrorUnion { error, result } => Type::ErrorUnion {
+                error: Box::new(self.dyn_zero_recipe(error, method, self_type, b, depth + 1)?),
+                result: Box::new(self.dyn_zero_recipe(result, method, self_type, b, depth + 1)?),
             },
-            SemanticTypeRecipe::Managed(inner)=>Type::Managed(Box::new(self.dyn_zero_recipe(inner,method,self_type,b,depth+1)?)),
-            SemanticTypeRecipe::OwnedStore(element)=>Type::Managed(Box::new(Type::OwnedStore { element:Box::new(self.dyn_zero_recipe(element,method,self_type,b,depth+1)?) })),
-            SemanticTypeRecipe::Slice(element)=>Type::Slice { element:Box::new(self.dyn_zero_recipe(element,method,self_type,b,depth+1)?) },
-            SemanticTypeRecipe::ErrorUnion { error,result }=>Type::ErrorUnion { error:Box::new(self.dyn_zero_recipe(error,method,self_type,b,depth+1)?),result:Box::new(self.dyn_zero_recipe(result,method,self_type,b,depth+1)?) },
-            SemanticTypeRecipe::Exact(exact) if empty(&exact.life) && exact.classes.is_empty() && (exact.ty.is_b0_scalar() || crate::dyn_dispatch::is_create_error(&exact.ty) || exact.ty==crate::generic_mutex::error_type())=>{ crate::dyn_metadata::ty(&exact.ty,b)?; exact.ty.clone() },
-            _=>return Err(unknown("dynamic signature requires its complete original mixed or retained type substitution")),
+            SemanticTypeRecipe::Exact(exact)
+                if empty(&exact.life)
+                    && exact.classes.is_empty()
+                    && (exact.ty.is_b0_scalar()
+                        || crate::dyn_dispatch::is_create_error(&exact.ty)
+                        || exact.ty == crate::generic_mutex::error_type()) =>
+            {
+                crate::dyn_metadata::ty(&exact.ty, b)?;
+                exact.ty.clone()
+            }
+            _ => {
+                return Err(unknown(
+                    "dynamic signature requires its complete original mixed or retained type substitution",
+                ));
+            }
         };
         self.dyn_zero_type(&ty, b, depth + 1)?;
         Ok(ty)
@@ -143,17 +206,41 @@ impl Check<'_, '_> {
         b: &mut Budget,
     ) -> CompileResult<StorageBinder> {
         let definition = self.inventory.definition(method, b)?;
-        let role=match life {
-            SemanticLifeRecipe::Implicit { scope:SemanticScopeRef::Ancestor(0),ordinal }=>{
-                if !definition.implicit_lifetimes.iter().any(|row|row.ordinal==*ordinal) { return Err(fail("dynamic signature lifetime selects no original implicit occurrence")); }
+        let role = match life {
+            SemanticLifeRecipe::Implicit {
+                scope: SemanticScopeRef::Ancestor(0),
+                ordinal,
+            } => {
+                if !definition
+                    .implicit_lifetimes
+                    .iter()
+                    .any(|row| row.ordinal == *ordinal)
+                {
+                    return Err(fail(
+                        "dynamic signature lifetime selects no original implicit occurrence",
+                    ));
+                }
                 Role::Implicit(*ordinal)
-            },
-            SemanticLifeRecipe::Invocation(ordinal)=>{
-                let SemanticDefinitionBody::FunctionWithBody { signature,.. }=&definition.body else { return Err(fail("dynamic signature invocation has no original signature")); };
-                if *ordinal>=signature.invocation_lifetimes { return Err(fail("dynamic signature lifetime leaves its original Invocation domain")); }
+            }
+            SemanticLifeRecipe::Invocation(ordinal) => {
+                let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body
+                else {
+                    return Err(fail(
+                        "dynamic signature invocation has no original signature",
+                    ));
+                };
+                if *ordinal >= signature.invocation_lifetimes {
+                    return Err(fail(
+                        "dynamic signature lifetime leaves its original Invocation domain",
+                    ));
+                }
                 Role::Invocation(*ordinal)
-            },
-            _=>return Err(unknown("dynamic signature requires its complete original quantified or persistent class role")),
+            }
+            _ => {
+                return Err(unknown(
+                    "dynamic signature requires its complete original quantified or persistent class role",
+                ));
+            }
         };
         b.spend(roles.len().saturating_add(1), WORK)?;
         let ordinal = if let Some(index) = roles.iter().position(|old| old == &role) {
@@ -653,7 +740,24 @@ impl Check<'_, '_> {
             slot.member.ordinal,
             b,
         )?;
-        let expected = self.dyn_signature(method, original, None, b)?;
+        let mut expected = self.dyn_signature(method, original, None, b)?;
+        // Context contributes a complete persistent receiver domain. It does
+        // not rename the original invocation region or add a lifetime premise.
+        expected.life.fixed_binder_count = interface.retained_life.binder_count;
+        for class in 0..interface.retained_life.binder_count {
+            self.push_value(
+                &mut expected.life.classes,
+                SignatureLifeClassBinding {
+                    position: SignatureLifeClass {
+                        base: StorageBase::Parameter(0),
+                        path: vec![LifeTypeProjection::Pointee],
+                        class,
+                    },
+                    binder: StorageBinder::Fixed(class),
+                },
+                b,
+            )?;
+        }
         let Type::Address { mutable, .. } = &expected.parameters[0] else {
             return Err(fail(
                 "original dynamic receiver interpreter lost its address",
@@ -668,9 +772,56 @@ impl Check<'_, '_> {
             || slot.call_kind != expected.call_kind
             || slot.storage_life.as_ref() != Some(&expected.life)
         {
-            return Err(fail("dynamic public slot differs from its complete original signature and local class relation"));
+            return Err(fail(
+                "dynamic public slot differs from its complete original signature and local class relation",
+            ));
         }
-        let contract = self.dyn_contract(&raw.contract, method, None, b)?;
+        let mut contract = self.dyn_contract(&raw.contract, method, None, b)?;
+        for (ordinal, port) in interface.retained_life.ports.iter().enumerate() {
+            b.spend(12, WORK)?;
+            let position = StoragePosition {
+                base: StorageBase::Parameter(0),
+                path: vec![ContractProjection::RetainedPort(
+                    u32::try_from(ordinal)
+                        .map_err(|_| fail("dynamic Context port ordinal overflows"))?,
+                )],
+            };
+            self.push_value(
+                contract
+                    .requires
+                    .as_mut()
+                    .ok_or_else(|| unknown("original dynamic requirements are unknown"))?,
+                DynRequirement::Read(position.clone()),
+                b,
+            )?;
+            self.push_value(
+                contract
+                    .guarantees
+                    .as_mut()
+                    .ok_or_else(|| unknown("original dynamic guarantees are unknown"))?,
+                DynGuarantee::StorageSources(StorageSourceBinding {
+                    position: position.clone(),
+                    sources: vec![StorageSource::Exact(position.clone())],
+                }),
+                b,
+            )?;
+            let call = contract
+                .call
+                .as_mut()
+                .ok_or_else(|| unknown("original dynamic call access is unknown"))?;
+            self.push_value(&mut call.reads, position.clone(), b)?;
+            if *mutable && port.mode == StoredBorrowMode::ExclusiveAddress {
+                self.push_value(
+                    contract
+                        .requires
+                        .as_mut()
+                        .ok_or_else(|| unknown("original dynamic requirements are unknown"))?,
+                    DynRequirement::Write(position.clone()),
+                    b,
+                )?;
+                self.push_value(&mut call.writes, position, b)?;
+            }
+        }
         if slot.contract != contract {
             return Err(fail(
                 "dynamic public slot changes an original complete contract component",
@@ -742,7 +893,9 @@ impl Check<'_, '_> {
                 || !witness.actuals.is_empty()
                 || !witness.associated.is_empty()
             {
-                return Err(unknown("dynamic witness requires its full original nonzero or associated specialization"));
+                return Err(unknown(
+                    "dynamic witness requires its full original nonzero or associated specialization",
+                ));
             }
             self.dyn_provider_zero(&actual, &witness.application, witness.implementation, b)?;
             if witness.application != interface.application
@@ -949,7 +1102,9 @@ impl Check<'_, '_> {
                             || !world.actuals.is_empty()
                             || world.environment.is_some()
                         {
-                            return Err(fail("dynamic original specialization target has another exact source world"));
+                            return Err(fail(
+                                "dynamic original specialization target has another exact source world",
+                            ));
                         }
                         let source_definition = semantic
                             .definitions
@@ -961,20 +1116,26 @@ impl Check<'_, '_> {
                         crate::dyn_metadata::recipe(source_definition, b)?;
                         crate::dyn_metadata::recipe(original, b)?;
                         if source_definition != original {
-                            return Err(fail("dynamic original specialization target changes its complete authored definition"));
+                            return Err(fail(
+                                "dynamic original specialization target changes its complete authored definition",
+                            ));
                         }
                         let parent=semantic.instances.iter().find(|row|Some(row.id)==world.parent).ok_or_else(||fail("dynamic original source method omits its real lexical parent world"))?;
                         if Some(parent.definition) != original.parent
                             || !parent.actuals.is_empty()
                             || !matches!(parent.target, SemanticInstanceTarget::Scope)
                         {
-                            return Err(fail("dynamic original source method changes its original complete parent scope"));
+                            return Err(fail(
+                                "dynamic original source method changes its original complete parent scope",
+                            ));
                         }
                         linked = true;
                     }
                 }
                 if !linked {
-                    return Err(unknown("dynamic Core specialization target needs its exact original semantic Source world"));
+                    return Err(unknown(
+                        "dynamic Core specialization target needs its exact original semantic Source world",
+                    ));
                 }
                 // The actual function's worlds, checked below, must all name
                 // this exact original definition; same ABI alone is irrelevant.
@@ -1004,7 +1165,9 @@ impl Check<'_, '_> {
             ));
         };
         if foreign.is_some() {
-            return Err(fail("dynamic concrete entry substitutes a foreign function for its original method body"));
+            return Err(fail(
+                "dynamic concrete entry substitutes a foreign function for its original method body",
+            ));
         }
         self.dyn_signature_bridge(expected_definition, signature, &definition.signature, b)?;
         let expected = self.dyn_signature(expected_definition, signature, Some(&receiver.ty), b)?;
@@ -1021,7 +1184,9 @@ impl Check<'_, '_> {
             || expected.call_kind != public.call_kind
             || expected.life != public.life
         {
-            return Err(fail("dynamic implementation changes its original trait method signature or class relation"));
+            return Err(fail(
+                "dynamic implementation changes its original trait method signature or class relation",
+            ));
         }
         let promised =
             self.dyn_contract(&public_raw.contract, public_method, Some(&receiver.ty), b)?;
@@ -1048,7 +1213,9 @@ impl Check<'_, '_> {
             || !instance.declaration_actuals.is_empty()
             || !instance.method_actuals.is_empty()
         {
-            return Err(fail("dynamic entry changes its exact original definition, complete Self, or mixed specialization"));
+            return Err(fail(
+                "dynamic entry changes its exact original definition, complete Self, or mixed specialization",
+            ));
         }
         if instance.scope.fixed_binder_count != 0
             || instance.scope.invocation_binder_count != expected.life.invocation_binder_count
@@ -1083,7 +1250,9 @@ impl Check<'_, '_> {
                 || expected.result_mode == PassingMode::Infer)
             || function.storage_life.as_ref() != Some(&expected.life)
         {
-            return Err(fail("dynamic concrete function entry differs from its original instantiated ABI and class signature"));
+            return Err(fail(
+                "dynamic concrete function entry differs from its original instantiated ABI and class signature",
+            ));
         }
         for (local, ty) in function.parameters.iter().zip(&expected.parameters) {
             crate::dyn_metadata::ty(ty, b)?;
@@ -1105,7 +1274,9 @@ impl Check<'_, '_> {
                 || !world.actuals.is_empty()
                 || world.environment.is_some()
             {
-                return Err(fail("dynamic concrete function has a world for another original definition or specialization"));
+                return Err(fail(
+                    "dynamic concrete function has a world for another original definition or specialization",
+                ));
             }
             let parent = self.inventory.instance(
                 world.parent.ok_or_else(|| {
@@ -1126,7 +1297,9 @@ impl Check<'_, '_> {
                 ));
             }
             if !parent.actuals.is_empty() || self.original_scope_self(parent, b, 0)? != *receiver {
-                return Err(fail("dynamic method parent changes its independently computed complete original Self"));
+                return Err(fail(
+                    "dynamic method parent changes its independently computed complete original Self",
+                ));
             }
             let actual = world
                 .self_type
@@ -1156,7 +1329,9 @@ impl Check<'_, '_> {
             }
         }
         if !registered {
-            return Err(fail("dynamic concrete entry is absent from its exact original full-specialization registry"));
+            return Err(fail(
+                "dynamic concrete entry is absent from its exact original full-specialization registry",
+            ));
         }
         if table.implementation != self.inventory.original_dyn(table.implementation, b)?.id {
             return Err(fail(
@@ -1618,6 +1793,195 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
+    fn dyn_context_table(
+        &self,
+        table: &DynVtable,
+        interface: &DynInterface,
+        functions: &mut BTreeSet<FunctionId>,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        // This cold provider check runs before any semantic table marker is
+        // published. It reconstructs nominal Self, mixed ordinals, all opaque
+        // source ports (including empty ports), and the original trait recipe.
+        crate::dyn_provider::prove(self.module, table, interface, b)?;
+        if table.cleanup.is_some() {
+            return Err(unknown(
+                "dynamic Context table needs its original explicit cleanup definition bridge",
+            ));
+        }
+        let life = table
+            .self_life
+            .as_ref()
+            .ok_or_else(|| unknown("dynamic Context table omits its whole Self domain"))?;
+        crate::dyn_metadata::shape(life, b)?;
+        crate::dyn_metadata::ty(&table.self_type, b)?;
+        b.spend(table.self_classes.len(), WORK)?;
+        let raw_receiver = DynTypeValue {
+            ty: table.self_type.clone(),
+            life: life.clone(),
+            classes: table.self_classes.clone(),
+        };
+        let context_scope = DynInstantiationScope {
+            fixed_binder_count: interface.retained_life.binder_count,
+            invocation_binder_count: 0,
+        };
+        let witnesses = table.implementation_witnesses.as_ref().ok_or_else(|| {
+            unknown("dynamic Context table has no complete original witness graph")
+        })?;
+        // The finite nongeneric trait profile has exactly its root obligation.
+        // Inherited/associated graphs are rejected by the interface interpreter
+        // until their entire original closure can be consumed here.
+        let [witness] = witnesses.as_slice() else {
+            return Err(fail(
+                "dynamic Context table changes its complete root obligation graph",
+            ));
+        };
+        crate::dyn_metadata::recipe(witness, b)?;
+        if witness.application != interface.application
+            || witness.implementation != table.implementation
+            || !witness.associated.is_empty()
+        {
+            return Err(fail(
+                "dynamic Context witness changes its exact original provider application",
+            ));
+        }
+        let mut slots = BTreeSet::new();
+        for entry in &table.entries {
+            b.lookup(slots.len(), WORK)?;
+            if !slots.insert(entry.slot) {
+                return Err(fail("dynamic Context table repeats an entry slot"));
+            }
+            let slot = interface
+                .slots
+                .get(entry.slot as usize)
+                .ok_or_else(|| fail("dynamic Context entry has no original public slot"))?;
+            let function = self
+                .inventory
+                .function(&SemanticFunctionTarget::Typed(entry.function), b)?;
+            let actual = function.dyn_instance.as_ref().ok_or_else(|| {
+                fail("dynamic Context entry omits its full original specialization")
+            })?;
+            self.standalone_definition(function, actual, b)?;
+            let worlds = self.function_worlds(function.id, b)?;
+            if worlds.is_empty() {
+                return Err(fail("dynamic Context entry has no actual original world"));
+            }
+            for world in worlds {
+                let self_type = world
+                    .self_type
+                    .as_ref()
+                    .ok_or_else(|| fail("dynamic Context entry world omits its original Self"))?;
+                let receiver = self.resolved(world, self_type, b, 0)?;
+                let provider =
+                    self.actual_provider(&receiver, interface.application.declaration, &[], b, 0)?;
+                let declaration = self.inventory.definition(provider.definition, b)?;
+                if !matches!(&declaration.body,
+                    SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl { declaration, .. })
+                    if *declaration == table.implementation)
+                {
+                    return Err(fail(
+                        "dynamic Context entry selects another original provider scope",
+                    ));
+                }
+                self.scope_arguments(provider, b)?;
+                if self.original_scope_self(provider, b, 0)? != receiver {
+                    return Err(fail(
+                        "dynamic Context provider changes its original whole Self",
+                    ));
+                }
+                let definition = self.dyn_selected_definition(provider, slot, b)?;
+                if actual.definition != definition.id {
+                    return Err(fail(
+                        "dynamic Context entry substitutes another original method definition",
+                    ));
+                }
+                let method =
+                    original::definition_scope(self.program, definition.id, self.inventory, b)?;
+                let original = self.inventory.definition(method, b)?;
+                let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &original.body
+                else {
+                    return Err(fail("dynamic Context entry lacks its original method body"));
+                };
+                let (public_method, public_signature, public_raw) = self.dyn_original_signature(
+                    slot.member.application.declaration,
+                    slot.member.ordinal,
+                    b,
+                )?;
+                // Compare original signatures before erasure. The shared Self
+                // position is interpreted separately as the complete receiver
+                // above; all remaining types and invocation roles stay exact.
+                let implementation = self.dyn_signature(method, signature, None, b)?;
+                let public = self.dyn_signature(public_method, public_signature, None, b)?;
+                if implementation.parameters != public.parameters
+                    || implementation.modes != public.modes
+                    || implementation.result != public.result
+                    || implementation.result_mode != public.result_mode
+                    || implementation.call_kind != public.call_kind
+                    || implementation.life != public.life
+                    || self.dyn_contract(&definition.signature.contract, method, None, b)?
+                        != self.dyn_contract(&public_raw.contract, public_method, None, b)?
+                {
+                    return Err(fail(
+                        "dynamic Context implementation changes its original public signature or contract",
+                    ));
+                }
+                let mut context = BTreeMap::new();
+                self.standalone_value(context_scope, &raw_receiver, &receiver, &mut context, b)?;
+                self.standalone_actuals(context_scope, &table.actuals, provider, &mut context, b)?;
+                let mut private = BTreeMap::new();
+                self.standalone_value(
+                    witness.scope,
+                    &witness.receiver,
+                    &receiver,
+                    &mut private,
+                    b,
+                )?;
+                self.standalone_actuals(
+                    witness.scope,
+                    &witness.actuals,
+                    provider,
+                    &mut private,
+                    b,
+                )?;
+                let private_count = (witness.scope.fixed_binder_count as usize)
+                    .checked_add(witness.scope.invocation_binder_count as usize)
+                    .ok_or_else(|| fail("dynamic witness lexical domain overflows"))?;
+                if private.len() != private_count || witness.to_context.len() != private_count {
+                    return Err(fail(
+                        "dynamic witness loses or invents a private lexical class",
+                    ));
+                }
+                let mut mapped = BTreeSet::new();
+                for row in &witness.to_context {
+                    b.lookup(mapped.len(), WORK)?;
+                    if !mapped.insert(row.from) {
+                        return Err(fail("dynamic witness repeats a private class embedding"));
+                    }
+                    let source = private
+                        .get(&row.from)
+                        .ok_or_else(|| fail("dynamic witness maps no original private class"))?;
+                    let StorageBinder::Fixed(index) = row.to else {
+                        return Err(fail("dynamic witness escapes its persistent Context"));
+                    };
+                    if index >= context_scope.fixed_binder_count
+                        || context.get(&row.to) != Some(source)
+                    {
+                        return Err(fail(
+                            "dynamic witness changes its exact original private-to-Context relation",
+                        ));
+                    }
+                }
+            }
+            b.lookup(functions.len(), WORK)?;
+            functions.insert(entry.function);
+        }
+        if slots.len() != interface.slots.len() {
+            return Err(fail(
+                "dynamic Context table omits an original public method entry",
+            ));
+        }
+        Ok(())
+    }
     pub(super) fn dyn_tables(&self, b: &mut Budget) -> CompileResult<()> {
         let mut interfaces = BTreeSet::new();
         for interface in &self.module.dyn_interfaces {
@@ -1626,23 +1990,23 @@ impl Check<'_, '_> {
             if !interfaces.insert(interface.id) {
                 return Err(fail("dynamic interface identity is repeated"));
             }
-            if interface.context.is_some()
-                || interface.retained_life.binder_count != 0
-                || !interface.retained_life.ports.is_empty()
-                || !interface.retained_life.retained.is_empty()
-                || !interface.retained_life.nominal_arguments.is_empty()
-                || !interface.application.actuals.is_empty()
+            crate::dyn_context::validate(self.module, interface, b)?;
+            if !interface.application.actuals.is_empty()
                 || !interface.inherited.is_empty()
                 || !interface.associated_types.is_empty()
                 || !interface.associated_constants.is_empty()
             {
-                return Err(unknown("dynamic interface needs its complete original mixed, inherited, associated and retained Context domain"));
+                return Err(unknown(
+                    "dynamic interface needs its complete original mixed, inherited, associated and retained Context domain",
+                ));
             }
             let declaration = self
                 .inventory
                 .original_dyn(interface.application.declaration, b)?;
             if declaration.kind != DynDeclarationKind::Trait {
-                return Err(fail("dynamic interface selects an implementation rather than an original trait declaration"));
+                return Err(fail(
+                    "dynamic interface selects an implementation rather than an original trait declaration",
+                ));
             }
             if !declaration.parameters.is_empty()
                 || !declaration
@@ -1670,10 +2034,18 @@ impl Check<'_, '_> {
             for (ordinal, member) in declaration.members.iter().enumerate() {
                 b.spend(1, WORK)?;
                 match &member.kind {
-                    DynMemberKind::Method(parameters) if parameters.is_empty()=>{
-                        if !members.contains(&(ordinal as u32)) { return Err(fail("dynamic public interface omits an original nongeneric method slot")); }
-                    },
-                    _=>return Err(unknown("dynamic interface needs its complete original associated or finite generic member selection")),
+                    DynMemberKind::Method(parameters) if parameters.is_empty() => {
+                        if !members.contains(&(ordinal as u32)) {
+                            return Err(fail(
+                                "dynamic public interface omits an original nongeneric method slot",
+                            ));
+                        }
+                    }
+                    _ => {
+                        return Err(unknown(
+                            "dynamic interface needs its complete original associated or finite generic member selection",
+                        ));
+                    }
                 }
             }
         }
@@ -1694,6 +2066,10 @@ impl Check<'_, '_> {
             }
             let interface = interface
                 .ok_or_else(|| fail("dynamic table selects no actual public interface"))?;
+            if interface.context.is_some() {
+                self.dyn_context_table(table, interface, &mut functions, b)?;
+                continue;
+            }
             self.dyn_zero_type(&table.self_type, b, 0)?;
             let self_life = table
                 .self_life
@@ -1705,7 +2081,9 @@ impl Check<'_, '_> {
                 || !table.ports.is_empty()
                 || table.cleanup.is_some()
             {
-                return Err(unknown("dynamic table needs its complete original retained, mixed or cleanup specialization"));
+                return Err(unknown(
+                    "dynamic table needs its complete original retained, mixed or cleanup specialization",
+                ));
             }
             let receiver = value::scalar(table.self_type.clone());
             let provider =

@@ -306,15 +306,7 @@ impl Check<'_, '_> {
             SemanticTypeRecipe::ErrorUnion { error, result } => {
                 let error = self.recipe_value(instance, error, b, depth + 1)?;
                 let result = self.recipe_value(instance, result, b, depth + 1)?;
-                if !error.classes.is_empty() || !result.classes.is_empty() {
-                    return Err(unknown(
-                        "original ErrorUnion requires complete active-arm class transport",
-                    ));
-                }
-                Ok(value::scalar(Type::ErrorUnion {
-                    error: Box::new(error.into_type(b)?),
-                    result: Box::new(result.into_type(b)?),
-                }))
+                value::error_union(error, result, b)
             }
             SemanticTypeRecipe::Code { kind, signature } => {
                 if signature.bound_lifetimes != 0
@@ -1307,7 +1299,7 @@ impl Check<'_, '_> {
                 | Type::Package { .. }
                 | Type::Enum { .. }
                 | Type::ErrorUnion { .. }
-        ) {
+        ) && !self.dyn_sum_type(ty, b)? {
             // A complete independent zero-domain reconstruction needs no
             // predecessor SSA class equation. Actual initialization, source,
             // loans and cleanup remain obligations of each operation/kernel.
@@ -1332,6 +1324,9 @@ impl Check<'_, '_> {
             return Ok(value);
         }
         match &instruction.kind {
+            InstructionKind::MakeDynOwned { .. } => self.dyn_owned_result(instance, function, block, index, b),
+            InstructionKind::BorrowDynOwned { local, mutable } => self.dyn_owned_borrow(
+                instance, function, id, *local, *mutable, (block, index), b, depth + 1),
             InstructionKind::StaticUtf8 { bytes } => {
                 b.spend(bytes.len().saturating_add(1), WORK)?;
                 if !original::strings::is_byte_type(ty) {
@@ -1403,6 +1398,11 @@ impl Check<'_, '_> {
             }
             InstructionKind::ReadErrorUnion { value: parent, is_error }
             | InstructionKind::TakeErrorUnion { value: parent, is_error } => {
+                if self.dyn_sum_type(function.values.get(parent.0 as usize)
+                    .ok_or_else(|| fail("actual sum projection has no parent type"))?, b)? {
+                    return self.dyn_owned_projection(instance, function, id, *parent, *is_error,
+                        (block, index), b, depth + 1);
+                }
                 self.projected_shared_value(instance, function, id, *parent,
                     PlaceProjection::ErrorArm(*is_error), (block, index), b, depth + 1)
             }
@@ -1698,13 +1698,16 @@ impl Check<'_, '_> {
                 let contract = callee.storage_life.as_ref().ok_or_else(|| {
                     unknown("class-bearing call result has no complete callee header")
                 })?;
-                let original_output = if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+                let original_output = if matches!(ty, Type::Address { .. } | Type::Desc(_)
+                    | Type::Closure(_) | Type::Dyn { .. } | Type::OwnedDyn { .. }) || self.dyn_sum_type(ty, b)? {
                     let output = self.static_call_result(instance, block, index, b)?;
                     if !geometry::same_type(&output.ty, ty, b)? { return Err(fail("call output changes its complete original head Type")); }
                     Some(output)
                 } else { None };
                 let count = match ty {
-                    Type::Address { .. } | Type::Desc(_) => u32::try_from(original_output.as_ref().unwrap().classes.len())
+                    Type::Address { .. } | Type::Desc(_) | Type::Dyn { .. } | Type::OwnedDyn { .. }
+                    | Type::ErrorUnion { .. } => u32::try_from(original_output.as_ref().ok_or_else(||
+                        fail("call result omits its complete original output"))?.classes.len())
                         .map_err(|_| fail("complete call output domain exceeds its ordinal carrier"))?,
                     Type::Closure(id) => {
                         self.module
@@ -1726,7 +1729,8 @@ impl Check<'_, '_> {
                 let mut classes = Vec::new();
                 for child in 0..count {
                     let mut result = None;
-                    if let Some(output) = &original_output {
+                    if let Some(output) = &original_output
+                        && (matches!(ty, Type::Address { .. } | Type::Desc(_)) || self.dyn_sum_type(ty, b)?) {
                         for slot in &output.life.slots {
                             if slot.binder != child { continue; }
                             for row in &contract.bindings {
@@ -1855,6 +1859,10 @@ impl Check<'_, '_> {
                             source = Some(class);
                         }
                     }
+                    if source.is_none() && let Some(output) = &original_output {
+                        source = self.reference_call_result_class(instance, function, (block, index),
+                            callee, child, output, b, depth + 1)?;
+                    }
                     let class=source.ok_or_else(||unknown("callee result class has no independently proved input/static/role source"))?;
                     self.push_value(&mut classes, class, b)?;
                 }
@@ -1937,7 +1945,7 @@ impl Check<'_, '_> {
                     | Type::ErrorUnion { .. }
                     | Type::FunctionPointer { .. }
                     | Type::ForeignCallback { .. }
-            )
+            ) && !self.dyn_sum_type(ty, b)?
         {
             // A zero-class fact does not depend on which loop iteration last
             // initialized the occupant. Actual initialization and resources
@@ -2137,7 +2145,29 @@ impl Check<'_, '_> {
         for row in &instance.header_embedding {
             b.lookup(seen.len(), WORK)?;
             let valid = match row.header {
-                StorageBinder::Fixed(index) => captures && index < contract.fixed_binder_count,
+                StorageBinder::Fixed(index) => {
+                    if index >= contract.fixed_binder_count { false }
+                    else if captures { true }
+                    else {
+                        // A nongeneric invocation cannot invent a Fixed class.
+                        // A complete lexical Type/life formal remains Fixed
+                        // under its actual method/function specialization.
+                        let class = self.header_class(instance, row.header, b)?;
+                        let owner = match class {
+                            Class::Formal(owner, _) | Class::TypeArgument(owner, _, _) => Some(owner),
+                            _ => None,
+                        };
+                        let mut context = Some(instance);
+                        let mut found = false;
+                        for _ in 0..=b.partial_depth {
+                            let Some(current) = context else { break; };
+                            b.spend(1, WORK)?;
+                            if Some(current.id) == owner { found = true; break; }
+                            context = match current.parent { Some(parent) => Some(self.inventory.instance(parent, b)?), None => None };
+                        }
+                        found
+                    }
+                },
                 StorageBinder::Invocation(index) => index < contract.invocation_binder_count,
             };
             if !valid || !seen.insert(row.header) {
@@ -2181,7 +2211,8 @@ impl Check<'_, '_> {
                 }
                 used_bindings += 1;
             }
-            if matches!(value.ty, Type::BorrowedStorage { .. } | Type::Closure(_)) {
+            if matches!(value.ty, Type::BorrowedStorage { .. } | Type::Closure(_)
+                | Type::Dyn { .. } | Type::OwnedDyn { .. }) {
                 for (child, expected) in value.classes.iter().enumerate() {
                     let mut selected = None;
                     for row in &contract.classes {
@@ -2207,9 +2238,11 @@ impl Check<'_, '_> {
                     used_classes += 1;
                 }
             }
-            if matches!(value.ty, Type::Address { .. } | Type::Desc(_)) {
+            if matches!(value.ty, Type::Address { .. } | Type::Desc(_)) || self.dyn_sum_type(&value.ty, b)? {
                 for child in &value.life.retained {
-                    if child.path.as_slice() != [LifeTypeProjection::Pointee] {
+                    if child.path.as_slice() != [LifeTypeProjection::Pointee]
+                        && !(self.dyn_sum_type(&value.ty, b)? && child.path.as_slice() ==
+                            [LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))]) {
                         return Err(unknown(
                             "outer header requires its complete child occurrence path",
                         ));
@@ -2331,6 +2364,9 @@ impl Check<'_, '_> {
             Type::BorrowedStorage { life, .. } => Ok(life.binder_count != 0),
             Type::Address { .. } | Type::Desc(_) => Ok(true),
             Type::MutexGuard { .. } => Ok(true),
+            Type::Dyn { .. } | Type::OwnedDyn { .. } => Ok(value::dyn_domain(ty, self.inventory, b)?.binder_count != 0),
+            Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Dyn { .. } | Type::OwnedDyn { .. }) =>
+                Ok(value::dyn_domain(result, self.inventory, b)?.binder_count != 0),
             Type::Closure(id) => self.has_ghost_capture(*id, b),
             _ => Ok(false),
         }

@@ -372,19 +372,7 @@ impl Check<'_, '_> {
             SemanticTypeRecipe::ErrorUnion { error, result } => {
                 let error = self.nominal_field_value(owner, args, error, b, depth + 1)?;
                 let result = self.nominal_field_value(owner, args, result, b, depth + 1)?;
-                if !empty(&error.life)
-                    || !error.classes.is_empty()
-                    || !empty(&result.life)
-                    || !result.classes.is_empty()
-                {
-                    return Err(unknown(
-                        "nominal error arm field needs complete active child class transport",
-                    ));
-                }
-                Ok(value::scalar(Type::ErrorUnion {
-                    error: Box::new(error.into_type(b)?),
-                    result: Box::new(result.into_type(b)?),
-                }))
+                value::error_union(error, result, b)
             }
             SemanticTypeRecipe::Array { element, length } => {
                 let element = self.nominal_field_value(owner, args, element, b, depth + 1)?;
