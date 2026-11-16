@@ -719,7 +719,12 @@ fn operations(
                                 SemanticEmissionRole::Ascription,
                             ))
                         }
-                        s::ExprKind::MetaEval(_)
+                        // A static literal keeps its Static source/type. Its
+                        // own original occurrence also anchors any later
+                        // call-directed shortening; a result binding cannot
+                        // supply that input provenance retroactively.
+                        s::ExprKind::String(_)
+                        | s::ExprKind::MetaEval(_)
                         | s::ExprKind::Unary {
                             op: s::UnaryOp::Borrow | s::UnaryOp::BorrowMut,
                             ..
@@ -1082,6 +1087,66 @@ mod tests {
             }
         }
         assert_eq!(projections, 1);
+    }
+
+    #[test]
+    fn static_call_inputs_have_distinct_original_literal_anchors() {
+        let (mut syntax, program) = prepare(
+            r#"fn feedback<life a>(seed:&'a[u8],flag:bool)->&'a[u8]{return seed}
+fn main(){let text=feedback("xyz",true);let other=feedback("uvw",false)}"#,
+        );
+        let definition = &program.modules[0].1.definitions[1];
+        let SemanticDefinitionBody::FunctionWithBody {
+            sites, site_nodes, ..
+        } = &definition.body
+        else {
+            panic!()
+        };
+        let s::ItemKind::Function(function) = &mut syntax[0].items[1].kind else {
+            panic!()
+        };
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut body = SourceBody::Function(&mut function.body);
+        let mut ordinals = std::collections::BTreeSet::new();
+        for site in sites {
+            let SemanticSiteRecipeKind::TypeUse { expected } = &site.kind else {
+                continue;
+            };
+            let located = body
+                .locate(&site.occurrence_path[1..], &mut budget, function.span)
+                .unwrap()
+                .unwrap();
+            if !matches!(
+                located.node,
+                body_nodes::Node::Expression(s::Expr {
+                    kind: s::ExprKind::String(_),
+                    ..
+                })
+            ) {
+                continue;
+            }
+            let implicit = definition
+                .implicit_lifetimes
+                .iter()
+                .find(|row| row.occurrence_path == site.occurrence_path)
+                .unwrap();
+            assert!(ordinals.insert(implicit.ordinal));
+            let node = site_nodes.iter().find(|row| row.site == site.id).unwrap();
+            let SemanticOriginalNode::Expression(expression) = node.node else {
+                panic!()
+            };
+            // The value retains its independently inferred literal type;
+            // registering a shortening anchor does not replace Static by it.
+            assert_eq!(
+                expected,
+                &SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Expression(expression),
+                }
+            );
+        }
+        assert_eq!(ordinals.len(), 2);
     }
 
     #[test]
