@@ -204,7 +204,7 @@ mod shared_type_tests {
     fn checked_value_shares_only_type_storage_and_raw_export_pays_real_copy(){
         let original=value();let mut copied=original.clone();
         assert!(std::rc::Rc::ptr_eq(&original.type_cell,&copied.type_cell));
-        copied.life.binder_count=1;copied.classes.push(ClassKey::Formal{scope:ScopeKey::Instance(SemanticInstanceId(0)),ordinal:0});
+        copied.life.binder_count=1;copied.classes.push(ClassKey::Formal{scope:ScopeKey::Instance(SemanticInstanceId { module: ModuleId(0), index: 0 }),ordinal:0});
         assert_eq!(original.life.binder_count,0);assert!(original.classes.is_empty());
         let mut b=crate::Budget::new(&Limits::default());
         assert!(original.same_raw_type(&copied,&mut b).unwrap());
