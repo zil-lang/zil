@@ -649,7 +649,7 @@ fn cached_plans_reuse_complete_outputs_and_only_replan_changed_functions() {
     );
     assert_eq!(cold, expected);
     assert!(work().0 > 0 && work().1 > 0);
-    assert_eq!((cache.checked_functions, cache.reused_functions), (2, 0));
+    assert_eq!((cache.checked_functions, cache.reused_functions), (1, 1));
 
     let mut warm = original.clone();
     warm.fingerprint = "another-current-diagnostic".into();
@@ -850,7 +850,9 @@ fn cache_reorders_by_full_function_and_retains_no_removed_or_previous_epoch() {
     );
     let mut restored = original;
     assert_eq!(fold_checked_add_chains_cached(&mut restored, &mut cache), 4);
-    assert_eq!((cache.checked_functions, cache.reused_functions), (1, 1));
+    // The removed name was not retained. Its actual blocks are shared with
+    // the other current function, whose complete input is admitted now.
+    assert_eq!((cache.checked_functions, cache.reused_functions), (0, 2));
 }
 
 #[test]

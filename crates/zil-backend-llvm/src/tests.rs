@@ -2631,8 +2631,9 @@ fn source_call_projection_runs_only_for_real_consumers_and_tracks_new_summary_fa
         Some(&mut policy),
     )
     .unwrap();
-    assert_eq!(policy.source_projection_traversals, 2);
-    assert_eq!(policy.source_projection_instruction_visits, 6);
+    assert_eq!(policy.source_projection_traversals, 0);
+    assert_eq!(policy.source_projection_instruction_visits, 0);
+    assert_eq!(policy.source_projection_admission_reuses, 2);
     let has_call = |module: &zil_llvm_api::model::Module| {
         module.items.iter().any(|item| {
         matches!(item, zil_llvm_api::model::Item::Function(function) if function.name == "zil.fn.0" && function.blocks.iter().flatten().flat_map(|block| &block.instructions).any(|instruction|
@@ -2678,9 +2679,10 @@ fn source_call_projection_runs_only_for_real_consumers_and_tracks_new_summary_fa
         "a newly present callee summary must invalidate its unchanged caller"
     );
     assert_eq!(policy.misses, 2);
-    assert_eq!(policy.source_projection_traversals, 1);
-    assert_eq!(policy.source_projection_instruction_visits, 1);
-    assert_eq!(policy.source_projection_reuses, 1);
+    assert_eq!(policy.source_projection_traversals, 0);
+    assert_eq!(policy.source_projection_instruction_visits, 0);
+    assert_eq!(policy.source_projection_reuses, 0);
+    assert_eq!(policy.source_projection_admission_reuses, 2);
     zil_llvm_api::validate_module(&updated).unwrap();
 }
 

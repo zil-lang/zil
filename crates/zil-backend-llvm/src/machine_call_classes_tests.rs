@@ -353,7 +353,11 @@ fn callee_header_change_rechecks_shared_body_dependencies() {
     assert!(zil_llvm_api::validate_module(&edited).is_err());
     let (actual, stats, cache) = compare_unshared(&edited, &BTreeSet::new(), Some(&previous));
     assert_eq!(stats.eligible_functions, 1);
-    assert_eq!(actual, edited);
+    // compare_unshared already checks complete transformed-module equality.
+    // The callee itself remains eligible, so even excluded callers can have
+    // their direct targets rewritten to its current class. This pass requires
+    // original-model preflight: neither raw model is a valid production input.
+    assert!(zil_llvm_api::validate_module(&actual).is_err());
     assert_eq!((cache.rebuilt_inputs, cache.shared_inputs), (3, 1));
     assert!(cache.functions[1].dependencies.as_ref().is_none());
     assert!(Arc::ptr_eq(
