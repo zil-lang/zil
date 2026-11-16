@@ -10,7 +10,7 @@ pub(crate) struct PendingCallable {
 }
 impl CheckedContext {
     pub(super) fn defer_callable_shapes(&self,module:&TypedModule,external:&mut dynamic_witness::semantic_external::Proofs,checked:&std::collections::BTreeSet<SemanticInstanceId>,b:&mut Budget)->Check<()> {
-        if !external.pending_statics.is_empty(){return Err(unsupported("structural Static capability retains its complete actual source obligation",None));}
+        for(_,row)in std::mem::take(&mut external.pending_statics){task_domains::defer_static_occurrence(module,&row,b)?;}
         let program=module.semantic.as_ref().ok_or_else(||bad("Callable entry obligation has no original programme"))?;
         for request in std::mem::take(&mut external.callable_shapes){
             charge(&request,b)?;let definition=closure(module,request.closure,request.function,b)?;

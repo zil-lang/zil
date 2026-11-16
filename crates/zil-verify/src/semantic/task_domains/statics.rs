@@ -13,7 +13,7 @@ fn declared<'a>(module:&'a TypedModule,id:ClosureId,b:&mut Budget)->Check<&'a Cl
     if entry.storage_life.as_ref()!=Some(header){return Err(bad("Task static occurrence changes its exact actual entry header"));}
     Ok(definition)
 }
-fn occurrence(module:&TypedModule,id:ClosureId,position:&StoragePosition,b:&mut Budget)->Check<StaticOccurrence>{
+pub(super) fn occurrence(module:&TypedModule,id:ClosureId,position:&StoragePosition,b:&mut Budget)->Check<StaticOccurrence>{
     let definition=declared(module,id,b)?;
     let header=definition.storage_life.as_ref().unwrap();
     b.spend(header.static_bindings.len().saturating_mul(position.path.len().saturating_add(1)))?;

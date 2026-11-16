@@ -274,6 +274,7 @@ pub(super) fn static_leaf<'a>(
             (ContractProjection::Place(PlaceProjection::Field(i)), Type::Tuple(fields)) => fields
                 .get(*i as usize)
                 .ok_or_else(|| bad("static tuple occurrence is absent"))?,
+            (ContractProjection::Place(PlaceProjection::Field(i)),Type::Array{element,length})if (*i as usize)<(*length as usize)=>element.as_ref(),
             (
                 ContractProjection::Place(PlaceProjection::Variant(VariantProjection {
                     variant,

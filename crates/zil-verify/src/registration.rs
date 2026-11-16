@@ -121,10 +121,19 @@ fn closed(
             }
         }
         code_queue.push(c.function);
-        let mut fields = c.captures.iter().collect::<Vec<_>>();
-        while let Some(t) = fields.pop() {
+        if let Some(header)=c.storage_life.as_ref().filter(|header|!header.static_bindings.is_empty()){
+            if header.fixed_binder_count!=0{return Err(error(span,"Static ClosedEnvironment cannot erase free or phantom classes"));}
+            signature_life::closure_relation_resource_scopes(module,&c.parameters,&c.captures,c.kind,stored_callables::life_result(c),header,span,budget)?;
+        }
+        let mut fields=c.captures.iter().enumerate().map(|(index,ty)|(ty,Some(StoragePosition{base:StorageBase::Capture(index as u32),path:vec![]}),false)).collect::<Vec<_>>();
+        while let Some((t,position,static_pointee))=fields.pop(){
             budget.spend(1)?;
-            match t {
+            match t{
+                Type::Address{mutable:false,inner}if !static_pointee&&position.as_ref().is_some_and(|position|c.storage_life.as_ref().is_some_and(|header|header.static_bindings.contains(position)))=>{
+                    crate::semantic::task_domains::defer_static_capture(module,c.id,position.as_ref().unwrap(),budget)?;
+                    fields.push((inner,None,true));
+                },
+                Type::Slice{element}if static_pointee=>fields.push((element,None,true)),
                 Type::AsyncRegistration { .. } => {
                     return Err(unsupported(
                         "ClosedEnvironment cannot retain a pollable registration with asynchronous teardown",
@@ -170,35 +179,21 @@ fn closed(
                         }
                     }
                     budget.spend(1)?;
-                    fields.push(p);
+                    fields.push((p,None,static_pointee));
                 }
-                Type::BorrowedStorage { storage: p, .. }
-                | Type::Opaque { hidden: p, .. }
-                | Type::OwnedStore { element: p }
-                | Type::Registration { environment: p }
-                | Type::Array { element: p, .. } => {
-                    budget.spend(1)?;
-                    fields.push(p)
-                }
-                Type::Tuple(ts) => {
-                    budget.spend(ts.len())?;
-                    fields.extend(ts)
-                }
-                Type::Package { fields: fs, .. } | Type::Record { fields: fs, .. } => {
-                    budget.spend(fs.len())?;
-                    fields.extend(fs.iter().map(|(_, t)| t))
-                }
-                Type::Enum { variants, .. } => {
-                    budget.spend(variants.len())?;
-                    for (_, ts) in variants {
-                        budget.spend(ts.len())?;
-                        fields.extend(ts)
-                    }
-                }
-                Type::ErrorUnion { error, result } => {
-                    budget.spend(2)?;
-                    fields.extend([error.as_ref(), result.as_ref()])
-                }
+                Type::BorrowedStorage{storage:p,life}=>{
+                    if life.binder_count!=0{return Err(error(span,"ClosedEnvironment retains an independent nominal or phantom class"));}
+                    budget.spend(1)?;fields.push((p,position,static_pointee));
+                },
+                Type::Opaque{hidden:p,..}|Type::OwnedStore{element:p}|Type::Registration{environment:p}=>{budget.spend(1)?;fields.push((p,None,static_pointee));},
+                Type::Array{element,length}=>{
+                    if *length as usize>budget.limits.max_nodes{return Err(limit("closed capture array directory exceeded"));}budget.spend(*length as usize)?;
+                    for index in 0..*length{fields.push((element,closed_field_position(&position,PlaceProjection::Field(index as u32),budget)?,static_pointee));}
+                },
+                Type::Tuple(ts)=>{budget.spend(ts.len())?;for(index,t)in ts.iter().enumerate(){fields.push((t,closed_field_position(&position,PlaceProjection::Field(index as u32),budget)?,static_pointee));}},
+                Type::Package{fields:fs,..}|Type::Record{fields:fs,..}=>{budget.spend(fs.len())?;for(index,(_,t))in fs.iter().enumerate(){fields.push((t,closed_field_position(&position,PlaceProjection::Field(index as u32),budget)?,static_pointee));}},
+                Type::Enum{variants,..}=>{budget.spend(variants.len())?;for(variant,(_,ts))in variants.iter().enumerate(){budget.spend(ts.len())?;for(index,t)in ts.iter().enumerate(){fields.push((t,closed_field_position(&position,PlaceProjection::Variant(VariantProjection{variant:variant as u32,index:index as u32}),budget)?,static_pointee));}}},
+                Type::ErrorUnion{error,result}=>{budget.spend(2)?;fields.push((error,closed_field_position(&position,PlaceProjection::ErrorArm(true),budget)?,static_pointee));fields.push((result,closed_field_position(&position,PlaceProjection::ErrorArm(false),budget)?,static_pointee));}
                 Type::BorrowedFunctionPointer { .. }
                 | Type::FunctionPointer { .. }
                 | Type::ForeignCallback { .. }
@@ -265,6 +260,9 @@ fn closed(
         }
     }
     Ok(())
+}
+fn closed_field_position(parent:&Option<StoragePosition>,step:PlaceProjection,b:&mut Budget)->Check<Option<StoragePosition>>{
+    let Some(parent)=parent else{return Ok(None);};dynamic_metadata::position(parent,b)?;let mut child=parent.clone();child.path.push(ContractProjection::Place(step));Ok(Some(child))
 }
 pub(super) fn instruction(
     module: &TypedModule,
@@ -680,4 +678,40 @@ pub(crate) fn transfer_callback(
     budget: &mut Budget,
 ) -> Check<()> {
     threaded::actual(module, id, span, budget)
+}
+
+#[cfg(test)]
+mod static_capture_tests{
+    use super::*;
+    #[test]
+    fn closed_static_capture_keeps_exact_nested_slot_and_final_grounding_raw_wire(){
+        let limits=Limits::default();
+        let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
+        let leaf=Type::Address{mutable:false,inner:Box::new(Type::Slice{element:Box::new(Type::U8)})};
+        let position=StoragePosition{base:StorageBase::Capture(0),path:vec![ContractProjection::Place(PlaceProjection::Field(0))]};
+        let header=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],static_bindings:vec![position.clone()],classes:vec![]};
+        let entry=&mut module.functions[0];entry.environment=Some(ClosureId(0));entry.storage_life=Some(header.clone());entry.parameters.clear();entry.locals.clear();entry.values=vec![Type::I32];entry.return_type=Type::I32;
+        entry.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::Constant(Constant::I32(0)),span}];entry.blocks[0].terminator=Terminator::Return(Some(ValueId(0)));
+        module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![Type::Tuple(vec![leaf,Type::I32])],parameters:vec![],result:Type::I32,kind:CallableKind::Fn,storage_life:Some(header),lending_captures:vec![]});
+        for mutation in 0..5{
+            let mut proposed=module.clone();
+            match mutation{
+                1=>proposed.closures[0].storage_life.as_mut().unwrap().static_bindings[0].path[0]=ContractProjection::Place(PlaceProjection::Field(1)),
+                2=>{let Type::Tuple(fields)=&mut proposed.closures[0].captures[0]else{unreachable!()};let Type::Address{mutable,..}=&mut fields[0]else{unreachable!()};*mutable=true;},
+                3=>proposed.functions[0].call_kind=CallKind::Suspend,
+                4=>proposed.closures[0].storage_life=None,
+                _=>{},
+            }
+            proposed.functions[0].storage_life=proposed.closures[0].storage_life.clone();
+            let plan=CandidatePlan::empty_for(&proposed);
+            for wire in [false,true]{
+                let decoded;let current=if wire{let bytes=zil_ir::wire::encode_module_candidate(&proposed,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;&decoded}else{&proposed};
+                let mut b=Budget::new(&limits);let result=semantic_closed_environment(current,ClosureId(0),&mut b);
+                if mutation==0{
+                    result.unwrap();assert!(b.proven_static_occurrences.is_empty());assert!(b.static_borrow_occurrences);assert!(b.semantic_static_occurrences.contains(&(ClosureId(0),position.clone())));
+                    assert!(crate::semantic::callable_obligations::drain(current,&mut b).is_err(),"a structural Static row is no actual source proof, wire {wire}");
+                }else{assert!(result.is_err(),"closed Static capture attack {mutation}, wire {wire}");}
+            }
+        }
+    }
 }

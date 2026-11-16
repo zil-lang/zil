@@ -1496,12 +1496,28 @@ pub(super) fn defer_zero_header_statics(module:&TypedModule,value:&CheckedType,b
     statics::validate(module,&value.ty,&value.statics,b)?;
     let declared=statics::pending(module,&value.ty,b)?;
     for row in declared.iter().chain(&value.statics){
-        let StaticOccurrence::Logical{closure,position,..}=row else{return Ok(false);};
+        let StaticOccurrence::Logical{position,..}=row else{return Ok(false);};
         if !matches!(position.base,StorageBase::Capture(_)|StorageBase::Result){return Ok(false);}
-        dynamic_metadata::position(position,b)?;
-        b.spend(b.semantic_static_occurrences.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
-        if b.semantic_static_occurrences.len()>=b.limits.max_nodes{return Err(limit("semantic logical Static occurrence inventory exceeded"));}
-        b.semantic_static_occurrences.insert((*closure,position.clone()));
+        defer_static_occurrence(module,row,b)?;
     }
     Ok(true)
+}
+
+/// Queue a logical declaration for final grounding, never as an actual root or
+/// permission. Nonlogical Static values still need their own operand proof.
+pub(crate) fn defer_static_occurrence(module:&TypedModule,row:&StaticOccurrence,b:&mut Budget)->Check<()>{
+    let StaticOccurrence::Logical{closure,position,..}=row else{return Err(unsupported("direct Static capability requires its complete actual operand source proof",None));};
+    let declared=statics::occurrence(module,*closure,position,b)?;
+    if &declared!=row||!matches!(position.base,StorageBase::Capture(_)|StorageBase::Result){return Err(bad("logical Static capability changes its complete actual closure/slot/leaf/mode"));}
+    dynamic_metadata::position(position,b)?;
+    b.spend(b.semantic_static_occurrences.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+    if b.semantic_static_occurrences.len()>=b.limits.max_nodes{return Err(limit("semantic logical Static occurrence inventory exceeded"));}
+    b.semantic_static_occurrences.insert((*closure,position.clone()));
+    // Scheduling only: force the existing complete actual least-root pass and
+    // its unmasked constructor/write/Return inventory before final discharge.
+    b.static_borrow_occurrences=true;Ok(())
+}
+pub(crate) fn defer_static_capture(module:&TypedModule,closure:ClosureId,position:&StoragePosition,b:&mut Budget)->Check<()>{
+    let row=statics::occurrence(module,closure,position,b)?;
+    defer_static_occurrence(module,&row,b)
 }
