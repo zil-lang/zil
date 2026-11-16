@@ -309,6 +309,54 @@ impl Check<'_, '_> {
         let geometry = self.inventory.geometry.resolved(ty, life, b)?;
         let ty = &geometry.ty;
         let life = &geometry.life;
+        if let Some(SemanticClassExpr::IntrinsicClass {
+            operand: SemanticOperand::Value(source), path, ..
+        }) = classes.first() && path.is_empty() {
+            // Whole-SSA identity transport reads a separately reconstructed
+            // complete value. It cannot let a claim supply its own RHS class,
+            // change the child directory, or turn a same-shaped Type into a
+            // different source. Nonidentity/projected recipes retain their
+            // dedicated checked consumers.
+            for (ordinal, expression) in classes.iter().enumerate() {
+                b.spend(1, WORK)?;
+                if !matches!(expression, SemanticClassExpr::IntrinsicClass {
+                    operand: SemanticOperand::Value(actual), path, class,
+                } if actual == source && path.is_empty() && *class as usize == ordinal) {
+                    return Err(unknown("whole SSA class transport needs its complete canonical child coordinates"));
+                }
+            }
+            let key = (context.id, *source);
+            {
+                let mut active = self.value_queries.borrow_mut();
+                b.lookup(active.len(), WORK)?;
+                if active.len() >= b.helper_nodes {
+                    return Err(vec![zil_base::Diagnostic::limit(zil_base::Phase::Analyze,
+                        "whole SSA class source queries exceed their finite node limit", None)]);
+                }
+                if !active.insert(key) {
+                    return Err(fail("whole SSA class source is cyclic without an independent completed value"));
+                }
+            }
+            let result = (|| {
+            let SemanticInstanceTarget::Function(target) = &context.target else {
+                return Err(fail("whole SSA class transport has no actual function world"));
+            };
+            let function = self.inventory.function(target, b)?;
+            let actual = self.ssa_value(context, function, *source, b, depth + 1)?;
+            crate::dyn_metadata::shape(&actual.life, b)?;
+            crate::dyn_metadata::shape(life, b)?;
+            if !geometry::same_type(&actual.ty, ty, b)?
+                || actual.life != *life
+                || actual.classes.len() != classes.len()
+                || classes.len() != life.binder_count as usize
+            {
+                return Err(fail("whole SSA claim changes its complete actual Type, domain or class directory"));
+            }
+            Ok(actual)
+            })();
+            self.value_queries.borrow_mut().remove(&key);
+            return result;
+        }
         match ty {
             Type::MutexGuard { .. } => {
                 self.ordinary_type_at(ty, b, depth + 1)?;

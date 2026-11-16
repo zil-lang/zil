@@ -421,6 +421,7 @@ impl Solver<'_, '_> {
             ) {
                 return self.expression(frame, value, b, depth + 1);
             }
+            self.record_environment_read(frame, index, value.id, b)?;
             if index < frame.inherited {
                 b.lookup(frame.captured.len(), WORK)?;
                 frame.captured.insert(index, term);

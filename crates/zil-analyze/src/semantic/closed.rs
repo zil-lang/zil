@@ -56,6 +56,7 @@ struct Check<'a, 'i> {
     inventory: &'i Inventory<'a>,
     original: &'i original::Checked,
     scope_queries: std::cell::RefCell<BTreeSet<ClosureId>>,
+    value_queries: std::cell::RefCell<BTreeSet<(SemanticInstanceId, ValueId)>>,
     trait_queries: std::cell::RefCell<Vec<traits::ActiveQuery>>,
     nominal_definitions: std::cell::RefCell<BTreeMap<LifeDeclarationId, SemanticDefinitionId>>,
 }
@@ -995,6 +996,7 @@ pub(super) fn check(
         inventory,
         original,
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
+        value_queries: std::cell::RefCell::new(BTreeSet::new()),
         trait_queries: std::cell::RefCell::new(Vec::new()),
         nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),
     };

@@ -1459,7 +1459,7 @@ impl Solver<'_, '_> {
                 .get(&target)
                 .ok_or_else(|| fail("original opaque result has no checked declaration body"))?
                 .result;
-            Some(self.instantiate(checked, target, &frame.formals, b, depth + 1)?)
+            Some(checked)
         } else {
             None
         };
@@ -1499,7 +1499,10 @@ impl Solver<'_, '_> {
             }
             self.premise_needs(&frame, &definition.requirements, b)?;
             let result = if let Some(opaque) = opaque {
-                opaque
+                // Open this result in the same exact call-local implicit
+                // frame as its parameters. The declaration remains rigid;
+                // each invocation gets its own source-to-use substitution.
+                self.instantiate(opaque, target, &frame.formals, b, depth + 1)?
             } else {
                 self.recipe(&frame, &signature.result, b, depth + 1)?
             };

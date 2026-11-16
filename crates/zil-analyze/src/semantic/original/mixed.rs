@@ -457,6 +457,15 @@ impl Solver<'_, '_> {
                 let life = self.instantiate(life, owner, actuals, b, depth + 1)?;
                 self.term(Kind::MutexGuard { payload, life }, b)
             }
+            Kind::Life(Life::Implicit(target, ordinal)) if target == owner => {
+                for role in self.role_frames.iter().rev() {
+                    b.lookup(role.implicits.len(), WORK)?;
+                    if role.owner == owner && let Some(actual) = role.implicits.get(&ordinal) {
+                        return Ok(*actual);
+                    }
+                }
+                Ok(term)
+            }
             Kind::Rigid(target, ordinal) | Kind::Life(Life::Formal(target, ordinal))
                 if target == owner =>
             {

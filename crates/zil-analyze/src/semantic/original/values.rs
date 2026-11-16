@@ -715,21 +715,17 @@ impl Checked {
                     {
                         continue;
                     }
-                    if world.parent.is_some()
-                        || world.environment.is_some()
-                        || world.self_type.is_some()
-                        || !world.header_embedding.is_empty()
-                        || world.lifetime_instantiation != SemanticLifetimeInstantiation::Rigid
-                    {
-                        return Err(unknown(
-                            "shared call result needs its exact lexical and class-bearing target context",
-                        ));
-                    }
+                    // Each world retains its independently checked lexical
+                    // parent, Self, environment and header. None is selected
+                    // as a representative of the caller's result classes.
+                    // The original result below is instantiated in this exact
+                    // caller's checked scheme, while every callee world must
+                    // satisfy the same complete mixed boundary structurally.
                     if world.actuals.len() != call.actuals.len() {
                         return Err(fail("shared result world changes its full mixed arity"));
                     }
-                    for ((original, proposed), actual) in
-                        call.actuals.iter().zip(actuals).zip(&world.actuals)
+                    for (ordinal, ((original, proposed), actual)) in
+                        call.actuals.iter().zip(actuals).zip(&world.actuals).enumerate()
                     {
                         let expected =
                             self.argument(*original, context, program, inventory, b, depth + 1)?;
@@ -737,10 +733,27 @@ impl Checked {
                             self.result_world_argument(context, proposed, inventory, b, depth + 1)?;
                         let actual =
                             self.result_world_argument(world, actual, inventory, b, depth + 1)?;
-                        if proposed != expected || actual != expected {
-                            return Err(fail(
-                                "shared result world differs from its complete original call actual",
-                            ));
+                        if proposed != expected {
+                            return Err(fail("shared result receipt differs from its complete caller-domain original actual"));
+                        }
+                        let valid = match (&expected, &actual) {
+                            (Argument::Life(_), Argument::Life(Class::Formal(owner, index))) =>
+                                *owner == world.id && *index as usize == ordinal,
+                            (Argument::Type(expected), Argument::Type(actual)) => {
+                                // Classes belong to different original worlds.
+                                // Compare full N/shape and physical Type here;
+                                // actual header/input/result class equations
+                                // remain separate boundary obligations.
+                                geometry::same_type(&expected.ty, &actual.ty, b)?
+                                    && expected.life == actual.life
+                                    && expected.classes.len() == actual.classes.len()
+                            }
+                            (Argument::Const { carrier: expected, value }, Argument::Const { carrier: actual, value: actual_value }) =>
+                                geometry::same_type(expected, actual, b)? && value == actual_value,
+                            _ => false,
+                        };
+                        if !valid {
+                            return Err(fail("shared result world changes its independently checked rigid mixed boundary"));
                         }
                     }
                 }
@@ -776,9 +789,8 @@ impl Checked {
         Ok(result)
     }
 
-    /// A shared code result with no contextual selector can use only complete
-    /// class-free actuals. Inspect the whole intrinsic domain, including opaque
-    /// closure N and phantom rows; equal physical layouts do not prove this.
+    /// Resolve a proposed boundary in its own exact original world. Full class
+    /// images are retained; comparing worlds does not identify their classes.
     fn result_world_argument(
         &self,
         context: &SemanticInstance,
@@ -791,19 +803,12 @@ impl Checked {
         let (input, constant) = match actual {
             SemanticActual::Type(input) => (input, None),
             SemanticActual::Const { ty, value } => (ty, Some(value)),
-            SemanticActual::Life(_) => {
-                return Err(unknown(
-                    "shared call result lifetime actual needs its exact contextual boundary",
-                ));
+            SemanticActual::Life(life) => {
+                return Ok(Argument::Life(value::class(context, life, inventory, b, depth + 1)?));
             }
             _ => return Err(fail("shared call result contains an unmaterialized actual")),
         };
         let value = value::resolved(context, input, inventory, b, depth)?;
-        if value.life != value::empty() || !value.classes.is_empty() {
-            return Err(unknown(
-                "shared call result preserves distinct intrinsic class worlds",
-            ));
-        }
         if let Some(constant) = constant {
             if constant.ty() != value.ty {
                 return Err(fail(

@@ -773,19 +773,24 @@ impl Check<'_, '_> {
     }
     pub(super) fn has_ghost_capture(&self, id: ClosureId, b: &mut Budget) -> CompileResult<bool> {
         b.spend(self.module.closures.len().saturating_add(1), WORK)?;
-        Ok(self
-            .module
-            .closures
-            .get(id.0 as usize)
+        let definition = self.module.closures.get(id.0 as usize)
             .filter(|definition| definition.id == id)
-            .is_some_and(|definition| {
-                definition
-                    .captures
-                    .iter()
-                    // This only selects the stronger complete source-environment
-                    // proof; it supplies no class count or memory permission.
-                    .any(|ty| !ty.is_b0_scalar()&&!matches!(ty,Type::Address {mutable:false,inner} if inner.is_b0_scalar()))
-            }))
+            .ok_or_else(|| fail("capture transport has no actual closure definition"))?;
+        b.spend(definition.captures.len(), WORK)?;
+        if definition.captures.iter().any(|ty| !ty.is_b0_scalar()
+            && !matches!(ty, Type::Address { mutable: false, inner } if inner.is_b0_scalar()))
+        { return Ok(true); }
+        // A moved reference has the complete class of the original lexical
+        // value. It is not an extra implicit Address borrowing a scalar slot.
+        // Metadata only selects the stronger all-creators proof; it cannot
+        // establish either mode, the source class or a captured permission.
+        for world in self.function_worlds(definition.function, b)? {
+            b.spend(world.header_embedding.len(), WORK)?;
+            if world.header_embedding.iter().any(|row| matches!(row.header, StorageBinder::Fixed(_))
+                && !matches!(row.actual, SemanticClassExpr::Implicit { scope: SemanticScopeRef::Ancestor(0), .. }))
+            { return Ok(true); }
+        }
+        Ok(false)
     }
     pub(super) fn defining<'a>(
         &self,
@@ -1535,12 +1540,11 @@ impl Check<'_, '_> {
                 closure: id,
                 captures,
             } => {
-                if !self.has_ghost_capture(*id, b)? {
-                    return Err(unknown(
-                        "closure result needs its complete actual borrowed-head transport",
-                    ));
+                if self.has_ghost_capture(*id, b)? {
+                    self.ghost_creator(instance, *id, captures, b)?;
+                } else {
+                    self.creator_heads(instance, *id, captures, b)?;
                 }
-                self.ghost_creator(instance, *id, captures, b)?;
                 if *ty != Type::Closure(*id) {
                     return Err(fail(
                         "actual closure result changes its real constructed identity",
@@ -1623,7 +1627,6 @@ impl Check<'_, '_> {
                 if let Some(value) = self.trait_result(instance, function, block, index, b)? {
                     return Ok(value);
                 }
-                let target = self.function_instance(*callee, b)?;
                 let expected_parameters =
                     self.static_call_values(instance, function, block, index, *callee, b)?;
                 if expected_parameters.len() != arguments.len() {
@@ -1779,13 +1782,10 @@ impl Check<'_, '_> {
                         nominal_arguments: Vec::new(),
                     },
                 };
-                // Target context is checked separately; it cannot be replaced
-                // by a same-shaped function or caller's lifetime coincidence.
-                if target.definition != self.inventory.definition(target.definition, b)?.id {
-                    return Err(fail(
-                        "callee class transport changes its original definition",
-                    ));
-                }
+                // static_call_values checked every actual target world against
+                // this exact original call receipt. The result classes above
+                // come only from the caller's original complete input roles;
+                // no callee-world representative or class coincidence is used.
                 Ok(Value::new(ty.clone(), shape, classes))
             }
             _ => {

@@ -293,6 +293,9 @@ impl Solver<'_, '_> {
     ) -> CompileResult<()> {
         self.step(depth, b)?;
         b.spend(left.work().saturating_add(right.work()), WORK)?;
+        let left = self.task_canonical(left, b, depth + 1)?;
+        let right = self.task_canonical(right, b, depth + 1)?;
+        let (left, right) = (&left, &right);
         // Leaf indices are private directory coordinates, not original
         // lifetime identities. Each complete constructor and every edge is
         // compared; repeated occurrences remain repeated and are not merged
@@ -338,6 +341,135 @@ impl Solver<'_, '_> {
             }
         }
         Ok(())
+    }
+    // Only complete original closedness can collapse an AllClasses expansion
+    // to zero; one known Address occurrence is kept separately from its
+    // proved-zero pointee. Unknown/opaque domains retain the symbolic All.
+    fn task_known_domain(&self, term: Term, b: &mut Budget, depth: usize) -> CompileResult<Option<Vec<Term>>> {
+        self.step(depth, b)?;
+        if self.capability(term, SemanticBuiltinTrait::ClosedEnvironment, b, depth + 1)? {
+            return Ok(Some(Vec::new()));
+        }
+        if let Kind::Address { life, inner, .. } = self.state.arena[self.type_root(term, b)?]
+            && self.capability(inner, SemanticBuiltinTrait::ClosedEnvironment, b, depth + 1)?
+        {
+            let mut result = Vec::new();
+            Self::push(&mut result, life, b)?;
+            return Ok(Some(result));
+        }
+        Ok(None)
+    }
+    fn task_canonical_sequence(&self, source: &TaskType, sequence: &[Sequence], out: &mut TaskType,
+        b: &mut Budget, depth: usize) -> CompileResult<Vec<Sequence>> {
+        self.step(depth, b)?;
+        let mut result = Vec::new();
+        for part in sequence {
+            let (slot, path) = match part { Sequence::One(slot) => (*slot, None), Sequence::All(slot, path) => (*slot, Some(path)) };
+            let term = *source.leaves.get(slot).ok_or_else(|| fail("Task expansion omits its exact original leaf"))?;
+            if let Some(path) = path {
+                if path.is_empty() && let Some(classes) = self.task_known_domain(term, b, depth + 1)? {
+                    for class in classes {
+                        let index = self.task_leaf(&mut out.leaves, class, b)?;
+                        Self::push(&mut result, Sequence::One(index), b)?;
+                    }
+                } else {
+                    b.spend(path.len(), WORK)?;
+                    let index = self.task_leaf(&mut out.leaves, term, b)?;
+                    Self::push(&mut result, Sequence::All(index, path.clone()), b)?;
+                }
+            } else {
+                let index = self.task_leaf(&mut out.leaves, term, b)?;
+                Self::push(&mut result, Sequence::One(index), b)?;
+            }
+        }
+        Ok(result)
+    }
+    fn task_domain_images(&mut self, task: &TaskType, images: &[Sequence], expected: &[Term],
+        b: &mut Budget, depth: usize) -> CompileResult<()> {
+        self.step(depth, b)?;
+        if images.len() != expected.len() { return Err(fail("Task FromType changes its complete original child domain")); }
+        for (image, expected) in images.iter().zip(expected) {
+            let Sequence::One(slot) = image else { return Err(fail("Task known child lacks its exact original class occurrence")); };
+            let actual = *task.leaves.get(*slot).ok_or_else(|| fail("Task child image is outside its complete directory"))?;
+            self.unify(actual, *expected, depth + 1, b)?;
+        }
+        Ok(())
+    }
+    fn task_canonical(&mut self, source: &TaskType, b: &mut Budget, depth: usize) -> CompileResult<TaskType> {
+        self.step(depth, b)?;
+        let mut out = TaskType { result: source.result, retained: Retained::default(), leaves: Vec::new() };
+        out.retained.domain = self.task_canonical_sequence(source, &source.retained.domain, &mut out, b, depth + 1)?;
+        for port in &source.retained.ports {
+            let port = match port {
+                Port::One(leaf, mode, class) => Port::One(
+                    self.task_leaf(&mut out.leaves, source.leaves[*leaf], b)?, *mode,
+                    self.task_leaf(&mut out.leaves, source.leaves[*class], b)?),
+                Port::From(leaf, sequence) => {
+                    let term = source.leaves[*leaf];
+                    let images = self.task_canonical_sequence(source, sequence, &mut out, b, depth + 1)?;
+                    if let Some(classes) = self.task_known_domain(term, b, depth + 1)? {
+                        self.task_domain_images(&out, &images, &classes, b, depth + 1)?;
+                        if classes.is_empty() { continue; }
+                        let Kind::Address { mutable, .. } = self.state.arena[self.type_root(term, b)?] else {
+                            return Err(fail("Task known port has another original source kind"));
+                        };
+                        let [Sequence::One(class)] = images.as_slice() else { return Err(fail("Task Address port omits its exact original occurrence")); };
+                        Port::One(self.task_leaf(&mut out.leaves, term, b)?,
+                            if mutable { StoredBorrowMode::ExclusiveAddress } else { StoredBorrowMode::SharedAddress }, *class)
+                    } else {
+                        Port::From(self.task_leaf(&mut out.leaves, term, b)?, images)
+                    }
+                }
+            };
+            Self::push(&mut out.retained.ports, port, b)?;
+        }
+        for retained in &source.retained.retained {
+            match retained {
+                Retain::One(path, child, leaf) => {
+                    b.spend(path.len(), WORK)?;
+                    let leaf = self.task_leaf(&mut out.leaves, source.leaves[*leaf], b)?;
+                    Self::push(&mut out.retained.retained, Retain::One(path.clone(), *child, leaf), b)?;
+                }
+                Retain::All(path, sequence) => {
+                    let images = self.task_canonical_sequence(source, sequence, &mut out, b, depth + 1)?;
+                    if images.iter().all(|image| matches!(image, Sequence::One(_))) {
+                        for (child, image) in images.iter().enumerate() {
+                            let Sequence::One(leaf) = image else { unreachable!() };
+                            b.spend(path.len(), WORK)?;
+                            let child = u32::try_from(child).map_err(|_| resource("Task child ordinal overflow"))?;
+                            Self::push(&mut out.retained.retained, Retain::One(path.clone(), child, *leaf), b)?;
+                        }
+                    } else {
+                        b.spend(path.len(), WORK)?;
+                        Self::push(&mut out.retained.retained, Retain::All(path.clone(), images), b)?;
+                    }
+                }
+            }
+        }
+        for nominal in &source.retained.nominal {
+            match nominal {
+                Nominal::One(path, declaration, argument, leaf) => {
+                    b.spend(path.len(), WORK)?;
+                    let leaf = self.task_leaf(&mut out.leaves, source.leaves[*leaf], b)?;
+                    Self::push(&mut out.retained.nominal, Nominal::One(path.clone(), *declaration, *argument, leaf), b)?;
+                }
+                Nominal::From(path, leaf, sequence) => {
+                    let term = source.leaves[*leaf];
+                    let images = self.task_canonical_sequence(source, sequence, &mut out, b, depth + 1)?;
+                    if let Some(classes) = self.task_known_domain(term, b, depth + 1)? {
+                        self.task_domain_images(&out, &images, &classes, b, depth + 1)?;
+                        // Complete zero types, or an Address with a complete
+                        // zero pointee, have no phantom nominal occurrence.
+                        // The Address's outer class is still in domain/port.
+                        continue;
+                    }
+                    b.spend(path.len(), WORK)?;
+                    let leaf = self.task_leaf(&mut out.leaves, term, b)?;
+                    Self::push(&mut out.retained.nominal, Nominal::From(path.clone(), leaf, images), b)?;
+                }
+            }
+        }
+        Ok(out)
     }
     fn task_leaf_unify(&mut self, left: &TaskType, a: usize, right: &TaskType, z: usize,
         b: &mut Budget, depth: usize) -> CompileResult<()> {
@@ -714,16 +846,24 @@ impl Solver<'_, '_> {
                 self.task_input_shape(*parameter, &mut task, b, depth + 1)?;
                 Self::push(&mut inputs, *parameter, b)?;
             }
-            // A borrowed result needs an exact retained Result mapping; no
-            // result-pointee matching is allowed to invent its provenance.
-            if let Kind::Address { life, .. } = self.state.arena[self.type_root(result, b)?] {
-                let class = self.task_leaf(&mut task.leaves, life, b)?;
-                Self::push(
-                    &mut task.retained.retained,
-                    Retain::One(vec![LifeTypeProjection::Result], 0, class),
-                    b,
-                )?;
+            // Each real ordered input contributes its complete original
+            // whole domain and P_i mapping, including opaque/phantom children.
+            // task_input_shape above still proves this input family's source
+            // port qualification; it supplies no cleanup/Closed permission.
+            task.retained = Retained::default();
+            task.leaves.clear();
+            for (ordinal, input) in inputs.iter().enumerate() {
+                let ordinal = u32::try_from(ordinal).map_err(|_| resource("Task input ordinal overflow"))?;
+                let leaf = self.task_leaf(&mut task.leaves, *input, b)?;
+                Self::push(&mut task.retained.domain, Sequence::All(leaf, Vec::new()), b)?;
+                b.spend(3, WORK)?;
+                Self::push(&mut task.retained.ports, Port::From(leaf, vec![Sequence::All(leaf, Vec::new())]), b)?;
+                Self::push(&mut task.retained.retained, Retain::All(vec![LifeTypeProjection::Parameter(ordinal)], vec![Sequence::All(leaf, Vec::new())]), b)?;
+                Self::push(&mut task.retained.nominal, Nominal::From(vec![LifeTypeProjection::Parameter(ordinal)], leaf, vec![Sequence::All(leaf, Vec::new())]), b)?;
             }
+            let result_leaf = self.task_leaf(&mut task.leaves, result, b)?;
+            b.spend(2, WORK)?;
+            Self::push(&mut task.retained.retained, Retain::All(vec![LifeTypeProjection::Result], vec![Sequence::All(result_leaf, Vec::new())]), b)?;
             b.lookup(self.state.native_targets.len(), WORK)?;
             if self
                 .state

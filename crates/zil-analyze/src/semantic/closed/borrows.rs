@@ -171,10 +171,12 @@ impl Check<'_, '_> {
                 self.inventory,
                 b,
             )?;
-            if self.function_instance(callee, b)?.definition != target {
-                return Err(fail(
-                    "actual call role changes its original target definition",
-                ));
+            let worlds = self.function_worlds(callee, b)?;
+            if worlds.is_empty() { return Err(fail("actual call role has no complete target world")); }
+            for world in worlds {
+                if world.definition != target {
+                    return Err(fail("actual call role changes its original target definition"));
+                }
             }
             if selected.replace(values).is_some() {
                 return Err(fail("actual call has competing original input roles"));
