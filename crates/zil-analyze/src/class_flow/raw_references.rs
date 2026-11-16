@@ -2,6 +2,7 @@
 //! immutable type structure only; initializedness, classes and loans stay in
 //! the actual equation and memory passes.
 use super::*;
+use std::collections::BTreeMap;
 
 pub(super) fn nested(ty: &Type) -> bool {
     matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Address { .. } | Type::Desc(_)))

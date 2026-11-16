@@ -476,17 +476,6 @@ fn nested_reference_shape(
     Ok(StorageLifeShape { binder_count: count, slots, retained, nominal_arguments })
 }
 
-/// Check only the complete physical forest with fresh binder-coordinate
-/// symbols. This supplies no actual class equation or original premise.
-pub(super) fn check_address_domain(
-    ty: &Type, life: &StorageLifeShape, inventory: &Inventory<'_>, b: &mut Budget,
-) -> CompileResult<()> {
-    let geometry = inventory.geometry.resolved(ty, life, b)?;
-    let mut classes = Vec::new();
-    for binder in 0..life.binder_count { put(&mut classes, Class::Local(binder), b)?; }
-    pointee(&Value::from_geometry(geometry, classes), inventory, b)?;
-    Ok(())
-}
 pub(super) fn pointee(
     input: &Value,
     inventory: &Inventory<'_>,
