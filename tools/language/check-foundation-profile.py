@@ -23,6 +23,7 @@ def main():
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--jobs", type=int, choices=range(1, 5), default=4,
                         help="Independent compiler processes; 1..4 (default: 4)")
+    parser.add_argument("--work-profile", choices=("standard", "alpha"), default="standard")
     args = parser.parse_args()
     repo = args.repo.resolve()
     cli = args.cli.resolve()
@@ -42,7 +43,8 @@ def main():
             row["project_manifest_mismatches"] = mismatches
             row.update(status="SourceManifestMismatch", verification_runs=0)
             return row
-        command = [str(cli), "check", str(source), "--emit-dir", str(directory / "phases"), "--json"]
+        command = [str(cli), "check", str(source), "--work-profile", args.work_profile,
+                   "--emit-dir", str(directory / "phases"), "--json"]
         row["command"] = command
         try:
             run = subprocess.run(command, cwd=repo, capture_output=True, text=True, timeout=180)
@@ -55,6 +57,15 @@ def main():
             row.update(exit=run.returncode, status=report.get("status"),
                        verification_runs=report.get("verification_runs", 0),
                        diagnostics=report.get("diagnostics", []))
+            row.update(work_profile=report.get("work_profile"),
+                       work_profile_revision=report.get("work_profile_revision"),
+                       effective_limits=report.get("effective_limits"))
+            policy = json.loads((repo / "validation/language-alpha-resource-profile.json").read_text())
+            expected = policy["profiles"][args.work_profile]
+            row["work_policy_matches"] = (
+                row["work_profile"] == args.work_profile
+                and row["work_profile_revision"] == expected["revision"]
+                and row["effective_limits"] == expected["effective_limits"])
             for phase in ("core", "typed"):
                 path = directory / "phases" / (phase + ".txt")
                 dump = path.read_text() if path.exists() else ""
@@ -67,7 +78,7 @@ def main():
                                and type(row["verification_runs"]) is int
                                and row["verification_runs"] > 0
                                and row["core_original_complete"]
-                               and row["typed_original_complete"])
+                               and row["typed_original_complete"] and row["work_policy_matches"])
             else:
                 # Require the missing generic obligation itself. An
                 # unrelated reject or an unsupported phase is no success.
@@ -76,7 +87,7 @@ def main():
                     and "syncdrop" in json.dumps(diagnostic, ensure_ascii=False).casefold()
                     for diagnostic in row["diagnostics"])
                 row["pass"] = (run.returncode == 1 and row["status"] == "SafeReject"
-                               and intended and row["core_original_complete"])
+                               and intended and row["core_original_complete"] and row["work_policy_matches"])
         except subprocess.TimeoutExpired as error:
             (directory / "compiler.stdout").write_bytes(error.stdout or b"")
             (directory / "compiler.stderr").write_bytes(error.stderr or b"")
@@ -99,6 +110,7 @@ def main():
     receipt = {
         "candidate": subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip(),
         "cli_sha256": digest(cli), "profile_sha256": digest(profile_path),
+        "work_profile": args.work_profile,
         "scope": "Foundation source/check evidence; not native, C-provider or Alpha acceptance",
         "rows": rows, **totals,
     }
