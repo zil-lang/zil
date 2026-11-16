@@ -997,10 +997,12 @@ fn state_cost(s: &State, budget: &mut Budget) -> Check<()> {
 
 fn clone_state(s: &State, budget: &mut Budget) -> Check<State> {
     state_cost(s, budget)?;
+    if let Some(progress)=&mut budget.diagnostic_progress{progress.resource_state_clones=progress.resource_state_clones.saturating_add(1);}
     Ok(s.clone())
 }
 
 fn merge(target: &mut State, source: &State, budget: &mut Budget) -> Check<bool> {
+    if let Some(progress)=&mut budget.diagnostic_progress{progress.resource_state_joins=progress.resource_state_joins.saturating_add(1);}
     state_cost(source, budget)?;
     let mut changed = false;
     for (a, b) in target.retirement.iter_mut().zip(&source.retirement) {
@@ -3170,10 +3172,13 @@ fn run_with_slots(
     budget.spend(f.blocks.len().saturating_mul(2))?;
     let mut inputs = vec![None; f.blocks.len()];
     inputs[f.entry.0 as usize] = Some(initial);
+    // Every actual graph uses the same fair rank priority. It changes only
+    // visit order; each changed merge still requeues all real successors,
+    // including irreducible cycles, and final validation is unchanged.
     let mut pending = schedule::Worklist::new(
         graph,
         f.entry.0 as usize,
-        budget.pod_stores || (budget.store_option_results && budget.ordinary_error_places),
+        true,
         budget,
     )?;
     let mut queued = vec![false; f.blocks.len()];
@@ -3188,6 +3193,7 @@ fn run_with_slots(
         replacements,
     };
     while let Some(b) = pending.pop(budget)? {
+        if let Some(progress)=&mut budget.diagnostic_progress{progress.block_visits=progress.block_visits.saturating_add(1);}
         queued[b] = false;
         let mut output = clone_state(inputs[b].as_ref().expect("queued resource state"), budget)?;
         transfer.block(b, &mut output, false, &mut written, budget)?;

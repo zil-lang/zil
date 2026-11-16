@@ -109,6 +109,7 @@ impl<'a, 'b> Request<'a, 'b> {
         self.budget.spend(3)?; // Indexed binding, actual function, foreign discriminant.
         let function = &mut self.functions[index];
         let f = function.binding.function();
+        self.budget.diagnostic_actual("actual resource CFG",f.id,0);
         if f.foreign.is_some() {
             return Ok(BTreeSet::new());
         }

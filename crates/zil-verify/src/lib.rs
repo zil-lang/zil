@@ -380,6 +380,16 @@ struct DiagnosticProgress{
     resource_hits:usize,
     resource_registered_cold:usize,
     resource_unregistered_cold:usize,
+    actual_function:Option<FunctionId>,
+    summary_round:usize,
+    cfg_round:usize,
+    block_visits:usize,
+    stored_frame_clones:usize,
+    stored_frame_joins:usize,
+    loan_unions:usize,
+    empty_loan_unions:usize,
+    resource_state_clones:usize,
+    resource_state_joins:usize,
     recipe:Option<(usize,std::mem::Discriminant<SemanticTypeRecipe>,Option<SemanticDefinitionId>,Option<semantic::ScopeKey>,Option<semantic::SitePoint>)>,
 }
 struct Budget {
@@ -640,7 +650,9 @@ impl Budget {
         })?;
         Ok(())
     }
-    fn diagnostic_stage(&mut self,stage:&'static str){if let Some(progress)=&mut self.diagnostic_progress{progress.stage=stage;}}
+    fn diagnostic_stage(&mut self,stage:&'static str){if let Some(progress)=&mut self.diagnostic_progress{progress.stage=stage;progress.actual_function=None;progress.summary_round=0;progress.cfg_round=0;}}
+    fn diagnostic_actual(&mut self,stage:&'static str,function:FunctionId,summary_round:usize){if let Some(progress)=&mut self.diagnostic_progress{progress.stage=stage;progress.actual_function=Some(function);progress.summary_round=summary_round;progress.cfg_round=0;}}
+    fn diagnostic_label(&mut self,stage:&'static str){if let Some(progress)=&mut self.diagnostic_progress{progress.stage=stage;}}
     // Callers pass immutable local Type trees from the checked module; their
     // nodes keep these addresses for this verification request. The first
     // query pays for the complete tree walk, and each lookup pays for the map.
@@ -1070,6 +1082,7 @@ fn check_module_budget(
         }
     }
     registration::storage(module, &mut budget)?;
+    budget.diagnostic_stage("actual closure and executable definitions");
     closures::check_definitions(module, limits, &mut budget)?;
     if (budget.task_sources() || budget.task_origin_roots) && budget.task_input_scopes.is_none() && !module.closures.is_empty() {
         budget.task_input_scopes = Some(tasks::input_scope::build(module, limits, &mut budget)?);
@@ -1386,6 +1399,7 @@ fn check_module_budget(
             "candidate plan is bound to different module or target bytes",
         ));
     }
+    budget.diagnostic_stage("actual CFG structure and retained bodies");
     let mut graphs = Vec::with_capacity(module.functions.len());
     for (function, function_plan) in module.functions.iter().zip(&plan.functions) {
         if function_plan.function != function.id {
@@ -1406,6 +1420,7 @@ fn check_module_budget(
         retained::check_body(module, function, &graph, &mut budget)?;
         graphs.push(graph);
     }
+    budget.diagnostic_stage("actual retained sources and task interfaces");
     retained::check_sources(module, &graphs, limits, &mut budget)?;
     tasks::module(module, &mut budget)?;
     let mut task_input_fingerprint = fingerprint;
@@ -1414,6 +1429,7 @@ fn check_module_budget(
         task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
+    budget.diagnostic_stage("actual stored and borrow CFG");
     let guard_sources = if budget.task_sources() || budget.store_option_results {
         for (index, f) in module.functions.iter().enumerate() {
             if store_option_mask.as_ref().is_none_or(|mask| mask[index]) {
@@ -1425,6 +1441,7 @@ fn check_module_budget(
         } else {
             stored_flow::check(module, &graphs, plan, &mut budget)?;
         }
+        budget.diagnostic_stage("actual borrow CFG");
         borrows::check_module(module, plan, &graphs, &mut budget)?
     } else if budget.stored_borrows && stored_partition.is_none() {
         for f in &module.functions {
@@ -1439,6 +1456,7 @@ fn check_module_budget(
             }
         }
         stored_flow::check_mixed(module, &graphs, plan, mask, &mut budget)?;
+        budget.diagnostic_stage("actual mixed borrow CFG");
         borrows::check_mixed(module, plan, &graphs, mask, &mut budget)?
     } else if budget.nested_callable_sources {
         // The actual stored-target ledger carries complete nested environment
@@ -1450,8 +1468,10 @@ fn check_module_budget(
         stored_flow::check(module, &graphs, plan, &mut budget)?;
         Vec::new()
     } else {
+        budget.diagnostic_stage("actual borrow CFG");
         borrows::check_module(module, plan, &graphs, &mut budget)?
     };
+    budget.diagnostic_stage("actual deferred sources and head access");
     if !budget.pending_callable_sources.is_empty() {
         return Err(reject(
             "E-VERIFY-CALLABLE-SOURCE",
@@ -1492,7 +1512,9 @@ fn check_module_budget(
     }
     budget.guard_return_sources = guard_sources;
     head_access::check(module, &graphs, &mut budget)?;
+    budget.diagnostic_stage("actual resource effects and CFG");
     resources::check_module(module, &graphs, &mut budget)?;
+    budget.diagnostic_stage("actual task transfer and exit protocols");
     tasks::transfer::finish(module, &mut budget)?;
     registration::check_phase(module, &mut budget)?;
     semantic::task_domains::drain(module,&mut budget)?;

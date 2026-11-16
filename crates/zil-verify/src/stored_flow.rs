@@ -808,6 +808,7 @@ fn copy_payload(p: &Payload, b: &mut Budget) -> Check<Payload> {
 }
 fn copy_frame(f: &Frame, b: &mut Budget) -> Check<Frame> {
     frame_work(f, b)?;
+    if let Some(progress)=&mut b.diagnostic_progress{progress.stored_frame_clones=progress.stored_frame_clones.saturating_add(1);}
     Ok(f.clone())
 }
 
@@ -896,6 +897,7 @@ fn sort_loan_ids(to: &mut [usize], b: &mut Budget) -> Check<()> {
     Ok(())
 }
 fn add_loans(to: &mut Vec<usize>, from: &[usize], b: &mut Budget) -> Check<bool> {
+    if let Some(progress)=&mut b.diagnostic_progress{progress.loan_unions=progress.loan_unions.saturating_add(1);if from.is_empty(){progress.empty_loan_unions=progress.empty_loan_unions.saturating_add(1);}}
     b.spend(1)?;
     sort_loan_ids(to, b)?;
     let mut changed = false;
@@ -1003,6 +1005,7 @@ fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool>
     Ok(changed)
 }
 fn join_frame(to: &mut Frame, from: &Frame, b: &mut Budget) -> Check<()> {
+    if let Some(progress)=&mut b.diagnostic_progress{progress.stored_frame_joins=progress.stored_frame_joins.saturating_add(1);}
     to.pending_external_update |= from.pending_external_update;
     if let Some(head) = from.receiver {
         b.spend(1)?;
@@ -4732,6 +4735,9 @@ fn solve(
     summaries: &[Summary],
     b: &mut Budget,
 ) -> Check<Solution> {
+    solve_mode(module,f,g,summaries,b,true)
+}
+fn solve_mode(module:&TypedModule,f:&TypedFunction,g:&FunctionGraph,summaries:&[Summary],b:&mut Budget,use_dag:bool)->Check<Solution>{
     replacements::prepare(module, f, g, b)?;
     let projection_heads = deferred_addresses(module, f, b)?;
     // Each reverse-batch solve creates a new function-local loan arena.
@@ -4768,17 +4774,16 @@ fn solve(
     for _ in &f.blocks {
         outputs.push(empty_frame(module, f, b)?);
     }
-    // The Task/Option and ordinary Copy error-place domains use this DAG path.
-    // Keep historical
-    // requests on their existing solver and request-cost path. In a DAG every
+    // The structural verifier checked SSA dominance before this kernel. For
+    // every independently proved DAG, every
     // predecessor frame and dominating SSA definition is final before its user;
     // join_payload still records all sources and loan growth, including values
     // whose creation does not change a local frame.
-    if (b.task_sources() || b.ordinary_error_places)
-        && b.masked_stored_tasks()
-        && let Some(order) = acyclic_order(g, b)?
+    if use_dag&&let Some(order) = acyclic_order(g, b)?
     {
+        if let Some(progress)=&mut b.diagnostic_progress{progress.cfg_round=1;}
         for bi in order {
+            if let Some(progress)=&mut b.diagnostic_progress{progress.block_visits=progress.block_visits.saturating_add(1);}
             b.spend(1)?;
             let mut state = if bi == f.entry.0 as usize {
                 copy_frame(&entry, b)?
@@ -4821,17 +4826,20 @@ fn solve(
         });
     }
     loop {
+        if let Some(progress)=&mut b.diagnostic_progress{progress.cfg_round=progress.cfg_round.saturating_add(1);}
         let mut changed = false;
         // Reverse batches differ from the candidate's forward in-place walk.
-        let mut replacement = Vec::new();
-        for block in &outputs {
-            replacement.push(copy_frame(block, b)?);
-        }
+        // Old predecessor frames stay read-only for the complete reverse
+        // batch. Every reachable block is reconstructed below; retaining a
+        // second deep copy of its old frame adds no information.
+        b.spend(outputs.len())?;
+        let mut replacement:Vec<Option<Frame>>=(0..outputs.len()).map(|_|None).collect();
         for bi in (0..f.blocks.len()).rev() {
             b.spend(1)?;
             if !g.reachable[bi] {
                 continue;
             }
+            if let Some(progress)=&mut b.diagnostic_progress{progress.block_visits=progress.block_visits.saturating_add(1);}
             let mut state = if bi == f.entry.0 as usize {
                 copy_frame(&entry, b)?
             } else {
@@ -4863,11 +4871,14 @@ fn solve(
             frame_work(&state, b)?;
             frame_work(&outputs[bi], b)?;
             if state != outputs[bi] {
-                replacement[bi] = state;
                 changed = true;
             }
+            replacement[bi]=Some(state);
         }
-        outputs = replacement;
+        // Unreachable states are moved unchanged. The computed states move
+        // into the same actual coordinates, including the stable final round.
+        b.spend(outputs.len())?;
+        outputs=outputs.into_iter().zip(replacement).map(|(old,new)|new.unwrap_or(old)).collect();
         if !changed {
             break;
         }
@@ -7076,6 +7087,7 @@ fn check_with_mask(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
+    b.diagnostic_stage("actual stored type qualification");
     let mixed_package = b.stored_package_instance;
     let compound_profile = compound::profile(module, b)?;
     let closed_dyn_profile = dyn_closed::related_resources(module, b)?;
@@ -7102,6 +7114,7 @@ fn check_with_mask(
         if mask.is_some_and(|mask| !mask[index]) {
             continue;
         }
+        b.diagnostic_actual("actual stored header and type qualification",f.id,0);
         check_exclusive_transfers(f, &graphs[f.id.0 as usize], b)?;
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].reachable, b)?;
         if !module.resources.is_empty() && matches!(f.return_type, Type::Desc(_)) {
@@ -7265,6 +7278,7 @@ fn solve_check(
                 continue;
             }
             let f = &module.functions[index];
+            b.diagnostic_actual("actual stored CFG",f.id,round);
             let mut solution =
                 solve(module, f, &graphs[index], &summaries, b).map_err(|mut failure| {
                     failure.notes.push(format!(
@@ -7273,6 +7287,7 @@ fn solve_check(
                     ));
                     failure
                 })?;
+            b.diagnostic_label("actual stored summary");
             let mut summary = summarize(
                 module,
                 f,
@@ -7860,6 +7875,29 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
+    }
+
+    #[test]
+    fn complete_dag_transfer_matches_reverse_fixed_point_and_cycles_keep_the_fallback(){
+        let module=fixture::module();
+        for cyclic in [false,true]{
+            let mut f=module.functions[0].clone();
+            let code=std::mem::take(&mut f.blocks[0].instructions);
+            let terminal=f.blocks[0].terminator.clone();let count=code.len();
+            f.blocks=code.into_iter().enumerate().map(|(index,instruction)|BasicBlock{id:BlockId(index as u32),instructions:vec![instruction],terminator:if index+1<count{Terminator::Jump(BlockId(index as u32+1))}else if cyclic{Terminator::Jump(BlockId(0))}else{terminal.clone()}}).collect();
+            let mut successors=vec![vec![];count];let mut predecessors=vec![vec![];count];
+            for index in 0..count{if index+1<count||cyclic{let target=(index+1)%count;successors[index].push(target);predecessors[target].push(index);}}
+            let graph=FunctionGraph{successors,predecessors,reachable:vec![true;count],package_views:packages::CaptureViews::default(),role_data_uses:vec![]};
+            let source=Source{static_dependency:StaticProvenance::NotStatic,retained_port:None,base:HoldRoot::Parameter(0),leaf:vec![],inline:vec![],heap_parents:vec![],heap_element:None};
+            let mut summaries=vec![Summary::default();module.functions.len()];summaries[4].complete=true;summaries[4].result=vec![(vec![],vec![source])];
+            let limits=Limits::default();let mut fast_budget=Budget::new(&limits);let mut reverse_budget=Budget::new(&limits);
+            let fast=solve_mode(&module,&f,&graph,&summaries,&mut fast_budget,true).unwrap();
+            let reverse=solve_mode(&module,&f,&graph,&summaries,&mut reverse_budget,false).unwrap();
+            assert_eq!(fast.entry,reverse.entry);assert_eq!(fast.outputs,reverse.outputs);assert_eq!(fast.values,reverse.values);assert_eq!(fast.sites,reverse.sites);
+            assert_eq!(fast.loans.len(),reverse.loans.len());
+            for(actual,expected)in fast.loans.iter().zip(&reverse.loans){assert_eq!((&actual.sources,&actual.parents,actual.exclusive,actual.receiver_head),(&expected.sources,&expected.parents,expected.exclusive,expected.receiver_head));}
+            if !cyclic{assert!(fast_budget.remaining>reverse_budget.remaining,"a true multi-block DAG executes fewer real transfers and frame copies");}
+        }
     }
 
     #[test]
