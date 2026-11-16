@@ -520,6 +520,7 @@ struct InitializationCache {
     // class, loan and cleanup ledgers never enter this directory.
     task_helper_graphs: std::collections::BTreeMap<([usize; 5], FunctionId, bool), [bool; 3]>,
     task_helper_scope: Option<std::sync::Arc<()>>,
+    description_transfers: resources::DescriptionInventories,
     definitions: std::collections::BTreeMap<usize, std::sync::Arc<Vec<Option<SsaDefinition>>>>,
     functions:
         std::collections::BTreeMap<usize, (FunctionId, Option<std::sync::Arc<Initialization>>)>,
@@ -550,6 +551,7 @@ fn bind_initialization(module: &TypedModule, budget: &mut Budget) -> CompileResu
         module: owner,
         task_helper_graphs: std::collections::BTreeMap::new(),
         task_helper_scope: None,
+        description_transfers: resources::DescriptionInventories::default(),
         functions,
         definitions: std::collections::BTreeMap::new(),
     });
