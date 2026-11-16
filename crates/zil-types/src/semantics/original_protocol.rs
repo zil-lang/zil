@@ -115,6 +115,9 @@ enum Value {
     Cleanup {
         owner: SemanticDefinitionId,
         ty: CleanupType,
+        // Exact incoming occurrence, carried through moves and local aliases.
+        // It is a conditional graph obligation, never a capability of this Type.
+        source: Option<Root>,
     },
     Choice(Vec<Value>),
     Variant {
@@ -239,9 +242,9 @@ struct State {
     task_sources: Option<SourceBindings>,
     tasks: BTreeSet<Root>,
     // Per actual generation, a proved synchronous task graph may depend on
-    // still-symbolic incoming Task owners. Empty requirements are unconditional;
-    // missing entries grant nothing. This never establishes Closed.
-    task_sync: BTreeMap<Root, BTreeSet<Root>>,
+    // still-symbolic incoming owners and callable invocations. Empty requirements
+    // are unconditional; missing entries grant nothing. This never establishes Closed.
+    task_sync: BTreeMap<Root, BTreeSet<tasks::Requirement>>,
     reachable: bool,
     abrupt: Vec<State>,
     // Stacks preserve hidden lexical binders, including their stale Polls.
@@ -378,7 +381,12 @@ struct Engine<'a, 'b> {
     task_exits: BTreeMap<SemanticDefinitionId, Vec<tasks::Exit>>,
     task_exit_count: usize,
     task_source_returns: BTreeSet<(SemanticDefinitionId, NodeId)>,
-    synchronous_workers: BTreeMap<SemanticDefinitionId, bool>,
+    synchronous_workers: BTreeMap<SemanticDefinitionId, Option<BTreeSet<tasks::Requirement>>>,
+    graph_calls: BTreeMap<(SemanticDefinitionId, SemanticSiteId), Vec<tasks::GraphCall>>,
+    graph_call_count: usize,
+    local_complete: BTreeSet<SemanticDefinitionId>,
+    graph_requested: BTreeSet<SemanticDefinitionId>,
+    graph_complete: BTreeSet<SemanticDefinitionId>,
 }
 impl<'a> Engine<'a, '_> {
     fn record_cost(&mut self, name: &'static str, before: usize, children: usize) {
@@ -491,6 +499,7 @@ impl<'a> Engine<'a, '_> {
         Ok(Value::Cleanup {
             owner,
             ty: self.input_handle(owner, ty, depth)?,
+            source: None,
         })
     }
     fn category<T: TypeInput + ?Sized>(
@@ -1602,7 +1611,7 @@ impl<'a> Engine<'a, '_> {
                 Value::Error { payload, .. } | Value::Boxed(payload) => {
                     self.drop_value(payload, state, depth + 1)?
                 }
-                Value::Cleanup { owner, ty } => {
+                Value::Cleanup { owner, ty, .. } => {
                     if !self.can_drop(*owner, ty, depth + 1)? {
                         self.pay(128, depth)?;
                         let mut error = error(
@@ -2375,6 +2384,9 @@ impl<'a> Engine<'a, '_> {
                     };
                     let source = object.unwrap_or(callee.as_ref());
                     let mut callee_value = self.observe(owner, source, state, depth + 1)?;
+                    let graph_callee = if self.graph_requested.contains(&owner) {
+                        Some(self.value_copy(&callee_value, depth + 1)?)
+                    } else { None };
                     let consume_receiver = if let Some((_, mode, ty)) = &receiver {
                         matches!(mode, PassingMode::Give | PassingMode::Move)
                             || *mode == PassingMode::Infer
@@ -2420,6 +2432,9 @@ impl<'a> Engine<'a, '_> {
                         values.insert(ordinal, value);
                     }
                     let result = if state.reachable {
+                        if let (Some(site), Some(callee)) = (site, graph_callee) {
+                            self.record_graph_call(owner, site, callee, &values, state, depth + 1)?;
+                        }
                         self.call(owner, expr, arguments, &values, state, depth + 1)?
                     } else {
                         Value::Plain
@@ -2997,7 +3012,7 @@ impl<'a> Engine<'a, '_> {
                             }
                             values
                         }
-                        Value::Cleanup { owner, ty } => {
+                        Value::Cleanup { owner, ty, .. } => {
                             let fields = cleanup::variant(
                             self.program,
                             self.proof,
@@ -4150,6 +4165,8 @@ impl<'a> Engine<'a, '_> {
             } = &definition.body
             else {
                 self.active.remove(&owner);
+                self.local_complete.insert(owner);
+                if self.graph_requested.contains(&owner) { self.graph_complete.insert(owner); }
                 self.proof.protocol_complete.insert(owner);
                 self.proof.cleanup_complete.insert(owner);
                 return Ok(());
@@ -4250,6 +4267,8 @@ impl<'a> Engine<'a, '_> {
                     ));
                 }
                 self.active.remove(&owner);
+                self.local_complete.insert(owner);
+                if self.graph_requested.contains(&owner) { self.graph_complete.insert(owner); }
                 self.proof.protocol_complete.insert(owner);
                 self.proof.cleanup_complete.insert(owner);
                 return Ok(());
@@ -4344,6 +4363,9 @@ impl<'a> Engine<'a, '_> {
                         } else {
                             self.typed(parent, &ty, Value::Plain, depth + 1)?
                         };
+                        if let Value::Cleanup { source, .. } = &mut value {
+                            *source = Some(Root::Capture(owner, index as u32));
+                        }
                         if !moved {
                             value = self.view(value, depth + 1)?;
                         }
@@ -4405,7 +4427,10 @@ impl<'a> Engine<'a, '_> {
                     } else {
                         value
                     };
-                    let value = self.typed(owner, &ty, value, depth + 1)?;
+                    let mut value = self.typed(owner, &ty, value, depth + 1)?;
+                    if let Value::Cleanup { source, .. } = &mut value {
+                        *source = Some(Root::Parameter(owner, index as u32));
+                    }
                     state
                         .names
                         .entry(parameter.name.clone())
@@ -4469,6 +4494,10 @@ impl<'a> Engine<'a, '_> {
                 }
             }
             self.active.remove(&owner);
+            self.local_complete.insert(owner);
+            if self.graph_requested.contains(&owner) {
+                self.graph_complete.insert(owner);
+            }
             self.proof.protocol_complete.insert(owner);
             self.proof.cleanup_complete.insert(owner);
             Ok(())
@@ -4580,6 +4609,11 @@ pub(super) fn check(
         task_exit_count: 0,
         task_source_returns: BTreeSet::new(),
         synchronous_workers: BTreeMap::new(),
+        graph_calls: BTreeMap::new(),
+        graph_call_count: 0,
+        local_complete: BTreeSet::new(),
+        graph_requested: BTreeSet::new(),
+        graph_complete: BTreeSet::new(),
     };
     let setup_before = *engine.left;
     engine.pay(
@@ -4877,6 +4911,11 @@ mod plain_layout_tests {
             task_exit_count: 0,
             task_source_returns: BTreeSet::new(),
         synchronous_workers: BTreeMap::new(),
+        graph_calls: BTreeMap::new(),
+        graph_call_count: 0,
+        local_complete: BTreeSet::new(),
+        graph_requested: BTreeSet::new(),
+        graph_complete: BTreeSet::new(),
         };
         let recipe = SemanticTypeRecipe::ErrorUnion {
             error: Box::new(SemanticTypeRecipe::Atom(Type::Unit)),

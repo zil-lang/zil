@@ -748,9 +748,10 @@ impl Builder<'_, '_> {
         }
         pending.inference.expect_result(&bound.result, span)?;
         if pending.callable_kind() != bound.kind {
-            return Err(unsupported(
+            return Err(error(
+                "E-TYPE-MISMATCH",
                 span,
-                "opaque callable kind adaptation is not implemented; declared and actual Fn/FnMut/FnOnce kinds must match",
+                "opaque callable declaration differs from its actual environment invocation kind",
             ));
         }
         let mut cleanup = Vec::new();

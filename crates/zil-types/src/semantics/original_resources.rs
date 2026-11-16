@@ -884,6 +884,94 @@ impl Check<'_, '_> {
         Ok(Some(solved.result))
     }
 
+    // A Task owns its frame, but its complete declared retained domain can
+    // still name external input storage. Prove each original child separately;
+    // this capability neither erases that domain nor proves synchronous Drop.
+    fn closed_task_shape(
+        &mut self,
+        owner: SemanticDefinitionId,
+        shape: &SemanticRetainedShapeRecipe,
+        depth: usize,
+    ) -> R<Option<bool>> {
+        self.pay(
+            shape.ports.len().saturating_add(shape.retained.len())
+                .saturating_add(shape.nominal.len()).saturating_add(1),
+            depth,
+        )?;
+        let mut known = self.closed_class_sequence(owner, &shape.domain, depth + 1)?;
+        for port in &shape.ports {
+            let child = match port {
+                SemanticPortPart::FromType { ty, classes } => {
+                    let ty = self.sealed_capability(owner, ty, SemanticBuiltinTrait::ClosedEnvironment, depth + 1)?;
+                    let classes = self.closed_class_sequence(owner, classes, depth + 1)?;
+                    match (ty, classes) {
+                        (Some(a), Some(b)) => Some(a && b),
+                        _ => None,
+                    }
+                }
+                // A real borrowed port is not an owned child environment.
+                SemanticPortPart::One { .. } => Some(false),
+            };
+            known = match (known, child) {
+                (Some(a), Some(b)) => Some(a && b),
+                _ => None,
+            };
+        }
+        for row in &shape.retained {
+            let child = match row {
+                SemanticRetainedPart::All { parents, .. } =>
+                    self.closed_class_sequence(owner, parents, depth + 1)?,
+                SemanticRetainedPart::One { .. } => Some(false),
+            };
+            known = match (known, child) {
+                (Some(a), Some(b)) => Some(a && b),
+                _ => None,
+            };
+        }
+        for row in &shape.nominal {
+            let child = match row {
+                SemanticNominalPart::FromType { ty, classes, .. } => {
+                    let ty = self.sealed_capability(owner, ty, SemanticBuiltinTrait::ClosedEnvironment, depth + 1)?;
+                    let classes = self.closed_class_sequence(owner, classes, depth + 1)?;
+                    match (ty, classes) {
+                        (Some(a), Some(b)) => Some(a && b),
+                        _ => None,
+                    }
+                }
+                SemanticNominalPart::One { .. } => Some(false),
+            };
+            known = match (known, child) {
+                (Some(a), Some(b)) => Some(a && b),
+                _ => None,
+            };
+        }
+        Ok(known)
+    }
+
+    fn closed_class_sequence(
+        &mut self,
+        owner: SemanticDefinitionId,
+        sequence: &SemanticClassSequenceRecipe,
+        depth: usize,
+    ) -> R<Option<bool>> {
+        self.pay(sequence.parts.len().saturating_add(1), depth)?;
+        let mut known = Some(true);
+        for part in &sequence.parts {
+            let child = match part {
+                SemanticClassSequencePart::AllClasses { ty, path } if path.is_empty() =>
+                    self.sealed_capability(owner, ty, SemanticBuiltinTrait::ClosedEnvironment, depth + 1)?,
+                SemanticClassSequencePart::One(_) => Some(false),
+                // A projected domain requires its own complete child theorem.
+                SemanticClassSequencePart::AllClasses { .. } => None,
+            };
+            known = match (known, child) {
+                (Some(a), Some(b)) => Some(a && b),
+                _ => None,
+            };
+        }
+        Ok(known)
+    }
+
     pub(super) fn sealed_capability(
         &mut self,
         owner: SemanticDefinitionId,
@@ -946,6 +1034,24 @@ impl Check<'_, '_> {
                 }
                 _ => None,
             },
+            SemanticTypeRecipe::OwnedStore(inner)
+            | SemanticTypeRecipe::Mutex(inner)
+            | SemanticTypeRecipe::Registration(inner)
+            | SemanticTypeRecipe::AsyncRegistration(inner)
+                if kind == SemanticBuiltinTrait::ClosedEnvironment =>
+            {
+                self.sealed_capability(owner, inner, kind, depth + 1)?
+            }
+            SemanticTypeRecipe::Task { result, retained }
+                if kind == SemanticBuiltinTrait::ClosedEnvironment =>
+            {
+                let result = self.sealed_capability(owner, result, kind, depth + 1)?;
+                let frame = self.closed_task_shape(owner, retained, depth + 1)?;
+                match (result, frame) {
+                    (Some(result), Some(frame)) => Some(result && frame),
+                    _ => None,
+                }
+            }
             SemanticTypeRecipe::Tuple(fields) => {
                 let mut all = true;
                 for field in fields {
