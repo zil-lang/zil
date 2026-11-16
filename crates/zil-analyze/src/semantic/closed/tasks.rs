@@ -171,32 +171,14 @@ impl Check<'_, '_> {
                 "actual Task owning-head chain exceeds its finite depth",
             ));
         }
-        let (_, _, instruction) = self.defining(function, value, b)?;
-        if let InstructionKind::ReborrowAddress { address, .. } = instruction.kind {
-            return self.task_head(instance, function, address, anchor, b, depth + 1);
-        }
-        match anchor {
-            original::LocalAnchor::Environment(ordinal) => {
-                let capture = self.environment_capture(instance, function, ordinal, b)?;
-                if matches!(instruction.kind,
-                    InstructionKind::TakeCapture { index }
-                    | InstructionKind::ReadCapture { index }
-                    | InstructionKind::BorrowCapture { index, .. } if index == capture)
-                {
-                    return Ok(());
-                }
-            }
-            anchor => {
-                let local = self.anchored_local(instance, function, anchor, b)?;
-                if matches!(instruction.kind,
-                    InstructionKind::Load(actual)
-                    | InstructionKind::TakeLocal { local: actual }
-                    | InstructionKind::BorrowLocal { local: actual }
-                    | InstructionKind::BorrowLocalMut { local: actual } if actual == local)
-                {
-                    return Ok(());
-                }
-            }
+        // Captured references are real local occupants: BorrowCapture may be
+        // stored, loaded and reborrowed before any Task/Mutex operation. Use
+        // the complete all-path capture provenance proof also used by other
+        // original receivers, preserving the exact capture and activation.
+        // Complete types/classes and the actual loan/cleanup ledger are
+        // independent mandatory checks at each caller of this identity query.
+        if self.anchored_value(instance, function, anchor, value, b, depth + 1)? {
+            return Ok(());
         }
         Err(fail(
             "actual Task operation selects another original owning head",
