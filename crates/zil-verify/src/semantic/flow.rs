@@ -48,6 +48,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
     if let Some(frozen)=frozen {frozen.specializations(module,&context,&mut active,b)?;}
     let mut checked_instances=std::collections::BTreeSet::new();
     let mut checked_worlds=Vec::new();
+    let mut checked_results=Vec::new();
     let mut ordered=Vec::new();
     for instance in &program.instances {
         let mut depth=0usize;let mut parent=instance.parent;
@@ -77,6 +78,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
             checked_instances.insert(instance.id);
             b.spend(environment.lexical.len().saturating_add(1))?;
             checked_worlds.push((instance.id,environment));
+            b.spend(1)?;checked_results.push((instance.id,signature.result));
         }
     }
     b.diagnostic_stage("actual closure boundaries");
@@ -122,7 +124,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
     context.publish_constructor_classes(module,&checked_worlds,b)?;
     context.publish_local_role_transfers(module,&checked_worlds,b)?;
     b.spend(1)?;
-    b.semantic_checked=Some(std::rc::Rc::new(dynamic_witness::semantic_patterns::Session::new(module,context,active)));
+    b.semantic_checked=Some(std::rc::Rc::new(dynamic_witness::semantic_patterns::Session::new(module,context,active,checked_worlds,checked_results)));
     Ok(())
 }
 impl CheckedContext {

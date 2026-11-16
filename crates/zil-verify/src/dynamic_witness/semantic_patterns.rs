@@ -9,10 +9,12 @@ pub(crate) struct Session {
     module:usize,
     context:semantic::CheckedContext,
     active:RefCell<semantic::ActiveQueries>,
+    worlds:Vec<(SemanticInstanceId,EvalEnv)>,
+    results:Vec<(SemanticInstanceId,CheckedType)>,
 }
 impl Session {
-    pub(crate) fn new(module:&TypedModule,context:semantic::CheckedContext,active:semantic::ActiveQueries)->Self{
-        Self{module:module as *const TypedModule as usize,context,active:RefCell::new(active)}
+    pub(crate) fn new(module:&TypedModule,context:semantic::CheckedContext,active:semantic::ActiveQueries,worlds:Vec<(SemanticInstanceId,EvalEnv)>,results:Vec<(SemanticInstanceId,CheckedType)>)->Self{
+        Self{module:module as *const TypedModule as usize,context,active:RefCell::new(active),worlds,results}
     }
 }
 
@@ -24,6 +26,24 @@ pub(crate) fn checked_static_specialization(module:&TypedModule,function:&TypedF
     let Some(session)=b.semantic_checked.clone()else{return Ok(false);};
     if session.module!=module as *const TypedModule as usize{return Ok(false);}
     session.context.checked_static_specialization(module,function,b)
+}
+
+/// A directed root result view is established in every completed original
+/// world of this exact entry. It never substitutes an invariant child class.
+pub(crate) fn return_borrow_view(module:&TypedModule,function:&TypedFunction,block:BlockId,value:ValueId,header:&StorageLifeContract,b:&mut Budget)->Check<bool>{
+    if module.semantic.is_none()||function.storage_life.as_ref()!=Some(header){return Ok(false);}
+    let Some(session)=b.semantic_checked.clone()else{return Ok(false);};
+    if session.module!=module as *const TypedModule as usize{return Ok(false);}
+    let mut worlds=0usize;let mut directed=false;
+    for(id,environment)in &session.worlds{
+        let instance=session.context.instance(module,*id,b)?;
+        if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){continue;}
+        b.spend(session.results.len())?;
+        let result=&session.results.iter().find(|(world,_)|world==id).ok_or_else(||bad("completed return view loses its exact original result frame"))?.1;
+        let Some(view)=session.context.return_borrow_view(module,function,instance,block,value,result,environment,b)?else{return Ok(false);};
+        directed|=view;worlds+=1;
+    }
+    Ok(worlds!=0&&directed)
 }
 
 /// Exact shared-local transitions from the completed original programme and

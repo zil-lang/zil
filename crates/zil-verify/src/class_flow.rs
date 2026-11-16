@@ -2412,8 +2412,19 @@ fn check_with(
                 if let Some(flow) = &outer {
                     flow.enter(usize::MAX, block_index);
                 }
+                // The scope interpreter proves a legal directed root view
+                // independently. Only that root borrow equation is projected
+                // out here; all physical child and intrinsic class equations
+                // remain universally invariant in this checker.
+                let mut view=None;
+                if crate::dynamic_witness::semantic_patterns::return_borrow_view(module,f,block.id,v,c,b)?{
+                    crate::signature_life::charge(c,b)?;
+                    let mut contract=c.clone();
+                    contract.bindings.retain(|row|row.position.base!=StorageBase::Result||!row.position.path.is_empty());
+                    view=Some(contract);
+                }
                 bind_with_outer(
-                    c,
+                    view.as_ref().unwrap_or(c),
                     StorageBase::Result,
                     &values[v.0 as usize],
                     &vars,

@@ -51,3 +51,28 @@ impl CheckedContext{
         Ok(Some(view))
     }
 }
+
+impl CheckedContext {
+    /// Reuse the actual Return receipt and its original full result in the
+    /// original checked world, including all nonzero quantified frame tokens.
+    /// Some(false) means exact root equality; None supplies no scoped view.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn return_borrow_view(&self,module:&TypedModule,function:&TypedFunction,instance:&SemanticInstance,block:BlockId,value:ValueId,result:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<Option<bool>>{
+        if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id))||!matches!(result.ty,Type::Address{..}|Type::Desc(_)){return Ok(None);}
+        let actual_block=function.blocks.get(block.0 as usize).filter(|body|body.id==block).ok_or_else(||bad("checked Return view selects an absent block"))?;
+        if actual_block.terminator!=Terminator::Return(Some(value)){return Err(bad("checked Return view changes its exact actual terminator operand"));}
+        let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;
+        if frame.key!=ScopeKey::Instance(instance.id)||frame.definition!=instance.definition{return Err(bad("checked Return view changes its exact original world"));}
+        let occurrences=self.occurrences.borrow();
+        let actual=occurrences.get(&(frame.key,OperandKey::Value(value))).ok_or_else(||bad("checked Return view lacks its completed actual SSA receipt"))?;
+        if !self.compatible(environment,actual,result,b)?{return Err(bad("checked Return view changes the original complete result domain"));}
+        let mut sources=actual.life.slots.iter().filter(|row|row.path.is_empty());
+        let mut targets=result.life.slots.iter().filter(|row|row.path.is_empty());
+        let(Some(source),Some(target))=(sources.next(),targets.next())else{return Ok(None);};
+        if sources.next().is_some()||targets.next().is_some()||source.mode!=target.mode{return Ok(None);}
+        let source=actual.classes.get(source.binder as usize).ok_or_else(||bad("checked Return view actual outer class is absent"))?;
+        let target=result.classes.get(target.binder as usize).ok_or_else(||bad("checked Return view original outer class is absent"))?;
+        if !self.outlives(environment,source,target,b)?{return Err(bad("checked Return view lacks its original directed outer relation"));}
+        Ok(Some(!self.same(environment,source,target,b)?))
+    }
+}
