@@ -178,48 +178,76 @@ impl Check<'_, '_> {
                 )?;
                 lifetime.clone()
             }
-            None => self.borrow_life(owner, object.id)?,
+            None => {
+                let source = self.borrow_life(owner, object.id)?;
+                let selector = match &receiver.ty {
+                    SemanticTypeRecipe::Address { lifetime, .. } => {
+                        match call_regions::variable(lifetime) {
+                            Some(call_regions::Variable::Life(ordinal)) => {
+                                Some(call_regions::Role::Life(ordinal))
+                            }
+                            Some(call_regions::Variable::Implicit(ordinal)) => {
+                                Some(call_regions::Role::Implicit(ordinal))
+                            }
+                            Some(call_regions::Variable::Invocation(ordinal)) => {
+                                Some(call_regions::Role::Invocation(ordinal))
+                            }
+                            None => match lifetime {
+                                SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Bound {
+                                    depth: 0,
+                                    index,
+                                }) if *index < template.bound_lifetimes => {
+                                    Some(call_regions::Role::Bound {
+                                        depth: 0,
+                                        index: *index,
+                                    })
+                                }
+                                _ => None,
+                            },
+                        }
+                    }
+                    _ => None,
+                };
+                if let Some(selector) = selector {
+                    // Owned receivers acquire their actual head loan at this
+                    // call. The owner expression itself remains an Owned Dyn
+                    // value; its observation occurrence is not the call role.
+                    let region =
+                        self.call_region_life(owner, expression.id, selector, depth + 1)?;
+                    self.record_region_source(
+                        owner,
+                        &region,
+                        object,
+                        &source,
+                        variables,
+                        depth + 1,
+                    )?;
+                    region
+                } else {
+                    source
+                }
+            }
         };
         let receiver_type = SemanticTypeRecipe::Address {
             mutable,
             lifetime,
             inner: Box::new(copy_recipe(&borrowed, self.limits, self.left)?),
         };
-        self.pay(definition.parameters.len(), depth)?;
-        let mut solutions = vec![None; definition.parameters.len()];
-        let mut implicit = BTreeMap::new();
-        let mut invocation = BTreeMap::new();
-        self.unify(
-            &receiver.ty,
-            &receiver_type,
-            &definition.parameters,
-            &mut solutions,
-            &mut implicit,
-            &mut invocation,
-            depth + 1,
-        )?;
-        if solutions.iter().any(Option::is_some) {
-            return Err(bad(
-                "dynamic erased receiver unexpectedly determines a method generic",
-            ));
-        }
-        let roles = substitute::Substitution {
-            frames: &[],
-            selves: &[],
-            environments: &[],
-            implicit: &implicit,
-            invocation: &invocation,
-            shift: 0,
-        };
-        template = substitute::signature_fresh(&template, &roles, self.limits, self.left)?;
-        let receiver = template.parameters.remove(0);
-        self.same(&receiver.ty, &receiver_type)?;
         self.pay(
-            arguments.len().saturating_add(definition.parameters.len()),
+            arguments
+                .len()
+                .saturating_add(definition.parameters.len())
+                .saturating_add(1),
             depth,
         )?;
-        let operands = arguments.iter().collect::<Vec<_>>();
+        let operands = std::iter::once(object.as_ref())
+            .chain(arguments.iter())
+            .collect::<Vec<_>>();
         let holes = vec![SemanticActualRecipe::Infer; definition.parameters.len()];
+        let receiver_roles = [(object.id, receiver_type)];
+        // Retain the real receiver in the full joint solve. Removing it first
+        // would either lose its call region or bind it to a first source before
+        // inner/written/wanted constraints and the remaining inputs are known.
         let (actuals, solved) = self.solve_signature_roles(
             owner,
             expression,
@@ -232,10 +260,47 @@ impl Check<'_, '_> {
             wanted,
             true,
             &BTreeMap::new(),
-            &[],
-            1,
+            &receiver_roles,
+            0,
             depth + 1,
         )?;
+        let mut implicit = BTreeMap::new();
+        let mut invocation = BTreeMap::new();
+        let mut solutions = Vec::new();
+        self.pay(actuals.len(), depth)?;
+        for actual in &actuals {
+            crate::dyn_metadata::semantic_operand_snapshot(actual, self.limits, self.left, 1)?;
+            solutions.push(Some(actual.clone()));
+        }
+        let template = if template.bound_lifetimes != 0 {
+            substitute::universal_callable_own(&template, self.limits, self.left)?
+        } else {
+            template
+        };
+        for (parameter, actual) in template.parameters.iter().zip(&solved.parameters) {
+            self.unify(
+                &parameter.ty,
+                &actual.ty,
+                &definition.parameters,
+                &mut solutions,
+                &mut implicit,
+                &mut invocation,
+                depth + 1,
+            )?;
+        }
+        self.unify(
+            &template.result,
+            &solved.result,
+            &definition.parameters,
+            &mut solutions,
+            &mut implicit,
+            &mut invocation,
+            depth + 1,
+        )?;
+        let receiver = solved
+            .parameters
+            .first()
+            .ok_or_else(|| bad("dynamic joint solve loses its original receiver"))?;
         let frames = [
             (0, actuals.as_slice()),
             (1, interface.application.arguments.as_slice()),
@@ -270,7 +335,7 @@ impl Check<'_, '_> {
             .site(owner, SemanticOriginalNode::Expression(expression.id))?
             .ok_or_else(|| bad("dynamic original call has no exact operation occurrence"))?;
         self.pay(solved.parameters.len().saturating_add(2), depth)?;
-        let mut parameters = vec![copy_recipe(&receiver.ty, self.limits, self.left)?];
+        let mut parameters = Vec::new();
         for parameter in &solved.parameters {
             parameters.push(copy_recipe(&parameter.ty, self.limits, self.left)?);
         }
@@ -283,6 +348,7 @@ impl Check<'_, '_> {
             parameter_modes: solved
                 .parameters
                 .iter()
+                .skip(1)
                 .map(|parameter| parameter.mode)
                 .collect(),
             result_mode: solved.result_mode,

@@ -527,7 +527,17 @@ fn trace(
     values: &[Option<SharedType>],
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
+    return_boundary: bool,
 ) -> R<()> {
+    if return_boundary {
+        world.pay(role.steps.len())?;
+    }
+    let input_referent = return_boundary
+        && matches!(role.root, ViewBorrowRoot::Parameter(_))
+        && role
+            .steps
+            .iter()
+            .any(|step| matches!(step.kind, ViewBorrowStepKind::Parameter));
     let mut cursor = Cursor::Value(operand);
     world.pay(role.steps.len())?;
     let mut reached_input = false;
@@ -880,7 +890,9 @@ fn trace(
             }
             ViewBorrowStepKind::Alias { binding } => {
                 let local = binding_local(world, instance, original, *binding, step.node)?;
-                world.local(locals, local)?;
+                if !input_referent {
+                    world.local(locals, local)?;
+                }
                 match cursor {
                     Cursor::Value(value) if matches!(producer(world, function, value)?.0, InstructionKind::Load(actual) if *actual == local) =>
                         {}
@@ -964,7 +976,16 @@ fn trace(
                         ));
                     }
                 }
-                let actual = world.local(locals, local)?;
+                let actual = if input_referent && matches!(step.kind, ViewBorrowStepKind::Parameter)
+                {
+                    if let Cursor::Value(value) = cursor {
+                        world.get(values, value)?
+                    } else {
+                        world.local(locals, local)?
+                    }
+                } else {
+                    world.local(locals, local)?
+                };
                 let expected = world.parameter_value(
                     instance.id,
                     parameter as usize,
@@ -1220,7 +1241,7 @@ pub(super) fn apply(
     };
     apply_role(
         world, instance, original, function, &role, operand, actual, expected, values, locals,
-        implicit,
+        implicit, false,
     )
 }
 
@@ -1237,6 +1258,7 @@ fn apply_role(
     values: &[Option<SharedType>],
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
+    return_boundary: bool,
 ) -> R<Option<(SharedType, roles::Source)>> {
     let expected_source = roles::outer(world, expected)?;
     let target_source = match &role.target_lifetime {
@@ -1282,17 +1304,40 @@ fn apply_role(
     let target_inner = world.pointee(expected)?;
     world.same(instance.id, &inner, &target_inner, implicit)?;
     trace(
-        world, instance, original, function, &role, operand, values, locals, implicit,
+        world,
+        instance,
+        original,
+        function,
+        &role,
+        operand,
+        values,
+        locals,
+        implicit,
+        return_boundary,
     )?;
     let source = roles::outer(world, actual)?;
     let roots = arguments::roots(world, operand, actual)?;
     for root in &roots {
         world.pay(1)?;
+        if return_boundary {
+            world.pay(role.steps.len())?;
+        }
+        // A loaded input pointer's slot can end before Return; its referent
+        // loan belongs to the caller and is still the function's declared
+        // input. Borrowing the pointer slot (ParameterStorage) never qualifies.
+        let input_referent = return_boundary
+            && role
+                .steps
+                .iter()
+                .any(|step| matches!(step.kind, ViewBorrowStepKind::Parameter))
+            && matches!(role.root, ViewBorrowRoot::Parameter(parameter)
+                if function.parameters.get(parameter as usize) == Some(&root.local));
         if world.stale_locals.contains(&root.local)
-            || locals
-                .get(root.local.0 as usize)
-                .and_then(Option::as_ref)
-                .is_none()
+            || !input_referent
+                && locals
+                    .get(root.local.0 as usize)
+                    .and_then(Option::as_ref)
+                    .is_none()
         {
             return Err(bad(
                 "projected borrow role has an inactive or stale actual storage root",
@@ -1474,7 +1519,7 @@ pub(super) fn return_view(
     world.same(instance.id, actual, &source, implicit)?;
     Ok(apply_role(
         world, instance, original, function, &role.1, operand, actual, expected, values, locals,
-        implicit,
+        implicit, true,
     )?
     .is_some())
 }
@@ -1915,7 +1960,7 @@ pub(super) fn call_region_argument(
     };
     let function = world.function(function)?;
     trace(
-        world, caller, original, function, &role, operand, values, locals, implicit,
+        world, caller, original, function, &role, operand, values, locals, implicit, false,
     )?;
     Ok(true)
 }
