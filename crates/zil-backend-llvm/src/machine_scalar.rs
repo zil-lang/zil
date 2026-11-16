@@ -445,11 +445,6 @@ fn evaluate(
     }
 }
 
-#[cfg(test)]
-pub(crate) fn fold_known_leaf_calls(module: &mut Module, lir: &LirView<'_>) -> usize {
-    fold_known_leaf_calls_with_preflight(module, lir, &mut Default::default())
-}
-
 pub(crate) fn fold_known_leaf_calls_with_preflight(
     module: &mut Module,
     lir: &LirView<'_>,
