@@ -71,6 +71,7 @@ pub(in crate::semantics) fn populate(
                 return Err(bad("whole capture original has no code signature"));
             };
             let mut images = BTreeMap::new();
+            let mut domains = BTreeSet::<(u32, u32)>::new();
             let captures = creator_captures(program, &view, ledger, instance, id, limits, left)?;
             let mut ready = true;
             for (_, _, ty) in &captures {
@@ -88,6 +89,7 @@ pub(in crate::semantics) fn populate(
                 else {
                     continue;
                 };
+                capture_coordinates(&value, &mut domains, left)?;
                 let mut bindings = Vec::new();
                 let mut classes = Vec::new();
                 let mut statics = Vec::new();
@@ -121,6 +123,7 @@ pub(in crate::semantics) fn populate(
                         return Err(bad("whole capture outer occurrence is duplicated"));
                     }
                     put(
+                        program, ledger, &domains,
                         &mut images,
                         row.binder,
                         image,
@@ -148,6 +151,7 @@ pub(in crate::semantics) fn populate(
                         return Err(bad("whole capture intrinsic class is duplicated"));
                     }
                     put(
+                        program, ledger, &domains,
                         &mut images,
                         row.binder,
                         image,
@@ -196,10 +200,12 @@ pub(in crate::semantics) fn populate(
                 crate::dyn_metadata::semantic_operand_snapshot(row, limits, left, 1)?;
                 match row.header {
                     StorageBinder::Fixed(fixed) => {
-                        if embedding.get(fixed as usize) != Some(row) {
-                            return Err(bad(
-                                "whole capture embedding differs from its original complete images",
-                            ));
+                        let actual = embedding.get_mut(fixed as usize).ok_or_else(|| bad("whole capture embedding leaves its complete Fixed domain"))?;
+                        if actual != row {
+                            if actual.header != row.header || !equal_capture_image(program, ledger, original.id, &domains, &actual.actual, &row.actual, limits, left)? {
+                                return Err(bad("whole capture embedding differs from its original complete images"));
+                            }
+                            actual.actual = row.actual.clone();
                         }
                     }
                     StorageBinder::Invocation(index) => {
@@ -752,7 +758,11 @@ fn creator_captures(
     Ok(result)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn put(
+    program: &SemanticModule,
+    ledger: &super::super::emission::Ledger,
+    domains: &BTreeSet<(u32, u32)>,
     images: &mut BTreeMap<u32, SemanticClassExpr>,
     binder: StorageBinder,
     image: SemanticClassExpr,
@@ -810,7 +820,7 @@ fn put(
     pay(left, images.len().saturating_add(1).ilog2() as usize + 1)?;
     if let Some(prior) = images.get(&fixed) {
         crate::dyn_metadata::semantic_operand_snapshot(prior, limits, left, 1)?;
-        if prior != &image {
+        if prior != &image && !equal_capture_image(program, ledger, original.id, domains, prior, &image, limits, left)? {
             return Err(bad(
                 "one actual Fixed class has different original capture images",
             ));
@@ -819,6 +829,56 @@ fn put(
         images.insert(fixed, image);
     }
     Ok(())
+}
+
+fn capture_coordinates(
+    value: &SemanticTypeValue,
+    coordinates: &mut BTreeSet<(u32, u32)>,
+    left: &mut usize,
+) -> R<()> {
+    let SemanticTypeValue::Resolved { life, classes, .. } = value else { return Err(bad("capture has no complete original domain")); };
+    if life.binder_count as usize != classes.len() { return Err(bad("capture omits its complete original class vector")); }
+    for image in classes {
+        pay(left, 1)?;
+        if let SemanticClassExpr::IntrinsicClass { operand: SemanticOperand::Environment(slot), path, class } = image
+            && path.is_empty() {
+            pay(left, coordinates.len().saturating_add(1).ilog2() as usize + 1)?;
+            coordinates.insert((*slot, *class));
+        }
+    }
+    Ok(())
+}
+
+/// The original defining equation can relate two sealed Type environments.
+/// A coincident actual image, machine Type or loan source is never evidence.
+#[allow(clippy::too_many_arguments)]
+fn equal_capture_image(
+    program: &SemanticModule,
+    ledger: &super::super::emission::Ledger,
+    owner: SemanticDefinitionId,
+    domains: &BTreeSet<(u32, u32)>,
+    a: &SemanticClassExpr,
+    b: &SemanticClassExpr,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<bool> {
+    let (
+        SemanticClassExpr::IntrinsicClass { operand: SemanticOperand::Environment(a), path: ap, class: ac },
+        SemanticClassExpr::IntrinsicClass { operand: SemanticOperand::Environment(b), path: bp, class: bc },
+    ) = (a, b) else { return Ok(false); };
+    pay(left, ap.len().saturating_add(bp.len()).saturating_add(1))?;
+    if !ap.is_empty() || !bp.is_empty() || ac != bc { return Ok(false); }
+    pay(left, (domains.len().saturating_add(1).ilog2() as usize + 1).saturating_mul(2))?;
+    if !domains.contains(&(*a, *ac)) || !domains.contains(&(*b, *bc)) { return Ok(false); }
+    let proof = ledger.original.borrow();
+    if let Some(proof) = proof.as_ref() {
+        let original = ledger.original.context().map_or(program, |context| &context.semantic);
+        return proof.equal_capture_types(original, owner, *a, *b, limits, left);
+    }
+    if let Some(frozen) = ledger.frozen.as_deref() {
+        return frozen.original.equal_capture_types(&frozen.semantic, owner, *a, *b, limits, left);
+    }
+    Ok(false)
 }
 
 /// Complete an absent closure directory from its original signature and every
@@ -1327,11 +1387,27 @@ pub(in crate::semantics) fn form_emitted_header(
         limits,
         left,
     )?;
-    let (directory, mapping) = complete_rows(bindings, classes, statics, limits, left)?;
-    if !instance.header_embedding.is_empty() && instance.header_embedding != mapping {
-        return Err(bad(
-            "completed closure directory changes its original domain embedding",
-        ));
+    let mut coordinates = BTreeSet::new();
+    for (base, value) in &values {
+        if matches!(base, StorageBase::Capture(_)) { capture_coordinates(value, &mut coordinates, left)?; }
+    }
+    let mut equal = |a: &SemanticClassExpr, b: &SemanticClassExpr, left: &mut usize| {
+        equal_capture_image(program, ledger, instance.definition, &coordinates, a, b, limits, left)
+    };
+    let (directory, mut mapping) = complete_rows(bindings, classes, statics, &mut equal, limits, left)?;
+    if !instance.header_embedding.is_empty() {
+        pay(left, 1)?;
+        if instance.header_embedding.len() != mapping.len() {
+            return Err(bad("completed closure directory changes its original domain embedding"));
+        }
+        for (actual, existing) in mapping.iter_mut().zip(&instance.header_embedding) {
+            crate::dyn_metadata::semantic_operand_snapshot(existing, limits, left, 1)?;
+            if actual.header != existing.header
+                || actual.actual != existing.actual && !equal(&actual.actual, &existing.actual, left)? {
+                return Err(bad("completed closure directory changes its original domain embedding"));
+            }
+            actual.actual = existing.actual.clone();
+        }
     }
     Ok(Some((directory, mapping, values)))
 }
@@ -1440,10 +1516,11 @@ fn emitted_operands(
     Ok(Some(values))
 }
 
-fn complete_rows(
+fn complete_rows<F: FnMut(&SemanticClassExpr, &SemanticClassExpr, &mut usize) -> R<bool>>(
     bindings: Vec<(StoragePosition, SemanticClassExpr)>,
     classes: Vec<(SignatureLifeClass, SemanticClassExpr)>,
     statics: Vec<StoragePosition>,
+    equal: &mut F,
     limits: &Limits,
     left: &mut usize,
 ) -> R<(StorageLifeContract, Vec<SemanticHeaderBinding>)> {
@@ -1475,6 +1552,7 @@ fn complete_rows(
                 &mut mapping,
                 image,
                 persistent,
+                equal,
                 limits,
                 left,
             )?;
@@ -1486,6 +1564,7 @@ fn complete_rows(
             &mut mapping,
             &image,
             matches!(position.base, StorageBase::Capture(_)),
+            equal,
             limits,
             left,
         )?;
@@ -1499,6 +1578,7 @@ fn complete_rows(
             &mut mapping,
             &image,
             matches!(position.base, StorageBase::Capture(_)),
+            equal,
             limits,
             left,
         )?;
@@ -1513,6 +1593,9 @@ fn complete_rows(
 /// Final publication derives these operands anew from the original program.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::semantics) fn validate_formed_header(
+    program: &SemanticModule,
+    ledger: &super::super::emission::Ledger,
+    owner: SemanticDefinitionId,
     parameters: &[Type],
     captures: &[Type],
     result: &Type,
@@ -1585,24 +1668,37 @@ pub(in crate::semantics) fn validate_formed_header(
             left,
         )?;
     }
-    let (expected, mapping) = complete_rows(bindings, classes, statics, limits, left)?;
+    let mut coordinates = BTreeSet::new();
+    for (base, value) in values {
+        if matches!(base, StorageBase::Capture(_)) { capture_coordinates(value, &mut coordinates, left)?; }
+    }
+    let mut equal = |a: &SemanticClassExpr, b: &SemanticClassExpr, left: &mut usize| {
+        equal_capture_image(program, ledger, owner, &coordinates, a, b, limits, left)
+    };
+    let (expected, mapping) = complete_rows(bindings, classes, statics, &mut equal, limits, left)?;
     crate::borrowed_fp::charge_contract(header, |work| pay(left, work), 1)?;
     for row in embedding {
         crate::dyn_metadata::semantic_operand_snapshot(row, limits, left, 1)?;
     }
-    if &expected != header || mapping != embedding {
-        return Err(bad(
-            "formed closure header changes a complete operand row or original Fixed image",
-        ));
+    pay(left, 1)?;
+    if &expected != header || mapping.len() != embedding.len() {
+        return Err(bad("formed closure header changes a complete operand row or original Fixed image"));
+    }
+    for (actual, existing) in mapping.iter().zip(embedding) {
+        if actual.header != existing.header
+            || actual.actual != existing.actual && !equal(&actual.actual, &existing.actual, left)? {
+            return Err(bad("formed closure header changes a complete operand row or original Fixed image"));
+        }
     }
     Ok(())
 }
 
-fn header_image(
+fn header_image<F: FnMut(&SemanticClassExpr, &SemanticClassExpr, &mut usize) -> R<bool>>(
     header: &mut StorageLifeContract,
     mapping: &mut Vec<SemanticHeaderBinding>,
     image: &SemanticClassExpr,
     persistent: bool,
+    equal: &mut F,
     limits: &Limits,
     left: &mut usize,
 ) -> R<StorageBinder> {
@@ -1610,7 +1706,7 @@ fn header_image(
     crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
     for row in mapping.iter() {
         crate::dyn_metadata::semantic_operand_snapshot(&row.actual, limits, left, 1)?;
-        if &row.actual == image {
+        if &row.actual == image || equal(&row.actual, image, left)? {
             return Ok(row.header);
         }
     }

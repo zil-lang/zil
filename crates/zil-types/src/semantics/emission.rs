@@ -166,8 +166,32 @@ impl Ledger {
                 "actual closure changed its early formed header",
             ));
         }
+        let program = self.original.context().map(|context| &context.semantic)
+            .or_else(|| self.frozen.as_deref().map(|frozen| &frozen.semantic))
+            .ok_or_else(|| invalid(Span::default(), "formed capture lacks its immutable original program"))?;
+        pay(left, self.frames.len(), Span::default())?;
+        let mut origin = None;
+        for frame in self.frames.values().filter(|frame| frame.parent.is_some_and(|(_, id)| id == closure)) {
+            if origin.replace(frame.origin).is_some() {
+                return Err(invalid(Span::default(), "formed capture has several actual entry origins"));
+            }
+        }
+        let origin = origin.ok_or_else(|| invalid(Span::default(), "formed capture has no actual entry origin"))?;
+        pay(left, program.instances.len(), Span::default())?;
+        let mut owner = None;
+        for instance in &program.instances {
+            if matches!(&instance.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::CoreClosure {
+                module, creator, expression, occurrence: 0,
+            }) if *module == origin.module && *creator == origin.creator && Some(*expression) == origin.closure) {
+                if owner.is_some_and(|owner| owner != instance.definition) {
+                    return Err(invalid(Span::default(), "formed capture source origin has several original definitions"));
+                }
+                owner = Some(instance.definition);
+            }
+        }
+        let owner = owner.ok_or_else(|| invalid(Span::default(), "formed capture has no exact original closure definition"))?;
         super::headers::validate_formed_header(
-            parameters, captures, result, header, embedding, values, limits, left,
+            program, self, owner, parameters, captures, result, header, embedding, values, limits, left,
         )?;
         Ok(true)
     }

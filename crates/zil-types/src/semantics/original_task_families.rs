@@ -12,6 +12,38 @@ fn task_payload(ty: &SemanticTypeRecipe) -> bool {
 }
 
 impl Proof {
+    /// Congruence of complete original whole Types, not equality of concrete
+    /// layouts or of two caller instantiations. The capture consumer separately
+    /// checks that its shared intrinsic ordinal exists in both complete domains.
+    pub(in crate::semantics) fn equal_capture_types(
+        &self,
+        program: &SemanticModule,
+        owner: SemanticDefinitionId,
+        left_slot: u32,
+        right_slot: u32,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<bool> {
+        *left = left.checked_sub(self.complete.len().saturating_add(1).ilog2() as usize + 1)
+            .ok_or_else(|| Diagnostic::limit(Phase::Types, "original capture equation lookup work exceeded", None))?;
+        if !self.complete.contains(&owner) { return Ok(false); }
+        let mut check = super::nominal_where::borrowed_check(program, self, owner, limits, left)?;
+        let declaration = check.definition(owner)?;
+        if declaration.kind != SemanticDefinitionKind::Closure { return Ok(false); }
+        for slot in [left_slot, right_slot] {
+            check.pay(self.environments.len().saturating_add(1).ilog2() as usize + 2, 0)?;
+            if !matches!(declaration.environment.get(slot as usize).map(|slot| &slot.kind), Some(SemanticFormal::Type { .. }))
+                || self.environments.get(&(owner, slot)).is_none_or(|(parent, _)| Some(*parent) != declaration.parent)
+            { return Ok(false); }
+        }
+        let a = SemanticTypeRecipe::Environment { scope: SemanticScopeRef::Ancestor(0), ordinal: left_slot };
+        let b = SemanticTypeRecipe::Environment { scope: SemanticScopeRef::Ancestor(0), ordinal: right_slot };
+        match check.same(&a, &b) {
+            Ok(()) => Ok(true),
+            Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => Err(error),
+            Err(_) => Ok(false),
+        }
+    }
     /// A Task Context part is empty only by the immutable original theorem.
     /// This grants no actual closure value, cleanup or callable permission.
     pub(in crate::semantics) fn task_type_is_zero(
