@@ -11,6 +11,15 @@ mod owner_sources;
 mod assignments;
 
 impl CheckedContext {
+    pub(super) fn call_input_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,node:zil_base::NodeId,source:Option<BufferSource>,b:&mut Budget)->Check<()>{
+        match source{
+            // An argument observes the pointer/description value at this
+            // exact original Place. This does not turn it into movable data.
+            Some(BufferSource::Place{definition,node})=>self.original_projection_source(module,caller,f,value,definition,node,true,b),
+            Some(source)=>self.intrinsic_buffer_source(module,caller,f,value,source,b),
+            None=>self.exact_expression_value(module,caller,f,value,node,b),
+        }
+    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn actual_intrinsic(
         &self,

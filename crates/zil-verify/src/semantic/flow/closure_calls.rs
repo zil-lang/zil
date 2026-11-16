@@ -4,7 +4,7 @@
 use super::*;
 impl CheckedContext {
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn closure_call(&self,module:&TypedModule,caller:&SemanticInstance,id:ClosureId,receiver:&CheckedType,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
+    pub(super) fn closure_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,id:ClosureId,receiver:&CheckedType,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>>{
         let closure=crate::closures::definition(module,id,None)?;
         let entry=module.functions.get(closure.function.0 as usize).filter(|row|row.id==closure.function&&row.environment==Some(id)).ok_or_else(||bad("closure call has no exact actual environment entry"))?;
         let header=closure.storage_life.as_ref().ok_or_else(||bad("closure call actual complete environment header is Unknown"))?;
@@ -13,7 +13,8 @@ impl CheckedContext {
         ghost_captures::complete_environment(module,receiver,b)?;
         let programme=module.semantic.as_ref().ok_or_else(||bad("closure call has no original entry world directory"))?;
         b.spend(programme.instances.len().saturating_add(arguments.len()))?;
-        let inputs=arguments.iter().map(|argument|value_at(values,*argument)).collect::<Check<Vec<_>>>()?;
+        let source_inputs=self.original_call_inputs(module,caller,site,arguments,values,environment,external,active,b)?;
+        let inputs=source_inputs.iter().collect::<Vec<_>>();
         let mut result:Option<CheckedType>=None;let mut worlds=0usize;
         for instance in programme.instances.iter().filter(|row|matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))if function==closure.function)){
             let definition=self.definition(module,instance.definition,b)?;

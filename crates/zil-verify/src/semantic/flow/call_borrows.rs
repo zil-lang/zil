@@ -3,6 +3,29 @@
 //! caller's original lifetime actual/result image.
 use super::*;
 impl CheckedContext {
+    /// Invocation images come from the exact checked original operands. An
+    /// extra compiler argument reborrow is an input role, not the lifetime of
+    /// an opaque/nominal result that retains the original caller occurrence.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn original_call_inputs(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<CheckedType>>{
+        let recipes=self.original.borrow().as_ref().ok_or_else(||bad("Call inputs have no universal original body proof"))?.call_input_recipes(module,caller.definition,site.recipe,b)?;
+        if recipes.len()!=arguments.len(){return Err(bad("actual Call inputs change the exact original argument arity"));}
+        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=caller.target else{return Err(bad("original Call inputs have no actual caller function"));};
+        let f=module.functions.get(function.0 as usize).filter(|row|row.id==function).ok_or_else(||bad("original Call input actual caller is absent"))?;
+        b.spend(arguments.len())?;
+        let mut checked=Vec::with_capacity(arguments.len());
+        for((node,recipe,origin),argument)in recipes.iter().zip(arguments){
+            let source=self.evaluate_type(module,recipe,environment,external,active,b)?;
+            if matches!(source.ty,Type::Address{..}|Type::Desc(_))&&source.life.binder_count!=0{
+                self.call_input_source(module,caller,f,*argument,*node,*origin,b)?;
+            }
+            if !self.call_argument(module,caller,*argument,values,&source,environment,b)?{
+                return Err(bad("actual Call input changes its original whole operand or exact argument reborrow role"));
+            }
+            checked.push(source);
+        }
+        Ok(checked)
+    }
     pub(super) fn instantiate_call_heads(&self,signature:&mut CheckedSignature,arguments:&[&CheckedType],key:ScopeKey,environment:&EvalEnv,b:&mut Budget)->Check<()>{
         if arguments.len()!=signature.parameters.len(){return Err(bad("Call head substitution changes its actual arity"));}
         let mut invocation=Vec::<(ClassKey,ClassKey)>::new();
@@ -111,4 +134,44 @@ fn static_call_head(value:&mut CheckedType,source:&ClassKey,b:&mut Budget)->Chec
         value.classes.remove(index as usize);value.origins.remove(index as usize);value.life.binder_count=value.classes.len() as u32;
         let row=StaticOccurrence::Direct{path:vec![],leaf:value.raw_type_copy(b)?,mode:StoredBorrowMode::SharedAddress};if !value.statics.contains(&row){value.statics.push(row);}
     }Ok(())
+}
+
+#[cfg(test)]
+mod input_image_tests{
+    use super::*;
+    fn address(key:ClassKey)->CheckedType{
+        CheckedType{type_cell:crate::semantic::CheckedTypeData::new(Type::Address{mutable:false,inner:Box::new(Type::I32)}),life:StorageLifeShape{binder_count:1,slots:vec![StorageLifeSlot{path:vec![],binder:0,mode:StoredBorrowMode::SharedAddress}],retained:vec![],nominal_arguments:vec![]},origins:vec![IntrinsicOrigin::DerivedClass{source:key.clone()}],classes:vec![key],statics:vec![]}
+    }
+    // Original operand proofs supply these images; this test exercises only
+    // the scoped invocation substitution, never a Source or borrow authority.
+    #[test]
+    fn invocation_result_preserves_original_head_images_and_opaque_occurrences(){
+        let mut module=crate::resource_closure_tests::fixture(CallableKind::Fn,false,0);
+        module.semantic=Some(SemanticModule{definitions:vec![],instances:vec![],sites:vec![],dyn_scopes:vec![]});
+        let mut b=Budget::new(&Limits::default());
+        let context=CheckedContext::catalogue(&module,&mut b).unwrap();
+        let owner=SemanticDefinitionId{module:module.module_id,index:0};
+        let call=ScopeKey::Witness{definition:owner,frame:0};
+        let caller=ScopeKey::Instance(SemanticInstanceId{module:module.module_id,index:0});
+        let env=EvalEnv{lexical:vec![],assumptions:vec![],images:vec![],bounds:vec![],invocations:vec![],at:None};
+        let fresh=[ClassKey::Implicit{scope:call,ordinal:0},ClassKey::Implicit{scope:call,ordinal:1}];
+        let origins=(0..2).map(|class|IntrinsicOrigin::Existing{scope:caller,operand:OperandKey::Receiver,path:vec![],class}).collect::<Vec<_>>();
+        let template=CheckedSignature{parameters:fresh.iter().cloned().map(|key|(address(key),PassingMode::Borrow)).collect(),result:CheckedType{type_cell:crate::semantic::CheckedTypeData::new(Type::Closure(ClosureId(0))),life:StorageLifeShape{binder_count:2,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:fresh.to_vec(),origins:origins.clone(),statics:vec![]},result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound:vec![],invocation:vec![]};
+        for equal_image in [false,true]{
+            let a=ClassKey::Implicit{scope:caller,ordinal:0};
+            let z=ClassKey::Implicit{scope:caller,ordinal:if equal_image{0}else{1}};
+            let arguments=[address(a.clone()),address(z.clone())];
+            let mut signature=template.clone();
+            context.instantiate_call_heads(&mut signature,&arguments.iter().collect::<Vec<_>>(),call,&env,&mut b).unwrap();
+            assert_eq!(signature.result.classes,vec![a,z]);
+            assert_eq!(signature.result.life.binder_count,2);
+            assert_eq!(signature.result.origins,origins);
+            assert_ne!(signature.result.origins[0],signature.result.origins[1]);
+            assert!(!context.same(&env,&fresh[0],&signature.result.classes[0],&mut b).unwrap(),"a call image must not become a global equality");
+        }
+        let mut repeated=template;
+        repeated.parameters[1].0=address(fresh[0].clone());
+        let arguments=[address(ClassKey::Implicit{scope:caller,ordinal:0}),address(ClassKey::Implicit{scope:caller,ordinal:1})];
+        assert!(context.instantiate_call_heads(&mut repeated,&arguments.iter().collect::<Vec<_>>(),call,&env,&mut b).unwrap_err().message.contains("repeated original invocation relation"));
+    }
 }

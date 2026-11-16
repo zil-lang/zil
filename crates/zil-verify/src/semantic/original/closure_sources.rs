@@ -2,6 +2,29 @@
 //! and equal outside lifetime images never choose the captured value.
 use super::*;
 impl CheckedOriginal {
+    pub(in crate::semantic) fn call_input_recipes(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<Vec<(NodeId,SemanticTypeRecipe,Option<intrinsics::BufferSource>)>>{
+        let index=self.source_index(module,&[definition],b)?;
+        let function=index.definitions.get(&definition).ok_or_else(||bad("Call inputs have no checked original function"))?;
+        let Some(index::Node::Expression(call))=function.nodes.get(&site).copied()else{return Err(bad("Call inputs have no exact original expression occurrence"));};
+        let CoreExprKind::Call{arguments,..}=&call.kind else{return Err(bad("Call input recipe selects another original operation"));};
+        if !self.call_targets.contains_key(&(definition,site))&&!self.callable_nodes.contains_key(&(definition,call.id)){
+            return Err(bad("Call input occurrence has no independently resolved original callee"));
+        }
+        b.spend(arguments.len())?;
+        let mut recipes=Vec::with_capacity(arguments.len());
+        for argument in arguments{
+            let ty=self.original_type(definition,&SemanticOriginalTypeSource::Expression(argument.id),b)?;
+            let mut expression=argument;
+            while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&expression.kind{b.spend(1)?;expression=inner;}
+            let source=if matches!(self.resolved(&ty,b)?,Ty::Address{..}|Ty::Desc{..}){
+                if let Some(source)=self.original_address_source(module,definition,&SemanticOriginalTypeSource::Expression(argument.id),b)?{Some(source)}
+                else if self.value_places.contains_key(&(definition,expression.id)){Some(intrinsics::BufferSource::Place{definition,node:expression.id})}
+                else{None}
+            }else{None};
+            recipes.push((expression.id,SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(argument.id)},source));
+        }
+        Ok(recipes)
+    }
     // Select a proved original call by its lexical node or its inferred local
     // binding. Explicit type ascriptions remain separate invariant obligations.
     pub(in crate::semantic) fn call_result_source(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<SemanticSiteId>>{

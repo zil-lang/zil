@@ -652,7 +652,7 @@ impl CheckedContext {
         let definition=definitions.next().ok_or_else(||bad("actual callable definition is absent"))?;
         if definitions.next().is_some()||definition.parameters.len()!=arguments.len(){return Err(bad("actual callable identity or arity differs"));}
         let receiver=if matches!(actual.ty,Type::Address{..}){self.child_value(module,actual,&[LifeTypeProjection::Pointee],b)?}else{actual.clone()};
-        self.closure_call(module,caller,id,&receiver,arguments,values,environment,external,active,b)
+        self.closure_call(module,caller,site,id,&receiver,arguments,values,environment,external,active,b)
 
     }
     fn actual_call(&self,module:&TypedModule,caller:&SemanticInstance,site:&SemanticSite,callee:FunctionId,arguments:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut dynamic_witness::semantic_external::Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<CheckedType>> {
@@ -706,7 +706,8 @@ impl CheckedContext {
         let mut signature=self.world_signature(module,signature,worlds,environment,external,active,b)?;
         if signature.parameters.len()!=arguments.len() {return Err(bad("actual Call operand count differs from its original signature"));}
         b.spend(arguments.len())?;
-        let inputs=arguments.iter().map(|argument|value_at(values,*argument)).collect::<Check<Vec<_>>>()?;
+        let source_inputs=self.original_call_inputs(module,caller,site,arguments,values,environment,external,active,b)?;
+        let inputs=source_inputs.iter().collect::<Vec<_>>();
         self.instantiate_call_heads(&mut signature,&inputs,key,environment,b)?;
         let actual_function=module.functions.get(callee.0 as usize).ok_or_else(||bad("actual Call function is absent"))?;
         for ((expected,_),argument) in signature.parameters.iter().zip(arguments) {
@@ -817,7 +818,7 @@ impl CheckedContext {
             else if let Some(origin)=source{actual.origins[index]=origin;}
         }
         self.claim_static_obligations(&mut actual,expected,b)?;
-        if !self.same_type(environment,&actual,expected,b)? {return Err(bad("site complete type/class claim differs from its original scoped recipe"));}
+        if !self.same_type(environment,&actual,expected,b)? {return Err(bad("site complete type/class claim differs from its original scoped recipe").with_note(format!("original {:?}, actual point {:?}; domains {}/{}, class images {:?}/{:?}",environment.lexical.first().map(|frame|frame.definition),environment.at,actual.life.binder_count,expected.life.binder_count,&actual.classes[..actual.classes.len().min(6)],&expected.classes[..expected.classes.len().min(6)])));}
         Ok(())
     }
 }
