@@ -828,9 +828,10 @@ impl FunctionStore {
         session: &mut zil_types::FunctionSession,
         options: &CompileOptions,
         packs: &mut packed::Epoch,
-    ) {
+        hint: &mut dyn FnMut(&[u8]) -> Option<zil_ir::wire::RawFunctionEncoding>,
+    ) -> Option<zil_ir::wire::RawFunctionDecodingStats> {
         if !session.is_empty() || !private_directory(&self.store.root, false) {
-            return;
+            return None;
         }
         let bounds = packed::Bounds {
             maximum: self.store.maximum,
@@ -841,8 +842,9 @@ impl FunctionStore {
         } else {
             Some(self.store.maximum)
         }) else {
-            return;
+            return None;
         };
+        let mut decoding = zil_ir::wire::RawFunctionDecodingStats::default();
         if let Ok(CacheRead::Candidate(bytes)) =
             ArtifactCache::with_limit(&self.store.root, maximum).inspect_candidate(self.store.key)
         {
@@ -852,25 +854,27 @@ impl FunctionStore {
                     let Some(mut reader) =
                         packed::Reader::new(&root, &bytes, bounds, &options.cancellation)
                     else {
-                        return;
+                        return None;
                     };
                     let logical = reader.take_logical();
-                    if session.restore_item_products(
+                    if session.restore_item_products_with_decoded(
                         &logical,
                         &mut |key| reader.load(key),
+                        hint,
                         &options.target,
                         &options.limits,
+                        &mut decoding,
                     ) {
                         *packs = reader.epoch();
                     }
-                    return;
+                    return Some(decoding);
                 }
                 let root = self.store.root.join("items");
                 if !private_directory(&root, false) {
-                    return;
+                    return None;
                 }
                 let cache = ArtifactCache::with_limit(&root, self.store.maximum);
-                session.restore_item_products(
+                session.restore_item_products_with_decoded(
                     &bytes,
                     &mut |key| match cache.inspect_candidate(key) {
                         Ok(CacheRead::Candidate(bytes)) => Some(bytes.into()),
@@ -879,13 +883,17 @@ impl FunctionStore {
                             None
                         }
                     },
+                    hint,
                     &options.target,
                     &options.limits,
+                    &mut decoding,
                 );
+                return Some(decoding);
             } else {
                 session.restore_work_products(&bytes, &options.target, &options.limits);
             }
         }
+        None
     }
     pub(super) fn save(
         &self,

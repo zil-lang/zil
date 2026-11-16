@@ -219,6 +219,7 @@ pub struct CompileAttempt {
     pub diagnostics: Vec<Diagnostic>,
     pub verification_runs: usize,
     pub function_type_work: Option<Box<zil_types::FunctionStats>>,
+    pub function_cache_decoding: Option<Box<zil_ir::wire::RawFunctionDecodingStats>>,
     /// Actual sparse Types work for this attempt; None means not executed.
     pub types_push_work: Option<Box<zil_types::TypesPushStats>>,
     pub raw_inference_work: Option<Box<zil_types::RawInferenceStats>>,
@@ -235,7 +236,7 @@ pub struct CompileAttempt {
 impl CompileAttempt {
     fn to_json(&self) -> String {
         format!(
-            "{{\"retry_reason\":{},\"input_fingerprint\":{},\"source_files\":{{{}}},\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"verification_runs\":{},\"frontend_stats\":{},\"types_push_work\":{},\"raw_inference_work\":{},\"ct_plain_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{}}}",
+            "{{\"retry_reason\":{},\"input_fingerprint\":{},\"source_files\":{{{}}},\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"verification_runs\":{},\"frontend_stats\":{},\"function_cache_decoding\":{},\"types_push_work\":{},\"raw_inference_work\":{},\"ct_plain_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{}}}",
             self.retry_reason
                 .as_ref()
                 .map_or_else(|| "null".into(), |reason| json_string(reason)),
@@ -263,6 +264,7 @@ impl CompileAttempt {
                 self.producer_work.as_deref(),
                 self.materialization_work,
             ),
+            raw_function_decoding_json(self.function_cache_decoding.as_deref()),
             self.types_push_work
                 .as_ref()
                 .map_or_else(|| "null".into(), |stats| stats.to_json()),
@@ -338,6 +340,8 @@ pub struct CompileReport {
     /// Completed query metadata checked in one immutable frontend replay.
     pub frontend_dependency_reads: Option<Box<zil_db::ReadBatchStats>>,
     pub function_cache_encoding: Option<Box<zil_ir::wire::FunctionEncodingStats>>,
+    /// Raw decoding work across all attempts; failed restores never authorize Types.
+    pub function_cache_decoding: Option<Box<zil_ir::wire::RawFunctionDecodingStats>>,
     pub function_cache_publication: Option<FunctionPublicationStats>,
     pub semantic_cache_publication: Option<SemanticPublicationStats>,
     /// Actual work in the final attempt; verifier-owned proof reuse is distinct
@@ -388,6 +392,7 @@ impl CompileReport {
             source_ingress: None,
             frontend_dependency_reads: None,
             function_cache_encoding: None,
+            function_cache_decoding: None,
             function_cache_publication: None,
             semantic_cache_publication: None,
             verification_work: None,
@@ -409,7 +414,7 @@ impl CompileReport {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"native_product_selection\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"source_ingress\":{},\"frontend_dependency_reads\":{},\"function_cache_encoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"lowering_work\":{},\"types_push_work\":{},\"raw_inference_work\":{},\"ct_plain_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"native_product_selection\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}],\"frontend_stats\":{},\"source_ingress\":{},\"frontend_dependency_reads\":{},\"function_cache_encoding\":{},\"function_cache_decoding\":{},\"function_cache_publication\":{},\"semantic_cache_publication\":{},\"verification_work\":{},\"backend_work\":{},\"lowering_work\":{},\"types_push_work\":{},\"raw_inference_work\":{},\"ct_plain_work\":{},\"phase_timings_ns\":{{{}}},\"driver_timings_ns\":{{{}}},\"materialization_ns\":{},\"exclusive_costs\":{},\"attempts\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -464,6 +469,7 @@ impl CompileReport {
             self.function_cache_encoding.as_ref().map_or_else(|| "null".into(), |stats| format!(
                 "{{\"serialized_functions\":{},\"reused_functions\":{}}}",
                 stats.serialized_functions, stats.reused_functions)),
+            raw_function_decoding_json(self.function_cache_decoding.as_deref()),
             self.function_cache_publication.map_or_else(|| "null".into(), |stats| format!(
                 "{{\"written_functions\":{},\"existing_functions\":{},\"written_bytes\":{},\"manifest_bytes\":{},\"encode_ns\":{},\"guard_ns\":{},\"item_io_ns\":{},\"manifest_io_ns\":{},\"physical_pack_writes\":{},\"physical_pack_bytes\":{},\"manifest_writes\":{},\"compacted_items\":{},\"referenced_packs\":{},\"referenced_pack_payload_bytes\":{}}}",
                 stats.written_functions, stats.existing_functions, stats.written_bytes, stats.manifest_bytes, stats.encode_ns, stats.guard_ns, stats.item_io_ns, stats.manifest_io_ns, stats.physical_pack_writes, stats.physical_pack_bytes, stats.manifest_writes, stats.compacted_items, stats.referenced_packs, stats.referenced_pack_payload_bytes)),
@@ -518,6 +524,7 @@ impl CompileReport {
                     .sum(),
             ),
             function_type_work: self.function_type_work.clone(),
+            function_cache_decoding: self.function_cache_decoding.clone(),
             types_push_work: self.types_push_work.clone(),
             raw_inference_work: self.raw_inference_work.clone(),
             ct_plain_work: self.ct_plain_work.clone(),
@@ -541,6 +548,7 @@ impl CompileReport {
         // A checkpoint may contain work done before importing the candidate.
         // That prefix belongs to the rejected attempt and is never billed twice.
         next.function_type_work = None;
+        next.function_cache_decoding = None;
         next.types_push_work = None;
         next.raw_inference_work = None;
         next.ct_plain_work = None;
@@ -560,6 +568,7 @@ impl CompileReport {
         let final_attempt = self.capture_attempt(None, self.diagnostics.clone());
         self.attempts.push(final_attempt);
         let final_types = self.function_type_work.take();
+        self.function_cache_decoding = None;
         let final_analysis = self.initialization_work;
         self.producer_work = None;
         self.materialization_work = None;
@@ -568,6 +577,21 @@ impl CompileReport {
         self.driver_timings_ns.clear();
         self.materialization_ns = 0;
         for attempt in &self.attempts {
+            if let Some(work) = attempt.function_cache_decoding.as_deref() {
+                let total = self
+                    .function_cache_decoding
+                    .get_or_insert_with(Default::default);
+                total.decode_attempts = total.decode_attempts.saturating_add(work.decode_attempts);
+                total.decoded_functions = total
+                    .decoded_functions
+                    .saturating_add(work.decoded_functions);
+                total.reused_decoded_functions = total
+                    .reused_decoded_functions
+                    .saturating_add(work.reused_decoded_functions);
+                total.relabeled_decoded_functions = total
+                    .relabeled_decoded_functions
+                    .saturating_add(work.relabeled_decoded_functions);
+            }
             if let Some(work) = attempt.materialization_work {
                 self.materialization_work
                     .get_or_insert_with(Default::default)
@@ -769,6 +793,11 @@ fn named_timings_json(timings: &BTreeMap<&'static str, u128>) -> String {
         .collect::<Vec<_>>()
         .join(",")
 }
+fn raw_function_decoding_json(stats: Option<&zil_ir::wire::RawFunctionDecodingStats>) -> String {
+    stats.map_or_else(|| "null".into(), |s| format!(
+        "{{\"decode_attempts\":{},\"decoded_functions\":{},\"reused_decoded_functions\":{},\"relabeled_decoded_functions\":{}}}",
+        s.decode_attempts, s.decoded_functions, s.reused_decoded_functions, s.relabeled_decoded_functions))
+}
 fn ct_plain_stats_json(stats: Option<&zil_ct::PlainSourceStats>) -> String {
     stats.map_or_else(|| "null".into(), |stats| format!(
     "{{\"observer_schema\":1,\"scope\":\"plain admission attempt; extra fallback work unknown\",\"shape_checks\":{},\"shape_reuses\":{},\"body_checks\":{},\"body_reuses\":{},\"declaration_modules\":{},\"receipt_context_matches\":{},\"fallbacks\":{}}}",
@@ -956,6 +985,12 @@ mod report_attempt_tests {
         first.graph.retained_nodes = 100;
         first.graph.retained_edges = 80;
         report.function_type_work = Some(Box::new(first));
+        report.function_cache_decoding = Some(Box::new(zil_ir::wire::RawFunctionDecodingStats {
+            decode_attempts: 2,
+            decoded_functions: 1,
+            reused_decoded_functions: 3,
+            relabeled_decoded_functions: 1,
+        }));
         report.initialization_work = Some(zil_analyze::AnalysisStats {
             executed_functions: 3,
             reused_functions: 2,
@@ -985,6 +1020,13 @@ mod report_attempt_tests {
         final_work.graph.retained_nodes = 7;
         final_work.graph.retained_edges = 8;
         report.function_type_work = Some(Box::new(final_work));
+        assert!(report.function_cache_decoding.is_none());
+        report.function_cache_decoding = Some(Box::new(zil_ir::wire::RawFunctionDecodingStats {
+            decode_attempts: 1,
+            decoded_functions: 1,
+            reused_decoded_functions: 4,
+            relabeled_decoded_functions: 2,
+        }));
         report.initialization_work = Some(zil_analyze::AnalysisStats {
             executed_functions: 5,
             reused_functions: 1,
@@ -994,6 +1036,24 @@ mod report_attempt_tests {
         report.phase_timings_ns.insert(Phase::Types, 13);
         report.verification_runs += 1;
         report.finish_attempts();
+        let decoding = report.function_cache_decoding.as_deref().unwrap();
+        assert_eq!(
+            (
+                decoding.decode_attempts,
+                decoding.decoded_functions,
+                decoding.reused_decoded_functions,
+                decoding.relabeled_decoded_functions
+            ),
+            (3, 2, 7, 3)
+        );
+        assert_eq!(
+            report.attempts[0]
+                .function_cache_decoding
+                .as_deref()
+                .unwrap()
+                .decode_attempts,
+            2
+        );
         let work = report.function_type_work.as_deref().unwrap();
         assert_eq!(work.executed_functions, 8);
         assert_eq!(work.restored_reused_functions, 3);

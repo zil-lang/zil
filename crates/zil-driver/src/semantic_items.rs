@@ -91,6 +91,18 @@ pub(super) struct LoadedPublication {
     packs: packed::Epoch,
     memory: Option<Arc<MemoryPublication>>,
 }
+/// Shared slots from one actual bounded wire decode, used only to avoid
+/// decoding the same raw function again during function-cache restoration.
+pub(crate) struct DecodedFunctionHints {
+    slots: zil_ir::PersistentVec<Arc<OnceLock<RawFunctionEncoding>>>,
+}
+impl DecodedFunctionHints {
+    pub(crate) fn encoding(&self, bytes: &[u8]) -> Option<RawFunctionEncoding> {
+        let id = zil_ir::wire::raw_scalar_function_id(bytes)?;
+        let encoding = self.slots.get(id.0 as usize)?.get()?;
+        (encoding.decoded_function()?.id == id).then(|| encoding.clone())
+    }
+}
 #[derive(Default)]
 struct PublicationAttempts {
     functions: usize,
@@ -106,6 +118,14 @@ struct FunctionBinding {
 }
 
 impl SemanticPublicationSession {
+    pub(crate) fn decoded_function_hints(&self) -> DecodedFunctionHints {
+        DecodedFunctionHints {
+            slots: self
+                .memory
+                .as_ref()
+                .map_or_else(|| self.slots.clone(), |memory| memory.slots.clone()),
+        }
+    }
     /// Carry only raw byte hints across the filesystem probe's Store boundary.
     /// Successful current encoding owners/checkpoints remain transactional.
     pub(crate) fn adopt_loaded(&mut self, loaded: Self) {

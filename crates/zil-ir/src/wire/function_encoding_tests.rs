@@ -69,6 +69,7 @@ fn slots(module: &TypedModule, limits: &Limits) -> Vec<OnceLock<RawFunctionEncod
                         fingerprint: OnceLock::new(),
                         limits: limits.clone(),
                         nodes: limits.max_nodes - writer.nodes,
+                        decoded: None,
                     })
                     .is_ok()
                 );
@@ -343,6 +344,10 @@ fn complete_decode_restores_shared_function_and_plan_receipts_once() {
     let receipts = decoded.encodings.unwrap();
     for (index, encoding) in receipts.functions.iter().enumerate() {
         assert!(Arc::ptr_eq(
+            encoding.decoded_function().unwrap(),
+            decoded.module.functions.owner(index).unwrap(),
+        ));
+        assert!(Arc::ptr_eq(
             &encoding.shared_bytes(),
             &segments[index + 1].bytes
         ));
@@ -452,6 +457,150 @@ fn complete_decode_restores_shared_function_and_plan_receipts_once() {
         });
         assert_eq!(replay, encode_module_candidate(&module, &plan, &selected));
     }
+}
+
+#[test]
+fn decoded_owner_reuse_matches_complete_bytes_and_only_rebinds_the_name() {
+    let (module, _) = fixture();
+    let limits = Limits::default();
+    let original = &module.functions[0];
+    let encoded = encode_raw_function(original, &limits).unwrap();
+    assert!(encoded.decoded_function().is_none());
+    let data = encoded.shared_bytes();
+    let (owner, receipt) =
+        decode_raw_function_shared_owner(data.clone(), &limits, limits.max_nodes).unwrap();
+    assert_eq!(raw_scalar_function_id(&data), Some(owner.id));
+    let (same, same_receipt) = receipt
+        .reuse_decoded_function(data.clone(), &limits, limits.max_nodes)
+        .unwrap();
+    assert!(Arc::ptr_eq(&same, &owner));
+    assert!(Arc::ptr_eq(&same_receipt.shared_bytes(), &data));
+    let mut renamed = original.clone();
+    renamed.name = "@module17:function0".into();
+    let renamed_bytes = encode_raw_function(&renamed, &limits)
+        .unwrap()
+        .shared_bytes();
+    let (actual, renamed_receipt) = receipt
+        .reuse_decoded_function(renamed_bytes.clone(), &limits, receipt.node_cost())
+        .unwrap();
+    assert_eq!(actual.as_ref(), &renamed);
+    assert!(actual.blocks.ptr_eq(&owner.blocks));
+    assert!(actual.locals.ptr_eq(&owner.locals));
+    assert!(actual.values.ptr_eq(&owner.values));
+    assert!(Arc::ptr_eq(
+        renamed_receipt.decoded_function().unwrap(),
+        &actual
+    ));
+    assert_eq!(renamed_receipt.node_cost(), receipt.node_cost());
+    assert_eq!(
+        decode_raw_function(&renamed_bytes, &limits).unwrap(),
+        (renamed, renamed_receipt.node_cost()),
+    );
+    let mut changed = original.clone();
+    changed.blocks[0].instructions[0].kind = InstructionKind::Constant(Constant::I32(99));
+    let changed = encode_raw_function(&changed, &limits)
+        .unwrap()
+        .shared_bytes();
+    assert!(
+        receipt
+            .reuse_decoded_function(changed, &limits, limits.max_nodes)
+            .is_none()
+    );
+    let mut changed = limits.clone();
+    changed.max_tokens -= 1;
+    assert!(
+        receipt
+            .reuse_decoded_function(data.clone(), &changed, limits.max_nodes)
+            .is_none()
+    );
+    assert!(
+        receipt
+            .reuse_decoded_function(data.clone(), &limits, receipt.node_cost() - 1)
+            .is_none()
+    );
+    let mut trailing = data.to_vec();
+    trailing.push(0);
+    assert!(
+        receipt
+            .reuse_decoded_function(trailing.into(), &limits, limits.max_nodes)
+            .is_none()
+    );
+    assert!(
+        receipt
+            .reuse_decoded_function(data[..data.len() - 1].into(), &limits, limits.max_nodes)
+            .is_none()
+    );
+    let name = receipt.decoded.as_ref().unwrap().name.clone();
+    let mut bad_utf8 = data.to_vec();
+    bad_utf8[name.start + 4] = 0xff;
+    assert!(decode_raw_function(&bad_utf8, &limits).is_err());
+    assert!(
+        receipt
+            .reuse_decoded_function(bad_utf8.into(), &limits, limits.max_nodes)
+            .is_none()
+    );
+    let mut bad_length = data.to_vec();
+    bad_length[name.start..name.start + 4].copy_from_slice(&u32::MAX.to_le_bytes());
+    assert!(
+        receipt
+            .reuse_decoded_function(bad_length.into(), &limits, limits.max_nodes)
+            .is_none()
+    );
+    let mut wrong_id = data.to_vec();
+    wrong_id[6..10].copy_from_slice(&99u32.to_le_bytes());
+    assert_eq!(raw_scalar_function_id(&wrong_id), Some(FunctionId(99)));
+    assert!(
+        receipt
+            .reuse_decoded_function(wrong_id.into(), &limits, limits.max_nodes)
+            .is_none()
+    );
+    assert!(
+        encoded
+            .reuse_decoded_function(data, &limits, limits.max_nodes)
+            .is_none()
+    );
+}
+
+#[test]
+fn decoded_owner_cannot_be_retargeted_by_mutating_the_public_module() {
+    let (module, plan) = fixture();
+    let limits = Limits::default();
+    let slots: Vec<_> = module.functions.iter().map(|_| OnceLock::new()).collect();
+    let inputs: Vec<_> = module.functions.iter().zip(&slots).collect();
+    let segments = encode_module_candidate_segments(
+        &module,
+        &plan,
+        &inputs,
+        &limits,
+        &mut FunctionEncodingStats::default(),
+    )
+    .unwrap();
+    let bytes: Vec<_> = segments
+        .iter()
+        .flat_map(|segment| segment.bytes.iter().copied())
+        .collect();
+    let mut decoded = decode_module_candidate_with_encodings(&bytes, &segments, &limits).unwrap();
+    let receipt = &decoded.encodings.as_ref().unwrap().functions[0];
+    let before = receipt.decoded_function().unwrap().clone();
+    decoded.module.functions[0].blocks[0].instructions[0].kind =
+        InstructionKind::Constant(Constant::I32(77));
+    assert!(!Arc::ptr_eq(
+        &before,
+        decoded.module.functions.owner(0).unwrap()
+    ));
+    let (actual, _) = receipt
+        .reuse_decoded_function(segments[1].bytes.clone(), &limits, limits.max_nodes)
+        .unwrap();
+    assert!(Arc::ptr_eq(&actual, &before));
+    assert_eq!(actual.as_ref(), &module.functions[0]);
+    let wrong = encode_raw_function(&decoded.module.functions[0], &limits)
+        .unwrap()
+        .shared_bytes();
+    assert!(
+        receipt
+            .reuse_decoded_function(wrong, &limits, limits.max_nodes)
+            .is_none()
+    );
 }
 
 #[test]

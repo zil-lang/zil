@@ -48,7 +48,10 @@ struct Definition {
 }
 
 // Resolve the actual current generated ABI, including its explicit version.
-fn source_name(names: &BTreeMap<&str, usize>, id: zil_ir::FunctionId) -> String {
+fn source_name<K: std::borrow::Borrow<str> + Ord>(
+    names: &BTreeMap<K, usize>,
+    id: zil_ir::FunctionId,
+) -> String {
     let original = format!("zil.fn.{}", id.0);
     let large = format!("{original}.lc1");
     if names.contains_key(large.as_str()) {
@@ -268,6 +271,10 @@ pub(crate) fn partition_classes_reusing(
     cache_root: Option<&std::path::Path>,
     previous: Option<&Materialization>,
 ) -> Option<ClassPartition> {
+    let observed = layout::CurrentGraph::read(&module, previous.and_then(Materialization::graph));
+    let grouping = observed
+        .as_ref()
+        .and_then(|observed| layout::Grouping::read(&module, lir, entry, count, classes, observed));
     let cache = cache_root
         .and_then(|root| {
             layout::Cache::new(
@@ -281,22 +288,63 @@ pub(crate) fn partition_classes_reusing(
             )
         })
         .map(|cache| cache.with_classes(classes));
-    if let Some((cached, calls)) = cache
-        .as_ref()
-        .and_then(|cache| cache.load_classes(&module, lir, entry, count, classes))
+    // A body edit may change the exact disk key without changing grouping or
+    // the complete current graph. Retain the actual plan, then revalidate all
+    // roles, closures, local-state edges and the original whole-plan copy cost.
+    let retained = previous
+        .zip(grouping.as_ref())
+        .and_then(|(previous, grouping)| previous.layout_for(grouping))
+        .filter(|layout| {
+            observed.as_ref().is_some_and(|observed| {
+                layout
+                    .valid_classes_observed(&module, lir, entry, count, classes, observed)
+                    .is_some()
+            })
+        })
+        .cloned();
+    let retained_layout = retained.is_some();
+    let selected = retained.or_else(|| {
+        cache
+            .as_ref()
+            .zip(observed.as_ref())
+            .and_then(|(cache, observed)| {
+                cache.load_classes_observed(&module, lir, entry, count, classes, observed)
+            })
+    });
+    if let Some(cached) = selected
         && valid_declaration_prelude(&module)
     {
         let source = module.clone();
         let (units, reused) = cached.replay_reusing_counted(module, previous);
-        let materialization = Materialization::with_calls(source, &cached, &units, reused, calls);
+        let materialization = Materialization::with_graph(
+            source,
+            &cached,
+            &units,
+            reused,
+            observed.expect("checked current graph"),
+            grouping,
+        );
+        // A reused in-process recipe is published under the CURRENT complete
+        // key. It must never report the previous module's disk layout key.
+        let layout_key = cache.as_ref().map(|cache| cache.key().to_hex());
+        let pending = if retained_layout {
+            cache.and_then(|cache| cache.pending(&cached))
+        } else {
+            None
+        };
+        let layout_key = if retained_layout {
+            pending.as_ref().map(|pending| pending.key().to_hex())
+        } else {
+            layout_key
+        };
         return Some(ClassPartition {
             plan: Plan {
                 units,
                 fallback: None,
             },
-            pending: None,
+            pending,
             materialization: Some(materialization),
-            layout_key: cache.as_ref().map(|cache| cache.key().to_hex()),
+            layout_key,
             reused_layout: true,
         });
     }
@@ -305,7 +353,7 @@ pub(crate) fn partition_classes_reusing(
     let mut reused = 0;
     // A rejected stable-class closure returns to the original class strategy.
     // Never keep the new helpers by quietly disabling complete imports.
-    let plan = partition_view_once(
+    let plan = partition_view_once_observed(
         module,
         lir,
         entry,
@@ -316,6 +364,7 @@ pub(crate) fn partition_classes_reusing(
         previous,
         &mut reused,
         classes,
+        observed.as_ref(),
     );
     if plan.fallback.is_some() {
         return None;
@@ -326,9 +375,13 @@ pub(crate) fn partition_classes_reusing(
         .zip(layout.as_ref())
         .and_then(|(cache, layout)| cache.pending(layout));
     let layout_key = pending.as_ref().map(|pending| pending.key().to_hex());
-    let materialization = layout
-        .as_ref()
-        .map(|layout| Materialization::new(source, layout, &plan.units, reused));
+    let materialization = layout.as_ref().map(|layout| {
+        if let Some(observed) = observed {
+            Materialization::with_graph(source, layout, &plan.units, reused, observed, grouping)
+        } else {
+            Materialization::new(source, layout, &plan.units, reused)
+        }
+    });
     Some(ClassPartition {
         plan,
         pending,
@@ -520,6 +573,36 @@ fn partition_view_once(
     reused_items: &mut usize,
     classes: &BTreeSet<String>,
 ) -> Plan {
+    partition_view_once_observed(
+        module,
+        lir,
+        entry,
+        count,
+        split_large_files,
+        import_complete_call_closures,
+        recorded,
+        previous,
+        reused_items,
+        classes,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn partition_view_once_observed(
+    module: Module,
+    lir: &LirView<'_>,
+    entry: EntryPoint,
+    count: usize,
+    split_large_files: bool,
+    import_complete_call_closures: bool,
+    recorded: &mut Option<layout::Layout>,
+    previous: Option<&Materialization>,
+    reused_items: &mut usize,
+    classes: &BTreeSet<String>,
+    observed: Option<&layout::CurrentGraph>,
+) -> Plan {
+    let observed = observed.filter(|observed| observed.matches(&module));
     let fallback = |module, reason| Plan {
         units: vec![module],
         fallback: Some(reason),
@@ -551,16 +634,22 @@ fn partition_view_once(
                 name: f.name.clone(),
                 index,
                 local: f.linkage.is_local(),
-                refs: f.references(),
+                refs: observed
+                    .map_or_else(|| f.references(), |graph| graph.references(index).clone()),
                 calls: if import_complete_call_closures {
-                    direct_calls(f)
+                    observed.map_or_else(
+                        || direct_calls(f),
+                        |graph| graph.direct_calls(index).clone(),
+                    )
                 } else {
                     BTreeSet::new()
                 },
             }),
             Item::Global(g) if g.initializer.is_some() => {
                 let mut refs = BTreeSet::new();
-                if let Some(value) = &g.initializer {
+                if let Some(graph) = observed {
+                    refs.clone_from(graph.references(index));
+                } else if let Some(value) = &g.initializer {
                     value.symbols(&mut refs);
                 }
                 defs.push(Definition {

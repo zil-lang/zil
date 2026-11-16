@@ -1,5 +1,6 @@
 //! Reuse actual partition items after their CURRENT layout roles are checked.
-//! This is process-owned data, not a layout decision or a verification receipt.
+//! Raw observations and the completed layout remain bounded by this product's
+//! lifetime. They are not a verification receipt or persisted machine authority.
 use super::{direct_calls, layout};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -19,6 +20,9 @@ pub(crate) struct Materialization {
     units: Vec<Module>,
     inputs: Vec<UnitInputs>,
     calls: Vec<Arc<BTreeSet<String>>>,
+    layout: Arc<layout::Layout>,
+    graph: Option<Arc<layout::CurrentGraph>>,
+    grouping: Option<Arc<layout::Grouping>>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct UnitInputs {
@@ -53,7 +57,7 @@ impl Materialization {
     }
     /// Calls came from the current layout validator's complete body walk. They
     /// are raw observed inputs, with the same ownership as this materialization.
-    pub(super) fn with_calls(
+    fn with_calls(
         source: Module,
         layout: &layout::Layout,
         units: &[Module],
@@ -100,7 +104,29 @@ impl Materialization {
             units: units.to_vec(),
             inputs,
             calls,
+            layout: Arc::new(layout.clone()),
+            graph: None,
+            grouping: None,
         }
+    }
+    pub(super) fn with_graph(
+        source: Module,
+        layout: &layout::Layout,
+        units: &[Module],
+        reused_items: usize,
+        graph: layout::CurrentGraph,
+        grouping: Option<layout::Grouping>,
+    ) -> Self {
+        let mut product = Self::with_calls(source, layout, units, reused_items, graph.calls());
+        product.graph = Some(Arc::new(graph));
+        product.grouping = grouping.map(Arc::new);
+        product
+    }
+    pub(super) fn graph(&self) -> Option<&layout::CurrentGraph> {
+        self.graph.as_deref()
+    }
+    pub(super) fn layout_for(&self, grouping: &layout::Grouping) -> Option<&layout::Layout> {
+        (self.grouping.as_deref() == Some(grouping)).then_some(self.layout.as_ref())
     }
     pub(super) fn bind<'a>(
         &'a self,
@@ -142,6 +168,25 @@ impl Materialization {
 impl Reuse<'_> {
     pub(super) fn reused_items(&self) -> usize {
         self.reused_items.get()
+    }
+    pub(super) fn unit(&self, index: usize, unit: &layout::Unit) -> Option<Module> {
+        if self.previous.layout.units.get(index)? != unit
+            || !unit
+                .prelude
+                .iter()
+                .chain(&unit.declarations)
+                .chain(&unit.imports)
+                .chain(&unit.definitions)
+                .all(|&source| self.same.get(source) == Some(&true))
+        {
+            return None;
+        }
+        // Every source value and every role/name binding is equal. Retain the
+        // actual raw unit owner, including its declarations and import bodies.
+        let module = self.previous.units.get(index)?.clone();
+        self.reused_items
+            .set(self.reused_items.get() + module.items.len());
+        Some(module)
     }
     pub(super) fn item(&self, unit: usize, owner: usize, index: usize, role: u8) -> Option<Item> {
         if !self.same.get(index).copied()? {
@@ -347,5 +392,23 @@ mod tests {
             direct_calls(named(&actual[0], "zil.fn.0")),
             BTreeSet::from(["zil.import.7.zil.fn.1".into()])
         );
+    }
+    #[test]
+    fn equal_complete_units_keep_actual_item_owners_and_current_diagnostic_identity() {
+        let (source, layout) = fixture();
+        let previous = layout.replay(source.clone());
+        let cache = Materialization::new(source.clone(), &layout, &previous, 0);
+        let mut current = source;
+        current.fingerprint = "new-current-verification".into();
+        let (actual, reused) = layout.replay_reusing_counted(current.clone(), Some(&cache));
+        assert_eq!(actual, layout.replay(current.clone()));
+        assert_eq!(
+            reused,
+            previous.iter().map(|unit| unit.items.len()).sum::<usize>()
+        );
+        for (actual, previous) in actual.iter().zip(&previous) {
+            assert!(actual.items.ptr_eq(&previous.items));
+            assert_eq!(actual.fingerprint, current.fingerprint);
+        }
     }
 }

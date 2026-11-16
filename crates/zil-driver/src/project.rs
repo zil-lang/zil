@@ -1506,11 +1506,15 @@ impl CompilationSession {
         function_types.set_cost_profiling(options.profile_compilation);
         let function_restore_start = cost_start(options.profile_compilation);
         if let Some(store) = &function_store {
-            store.restore(
-                &mut function_types,
-                options,
-                self.semantic_publication.function_packs(),
-            );
+            let hints = self.semantic_publication.decoded_function_hints();
+            report.function_cache_decoding = store
+                .restore(
+                    &mut function_types,
+                    options,
+                    self.semantic_publication.function_packs(),
+                    &mut |bytes| hints.encoding(bytes),
+                )
+                .map(Box::new);
         }
         report.record_driver_cost("function_cache_read", function_restore_start);
         let checkpoint_start = cost_start(options.profile_compilation);
@@ -3218,6 +3222,10 @@ pub fn main()->i32=>0",
             "{}",
             restarted.to_json()
         );
+        let decoding = restarted.function_cache_decoding.as_ref().unwrap();
+        assert!(decoding.reused_decoded_functions > 0);
+        assert_eq!(decoding.decoded_functions, 0);
+        assert_eq!(decoding.decode_attempts, 0);
         assert_eq!(restarted.verification_runs, 1);
         assert_eq!(restarted.disk_cache, DiskCacheStatus::Hydrated);
         let ingress = restarted.source_ingress.as_ref().unwrap();

@@ -545,13 +545,24 @@ fn class_disk_restart_replays_current_values_and_restores_materialization() {
         .load_classes(&current, &source.as_view(), EntryPoint::None, 2, &classes)
         .unwrap();
     assert_eq!(restored.plan.units, layout.replay(current.clone()));
+    let observed = CurrentGraph::read(&current, None).unwrap();
+    let grouping = Grouping::read(
+        &current,
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        &classes,
+        &observed,
+    );
     assert_eq!(
         restored.materialization,
-        Some(super::super::Materialization::new(
+        Some(super::super::Materialization::with_graph(
             current.clone(),
             &layout,
             &restored.plan.units,
-            0
+            0,
+            observed,
+            grouping,
         ))
     );
     let reused = build(current, restored.materialization.as_ref());
@@ -567,10 +578,28 @@ fn class_disk_restart_replays_current_values_and_restores_materialization() {
     };
     function.blocks.as_mut().unwrap()[0].instructions[0].op =
         Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(29))));
-    let rebuilt = build(changed, reused.materialization.as_ref());
-    assert!(!rebuilt.reused_layout);
+    GRAPH_WORK.with(|work| work.set((0, 0)));
+    let rebuilt = build(changed.clone(), reused.materialization.as_ref());
+    assert!(rebuilt.reused_layout);
+    GRAPH_WORK.with(|work| assert_eq!(work.get(), (1, changed.items.len() - 1)));
     assert_ne!(rebuilt.layout_key, expected_key);
     assert!(rebuilt.pending.is_some());
+    assert_eq!(rebuilt.plan.units, layout.replay(changed.clone()));
+    let actual_key = class_cache(&directory, &changed, &source, &classes).key;
+    assert_eq!(
+        rebuilt.layout_key.as_deref(),
+        Some(actual_key.to_hex().as_str())
+    );
+    assert_eq!(rebuilt.pending.as_ref().unwrap().key(), actual_key);
+    // A dropped publication cannot mutate the prior product or install a raw
+    // machine/layout receipt. A later cold session still plans current values.
+    drop(rebuilt.pending);
+    assert!(
+        class_cache(&directory, &changed, &source, &classes)
+            .read()
+            .is_none()
+    );
+    assert_eq!(build(changed, None).plan.units, rebuilt.plan.units);
 }
 
 #[test]
@@ -646,12 +675,188 @@ fn class_cache_rejects_checksummed_partial_extra_and_unreferenced_roles() {
                 .load_classes(&module, &source.as_view(), EntryPoint::None, 2, &classes)
                 .is_none()
         );
+        let graph = CurrentGraph::read(&module, None).unwrap();
+        let grouping = Grouping::read(
+            &module,
+            &source.as_view(),
+            EntryPoint::None,
+            2,
+            &classes,
+            &graph,
+        );
+        let wrong_memory = super::super::Materialization::with_graph(
+            module.clone(),
+            &invalid,
+            &first.plan.units,
+            0,
+            graph,
+            grouping,
+        );
+        let checked = super::super::partition_classes_reusing(
+            module.clone(),
+            &source.as_view(),
+            EntryPoint::None,
+            2,
+            &classes,
+            Some(&directory.0),
+            Some(&wrong_memory),
+        )
+        .unwrap();
+        assert!(!checked.reused_layout);
+        assert_eq!(checked.plan.units, first.plan.units);
         let fallback = build();
         assert!(!fallback.reused_layout);
         assert_eq!(fallback.plan.units, first.plan.units);
         assert_eq!(fallback.layout_key, first.layout_key);
         fallback.pending.unwrap().pin().unwrap().commit();
         assert!(build().reused_layout);
+    }
+}
+
+#[test]
+fn retained_class_layout_rebinds_renamed_classes_and_rejects_changed_grouping() {
+    let (module, source, classes) = stable_fixture();
+    let directory = Directory::new();
+    let first = super::super::partition_classes_reusing(
+        module.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        &classes,
+        Some(&directory.0),
+        None,
+    )
+    .unwrap();
+    let previous = first.materialization.as_ref().unwrap();
+    let graph = CurrentGraph::read(&module, None).unwrap();
+    let grouping = Grouping::read(
+        &module,
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        &classes,
+        &graph,
+    )
+    .unwrap();
+    let retained = previous.layout_for(&grouping).unwrap();
+
+    let old_name = classes
+        .iter()
+        .find(|name| graph.rows.iter().any(|row| row.references.contains(*name)))
+        .unwrap();
+    let new_name = format!("{old_name}.current");
+    let replacements = BTreeMap::from([(old_name.clone(), new_name.clone())]);
+    let mut renamed = module.clone();
+    // Even equal old callers must resolve symbols in the current table.
+    for item in &mut renamed.items {
+        if let Item::Function(function) = item {
+            if function.name == *old_name {
+                function.name = new_name.clone();
+            }
+        }
+    }
+    assert!(CurrentGraph::read(&renamed, previous.graph()).is_none());
+    for item in &mut renamed.items {
+        if let Item::Function(function) = item {
+            super::super::rewrite_direct_calls(function, &replacements);
+        }
+    }
+    let mut current_classes = classes.clone();
+    current_classes.remove(old_name);
+    current_classes.insert(new_name);
+    let current = super::super::partition_classes_reusing(
+        renamed.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        &current_classes,
+        Some(&directory.0),
+        Some(previous),
+    )
+    .unwrap();
+    assert!(current.reused_layout);
+    assert_eq!(current.plan.units, retained.replay(renamed.clone()));
+    for unit in &current.plan.units {
+        zil_llvm_api::validate_module(unit).unwrap();
+    }
+    assert_ne!(current.layout_key, first.layout_key);
+    assert_eq!(
+        current.pending.as_ref().unwrap().key(),
+        class_cache(&directory, &renamed, &source, &current_classes).key
+    );
+
+    // File identity is a grouping input even if the modulo bucket is unchanged.
+    // Current target policy and source-call graph changes likewise require the
+    // original planner, rather than accepting equal machine bodies as authority.
+    let mut moved = source.clone();
+    moved.functions[0].span.file.0 += 2;
+    let mut target = source.clone();
+    target.target.rule_version.push_str(".current");
+    for changed in [moved, target] {
+        let actual = super::super::partition_classes_reusing(
+            module.clone(),
+            &changed.as_view(),
+            EntryPoint::None,
+            2,
+            &classes,
+            Some(&directory.0),
+            Some(previous),
+        )
+        .unwrap();
+        let fresh = super::super::partition_classes_reusing(
+            module.clone(),
+            &changed.as_view(),
+            EntryPoint::None,
+            2,
+            &classes,
+            Some(&directory.0),
+            None,
+        )
+        .unwrap();
+        assert!(!actual.reused_layout);
+        assert_eq!(actual.plan.units, fresh.plan.units);
+    }
+    let mut changed = module.clone();
+    let Item::Function(caller) = &mut changed.items[0] else {
+        unreachable!()
+    };
+    let Op::Call { callee, .. } = &mut caller.blocks.as_mut().unwrap()[0].instructions[0].op else {
+        unreachable!()
+    };
+    *callee = Val::Global("zil.fn.4".into());
+    let actual = super::super::partition_classes_reusing(
+        changed.clone(),
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        &classes,
+        Some(&directory.0),
+        Some(previous),
+    );
+    let fresh = super::super::partition_classes_reusing(
+        changed,
+        &source.as_view(),
+        EntryPoint::None,
+        2,
+        &classes,
+        Some(&directory.0),
+        None,
+    );
+    assert_eq!(
+        actual.as_ref().map(|result| &result.plan.units),
+        fresh.as_ref().map(|result| &result.plan.units)
+    );
+    assert!(actual.as_ref().is_none_or(|result| !result.reused_layout));
+}
+
+#[test]
+fn current_graph_reuse_charges_original_observation_budget() {
+    let (module, _, _) = stable_fixture();
+    let graph = CurrentGraph::read(&module, None).unwrap();
+    let required = module.items.len() + graph.rows.iter().map(|row| row.work).sum::<usize>();
+    for previous in [None, Some(&graph)] {
+        assert!(CurrentGraph::read_bounded(&module, previous, required).is_some());
+        assert!(CurrentGraph::read_bounded(&module, previous, required - 1).is_none());
     }
 }
 

@@ -2,6 +2,9 @@
 //! validates against the original whole-epoch quotas; nothing grants authority.
 use super::*;
 
+#[path = "incremental/restore.rs"]
+mod restore;
+
 const MAGIC: &[u8; 8] = b"ZILFNI01";
 const HEADER: usize = 44;
 const ROW: usize = 128;
@@ -154,16 +157,14 @@ impl FunctionSession {
         target: &TargetProfile,
         limits: &Limits,
     ) -> bool {
-        let Some(entries) = decode_items(manifest, load, target, limits) else {
-            return false;
-        };
-        self.entries = Arc::new(entries);
-        self.projections = Projections::default();
-        self.producer_memo = ProducerMemo::default();
-        self.products = Arc::default();
-        self.changes = FunctionChanges::default();
-        self.stats = FunctionStats::default();
-        true
+        self.restore_item_products_with_decoded(
+            manifest,
+            load,
+            &mut |_| None,
+            target,
+            limits,
+            &mut zil_ir::wire::RawFunctionDecodingStats::default(),
+        )
     }
 }
 
@@ -173,108 +174,13 @@ fn u64_at(bytes: &[u8], start: usize) -> Option<usize> {
     ))
     .ok()
 }
-fn decode_items(
-    manifest: &[u8],
-    load: &mut dyn FnMut(Fingerprint) -> Option<Arc<[u8]>>,
-    target: &TargetProfile,
-    limits: &Limits,
-) -> Option<BTreeMap<Fingerprint, Arc<Entry>>> {
-    if manifest.len() > limits.max_source_bytes
-        || manifest.get(..8)? != MAGIC
-        || manifest.get(8..40)? != target.fingerprint().0
-    {
-        return None;
-    }
-    let count = u32::from_le_bytes(manifest.get(40..44)?.try_into().ok()?) as usize;
-    if count == 0
-        || count > limits.max_functions
-        || HEADER.checked_add(count.checked_mul(ROW)?)? != manifest.len()
-    {
-        return None;
-    }
-    let maxima = [
-        limits.max_blocks,
-        limits.max_locals,
-        limits.max_values,
-        limits.max_instructions,
-        limits.max_analysis_steps,
-        limits.max_nodes,
-    ];
-    let mut nodes = limits.max_nodes.checked_sub(count)?;
-    let mut bytes = legacy_bytes(count, target, limits)?;
-    let mut prior_key = None;
-    // Validate the entire small descriptor table before opening raw items.
-    for row in manifest[HEADER..].as_chunks::<ROW>().0 {
-        let key = Fingerprint(row[..32].try_into().ok()?);
-        if prior_key.is_some_and(|prior| prior >= key) {
-            return None;
-        }
-        prior_key = Some(key);
-        for (i, maximum) in maxima.iter().enumerate() {
-            if u64_at(row, 32 + i * 8)? > *maximum {
-                return None;
-            }
-        }
-        nodes = nodes.checked_sub(u64_at(row, 80)?)?;
-        bytes = bytes
-            .checked_add(u64_at(row, 120)?)
-            .filter(|n| *n <= limits.max_source_bytes)?;
-    }
-    // The decoder computes actual node cost independently. Descriptor values
-    // never grant extra allowance or authenticate their own raw bytes.
-    let mut remaining_nodes = limits.max_nodes.checked_sub(count)?;
-    let mut entries = BTreeMap::new();
-    for row in manifest[HEADER..].as_chunks::<ROW>().0 {
-        let key = Fingerprint(row[..32].try_into().ok()?);
-        let checksum = Fingerprint(row[88..120].try_into().ok()?);
-        let data = load(checksum)?;
-        if data.len() != u64_at(row, 120)? || Fingerprint::of(&data) != checksum {
-            return None;
-        }
-        let (function, raw_encoding) =
-            zil_ir::wire::decode_raw_function_shared(data, limits, remaining_nodes).ok()?;
-        let used_nodes = raw_encoding.node_cost();
-        if used_nodes != u64_at(row, 80)?
-            || !scalar_typed(&function)
-            || function.span.file != FileId(0)
-            || function.span.start != 0
-        {
-            return None;
-        }
-        remaining_nodes = remaining_nodes.checked_sub(used_nodes)?;
-        let mut cost = [0; 6];
-        for (i, value) in cost.iter_mut().enumerate() {
-            *value = u64_at(row, 32 + i * 8)?;
-        }
-        let encoding = OnceLock::new();
-        let _ = encoding.set(raw_encoding);
-        let encoding_fingerprint = OnceLock::new();
-        let _ = encoding_fingerprint.set(checksum);
-        entries.insert(
-            key,
-            Arc::new(Entry {
-                restored: true,
-                result_fingerprint: scalar_result_fingerprint(&function, function.span)?,
-                origin: function.span,
-                function: Arc::new(function),
-                last_bound: Mutex::new(None),
-                canonical: OnceLock::new(),
-                cost,
-                encoding,
-                encoding_fingerprint,
-            }),
-        );
-    }
-    Some(entries)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
     use zil_syntax::{ParsedSource, attributes::AttributeContext};
 
-    fn prepared(change: u32) -> PreparedProgram {
+    pub(super) fn prepared(change: u32) -> PreparedProgram {
         let text = format!(
             "fn f(x:i32)->i32{{if x<10{{return x+{change};}}else{{return x*2;}}}} fn g(x:i32)->i32{{if x<10{{return x+3;}}else{{return x*4;}}}}"
         );
@@ -310,14 +216,14 @@ mod tests {
             .unwrap()
             .into_prepared()
     }
-    fn session() -> FunctionSession {
+    pub(super) fn session() -> FunctionSession {
         let mut session = FunctionSession::default();
         session
             .check_prepared_program(&prepared(1), &TargetProfile::default(), &Limits::default())
             .unwrap();
         session
     }
-    fn products(session: &FunctionSession, limits: &Limits) -> FunctionItemProducts {
+    pub(super) fn products(session: &FunctionSession, limits: &Limits) -> FunctionItemProducts {
         session
             .encode_item_products(
                 &TargetProfile::default(),
@@ -326,7 +232,7 @@ mod tests {
             )
             .unwrap()
     }
-    fn loader(items: &[FunctionItem], key: Fingerprint) -> Option<Arc<[u8]>> {
+    pub(super) fn loader(items: &[FunctionItem], key: Fingerprint) -> Option<Arc<[u8]>> {
         items
             .iter()
             .find(|item| item.content_fingerprint == key)

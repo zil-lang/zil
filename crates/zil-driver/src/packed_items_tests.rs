@@ -228,6 +228,7 @@ fn malformed_transport_bounds_are_checked_before_pack_reads() {
             },
         )]),
         packs: BTreeMap::from([(pack_a, PACK_HEADER + 90)]),
+        shared: None,
     };
     let bytes = good.encode(fixture.bounds).unwrap();
     assert!(Manifest::decode(&bytes, fixture.bounds).is_some());
@@ -252,6 +253,7 @@ fn malformed_transport_bounds_are_checked_before_pack_reads() {
             ),
         ]),
         packs: BTreeMap::from([(pack_a, PACK_HEADER + 90), (pack_b, PACK_HEADER + 90)]),
+        shared: None,
     };
     assert!(amplified.encode(fixture.bounds).is_none());
     for (offset, replacement) in [
@@ -546,11 +548,12 @@ fn shared_manifest_missing_corrupt_and_wrong_content_chunks_are_misses_then_repa
     let mut epoch = Epoch::default();
     fixture.publish(0, &logical, &items, &mut epoch);
     let descriptor = fixture.manifest(0);
-    let key = Fingerprint(
-        descriptor[SHARED_HEADER..SHARED_HEADER + 32]
-            .try_into()
-            .unwrap(),
-    );
+    let index_end = SHARED_HEADER + count(&descriptor, 48).unwrap() * PACK_ROW;
+    let chunk_count = count(&descriptor, 48).unwrap();
+    let meta_bounds =
+        metadata_bounds(fixture.bounds, number(&descriptor, 8).unwrap(), chunk_count).unwrap();
+    let table = Manifest::decode(&descriptor[index_end..], meta_bounds).unwrap();
+    let key = *table.packs.keys().next().unwrap();
     let chunk = path(&fixture.packs, key);
     let raw = fs::read(&chunk).unwrap();
     let token = CancellationToken::default();
@@ -566,7 +569,7 @@ fn shared_manifest_missing_corrupt_and_wrong_content_chunks_are_misses_then_repa
     fixture.publish(0, &logical, &items, &mut epoch);
     // Recompute ArtifactCache's checksum under the old name: the content CAS
     // key, not merely the valid raw wrapper, must still reject this substitution.
-    let cache = ArtifactCache::with_limit(&fixture.packs, CHUNK_MAX);
+    let cache = ArtifactCache::with_limit(&fixture.packs, meta_bounds.pack_maximum().unwrap());
     let CacheRead::Candidate(mut bytes) = cache.inspect_candidate(key).unwrap() else {
         panic!()
     };
@@ -651,6 +654,7 @@ fn cancelled_shared_publication_keeps_old_root_epoch_and_all_historical_bytes() 
     fixture.publish(0, &logical, &items, &mut epoch);
     let old = fixture.manifest(0);
     let locations = epoch.locations.clone();
+    let shared_locations = epoch.shared.as_ref().unwrap().locations.clone();
     let original = items.clone();
     items[511] = item(b"changed private body");
     let token = CancellationToken::default();
@@ -661,6 +665,7 @@ fn cancelled_shared_publication_keeps_old_root_epoch_and_all_historical_bytes() 
     );
     assert_eq!(fixture.manifest(0), old);
     assert_eq!(epoch.locations, locations);
+    assert_eq!(epoch.shared.as_ref().unwrap().locations, shared_locations);
     contents(&mut fixture.reader(0), &original);
     let retry = fixture.publish(0, &logical, &items, &mut epoch);
     assert_eq!(retry.physical_pack_writes, 0);
@@ -705,4 +710,34 @@ fn shared_namespace_replacement_cannot_publish_a_new_root_or_epoch() {
             == 1
     );
     contents(&mut fixture.reader(0), &items);
+}
+
+#[test]
+fn shared_locator_chunks_use_one_physical_pack_and_checked_offsets() {
+    let (fixture, items, logical) = shared_fixture();
+    let mut epoch = Epoch::default();
+    fixture.publish(0, &logical, &items, &mut epoch);
+    let shared = epoch.shared.as_ref().unwrap();
+    assert!(shared.locations.len() > 1);
+    assert_eq!(shared.packs.len(), 1);
+    // Real filesystem outputs: one body pack and one metadata pack. Hundreds
+    // of logical records do not create hundreds of sync/rename transactions.
+    assert_eq!(fs::read_dir(&fixture.packs).unwrap().count(), 2);
+    let descriptor = fixture.manifest(0);
+    let index_end = SHARED_HEADER + count(&descriptor, 48).unwrap() * PACK_ROW;
+    let meta_bounds = metadata_bounds(
+        fixture.bounds,
+        number(&descriptor, 8).unwrap(),
+        count(&descriptor, 48).unwrap(),
+    )
+    .unwrap();
+    let mut locator = Manifest::decode(&descriptor[index_end..], meta_bounds).unwrap();
+    let first = *locator.locations.keys().next().unwrap();
+    locator.locations.get_mut(&first).unwrap().offset = usize::MAX;
+    assert!(locator.encode(meta_bounds).is_none());
+    let mut restored = fixture.reader(0);
+    assert_eq!(restored.logical(), logical);
+    contents(&mut restored, &items);
+    let rebound = restored.epoch();
+    assert_eq!(rebound.shared.as_ref().unwrap().locations, shared.locations);
 }

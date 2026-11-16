@@ -225,7 +225,11 @@ pub struct RawFunctionEncoding {
     limits: Limits,
     nodes: usize,
     fingerprint: OnceLock<Fingerprint>,
+    decoded: Option<decoded_function::DecodedFunction>,
 }
+
+mod decoded_function;
+pub use decoded_function::{RawFunctionDecodingStats, raw_scalar_function_id};
 
 impl RawFunctionEncoding {
     fn byte_len(&self) -> usize {
@@ -301,6 +305,7 @@ pub fn encode_raw_function(
             bytes: writer.output.into(),
             limits: limits.clone(),
             fingerprint: OnceLock::new(),
+            decoded: None,
         })
     })())
 }
@@ -323,16 +328,34 @@ pub fn decode_raw_function_shared(
     limits: &Limits,
     remaining_nodes: usize,
 ) -> CompileResult<(TypedFunction, RawFunctionEncoding)> {
+    let (function, encoding) = decode_raw_function_shared_owner(bytes, limits, remaining_nodes)?;
+    Ok((function.as_ref().clone(), encoding))
+}
+
+/// Decode one function into its actual immutable owner and keep the wire/owner
+/// association together. Only raw transport is restored, never verification.
+pub fn decode_raw_function_shared_owner(
+    bytes: Arc<[u8]>,
+    limits: &Limits,
+    remaining_nodes: usize,
+) -> CompileResult<(Arc<TypedFunction>, RawFunctionEncoding)> {
     let mut remaining = limits.clone();
     remaining.max_nodes = remaining_nodes.min(limits.max_nodes);
-    let (function, nodes) = decode_raw_function(&bytes, &remaining)?;
+    let (function, name, nodes) = public((|| {
+        let mut reader = Reader::new(&bytes, &remaining)?;
+        let (function, name) = reader.function_with_name_range()?;
+        reader.finish()?;
+        Ok((function, name, remaining.max_nodes - reader.nodes))
+    })())?;
+    let function = Arc::new(function);
     Ok((
-        function,
+        function.clone(),
         RawFunctionEncoding {
             bytes,
             limits: limits.clone(),
             nodes,
             fingerprint: OnceLock::new(),
+            decoded: Some(decoded_function::DecodedFunction { function, name }),
         },
     ))
 }
@@ -594,6 +617,7 @@ where
                                 limits: limits.clone(),
                                 nodes: nodes - writer.nodes,
                                 fingerprint: OnceLock::from(segment.fingerprint),
+                                decoded: None,
                             },
                         })),
                     );
@@ -644,7 +668,7 @@ pub fn decode_module_candidate_with_encodings(
 #[derive(Default)]
 struct CandidateDecodingRanges {
     function_start: usize,
-    functions: Vec<(std::ops::Range<usize>, usize)>,
+    functions: Vec<(std::ops::Range<usize>, usize, std::ops::Range<usize>)>,
     module_end: usize,
     plan_function_start: usize,
     plans: Vec<(std::ops::Range<usize>, usize)>,
@@ -656,6 +680,7 @@ impl CandidateDecodingRanges {
         self,
         bytes: &[u8],
         segments: &[WireSegment],
+        module: &TypedModule,
         plan: &CandidatePlan,
         limits: &Limits,
     ) -> Option<CandidateDecodingEncodings> {
@@ -674,7 +699,7 @@ impl CandidateDecodingRanges {
         }
         let function_end = self.functions.last()?.0.end;
         let ranges = std::iter::once(0..self.function_start)
-            .chain(self.functions.iter().map(|(range, _)| range.clone()))
+            .chain(self.functions.iter().map(|(range, _, _)| range.clone()))
             .chain(std::iter::once(function_end..self.module_end))
             .chain(std::iter::once(self.module_end..self.plan_function_start))
             .chain(self.plans.iter().map(|(range, _)| range.clone()))
@@ -690,13 +715,22 @@ impl CandidateDecodingRanges {
             nodes,
             // The caller's supplied fingerprint is not the decoder receipt.
             fingerprint: OnceLock::new(),
+            decoded: None,
         };
         let functions = self
             .functions
             .iter()
             .enumerate()
-            .map(|(index, (_, nodes))| encoding(&segments[index + 1], *nodes))
-            .collect();
+            .map(|(index, (range, nodes, name))| {
+                let mut encoding = encoding(&segments[index + 1], *nodes);
+                encoding.decoded = Some(decoded_function::DecodedFunction {
+                    function: module.functions.owner(index)?.clone(),
+                    name: name.start.checked_sub(range.start)?
+                        ..name.end.checked_sub(range.start)?,
+                });
+                Some(encoding)
+            })
+            .collect::<Option<Vec<_>>>()?;
         let plans = self
             .plans
             .iter()
@@ -729,7 +763,7 @@ fn decode_candidate(
         reader.finish()?;
         let encodings = ranges
             .zip(segments)
-            .and_then(|(ranges, segments)| ranges.bind(bytes, segments, &plan, limits));
+            .and_then(|(ranges, segments)| ranges.bind(bytes, segments, &module, &plan, limits));
         Ok(DecodedModuleCandidate {
             module,
             plan,
@@ -1583,6 +1617,7 @@ impl<'a> Writer<'a> {
                         limits: self.limits.clone(),
                         nodes: nodes - self.nodes,
                         fingerprint: OnceLock::from(fingerprint),
+                        decoded: None,
                     })
                 } else if cache.is_some_and(|cache| cache.get().is_none()) && length <= *cache_bytes
                 {
@@ -1591,6 +1626,7 @@ impl<'a> Writer<'a> {
                         limits: self.limits.clone(),
                         nodes: nodes - self.nodes,
                         fingerprint: OnceLock::new(),
+                        decoded: None,
                     })
                 } else {
                     None
@@ -3932,11 +3968,12 @@ impl<'a> Reader<'a> {
         for _ in 0..count {
             let start = self.position;
             let nodes = self.nodes;
-            functions.push(self.function()?);
+            let (function, name) = self.function_with_name_range()?;
+            functions.push(function);
             if let Some(recording) = &mut recording {
                 recording
                     .functions
-                    .push((start..self.position, nodes - self.nodes));
+                    .push((start..self.position, nodes - self.nodes, name));
             }
         }
         let count = self.count(self.limits.max_functions, 22)?;
@@ -4138,6 +4175,10 @@ impl<'a> Reader<'a> {
         }
     }
     fn function(&mut self) -> WireResult<TypedFunction> {
+        self.function_with_name_range()
+            .map(|(function, _)| function)
+    }
+    fn function_with_name_range(&mut self) -> WireResult<(TypedFunction, std::ops::Range<usize>)> {
         let call_kind = match self.u8()? {
             0 => CallKind::Direct,
             1 => CallKind::Suspend,
@@ -4216,7 +4257,9 @@ impl<'a> Reader<'a> {
             None
         };
         let id = FunctionId(self.u32()?);
+        let name_start = self.position;
         let name = self.text()?;
+        let name_range = name_start..self.position;
         let foreign = if self.boolean()? {
             Some(ForeignDeclaration {
                 abi: self.text()?,
@@ -4304,26 +4347,29 @@ impl<'a> Reader<'a> {
                 terminator,
             });
         }
-        Ok(TypedFunction {
-            storage_life,
-            call_kind,
-            reference_return_bound,
-            callable_return_contract,
-            callable_contract,
-            protocol_contract,
-            result_mode,
-            foreign,
-            id,
-            name,
-            environment,
-            parameters,
-            return_type,
-            locals: locals.into(),
-            values: values.into(),
-            blocks: blocks.into(),
-            entry: BlockId(self.u32()?),
-            span: self.span()?,
-        })
+        Ok((
+            TypedFunction {
+                storage_life,
+                call_kind,
+                reference_return_bound,
+                callable_return_contract,
+                callable_contract,
+                protocol_contract,
+                result_mode,
+                foreign,
+                id,
+                name,
+                environment,
+                parameters,
+                return_type,
+                locals: locals.into(),
+                values: values.into(),
+                blocks: blocks.into(),
+                entry: BlockId(self.u32()?),
+                span: self.span()?,
+            },
+            name_range,
+        ))
     }
     fn atomic_ordering(&mut self) -> WireResult<AtomicOrdering> {
         match self.u8()? {

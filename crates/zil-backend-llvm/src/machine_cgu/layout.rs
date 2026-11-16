@@ -13,7 +13,211 @@ use zil_base::Fingerprint;
 use zil_ir::{InstructionKind, LirView};
 use zil_llvm_api::model::{Item, Linkage, Module, Op, Val};
 
-pub(super) type CurrentCalls = Vec<std::sync::Arc<BTreeSet<String>>>;
+/// Observations from complete actual raw items, never digest-selected rows.
+/// Symbol names are rebound to the current table even when an item is equal.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct CurrentGraph {
+    source: Module,
+    rows: Vec<std::sync::Arc<ObservedReads>>,
+    bound: std::sync::Arc<ClassGraph>,
+}
+#[derive(Debug, PartialEq, Eq)]
+struct ObservedReads {
+    references: BTreeSet<String>,
+    calls: std::sync::Arc<BTreeSet<String>>,
+    work: usize,
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static GRAPH_WORK: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) };
+}
+
+impl CurrentGraph {
+    pub(super) fn read(module: &Module, previous: Option<&Self>) -> Option<Self> {
+        Self::read_bounded(module, previous, MAX_REFS)
+    }
+    fn read_bounded(module: &Module, previous: Option<&Self>, budget: usize) -> Option<Self> {
+        if module.items.len() > MAX_ITEMS {
+            return None;
+        }
+        let mut remaining = budget.checked_sub(module.items.len())?;
+        let mut rows = Vec::with_capacity(module.items.len());
+        for (index, item) in module.items.iter().enumerate() {
+            if let Some(old) = previous
+                .filter(|old| old.source.items.get(index) == Some(item))
+                .and_then(|old| old.rows.get(index))
+            {
+                remaining = remaining.checked_sub(old.work)?;
+                rows.push(old.clone());
+                #[cfg(test)]
+                GRAPH_WORK.with(|work| {
+                    let (fresh, reused) = work.get();
+                    work.set((fresh, reused + 1));
+                });
+                continue;
+            }
+            #[cfg(test)]
+            GRAPH_WORK.with(|work| {
+                let (fresh, reused) = work.get();
+                work.set((fresh + 1, reused));
+            });
+            let before = remaining;
+            let mut references = BTreeSet::new();
+            let mut calls = BTreeSet::new();
+            match item {
+                Item::Function(function) => {
+                    for block in function.blocks.iter().flatten() {
+                        remaining = remaining.checked_sub(1)?;
+                        for instruction in &block.instructions {
+                            remaining = remaining.checked_sub(1)?;
+                            if let Op::Call {
+                                callee: Val::Global(name),
+                                ..
+                            } = &instruction.op
+                            {
+                                calls.insert(name.clone());
+                            }
+                            for value in instruction.op.values() {
+                                value_references(value, &mut references, &mut remaining)?;
+                            }
+                        }
+                    }
+                }
+                Item::Global(global) => {
+                    if let Some(value) = &global.initializer {
+                        value_references(value, &mut references, &mut remaining)?;
+                    }
+                }
+                Item::NamedType(..) => {}
+            }
+            rows.push(std::sync::Arc::new(ObservedReads {
+                references,
+                calls: std::sync::Arc::new(calls),
+                work: before - remaining,
+            }));
+        }
+        let bound = std::sync::Arc::new(ClassGraph::read(module, &rows)?);
+        Some(Self {
+            source: module.clone(),
+            rows,
+            bound,
+        })
+    }
+    pub(super) fn calls(&self) -> Vec<std::sync::Arc<BTreeSet<String>>> {
+        self.rows.iter().map(|row| row.calls.clone()).collect()
+    }
+    pub(super) fn references(&self, index: usize) -> &BTreeSet<String> {
+        &self.rows[index].references
+    }
+    pub(super) fn direct_calls(&self, index: usize) -> &BTreeSet<String> {
+        &self.rows[index].calls
+    }
+    pub(super) fn matches(&self, module: &Module) -> bool {
+        self.source.triple == module.triple && self.source.items == module.items
+    }
+}
+
+/// Full values of the planner's grouping inputs. Class symbol spelling may
+/// change with a body edit; its current index, role, ABI and graph must not.
+/// This is an in-process comparison, independent of any disk key.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Grouping {
+    target: zil_base::TargetProfile,
+    schema: u32,
+    module: zil_base::ModuleId,
+    triple: String,
+    entry: EntryPoint,
+    count: usize,
+    source: Vec<SourceGrouping>,
+    items: Vec<(Item, usize, bool)>,
+    reads: Vec<ClassReads>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SourceGrouping {
+    id: zil_ir::FunctionId,
+    name: String,
+    foreign: bool,
+    file: zil_base::FileId,
+    blocks: Vec<usize>,
+    calls: Vec<(usize, usize, zil_ir::FunctionId)>,
+}
+impl Grouping {
+    pub(super) fn read(
+        module: &Module,
+        lir: &LirView<'_>,
+        entry: EntryPoint,
+        count: usize,
+        classes: &BTreeSet<String>,
+        observed: &CurrentGraph,
+    ) -> Option<Self> {
+        if !(2..=MAX_UNITS).contains(&count) {
+            return None;
+        }
+        if !observed.matches(module) {
+            return None;
+        }
+        let graph = &observed.bound;
+        let mut remaining = MAX_REFS.checked_sub(lir.functions.len())?;
+        let mut source = Vec::with_capacity(lir.functions.len());
+        for function in lir.functions {
+            remaining = remaining.checked_sub(function.blocks.len())?;
+            let mut blocks = Vec::with_capacity(function.blocks.len());
+            let mut calls = Vec::new();
+            for (block, body) in function.blocks.iter().enumerate() {
+                remaining = remaining.checked_sub(body.instructions.len())?;
+                blocks.push(body.instructions.len());
+                for (index, instruction) in body.instructions.iter().enumerate() {
+                    let target = match &instruction.kind {
+                        InstructionKind::Call { function, .. } => Some(*function),
+                        InstructionKind::TaskCreate { worker, .. }
+                        | InstructionKind::TaskStart { worker, .. }
+                        | InstructionKind::WithScopedThread { worker, .. } => Some(*worker),
+                        _ => None,
+                    };
+                    if let Some(target) = target {
+                        calls.push((block, index, target));
+                    }
+                }
+            }
+            source.push(SourceGrouping {
+                id: function.id,
+                name: function.name.clone(),
+                foreign: function.foreign.is_some(),
+                file: function.span.file,
+                blocks,
+                calls,
+            });
+        }
+        let items = module
+            .items
+            .iter()
+            .map(|item| match item {
+                Item::Function(function) if function.blocks.is_some() => {
+                    let mut header = function.clone();
+                    header.blocks = None;
+                    let class = classes.contains(&function.name);
+                    if class {
+                        header.name.clear();
+                    }
+                    (Item::Function(header), function.cost(), class)
+                }
+                _ => (item.clone(), 0, false),
+            })
+            .collect();
+        Some(Self {
+            target: lir.target.clone(),
+            schema: lir.schema_version,
+            module: lir.module_id,
+            triple: module.triple.clone(),
+            entry,
+            count,
+            source,
+            items,
+            reads: graph.reads.clone(),
+        })
+    }
+}
 
 const MAGIC: &[u8; 8] = b"ZILCGU01";
 const DIRECTORY: &str = "partition-layout-v1";
@@ -58,9 +262,32 @@ impl Layout {
     ) -> (Vec<Module>, usize) {
         use super::materialization::{DEFINITION, IMPORT_BODY};
         let reuse = previous.and_then(|previous| previous.bind(&module, self));
+        let mut complete = self
+            .units
+            .iter()
+            .enumerate()
+            .map(|(index, unit)| reuse.as_ref().and_then(|reuse| reuse.unit(index, unit)))
+            .collect::<Vec<_>>();
+        if complete.iter().all(Option::is_some) {
+            let units = complete
+                .into_iter()
+                .map(|unit| {
+                    let mut unit = unit.expect("equal complete unit");
+                    unit.fingerprint.clone_from(&module.fingerprint);
+                    unit
+                })
+                .collect();
+            return (
+                units,
+                reuse.as_ref().map_or(0, |reuse| reuse.reused_items()),
+            );
+        }
         let mut remaining = vec![0usize; module.items.len()];
         let mut prototypes = BTreeMap::new();
-        for unit in &self.units {
+        for (index, unit) in self.units.iter().enumerate() {
+            if complete[index].is_some() {
+                continue;
+            }
             for &index in unit.definitions.iter().chain(&unit.imports) {
                 remaining[index] += 1;
             }
@@ -74,9 +301,37 @@ impl Layout {
                     });
             }
         }
-        let mut original = module.items.into_iter().map(Some).collect::<Vec<_>>();
+        let mut original = if complete.iter().any(Option::is_some) {
+            let mut needed = remaining
+                .iter()
+                .map(|&count| count != 0)
+                .collect::<Vec<_>>();
+            for (index, unit) in self.units.iter().enumerate() {
+                if complete[index].is_none() {
+                    for &index in &unit.prelude {
+                        needed[index] = true;
+                    }
+                }
+            }
+            // Equal whole units retain their real owners. Do not clone every
+            // unrelated current header just to drop it after emitting a sparse
+            // set of changed units.
+            module
+                .items
+                .iter()
+                .enumerate()
+                .map(|(index, item)| needed[index].then(|| item.clone()))
+                .collect::<Vec<_>>()
+        } else {
+            module.items.into_iter().map(Some).collect::<Vec<_>>()
+        };
         let mut units = Vec::with_capacity(self.units.len());
         for (unit_index, unit) in self.units.iter().enumerate() {
+            if let Some(mut current) = complete[unit_index].take() {
+                current.fingerprint.clone_from(&module.fingerprint);
+                units.push(current);
+                continue;
+            }
             let clone_names = unit
                 .imports
                 .iter()
@@ -389,6 +644,7 @@ impl Layout {
     /// Recheck the actual current graph, not a class-name prefix or checksum.
     /// One current body walk supplies both closure checks and materialization's
     /// observed calls. Bounded indexed walks avoid repeating the source planner.
+    #[cfg(test)]
     fn valid_classes(
         &self,
         module: &Module,
@@ -396,11 +652,27 @@ impl Layout {
         entry: EntryPoint,
         count: usize,
         classes: &BTreeSet<String>,
-    ) -> Option<CurrentCalls> {
+    ) -> Option<CurrentGraph> {
+        let graph = CurrentGraph::read(module, None)?;
+        self.valid_classes_observed(module, lir, entry, count, classes, &graph)?;
+        Some(graph)
+    }
+    pub(super) fn valid_classes_observed(
+        &self,
+        module: &Module,
+        lir: &LirView<'_>,
+        entry: EntryPoint,
+        count: usize,
+        classes: &BTreeSet<String>,
+        observed: &CurrentGraph,
+    ) -> Option<()> {
         if !self.valid_in_domain(module, lir, count, Some(classes)) {
             return None;
         }
-        let graph = ClassGraph::read(module)?;
+        if !observed.matches(module) {
+            return None;
+        }
+        let graph = &observed.bound;
         let mut remaining = graph.remaining;
         let mut owners = vec![usize::MAX; module.items.len()];
         for (owner, unit) in self.units.iter().enumerate() {
@@ -520,40 +792,23 @@ impl Layout {
                 return None;
             }
         }
-        Some(
-            graph
-                .reads
-                .into_iter()
-                .map(|reads| {
-                    std::sync::Arc::new(
-                        reads
-                            .calls
-                            .into_iter()
-                            .filter_map(|index| match &module.items[index] {
-                                Item::Function(f) => Some(f.name.clone()),
-                                Item::Global(g) => Some(g.name.clone()),
-                                Item::NamedType(..) => None,
-                            })
-                            .collect(),
-                    )
-                })
-                .collect(),
-        )
+        Some(())
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct ClassReads {
     references: Vec<usize>,
     calls: Vec<usize>,
 }
-struct ClassGraph<'a> {
-    names: BTreeMap<&'a str, usize>,
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ClassGraph {
+    names: BTreeMap<String, usize>,
     reads: Vec<ClassReads>,
     remaining: usize,
 }
-impl<'a> ClassGraph<'a> {
-    fn read(module: &'a Module) -> Option<Self> {
+impl ClassGraph {
+    fn read(module: &Module, rows: &[std::sync::Arc<ObservedReads>]) -> Option<Self> {
         let mut names = BTreeMap::new();
         for (index, item) in module.items.iter().enumerate() {
             let name = match item {
@@ -561,44 +816,20 @@ impl<'a> ClassGraph<'a> {
                 Item::Global(g) => g.name.as_str(),
                 Item::NamedType(..) => continue,
             };
-            if names.insert(name, index).is_some() {
+            if names.insert(name.to_owned(), index).is_some() {
                 return None;
             }
         }
         let mut remaining = MAX_REFS.checked_sub(module.items.len())?;
         let mut reads = Vec::with_capacity(module.items.len());
-        for item in &module.items {
+        for row in rows {
+            remaining = remaining.checked_sub(row.work)?;
             let mut current = ClassReads::default();
-            match item {
-                Item::Function(function) => {
-                    for block in function.blocks.iter().flatten() {
-                        remaining = remaining.checked_sub(1)?;
-                        for instruction in &block.instructions {
-                            remaining = remaining.checked_sub(1)?;
-                            if let Op::Call {
-                                callee: Val::Global(name),
-                                ..
-                            } = &instruction.op
-                            {
-                                current.calls.push(*names.get(name.as_str())?);
-                            }
-                            for value in instruction.op.values() {
-                                value_references(
-                                    value,
-                                    &names,
-                                    &mut current.references,
-                                    &mut remaining,
-                                )?;
-                            }
-                        }
-                    }
-                }
-                Item::Global(global) => {
-                    if let Some(value) = &global.initializer {
-                        value_references(value, &names, &mut current.references, &mut remaining)?;
-                    }
-                }
-                Item::NamedType(..) => {}
+            for name in &row.references {
+                current.references.push(*names.get(name.as_str())?);
+            }
+            for name in row.calls.iter() {
+                current.calls.push(*names.get(name.as_str())?);
             }
             current.references.sort_unstable();
             current.references.dedup();
@@ -615,8 +846,7 @@ impl<'a> ClassGraph<'a> {
 }
 fn value_references(
     value: &Val,
-    names: &BTreeMap<&str, usize>,
-    references: &mut Vec<usize>,
+    references: &mut BTreeSet<String>,
     remaining: &mut usize,
 ) -> Option<()> {
     let mut pending = Vec::new();
@@ -624,7 +854,9 @@ fn value_references(
     while let Some(value) = first.take().or_else(|| pending.pop()) {
         *remaining = remaining.checked_sub(1)?;
         match value {
-            Val::Global(name) => references.push(*names.get(name.as_str())?),
+            Val::Global(name) => {
+                references.insert(name.clone());
+            }
             Val::Array(args) => {
                 if pending.len().checked_add(args.len())? > *remaining {
                     return None;
@@ -735,6 +967,7 @@ impl Cache {
         let layout = self.read()?;
         layout.valid(module, lir, count).then_some(layout)
     }
+    #[cfg(test)]
     pub(super) fn load_classes(
         &self,
         module: &Module,
@@ -742,10 +975,23 @@ impl Cache {
         entry: EntryPoint,
         count: usize,
         classes: &BTreeSet<String>,
-    ) -> Option<(Layout, CurrentCalls)> {
+    ) -> Option<(Layout, CurrentGraph)> {
+        let observed = CurrentGraph::read(module, None)?;
+        let layout = self.load_classes_observed(module, lir, entry, count, classes, &observed)?;
+        Some((layout, observed))
+    }
+    pub(super) fn load_classes_observed(
+        &self,
+        module: &Module,
+        lir: &LirView<'_>,
+        entry: EntryPoint,
+        count: usize,
+        classes: &BTreeSet<String>,
+        observed: &CurrentGraph,
+    ) -> Option<Layout> {
         let layout = self.read()?;
-        let calls = layout.valid_classes(module, lir, entry, count, classes)?;
-        Some((layout, calls))
+        layout.valid_classes_observed(module, lir, entry, count, classes, observed)?;
+        Some(layout)
     }
     pub(super) fn key(&self) -> Fingerprint {
         self.key
