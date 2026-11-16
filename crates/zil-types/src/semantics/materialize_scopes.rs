@@ -181,11 +181,10 @@ impl<'a> Eval<'a, '_, '_> {
                                 .as_ref()
                                 .ok_or_else(|| bad("parent source has no original proof"))?;
                             let target = proof
-                                .call_targets
-                                .get(&(owner, *call))
+                                .inferred_call_target(owner, *call, self.limits, self.left)?
                                 .ok_or_else(|| bad("parent source call has no original target"))?;
-                            if *target != original.id
-                                && proof.providers.get(&original.id) != Some(target)
+                            if target != original.id
+                                && proof.providers.get(&original.id) != Some(&target)
                             {
                                 return Err(bad(
                                     "parent source call does not target the actual definition",

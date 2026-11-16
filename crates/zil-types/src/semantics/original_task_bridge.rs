@@ -14,6 +14,96 @@ pub(crate) struct TaskWorkerScheme {
     pub caller_actuals: Vec<SemanticActual>,
     pub result_sources: Vec<TaskReturnSources>,
 }
+
+impl Proof {
+    /// Resolve the declaration whose full mixed actuals an inferred holder
+    /// consumes. A Task operation has a real separately checked worker; it is
+    /// never entered into the ordinary direct-call target inventory.
+    pub(in crate::semantics) fn inferred_call_target(
+        &self,
+        owner: SemanticDefinitionId,
+        call: SemanticSiteId,
+        limits: &Limits,
+        left: &mut usize,
+    ) -> R<Option<SemanticDefinitionId>> {
+        *left = left
+            .checked_sub(
+                self.call_targets.len().saturating_add(1).ilog2() as usize
+                    + self.intrinsics.len().saturating_add(1).ilog2() as usize
+                    + 2,
+            )
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "original inferred target lookup exceeded",
+                    None,
+                )
+            })?;
+        let ordinary = self.call_targets.get(&(owner, call)).copied();
+        let Some(intrinsic) = self.intrinsics.get(&(owner, call)) else {
+            return Ok(ordinary);
+        };
+        let IntrinsicKind::TaskCreate { worker, .. } = intrinsic.kind else {
+            return Ok(ordinary);
+        };
+        if ordinary.is_some() || !self.complete.contains(&owner) || !self.complete.contains(&worker)
+        {
+            return Err(bad(
+                "inferred Task holder changes its complete original call kind or worker",
+            ));
+        }
+        let (signature, actuals) = intrinsic
+            .worker_scheme
+            .as_ref()
+            .ok_or_else(|| bad("inferred Task holder lacks its complete solved worker scheme"))?;
+        let recorded = self
+            .calls
+            .get(&(owner, call))
+            .ok_or_else(|| bad("inferred Task holder lacks its original full mixed solution"))?;
+        if actuals.len() > limits.max_nodes || signature.parameters.len() > limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "original inferred worker scheme limit exceeded",
+                None,
+            ));
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(signature, limits, left, 1)?;
+        *left = left
+            .checked_sub(
+                actuals
+                    .len()
+                    .saturating_add(recorded.len())
+                    .saturating_add(intrinsic.parameters.len())
+                    .saturating_add(1),
+            )
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "original inferred worker comparison exceeded",
+                    None,
+                )
+            })?;
+        for actual in actuals.iter().chain(recorded) {
+            crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
+        }
+        for parameter in &intrinsic.parameters {
+            crate::dyn_metadata::semantic_operand_snapshot(parameter, limits, left, 1)?;
+        }
+        if actuals != recorded
+            || signature.parameters.len() != intrinsic.parameters.len()
+            || signature
+                .parameters
+                .iter()
+                .zip(&intrinsic.parameters)
+                .any(|(a, b)| &a.ty != b)
+        {
+            return Err(bad(
+                "inferred Task holder changes its complete mixed or runtime input scheme",
+            ));
+        }
+        Ok(Some(worker))
+    }
+}
 impl super::super::emission::Ledger {
     fn original_task_call(
         &self,
@@ -157,6 +247,15 @@ impl super::super::emission::Ledger {
         };
         if !context.original.complete.contains(&worker) {
             return Err(bad("Task producer worker has no complete original Gamma"));
+        }
+        if context
+            .original
+            .inferred_call_target(instance.definition, call, limits, left)?
+            != Some(worker)
+        {
+            return Err(bad(
+                "Task producer changes its checked original inferred worker",
+            ));
         }
         let (signature, actuals) = intrinsic.worker_scheme.as_ref().ok_or_else(|| {
             bad("Task producer original operation lacks its full solved worker scheme")

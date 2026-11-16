@@ -617,9 +617,8 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         let Some(holder) = holder else {
             return proof.call_actual_view(owner, call, formal, self.limits, self.left);
         };
-        let target = *proof
-            .call_targets
-            .get(&(owner, call))
+        let target = proof
+            .inferred_call_target(owner, call, self.limits, self.left)?
             .ok_or_else(|| bad("inferred holder has no original resolved call target"))?;
         // A selected implementation method has a distinct declaration from
         // its trait member. Their own mixed frames correspond only through

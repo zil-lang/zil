@@ -647,7 +647,7 @@ impl Eval<'_, '_, '_> {
                 .or_else(|| self.ledger.frozen.as_deref().map(|source| &source.original))
                 .ok_or_else(|| bad("inferred opaque origins lack their complete original proof"))?;
             if let Some(holder) = holder {
-                if proof.call_targets.get(&(owner, call)) != Some(&holder) {
+                if proof.inferred_call_target(owner, call, self.limits, self.left)? != Some(holder) {
                     // Parent Scope actuals have a separate, checked receiver solution.
                     return Ok(None);
                 }
