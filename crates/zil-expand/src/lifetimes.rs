@@ -206,6 +206,15 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             result
         }
         fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
+            // A checked function header owns its complete referent type, not
+            // just the outer address syntax node. Every nested occurrence is
+            // still resolved against the same real lexical binder frame.
+            let old_stored_header = self.stored_fields;
+            if self.headers.contains(&std::ptr::from_ref(ty))
+                && matches!(ty.kind, s::TypeKind::Reference { .. })
+            {
+                self.stored_fields = true;
+            }
             if let s::TypeKind::Named { path, args } = &ty.kind
                 && matches!(path.as_slice(),[name] if matches!(name.as_str(),"Fn"|"FnMut"|"FnOnce"))
                 && let [s::GenericArg::Type(parameters), s::GenericArg::Type(result)] =
@@ -230,6 +239,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 let result = ct_selection::walk_type(self, ty, depth);
                 self.mutable_life = mutable;
                 self.headers.truncate(mark);
+                self.stored_fields = old_stored_header;
                 return result;
             }
             if matches!(ty.kind, s::TypeKind::Tuple(_))
@@ -243,6 +253,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 self.stored_fields = true;
                 let result = ct_selection::walk_type(self, ty, depth);
                 self.stored_fields = old;
+                self.stored_fields = old_stored_header;
                 return result;
             }
             if matches!(&ty.kind, s::TypeKind::Array { element, length: Some(_) }
@@ -255,6 +266,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 self.stored_fields = true;
                 let result = ct_selection::walk_type(self, ty, depth);
                 self.stored_fields = old;
+                self.stored_fields = old_stored_header;
                 return result;
             }
 
@@ -321,6 +333,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 self.headers = old_headers;
                 self.mutable_life = old_mutable_life;
                 self.direct_type_argument = old_type_argument;
+                self.stored_fields = old_stored_header;
                 return result;
             }
             if let s::TypeKind::Reference {
@@ -397,6 +410,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             self.direct_type_argument = old_type_argument;
             self.task_context = old_task_context;
             self.ordinary_type_argument = old_ordinary_type_argument;
+            self.stored_fields = old_stored_header;
             result
         }
     }
@@ -848,5 +862,36 @@ pub(super) fn signature_type(expander: &Expander<'_>, ty: &s::TypeRef) -> Type {
             inner,
         } => expander.reference_type(*mutable, inner),
         _ => expander.type_ref(ty),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zil_base::{FileId, ModuleId};
+
+    fn header(source: &str, name: &str) -> CoreFunction {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "nested-header.zil", source);
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        super::super::expand(&source, &syntax).unwrap().functions.into_iter().find(|function| function.name == name).unwrap()
+    }
+
+    #[test]
+    fn nested_address_header_retains_the_complete_pointee_domain() {
+        for (source, inner_classes) in [
+            ("fn inspect<life a,life b>(x:&'a &'b i32)->i32{return **x;}fn main()->i32{let v=42;let p=&v;return inspect(&p)-42}", 1),
+            ("fn inspect<life a>(x:&'a &'a &'a i32)->i32{return ***x;}fn main()->i32{return 0}", 2),
+        ] {
+            let function = header(source, "inspect");
+            assert!(matches!(function.parameters[0].ty, Type::Address { .. }));
+            let life = function.storage_life.unwrap();
+            assert_eq!(life.bindings.len(), 1);
+            assert!(life.bindings[0].position.path.is_empty());
+            assert_eq!(life.classes.len(), inner_classes);
+            for (ordinal, class) in life.classes.iter().enumerate() {
+                assert_eq!(class.position.path, [zil_ir::LifeTypeProjection::Pointee]);
+                assert_eq!(class.position.class, ordinal as u32);
+            }
+        }
     }
 }

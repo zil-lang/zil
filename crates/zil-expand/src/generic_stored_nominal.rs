@@ -797,6 +797,37 @@ impl<'a> Engine<'a> {
                     life,
                     fixed_input: false,
                 });
+                // A nested address is the complete semantic pointee domain,
+                // not a second borrow of the outer pointer slot. Its own outer
+                // occurrence and all child indices remain distinct even when
+                // their enclosing lexical lifetime images happen to coincide.
+                let mut pointee = inner.as_ref();
+                while let TypeKind::Group(group) = &pointee.kind {
+                    self.budget.node(pointee.span, depth + 1)?;
+                    pointee = group;
+                }
+                if matches!(pointee.kind, TypeKind::Reference { .. }) {
+                    let mut child = Vec::new();
+                    let mut child_stored = false;
+                    self.storage_header(inner, base, &mut Vec::new(), &mut Vec::new(),
+                        &mut child, &mut child_stored, next_elided, depth + 1)?;
+                    type_path.push(zil_ir::LifeTypeProjection::Pointee);
+                    for (class, occurrence) in child.into_iter().enumerate() {
+                        self.budget.identity_work(type_path.len().saturating_add(1), ty.span)?;
+                        self.budget.lineage_bytes(type_path.len().saturating_mul(std::mem::size_of::<zil_ir::LifeTypeProjection>()), ty.span)?;
+                        self.budget.lineage_push(occurrences, stored_types::Occurrence {
+                            position: stored_types::OccurrencePosition::Class(zil_ir::SignatureLifeClass {
+                                base, path: type_path.clone(), class: u32::try_from(class)
+                                    .map_err(|_| error(ty.span, "nested address class ordinal overflow"))?,
+                            }),
+                            life: occurrence.life,
+                            fixed_input: !matches!(base, zil_ir::StorageBase::Result),
+                        }, ty.span)?;
+                    }
+                    type_path.pop();
+                    *stored = true;
+                    return Ok(false);
+                }
                 // StoragePosition paths are relative to the receiver's actual
                 // pointee; crossing this outer Address is not a byte selector.
                 type_path.push(zil_ir::LifeTypeProjection::Pointee);
