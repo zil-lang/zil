@@ -135,7 +135,7 @@ fn scalar_recipe_environment_comparison_is_shared_by_all_current_consumers() {
         .into_program(ModuleId(0), Fingerprint::ZERO)
         .0;
     let header_owner = session.entries[&ModuleId(0)].headers.0.clone();
-    assert!(Arc::ptr_eq(&header_owner, &input[0].parsed_shared()));
+    assert_eq!(*header_owner, module_headers(&input[0].parsed().module));
     input[0] = parsed(0, &original.replacen("x:i32)->i32", "x:i64)->i64", 1));
     let after = checked(&mut session, &input, &limits)
         .into_program(ModuleId(0), Fingerprint::ZERO)
@@ -1305,7 +1305,7 @@ fn function_input_environment_rejects_every_nearby_import_identity_change() {
     current.sources[1].2.push_str(".renamed");
     changes.push(current);
     let mut current = relocated.clone();
-    Arc::make_mut(&mut current.headers[0].0).module.items[1].public = true;
+    Arc::make_mut(&mut current.headers[0].0)[1].public = true;
     changes.push(current);
     let mut current = relocated.clone();
     current.context.push_str(":changed");
