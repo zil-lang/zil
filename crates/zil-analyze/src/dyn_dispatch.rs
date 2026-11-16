@@ -221,7 +221,7 @@ fn closed_contract(mutable: bool) -> DynContract {
     }
 }
 
-fn valid_contract(slot: &DynSlot) -> bool {
+fn valid_contract(slot: &DynSlot, budget: &mut Budget) -> CompileResult<bool> {
     let mut expected = closed_contract(slot.receiver.mutable);
     if slot.contract.effects.as_deref() == Some(&[DynEffect::Panic]) {
         expected.effects = Some(vec![DynEffect::Panic]);
@@ -243,7 +243,43 @@ fn valid_contract(slot: &DynSlot) -> bool {
             mutable: false,
         });
     }
-    slot.contract == expected
+    if borrowed_result(&slot.result) {
+        // Select only the expression grammar here. Full positions, modes,
+        // leaf Types and every other component are compared below. These
+        // uppers do not prove any actual return, target or parent loan.
+        if let Some(DynResultSource::Borrow { sources, .. }) = &slot.contract.result {
+            let has_static = matches!(
+                sources.as_slice(),
+                [
+                    StorageSource::Static { .. },
+                    StorageSource::OwnedView { .. }
+                ]
+            );
+            if has_static || matches!(sources.as_slice(), [StorageSource::OwnedView { .. }]) {
+                crate::dyn_metadata::ty(&slot.result, budget)?;
+                let mut expected_sources = vec![StorageSource::OwnedView {
+                    head: position(),
+                    leaf: slot.result.clone(),
+                    mode: StoredBorrowMode::SharedAddress,
+                }];
+                if has_static {
+                    crate::dyn_metadata::ty(&slot.result, budget)?;
+                    expected_sources.insert(
+                        0,
+                        StorageSource::Static {
+                            leaf: slot.result.clone(),
+                            mode: StoredBorrowMode::SharedAddress,
+                        },
+                    );
+                }
+                expected.result = Some(DynResultSource::Borrow {
+                    sources: expected_sources,
+                    mutable: false,
+                });
+            }
+        }
+    }
+    Ok(slot.contract == expected)
 }
 
 // This is a declared output relation, never a root or source proof. The
@@ -300,8 +336,15 @@ fn contextual_contract(
     interface: &DynInterface,
     b: &mut Budget,
 ) -> CompileResult<bool> {
+    if let Some(DynResultSource::Borrow { sources, .. }) = &slot.contract.result {
+        // Bound and charge every untrusted embedded leaf before full equality;
+        // none of these syntax atoms supplies actual source authority.
+        for source in sources {
+            crate::dyn_metadata::recipe(source, b)?;
+        }
+    }
     if interface.context.is_none() {
-        return Ok(valid_contract(slot));
+        return valid_contract(slot, b);
     }
     b.spend(
         interface
@@ -326,6 +369,7 @@ fn contextual_contract(
         if result_binder.is_none() {
             return Ok(false);
         }
+        crate::dyn_metadata::ty(&slot.result, b)?;
         expected.result = Some(DynResultSource::Borrow {
             sources: if result_binder == Some(StorageBinder::Invocation(0)) {
                 vec![StorageSource::OwnedView {
@@ -339,9 +383,9 @@ fn contextual_contract(
             mutable: false,
         });
     }
-    // Static is an allowed immutable byte source, never a class equation or
-    // an input/receiver root. Keep it only when declared with the exact leaf;
-    // every entry's return flow independently proves which sources occur.
+    // Static is a distinct declared source upper, never an input/receiver
+    // root or a class equation. Require the exact complete result leaf/mode;
+    // every entry's actual return flow still proves its actual sources.
     if let (
         Some(DynResultSource::Borrow {
             sources: proposed,
@@ -354,11 +398,10 @@ fn contextual_contract(
             .iter()
             .any(|source| matches!(source, StorageSource::Static { .. }))
         {
-            if !matches!(&slot.result, Type::Address { mutable: false, inner }
-                if matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8))
-            {
+            if !borrowed_result(&slot.result) {
                 return Ok(false);
             }
+            crate::dyn_metadata::ty(&slot.result, b)?;
             sources.insert(
                 0,
                 StorageSource::Static {
@@ -1800,6 +1843,106 @@ mod tests {
     #[test]
     fn finite_entry_and_actual_borrow_are_admitted() {
         admitted(&fixture()).unwrap();
+    }
+
+    #[test]
+    fn declared_view_upper_keeps_leaf_head_mode_and_actual_source_obligations() {
+        let mut module = fixture();
+        let leaf = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        let slot = &mut module.dyn_interfaces[0].slots[0];
+        slot.result = leaf.clone();
+        slot.storage_life = Some(slot_life(slot));
+        slot.contract.result = Some(DynResultSource::Borrow {
+            sources: vec![
+                StorageSource::Static {
+                    leaf: leaf.clone(),
+                    mode: StoredBorrowMode::SharedAddress,
+                },
+                StorageSource::OwnedView {
+                    head: position(),
+                    leaf: leaf.clone(),
+                    mode: StoredBorrowMode::SharedAddress,
+                },
+            ],
+            mutable: false,
+        });
+        let slot = module.dyn_interfaces[0].slots[0].clone();
+        assert!(
+            contextual_contract(
+                &slot,
+                &module.dyn_interfaces[0],
+                &mut Budget::new(&Limits::default())
+            )
+            .unwrap()
+        );
+        for mutation in 0..3 {
+            let mut invalid = slot.clone();
+            let Some(DynResultSource::Borrow { sources, .. }) = &mut invalid.contract.result else {
+                unreachable!()
+            };
+            match mutation {
+                0 => {
+                    if let StorageSource::Static { leaf, .. } = &mut sources[0] {
+                        *leaf = Type::Address {
+                            mutable: false,
+                            inner: Box::new(Type::I64),
+                        };
+                    }
+                }
+                1 => {
+                    if let StorageSource::OwnedView { head, .. } = &mut sources[1] {
+                        head.base = StorageBase::Parameter(1);
+                    }
+                }
+                2 => {
+                    if let StorageSource::OwnedView { mode, .. } = &mut sources[1] {
+                        *mode = StoredBorrowMode::ExclusiveAddress;
+                    }
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                !contextual_contract(
+                    &invalid,
+                    &module.dyn_interfaces[0],
+                    &mut Budget::new(&Limits::default())
+                )
+                .unwrap()
+            );
+        }
+        module.functions[0].return_type = leaf;
+        module.functions[0].blocks[0].instructions.truncate(2);
+        module.functions[0].blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
+        let check_body = |module: &TypedModule| {
+            body(
+                module,
+                &module.functions[0],
+                &module.dyn_vtables[0].self_type,
+                &slot,
+                &mut BTreeSet::new(),
+                &mut Budget::new(&Limits::default()),
+            )
+        };
+        check_body(&module).unwrap();
+        // The same declared upper and full result Type cannot turn a fresh
+        // local address into a view of the actual receiver's owning region.
+        module.functions[0].locals.push(local(1, Type::I32));
+        module.functions[0].blocks[0].instructions = vec![
+            inst(Some(0), InstructionKind::Load(LocalId(0))),
+            inst(Some(2), InstructionKind::Constant(Constant::I32(7))),
+            inst(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    value: ValueId(2),
+                },
+            ),
+            inst(Some(1), InstructionKind::BorrowLocal { local: LocalId(1) }),
+        ];
+        assert!(check_body(&module).is_err());
     }
 
     #[test]

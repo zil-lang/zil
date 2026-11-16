@@ -877,7 +877,48 @@ impl Check<'_, '_> {
                         row.position.base == StorageBase::Result && row.position.path.is_empty()
                     })
                     .map(|row| row.binder);
-                if result_binder == Some(StorageBinder::Fixed(port.binder))
+                let receiver_binder = expected
+                    .life
+                    .bindings
+                    .iter()
+                    .find(|row| {
+                        row.position.base == StorageBase::Parameter(0)
+                            && row.position.path.is_empty()
+                    })
+                    .map(|row| row.binder);
+                if matches!(receiver_binder, Some(StorageBinder::Invocation(_)))
+                    && result_binder == receiver_binder
+                {
+                    // This is a source upper for a real receiver-bounded
+                    // reborrow, not Fixed equality or proof of a target. Each
+                    // provider still proves the actual selected leaf, its
+                    // unchanged child domain and both head/source parents.
+                    if let (
+                        Type::Address { inner: source, .. },
+                        Type::Address {
+                            mutable: false,
+                            inner: result,
+                        },
+                    ) = (&port.leaf, &expected.result)
+                        && matches!(
+                            port.mode,
+                            StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress
+                        )
+                        && geometry::same_type(source, result, b)?
+                    {
+                        self.push_value(
+                            sources,
+                            StorageSource::ReborrowedLeaf {
+                                source: position.clone(),
+                                head: StoragePosition {
+                                    base: StorageBase::Parameter(0),
+                                    path: Vec::new(),
+                                },
+                            },
+                            b,
+                        )?;
+                    }
+                } else if result_binder == Some(StorageBinder::Fixed(port.binder))
                     && port.mode == StoredBorrowMode::SharedAddress
                     && port.leaf == expected.result
                 {
