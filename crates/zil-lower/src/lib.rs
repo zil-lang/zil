@@ -224,6 +224,39 @@ fn lower_view_with_budget(
                 .parameters
                 .iter()
                 .any(|p| matches!(p, Type::Address { .. }));
+        // A consuming callback can transfer its captured Task head through
+        // the existing ptr result ABI. Keep its complete ports and fixed
+        // metadata: TakeCapture clears the real environment flag, while the
+        // result still denotes the same worker frame and owns its teardown.
+        // The actual checked entry must use that owning result convention;
+        // a description or a Suspend entry cannot use this synchronous call.
+        let task_result = closure.kind == CallableKind::FnOnce
+            && closure.parameters.is_empty()
+            && matches!(&closure.result, Type::Managed(task) if matches!(task.as_ref(), Type::Task { .. }))
+            && sum_budget.admits(&closure.result, &module.resources, 0)?
+            && module.resources.iter().any(|resource| {
+                resource.name.starts_with(zil_ir::TASK_RESOURCE_NAME_PREFIX)
+                    && resource.teardown.is_none()
+                    && matches!(&closure.result, Type::Managed(task) if resource.payload == **task)
+            })
+            && module
+                .functions
+                .get(closure.function.0 as usize)
+                .is_some_and(|entry| {
+                    entry.id == closure.function
+                        && entry.environment == Some(closure.id)
+                        && entry.foreign.is_none()
+                        && entry.parameters.is_empty()
+                        && entry.call_kind == zil_ir::CallKind::Direct
+                        && matches!(
+                            entry.result_mode,
+                            zil_ir::PassingMode::Infer
+                                | zil_ir::PassingMode::Move
+                                | zil_ir::PassingMode::Give
+                                | zil_ir::PassingMode::Create
+                        )
+                        && entry.return_type == closure.result
+                });
         // Preserve the complete verified qualified Type while reusing its
         // ordinary inline layout. Phantom classes are metadata, and neither
         // their presence nor an empty physical slot inventory grants Copy,
@@ -276,7 +309,7 @@ fn lower_view_with_budget(
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(owning_signature || invocation_signature || verified_address_result || plain_result || closure.result.is_copy_value()
+        ) || !(owning_signature || invocation_signature || verified_address_result || task_result || plain_result || closure.result.is_copy_value()
             || (!closure.lending_captures.is_empty()
                 && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 && matches!(&closure.result, Type::Address { inner, mutable: false }
