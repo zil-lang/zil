@@ -1,0 +1,185 @@
+{
+  "source_head": "74094ece4b6202700e318df33330db5616420718",
+  "source_tree": "1afcf6490eaa0ee592f2de0e383e14e57717655d",
+  "source_branch": "task/language-alpha",
+  "repo": "/workspace/zil-public-integration",
+  "base_source_head": "7c70980c57ef211e535a06aeca58e86a3e78de60",
+  "base_remote": "c30083e05f6763423e1197f3e0bc0ac38064ee72",
+  "base_tree": "69df83c9545c9a0264aa067fe91deafa69cabc10",
+  "alpha_accepted": false,
+  "pause_reason": "User asked about desktop decoded-message limit and requested synchronized continuation if a new conversation is needed. Agents requested to pause at atomic checkpoints; do not duplicate running writers.",
+  "cli_policy_saved_untested": "alpha-64m-v2 CLI default64M, explicit standard10M; SDK/base defaults remain10M. Only work quota changed, no retries or skipped independent verification. Must rebuild before testing.",
+  "latest_tested_candidate": "2cf903e5241042c9bdeefb82ea8be495d18c44d5",
+  "latest_tested_scope": {
+    "explicit_alpha25m_positive": [
+      12,
+      13
+    ],
+    "correct_negatives": [
+      4,
+      4
+    ],
+    "extra_complete_sources": [
+      11,
+      14
+    ],
+    "nearest": [
+      23,
+      30
+    ],
+    "core_units": {
+      "ir": [
+        103,
+        0
+      ],
+      "expand": [
+        175,
+        0
+      ],
+      "types": [
+        96,
+        0
+      ],
+      "analyze": [
+        306,
+        0
+      ],
+      "verify": [
+        838,
+        1
+      ]
+    },
+    "core_verify_remaining": "sums::replacements::helper_result_tests::qualified_replacement_helpers_consume_the_whole_header_and_keep_affine_exit_debts: E-VERIFY-SIGNATURE-CLASS ungrounded/incomplete raw test header at line23",
+    "ordinary_application": "Full original app independent Verify1 Success under explicit48M and64M diagnostic,32M ResourceLimit;64M10.36s peak159904KiB. No native acceptance claimed."
+  },
+  "native_ownership": {
+    "candidate": "7bb14a728643f92f1d79c4bee0ed6fc8f4551857",
+    "status": "Pass",
+    "backends": [
+      "clang",
+      "llvm-api"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "executions_total": 280,
+    "includes": "Original five modules, normal replacements and allocator failure cleanup"
+  },
+  "saved_after_latest_tested": [
+    "CLI64M product default, meaningful existing CLI tests updated; untested",
+    "V callable ForAll goal BoundFrames transport; untested",
+    "Types actual constructor staging Store/Load reaching-source proof; untested",
+    "A stored dynamic Static/OwnedView/ReborrowedLeaf consumers; untested"
+  ],
+  "pending_wip": {
+    "A_shared_nested_retained": "8 paths from agent-checkpoints JSON. External shared→shared saved Fixed to receiver output bridge still unfinished; no broad Eq/Copy. A work not READY. classes.rs also contains older formatting WIP: preserve, do not stage wholesale.",
+    "V_definition_requests": "5 paths static_members.rs/flow.rs and dynamic_witness semantic_{external,associated,member_instance}. Implements exact four worlds definition proof and existing Origin::Definition contract requests. NOT READY: defaults concreteSelf full-leaf contract instantiation still needed for Context Provider.text saved-field returns. Read Astra findings in handoff. Detailed exact original-member proof/deferred contract analysis is retained in agent-checkpoints/dynamic-static-definition-handoff.md.",
+    "backend_unknown_owner": "Preexisting uncommitted resource_closures.rs/scoped_callback_tests.rs/tasks.rs/tasks/{owner_groups,owners}.rs were not produced by known active agents. Preserved only; do not blindly integrate or discard."
+  },
+  "unresolved_source_cases": [
+    "Context live17 plus ctor two-sources/full-mixed had Types projected local loan root error; staging fix saved afterward, retest",
+    "Borrowed iterator now class/shape/images correct; required persistent Fixed vs invocation due lost ForAll goal frames; fix saved afterward, retest",
+    "Higher rank positive missing actual Invocation0 header embedding during creator/materialize (Types creator_invocations/creator_headers/header_captures/materialize)",
+    "Higher rank captured-rigid negative has correct original parent Formal b but physical closure parameter Unsupported; fix Source scoped closure annotation lowering, then require actual forall semantic rejection",
+    "Whole-T shared view had Types rigid anchor failure after Source Copy guard fixed",
+    "A raw nested address child, repeated shared binding and multi-source retained output are active WIP",
+    "Retained Static upper in A retained/sources.rs still has bytes-only consumer to audit"
+  ],
+  "build_rules": [
+    "Root only Git/index/build, shared writers disjoint and frozen before staging; no reset/clean",
+    "Read source AGENTS and goal workflow; A/V independently prove full original programs and must not read each other algorithms",
+    "Use immutable /workspace/zil-alpha-candidate, source /workspace/.zil-env/language-env.sh, one /workspace/.zil-env/language-build.lock, jobs4",
+    "Never build dirty shared source; runner now guards directory and git status",
+    "Preserve full sigma/inner kappa/N/phantom/all branches. No trimming, Unsupported or ResourceLimit counts as pass",
+    "Use explicit standard pressure separately; finite Alpha quota policy is software calibration, not safety or semantic fix",
+    "Validate full same-candidate Source13+negatives4+extra14+nearest+app+core/rawWire+two backends/native/failure cleanup before calling Alpha done"
+  ],
+  "client_error": {
+    "decoded_bytes": 82785376,
+    "limit_bytes": 67108864,
+    "diagnosis": "Desktop decode limit exceeded; cloud can view. Large accumulated tool traces/source transfers are a plausible trigger, not confirmed client internals. Avoid dumping bulk source/base64/raw tool records in the next conversation; keep logs local and print summaries."
+  },
+  "restore": [
+    "Clone/fetch existing zil-lang/zil, checkout base_remote on task branch; verify base tree",
+    "Apply committed-source.patch (binary aware) to restore latest committed source content including docs/profile",
+    "Apply active-crates.patch as UNVERIFIED WIP and restore untracked/crates files; do not call this tested or commit all blindly",
+    "Generated-validation contains only task-created synthetic Source cases, not other workspace files; restore to indicated task /tmp directories or update helper manifests",
+    "Execution helpers are optional root scripts from this workspace; do not assume toolchain exists on a new machine; read guide/build.md",
+    "If same workspace, use existing repository directly and inspect actual status/agent process state; do not reapply patches over matching WIP"
+  ],
+  "artifacts": {
+    "committed-source.patch": "99d58d340c2af8ffdcf48ad1b496bf20e8cff4a6a2b91dc8a32b282d618f5dea",
+    "source-history.mbox": "b60cecbd93ce7c1f034df1bcfa3e7c4e0441e0b91601da1e8263fa2a89d41395",
+    "active-crates.patch": "a51d519f95d8b2f9a1314f0f06c5c9ff4dce3c981cf3e5535ad096d2c8ef02c9",
+    "untracked/crates/zil-analyze/src/class_flow/raw_references.rs": "d4a9d7178421ce8e4c4cd9ea30b80d754f5019f77d21540700c87740a2f893f2",
+    "generated-validation/zil-owned-rvalue-and-call-domain-nearest/cases.json": "d7d8b0d9542f1f8db8857c6039c26a6ad043613af11cfd7fb4b41caf49b7d34c",
+    "generated-validation/zil-owned-rvalue-and-call-domain-nearest/call-domain-across-loop.zil": "072b206056e846d4bd658c102154070cc62fbcbfee9318cee7b9769326dfafe4",
+    "generated-validation/zil-owned-rvalue-and-call-domain-nearest/incoming-call-is-not-create.zil": "db1acbd8134d1ce201cdb6e77934e74be25c7a9f3ab061340bb96581eb750fe8",
+    "generated-validation/zil-owned-rvalue-and-call-domain-nearest/local-still-needs-give.zil": "97d4f8fc6302ab2f32a6f295694c559a9579edec8e059ac5553f7291dae24340",
+    "generated-validation/zil-owned-rvalue-and-call-domain-nearest/owning-call-rvalue.zil": "debcc046865c957c797ad518d8e0797a17b7d0b11c9523e589db19e581168277",
+    "generated-validation/zil-shared-reborrow-nearest/cases.json": "262bbf05459f965d20129a263b3d637e17b052ba6a80f3d290481dc72608d4f5",
+    "generated-validation/zil-shared-reborrow-nearest/phantom-retag.zil": "45511979d6a7100f07ee4d43618c3555ce58842152172c8907a354bf59bf9bf5",
+    "generated-validation/zil-shared-reborrow-nearest/inner-mode-change.zil": "a081759bca20eaaae33fc6e146e2e5192bdaa34799bf5a5d49d8d8b508a97a2e",
+    "generated-validation/zil-shared-reborrow-nearest/reverse-upgrade.zil": "419d9b0c6ef847bacaa186ed93347c2ff046c6fae6c6a6a6180fead4b13ccbe3",
+    "generated-validation/zil-shared-reborrow-nearest/whole-type-inner-domains.zil": "9483a58996c8f054d2a0e0ce51077a825e136bf64319eb4ec926f9452985c27c",
+    "generated-validation/zil-shared-reborrow-nearest/repeated-binding.zil": "9f5b4c8141fbd55cdc1d6cb42513a3f1332324f2a70cc5a8ce900b3c0fcc5611",
+    "generated-validation/zil-shared-reborrow-nearest/repeated-local.zil": "d3a1194cac67705bfac020a5350b18bcbb36c3ba4504d17723c3d6e5a2ca2bbd",
+    "generated-validation/zil-shared-reborrow-nearest/repeated-input.zil": "169f93eb0e9113483d1672cf3203c9fe19d93f885205f8564ef73966c15eb943",
+    "generated-validation/zil-call-region-source-view-nearest/cases.json": "34a12824550568e91d261abddf3c36d85694cc209dbe83dcfe1267d4b25bac45",
+    "generated-validation/zil-call-region-source-view-nearest/projection-same-input.zil": "118aecedf30c1f00215bf0f4f6bb979eefdb118bc06f11697e0ed6c8aca19b2f",
+    "generated-validation/zil-call-region-source-view-nearest/bad-choose-cross-input.zil": "5afdd55366822bccec65767124740db1bb041070232dc22c569ee92e4f4ef477",
+    "generated-validation/zil-call-region-source-view-nearest/bad-projection-cross-input.zil": "45ff133551c6a93381aa311f0e1a3cb62e9537ffaccda79c7b529a29f3f899ef",
+    "generated-validation/zil-call-region-source-view-nearest/bad-deref-cross-input.zil": "96b66ef9bb38689633622949f5afab75d24bbff047ff7257d6f4ccc7af6e15c6",
+    "generated-validation/zil-callable-quantifier-nearest/elided-identity-missing-syncdrop.zil": "fb9b337de51bb6b1f42d4f549daffecce3cb928e59ff8f413ac1d86c854bf021",
+    "generated-validation/zil-callable-quantifier-nearest/cases.json": "ff21a95e20a6d87c267b4083723b1780c12556184dabf2d3dd2420667be6dc82",
+    "generated-validation/zil-callable-quantifier-nearest/captured-rigid-not-universal.zil": "4ce736ba54d2e295d64a2b8a3da7e069d05589c77a661b74f87da5038405efe2",
+    "generated-validation/zil-callable-quantifier-nearest/elided-identity.zil": "cc45844b9c460ac0ffb83aa16bb6ab9e78b25d4f205460b075f875aba024c52e",
+    "generated-validation/zil-borrowed-closure-child-nearest/cases.json": "481c176664674e963482979166d9ce01349dd3d992c9cb8f9200659ebcb5ce83",
+    "generated-validation/zil-borrowed-closure-child-nearest/borrow-child-phantom-retag.zil": "63ad4af14f784d36ee9c1680401b84df238fec9a6ad69c85bf2804231b6b66d4",
+    "generated-validation/zil-borrowed-closure-child-nearest/borrowed-closure-binding.zil": "7beb998f5234e41714015a4847f91e713f3e3b38b386fd3cfa0b09b6ed7c618e",
+    "generated-validation/zil-borrowed-closure-child-nearest/borrowed-closure-child.zil": "dd7eceba822a947752e68d36965fb323d6564ef907ba8246805fbe23043139d0",
+    "generated-validation/zil-inferred-record-mixed-nearest/cases.json": "ab5465803b845ab6a1fc795be62de7f3e5889315b3967ae6548de995696c86b1",
+    "generated-validation/zil-inferred-record-mixed-nearest/rigid-inner-phantom.zil": "85eef4e19bdc069ac11392b65e39c4834e9436cc9699af65659a1f5ca8504817",
+    "generated-validation/zil-inferred-record-mixed-nearest/phantom-unresolved.zil": "94d96ef21b456f43c3600911dfd3a74703181c3be443a6db0875b54351e2db59",
+    "generated-validation/zil-inferred-record-mixed-nearest/wrong-repeat-const.zil": "fba70cee26b513e43649e5536f19b036884e984ab4b38113df1d94e91d9294b5",
+    "generated-validation/zil-inferred-record-mixed-nearest/wrong-repeat-type.zil": "c7ecfb2dd06684a075f9555ca7829d106cfc8e15b1e24c131aba7fee45cf511c",
+    "generated-validation/zil-inferred-record-mixed-nearest/full-mixed.zil": "4681865c714e3e4e3f65f30cbfafecf7667b92736cb9fe001be6973833445b2b",
+    "generated-validation/zil-inferred-record-mixed-nearest/local-two-sources.zil": "02d66e0ee1fb2bb718f9aa8b454c729e5ac13a72e569e5a1e69679b813501be2",
+    "generated-validation/zil-inferred-record-mixed-nearest/joint-fields.zil": "29ef2ee3a028f14468cbd3b6d24cf6342c61da0a9a001668fe021d0a9a045531",
+    "generated-validation/nested-address-source-controls/inspect.zil": "6783aedcb2876d57d62149dae2e8ce7c2b12c0b12b6772e386ff171c7dd39c98",
+    "generated-validation/nested-address-source-controls/bad-slot-escape.zil": "40a16d91d54776bca847b479fd413d6457fae249f1dd1f7c926ed5dd1a8cd050",
+    "generated-validation/dyn-context-live-original/context-read-live.zil": "58a24af3b91bfb46bb37cf1b8b4e214686edfedc9a8d50a66b3182680116925b",
+    "execution-helpers/run-alpha-candidate.sh": "eb03092caced74c3fd0aa32375123fc65b8128de779e5f24553464ea289884cb",
+    "execution-helpers/language-env.sh": "0ff68217015efade6677b29d6f1c083bd81a106344469ac1f003b0e11a7d3e77",
+    "execution-helpers/check-alpha-nearest-complete.py": "1aa467ef8efa578f7bf23cbaa9b92575e1b55b41edbd723ac49ccdd68e5e290a",
+    "execution-helpers/check-extra-originals.py": "6377862eb5e576c9989660bed4c6856b978b01b883923ece923cd1b985fcbc21",
+    "execution-helpers/run-core-alpha-units.py": "da862c9975b552fccfd95eccb0e983f5b3716e23a264cb91b0bf6e51d0919424",
+    "execution-helpers/run-fresh-original-native.py": "ee142349b7d28332c5a6c16a3c28da9cf3cde9452c800542a06a46026eb22cb2",
+    "execution-helpers/run-native-alpha.py": "666bb3245e60f9299bca022cc87f727525bf5364c30fe4d2a133688304e6e0f8",
+    "execution-helpers/run-native-alpha-plan.json": "eacd70077354e42d48f7632c4ad88b1d303f76980a7f64bee035ba233d8d328e",
+    "execution-helpers/diagnostic-work-runner/main.rs": "630038f948020b6195fd8c72ecdba75304e3d8f40e6f975b6698be4b67c02f6d",
+    "execution-helpers/diagnostic-work-runner/build.py": "ae312ae21b23398c863dc70d35254f6cd2efbd97c73a02dd818355a9f57e8971",
+    "agent-checkpoints/zil-a-shared-whole-child-checkpoint.json": "558379a0c0c62056986482561ccf4988d163868087c5903bcc6304aa380a5187",
+    "agent-checkpoints/zil-a-shared-whole-child-classes-ready.patch": "4d6f4e5daa56ed9e2b2a7e94a20da2abdf9a5a07e8c3a851f8280d07713495bb",
+    "agent-checkpoints/zil-a-shared-whole-child-ready.paths": "9246f4d7fca471d2a2f7e5d1c768aac43f500922d0f2c5451b6b0feacccab351",
+    "agent-checkpoints/dynamic-static-definition-wip.patch": "eae00ae707cb2617fcfec6744ab8e4955ca17b98b5910d063006ba0e5099a5d7",
+    "agent-checkpoints/dynamic-static-definition-wip.manifest.json": "cacdc85dbabb971aec16e8a837856851a7eb49c539d95db3068936b49e989088",
+    "agent-checkpoints/dynamic-static-definition-handoff.md": "821c9cd78b02653b4f2348b31b7991b80642faa981e14eb6e1f3ddfd5acbf8f8",
+    "agent-checkpoints/dynamic-static-definition-base/dynamic_dispatch.rs": "48e5c4749d629299829e08aec4c9d1f619d664772d7f72813d87d7e57ac31511",
+    "agent-checkpoints/dynamic-static-definition-base/semantic_member_instance.rs": "c156fe03be28dba6d5095e36bbcb90a1c9ff53d6745169a350e90b4ffaf08f74",
+    "agent-checkpoints/dynamic-static-definition-base/semantic_associated.rs": "ee1bfcf87a00726362200e7e21c492740251199c265e1ff8a83ddcf937d11adf",
+    "agent-checkpoints/dynamic-static-definition-base/semantic_external.rs": "33fb75a1bbfd1093ab226cb517b4895a97bdbb2b6ffe49382f6b58cd61c6e1b5",
+    "agent-checkpoints/dynamic-static-definition-base/flow.rs": "03d669821b8786c1183ab726af26d91ad2c1493893bcf728aff613c39d36584c",
+    "agent-checkpoints/dynamic-static-definition-base/static_members.rs": "3a6fe15903e98adf99e29d417da49549d4894bd115cbdaa8d50d0c9af4195966"
+  },
+  "all_known_agents_paused": true,
+  "recovery_archive": {
+    "repository": "zil-lang/zil",
+    "branch": "archive/source-history",
+    "path": "language/20261116T133636Z-alpha-client-handoff/source-and-handoff.tar.gz.base64",
+    "encoding": "base64 of gzip tar",
+    "sha256": "bb1e92e7e9347d55a208dc916c51a72d5034a6f79adc4a37e8dc1c057e2d5ded",
+    "bytes": 164510
+  }
+}
