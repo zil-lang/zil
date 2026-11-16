@@ -18,6 +18,41 @@ fn task_occurrence(path: &[LifeTypeProjection]) -> Occurrence {
     }
 }
 impl Eval<'_, '_, '_> {
+    fn task_type_is_zero(
+        &mut self,
+        scope: SemanticInstanceId,
+        ty: &SemanticTypeRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        self.node(depth)?;
+        let owner = self.instance(scope)?.definition;
+        let proof = self.ledger.original.borrow();
+        if let Some(proof) = proof.as_ref().filter(|proof| proof.complete.contains(&owner)) {
+            let program = self.ledger.original.context().map_or(self.input, |context| &context.semantic);
+            return proof.task_type_is_zero(program, owner, ty, self.limits, self.left, depth + 1);
+        }
+        if let Some(frozen) = self.ledger.frozen.as_deref() {
+            return frozen.original.task_type_is_zero(&frozen.semantic, owner, ty, self.limits, self.left, depth + 1);
+        }
+        Ok(false)
+    }
+    fn task_sequence_is_zero(
+        &mut self,
+        scope: SemanticInstanceId,
+        sequence: &SemanticClassSequenceRecipe,
+        depth: usize,
+    ) -> R<bool> {
+        self.node(depth)?;
+        self.fee(sequence.parts.len())?;
+        for part in &sequence.parts {
+            match part {
+                SemanticClassSequencePart::AllClasses { ty, path }
+                    if path.is_empty() && self.task_type_is_zero(scope, ty, depth + 1)? => {}
+                _ => return Ok(false),
+            }
+        }
+        Ok(true)
+    }
     fn task_sequence(
         &mut self,
         scope: SemanticInstanceId,
@@ -41,6 +76,9 @@ impl Eval<'_, '_, '_> {
                         return Err(unknown(
                             "Task class sequence awaits its exact original child-domain path",
                         ));
+                    }
+                    if self.task_type_is_zero(scope, ty, depth + 1)? {
+                        continue;
                     }
                     let child = self.type_domain_at(scope, ty, None, depth + 1, occurrence)?;
                     let SemanticTypeValue::Resolved { life, classes, .. } = child.value else {
@@ -119,6 +157,9 @@ impl Eval<'_, '_, '_> {
                             "Task input domain awaits its complete original child path",
                         ));
                     }
+                    if self.task_type_is_zero(scope, ty, depth + 1)? {
+                        continue;
+                    }
                     let occurrence = Occurrence {
                         root: OccurrenceRoot::TaskParameter(
                             u32::try_from(ordinal)
@@ -153,6 +194,11 @@ impl Eval<'_, '_, '_> {
                     });
                 }
                 SemanticPortPart::FromType { ty, classes } => {
+                    if self.task_type_is_zero(scope, ty, depth + 1)?
+                        && self.task_sequence_is_zero(scope, classes, depth + 1)?
+                    {
+                        continue;
+                    }
                     let occurrence = Occurrence {
                         root: OccurrenceRoot::TaskParameter(
                             u32::try_from(ordinal)
@@ -263,6 +309,11 @@ impl Eval<'_, '_, '_> {
                     });
                 }
                 SemanticNominalPart::FromType { path, ty, classes } => {
+                    if self.task_type_is_zero(scope, ty, depth + 1)?
+                        && self.task_sequence_is_zero(scope, classes, depth + 1)?
+                    {
+                        continue;
+                    }
                     let SemanticTypeValue::Resolved { life, .. } =
                         self.ty(scope, ty, None, depth + 1)?
                     else {

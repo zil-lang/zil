@@ -10,6 +10,32 @@ fn task_payload(ty: &SemanticTypeRecipe) -> bool {
         _ => false,
     }
 }
+
+impl Proof {
+    /// A Task Context part is empty only by the immutable original theorem.
+    /// This grants no actual closure value, cleanup or callable permission.
+    pub(in crate::semantics) fn task_type_is_zero(
+        &self,
+        program: &SemanticModule,
+        owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe,
+        limits: &Limits,
+        left: &mut usize,
+        depth: usize,
+    ) -> R<bool> {
+        if !self.complete.contains(&owner) {
+            return Ok(false);
+        }
+        let mut check = super::nominal_where::borrowed_check(program, self, owner, limits, left)?;
+        match check.original_zero_domain(owner, ty, depth + 1) {
+            Ok(zero) => Ok(zero),
+            Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => Err(error),
+            // This optional query supplies no fact when its original lexical
+            // mapping is delayed. The normal complete materializer still runs.
+            Err(_) => Ok(false),
+        }
+    }
+}
 impl Check<'_, '_> {
     fn task_sequence(
         &mut self,
