@@ -208,6 +208,78 @@ pub(super) fn unary(kind: geometry::Unary, inner: Value, b: &mut Budget) -> Comp
     )?;
     Ok(Value::from_geometry(geometry, inner.classes))
 }
+/// A resource carrier preserves every child coordinate. It has no physical
+/// borrow slots of its own; these type paths grant no loan or cleanup right.
+pub(super) fn resource(kind: geometry::Unary, inner: Value, b: &mut Budget) -> CompileResult<Value> {
+    let prefix = match kind {
+        geometry::Unary::OwnedStore => LifeTypeProjection::Element,
+        geometry::Unary::Managed | geometry::Unary::Mutex
+        | geometry::Unary::Registration | geometry::Unary::AsyncRegistration => LifeTypeProjection::Pointee,
+        _ => return Err(fail("resource domain transport changes its constructor family")),
+    };
+    let life = inherited_domain(&inner.life, prefix, b)?;
+    if inner.classes.len() != inner.life.binder_count as usize {
+        return Err(fail("resource child omits a complete intrinsic class"));
+    }
+    let geometry = geometry::construct(geometry::Constructor::Unary(kind), &[&inner.geometry], life, b)?;
+    Ok(Value::from_geometry(geometry, inner.classes))
+}
+fn inherited_domain(child: &StorageLifeShape, prefix: LifeTypeProjection, b: &mut Budget) -> CompileResult<StorageLifeShape> {
+    crate::dyn_metadata::shape(child, b)?;
+    let mut retained = Vec::new();
+    for class in 0..child.binder_count {
+        put(&mut retained, StorageRetainedBinding { path: vec![prefix.clone()], class, binder: class }, b)?;
+    }
+    for row in &child.retained {
+        if row.binder >= child.binder_count { return Err(fail("resource retained child leaves its complete domain")); }
+        let mut path = Vec::new();
+        put(&mut path, prefix.clone(), b)?;
+        for step in &row.path { put(&mut path, step.clone(), b)?; }
+        put(&mut retained, StorageRetainedBinding { path, class: row.class, binder: row.binder }, b)?;
+    }
+    let mut nominal_arguments = Vec::new();
+    for row in &child.nominal_arguments {
+        if row.binder >= child.binder_count { return Err(fail("resource phantom child leaves its complete domain")); }
+        let mut path = Vec::new();
+        put(&mut path, prefix.clone(), b)?;
+        for step in &row.path { put(&mut path, step.clone(), b)?; }
+        put(&mut nominal_arguments, NominalLifeArgument { path, declaration: row.declaration,
+            argument: row.argument, binder: row.binder }, b)?;
+    }
+    Ok(StorageLifeShape { binder_count: child.binder_count, slots: Vec::new(), retained, nominal_arguments })
+}
+/// Reconstruct the whole opaque Task domain from its complete type inventory,
+/// retaining phantom classes even when no physical port names them.
+pub(super) fn task_domain(ty: &Type, b: &mut Budget) -> CompileResult<Option<StorageLifeShape>> {
+    b.spend(1, WORK)?;
+    match ty {
+        Type::Task { retained_life, .. } => {
+            crate::dyn_metadata::retained_shape(retained_life, b)?;
+            for port in &retained_life.ports {
+                b.spend(1, WORK)?;
+                if port.binder >= retained_life.binder_count { return Err(fail("Task physical port exceeds its complete domain")); }
+            }
+            for row in &retained_life.retained {
+                b.spend(1, WORK)?;
+                if row.binder >= retained_life.binder_count { return Err(fail("Task retained row exceeds its complete domain")); }
+            }
+            for row in &retained_life.nominal_arguments {
+                b.spend(1, WORK)?;
+                if row.binder >= retained_life.binder_count { return Err(fail("Task phantom row exceeds its complete domain")); }
+            }
+            Ok(Some(StorageLifeShape { binder_count: retained_life.binder_count, ..empty() }))
+        }
+        Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { .. }) => {
+            let child = task_domain(inner, b)?.ok_or_else(|| fail("Task owner changes its child family"))?;
+            Ok(Some(inherited_domain(&child, LifeTypeProjection::Pointee, b)?))
+        }
+        Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { .. })) => {
+            let child = task_domain(result, b)?.ok_or_else(|| fail("Task result carrier changes its child family"))?;
+            Ok(Some(inherited_domain(&child, LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)), b)?))
+        }
+        _ => Ok(None),
+    }
+}
 pub(super) fn tuple(fields: Vec<Value>, b: &mut Budget) -> CompileResult<Value> {
     b.spend(fields.len().saturating_add(1), WORK)?;
     let mut children = Vec::new();
@@ -234,28 +306,12 @@ pub(super) fn error_union(error: Value, result: Value, b: &mut Budget) -> Compil
     if result.classes.len() != result.life.binder_count as usize {
         return Err(fail("ErrorUnion success omits a complete intrinsic class"));
     }
-    let mut retained = Vec::new();
-    for child in 0..result.life.binder_count {
-        put(
-            &mut retained,
-            StorageRetainedBinding {
-                path: vec![LifeTypeProjection::Place(PlaceProjection::ErrorArm(false))],
-                class: child,
-                binder: child,
-            },
-            b,
-        )?;
-    }
+    let life = inherited_domain(&result.life,
+        LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)), b)?;
     let geometry = geometry::construct(
         geometry::Constructor::ErrorUnion,
         &[&error.geometry, &result.geometry],
-        StorageLifeShape {
-            binder_count: u32::try_from(result.classes.len())
-                .map_err(|_| fail("ErrorUnion complete domain overflows"))?,
-            slots: Vec::new(),
-            retained,
-            nominal_arguments: Vec::new(),
-        },
+        life,
         b,
     )?;
     Ok(Value::from_geometry(geometry, result.classes))
@@ -406,6 +462,76 @@ pub(super) fn check_address_domain(
     pointee(&Value::from_geometry(geometry, classes), inventory, b)?;
     Ok(())
 }
+// A raw nested reference does not carry a second StorageLifeShape in its
+// Type. Recover that exact local shape from the complete parent forest. This
+// only reconstructs coordinates; no class image, loan or lifetime is invented.
+fn nested_reference_shape(
+    child: &Type, parent: &StorageLifeShape, b: &mut Budget,
+) -> CompileResult<StorageLifeShape> {
+    let mode = match child {
+        Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
+        Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
+        Type::Desc(_) => StoredBorrowMode::WritableDescription,
+        _ => return Err(fail("nested reference shape selects another physical constructor")),
+    };
+    let mut direct = BTreeMap::new();
+    for row in &parent.retained {
+        b.spend(row.path.len().saturating_add(1), WORK)?;
+        if row.path.as_slice() != [LifeTypeProjection::Pointee] { continue; }
+        if row.binder >= parent.binder_count || row.class as usize >= b.helper_nodes {
+            return Err(fail("nested reference child coordinate is outside its full domain"));
+        }
+        b.lookup(direct.len(), WORK)?;
+        if direct.insert(row.class, row.binder).is_some() {
+            return Err(fail("nested reference repeats a complete child class coordinate"));
+        }
+    }
+    let count = u32::try_from(direct.len()).map_err(|_| fail("nested reference child domain overflows"))?;
+    let mut reverse = BTreeMap::new();
+    for (ordinal, (class, parent)) in direct.iter().enumerate() {
+        b.spend(1, WORK)?;
+        if *class as usize != ordinal { return Err(fail("nested reference child domain omits an original class")); }
+        b.lookup(reverse.len(), WORK)?;
+        match reverse.entry(*parent) {
+            std::collections::btree_map::Entry::Vacant(entry) => { entry.insert(Some(*class)); }
+            std::collections::btree_map::Entry::Occupied(mut entry) => { entry.insert(None); }
+        }
+    }
+    let binder = |parent: u32, b: &mut Budget| -> CompileResult<u32> {
+        b.lookup(reverse.len(), WORK)?;
+        reverse.get(&parent).copied().flatten().ok_or_else(||
+            fail("nested reference child forest has no unique complete local class coordinate"))
+    };
+    let mut retained = Vec::new();
+    for row in &parent.retained {
+        b.spend(row.path.len().saturating_add(1), WORK)?;
+        let Some(path) = row.path.strip_prefix(&[LifeTypeProjection::Pointee]) else { continue; };
+        if path.is_empty() { continue; }
+        let mut selected = Vec::new();
+        for step in path { put(&mut selected, step.clone(), b)?; }
+        put(&mut retained, StorageRetainedBinding { path: selected, class: row.class,
+            binder: binder(row.binder, b)? }, b)?;
+    }
+    let mut nominal_arguments = Vec::new();
+    for row in &parent.nominal_arguments {
+        b.spend(row.path.len().saturating_add(1), WORK)?;
+        let Some(path) = row.path.strip_prefix(&[LifeTypeProjection::Pointee]) else { continue; };
+        let mut selected = Vec::new();
+        for step in path { put(&mut selected, step.clone(), b)?; }
+        put(&mut nominal_arguments, NominalLifeArgument { path: selected,
+            declaration: row.declaration, argument: row.argument, binder: binder(row.binder, b)? }, b)?;
+    }
+    if count == 0 {
+        if !super::original::strings::is_byte_type(child) || !retained.is_empty() || !nominal_arguments.is_empty() {
+            return Err(fail("nested raw reference omits its real outer class occurrence"));
+        }
+        return Ok(empty());
+    }
+    let mut slots = Vec::new();
+    put(&mut slots, StorageLifeSlot { path: Vec::new(), binder: 0, mode }, b)?;
+    Ok(StorageLifeShape { binder_count: count, slots, retained, nominal_arguments })
+}
+
 pub(super) fn pointee(
     input: &Value,
     inventory: &Inventory<'_>,
@@ -418,6 +544,8 @@ pub(super) fn pointee(
     let life = match inner.as_ref() {
         Type::Dyn { .. } | Type::OwnedDyn { .. } => dyn_domain(inner, inventory, b)?,
         Type::MutexGuard { .. } => mutex_guard_domain(inner, b)?,
+        Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) =>
+            task_domain(inner, b)?.ok_or_else(|| fail("Task pointee has no complete child domain"))?,
         Type::BorrowedStorage { life, .. } => {
             crate::dyn_metadata::shape(life, b)?;
             life.clone()
@@ -441,11 +569,7 @@ pub(super) fn pointee(
                 nominal_arguments: Vec::new(),
             }
         }
-        Type::Address { .. } | Type::Desc(_) => {
-            return Err(unknown(
-                "nested raw pointee needs its complete intrinsic shape",
-            ));
-        }
+        Type::Address { .. } | Type::Desc(_) => nested_reference_shape(inner, &input.life, b)?,
         _ => {
             crate::stored_flow::validate_plain_nominal_zero(
                 inventory.module,
@@ -1444,6 +1568,14 @@ fn resolved_parts(
         _ => {}
     }
     match ty {
+        Type::Task { .. } | Type::Managed(_) | Type::ErrorUnion { .. }
+            if task_domain(ty, b)?.is_some() => {
+                let expected = task_domain(ty, b)?.ok_or_else(|| fail("Task domain vanished"))?;
+                if expected != *life { return Err(fail("semantic Task carrier changes its complete child-domain forest")); }
+                if let Type::ErrorUnion { error, .. } = ty {
+                    crate::stored_flow::validate_plain_nominal_zero(inventory.module, error, inventory.limits, b)?;
+                }
+            }
         Type::Address { .. }
             if super::original::strings::is_byte_type(ty)
                 && life.binder_count == 0
@@ -1558,6 +1690,8 @@ fn resolved_parts(
             let child_life = match inner.as_ref() {
                 Type::Dyn { .. } | Type::OwnedDyn { .. } => dyn_domain(inner, inventory, b)?,
                 Type::MutexGuard { .. } => mutex_guard_domain(inner, b)?,
+        Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) =>
+            task_domain(inner, b)?.ok_or_else(|| fail("Task pointee has no complete child domain"))?,
                 Type::BorrowedStorage { life, .. } => {
                     crate::dyn_metadata::shape(life, b)?;
                     life.clone()
@@ -1582,11 +1716,7 @@ fn resolved_parts(
                         nominal_arguments: Vec::new(),
                     }
                 }
-                Type::Address { .. } | Type::Desc(_) => {
-                    return Err(unknown(
-                        "nested raw reference child requires its independently reconstructed whole local shape",
-                    ));
-                }
+                Type::Address { .. } | Type::Desc(_) => nested_reference_shape(inner, life, b)?,
                 _ => {
                     crate::stored_flow::validate_plain_nominal_zero(
                         inventory.module,
@@ -1748,6 +1878,25 @@ mod geometry_tests {
             &merged.geometry,
             &separate.geometry
         ));
+    }
+
+    #[test]
+    fn nested_raw_reference_reconstructs_the_whole_child_without_class_images() {
+        let mut budget = Budget::new(&zil_base::Limits::default());
+        let first = address(false, Class::Local(7), scalar(Type::I32), &mut budget).unwrap();
+        let middle = address(true, Class::Local(9), first, &mut budget).unwrap();
+        let outer = address(false, Class::Local(11), middle.copy(&mut budget).unwrap(), &mut budget).unwrap();
+        assert_eq!(nested_reference_shape(&middle.ty, &outer.life, &mut budget).unwrap(), middle.life);
+        let coincident = outer.with_classes(vec![Class::Local(3); outer.classes.len()], &mut budget).unwrap();
+        assert_eq!(nested_reference_shape(&middle.ty, &coincident.life, &mut budget).unwrap(), middle.life);
+        assert_eq!(middle.life.binder_count, 2);
+        assert_eq!(middle.life.slots[0].mode, StoredBorrowMode::ExclusiveAddress);
+        let mut missing = outer.life.clone();
+        missing.retained.retain(|row| !(row.path.as_slice() == [LifeTypeProjection::Pointee] && row.class == 1));
+        assert!(nested_reference_shape(&middle.ty, &missing, &mut budget).is_err());
+        let mut repeated = outer.life.clone();
+        repeated.retained.push(repeated.retained[0].clone());
+        assert!(nested_reference_shape(&middle.ty, &repeated, &mut budget).is_err());
     }
 
     #[test]

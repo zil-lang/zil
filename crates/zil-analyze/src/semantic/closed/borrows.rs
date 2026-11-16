@@ -273,6 +273,9 @@ impl Check<'_, '_> {
             unknown("class-bearing call result has no complete callee header")
         })?;
         let count = match ty {
+            Type::Managed(_) if self.task_domain(ty, b)?.is_some() =>
+                u32::try_from(original_output.as_ref().ok_or_else(|| fail("Task call output omits its original full domain"))?.classes.len())
+                    .map_err(|_| fail("Task call output domain exceeds its ordinal carrier"))?,
             Type::Address { .. } | Type::Desc(_) | Type::Dyn { .. } | Type::OwnedDyn { .. }
             | Type::ErrorUnion { .. } => u32::try_from(original_output.as_ref().ok_or_else(||
                 fail("call result omits its complete original output"))?.classes.len())
@@ -298,7 +301,7 @@ impl Check<'_, '_> {
         for child in 0..count {
             let mut result = None;
             if let Some(output) = &original_output
-                && (matches!(ty, Type::Address { .. } | Type::Desc(_)) || self.dyn_sum_type(ty, b)?) {
+                && (matches!(ty, Type::Address { .. } | Type::Desc(_)) || self.dyn_sum_type(ty, b)? || self.task_domain(ty, b)?.is_some()) {
                 for slot in &output.life.slots {
                     if slot.binder != child { continue; }
                     for row in &contract.bindings {
@@ -343,9 +346,27 @@ impl Check<'_, '_> {
                     continue;
                 };
                 if !row.position.path.is_empty() {
-                    return Err(unknown(
-                        "call result requires its complete projected input class transport",
-                    ));
+                    let expected = expected_parameters.get(parameter as usize)
+                        .ok_or_else(|| fail("Task call port omits its original complete input"))?;
+                    let mut port_class = None;
+                    for (path, class) in self.task_ports(expected, b)? {
+                        if row.position.path == path && port_class.replace(class).is_some() {
+                            return Err(fail("Task call input repeats a physical retained port"));
+                        }
+                    }
+                    let class = port_class.ok_or_else(|| unknown("call result requires its complete projected input class transport"))?;
+                    let actual = *arguments.get(parameter as usize)
+                        .ok_or_else(|| fail("Task call port omits its actual input"))?;
+                    if !self.ssa_value(instance, function, actual, b, depth + 1)?.equal_paid(expected, b)? {
+                        return Err(fail("Task call port changes its complete original owning input value"));
+                    }
+                    let class = expected.classes.get(class as usize).cloned()
+                        .ok_or_else(|| fail("Task call port leaves its complete input class domain"))?;
+                    if source.as_ref().is_some_and(|old| old != &class) {
+                        return Err(fail("Task call result has competing original input class sources"));
+                    }
+                    source = Some(class);
+                    continue;
                 }
                 let actual = *arguments
                     .get(parameter as usize)
@@ -407,11 +428,17 @@ impl Check<'_, '_> {
                     let expected = if row.position.path.is_empty() {
                         expected
                     } else if row.position.path.as_slice() == [LifeTypeProjection::Pointee] {
-                        if !self.outer_call_role(instance, function, (block, index), parameter as usize, actual, &input, expected, b, depth + 1)? {
-                            return Err(fail("callee child class input changes its independently proved outer call role"));
+                        if self.task_domain(&expected.ty, b)?.is_some() {
+                            if !input.equal_paid(expected, b)? { return Err(fail("Task call input changes its complete original owning value")); }
+                            input = self.task_child(&input, b)?;
+                            child = self.task_child(expected, b)?;
+                        } else {
+                            if !self.outer_call_role(instance, function, (block, index), parameter as usize, actual, &input, expected, b, depth + 1)? {
+                                return Err(fail("callee child class input changes its independently proved outer call role"));
+                            }
+                            input = self.pointee(&input, b)?;
+                            child = self.pointee(expected, b)?;
                         }
-                        input = self.pointee(&input, b)?;
-                        child = self.pointee(expected, b)?;
                         &child
                     } else {
                         return Err(unknown("call result child requires its full projected input relation"));

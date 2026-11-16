@@ -700,6 +700,19 @@ pub(super) fn class_key(
     Ok((prefix, class))
 }
 
+fn contract_paths(function:FunctionId,parameter:u32,b:&mut Budget)->Check<Vec<Vec<ContractProjection>>>{
+    let fee=b.pending_dyn_contracts.methods.iter().fold(0usize,|n,request|n.saturating_add(1).saturating_add(request.contract.guarantees.as_ref().map_or(0,|rows|rows.iter().fold(0usize,|n,row|n.saturating_add(1).saturating_add(match row{DynGuarantee::StorageSources(upper)=>upper.position.path.len().saturating_mul(2).saturating_add(1),_=>0})))));
+    b.spend(fee)?;
+    Ok(b.pending_dyn_contracts.methods.iter().filter(|request|request.function==function&&matches!(request.origin,crate::dynamic_witness::requests::Origin::Definition{..})).flat_map(|request|request.contract.guarantees.iter().flatten()).filter_map(|row|match row{DynGuarantee::StorageSources(upper)if upper.position.base==StorageBase::Parameter(parameter)&&upper.position.path.iter().any(|step|matches!(step,ContractProjection::RetainedPort(_)))=>Some(upper.position.path.clone()),_=>None}).collect())
+}
+
+fn after_row(rows:&mut dyn_ports::Rows,path:&[ContractProjection],row:&dyn_ports::Port,b:&mut Budget)->Check<()>{
+    // insert pays the permission/path copy; retain both symbolic parent lists
+    // before its complete Port clone as well.
+    source_work(&row.parent_sources,b)?;source_work(&row.head_sources,b)?;
+    dyn_ports::insert(rows,path,row,b)?;Ok(())
+}
+
 pub(super) fn after(
     module: &TypedModule,
     f: &TypedFunction,
@@ -714,19 +727,25 @@ pub(super) fn after(
     }
     for (position, local) in f.parameters.iter().enumerate() {
         let ty = &f.locals[local.0 as usize].ty;
-        if !matches!(ty, Type::Address { mutable: true, .. }) {
+        if !matches!(ty, Type::Address { .. }) {
             continue;
         }
+        let mutable=matches!(ty,Type::Address{mutable:true,..});
+        let requested=contract_paths(f.id,position as u32,b)?;
+        if !mutable&&requested.is_empty(){continue;}
         let expected = dyn_ports::shape(module, ty, b)?;
-        if expected.is_empty() {
-            continue;
-        }
+        let expected_tasks=if requested.is_empty(){vec![]}else{task_address::input_ports(module,ty,b)?};
+        if expected.is_empty()&&expected_tasks.is_empty(){continue;}
         let actual = state
             .external
             .get(position)
             .ok_or_else(|| bad("helper actual external Dyn carrier is absent"))?;
         let mut rows = dyn_ports::Rows::default();
+        let mut snapshots=dyn_ports::Rows::default();
         for (path, _) in expected {
+            b.spend(requested.len().saturating_mul(path.len().saturating_add(1)))?;
+            let snapshot=requested.contains(&path);
+            if !mutable&&!snapshot{continue;}
             let Some(at) = dyn_ports::find(&actual.dyn_ports, &path, b)? else {
                 summary.complete = false;
                 continue;
@@ -734,6 +753,7 @@ pub(super) fn after(
             let original = &actual.dyn_ports.0[at].1;
             permission_work(&original.permission, b)?;
             source_work(&original.parent_sources, b)?;
+            source_work(&original.head_sources,b)?;
             let mut row = original.clone();
             summary.complete &= row.known;
             add_sources(
@@ -753,6 +773,7 @@ pub(super) fn after(
                 &sites.head_sources(&row.permission, loans, b)?,
                 b,
             )?;
+            for head in &row.head_sources{if !matches!(head.base,HoldRoot::Parameter(_)|HoldRoot::Static){return Err(bad("helper after-state retains an activation-local head parent"));}}
             row.permission.loans.clear();
             for source in &row.permission.sources {
                 if !matches!(source.base, HoldRoot::Parameter(_) | HoldRoot::Static) {
@@ -761,8 +782,34 @@ pub(super) fn after(
                     ));
                 }
             }
-            dyn_ports::insert(&mut rows, &path, &row, b)?;
+            if snapshot{after_row(&mut snapshots,&path,&row,b)?;}
+            if mutable{after_row(&mut rows, &path, &row, b)?;}
         }
+        // Task ports have their own actual ledger. Snapshot those exact
+        // permissions as well; no shape, header or default upper can create a
+        // port row or turn a missing/empty permission into a known input.
+        for(path,_)in expected_tasks{
+            b.spend(requested.len().saturating_mul(path.len().saturating_add(1)))?;
+            if !requested.contains(&path){continue;}
+            b.spend(actual.task_ports.len().saturating_mul(path.len().saturating_add(1)))?;
+            let Some((_,permission))=actual.task_ports.iter().find(|(at,_)|*at==path)else{summary.complete=false;continue;};
+            permission_work(permission,b)?;
+            let mut row=dyn_ports::Port{permission:permission.clone(),known:!permission.sources.is_empty(),..Default::default()};
+            summary.complete&=row.known;
+            row.parent_sources=parents(permission,loans,b)?;
+            row.head_sources=sites.head_sources(permission,loans,b)?;
+            for source in permission.sources.iter().chain(&row.parent_sources).chain(&row.head_sources){
+                if !matches!(source.base,HoldRoot::Parameter(_)|HoldRoot::Static){return Err(bad("helper retained after-state has an activation-local data/head parent"));}
+            }
+            row.permission.loans.clear();
+            after_row(&mut snapshots,&path,&row,b)?;
+        }
+        if !snapshots.0.is_empty(){
+            b.spend(summary.contract_after.len().saturating_add(1))?;
+            if let Some((_,old))=summary.contract_after.iter_mut().find(|(p,_)|*p==position as u32){for(path,row)in snapshots.0{after_row(old,&path,&row,b)?;}}
+            else{summary.contract_after.push((position as u32,snapshots));}
+        }
+        if rows.0.is_empty(){continue;}
         b.spend(summary.dyn_after.len())?;
         if let Some((_, old)) = summary
             .dyn_after
@@ -770,7 +817,7 @@ pub(super) fn after(
             .find(|(p, _)| *p == position as u32)
         {
             for (path, row) in rows.0 {
-                dyn_ports::insert(old, &path, &row, b)?;
+                after_row(old, &path, &row, b)?;
             }
         } else {
             summary.dyn_after.push((position as u32, rows));
@@ -816,3 +863,36 @@ pub(super) fn parents(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod contract_snapshot_tests{
+    use super::*;
+    #[test]
+    fn shared_task_return_snapshot_keeps_real_parents_without_publishing_an_update(){
+        let(module,_)=crate::tests::baseline();let mut f=module.functions[0].clone();
+        let leaf=Type::Address{mutable:false,inner:Box::new(Type::I32)};
+        f.parameters=vec![LocalId(0),LocalId(1)];
+        let mut extra=f.locals[0].clone();extra.id=LocalId(1);extra.ty=leaf.clone();f.locals.push(extra);
+        f.locals[0].ty=Type::Address{mutable:false,inner:Box::new(Type::Task{result:Box::new(Type::Unit),retained_life:RetainedLifeShape{binder_count:1,ports:vec![RetainedBorrowPort{leaf,mode:StoredBorrowMode::SharedAddress,binder:0}],retained:vec![],nominal_arguments:vec![]}})};
+        let path=vec![ContractProjection::RetainedPort(0)];
+        let data=Source{base:HoldRoot::Parameter(0),leaf:vec![],inline:vec![],retained_port:Some(PortOrigin::Task{carrier:vec![],port:0}),heap_parents:vec![],heap_element:None,static_dependency:StaticProvenance::NotStatic};
+        let mut parent=data.clone();parent.base=HoldRoot::Parameter(1);parent.retained_port=None;
+        let loans=vec![Loan{sources:vec![data.clone()],parents:vec![1],exclusive:false,receiver_head:false},Loan{sources:vec![parent.clone()],parents:vec![],exclusive:false,receiver_head:false}];
+        let mut state=Frame::default();state.external=vec![Payload::default(),Payload::default()];
+        state.external[0].task_ports.push((path.clone(),Permission{sources:vec![data.clone()],loans:vec![0]}));
+        let mut summary=Summary{complete:true,..Default::default()};let limits=Limits::default();let mut b=Budget::new(&limits);b.dyn_contexts=true;
+        use crate::dynamic_witness::requests::{ContractRequest,Origin,Header};
+        let owner=LifeDeclarationId{module:module.module_id,declaration:zil_base::NodeId(1),compiler:false};
+        let position=StoragePosition{base:StorageBase::Parameter(0),path:path.clone()};
+        b.pending_dyn_contracts.methods.push(ContractRequest{origin:Origin::Definition{owner,member:0,definition:DynDefinitionId{module:module.module_id,source:zil_base::NodeId(2)}},function:f.id,specialization:None,scope:DynInstantiationScope{fixed_binder_count:1,invocation_binder_count:0},parameters:vec![],parameter_modes:vec![],result:DynTypeValue{ty:Type::Unit,life:StorageLifeShape{binder_count:0,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:vec![]},result_mode:PassingMode::Infer,call_kind:CallKind::Direct,contract:DynContract{requires:None,guarantees:Some(vec![DynGuarantee::StorageSources(StorageSourceBinding{position:position.clone(),sources:vec![StorageSource::Exact(position)]})]),hold:None,call:None,result:None,cleanup:None,effects:None,resume:None,threads:None},operands:vec![],expected_header:Header::default(),actual_header:None,header_embedding:vec![],self_leaves:vec![]});
+        after(&module,&f,&state,&mut summary,&loans,&dyn_leases::Sites::default(),&mut b).unwrap();
+        assert!(summary.complete);assert!(summary.dyn_after.is_empty(),"a proof snapshot cannot publish a Dyn-ledger update");
+        let row=&summary.contract_after[0].1.0[0].1;
+        assert!(row.known);assert_eq!(row.permission.sources,vec![data]);assert!(row.permission.loans.is_empty());assert!(row.parent_sources.contains(&parent));
+        // The next real Return lacks the required port. An earlier known row
+        // must not make the whole actual CFG complete through a union.
+        state.external[0].task_ports.clear();
+        after(&module,&f,&state,&mut summary,&loans,&dyn_leases::Sites::default(),&mut b).unwrap();
+        assert!(!summary.complete);
+    }
+}

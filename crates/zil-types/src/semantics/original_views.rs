@@ -123,6 +123,41 @@ impl Check<'_, '_> {
         variables: &mut BTreeMap<String, Binding>,
         depth: usize,
     ) -> R<Option<SemanticTypeRecipe>> {
+        let Some(shared) =
+            self.observe_shared_input(owner, expression, expected, variables, depth + 1)?
+        else {
+            return Ok(None);
+        };
+        self.pay(
+            target.copy_work().saturating_add(
+                self.proof.shared_views.len().saturating_add(1).ilog2() as usize + 1,
+            ),
+            depth,
+        )?;
+        let rows = &mut self.proof.proof_mut()?.shared_views;
+        match rows.entry((owner, target)) {
+            std::collections::btree_map::Entry::Occupied(old) if *old.get() != expression.id => {
+                return Err(bad("shared input view changes its exact original read"));
+            }
+            std::collections::btree_map::Entry::Occupied(_) => {}
+            std::collections::btree_map::Entry::Vacant(row) => {
+                row.insert(expression.id);
+            }
+        }
+        Ok(Some(shared))
+    }
+
+    /// A solved call parameter can borrow a root-shared view without changing
+    /// its original expression equation or registering an ascription there.
+    /// Only the caller's complete expected type selects this boundary view.
+    pub(super) fn observe_shared_input(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
+        expected: &SemanticTypeRecipe,
+        variables: &mut BTreeMap<String, Binding>,
+        depth: usize,
+    ) -> R<Option<SemanticTypeRecipe>> {
         let SemanticTypeRecipe::Address { mutable: false, .. } = expected else {
             return Ok(None);
         };
@@ -159,22 +194,6 @@ impl Check<'_, '_> {
         self.same(&shared, expected)?;
         let observed = self.place(owner, expression, variables, depth + 1)?;
         self.same(&observed, &source)?;
-        self.pay(
-            target.copy_work().saturating_add(
-                self.proof.shared_views.len().saturating_add(1).ilog2() as usize + 1,
-            ),
-            depth,
-        )?;
-        let rows = &mut self.proof.proof_mut()?.shared_views;
-        match rows.entry((owner, target)) {
-            std::collections::btree_map::Entry::Occupied(old) if *old.get() != expression.id => {
-                return Err(bad("shared input view changes its exact original read"));
-            }
-            std::collections::btree_map::Entry::Occupied(_) => {}
-            std::collections::btree_map::Entry::Vacant(row) => {
-                row.insert(expression.id);
-            }
-        }
         Ok(Some(shared))
     }
 

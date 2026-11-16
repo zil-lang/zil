@@ -564,7 +564,7 @@ impl Checked {
             Kind::Wrapped(wrapper, inner) => {
                 let inner = self.value(*inner, context, program, inventory, b, depth + 1)?;
                 if *wrapper == Wrapper::Managed && matches!(inner.ty, Type::Task { .. }) {
-                    return value::unary(geometry::Unary::Managed, inner, b);
+                    return value::resource(geometry::Unary::Managed, inner, b);
                 }
                 if !inner.classes.is_empty() {
                     return Err(unknown(

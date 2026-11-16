@@ -318,3 +318,22 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
     }
     Ok(Some(mask))
 }
+
+/// A Known0 ordinary head still owes an executable effect/memory proof when
+/// its original method contract is pending. This only selects the existing
+/// full verifier and all exact executable dependencies; it grants no facts.
+pub(super) fn contracts(module:&TypedModule,mask:&mut [bool],b:&mut Budget)->Check<()>{
+    if mask.len()!=module.functions.len(){return Err(reject("E-VERIFY-STORED-PARTITION",None,"contract work mask omits actual functions"));}
+    b.spend(b.pending_dyn_contracts.methods.len())?;
+    let roots=b.pending_dyn_contracts.methods.iter().filter(|request|matches!(request.origin,crate::dynamic_witness::requests::Origin::Definition{..})).map(|request|request.function).collect::<Vec<_>>();
+    if roots.is_empty(){return Ok(());}
+    b.spend(module.functions.len().saturating_add(roots.len()))?;
+    let mut seen=vec![false;module.functions.len()];let mut queue=roots;
+    while let Some(function)=queue.pop(){
+        b.spend(1)?;let index=function.0 as usize;
+        if module.functions.get(index).is_none_or(|row|row.id!=function){return Err(reject("E-VERIFY-STORED-PARTITION",None,"original contract selects an absent actual body"));}
+        if std::mem::replace(&mut seen[index],true){continue;}
+        mask[index]=true;
+        for target in crate::stored_flow::contract_dependencies(module,function,b)?{b.spend(queue.len().saturating_add(1))?;queue.push(target);}
+    }Ok(())
+}

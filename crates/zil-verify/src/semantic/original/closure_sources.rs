@@ -32,7 +32,7 @@ impl CheckedOriginal {
     }
     // Select a proved original call by its lexical node or its inferred local
     // binding. Explicit type ascriptions remain separate invariant obligations.
-    pub(in crate::semantic) fn call_result_source(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<SemanticSiteId>>{
+    pub(in crate::semantic) fn call_result_source(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,environment:&EvalEnv,b:&mut Budget)->Check<Option<(SemanticSiteId,bool,Option<(StoredBorrowMode,SemanticOuterLifeRecipe)>)>>{
         if !matches!(source,SemanticOriginalTypeSource::Binding(_)|SemanticOriginalTypeSource::Expression(_)|SemanticOriginalTypeSource::NameAt{..}){return Ok(None);}
         let checked=self.original_type(definition,source,b)?;
         // These forms already reuse a complete original type argument or have
@@ -62,7 +62,14 @@ impl CheckedOriginal {
         if !self.same(&checked,result,b)?{return Ok(None);}
         let mut selected=None;
         for(site,node)in &function.nodes{b.spend(1)?;if matches!(node,index::Node::Expression(node)if node.id==expression.id)&&(self.call_targets.contains_key(&(definition,*site))||self.trait_calls.contains_key(&(definition,*site))||self.callable_nodes.contains_key(&(definition,expression.id))){if selected.replace(*site).is_some(){return Err(bad("original Call result has several source call roles"));}}}
-        Ok(selected)
+        selected.map(|site|{let dynamic=match self.trait_calls.get(&(definition,site)){Some(call)=>matches!(self.resolved(&call.receiver,b)?,Ty::Dyn(_)),None=>false};
+            // Reify only the root adapter. Its whole child domain comes from
+            // the completed actual call, not a second nominal construction.
+            let outer=match &checked{
+                Ty::Address{mutable,life,..}=>Some((if *mutable{StoredBorrowMode::ExclusiveAddress}else{StoredBorrowMode::SharedAddress},self.reify_outer(module,life,environment,b)?)),
+                Ty::Desc{life,..}=>Some((StoredBorrowMode::WritableDescription,self.reify_outer(module,life,environment,b)?)),
+                _=>None,
+            };Ok((site,dynamic,outer))}).transpose()
     }
     pub(in crate::semantic) fn original_address_source(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<intrinsics::BufferSource>>{
         let SemanticOriginalTypeSource::Expression(node)=source else{return Ok(None);};

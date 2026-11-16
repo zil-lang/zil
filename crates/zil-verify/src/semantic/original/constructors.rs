@@ -202,3 +202,22 @@ impl CheckedOriginal {
         self.reify_type(module,&value,env,b)
     }
 }
+
+impl CheckedOriginal {
+    /// This query uses the original operation proof, not the emitted opcode or
+    /// its output header. Nullary enum variants still retain all Type actuals.
+    pub(in crate::semantic) fn checked_result_constructor(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,variant:Option<u32>,b:&mut Budget)->Check<bool>{
+        let index=self.source_index(module,&[definition],b)?;
+        let Some(function)=index.definitions.get(&definition) else{return Ok(false);};
+        let Some(index::Node::Expression(expression))=function.nodes.get(&site) else{return Ok(false);};
+        if let Some(variant)=variant {
+            let Some(constructor)=self.constructors.get(&(definition,site)) else{return Ok(false);};
+            if constructor.variant!=variant{return Ok(false);}
+            let Ty::Nominal(id,actuals)=self.original_type(definition,&SemanticOriginalTypeSource::Expression(expression.id),b)? else{return Ok(false);};
+            if id!=constructor.definition{return Ok(false);}
+            return self.same_arguments_readonly(&actuals,&constructor.actuals,b);
+        }
+        if !matches!(expression.kind,CoreExprKind::Record{..}|CoreExprKind::RecordConstructor{definition:Some(_),..}){return Ok(false);}
+        Ok(matches!(self.original_type(definition,&SemanticOriginalTypeSource::Expression(expression.id),b)?,Ty::Nominal(..)))
+    }
+}

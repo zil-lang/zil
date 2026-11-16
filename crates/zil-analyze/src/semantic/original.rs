@@ -236,6 +236,13 @@ struct CodeCall {
     code: Term,
     anchor: LocalAnchor,
 }
+struct ReceivingPlace {
+    parameter: u32,
+    path: Vec<u32>,
+    root: Term,
+    source: Term,
+    target: Term,
+}
 pub(super) struct Checked {
     arena: Vec<Kind>,
     frames: BTreeMap<SemanticDefinitionId, Frame>,
@@ -263,6 +270,7 @@ pub(super) struct Checked {
     string_literals: BTreeMap<(SemanticDefinitionId, NodeId), Vec<u8>>,
     return_injections: BTreeMap<(SemanticDefinitionId, NodeId), (Term, bool)>,
     dyn_creations: BTreeMap<(SemanticDefinitionId, NodeId), dyn_owned::Creation>,
+    receiving_places: BTreeMap<(SemanticDefinitionId, NodeId), ReceivingPlace>,
     view_uppers: BTreeMap<(SemanticDefinitionId, u32), Vec<Term>>,
     reference_roles: BTreeMap<(SemanticDefinitionId, NodeId), local_reference_roles::Role>,
     call_regions: BTreeMap<(SemanticDefinitionId, u32), call_regions::Region>,
@@ -1584,8 +1592,17 @@ impl Solver<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Term> {
+        let shared = matches!(self.state.arena[self.type_root(expected, b)?],
+            Kind::Address { mutable: false, .. });
         Self::push(&mut self.receiving, (frame.definition, value.id, expected), b)?;
-        let result = self.expression(frame, value, b, depth);
+        let result = if shared {
+            self.borrowed_argument(frame, value, b, depth)
+        } else { self.expression(frame, value, b, depth) };
+        let result = match result {
+            Ok(actual) => self.shared_receiving_value(frame, value, actual, expected, b, depth + 1)
+                .map(|view| view.unwrap_or(actual)),
+            Err(errors) => Err(errors),
+        };
         self.receiving
             .pop()
             .ok_or_else(|| fail("original receiving context lost its lexical stack"))?;
@@ -4050,6 +4067,7 @@ pub(super) fn check(
             string_literals: BTreeMap::new(),
             return_injections: BTreeMap::new(),
             dyn_creations: BTreeMap::new(),
+            receiving_places: BTreeMap::new(),
             view_uppers: BTreeMap::new(),
             reference_roles: BTreeMap::new(),
             call_regions: BTreeMap::new(),

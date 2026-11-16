@@ -82,6 +82,36 @@ pub(super) fn variant(
 ) -> R<()> {
     inputs(rows, owner, call, Some(&definition.parameters), fields.iter(), budget, span)
 }
+pub(super) fn constructor(
+    rows: &mut Vec<Observation>,
+    owner: SemanticDefinitionId,
+    node: NodeId,
+    definition: &SemanticDefinition,
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<()> {
+    if !matches!(
+        definition.body,
+        SemanticDefinitionBody::Nominal {
+            body: SemanticNominalBody::Product { .. },
+            ..
+        }
+    ) {
+        return Err(error(
+            span,
+            "Construct occurrence has no original product declaration",
+        ));
+    }
+    for (ordinal, formal) in definition.parameters.iter().enumerate() {
+        budget.node(span, 0)?;
+        if matches!(formal, SemanticFormal::Lifetime) {
+            let ordinal = u32::try_from(ordinal)
+                .map_err(|_| error(span, "Construct mixed formal ordinal overflows"))?;
+            selector(rows, owner, node, &[u32::MAX - 1, 0, ordinal], budget, span)?;
+        }
+    }
+    Ok(())
+}
 pub(super) fn prepare(modules: &mut [(ModuleId, SemanticModule)], budget: &mut Budget<'_>) -> R<()> {
     let mut observations = effects::observe_call_prototypes(modules, budget)?;
     for observation in &mut observations {
@@ -98,7 +128,12 @@ pub(super) fn prepare(modules: &mut [(ModuleId, SemanticModule)], budget: &mut B
         for node in site_nodes {
             if node.node != SemanticOriginalNode::Expression(observation.call) { continue; }
             for site in sites {
-                if site.id == node.site && matches!(site.kind, SemanticSiteRecipeKind::OriginalCall) {
+                let matching_kind = if observation.selector.first() == Some(&(u32::MAX - 1)) {
+                    matches!(site.kind, SemanticSiteRecipeKind::Construct { .. })
+                } else {
+                    matches!(site.kind, SemanticSiteRecipeKind::OriginalCall)
+                };
+                if site.id == node.site && matching_kind {
                     if selected.replace(site).is_some() { return Err(error(span, "Call occurrence has duplicate original sites")); }
                 }
             }

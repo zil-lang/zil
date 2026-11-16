@@ -84,6 +84,17 @@ pub(super) fn capture_effects(
                     );
                 }
             }
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => {
+                crate::tasks::require_closed_context(payload)?;
+                let Type::Task { retained_life, .. } = payload.as_ref() else { unreachable!() };
+                crate::dyn_metadata::retained_shape(retained_life, b)?;
+                b.spend(retained_life.ports.len(), "helper Task actual capture ports")?;
+                for port in &retained_life.ports {
+                    call = true;
+                    hold |= matches!(port.mode, StoredBorrowMode::SharedAddress | StoredBorrowMode::ExclusiveAddress);
+                    write |= matches!(port.mode, StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription);
+                }
+            }
             Type::OwnedDyn { interface } => {
                 b.spend(
                     module.dyn_interfaces.len(),

@@ -569,11 +569,12 @@ pub(super) fn transfer(
             ..
         } => {
             fee(b, module.dyn_interfaces.len())?;
-            let selected = module
+            let item = module
                 .dyn_interfaces
                 .iter()
                 .find(|item| item.id == *interface)
-                .and_then(|item| item.slots.get(*slot as usize))
+                .ok_or_else(|| failure("dyn call interface is absent"))?;
+            let selected = item.slots.get(*slot as usize)
                 .ok_or_else(|| failure("dyn slot selection is absent"))?;
             if let Some(DynResultSource::Borrow { sources, mutable }) = &selected.contract.result {
                 let actual = get(*callee)?;
@@ -591,6 +592,69 @@ pub(super) fn transfer(
                         // An unused upper contributes no target. Unknown entry
                         // returns stay incomplete, rather than seeding an SCC.
                         if static_source == Some(true) { out.pointer.targets.insert(target); }
+                        continue;
+                    }
+                    if let StorageSource::OwnedView { head, leaf, mode } = atom {
+                        b.type_work(leaf, false, "dynamic owned result complete leaf")?;
+                        if *mutable || *mode != StoredBorrowMode::SharedAddress || leaf != &selected.result {
+                            return Err(failure("dynamic owned result changes its complete leaf or mode"));
+                        }
+                        match dyn_return::slot_owned_view(module, *interface, *slot, head, leaf, *mode, b)? {
+                            Some(true) => {
+                                complete &= !actual.pointer.targets.is_empty();
+                                union(&mut out.pointer, &actual.pointer, b)?;
+                            }
+                            Some(false) => {}
+                            None => complete = false,
+                        }
+                        continue;
+                    }
+                    if let StorageSource::ReborrowedLeaf { source, head } = atom {
+                        fee(b, source.path.len().saturating_add(head.path.len()).saturating_add(1))?;
+                        let [ContractProjection::RetainedPort(port)] = source.path.as_slice() else {
+                            return Err(failure("dynamic reborrow source is not an actual receiver port"));
+                        };
+                        if source.base != StorageBase::Parameter(0)
+                            || head.base != source.base || !head.path.is_empty() || *mutable {
+                            return Err(failure("dynamic reborrow changes its actual receiver head or mode"));
+                        }
+                        let shape = item.retained_life.ports.get(*port as usize)
+                            .ok_or_else(|| failure("dynamic reborrow source has no actual typed port"))?;
+                        crate::dyn_metadata::ty(&shape.leaf, b)?;
+                        crate::dyn_metadata::ty(&selected.result, b)?;
+                        if !matches!((&shape.leaf, &selected.result),
+                            (Type::Address { mutable: available, inner: actual }, Type::Address { mutable: false, inner: wanted })
+                                if actual == wanted && shape.mode == if *available {
+                                    StoredBorrowMode::ExclusiveAddress
+                                } else { StoredBorrowMode::SharedAddress }) {
+                            return Err(failure("dynamic reborrow changes its full pointee leaf or source mode"));
+                        }
+                        let life = selected.storage_life.as_ref()
+                            .ok_or_else(|| failure("dynamic reborrow has no actual head/result lifetime relation"))?;
+                        fee(b, life.bindings.len().saturating_add(life.classes.len()))?;
+                        for base in [head.base, StorageBase::Result] {
+                            let mut bindings = life.bindings.iter().filter(|row| row.position.base == base && row.position.path.is_empty());
+                            if bindings.next().map(|row| row.binder) != Some(StorageBinder::Invocation(0))
+                                || bindings.next().is_some() {
+                                return Err(failure("dynamic reborrow changes its actual head-derived invocation bound"));
+                            }
+                        }
+                        let mut classes = life.classes.iter().filter(|row| row.position.base == head.base
+                            && row.position.path == [zil_ir::LifeTypeProjection::Pointee]
+                            && row.position.class == shape.binder);
+                        if classes.next().map(|row| row.binder) != Some(StorageBinder::Fixed(shape.binder))
+                            || classes.next().is_some() {
+                            return Err(failure("dynamic reborrow changes the retained source Fixed class"));
+                        }
+                        ordered(b, actual.dyn_ports.len(), source.path.len())?;
+                        if actual.dyn_ports.contains_key(&source.path) {
+                            // The data target remains the retained source. The
+                            // short receiver head contributes parent loans only.
+                            let permission = select(actual, &[], *port, b)?;
+                            union(&mut out.pointer, &permission, b)?;
+                        } else {
+                            complete = false;
+                        }
                         continue;
                     }
                     let source = crate::exact_storage_source(atom)?;

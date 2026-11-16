@@ -87,3 +87,35 @@ fn same_value_shape(a:&CheckedType,z:&CheckedType)->bool {
 fn same_actual_shape(a:&CheckedActual,z:&CheckedActual)->bool {
     match(a,z){(CheckedActual::Type(a),CheckedActual::Type(z))=>same_value_shape(a,z),(CheckedActual::Life(_),CheckedActual::Life(_))=>true,(CheckedActual::Const{carrier:a,value:av},CheckedActual::Const{carrier:z,value:zv})=>av==zv&&same_value_shape(a,z),_=>false}
 }
+
+impl CheckedContext {
+    /// Called only after every retained actual world/body is complete. The
+    /// source correspondence never becomes a permission before this seal.
+    pub(in crate::semantic) fn complete_nominal_result(&self,module:&TypedModule,function:&TypedFunction,source:&dynamic_witness::semantic_external::OriginalMemberReceipt,worlds:&[(SemanticInstanceId,EvalEnv)],selected:&[SemanticInstanceId],b:&mut Budget)->Check<()> {
+        let Some((expected_sources,_))=self.nominal_result_sources(&source.environment,&source.actual_signature,b)?else{return Ok(());};
+        let Some(returns)=self.nominal_result_constructors(module,function,b)?else{return Ok(());};
+        for id in selected{
+            b.spend(worlds.len())?;
+            let (_,environment)=worlds.iter().find(|(world,_)|world==id).ok_or_else(||bad("nominal result completion loses its exact checked world environment"))?;
+            let world=self.instance(module,*id,b)?;
+            if world.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id))||world.definition!=source.body{return Err(bad("nominal result completion selects another actual body world"));}
+            if environment.lexical.len()!=source.environment.lexical.len(){return Err(bad("nominal result completion changes its original lexical ancestry"));}
+            let mut boundary=trait_members::Boundary::default();
+            for(a,z)in environment.lexical.iter().zip(&source.environment.lexical){
+                if a.definition!=z.definition||a.actuals.len()!=z.actuals.len()||a.environment.len()!=z.environment.len(){return Err(bad("nominal result completion changes its complete source frame"));}
+                boundary.scope(a.key,z.key,b)?;
+                for(a,z)in a.actuals.iter().zip(&z.actuals).chain(a.environment.iter().zip(&z.environment)){boundary.actual(self,&source.environment,a,z,b)?;}
+                match(&a.self_type,&z.self_type){(Some(a),Some(z))=>boundary.value(self,&source.environment,a,z,b)?,(None,None)=>{},_=>return Err(bad("nominal result completion changes complete Self"))}
+            }
+            for key in &returns{
+                let occurrences=self.occurrences.borrow();
+                let actual=occurrences.get(&(ScopeKey::Instance(*id),OperandKey::Value(key.result))).ok_or_else(||bad("nominal result constructor has no completely checked actual SSA receipt"))?;
+                let actual=boundary.project_type(self,&source.environment,actual,b)?;
+                if !self.same_type(&source.environment,&actual,&source.actual_signature.result,b)?{return Err(bad("nominal result constructor changes the required complete intrinsic result"));}
+                let actual_signature=CheckedSignature{result:actual,..source.actual_signature.clone()};
+                let Some((actual_sources,_))=self.nominal_result_sources(&source.environment,&actual_signature,b)?else{return Err(bad("nominal result constructor loses its original outside source directory"));};
+                if !self.same_type(&source.environment,&actual_sources,&expected_sources,b)?{return Err(bad("nominal result constructor changes an independently required outside source"));}
+            }
+        }Ok(())
+    }
+}

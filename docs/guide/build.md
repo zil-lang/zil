@@ -127,10 +127,12 @@ python3 tools/research/native-api-validation/validate.py --repo . --cli target/r
 ## 有界编译工作配置
 
 `check`、`build`、`run`、`test`以及显式resident会话可用`--work-profile standard|alpha`。
-默认`standard`保留10,000,000步工作配额；显式`alpha`选择冻结的`alpha-25m-v1`，
-仅将`max_analysis_steps`设为25,000,000，其余所有`Limits`不变，CT执行步数仍为1,000,000。
-例如`zil check tests/integers/complete-domains.zil --work-profile alpha --json`，
-或`zil check app --resident --work-profile alpha --json`后逐行发送`compile`、`quit`。
+CLI默认`alpha`选择冻结的`alpha-64m-v2`，`max_analysis_steps`为64,000,000；
+显式`--work-profile standard`保留10,000,000步配额，供资源压力及缓存隔离对照。
+两者只有`max_analysis_steps`不同，其余所有`Limits`不变，CT执行步数仍为1,000,000。
+例如`zil check tests/integers/complete-domains.zil --json`使用默认Alpha配置，
+`zil check tests/integers/complete-domains.zil --work-profile standard --json`显式选择标准配额；
+`zil check app --resident --json`后逐行发送`compile`、`quit`也使用默认Alpha配置。
 重复或未知配置是命令行用法错误；耗尽配额仍返回`ResourceLimit`，不自动提高配额或重试。
 SDK的`CompileOptions::default()`与`zil_base::Limits::default()`仍使用标准10M配额。
 

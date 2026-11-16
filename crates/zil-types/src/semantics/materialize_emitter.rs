@@ -507,6 +507,7 @@ pub(crate) fn prepare_task(
         limits,
         left,
         active: BTreeSet::new(),
+        invocation_probe: None,
     };
     let (shape, bindings, inputs) = eval.task_inputs(
         scheme.instance,
@@ -762,6 +763,7 @@ pub(crate) fn prepare_poll(
         limits,
         left,
         active: BTreeSet::new(),
+        invocation_probe: None,
     };
     let mut child = eval.type_domain(scope, &recipe, Some(result), 0)?;
     if close {

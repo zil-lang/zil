@@ -211,6 +211,7 @@ pub(crate) fn populate(
             limits,
             left,
             active: BTreeSet::new(),
+            invocation_probe: None,
         };
         eval.fee(program.instances.len().saturating_add(program.sites.len()))?;
         for instance in &program.instances {

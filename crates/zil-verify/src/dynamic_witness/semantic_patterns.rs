@@ -154,6 +154,15 @@ fn signature_implicits(signature:&SemanticSignatureRecipe,b:&mut Budget)->Check<
 }
 
 pub(super) fn value(module:&TypedModule,scope:SemanticDefinitionId,recipe:&SemanticTypeRecipe,receiver:&terms::Value,args:&mut matching::Arguments<'_>,actual:Option<&terms::Value>,b:&mut Budget)->Check<terms::Value>{
+    Ok(value_inner(module,scope,recipe,receiver,args,actual,false,b)?.0)
+}
+
+/// Same-evaluation nominal outside sources, kept separate from the value's κ.
+/// The bool records a genuine physical borrow slot in that nominal domain.
+pub(super) fn value_with_sources(module:&TypedModule,scope:SemanticDefinitionId,recipe:&SemanticTypeRecipe,receiver:&terms::Value,args:&mut matching::Arguments<'_>,actual:Option<&terms::Value>,b:&mut Budget)->Check<(terms::Value,Vec<(terms::LifeTerm,terms::LifeTerm,bool)>)>{
+    value_inner(module,scope,recipe,receiver,args,actual,true,b)
+}
+fn value_inner(module:&TypedModule,scope:SemanticDefinitionId,recipe:&SemanticTypeRecipe,receiver:&terms::Value,args:&mut matching::Arguments<'_>,actual:Option<&terms::Value>,collect_sources:bool,b:&mut Budget)->Check<(terms::Value,Vec<(terms::LifeTerm,terms::LifeTerm,bool)>)>{
     let owner=args.semantic_owner.clone().ok_or_else(||bad("semantic W value has no independently selected exact original owner"))?;
     bridge::owner(module,&owner,scope,b)?;
     b.spend(1)?;let session=b.semantic_checked.clone().ok_or_else(||bad("semantic W value lacks the completely checked original programme interpreter"))?;
@@ -198,5 +207,37 @@ pub(super) fn value(module:&TypedModule,scope:SemanticDefinitionId,recipe:&Seman
     }
     let value=context.evaluate_type(module,recipe,&env,&mut proofs,&mut active,b)?;
     if !proofs.callable_shapes.is_empty()||!proofs.pending_statics.is_empty()||!proofs.pending_original_methods.is_empty()||!proofs.pending_original_method_relations.is_empty(){return Err(bad("semantic W recipe retains an undischarged external proof obligation"));}
-    symbols.incoming(&value,b)
+    let result=symbols.incoming(&value,b)?;
+    if !collect_sources{return Ok((result,vec![]));}
+    value.charge_clone(b)?;let mut descriptor=value.clone();let mut selected=Vec::new();
+    for(index,origin)in value.origins.iter().enumerate(){
+        let IntrinsicOrigin::Nominal{source,class}=origin else{continue;};
+        dynamic_metadata::life_shape(&source.domain,b)?;
+        if source.class_sources.len()!=source.domain.binder_count as usize{return Err(bad("semantic nominal source directory omits a complete intrinsic class"));}
+        let outside=source.class_sources.get(*class as usize).ok_or_else(||bad("semantic nominal class source is outside its complete domain"))?;
+        crate::semantic::charge_intrinsic_origin(outside,b)?;
+        descriptor.origins[index]=outside.clone();
+        b.spend(source.domain.slots.len())?;
+        selected.push((index,source.domain.slots.iter().any(|slot|slot.binder==*class)));
+    }
+    let outside=symbols.incoming(&descriptor,b)?;
+    let mut sources=Vec::new();
+    for(index,physical)in selected{
+        let term=*result.terms.get(index).ok_or_else(||bad("semantic nominal result loses its full class index"))?;
+        let source=*outside.terms.get(index).ok_or_else(||bad("semantic nominal outside source loses its full class index"))?;
+        if let IntrinsicOrigin::DerivedClass{source:key}=&descriptor.origins[index]{if symbols.class(key,b)?.image!=term.image{return Err(bad("semantic nominal outside source changes its independently resolved image"));}}
+        sources.push((term,source,physical));
+    }
+    Ok((result,sources))
+}
+
+/// Query signatures may use fresh nominal result provenance only from this
+/// already-completed immutable original/actual session and true Return ops.
+pub(super) fn checked_result_sources(module:&TypedModule,function:&TypedFunction,result:&terms::Value,rows:&[(terms::LifeTerm,terms::LifeTerm,bool)],b:&mut Budget)->Check<Vec<(terms::LifeTerm,terms::LifeTerm)>>{
+    if !matches!(result.raw.ty,Type::BorrowedStorage{..}){return Ok(vec![]);}
+    let session=b.semantic_checked.clone().ok_or_else(||bad("query nominal result has no completed original programme"))?;
+    if session.module!=module as *const TypedModule as usize{return Err(bad("query nominal result belongs to another immutable programme"));}
+    if session.context.nominal_result_constructors(module,function,b)?.is_none(){return Ok(vec![]);}
+    b.spend(rows.len().saturating_mul(result.terms.len().saturating_add(1)))?;
+    Ok(rows.iter().filter(|(term,_,_)|result.terms.contains(term)).map(|(term,source,_)|(*term,*source)).collect())
 }

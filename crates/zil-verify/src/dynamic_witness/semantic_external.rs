@@ -9,6 +9,7 @@ mod completed;
 #[path = "semantic_member_instance.rs"]
 mod member_instance;
 pub(crate) use member_instance::check as check_static_member_instance;
+pub(crate) use member_instance::build_requests as static_member_requests;
 
 pub(crate) fn original_scope<'a>(
     module: &'a TypedModule,
@@ -67,6 +68,7 @@ pub(crate) struct OriginalMemberReceipt {
     pub(crate) trait_signature: SemanticDefinitionId,
     pub(crate) source: DynDefinitionScope,
     pub(crate) environment: EvalEnv,
+    pub(crate) trait_environment: EvalEnv,
     pub(crate) expected_signature: CheckedSignature,
     pub(crate) actual_signature: CheckedSignature,
     pub(crate) trait_contract: DynContractRecipe,
@@ -163,6 +165,16 @@ pub(crate) fn select_original_member(
     active: &mut semantic::ActiveQueries,
     b: &mut Budget,
 ) -> Check<OriginalMemberReceipt> {
+    select_member_in(proofs,module,context,environment,receiver,application,member,method_actuals,None,active,b)
+}
+/// Definition execution has an independently checked complete original parent.
+/// It supplies exact original actuals, never an inferred equality of Self κ.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn select_definition_member(proofs:&mut Proofs,module:&TypedModule,context:&semantic::CheckedContext,environment:&EvalEnv,receiver:&CheckedType,application:&CheckedApplication,member:u32,method_actuals:&[CheckedActual],parent:&EvalEnv,active:&mut semantic::ActiveQueries,b:&mut Budget)->Check<OriginalMemberReceipt>{
+    select_member_in(proofs,module,context,environment,receiver,application,member,method_actuals,Some(parent),active,b)
+}
+#[allow(clippy::too_many_arguments)]
+fn select_member_in(proofs:&mut Proofs,module:&TypedModule,context:&semantic::CheckedContext,environment:&EvalEnv,receiver:&CheckedType,application:&CheckedApplication,member:u32,method_actuals:&[CheckedActual],parent:Option<&EvalEnv>,active:&mut semantic::ActiveQueries,b:&mut Budget)->Check<OriginalMemberReceipt>{
     charge_type(receiver, b)?;
     for actual in application.arguments.iter().chain(method_actuals) {
         charge_actual(actual, b)?;
@@ -211,6 +223,7 @@ pub(crate) fn select_original_member(
                 application,
                 member,
                 method_actuals,
+                parent,
                 active,
                 b,
             )

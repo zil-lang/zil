@@ -192,6 +192,10 @@ pub(super) fn observe(
         | InstructionKind::TakeTupleField { local, .. } => {
             record(rows, &dyn_closed::head(f, *local, state, b)?, true, b)?
         }
+        InstructionKind::OwnedStoreLen{store}|InstructionKind::OwnedStoreCapacity{store}|InstructionKind::OwnedStoreBorrow{store,..}|InstructionKind::OwnedStoreBorrowMut{store,..}|InstructionKind::OwnedStoreReserve{store,..}|InstructionKind::OwnedStorePush{store,..}|InstructionKind::OwnedStorePop{store}=>{
+            let permission=&values.get(store.0 as usize).ok_or_else(||bad("actual Store access description is absent"))?.store_description;
+            record(rows,permission,matches!(i.kind,InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrowMut{..}),b)?;
+        },
         InstructionKind::Call {
             function,
             arguments,
@@ -256,6 +260,27 @@ pub(super) fn observe(
         _ => {}
     }
     Ok(())
+}
+fn cleanup_root<'a>(f:&'a TypedFunction,kind:&InstructionKind,b:&mut Budget)->Check<Option<&'a Type>>{
+    let(local,path)=match kind{
+        InstructionKind::DropManaged{local}|InstructionKind::DropPackage{local}|InstructionKind::DropTuple{local}|InstructionKind::DropEnum{local}|InstructionKind::DropErrorUnion{local}|InstructionKind::DropClosure{local}|InstructionKind::DropOwnedArray{local}=>(*local,None),
+        InstructionKind::DropPackageField{local,index}|InstructionKind::DropOwnedArrayElement{local,index}=>(*local,Some(PlaceProjection::Field(*index))),
+        _=>return Ok(None),
+    };
+    let root=&f.locals.get(local.0 as usize).ok_or_else(||bad("actual cleanup effect local is absent"))?.ty;
+    Ok(Some(match path{Some(path)=>crate::dynamic_ports::physical_path(root,&[path],b)?,None=>root}))
+}
+fn cleanup_bound()->DynCleanupContract{DynCleanupContract{environment:true,positions:vec![],access:DynCallAccess{reads:vec![],writes:vec![]},effects:vec![DynEffect::Alloc,DynEffect::Io,DynEffect::Block,DynEffect::Ffi,DynEffect::Reenter,DynEffect::Panic]}}
+/// Selection follows exact actual calls/closures and independently checked
+/// concrete teardown roots. Unknown pointer calls retain their existing
+/// failure/contract route; same ABI never manufactures a target.
+pub(in crate::stored_flow) fn dependencies(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->Check<Vec<FunctionId>>{
+    let mut targets=Vec::new();
+    for block in &f.blocks{b.spend(block.instructions.len().saturating_add(1))?;for i in &block.instructions{
+        let direct=match i.kind{InstructionKind::Call{function,..}|InstructionKind::ForeignCall{function,..}|InstructionKind::FunctionRef{function}|InstructionKind::ForeignFunctionRef{function}=>Some(function),_=>stored_callables::called(module,f,&i.kind).map(|(definition,_)|definition.function)};
+        if let Some(id)=direct{b.spend(targets.len().saturating_add(1))?;if !targets.contains(&id){targets.push(id);}}
+        if let Some(root)=cleanup_root(f,&i.kind,b)?{for id in cleanup(module,root,&cleanup_bound(),b)?.targets{b.spend(targets.len().saturating_add(1))?;if !targets.contains(&id){targets.push(id);}}}
+    }}Ok(targets)
 }
 fn effect_rank(effect: &DynEffect) -> Check<u8> {
     Ok(match effect {
@@ -372,6 +397,14 @@ pub(super) fn effects(
                         summary.dyn_effects_known = false;
                     }
                 }
+                kind if cleanup_root(f,kind,b)?.is_some()=>{
+                    let root=cleanup_root(f,kind,b)?.ok_or_else(||bad("actual cleanup effect root disappeared"))?;
+                    let actual=match cleanup(module,root,&cleanup_bound(),b){Ok(actual)=>actual,Err(error)if error.category!=zil_base::ResultCategory::ResourceLimit=>{summary.dyn_effects_known=false;continue;},Err(error)=>return Err(error)};
+                    for e in &actual.effects{effect(summary,e,b)?;}
+                    for id in actual.targets{let target=summaries.get(id.0 as usize).ok_or_else(||bad("actual cleanup effect target summary is absent"))?;summary.dyn_effects_known&=target.dyn_effects_known;for e in &target.dyn_effects{effect(summary,e,b)?;}}
+                },
+                InstructionKind::OwnedStoreReserve{..}=>effect(summary,&DynEffect::Alloc,b)?,
+                InstructionKind::OwnedStoreBorrow{..}|InstructionKind::OwnedStoreBorrowMut{..}=>effect(summary,&DynEffect::Panic,b)?,
                 InstructionKind::MakeDynOwned { .. } => {
                     summary.dyn_operations = true;
                     effect(summary, &DynEffect::Alloc, b)?;
@@ -394,7 +427,30 @@ pub(super) fn effects(
                 | InstructionKind::ConvertNumber { .. }
                 | InstructionKind::AddressIndex { .. }
                 | InstructionKind::AddressSlice { .. } => effect(summary, &DynEffect::Panic, b)?,
-                InstructionKind::StaticUtf8 { .. }
+                // Views and sum/Store transfers have no implicit callback,
+                // allocation or suspension; their complete type, live prefix,
+                // ownership and address permissions are checked by the existing
+                // actual instruction/resource kernels before this effect join.
+                InstructionKind::DescribeAddress{..}
+                |InstructionKind::DescribeLocal{..}
+                |InstructionKind::DescribePackageField{..}
+                |InstructionKind::ReadDesc{..}
+                |InstructionKind::WriteDesc{..}
+                |InstructionKind::OwnedStoreNew{..}
+                |InstructionKind::OwnedStorePush{..}
+                |InstructionKind::OwnedStorePop{..}
+                |InstructionKind::OwnedStoreLen{..}
+                |InstructionKind::OwnedStoreCapacity{..}
+                |InstructionKind::ErrorTag{..}
+                |InstructionKind::MakeErrorUnion{..}
+                |InstructionKind::TakeErrorUnion{..}
+                |InstructionKind::ReadErrorUnion{..}
+                |InstructionKind::MakeVariant{..}
+                |InstructionKind::TakeVariantField{..}
+                |InstructionKind::ReadVariant{..}
+                |InstructionKind::VariantTag{..}
+                |InstructionKind::PlaceTagLocal{..}
+                |InstructionKind::StaticUtf8 { .. }
                 | InstructionKind::SliceLength { .. }
                 | InstructionKind::Constant(_)
                 | InstructionKind::Load(_)
@@ -430,11 +486,10 @@ pub(super) fn effects(
                 _ => summary.dyn_effects_known = false,
             }
         }
-        if !matches!(
-            block.terminator,
-            Terminator::Return(_) | Terminator::Jump(_) | Terminator::Branch { .. }
-        ) {
-            summary.dyn_effects_known = false;
+        match block.terminator{
+            Terminator::Return(_)|Terminator::Jump(_)|Terminator::Branch{..}=>{},
+            Terminator::Trap=>effect(summary,&DynEffect::Panic,b)?,
+            Terminator::Unreachable=>summary.dyn_effects_known=false,
         }
     }
     Ok(())
@@ -625,12 +680,18 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
 
 /// Saved external values are dependencies, not owned teardown payloads. Actual
 /// owned descendants still require their exact independently proved cleanup.
-pub(in crate::stored_flow) fn cleanup_proof(
+pub(in crate::stored_flow) fn cleanup_proof(module:&TypedModule,root:&Type,claim:&DynCleanupContract,b:&mut Budget)->Check<()>{
+    cleanup(module,root,claim,b).map(|_|())
+}
+#[derive(Default)]
+struct Cleanup{targets:Vec<FunctionId>,effects:Vec<DynEffect>}
+fn cleanup(
     module: &TypedModule,
     root: &Type,
     claim: &DynCleanupContract,
     b: &mut Budget,
-) -> Check<()> {
+) -> Check<Cleanup> {
+    let mut result=Cleanup::default();
     let mut pending = vec![(root, 0usize)];
     while let Some((ty, depth)) = pending.pop() {
         b.spend(1)?;
@@ -647,7 +708,7 @@ pub(in crate::stored_flow) fn cleanup_proof(
                         None,
                     ));
                 }
-                crate::dynamic_cleanup::prove(module, ty, claim, b)?;
+                for id in crate::dynamic_cleanup::prove_targets(module, ty, claim, b)?{b.spend(result.targets.len().saturating_add(1))?;if !result.targets.contains(&id){result.targets.push(id);}}
             }
             Type::OwnedDyn { interface } => {
                 let item = crate::dynamic_ports::interface(module, *interface, b)?;
@@ -659,7 +720,8 @@ pub(in crate::stored_flow) fn cleanup_proof(
                 }
                 let inner = crate::dynamic_cleanup::bound(item.owning_cleanup.as_ref(), b)?;
                 for effect in &inner.effects {
-                    b.spend(claim.effects.len())?;
+                    b.spend(claim.effects.len().saturating_add(result.effects.len()).saturating_add(1))?;
+                    if !result.effects.contains(effect){result.effects.push(effect.clone());}
                     if !claim.effects.contains(effect) {
                         return Err(bad(
                             "nested erased-owner cleanup effect exceeds its outer bound",
@@ -706,7 +768,7 @@ pub(in crate::stored_flow) fn cleanup_proof(
             return Err(limit("provider cleanup pending graph exceeds node bound"));
         }
     }
-    Ok(())
+    Ok(result)
 }
 
 #[cfg(test)]

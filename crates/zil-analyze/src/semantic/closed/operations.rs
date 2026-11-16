@@ -1802,7 +1802,9 @@ impl Check<'_, '_> {
                             return Err(fail("class-bearing actual Return omits its result SSA"));
                         };
                         let actual = self.ssa_value(instance, function, value, b, 0)?;
-                        if !self.capture_values_equal(&actual, &expected, b)? {
+                        if !self.capture_values_equal(&actual, &expected, b)?
+                            && !self.outer_role(instance, function, &actual, &expected, b, 0)?
+                            && !self.receiving_field_return(instance, function, block.id, value, &actual, &expected, b)? {
                             return Err(fail(
                                 "actual Return changes its complete original result class/source role",
                             ));

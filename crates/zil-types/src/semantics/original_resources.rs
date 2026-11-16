@@ -81,9 +81,11 @@ impl Check<'_, '_> {
     /// not a nominal type with an empty mixed argument vector. Solve every
     /// declaration formal against the wanted type and all real field values.
     /// These are rigid data classes; no callable lifetime is introduced here.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn inferred_record_constructor(
         &mut self,
         owner: SemanticDefinitionId,
+        expression: &SemanticOriginalExpr,
         selected: Option<SemanticDefinitionId>,
         fields: &[(String, SemanticOriginalExpr)],
         variables: &mut BTreeMap<String, Binding>,
@@ -206,7 +208,21 @@ impl Check<'_, '_> {
         }
         let mut seen = BTreeSet::new();
         let mut actual_fields = Vec::new();
-        for (name, value) in fields {
+        let mut outer_inputs = Vec::new();
+        let mut ordered_fields = Vec::new();
+        // A bare numeric literal has no evaluation effect. Delay only these
+        // contextual values so later rigid fields can determine their type.
+        for contextual in [false, true] {
+            for field in fields {
+                let bare = self.contextual_integer(&field.1, depth + 1)?
+                    || matches!(&field.1.kind, CoreExprKind::Float(text)
+                        if !text.ends_with("f32") && !text.ends_with("f64"));
+                if bare == contextual {
+                    ordered_fields.push(field);
+                }
+            }
+        }
+        for (name, value) in ordered_fields {
             if !seen.insert(name.as_str()) {
                 return Err(bad("original inferred record repeats a field"));
             }
@@ -243,8 +259,41 @@ impl Check<'_, '_> {
                     self.left,
                 )?)
             } else {
-                substitute::caller_context(
+                let SemanticTypeRecipe::Nominal {
+                    arguments: identity,
+                    ..
+                } = &template.result
+                else {
+                    return Err(bad("original constructor template lost its nominal result"));
+                };
+                self.pay(identity.len(), depth)?;
+                let mut partial_actuals = Vec::new();
+                for (identity, solution) in identity.iter().zip(&solutions) {
+                    let actual = solution.as_ref().unwrap_or(identity);
+                    crate::dyn_metadata::semantic_operand_snapshot(
+                        actual,
+                        self.limits,
+                        self.left,
+                        1,
+                    )?;
+                    partial_actuals.push(actual.clone());
+                }
+                let frames = [(u32::MAX, partial_actuals.as_slice())];
+                let partial = substitute::ty(
                     &template.parameters[ordinal].ty,
+                    &substitute::Substitution {
+                        frames: &frames,
+                        selves: &[],
+                        environments: &[],
+                        implicit: &empty,
+                        invocation: &empty,
+                        shift: 0,
+                    },
+                    self.limits,
+                    self.left,
+                )?;
+                let context = substitute::caller_context(
+                    &partial,
                     &substitute::Substitution {
                         frames: &[],
                         selves: &[],
@@ -255,19 +304,113 @@ impl Check<'_, '_> {
                     },
                     self.limits,
                     self.left,
-                )?
+                )?;
+                if context.is_some() {
+                    context
+                } else if let (
+                    SemanticTypeRecipe::Array { element, .. },
+                    CoreExprKind::Array(values),
+                ) = (&partial, &value.kind)
+                {
+                    substitute::caller_context(
+                        element,
+                        &substitute::Substitution {
+                            frames: &[],
+                            selves: &[],
+                            environments: &[],
+                            implicit: &empty,
+                            invocation: &empty,
+                            shift: 0,
+                        },
+                        self.limits,
+                        self.left,
+                    )?
+                    .map(|element| SemanticTypeRecipe::Array {
+                        element: Box::new(element),
+                        length: Box::new(SemanticConstRecipe::Value(Constant::Usize(
+                            values.len() as u64
+                        ))),
+                    })
+                } else {
+                    None
+                }
             };
-            let actual = self.expr(owner, value, variables, hint.as_ref(), depth + 1)?;
-            if complete {
-                self.constructor_field_value(
-                    owner,
-                    &actual,
-                    hint.as_ref().expect("complete constructor field"),
+            let pattern = &template.parameters[ordinal].ty;
+            let actual = if matches!(pattern, SemanticTypeRecipe::Address { .. })
+                && matches!(value.kind, CoreExprKind::Name(_))
+            {
+                self.place(owner, value, variables, depth + 1)?
+            } else {
+                self.expr(owner, value, variables, hint.as_ref(), depth + 1)?
+            };
+            let roots = match (pattern, &actual) {
+                (
+                    SemanticTypeRecipe::Address {
+                        mutable: requested,
+                        lifetime,
+                        inner,
+                    },
+                    SemanticTypeRecipe::Address {
+                        mutable: available,
+                        inner: actual_inner,
+                        ..
+                    },
+                ) if !*requested || *available => {
+                    Some((lifetime, inner.as_ref(), actual_inner.as_ref()))
+                }
+                (
+                    SemanticTypeRecipe::Desc { lifetime, inner },
+                    SemanticTypeRecipe::Desc {
+                        inner: actual_inner,
+                        ..
+                    },
+                ) => Some((lifetime, inner.as_ref(), actual_inner.as_ref())),
+                _ => None,
+            };
+            let borrowed_root = roots.is_some();
+            if let Some((lifetime, inner, actual_inner)) = roots {
+                // First solve the entire invariant pointee. Nominal slots and
+                // all inner address classes constrain the same mixed vector
+                // before any outer field is allowed to select a short region.
+                self.unify(
+                    inner,
+                    actual_inner,
+                    &definition.parameters,
+                    &mut solutions,
+                    &mut implicit,
+                    &mut invocation,
                     depth + 1,
                 )?;
+                let variable = call_regions::variable(lifetime);
+                let selector = match variable {
+                    Some(call_regions::Variable::Life(ordinal)) => {
+                        Some(call_regions::Role::ConstructorLife(ordinal))
+                    }
+                    Some(_) => {
+                        return Err(bad(
+                            "original product field invents a callable lifetime variable",
+                        ));
+                    }
+                    None => None,
+                };
+                crate::dyn_metadata::semantic_operand_snapshot(
+                    lifetime,
+                    self.limits,
+                    self.left,
+                    1,
+                )?;
+                outer_inputs.push(call_regions::Input {
+                    variable,
+                    selector,
+                    expression: value,
+                    actual: copy_recipe(&actual, self.limits, self.left)?,
+                    expected: lifetime.clone(),
+                    parameter: u32::try_from(ordinal)
+                        .map_err(|_| bad("original record field ordinal overflows"))?,
+                });
             } else {
                 self.unify(
-                    &template.parameters[ordinal].ty,
+                    pattern,
                     &actual,
                     &definition.parameters,
                     &mut solutions,
@@ -276,8 +419,19 @@ impl Check<'_, '_> {
                     depth + 1,
                 )?;
             }
-            actual_fields.push((ordinal, actual));
+            actual_fields.push((ordinal, actual, borrowed_root));
         }
+        self.settle_call_inputs(
+            owner,
+            expression,
+            &outer_inputs,
+            &definition.parameters,
+            &mut solutions,
+            &mut implicit,
+            &mut invocation,
+            variables,
+            depth + 1,
+        )?;
         let arguments = solutions
             .into_iter()
             .map(|actual| {
@@ -293,7 +447,7 @@ impl Check<'_, '_> {
         }
         // Check every complete field after solving the joint vector; an early
         // field is never authoritative for a later, conflicting life source.
-        for (ordinal, actual) in actual_fields {
+        for (ordinal, actual, borrowed_root) in actual_fields {
             let expected = super::super::instantiate::ty(
                 self.program,
                 &self.proof,
@@ -307,7 +461,29 @@ impl Check<'_, '_> {
                 self.limits,
                 self.left,
             )?;
-            self.constructor_field_value(owner, &actual, &expected, depth + 1)?;
+            if borrowed_root {
+                match (&actual, &expected) {
+                    (
+                        SemanticTypeRecipe::Address { inner: actual, .. },
+                        SemanticTypeRecipe::Address {
+                            inner: expected, ..
+                        },
+                    )
+                    | (
+                        SemanticTypeRecipe::Desc { inner: actual, .. },
+                        SemanticTypeRecipe::Desc {
+                            inner: expected, ..
+                        },
+                    ) => self.same(actual, expected)?,
+                    _ => {
+                        return Err(bad(
+                            "original constructor field changes its complete borrowed carrier",
+                        ));
+                    }
+                }
+            } else {
+                self.constructor_field_value(owner, &actual, &expected, depth + 1)?;
+            }
         }
         self.call_requirements(owner, definition, &arguments, depth + 1)?;
         let nominal = SemanticTypeRecipe::Nominal {

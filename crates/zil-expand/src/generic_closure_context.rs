@@ -416,7 +416,7 @@ impl Engine<'_> {
                 0,
             )?;
         }
-        if !stored {
+        if !stored && occurrences.is_empty() {
             return Err(unavailable(
                 "closure creator requires an actual qualified input header",
             ));
@@ -446,15 +446,17 @@ impl Engine<'_> {
                 mutable: false,
                 inner,
             } = actual
-                && let zil_ir::Type::BorrowedStorage { life, .. } = inner.as_ref()
-                && life
-                    .slots
-                    .iter()
-                    .all(|slot| slot.mode == zil_ir::StoredBorrowMode::SharedAddress)
-                && life.retained.is_empty()
-                && header.classes.iter().any(|binding| {
-                    binding.position.base == zil_ir::StorageBase::Parameter(index as u32)
-                })
+                && (inner.is_b0_scalar()
+                    && header.bindings.iter().any(|binding| {
+                        binding.position.base == zil_ir::StorageBase::Parameter(index as u32)
+                            && binding.position.path.is_empty()
+                    })
+                    || matches!(inner.as_ref(), zil_ir::Type::BorrowedStorage { life, .. }
+                        if life.slots.iter().all(|slot| slot.mode == zil_ir::StoredBorrowMode::SharedAddress)
+                            && life.retained.is_empty()
+                            && header.classes.iter().any(|binding| {
+                                binding.position.base == zil_ir::StorageBase::Parameter(index as u32)
+                            })))
             {
                 self.budget
                     .identity_work(shared_inputs.len().saturating_add(1), span)?;
@@ -523,7 +525,11 @@ impl Engine<'_> {
         // Environment results carry no signature-life row: their actual
         // BorrowCapture source and receiver loan are proved after typing.
         if let Some(result) = result.as_mut() {
-            if scalar_result(result) {
+            if scalar_result(result)
+                || matches!(&grouped(result).kind,
+                    TypeKind::Reference { mutable: false, lifetime: Some(_), inner }
+                        if scalar_result(inner))
+            {
                 self.storage_header(
                     result,
                     zil_ir::StorageBase::Result,
@@ -790,6 +796,119 @@ mod tests {
             found.item(item, 0).unwrap();
         }
         found.0
+    }
+
+    #[test]
+    fn scalar_closure_header_keeps_the_parent_fixed_life_during_physical_lowering() {
+        use zil_ir::{
+            CoreExprKind, CoreStatementKind, SemanticDefinitionBody, SemanticDefinitionKind,
+            SemanticFormalRef, SemanticLifeRecipe, SemanticOuterLifeRecipe, SemanticScopeRef,
+            SemanticTypeRecipe, Type,
+        };
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "fixed-scalar-closure.zil",
+            "fn apply<F:SyncDrop+for<life a> Fn(&'a i32)->&'a i32>(f:F)->i32{let n=42;return *f(&n)-42}fn bad<life b>(saved:&'b i32)->i32{let fixed=(x:&'b i32)->&'b i32=>{return saved};return apply(fixed)}fn main()->i32{return 0}",
+        );
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let aliases = BTreeMap::new();
+        let core = crate::expand_with_map_semantics(
+            &source,
+            &syntax,
+            &Limits::default(),
+            &zil_base::TargetProfile::default(),
+            SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &aliases,
+                declarations: DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let creator = core
+            .functions
+            .iter()
+            .find(|function| function.name == "bad")
+            .unwrap();
+        let (parameters, result) = creator
+            .body
+            .statements
+            .iter()
+            .find_map(|statement| {
+                let CoreStatementKind::Binding {
+                    initializer: Some(value),
+                    ..
+                } = &statement.kind
+                else {
+                    return None;
+                };
+                let CoreExprKind::Closure {
+                    parameters,
+                    return_type,
+                    ..
+                } = &value.kind
+                else {
+                    return None;
+                };
+                Some((parameters, return_type))
+            })
+            .unwrap();
+        let address = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        assert_eq!(parameters[0].ty.as_ref(), Some(&address));
+        assert_eq!(result.as_ref(), Some(&address));
+        let context = core
+            .closure_life_contexts
+            .iter()
+            .find(|context| context.creator == creator.id)
+            .unwrap();
+        assert_eq!(context.signature.fixed_binder_count, 1);
+        assert_eq!(context.signature.invocation_binder_count, 0);
+        assert_eq!(context.named_fixed[0].parameter, 0);
+        assert!(
+            context
+                .signature
+                .bindings
+                .iter()
+                .any(
+                    |binding| binding.position.base == zil_ir::StorageBase::Parameter(0)
+                        && binding.binder == StorageBinder::Fixed(0)
+                )
+        );
+        assert!(
+            context
+                .signature
+                .bindings
+                .iter()
+                .any(
+                    |binding| binding.position.base == zil_ir::StorageBase::Result
+                        && binding.binder == StorageBinder::Fixed(0)
+                )
+        );
+        let original = core
+            .semantic
+            .as_ref()
+            .unwrap()
+            .definitions
+            .iter()
+            .find(|definition| definition.kind == SemanticDefinitionKind::Closure)
+            .unwrap();
+        let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &original.body else {
+            panic!("original closure signature")
+        };
+        let life = SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Formal(SemanticFormalRef {
+            scope: SemanticScopeRef::Ancestor(1),
+            ordinal: 0,
+        }));
+        for ty in [&signature.parameters[0].ty, &signature.result] {
+            let SemanticTypeRecipe::Address { lifetime, .. } = ty else {
+                panic!("original address")
+            };
+            assert_eq!(lifetime, &life);
+        }
     }
 
     #[test]

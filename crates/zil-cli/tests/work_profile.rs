@@ -44,7 +44,7 @@ fn successful(output: &Output) -> String {
 }
 fn policy(report: &str, profile: &str) {
     let (revision, steps) = match profile {
-        "alpha" => ("alpha-25m-v1", 25_000_000),
+        "alpha" => ("alpha-64m-v2", 64_000_000),
         "standard" => ("standard-10m-v1", 10_000_000),
         _ => unreachable!(),
     };
@@ -61,12 +61,15 @@ fn policy(report: &str, profile: &str) {
     );
     assert!(report.contains(&expected), "{report}");
 }
-fn resident(input: &Path, profile: &str, cache: Option<&Path>) -> Vec<String> {
+fn resident(input: &Path, profile: Option<&str>, cache: Option<&Path>) -> Vec<String> {
     let mut command = Command::new(env!("CARGO_BIN_EXE_zil"));
     command
         .arg("check")
         .arg(input)
-        .args(["--json", "--resident", "--work-profile", profile]);
+        .args(["--json", "--resident"]);
+    if let Some(profile) = profile {
+        command.args(["--work-profile", profile]);
+    }
     if let Some(cache) = cache {
         command.arg("--semantic-cache").arg(cache);
     }
@@ -131,11 +134,32 @@ fn profiles_reach_check_build_run_tests_and_resident_without_skipping_verify() {
     )
     .unwrap();
     assert!(command("lock", &dir.0, &[]).status.success());
-    let standard = successful(&command("check", &source, &["--json"]));
+    let default = successful(&command("check", &source, &["--json"]));
+    policy(&default, "alpha");
+    let standard = successful(&command(
+        "check",
+        &source,
+        &["--json", "--work-profile", "standard"],
+    ));
     policy(&standard, "standard");
-    for action in ["check", "build", "run", "test"] {
+    let help = Command::new(env!("CARGO_BIN_EXE_zil"))
+        .arg("--help")
+        .output()
+        .unwrap();
+    assert!(help.status.success(), "{help:?}");
+    assert!(
+        text(&help).contains("work quota (default: alpha)"),
+        "{help:?}"
+    );
+    for (action, explicit) in ["check", "build", "run", "test"]
+        .into_iter()
+        .flat_map(|action| [(action, false), (action, true)])
+    {
         let output = dir.0.join("program");
-        let mut args = vec!["--json", "--work-profile", "alpha"];
+        let mut args = vec!["--json"];
+        if explicit {
+            args.extend(["--work-profile", "alpha"]);
+        }
         if action == "build" {
             args.extend(["--output", output.to_str().unwrap()]);
         }
@@ -154,8 +178,9 @@ fn profiles_reach_check_build_run_tests_and_resident_without_skipping_verify() {
             );
         }
     }
-    for profile in ["standard", "alpha"] {
-        let reports = resident(&source, profile, None);
+    for selected in [None, Some("standard"), Some("alpha")] {
+        let profile = selected.unwrap_or("alpha");
+        let reports = resident(&source, selected, None);
         for report in &reports {
             policy(report, profile);
             assert!(report.contains("\"status\":\"Success\""), "{report}");
@@ -228,7 +253,9 @@ fn lower_quota_cache_and_resident_match_fresh_complete_source_compilation() {
     } else {
         "ResourceLimit"
     };
-    for report in std::iter::once(text(&lower)).chain(resident(&source, "standard", Some(&cache))) {
+    for report in
+        std::iter::once(text(&lower)).chain(resident(&source, Some("standard"), Some(&cache)))
+    {
         policy(&report, "standard");
         assert!(
             report.contains(&format!("\"status\":\"{expected}\"")),

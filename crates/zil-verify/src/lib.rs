@@ -1357,7 +1357,7 @@ fn check_module_budget(
     }
     // Deep unsupported type trees have already been rejected without recursing.
     // A candidate's digest is an identity check, not evidence of correctness.
-    let stored_partition = if budget.stored_borrows
+    let mut stored_partition = if budget.stored_borrows
         && !budget.task_sources()
         && (budget.tasks || budget.registrations)
     {
@@ -1369,7 +1369,7 @@ fn check_module_budget(
         budget.store_option_results = true;
         budget.stored_borrows = true;
     }
-    let store_option_mask = if budget.masked_stored_tasks() && !budget.static_borrow_occurrences {
+    let mut store_option_mask = if budget.masked_stored_tasks() && !budget.static_borrow_occurrences {
         budget.spend(module.functions.len())?;
         Some(
             module
@@ -1381,6 +1381,8 @@ fn check_module_budget(
     } else {
         None
     };
+    if let Some(mask)=&mut stored_partition{stored_partition::contracts(module,mask,&mut budget)?;}
+    if let Some(mask)=&mut store_option_mask{stored_partition::contracts(module,mask,&mut budget)?;}
     if budget.stored_borrows || budget.task_sources() {
         stored_flow::qualifications(
             module,

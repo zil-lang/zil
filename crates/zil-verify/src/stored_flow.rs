@@ -614,6 +614,9 @@ struct Summary {
     dyn_effects: Vec<DynEffect>,
     dyn_effects_known: bool,
     dyn_after: Vec<(u32, dyn_ports::Rows)>,
+    // Actual Return snapshots for original contracts, including shared and
+    // Task inputs. These facts never publish a caller permission update.
+    contract_after: Vec<(u32, dyn_ports::Rows)>,
     dyn_capture_after: Vec<(u32, dyn_ports::Rows)>,
     result: Vec<(Path, Vec<Source>)>,
     receiver_results: Vec<Path>,
@@ -6515,6 +6518,10 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
         for (_, rows) in &s.dyn_after {
             dyn_ports::work(rows, b)?;
         }
+        b.spend(s.contract_after.len())?;
+        for (_, rows) in &s.contract_after {
+            dyn_ports::work(rows, b)?;
+        }
         for (_, rows) in &s.dyn_capture_after {
             dyn_ports::work(rows, b)?;
         }
@@ -6971,6 +6978,10 @@ pub(super) fn check(
     b: &mut Budget,
 ) -> Check<()> {
     check_with_mask(module, graphs, plan, None, b)
+}
+pub(super) fn contract_dependencies(module:&TypedModule,function:FunctionId,b:&mut Budget)->Check<Vec<FunctionId>>{
+    let f=module.functions.get(function.0 as usize).filter(|row|row.id==function).ok_or_else(||err("original contract dependency has no exact actual function"))?;
+    dyn_providers::dependencies(module,f,b)
 }
 pub(super) fn check_mixed(
     module: &TypedModule,

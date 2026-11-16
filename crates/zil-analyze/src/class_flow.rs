@@ -2,6 +2,7 @@
 //! storage initialization, parent loans, effects or physical access rights.
 use super::*;
 mod array_outer;
+mod raw_references;
 pub(super) mod reference_grounding;
 pub(super) mod thin;
 
@@ -16,6 +17,7 @@ struct Ports {
     physical_slots: Vec<(Vec<zil_ir::ContractProjection>, usize)>,
     // Per-ordinal address upper variables, distinct from nominal classes.
     array_elements: Vec<usize>,
+    raw_whole: Vec<usize>,
 }
 fn physical_class_slots(
     ty: &Type,
@@ -262,6 +264,8 @@ struct Equations {
     rigid: Vec<Option<usize>>,
     next_rigid: usize,
     grounded: Option<Vec<bool>>,
+    // Bounded diagnostic coordinates only; never a class or loan premise.
+    point: Option<(FunctionId, BlockId, usize)>,
 }
 
 impl Equations {
@@ -308,18 +312,23 @@ impl Equations {
         }
         Ok(i)
     }
+    #[track_caller]
     fn equal(&mut self, a: usize, z: usize, b: &mut Budget) -> CompileResult<()> {
         let mut a = self.root(a, b)?;
         let mut z = self.root(z, b)?;
         if a == z {
             return Ok(());
         }
-        if let (Some(a), Some(z)) = (self.rigid[a], self.rigid[z])
-            && a != z
+        if let (Some(left), Some(right)) = (self.rigid[a], self.rigid[z])
+            && left != right
         {
-            return Err(bad(
-                "actual retained classes do not satisfy this invocation relation",
-            ));
+            b.spend(192, "actual class conflict diagnostic")?;
+            let mut errors = bad("actual retained classes do not satisfy this invocation relation");
+            let caller = std::panic::Location::caller();
+            errors[0].notes.push(format!(
+                "actual relation point {:?}; complete class roots {a}/{z}, rigid identities {left}/{right}; equation consumer {}:{}",
+                self.point, caller.file(), caller.line()));
+            return Err(errors);
         }
         if let Some(sizes) = &mut self.sizes {
             b.spend(3, "array class component merge")?;
@@ -362,12 +371,33 @@ impl Equations {
         }
         Ok(())
     }
-    fn ports(&mut self, module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<Ports> {
+    fn ports(&mut self, module: &TypedModule, ty: &Type, raw: Option<&StorageLifeShape>, b: &mut Budget) -> CompileResult<Ports> {
         let outer = if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
             Some(self.fresh(false, b)?)
         } else {
             None
         };
+        if let Some(raw) = raw {
+            super::dyn_metadata::shape(raw, b)?;
+            let [head] = raw.slots.as_slice() else { return Err(bad("nested raw reference geometry omits its unique actual head")); };
+            if !head.path.is_empty() || head.binder != 0 || raw.binder_count == 0 {
+                return Err(bad("nested raw reference geometry changes its actual root coordinate"));
+            }
+            let mut whole = Vec::new();
+            for class in 0..raw.binder_count {
+                whole.push(if class == 0 { outer.ok_or_else(|| bad("nested raw reference omits its physical outer slot"))? }
+                    else { self.fresh(false, b)? });
+            }
+            let mut keys = Vec::new();
+            let mut classes = Vec::new();
+            for row in &raw.retained {
+                b.spend(row.path.len().saturating_add(2), "nested raw reference complete child coordinates")?;
+                if row.path.first() != Some(&LifeTypeProjection::Pointee) { return Err(bad("nested raw reference child leaves its actual Pointee forest")); }
+                keys.push((row.path.clone(), row.class));
+                classes.push(*whole.get(row.binder as usize).ok_or_else(|| bad("nested raw reference child binder is outside its complete domain"))?);
+            }
+            return Ok(Ports { outer, classes, keys, raw_whole: whole, ..Ports::default() });
+        }
         let ty = if let Type::Address { inner, .. } = ty {
             inner.as_ref()
         } else {
@@ -574,6 +604,7 @@ impl Equations {
             task_ports,
             physical_slots,
             array_elements,
+            raw_whole: Vec::new(),
         })
     }
     fn copy_elements(&mut self, a: &Ports, z: &Ports, b: &mut Budget) -> CompileResult<()> {
@@ -1198,6 +1229,7 @@ fn check_with(
         rigid: Vec::new(),
         next_rigid: 0,
         grounded: b.capture_relations.then(Vec::new),
+        point: None,
     };
     b.spend(
         f.values.len().saturating_add(f.locals.len()),
@@ -1205,14 +1237,16 @@ fn check_with(
     )?;
     let mut values = Vec::new();
     let mut retained_environment = false;
-    for ty in &f.values {
-        let p = e.ports(module, ty, b)?;
+    for (id, ty) in f.values.iter().enumerate() {
+        let raw = raw_references::shape(module, f, SemanticOperand::Value(ValueId(id as u32)), ty, b)?;
+        let p = e.ports(module, ty, raw.as_ref(), b)?;
         retained_environment |= p.environment;
         values.push(p);
     }
     let mut locals = Vec::new();
     for local in &f.locals {
-        let p = e.ports(module, &local.ty, b)?;
+        let raw = raw_references::shape(module, f, SemanticOperand::Local(local.id), &local.ty, b)?;
+        let p = e.ports(module, &local.ty, raw.as_ref(), b)?;
         retained_environment |= p.environment;
         locals.push(p);
     }
@@ -1228,7 +1262,7 @@ fn check_with(
             exclusive_head |= super::stored_callables::exclusive_capture(ty)
                 || matches!(ty, Type::OwnedDyn { .. })
                 || matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}));
-            captures.push(e.ports(module, ty, b)?);
+            captures.push(e.ports(module, ty, None, b)?);
         }
     }
     let header = if let Some(c) = assumptions {
@@ -1348,6 +1382,7 @@ fn check_with(
     let mut deferred_closures = Vec::new();
     for (block_index, block) in f.blocks.iter().enumerate() {
         for (instruction_index, i) in block.instructions.iter().enumerate() {
+            e.point = Some((f.id, block.id, instruction_index));
             if let Some(flow) = &outer {
                 flow.enter(block_index, instruction_index);
             }
@@ -1973,6 +2008,14 @@ fn check_with(
                             }
                         }
                         let stored = &locals[local.0 as usize];
+                        if raw_references::nested(&f.values[i.result.expect("actual borrow result").0 as usize]) {
+                            let whole = raw_references::whole(stored, b)?;
+                            for (key, target) in out.keys.iter().zip(&out.classes) {
+                                if key.0.as_slice() != [LifeTypeProjection::Pointee] { continue; }
+                                e.equal(*target, *whole.get(key.1 as usize).ok_or_else(|| bad("borrowed raw reference omits its stored whole child class"))?, b)?;
+                            }
+                            continue;
+                        }
                         array_outer::copy_elements(&mut e, out, stored, outer.as_ref(), b)?;
                         b.spend(
                             out.classes.len().saturating_add(stored.classes.len()),
@@ -2333,13 +2376,25 @@ fn check_with(
                                 }
                             }
                             };
-                            array_outer::binding(
-                                &mut e,
-                                upper,
-                                out.classes[slot.binder as usize],
-                                outer.as_ref(),
-                                b,
-                            )?;
+                            b.lookup(b.semantic_constructor_views.len(), "completed constructor receiving field")?;
+                            let directed = tail.is_empty()
+                                && b.initialization.as_ref().is_some_and(|init| init.module == module as *const TypedModule as usize)
+                                && b.semantic_constructor_views.contains(&(f.id, id, *index));
+                            if directed {
+                                // Every actual incoming field was checked
+                                // against this exact original constructor use.
+                                // Ground its common region from all sources;
+                                // never equate their independent occurrences.
+                                reference_grounding.store(out.classes[slot.binder as usize], upper, b)?;
+                            } else {
+                                array_outer::binding(
+                                    &mut e,
+                                    upper,
+                                    out.classes[slot.binder as usize],
+                                    outer.as_ref(),
+                                    b,
+                                )?;
+                            }
                         }
                     }
                     if let (Some(out), Some(id)) = (out, i.result)
@@ -2365,6 +2420,22 @@ fn check_with(
                     }
                 }
                 InstructionKind::ReadAddress { address } => {
+                    if raw_references::nested(&f.values[address.0 as usize]) {
+                        let output = out.ok_or_else(|| bad("nested raw reference read has no complete output"))?;
+                        let whole = raw_references::whole(output, b)?;
+                        let source = &values[address.0 as usize];
+                        for (class, target) in whole.iter().enumerate() {
+                            let mut selected = None;
+                            for ((path, child), variable) in source.keys.iter().zip(&source.classes) {
+                                b.spend(path.len().saturating_add(1), "nested raw reference actual read coordinate")?;
+                                if path.as_slice() == [LifeTypeProjection::Pointee] && *child as usize == class && selected.replace(*variable).is_some() {
+                                    return Err(bad("nested raw reference read repeats a whole child class"));
+                                }
+                            }
+                            e.equal(*target, selected.ok_or_else(|| bad("nested raw reference read omits a full pointee class"))?, b)?;
+                        }
+                        continue;
+                    }
                     if let Some(out) = out {
                         let input = &values[address.0 as usize];
                         array_outer::copy_elements(&mut e, out, input, outer.as_ref(), b)?;
@@ -2787,6 +2858,7 @@ fn check_with(
         let mut remaining = Vec::new();
         let mut progressed = false;
         for (contract, arguments, output, site) in pending {
+            e.point = Some((f.id, BlockId(site.0 as u32), site.1));
             if forwarded_environment {
                 let mut ready = true;
                 b.spend(arguments.len(), "forwarded helper actual class inputs")?;
@@ -2863,6 +2935,7 @@ fn check_with(
         }
     }
     for (contract, arguments, output, fixed, site) in deferred_closures {
+        e.point = Some((f.id, BlockId(site.0 as u32), site.1));
         if let Some(flow) = &outer {
             flow.enter(site.0, site.1);
         }
@@ -2879,13 +2952,38 @@ fn check_with(
     if let (Some(c), Some(vars)) = (assumptions, header) {
         for (block_index, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
             if *live && let Terminator::Return(Some(v)) = block.terminator {
+                e.point = Some((f.id, block.id, block.instructions.len()));
                 if let Some(flow) = &outer {
                     flow.enter(usize::MAX, block_index);
                 }
+                b.lookup(b.semantic_receiving_returns.len(), "completed receiving Return role")?;
+                let receiving = if b.initialization.as_ref().is_some_and(|init| init.module == module as *const TypedModule as usize) {
+                    let mut roles = b.semantic_receiving_returns.iter().filter(|(function, source_block, value, _)|
+                        *function == f.id && *source_block == block.id && *value == v);
+                    let selected = roles.next().map(|row| row.3);
+                    if roles.next().is_some() { return Err(bad("receiving Return has multiple complete outer roles")); }
+                    selected
+                } else { None };
+                let adapted;
+                let port = if let Some(binder) = receiving {
+                    let source = &values[v.0 as usize];
+                    if source.outer.is_none() { return Err(bad("receiving Return has no actual Address head")); }
+                    b.spend(source.classes.len().saturating_add(source.keys.iter().map(|row| row.0.len()).sum::<usize>())
+                        .saturating_add(source.physical_slots.iter().map(|row| row.0.len()).sum::<usize>())
+                        .saturating_add(source.array_elements.len()).saturating_add(source.raw_whole.len())
+                        .saturating_add(source.task_ports.len()).saturating_add(1), "receiving Return complete port projection")?;
+                    let mut selected = source.clone();
+                    // The completed original/actual field proof authorizes one
+                    // directed receiving head, not equality with its saved
+                    // source. All child/nominal coordinates stay unchanged.
+                    selected.outer = Some(select(&vars, binder)?);
+                    adapted = selected;
+                    &adapted
+                } else { &values[v.0 as usize] };
                 bind_with_outer(
                     c,
                     StorageBase::Result,
-                    &values[v.0 as usize],
+                    port,
                     &vars,
                     &mut e,
                     outer.as_ref(),
@@ -3041,6 +3139,7 @@ mod equation_tests {
             rigid: Vec::new(),
             next_rigid: 0,
             grounded: Some(Vec::new()),
+            point: None,
         };
         let a = e.fresh(false, &mut b).unwrap();
         let z = e.fresh(false, &mut b).unwrap();

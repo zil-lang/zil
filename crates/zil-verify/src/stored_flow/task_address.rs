@@ -13,6 +13,13 @@ pub(super) fn port_relation(
 ) -> Check<StorageBinder> {
     carriers::relation(module, f, base, path, b)
 }
+/// Complete existing Task carrier paths, shared by real Return snapshots.
+/// A path is an obligation to find a permission, never an initialized port.
+pub(super) fn input_ports(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<Vec<(Vec<ContractProjection>,StoredBorrowMode)>>{
+    let mut out=Vec::new();
+    for(mut path,port,mode)in carriers::paths(module,ty,b)?{b.spend(2)?;path.push(ContractProjection::RetainedPort(port));out.push((path,mode));}
+    Ok(out)
+}
 pub(super) fn has_carrier(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
     Ok(!carriers::paths(module, ty, b)?.is_empty())
 }

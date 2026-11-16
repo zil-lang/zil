@@ -596,15 +596,11 @@ impl Check<'_, '_> {
             header.bindings.len().saturating_add(header.classes.len()),
             WORK,
         )?;
-        if header.bindings.iter().any(|row| {
-            matches!(row.position.base, StorageBase::Parameter(_)) && row.binder == binder
-        }) || header.classes.iter().any(|row| {
-            matches!(row.position.base, StorageBase::Parameter(_)) && row.binder == binder
-        }) {
-            // This is already an ordinary input-grounded row; it requires no
-            // exceptional result-role receipt or duplicate return-source walk.
-            return Ok(false);
-        }
+        // Even a direct input binder needs its original role transported
+        // before actual captured classes are frozen. A fresh reborrow's loan
+        // is distinct; its declared pointee lifetime is still this exact
+        // all-world result/header relation. The checks below prove all real
+        // capture-source rows and actual returns before publishing that fact.
         let inputs = self.call_result_input_binders(callee, binder, b)?;
         if inputs.is_empty() {
             return Ok(false);
@@ -746,5 +742,77 @@ impl Check<'_, '_> {
                 .ok_or_else(|| fail("reference caller omits its complete result role"))?
                 .clone(),
         ))
+    }
+}
+
+impl Check<'_, '_> {
+    /// Prove one directed receiving use against its real original field and
+    /// actual stored-pointer read. Only the outer return role changes; this
+    /// fact contains no initializedness, target, loan or cleanup permission.
+    pub(super) fn receiving_field_return(
+        &self, instance: &SemanticInstance, function: &TypedFunction,
+        block: BlockId, returned: ValueId, actual: &Value, expected: &Value,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let (_, _, instruction) = self.defining(function, returned, b)?;
+        let InstructionKind::LoadStoredBorrow { storage, path, mode: StoredBorrowLoad::CopyShared } = &instruction.kind else {
+            return Ok(false);
+        };
+        let definition = self.inventory.definition(instance.definition, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
+            return Err(fail("receiving Return has no complete original body"));
+        };
+        let mut proven = None;
+        for site in &self.program.sites {
+            b.spend(1, WORK)?;
+            if site.instance != instance.id
+                || !matches!(site.action, SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(value), .. } if value == returned) {
+                continue;
+            }
+            for link in site_nodes {
+                b.spend(1, WORK)?;
+                if link.site != site.recipe { continue; }
+                let SemanticOriginalNode::Expression(node) = link.node else { continue; };
+                let Some((parameter, fields, original_root, original_source, received)) =
+                    self.original.receiving_field(instance, node, self.program, self.inventory, b)? else { continue; };
+                if !self.capture_values_equal(&received, expected, b)?
+                    || !self.capture_values_equal(&original_source, actual, b)? {
+                    continue;
+                }
+                b.spend(fields.len().saturating_add(path.len()), WORK)?;
+                if fields.is_empty() || fields.len() != path.len()
+                    || !fields.iter().zip(path).all(|(field, actual)| *actual == PlaceProjection::Field(*field)) {
+                    return Err(fail("receiving Return changes its complete original stored field path"));
+                }
+                let root = self.ssa_value(instance, function, *storage, b, 0)?;
+                if !self.capture_values_equal(&original_root, &root, b)?
+                    || !self.anchored_value(instance, function, original::LocalAnchor::Parameter(parameter), *storage, b, 0)?
+                    || !self.capture_values_equal(&self.pointee(actual, b)?, &self.pointee(expected, b)?, b)? {
+                    return Err(fail("receiving Return loses its real input head or complete invariant child"));
+                }
+                let Some(header) = &function.storage_life else {
+                    return Err(fail("receiving Return has no complete actual header"));
+                };
+                b.spend(header.bindings.len(), WORK)?;
+                let mut results = header.bindings.iter().filter(|row| row.position.base == StorageBase::Result && row.position.path.is_empty());
+                let Some(result) = results.next() else { return Ok(false); };
+                if results.next().is_some() { return Err(fail("receiving Return repeats its root result role")); }
+                let mut inputs = header.bindings.iter().filter(|row| row.position.base == StorageBase::Parameter(parameter) && row.position.path.is_empty());
+                let Some(input) = inputs.next() else { return Ok(false); };
+                if inputs.next().is_some() || input.binder != result.binder {
+                    return Err(fail("receiving Return changes its independently proved input-head role"));
+                }
+                // Exact stored-source read above, plus the independent actual
+                // memory flow, preserve both the field target and its borrowed
+                // owner. A different SSA/path or a phi cannot use this row.
+                if proven.replace(result.binder).is_some() {
+                    return Err(fail("receiving Return has competing original field occurrences"));
+                }
+            }
+        }
+        let Some(binder) = proven else { return Ok(false); };
+        b.lookup(b.semantic_receiving_returns.len(), WORK)?;
+        b.semantic_receiving_returns.insert((function.id, block, returned, binder));
+        Ok(true)
     }
 }

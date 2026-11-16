@@ -16,7 +16,7 @@ pub(crate) fn semantic_resource_scope(
     limits: &Limits,
     budget: &mut Budget,
 ) -> CompileResult<()> {
-    semantic_scope::zero(module, payload, limits, budget)
+    semantic_scope::complete(module, payload, limits, budget)
 }
 pub(super) use owned::once_cleanup_resumable;
 mod port_origins;
@@ -39,7 +39,7 @@ pub(super) fn require_closed_context(ty: &Type) -> CompileResult<()> {
         retained_life,
     } = ty
         && (matches!(result.as_ref(), Type::Address { mutable: false, .. })
-            || !retained_life.retained.is_empty())
+            || retained_life.retained.iter().any(|row| row.path.first() == Some(&zil_ir::LifeTypeProjection::Result)))
     {
         if !matches!(result.as_ref(), Type::Address { mutable: false, .. }) {
             return Err(fail(
@@ -54,12 +54,14 @@ pub(super) fn require_closed_context(ty: &Type) -> CompileResult<()> {
                 None,
             )]);
         }
-        let relation = matches!(retained_life.retained.as_slice(), [row]
-            if row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0
+        let mut result_rows = retained_life.retained.iter().filter(|row|
+            row.path.first() == Some(&zil_ir::LifeTypeProjection::Result));
+        let relation = result_rows.next().is_some_and(|row|
+            row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0
             && row.binder < retained_life.binder_count
             && retained_life.ports.iter().any(|port| port.binder == row.binder && port.leaf == **result)
             && retained_life.ports.iter().filter(|port| port.binder == row.binder).all(|port|
-                port.mode == zil_ir::StoredBorrowMode::SharedAddress));
+                port.mode == zil_ir::StoredBorrowMode::SharedAddress)) && result_rows.next().is_none();
         if !matches!(result.as_ref(), Type::Address { mutable: false, inner } if owned::retained_pointee(inner))
             || !relation
             || !retained_life.nominal_arguments.is_empty()
@@ -114,12 +116,12 @@ pub(super) fn result_binder(ty: &Type) -> Option<u32> {
     if !matches!(result.as_ref(), Type::Address { mutable: false, .. }) {
         return None;
     }
-    match retained_life.retained.as_slice() {
-        [row] if row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0 => {
-            Some(row.binder)
-        }
-        _ => None,
-    }
+    let mut rows = retained_life.retained.iter().filter(|row|
+        row.path.first() == Some(&zil_ir::LifeTypeProjection::Result));
+    let row = rows.next()?;
+    if rows.next().is_none() && row.path == [zil_ir::LifeTypeProjection::Result] && row.class == 0 {
+        Some(row.binder)
+    } else { None }
 }
 pub(super) fn result_port(ty: &Type, port: u32) -> bool {
     if let Type::ErrorUnion { result, .. } = ty {

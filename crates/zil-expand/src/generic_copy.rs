@@ -254,6 +254,11 @@ impl<'n> Shape<'_, '_, 'n, '_> {
             }
         }
         match &grouped(ty).kind {
+            // Copy eligibility concerns the shared address value. Its entire
+            // pointee and retained domain remain unchanged and need no Copy
+            // capability of their own. StoreElement's concrete storage walk
+            // is a separate path and still rejects borrowed fields.
+            TypeKind::Reference { mutable: false, .. } if self.symbolic.is_some() => Ok(true),
             TypeKind::Union(fields) => {
                 for field in fields {
                     self.copy(field)?;

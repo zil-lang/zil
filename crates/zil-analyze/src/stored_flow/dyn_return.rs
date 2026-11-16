@@ -3,14 +3,13 @@
 use super::*;
 
 // This constructs an upper/category only. Actual result constructors and
-// summaries must separately prove a literal derivation before publishing it.
+// summaries must separately prove a static derivation before publishing it.
 pub(super) fn static_target(leaf: &Type, mode: StoredBorrowMode,
     b: &mut Budget) -> CompileResult<Target> {
     crate::dyn_metadata::ty(leaf, b)?;
     if mode != StoredBorrowMode::SharedAddress
-        || !matches!(leaf, Type::Address { mutable: false, inner }
-            if matches!(inner.as_ref(), Type::Slice { element } if element.as_ref() == &Type::U8)) {
-        return Err(failure("Static source changes its complete immutable byte leaf or mode"));
+        || !matches!(leaf, Type::Address { mutable: false, .. }) {
+        return Err(failure("Static source changes its complete immutable leaf or mode"));
     }
     fee(b, 2)?;
     Ok(Target { base: HoldRoot::Static, stored: vec![], retained_port: None,
@@ -446,6 +445,9 @@ fn owned_views(
     let mut node = inner.as_ref();
     let mut prefix = Vec::new();
     for step in &head.path {
+        if let Type::BorrowedStorage { storage, .. } = node {
+            node = storage;
+        }
         let ContractProjection::Place(PlaceProjection::Field(i)) = step else {
             return Err(failure("owned region head crosses a nonphysical selector"));
         };
@@ -489,6 +491,7 @@ fn owned_views(
             });
         }
         match node {
+            Type::BorrowedStorage { storage, .. } => work.push((storage, path)),
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 fee(b, fields.len().saturating_mul(path.len().saturating_add(2)))?;
                 for (index, (_, child)) in fields.iter().enumerate().rev() {
@@ -517,6 +520,51 @@ fn owned_views(
         }
     }
     Ok(leaves)
+}
+/// The opaque call retains its owner's region only when a concrete provider
+/// has a real owning path to the complete requested leaf. Saved addresses
+/// remain external boundaries even when their pointees have the same Type.
+pub(super) fn slot_owned_view(
+    module: &TypedModule,
+    interface: DynInterfaceId,
+    slot: u32,
+    head: &StoragePosition,
+    leaf: &Type,
+    mode: StoredBorrowMode,
+    b: &mut Budget,
+) -> CompileResult<Option<bool>> {
+    if head.base != StorageBase::Parameter(0) || !head.path.is_empty() {
+        return Err(failure("dynamic owned region is not its actual receiver head"));
+    }
+    let mut found = false;
+    let mut reachable = false;
+    for table in &module.dyn_vtables {
+        fee(b, 1)?;
+        if table.interface != interface {
+            continue;
+        }
+        fee(b, table.entries.len())?;
+        let mut entries = table.entries.iter().filter(|entry| entry.slot == slot);
+        let entry = entries.next()
+            .ok_or_else(|| failure("dynamic owned region omits an actual provider entry"))?;
+        if entries.next().is_some() {
+            return Err(failure("dynamic owned region repeats its actual provider entry"));
+        }
+        let function = module.functions.get(entry.function.0 as usize)
+            .filter(|function| function.id == entry.function)
+            .ok_or_else(|| failure("dynamic owned region has no actual provider function"))?;
+        let receiver = function.parameters.first().and_then(|id| function.locals.get(id.0 as usize))
+            .ok_or_else(|| failure("dynamic owned region has no actual Self parameter"))?;
+        crate::dyn_metadata::ty(&receiver.ty, b)?;
+        crate::dyn_metadata::ty(&table.self_type, b)?;
+        if !matches!(&receiver.ty, Type::Address { inner, .. } if inner.as_ref() == &table.self_type)
+            || &function.return_type != leaf {
+            return Err(failure("dynamic owned region changes its concrete Self or result leaf"));
+        }
+        found = true;
+        reachable |= !owned_views(function, head, leaf, mode, b)?.is_empty();
+    }
+    Ok(found.then_some(reachable))
 }
 fn contract(
     module: &TypedModule,
@@ -668,29 +716,13 @@ fn contract(
                     continue;
                 }
                 StorageSource::Static { leaf: ty, mode } => {
-                    crate::dyn_metadata::ty(ty, b)?;
-                    if *mode != StoredBorrowMode::SharedAddress
-                        || !matches!(ty,Type::Address{mutable:false,inner}
-                        if matches!(inner.as_ref(),Type::Slice{element} if element.as_ref()==&Type::U8))
-                    {
-                        return Err(failure(
-                            "static source has no supported complete immutable leaf",
-                        ));
-                    }
-                    fee(b, 2)?;
+                    let target = static_target(ty, *mode, b)?;
                     derived = Leaf {
                         position: leaf.position.clone(),
                         ty: ty.clone(),
                         mode: *mode,
                         binder: leaf.binder,
-                        target: Some(Target {
-                            base: HoldRoot::Static,
-                            stored: vec![],
-                            retained_port: None,
-                            place: vec![],
-                            heap_element: None,
-                            heap_parents: vec![],
-                        }),
+                        target: Some(target),
                     };
                     &derived
                 }
@@ -1243,6 +1275,17 @@ pub(super) fn call(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn static_category_accepts_complete_immutable_nonbyte_leaf_without_proving_a_source() {
+        let mut b = Budget::new(&Limits::default());
+        let leaf = Type::Address { mutable: false, inner: Box::new(Type::I32) };
+        let target = static_target(&leaf, StoredBorrowMode::SharedAddress, &mut b).unwrap();
+        assert_eq!(target.base, HoldRoot::Static);
+        assert!(static_target(&leaf, StoredBorrowMode::ExclusiveAddress, &mut b).is_err());
+        assert!(static_target(&Type::Address { mutable: true, inner: Box::new(Type::I32) },
+            StoredBorrowMode::SharedAddress, &mut b).is_err());
+        assert!(static_target(&Type::I32, StoredBorrowMode::SharedAddress, &mut b).is_err());
+    }
     #[test]
     fn known_empty_output_still_rejects_actual_activation_or_receiver_ancestry() {
         let function = FunctionId(0);

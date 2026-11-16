@@ -20,30 +20,30 @@ pub(super) fn has_life(item: &Item) -> bool {
     }
 }
 
-pub(super) fn erase_stored_header_lifetimes(function: &mut Function) {
-    fn erase(ty: &mut TypeRef) {
-        match &mut ty.kind {
-            TypeKind::Reference {
-                lifetime, inner, ..
-            } => {
-                *lifetime = None;
-                erase(inner);
-            }
-            TypeKind::Group(inner) => erase(inner),
-            TypeKind::Array { element, .. } => erase(element),
-            TypeKind::Tuple(fields) => {
-                for field in fields {
-                    erase(field);
-                }
-            }
-            _ => {}
+pub(super) fn erase_stored_type_lifetimes(ty: &mut TypeRef) {
+    match &mut ty.kind {
+        TypeKind::Reference {
+            lifetime, inner, ..
+        } => {
+            *lifetime = None;
+            erase_stored_type_lifetimes(inner);
         }
+        TypeKind::Group(inner) => erase_stored_type_lifetimes(inner),
+        TypeKind::Array { element, .. } => erase_stored_type_lifetimes(element),
+        TypeKind::Tuple(fields) => {
+            for field in fields {
+                erase_stored_type_lifetimes(field);
+            }
+        }
+        _ => {}
     }
+}
+pub(super) fn erase_stored_header_lifetimes(function: &mut Function) {
     for parameter in &mut function.params {
-        erase(&mut parameter.ty);
+        erase_stored_type_lifetimes(&mut parameter.ty);
     }
     if let Some(result) = &mut function.return_type {
-        erase(result);
+        erase_stored_type_lifetimes(result);
     }
 }
 
@@ -1403,34 +1403,27 @@ impl<'a> Engine<'a> {
                     self.capture_actual_type(&mut source, &mut captured_lives, depth + 1)?;
                     source_actuals.insert(formal.name.clone(), source);
                     if let Some(actual) = self.qualified_type_actual(ty, depth + 1)? {
-                        if matches!(actual.ty, zil_ir::Type::Address { mutable: true, .. }) {
-                            return Err(unsupported(
-                                ty.span,
-                                "mutable address Type actual needs its affine consumer",
-                            ));
-                        }
                         if matches!(actual.ty, zil_ir::Type::Address { .. })
                             && template != options::TEMPLATE
                         {
-                            let ItemKind::Enum(declaration) = &item.kind else {
-                                return Err(unsupported(
-                                    ty.span,
-                                    "address Type actual needs its physical nominal consumer",
-                                ));
-                            };
                             let mut occurrence = false;
-                            for variant in &declaration.variants {
-                                for field in
-                                    enums::fields(declaration, &variant.name, variant.span)?
-                                {
+                            match &item.kind {
+                                ItemKind::Aggregate(declaration) => for field in &declaration.fields {
                                     self.budget.ty(&field.ty)?;
                                     occurrence |= matches!(&grouped(&field.ty).kind, TypeKind::Named { path, args } if path.as_slice() == [formal.name.as_str()] && args.is_empty());
+                                },
+                                ItemKind::Enum(declaration) => for variant in &declaration.variants {
+                                    for field in enums::fields(declaration, &variant.name, variant.span)? {
+                                        self.budget.ty(&field.ty)?;
+                                        occurrence |= matches!(&grouped(&field.ty).kind, TypeKind::Named { path, args } if path.as_slice() == [formal.name.as_str()] && args.is_empty());
+                                    }
                                 }
+                                _ => {}
                             }
                             if !occurrence {
                                 return Err(unsupported(
                                     ty.span,
-                                    "Enum Address actual needs its complete direct formal occurrence",
+                                    "Address actual needs its complete direct formal occurrence",
                                 ));
                             }
                         }

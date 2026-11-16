@@ -330,6 +330,35 @@ fn package_helper(
     package_helper_with_store_input(module, f, endpoint, parameter, None, b)
 }
 
+// A complete class header is an independent boundary obligation, not evidence
+// that an owner or a borrowed result can escape. Reuse the ordinary actual
+// function/closure relation, including every P/R/capture/retained occurrence.
+// The endpoint, ticket, source permissions and replacement debts stay due.
+fn helper_class_relation(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->Check<()> {
+    let Some(c)=&f.storage_life else{return Ok(());};
+    crate::signature_life::charge(c,b)?;
+    b.spend(f.parameters.len())?;
+    let mut parameters=Vec::with_capacity(f.parameters.len());
+    for parameter in &f.parameters{
+        parameters.push(&f.locals.get(parameter.0 as usize).ok_or_else(||invalid("replacement helper parameter is absent"))?.ty);
+    }
+    if let Some(id)=f.environment{
+        let d=crate::closures::definition(module,id,Some(f.span))?;
+        if let Some(actual)=&d.storage_life{crate::signature_life::charge(actual,b)?;}
+        if d.function!=f.id||d.storage_life.as_ref()!=Some(c){return Err(invalid("replacement helper capture relation differs from its actual entry"));}
+        crate::stored_callables::captured_profile(module,d,b)?;
+        crate::signature_life::closure_relation_resource_views(module,&parameters,&d.captures,d.kind,crate::stored_callables::life_result(d),c,Some(f.span),b)
+    }else{
+        crate::signature_life::function_relation_resource_views(module,&parameters,&f.return_type,c,Some(f.span),f.callable_contract.is_some(),false,b)
+    }
+}
+fn input_capture_endpoint(module:&TypedModule,f:&TypedFunction,p:u32,c:u32,b:&mut Budget)->Check<bool> {
+    if f.foreign.is_some()||f.callable_return_contract.is_some()||f.reference_return_bound.is_some()
+        || !helper_copy_result(&f.return_type,b)? {return Ok(false);}
+    helper_class_relation(module,f,b)?;
+    resources::public_roles::mutable_capture(module,f,p,c,b)
+}
+
 fn package_helper_with_store_input(
     module: &TypedModule,
     f: &TypedFunction,
@@ -342,10 +371,10 @@ fn package_helper_with_store_input(
         || (f.callable_contract.is_some() && (parameter.is_none() || store_input.is_none()))
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
-        || f.storage_life.is_some()
     {
         return Ok(false);
     }
+    helper_class_relation(module,f,b)?;
     if !(if f.environment.is_some() {
         helper_copy_result(&f.return_type, b)?
     } else {
@@ -661,14 +690,7 @@ pub(crate) fn at_type<'a>(
             && match target.base {
                 actual::Base::Input(p) => package_helper(module, f, ty, Some(p), b)?,
                 actual::Base::Environment(_) => package_helper(module, f, ty, None, b)?,
-                actual::Base::InputCapture(p, c) => {
-                    f.foreign.is_none()
-                        && f.callable_return_contract.is_none()
-                        && f.reference_return_bound.is_none()
-                        && f.storage_life.is_none()
-                        && helper_copy_result(&f.return_type, b)?
-                        && resources::public_roles::mutable_capture(module, f, p, c, b)?
-                }
+                actual::Base::InputCapture(p, c) => input_capture_endpoint(module,f,p,c,b)?,
                 actual::Base::Element(_) => {
                     matches!(ty, Type::Package { .. }) && package_helper(module, f, ty, None, b)?
                 }
@@ -683,14 +705,7 @@ pub(crate) fn at_type<'a>(
                     package_helper_with_store_input(module, f, owner_root, Some(p), Some(ty), b)?
                 }
                 actual::Base::Environment(_) => package_helper(module, f, owner_root, None, b)?,
-                actual::Base::InputCapture(p, c) => {
-                    f.foreign.is_none()
-                        && f.callable_return_contract.is_none()
-                        && f.reference_return_bound.is_none()
-                        && f.storage_life.is_none()
-                        && helper_copy_result(&f.return_type, b)?
-                        && resources::public_roles::mutable_capture(module, f, p, c, b)?
-                }
+                actual::Base::InputCapture(p, c) => input_capture_endpoint(module,f,p,c,b)?,
                 actual::Base::Element(_) => false,
             };
         if (!whole_local && !whole_input && !store_field)

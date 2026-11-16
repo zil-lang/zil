@@ -883,6 +883,7 @@ pub(crate) fn call_result_at(
         limits,
         left,
         active: BTreeSet::new(),
+        invocation_probe: None,
     };
     let owner = eval.instance(scope)?.definition;
     let original = eval.definition(owner)?;

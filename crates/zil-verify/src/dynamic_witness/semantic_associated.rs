@@ -940,7 +940,7 @@ fn actual_recipes(
         })
         .collect()
 }
-fn scoped_type_recipe(
+pub(super) fn scoped_type_recipe(
     module: &TypedModule,
     owner: &SemanticDynOwner,
     p: &DynTypePattern,
@@ -2397,6 +2397,30 @@ fn outside_signature(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn definition_parent_relation(proofs:&mut Proofs,module:&TypedModule,context:&semantic::CheckedContext,caller:&EvalEnv,receiver:&CheckedType,application:&CheckedApplication,method:&SemanticDefinition,selected:&EvalEnv,exact:&EvalEnv,active:&mut semantic::ActiveQueries,b:&mut Budget)->Check<()>{
+    let selected=selected.lexical.first().ok_or_else(||bad("selected definition omits its complete original parent"))?;
+    let frame=exact.lexical.first().ok_or_else(||bad("actual definition omits its complete original parent"))?;
+    if method.parent!=Some(frame.definition)||selected.definition!=frame.definition||selected.actuals.len()!=frame.actuals.len()||selected.environment.len()!=frame.environment.len(){return Err(bad("actual definition changes its exact original parent or full mixed domain"));}
+    for(a,z)in selected.actuals.iter().chain(&selected.environment).zip(frame.actuals.iter().chain(&frame.environment)){if !actual_equal(context,caller,a,z,b)?{return Err(bad("actual definition parent changes an independently selected complete actual"));}}
+    let actual=frame.self_type.as_ref().ok_or_else(||bad("actual definition parent complete Self is Unknown"))?;
+    if !context.same_type(caller,receiver,actual,b)?{return Err(bad("actual definition parent changes its complete Self domain"));}
+    let parent=context.definition(module,frame.definition,b)?;
+    match &parent.body{
+        SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl{self_type,trait_application,..})=>{
+            let value=context.evaluate_type(module,self_type,exact,proofs,active,b)?;
+            if !context.same_type(caller,receiver,&value,b)?{return Err(bad("actual definition parent Self is not its complete original impl instantiation"));}
+            let app=context.application(module,trait_application,exact,proofs,active,b)?;
+            if !application_equal(proofs,context,caller,&app,application,b)?{return Err(bad("actual definition parent trait application changes its original full actuals"));}
+        },
+        SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{declaration})=>{
+            if *declaration!=application.declaration||frame.actuals.len()!=application.arguments.len(){return Err(bad("actual default definition changes its original trait parent"));}
+            for(a,z)in frame.actuals.iter().zip(&application.arguments){if !actual_equal(context,caller,a,z,b)?{return Err(bad("actual default definition changes a complete original trait actual"));}}
+        },
+        _=>return Err(bad("actual definition has another original parent role")),
+    }Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
 pub(super) fn select_member(
     proofs: &mut Proofs,
     module: &TypedModule,
@@ -2406,6 +2430,7 @@ pub(super) fn select_member(
     application: &CheckedApplication,
     member: u32,
     method_actuals: &[CheckedActual],
+    definition_parent:Option<&EvalEnv>,
     active: &mut semantic::ActiveQueries,
     b: &mut Budget,
 ) -> Check<OriginalMemberReceipt> {
@@ -2418,7 +2443,7 @@ pub(super) fn select_member(
         }));
     }
     let result = (|| {
-        let receiver = map_type(proofs, context, caller, receiver, true, b)?;
+        let mut receiver = map_type(proofs, context, caller, receiver, true, b)?;
         b.spend(
             application
                 .arguments
@@ -2429,7 +2454,7 @@ pub(super) fn select_member(
         for a in &application.arguments {
             arguments.push(map_actual(proofs, context, caller, a, true, b)?);
         }
-        let application = CheckedApplication {
+        let mut application = CheckedApplication {
             declaration: application.declaration,
             arguments,
         };
@@ -2440,8 +2465,8 @@ pub(super) fn select_member(
         let Provider {
             trait_decl,
             implementation,
-            trait_env,
-            impl_env,
+            mut trait_env,
+            mut impl_env,
         } = provider(
             proofs,
             module,
@@ -2455,6 +2480,21 @@ pub(super) fn select_member(
         let selection = method_selection(module, trait_decl, implementation, member, b)?;
         let expected = selection.expected;
         let actual = selection.actual;
+        if let Some(parent)=definition_parent{
+            // Selection/uniqueness was proved above in the complete private κ
+            // domain. A real definition's original parent actuals now fix its
+            // concrete signature substitution; no κ identity is equated with
+            // an outside Life argument and no complete Type is repartitioned.
+            receiver=map_type(proofs,context,caller,&receiver,false,b)?;
+            for argument in &mut application.arguments{*argument=map_actual(proofs,context,caller,argument,false,b)?;}
+            for argument in &mut method_arguments{*argument=map_actual(proofs,context,caller,argument,false,b)?;}
+            trait_env=outside_environment(proofs,context,&trait_env,b)?;
+            impl_env=outside_environment(proofs,context,&impl_env,b)?;
+            let original_parent=if selection.trait_default{&trait_env}else{&impl_env};
+            let exact=outside_environment(proofs,context,parent,b)?;
+            definition_parent_relation(proofs,module,context,caller,&receiver,&application,actual,original_parent,&exact,active,b)?;
+            if selection.trait_default{trait_env=exact;}else{impl_env=exact;}
+        }
         if method_arguments.len() != expected.parameters.len()
             || method_arguments.len() != actual.parameters.len()
         {
@@ -2566,6 +2606,7 @@ pub(super) fn select_member(
         let expected_signature = outside_signature(proofs, context, caller, expected_signature, b)?;
         let actual_signature = outside_signature(proofs, context, caller, actual_signature, b)?;
         let environment = outside_environment(proofs, context, &actual_env, b)?;
+        let trait_environment = outside_environment(proofs, context, &expected_env, b)?;
         let parent = outside_environment(proofs, context, parent, b)?;
         let mut arguments = vec![];
         for a in &application.arguments {
@@ -2615,6 +2656,7 @@ pub(super) fn select_member(
             trait_signature: expected.id,
             source: selection.body.scope,
             environment,
+            trait_environment,
             expected_signature,
             actual_signature,
             trait_contract: selection.signature.signature.contract.clone(),
@@ -2709,7 +2751,7 @@ fn signature_equal(
             if !pair(context, env, a, z, a_scope, z_scope, &mut pairs, b)? {
                 return Err(bad(
                     "original method changes the joint signature lifetime partition",
-                ));
+                ).with_note(format!("original signature scopes {a_scope:?} -> {z_scope:?}; class {a:?} -> {z:?}; established joint pairs {pairs:?}; lexical exact images {:?}",env.images)));
             }
         }
         for (a, z) in a.origins.iter().zip(&z.origins) {

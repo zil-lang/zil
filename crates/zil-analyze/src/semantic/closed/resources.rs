@@ -1,9 +1,83 @@
-//! Whole resource scope reconstruction. Only a complete actual payload and its
-//! original closure environment can establish a zero child domain; the owning
-//! wrapper and an empty physical port list cannot do so.
+//! Whole resource scope reconstruction. Complete Task domains retain every
+//! original child class. Only a full payload and creator inventory can prove
+//! zero; an owning wrapper or an empty physical port list cannot do so.
 use super::*;
 use crate::semantic::value::{self, Value};
 impl Check<'_, '_> {
+    pub(super) fn task_domain(&self, ty: &Type, b: &mut Budget) -> CompileResult<Option<StorageLifeShape>> {
+        value::task_domain(ty, b)
+    }
+    pub(super) fn resource_constructor(&self, kind: geometry::Unary, child: Value, b: &mut Budget) -> CompileResult<Value> {
+        if !empty(&child.life) || !child.classes.is_empty() {
+            if kind != geometry::Unary::Managed || !matches!(child.ty, Type::Task { .. }) {
+                return Err(unknown("semantic resource constructor needs complete child retained and phantom class transport"));
+            }
+            if self.task_domain(&child.ty, b)?.as_ref() != Some(&child.life) {
+                return Err(fail("Task resource constructor changes its full original child domain"));
+            }
+        }
+        value::resource(kind, child, b)
+    }
+    pub(super) fn task_child(&self, input: &Value, b: &mut Budget) -> CompileResult<Value> {
+        let Type::Managed(inner) = &input.ty else { return Err(fail("Task child projection has no owning carrier")); };
+        let life = self.task_domain(inner, b)?.ok_or_else(|| fail("Task child changes its complete payload family"))?;
+        if self.task_domain(&input.ty, b)?.as_ref() != Some(&input.life)
+            || input.classes.len() != life.binder_count as usize {
+            return Err(fail("Task child projection changes its complete owning domain"));
+        }
+        let mut classes = Vec::new();
+        for class in &input.classes { self.push_value(&mut classes, class.clone(), b)?; }
+        value::borrowed_full(inner, &life, classes, self.inventory, b)
+    }
+    pub(super) fn task_projection(&self, parent: &Value, child: &Type, selector: PlaceProjection,
+        b: &mut Budget) -> CompileResult<Value> {
+        let life = self.task_domain(child, b)?.ok_or_else(|| fail("Task projection changes its child family"))?;
+        if self.task_domain(&parent.ty, b)?.as_ref() != Some(&parent.life)
+            || parent.classes.len() != parent.life.binder_count as usize {
+            return Err(fail("Task projection has another complete parent domain"));
+        }
+        let mut classes = Vec::new();
+        for class in 0..life.binder_count {
+            let mut selected = None;
+            for row in &parent.life.retained {
+                b.spend(row.path.len().saturating_add(1), WORK)?;
+                if row.path.as_slice() == [LifeTypeProjection::Place(selector)] && row.class == class
+                    && selected.replace(row.binder).is_some() {
+                    return Err(fail("Task sum repeats a child class occurrence"));
+                }
+            }
+            let binder = selected.ok_or_else(|| fail("Task sum omits a complete child class"))?;
+            self.push_value(&mut classes, parent.classes.get(binder as usize)
+                .ok_or_else(|| fail("Task sum class exceeds its complete parent domain"))?.clone(), b)?;
+        }
+        value::borrowed_full(child, &life, classes, self.inventory, b)
+    }
+    /// Physical retained ports select the independently preserved opaque
+    /// classes. No port is created for a phantom class.
+    pub(super) fn task_ports(&self, value: &Value, b: &mut Budget)
+        -> CompileResult<Vec<(Vec<ContractProjection>, u32)>> {
+        let (task, prefix): (&Type, Vec<ContractProjection>) = match &value.ty {
+            Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { .. }) => (inner, Vec::new()),
+            Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { .. })) => {
+                let Type::Managed(inner) = result.as_ref() else { unreachable!() };
+                (inner, vec![ContractProjection::Place(PlaceProjection::ErrorArm(false))])
+            }
+            _ => return Ok(Vec::new()),
+        };
+        if self.task_domain(&value.ty, b)?.as_ref() != Some(&value.life) {
+            return Err(fail("Task retained port value changes its complete domain forest"));
+        }
+        let Type::Task { retained_life, .. } = task else { unreachable!() };
+        let mut rows = Vec::new();
+        for (ordinal, port) in retained_life.ports.iter().enumerate() {
+            let mut path = Vec::new();
+            for step in &prefix { self.push_value(&mut path, step.clone(), b)?; }
+            self.push_value(&mut path, ContractProjection::RetainedPort(
+                u32::try_from(ordinal).map_err(|_| fail("Task retained port ordinal overflows"))?), b)?;
+            self.push_value(&mut rows, (path, port.binder), b)?;
+        }
+        Ok(rows)
+    }
     pub(super) fn zero_data(&self, ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<()> {
         b.spend(1, WORK)?;
         if depth > b.partial_depth {
@@ -52,8 +126,15 @@ impl Check<'_, '_> {
                         "zero-domain child environment retains nominal or phantom classes",
                     ));
                 }
-                for capture in &closure.captures {
-                    self.zero_data(capture, b, depth + 1)?;
+                for (index, capture) in closure.captures.iter().enumerate() {
+                    // capture_directory above independently checked every real
+                    // creator. Only that proved whole Static occurrence can
+                    // make this literal view class-free; raw Address cannot.
+                    let static_literal = original::strings::is_byte_type(capture)
+                        && life.static_bindings.iter().any(|position| position.base == StorageBase::Capture(index as u32)
+                            && position.path.is_empty());
+                    b.spend(life.static_bindings.len().saturating_add(1), WORK)?;
+                    if !static_literal { self.zero_data(capture, b, depth + 1)?; }
                 }
                 Ok(())
             }
@@ -138,6 +219,13 @@ impl Check<'_, '_> {
         let Type::Managed(payload) = ty else {
             return Err(fail("actual resource scope has no complete owning carrier"));
         };
+        if let Type::Task { retained_life, .. } = payload.as_ref() {
+            crate::dyn_metadata::retained_shape(retained_life, b)?;
+            if retained_life.binder_count != 0 || !retained_life.ports.is_empty()
+                || !retained_life.retained.is_empty() || !retained_life.nominal_arguments.is_empty() {
+                return Err(fail("zero resource retains the complete Task input/result/phantom domain"));
+            }
+        }
         self.resource_payload_scope(ty, payload, b, depth)
     }
     /// Qualify a real owning or weak carrier's payload without manufacturing a
@@ -162,8 +250,7 @@ impl Check<'_, '_> {
     fn resource_payload_scope(&self, ty: &Type, payload: &Type, b: &mut Budget, depth: usize) -> CompileResult<()> {
         match payload {
             Type::Mutex { payload } => self.mutex_payload(payload, b),
-            Type::Task { result, .. } => {
-                self.zero_data(result, b, depth + 1)?;
+            Type::Task { .. } => {
                 crate::tasks::semantic_resource_scope(
                     self.module,
                     payload,
@@ -383,6 +470,20 @@ impl Check<'_, '_> {
             return result;
         }
         match ty {
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => {
+                self.borrowed_resource_scope(ty, b, depth + 1)?;
+                if self.task_domain(ty, b)?.as_ref() != Some(life)
+                    || classes.len() != life.binder_count as usize {
+                    return Err(fail("actual Task owner changes its complete child domain"));
+                }
+                let mut images = Vec::new();
+                for expression in classes {
+                    self.push_value(&mut images, value::class(context, expression, self.inventory, b, depth + 1)?, b)?;
+                }
+                Ok(Value::from_geometry(geometry, images))
+            }
+            Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. })) =>
+                value::resolved(context, input, self.inventory, b, depth + 1),
             Type::MutexGuard { .. } => {
                 self.ordinary_type_at(ty, b, depth + 1)?;
                 crate::dyn_metadata::shape(life, b)?;
@@ -502,6 +603,7 @@ impl Check<'_, '_> {
     pub(super) fn pointee(&self, input: &Value, b: &mut Budget) -> CompileResult<Value> {
         if let Type::Address { inner, .. } = &input.ty
             && matches!(inner.as_ref(), Type::Managed(_))
+            && self.task_domain(inner, b)?.is_none()
         {
             self.resource_zero(inner, b, 0)?;
             if !input.life.retained.is_empty() {

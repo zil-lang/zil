@@ -103,12 +103,21 @@ fn failure(message: &str) -> Diagnostic {
     reject("E-VERIFY-DYN", None, message)
 }
 
-pub(super) fn prove(
+pub(super) fn prove(module:&TypedModule,root:&Type,claim:&DynCleanupContract,budget:&mut Budget)->Check<()>{
+    prove_impl(module,root,claim,false,budget).map(|_|())
+}
+/// Exact teardown roots discovered by this same complete concrete cleanup
+/// proof. Work selection/effect joining does not turn them into permissions.
+pub(super) fn prove_targets(module:&TypedModule,root:&Type,claim:&DynCleanupContract,budget:&mut Budget)->Check<Vec<FunctionId>>{
+    prove_impl(module,root,claim,true,budget)
+}
+fn prove_impl(
     module: &TypedModule,
     root: &Type,
     claim: &DynCleanupContract,
+    retain_targets:bool,
     budget: &mut Budget,
-) -> Check<()> {
+) -> Check<Vec<FunctionId>> {
     let mut pending = vec![(root, 0usize)];
     let mut entries = BTreeSet::new();
     while let Some((ty, depth)) = pending.pop() {
@@ -212,6 +221,7 @@ pub(super) fn prove(
     }
     // A queue entry carries its ancestry, so mutual recursion cannot be hidden
     // by a global visited set. Every reached body supplies its own real effects.
+    let targets=if retain_targets{budget.spend(entries.len())?;entries.iter().copied().collect()}else{Vec::new()};
     let mut code = VecDeque::new();
     for id in entries {
         budget.spend(1)?;
@@ -323,7 +333,7 @@ pub(super) fn prove(
             }
         }
     }
-    Ok(())
+    Ok(targets)
 }
 
 fn closed_data(ty: &Type, budget: &mut Budget, depth: usize) -> Check<bool> {

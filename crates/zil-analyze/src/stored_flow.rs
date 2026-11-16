@@ -11,6 +11,7 @@ mod live_words;
 pub(super) mod owned_byte_views;
 mod permission_access;
 mod receiver_results;
+mod receiving_returns;
 mod returned_upper;
 #[cfg(test)]
 mod set_bits_tests;
@@ -826,6 +827,8 @@ pub(super) struct Facts {
     /// Structural callable input heads needed by the result, separate from
     /// its data targets. Each ordinary invocation substitutes its own loans.
     returned_head_inputs: BTreeSet<u32>,
+    // Per-target all-Return ancestry. This never grants a data target.
+    returned_head_targets: BTreeMap<Target, BTreeSet<u32>>,
     capture_taken: BTreeSet<u32>,
     pub apart: BTreeSet<(Target, Target)>,
     head_accesses: BTreeMap<Target, bool>,
@@ -1099,6 +1102,9 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
     }
     if !f.returned_head_inputs.is_empty() {
         fee(b, f.returned_head_inputs.len())?;
+    }
+    for (target, heads) in &f.returned_head_targets {
+        fee(b, target_width(target).saturating_add(heads.len()).saturating_add(1))?;
     }
     if !f.capture_taken.is_empty() {
         fee(b, f.capture_taken.len())?;
@@ -2800,20 +2806,25 @@ fn returns(
                 environment_memory::binding(module, f, index, &source.stored, b)?
             }) != upper
             {
+                ordered(b, facts.returned_head_targets.len(), target_width(source))?;
                 let bounded_head = matches!(upper, StorageBinder::Invocation(_))
-                    && facts.returned_head_inputs.iter().any(|position| {
-                        f.parameters.get(*position as usize).is_some_and(|local| {
-                            matches!(&f.locals[local.0 as usize].ty,Type::Address{mutable,inner}
-                            if matches!(inner.as_ref(),Type::Closure(_))
-                            && (!matches!(f.return_type,Type::Address{mutable:true,..})||*mutable))
-                        }) && f.storage_life.as_ref().and_then(|life| {
-                            super::signature_life::outer(life, StorageBase::Parameter(*position))
-                        }) == Some(upper)
+                    && facts.returned_head_targets.get(source).is_some_and(|heads| {
+                        heads.iter().any(|position| {
+                            f.parameters.get(*position as usize).is_some_and(|local| {
+                                matches!(&f.locals[local.0 as usize].ty, Type::Address { mutable, .. }
+                                    if !matches!(f.return_type, Type::Address { mutable: true, .. }) || *mutable)
+                            }) && f.storage_life.as_ref().and_then(|life| {
+                                super::signature_life::outer(life, StorageBase::Parameter(*position))
+                            }) == Some(upper)
+                        })
                     });
                 if !bounded_head {
-                    return Err(failure(
-                        "actual returned target exceeds its declared stored/fresh relation",
-                    ));
+                    let heads = facts.returned_head_targets.get(source);
+                    fee(b, target_width(source).saturating_add(path.len()).saturating_mul(128)
+                        .saturating_add(heads.map_or(0, BTreeSet::len).saturating_mul(32)).saturating_add(256))?;
+                    let mut errors = failure("actual returned target exceeds its declared stored/fresh relation");
+                    errors[0].notes.push(format!("actual function {} returned path {:?} target {:?}; required binder {:?}; actual all-path input heads {:?}", f.id.0, path, source, upper, heads));
+                    return Err(errors);
                 }
             }
         }
@@ -4593,6 +4604,7 @@ fn transfer(
             mode: StoredBorrowLoad::CopyShared,
         } => {
             out.pointer = select(state, &get(*storage)?.pointer, path, b)?;
+            receiving_returns::apply(module, f, i, &get(*storage)?.pointer, path, &mut out.pointer, loans, b)?;
         }
         InstructionKind::LoadStoredBorrow {
             storage,
@@ -7383,6 +7395,7 @@ fn derive_cfg(
                         )
                     }),
                 returned_head_inputs: BTreeSet::new(),
+                returned_head_targets: BTreeMap::new(),
                 capture_taken: BTreeSet::new(),
                 apart: BTreeSet::new(),
                 head_accesses: BTreeMap::new(),
@@ -7637,28 +7650,7 @@ fn derive_cfg(
                         let parents = ancestry(&value.pointer.loans, &loans, b)?;
                         actual.receiver_return &= parents.contains(&marker);
                     }
-                    if b.receiver_borrows && matches!(f.return_type, Type::Address { .. }) {
-                        let parents = ancestry(&value.pointer.loans, &loans, b)?;
-                        for (position, local) in f.parameters.iter().enumerate() {
-                            if matches!(&f.locals[local.0 as usize].ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Closure(_)))
-                            {
-                                let head = &entry
-                                    .locals
-                                    .get(local)
-                                    .ok_or_else(|| {
-                                        failure(
-                                            "returned callable dependency has no actual input head",
-                                        )
-                                    })?
-                                    .pointer;
-                                fee(b, head.loans.len())?;
-                                if head.loans.iter().any(|loan| parents.contains(loan)) {
-                                    ordered(b, actual.returned_head_inputs.len(), 0)?;
-                                    actual.returned_head_inputs.insert(position as u32);
-                                }
-                            }
-                        }
-                    }
+                    receiving_returns::record(f, value, &entry, &loans, &mut actual, b)?;
                     actual
                         .returned_enum_variants
                         .join(&value.enum_variants, b)?;

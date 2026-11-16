@@ -171,11 +171,13 @@ impl Solver<'_, '_> {
         let (ordinal, field) = self.field(place.selected, member, b, depth + 1)?;
         Self::push(&mut place.path, ordinal, b)?;
         self.place_available(frame, place.anchor, &place.path, false, b)?;
-        if matches!(
-            self.state.arena[self.type_root(field, b)?],
-            Kind::Infer(None)
-        ) || !self.satisfies(field, Predicate::Copy, b, depth + 1)?
-        {
+        // Numeric inference is finalized after the complete original body.
+        // Observing an array/tuple of pending numeric leaves can defer its Copy
+        // obligation; it must not default a constructor's Type before later
+        // wanted/field constraints or guess a generic resource to be Copy.
+        let pending_numeric = self.pending_numeric_copy(field, b, depth + 1)?;
+        if !pending_numeric && (matches!(self.state.arena[self.type_root(field, b)?], Kind::Infer(None))
+            || !self.satisfies(field, Predicate::Copy, b, depth + 1)?) {
             return Ok(None);
         }
         if let Some(owner) = owner {
@@ -192,6 +194,32 @@ impl Solver<'_, '_> {
             b,
         )?;
         Ok(Some(field))
+    }
+    fn pending_numeric_copy(&self, term: Term, b: &mut Budget, depth: usize) -> CompileResult<bool> {
+        self.step(depth, b)?;
+        let root = self.type_root(term, b)?;
+        match &self.state.arena[root] {
+            Kind::Infer(None) => {
+                for literal in &self.literals {
+                    b.spend(1, WORK)?;
+                    if self.type_root(literal.term, b)? == root { return Ok(true); }
+                }
+                for numeric in self.numeric.iter().chain(&self.integers) {
+                    b.spend(1, WORK)?;
+                    if self.type_root(*numeric, b)? == root { return Ok(true); }
+                }
+                Ok(false)
+            }
+            Kind::Array { element, .. } => self.pending_numeric_copy(*element, b, depth + 1),
+            Kind::Tuple(fields) => {
+                for field in fields {
+                    if !self.pending_numeric_copy(*field, b, depth + 1)? { return Ok(false); }
+                }
+                Ok(true)
+            }
+            Kind::Atom(ty) => Ok(ty.is_b0_scalar()),
+            _ => Ok(false),
+        }
     }
     pub(super) fn field(
         &self,
