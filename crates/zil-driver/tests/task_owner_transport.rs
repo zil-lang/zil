@@ -1245,10 +1245,8 @@ fn consuming_callable_returns_the_actual_task_frame_and_retained_context() {
 #[test]
 fn returned_frame_keeps_actual_capture_identity_when_lifetime_classes_are_equal_raw_and_wire() {
     let text = include_str!(
-        "../../../tests/language-readiness/task-owner-transport/returned-second-task-fnonce.zil"
-    )
-    .replace("keep<life a,life b>", "keep<life a>")
-    .replace("&'b mut i32", "&'a mut i32");
+        "../../../tests/language-readiness/task-owner-transport/returned-shared-task-classes.zil"
+    );
     let limits = zil_base::Limits::default();
     let target = zil_base::TargetProfile::default();
     let typed = typed_original(&text);
@@ -1401,6 +1399,8 @@ fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
                 .map(|(name, text)| (name, text, &b"A"[..],1))
                 .chain(std::iter::once(("closed-owner", closed_owner(), &b""[..],1)))
                 .chain(std::iter::once(("returned-second-frame",include_str!("../../../tests/language-readiness/task-owner-transport/returned-second-task-fnonce.zil").to_owned(),&b""[..],2)))
+                .chain(std::iter::once(("equal-shared-task-classes",include_str!("../../../tests/language-readiness/task-owner-transport/equal-shared-task-classes.zil").to_owned(),&b""[..],2)))
+                .chain(std::iter::once(("returned-shared-task-classes",include_str!("../../../tests/language-readiness/task-owner-transport/returned-shared-task-classes.zil").to_owned(),&b""[..],2)))
             {
                 let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
                     "../../out/runs/task-owner-native/{name}-{backend:?}-{optimization:?}"
@@ -1580,11 +1580,9 @@ fn asynchronous_child_cleanup_yields_and_returns_original_inputs_on_allocation_f
 
 #[test]
 fn equal_task_types_and_classes_keep_actual_source_identity_raw_and_wire() {
-    let text=SOURCE.replace("fn keep<life a>(give original:Task<i32,&'a mut i32>)", "fn keep<life a>(give original:Task<i32,&'a mut i32>,give second:Task<i32,&'a mut i32>)")
-        .replace("return move()=>drive(give original);", "return move()=>drive(give original)+drive(give second);")
-        .replace("var number=37;", "var number=37;var other=41;")
-        .replace("let callback=keep(give original);", "let otherTask=task_create(worker,&mut other)?;let callback=keep(give original,give otherTask);")
-        .replace("return answer-42;", "if other!=46{return 92;}return answer-88;");
+    let text = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/equal-shared-task-classes.zil"
+    );
     let limits = zil_base::Limits::default();
     let target = zil_base::TargetProfile::default();
     let typed = typed_original(&text);
@@ -1672,3 +1670,6 @@ mod direct_cleanup;
 
 #[path = "task_owner_transport/pending_once.rs"]
 mod pending_once;
+
+#[path = "task_owner_transport/source_contracts.rs"]
+mod source_contracts;

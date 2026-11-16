@@ -254,6 +254,10 @@ fn projection_value(
     Ok(true)
 }
 fn observation_operand(
+    program: &program::Program,
+    definition: SemanticDefinitionId,
+    nodes: &[body::OriginalBodyNode],
+    value_names: &[zil_base::NodeId],
     body: &mut SourceBody<'_>,
     path: &[u32],
     budget: &mut Budget<'_>,
@@ -272,6 +276,17 @@ fn observation_operand(
             s::ExprKind::Group(_) if child == 0 => length -= 1,
             s::ExprKind::TypeApply { .. } if child == 0 => length -= 1,
             s::ExprKind::Call { .. } if child == 0 => return Ok(false),
+            s::ExprKind::Call { .. } if child == 1 => {
+                return Ok(!static_worker_selector(
+                    program,
+                    definition,
+                    parent,
+                    &path[..length - 1],
+                    nodes,
+                    value_names,
+                    budget,
+                )?);
+            }
             s::ExprKind::Unary {
                 op: s::UnaryOp::Give,
                 ..
@@ -280,6 +295,160 @@ fn observation_operand(
         }
     }
     Ok(true)
+}
+// A sealed task/thread operation selects static code in argument zero. That
+// original expression remains part of its full Call obligation, but is not a
+// runtime value read: the actual opcode carries a FunctionId, not an SSA use.
+// Resolve both the intrinsic and code declaration in the original namespace;
+// ordinary calls, local shadows and computed callable values retain readings.
+fn static_worker_selector(
+    program: &program::Program,
+    definition: SemanticDefinitionId,
+    call: &s::Expr,
+    call_path: &[u32],
+    nodes: &[body::OriginalBodyNode],
+    value_names: &[zil_base::NodeId],
+    budget: &mut Budget<'_>,
+) -> R<bool> {
+    let s::ExprKind::Call { callee, arguments } = &call.kind else {
+        return Ok(false);
+    };
+    let s::ExprKind::Name(intrinsic) = &callee.kind else {
+        return Ok(false);
+    };
+    if !matches!(
+        intrinsic.as_str(),
+        "task_create" | "task_create_owned" | "task_await" | "thread_scope"
+    ) {
+        return Ok(false);
+    }
+    let Some(worker) = arguments.first() else {
+        return Ok(false);
+    };
+    budget.identity_work(
+        program
+            .modules
+            .iter()
+            .map(|(_, module)| module.definitions.len())
+            .sum(),
+        call.span,
+    )?;
+    let original = program
+        .modules
+        .iter()
+        .flat_map(|(_, module)| &module.definitions)
+        .find(|row| row.id == definition)
+        .ok_or_else(|| error(call.span, "static code selector lost its original scope"))?;
+    let SemanticDefinitionBody::FunctionWithBody { names, .. } = &original.body else {
+        return Ok(false);
+    };
+    budget.identity_work(names.len().saturating_add(nodes.len()), call.span)?;
+    if names.iter().any(|binding| {
+        binding.namespace == SemanticOriginalNamespace::Value
+            && binding.path.as_slice() == [intrinsic.as_str()]
+    }) {
+        return Ok(false);
+    }
+    let mut path = Vec::new();
+    budget.lineage_bytes(
+        (call_path.len() + 1).saturating_mul(std::mem::size_of::<u32>()),
+        call.span,
+    )?;
+    path.extend_from_slice(call_path);
+    path.push(0);
+    if nodes
+        .iter()
+        .any(|node| node.path == path && value_names.binary_search(&node.id).is_ok())
+    {
+        return Ok(false);
+    }
+    *path.last_mut().unwrap() = 1;
+    let mut expression = &worker.value;
+    let mut parts = Vec::new();
+    let mut depth = 0;
+    loop {
+        budget.node(expression.span, depth)?;
+        depth += 1;
+        match &expression.kind {
+            s::ExprKind::Group(inner) | s::ExprKind::TypeApply { callee: inner, .. } => {
+                expression = inner;
+                budget.lineage_push(&mut path, 0, expression.span)?;
+            }
+            s::ExprKind::Member {
+                object,
+                member: s::MemberName::Name(name),
+            } => {
+                budget.text(name, expression.span)?;
+                budget.lineage_push(&mut parts, name.as_str(), expression.span)?;
+                expression = object;
+                budget.lineage_push(&mut path, 0, expression.span)?;
+            }
+            s::ExprKind::Name(name) => {
+                budget.identity_work(
+                    nodes.len().saturating_mul(path.len().saturating_add(1)),
+                    expression.span,
+                )?;
+                if nodes
+                    .iter()
+                    .any(|node| node.path == path && value_names.binary_search(&node.id).is_ok())
+                {
+                    return Ok(false);
+                }
+                budget.text(name, expression.span)?;
+                budget.lineage_push(&mut parts, name.as_str(), expression.span)?;
+                break;
+            }
+            _ => return Ok(false),
+        }
+    }
+    parts.reverse();
+    let mut selected = None;
+    for binding in names {
+        budget.identity_work(binding.path.len().saturating_add(parts.len()), call.span)?;
+        if binding.namespace == SemanticOriginalNamespace::Value
+            && binding
+                .path
+                .iter()
+                .map(String::as_str)
+                .eq(parts.iter().copied())
+        {
+            let SemanticOriginalNameValue::Definition(target) = &binding.value else {
+                return Ok(false);
+            };
+            if selected.replace(*target).is_some() {
+                return Ok(false);
+            }
+        }
+    }
+    let Some(selected) = selected else {
+        return Ok(false);
+    };
+    budget.identity_work(
+        program
+            .modules
+            .iter()
+            .map(|(_, module)| module.definitions.len())
+            .sum(),
+        call.span,
+    )?;
+    Ok(program
+        .modules
+        .iter()
+        .flat_map(|(_, module)| &module.definitions)
+        .any(|row| {
+            row.id == selected
+                && matches!(
+                    row.kind,
+                    SemanticDefinitionKind::Function | SemanticDefinitionKind::Method
+                )
+                && matches!(
+                    &row.body,
+                    SemanticDefinitionBody::FunctionWithBody {
+                        receiver_parameter: None,
+                        ..
+                    }
+                )
+        }))
 }
 // Assignment navigation selects a place; it does not evaluate a whole
 // aggregate value at each Name/Member prefix. Index operands and explicit
@@ -553,7 +722,16 @@ fn operations(
     value_names.sort_unstable();
     let nodes = directory.nodes;
     for original in &nodes {
-        let observation = observation_operand(body, &original.path, budget, span)?;
+        let observation = observation_operand(
+            program,
+            definition,
+            &nodes,
+            &value_names,
+            body,
+            &original.path,
+            budget,
+            span,
+        )?;
         let projection_value = projection_value(body, &original.path, budget, span)?;
         let navigation = assignment_navigation(body, &original.path, budget, span)?;
         let prefix = projection_navigation(body, &original.path, budget, span)?;
@@ -1210,5 +1388,92 @@ fn main(){let text=feedback("xyz",true);let other=feedback("uvw",false)}"#,
         // Neither grouped borrow places nor the assignment destination do.
         assert_eq!(observed_fields, ["index", "n"]);
         assert!(observed_names > 0);
+    }
+    #[test]
+    fn static_worker_selection_has_no_runtime_read_but_ordinary_values_keep_theirs() {
+        let (mut syntax, program) = prepare(
+            "fn worker<life a>(input:&'a i32)->i32{return *input}fn accept<F>(value:F){}fn run<life a,F:Fn(&'a i32)->i32>(input:&'a i32,callback:F){task_create((worker::<'a>),input);accept(worker::<'a>);task_create(callback,input);}",
+        );
+        let definition = &program.modules[0].1.definitions[2];
+        let SemanticDefinitionBody::FunctionWithBody {
+            sites, site_nodes, ..
+        } = &definition.body
+        else {
+            panic!()
+        };
+        assert_eq!(
+            sites
+                .iter()
+                .filter(|site| matches!(site.kind, SemanticSiteRecipeKind::OriginalCall))
+                .count(),
+            3
+        );
+        let s::ItemKind::Function(function) = &mut syntax[0].items[2].kind else {
+            panic!()
+        };
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut body = SourceBody::Function(&mut function.body);
+        let mut applications = 0;
+        let mut callbacks = 0;
+        for site in sites {
+            if !matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. }) {
+                continue;
+            }
+            let located = body
+                .locate(&site.occurrence_path[1..], &mut budget, function.span)
+                .unwrap()
+                .unwrap();
+            let body_nodes::Node::Expression(expression) = located.node else {
+                continue;
+            };
+            if matches!(expression.kind, s::ExprKind::TypeApply { .. }) {
+                // Only accept(worker::<'a>) evaluates an ordinary function
+                // value. The grouped task worker remains in its Call tree.
+                applications += 1;
+                assert!(expression.semantic.raw_index().is_some());
+            }
+            if matches!(&expression.kind, s::ExprKind::Name(name) if name == "callback") {
+                callbacks += 1;
+            }
+            assert!(site_nodes.iter().any(|anchor| anchor.site == site.id));
+        }
+        assert_eq!(applications, 1);
+        assert_eq!(
+            callbacks, 1,
+            "a computed worker is still a runtime value, not static code"
+        );
+
+        // Even a raw source tree that shadows a reserved intrinsic must not
+        // lose an ordinary argument observation before name checking rejects it.
+        let (mut syntax, program) = prepare(
+            "fn worker<life a>(input:&'a i32)->i32{return *input}fn shadow<life a,F>(task_create:F,input:&'a i32){task_create(worker::<'a>,input);}",
+        );
+        let definition = &program.modules[0].1.definitions[1];
+        let SemanticDefinitionBody::FunctionWithBody { sites, .. } = &definition.body else {
+            panic!()
+        };
+        let s::ItemKind::Function(function) = &mut syntax[0].items[1].kind else {
+            panic!()
+        };
+        let mut body = SourceBody::Function(&mut function.body);
+        assert!(
+            sites
+                .iter()
+                .filter(|site| matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. }))
+                .any(|site| {
+                    let located = body
+                        .locate(&site.occurrence_path[1..], &mut budget, function.span)
+                        .unwrap()
+                        .unwrap();
+                    matches!(
+                        located.node,
+                        body_nodes::Node::Expression(s::Expr {
+                            kind: s::ExprKind::TypeApply { .. },
+                            ..
+                        })
+                    )
+                })
+        );
     }
 }

@@ -39,7 +39,7 @@ fn keep(give original:Task<i32>,give quiet:Quiet)->impl FnMut()->i32 {
 fn parent<F:FnMut()->i32 + ClosedEnvironment>(callback:F)->i32 {
  task_yield();return 0;
 }
-fn close_callback<F:FnMut()->i32 + ClosedEnvironment>(original:F)->i32 {
+fn close_callback<F:FnOnce()->i32 + ClosedEnvironment>(original:F)->i32 {
  var callback=original;return callback();
 }
 fn main()->TaskCreateError!i32 {

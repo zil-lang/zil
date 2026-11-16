@@ -33,7 +33,7 @@ impl Drop for Quiet {fn drop(self:Self){unsafe{quiet_retired(.value);}}}
 resource ResultToken {code:i32}
 impl Drop for ResultToken {fn drop(self:Self){unsafe{result_retired(.code);}}}
 package Packet {manages token:ResultToken}
-fn keep(give original:Task<i32>,give quiet:Quiet)->impl FnOnce()->i32 {
+fn keep(give original:Task<i32>,give quiet:Quiet)->impl FnMut()->i32 {
  var task=give original;var kept=give quiet;
  return move()->i32=>{
   let alive=task_valid(task);kept.value+=1;if alive{return kept.value;}return 91;

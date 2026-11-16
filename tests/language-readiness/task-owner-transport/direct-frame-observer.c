@@ -12,11 +12,14 @@ void quiet_taken(void) { quiet_calls++; }
 #ifndef ZIL_TASK_DIRECT_CHILD
 #define ZIL_TASK_DIRECT_CHILD 0
 #endif
+#ifndef ZIL_TASK_DEFAULT_LOCAL
+#define ZIL_TASK_DEFAULT_LOCAL 0
+#endif
 static int fail_at(void);
 void quiet_retired(int32_t code) {
     /* Only a failed parent constructor explicitly invokes the returned F.
        Cleanup in either worker representation must never run its user body. */
-    int called = fail_at() == 2 && !ZIL_TASK_DIRECT_CHILD;
+    int called = fail_at() == 2 && !ZIL_TASK_DIRECT_CHILD && !ZIL_TASK_DEFAULT_LOCAL;
     if (code != (called ? 8 : 7)) abort();
     quiet_releases++;
 }

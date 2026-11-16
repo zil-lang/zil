@@ -36,8 +36,8 @@ fn keep(give original:Task<i32>,give quiet:Quiet)->impl FnMut()->i32 {
   kept.value+=1;return kept.value;
  };
 }
-fn wrap<F:FnMut()->i32 + ClosedEnvironment>(original:F)->impl FnOnce()->i32 {
- return move()=>{var restored=original;return restored();};
+fn wrap<F:FnOnce()->i32 + ClosedEnvironment>(original:F)->impl FnOnce()->i32 {
+ return move()=>{return original();};
 }
 fn parent<F:FnOnce()->i32 + ClosedEnvironment>(callback:F)->i32 {
  task_yield();return 0;

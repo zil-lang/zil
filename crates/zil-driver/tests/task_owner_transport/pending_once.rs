@@ -24,6 +24,19 @@ fn pending_once_cleanup_keeps_its_environment_and_every_returned_owner_raw_and_w
             for block in &function.blocks {
                 for (index, instruction) in block.instructions.iter().enumerate() {
                     let zil_ir::InstructionKind::CallClosureOnce { callee, .. } = instruction.kind else { continue; };
+                    // The public FnMut kind stays true to the original body.
+                    // Its one-shot caller must actually consume that same
+                    // environment rather than relabel its code as FnOnce.
+                    if mode != 2 {
+                        let zil_ir::Type::Closure(id) = function.values[callee.0 as usize] else {
+                            panic!("{name}: consuming operand is not the actual closure");
+                        };
+                        assert_eq!(
+                            typed.closures[id.0 as usize].kind,
+                            zil_ir::CallableKind::FnMut,
+                            "{name}"
+                        );
+                    }
                     let actions = frame.actions_at(block.id, index).unwrap();
                     let owner = frame.owner_for_value(callee).unwrap();
                     assert_eq!(actions.invocation_owner(), Some(owner), "{name}");
