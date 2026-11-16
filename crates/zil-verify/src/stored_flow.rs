@@ -7856,7 +7856,7 @@ fn solve_check(
             });
         }
         if let Some(checked) = checked_task_sources.as_mut() {
-            checked.push(task_address::checked_sources(f, solution, b)?);
+            checked.push(task_address::checked_sources(module, f, solution, b)?);
         }
         let claimed = &plan.functions[index].holds;
         if claimed.len() != solution.values.len() {
