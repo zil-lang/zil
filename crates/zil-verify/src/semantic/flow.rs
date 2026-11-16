@@ -23,6 +23,7 @@ mod closure_calls;
 mod code_calls;
 mod type_uses;
 mod callable_sources;
+mod local_roles;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
@@ -190,6 +191,7 @@ impl CheckedContext {
             initial.locals[parameter.0 as usize]=Some(expected.clone());
             self.record(scope,OperandKey::Parameter(index as u32),expected,b)?;
         }
+        self.prepare_local_roles(module,instance,environment,b)?;
         self.header(module,instance,f,signature,environment,b)?;
         if f.foreign.is_some() {
             let definition=self.definition(module,instance.definition,b)?;
@@ -293,9 +295,13 @@ impl CheckedContext {
                     }
                     InstructionKind::Store{local,value}=>{
                         let value=value_at(&values,*value)?;
-                        if let Some(expected)=&constraints[local.0 as usize] {if !self.compatible(&environment,value,expected,b)? {return Err(bad("actual Store violates the declared rigid semantic class constraint"));}}
+                        let mut normalized=None;
+                        if let Some(expected)=&constraints[local.0 as usize] {
+                            if !self.compatible(&environment,value,expected,b)? {return Err(bad("actual Store violates the declared rigid semantic class constraint"));}
+                            normalized=self.local_role_value(module,value,expected,&environment,active,b)?;
+                        }
                         if f.locals[local.0 as usize].ty!=value.ty {return Err(bad("actual Store changes its local complete type"));}
-                        state.locals[local.0 as usize]=Some(value.clone());None
+                        state.locals[local.0 as usize]=Some(match normalized{Some(value)=>value,None=>value.clone()});None
                     }
                     InstructionKind::StorageLive(local)|InstructionKind::StorageDead(local)=>{state.locals[local.0 as usize]=None;None},
                     InstructionKind::MakeAggregate{fields}|InstructionKind::MakePackage{fields}|InstructionKind::MakeManaged{fields}|InstructionKind::MakeOwnedTuple{fields}|InstructionKind::MakeOwnedArray{elements:fields}=>{

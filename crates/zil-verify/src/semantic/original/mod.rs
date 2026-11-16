@@ -21,6 +21,7 @@ mod cleanup;
 mod names;
 mod structural;
 mod lifetimes;
+mod local_roles;
 mod substitution;
 mod closure_sources;
 mod frozen;
@@ -68,6 +69,7 @@ pub(super) struct CheckedOriginal {
     // The selected arm is solved in original Γ before any actual emission.
     injections:BTreeMap<(SemanticDefinitionId,NodeId),(bool,Ty)>,
     bindings:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
+    local_roles:BTreeMap<(SemanticDefinitionId,NodeId),local_roles::LocalRole>,
     binding_families:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
     parameters:BTreeMap<(SemanticDefinitionId,u32),Ty>,
     results:BTreeMap<SemanticDefinitionId,Ty>,
