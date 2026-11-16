@@ -454,7 +454,7 @@ mod tests {
         let mut oversized = value::empty();
         oversized.binder_count = 1;
         oversized.slots.push(StorageLifeSlot {
-            path: vec![LifeTypeProjection::Pointee; budget.partial_depth + 1],
+            path: vec![zil_ir::PlaceProjection::Field(0); budget.partial_depth + 1],
             binder: 0,
             mode: StoredBorrowMode::SharedAddress,
         });
