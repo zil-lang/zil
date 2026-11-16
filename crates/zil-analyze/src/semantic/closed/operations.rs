@@ -389,14 +389,14 @@ impl Check<'_, '_> {
                     value,
                 },
             ) => {
-                let expected = self.ty(instance, recipe, b, 0)?;
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
+                let expected = &original_value.ty;
                 if self.uses_full_value(&original_value.ty, b)? {
                     self.original_claim(instance, value, &original_value, b)?;
                 }
 
                 self.image_operands(instance, value, point, Some(*result), b)?;
-                if self.captured_value(
+                if &self.captured_value(
                     instance,
                     value,
                     &SemanticOperand::Value(*result),
@@ -413,17 +413,17 @@ impl Check<'_, '_> {
                 self.result(
                     instruction.ok_or_else(|| fail("actual construction instruction is absent"))?,
                     point.function,
-                    &expected,
+                    expected,
                 )?;
             }
             (
                 SemanticSiteRecipeKind::TypeUse { expected: recipe },
                 SemanticSiteAction::TypeUse { subject, expected },
             ) => {
-                let expected_type = self.ty(instance, recipe, b, 0)?;
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
+                let expected_type = &original_value.ty;
                 let actual_operand = self.operand(instance, subject, point, b)?;
-                if actual_operand != expected_type
+                if &actual_operand != expected_type
                     && let Some((whole, error)) = self.original.return_injection(
                         instance,
                         site.recipe,
@@ -519,7 +519,7 @@ impl Check<'_, '_> {
                     site.recipe,
                     point.function,
                     subject,
-                    &expected_type,
+                    expected_type,
                     b,
                 )?;
                 if let Some(constructor) = self.original.enum_constructor(
@@ -535,7 +535,7 @@ impl Check<'_, '_> {
                     };
                     let (_, _, actual) = self.defining(point.function, *value, b)?;
                     if !constructor.payload.is_empty()
-                        || constructor.result.ty != expected_type
+                        || &constructor.result.ty != expected_type
                         || !matches!(&actual.kind, InstructionKind::MakeVariant { variant, fields }
                             if *variant == constructor.variant && fields.is_empty())
                     {
@@ -572,7 +572,7 @@ impl Check<'_, '_> {
                     false,
                     b,
                 )?;
-                if expected_type != captured || actual_operand != expected_type {
+                if expected_type != &captured || &actual_operand != expected_type {
                     crate::dyn_metadata::ty(&actual_operand, b)?;
                     crate::dyn_metadata::ty(&captured, b)?;
                     crate::dyn_metadata::recipe(expected, b)?;
@@ -598,14 +598,14 @@ impl Check<'_, '_> {
                     expected,
                 },
             ) => {
-                let expected_type = self.ty(instance, recipe, b, 0)?;
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
+                let expected_type = &original_value.ty;
                 if self.uses_full_value(&original_value.ty, b)? {
                     self.original_claim(instance, expected, &original_value, b)?;
                 }
 
                 self.image_operands(instance, expected, point, None, b)?;
-                if self.captured_value(
+                if &self.captured_value(
                     instance,
                     expected,
                     &SemanticOperand::Local(*local),
@@ -619,7 +619,7 @@ impl Check<'_, '_> {
                         .get(local.0 as usize)
                         .filter(|actual| actual.id == *local)
                         .map(|actual| &actual.ty)
-                        != Some(&expected_type)
+                        != Some(expected_type)
                     || !matches!(instruction.map(|actual| &actual.kind), Some(InstructionKind::StorageLive(actual)) if actual == local)
                 {
                     return Err(fail(
