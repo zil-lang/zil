@@ -20,7 +20,7 @@ imports against the current diagnostic call graph. Imports grant optimization
 visibility, not canonical ownership or new exported definitions. Existing
 closed-only results and negatives retain their original schema and policy.
 
-bounded_class_imports explicitly selects bounded-classes-128-v3 instead: only
+bounded_class_imports explicitly selects bounded-classes-128-v4 instead: only
 the current closure of class bodies costing at most 128 is imported. Current
 body references, canonical cross-unit bindings and the original source-only
 total copy budget remain mandatory. A rejected strategy is not this profile.
@@ -38,8 +38,10 @@ import elf_instruction_quality as late
 SCHEMA = 'closed-project-runtime-v1'
 IMPORT_SCHEMA = 'closed-import-project-runtime-v1'
 BOUNDED_SCHEMA = 'closed-bounded-class-project-runtime-v1'
-BOUNDED_POLICY = 'bounded-classes-128-v3'
+BOUNDED_POLICY = 'bounded-classes-128-v4'
 MAX_CLASS_IMPORT_COST = 128
+CLASS_INPUT_PREFIX = '; zil-current-class-input-v1 '
+CLASS_INPUT_OUTER = '__zil_witness_outer__'
 INPUTS = (b'', *(bytes([i]) for i in range(256)))
 RUNTIME_GATES = {'candidate_over_main_max_per_case': 1.10,
                  'rust_over_candidate_min_per_case': 0.90,
@@ -133,7 +135,10 @@ def layout_roles(units, items, model, complete_imports, bounded_class_imports=Fa
                             if n in owners and owners[n] != index and n not in imported[index]}
             require(set(unit['prelude']) == prelude and set(unit['declarations']) == declarations,
                     'current bounded body references must exactly match prelude/declarations')
-        source_cost = sum(cost for name, cost in costs.items() if re.fullmatch(r'zil\.fn\.\d+', name))
+        source_cost = model.get('original_source_cost')
+        if source_cost is None:
+            source_cost = sum(cost for name, cost in costs.items() if re.fullmatch(r'zil\.fn\.\d+', name))
+        require(type(source_cost) is int and source_cost >= 0, 'invalid original source-only copy cost')
         require(copied_cost <= source_cost, 'bounded imports exceed original source-only total copy cost')
     elif has_imports:
         by_name = {name: i for i, (_, name) in enumerate(items)}
@@ -186,8 +191,9 @@ def layout_frame(data, key):
 
 def current_inventory_layout(args, report, inv, llvm, model=None, candidate=True):
     """Rebind archived actual layout bytes to THIS report, never a metadata hint."""
-    model = scalar_model(llvm) if model is None else model
     bounded = candidate and getattr(args, 'bounded_class_imports', False)
+    # A caller-supplied parsed model is an optimization, never witness authority.
+    model = scalar_model(llvm, require_witness=True) if bounded else (scalar_model(llvm) if model is None else model)
     if bounded:
         bounded_report_policy(args, report.get('native_codegen') or {})
         bounded_report_policy(args, inv.get('compiler_summary') or {})
@@ -326,7 +332,92 @@ def validate_pure_bodies(bodies, pure):
     require(proved == pure, 'pure calls cannot form a recursive cycle')
 
 
-def scalar_model(llvm):
+def class_input_snapshot(text, required):
+    """Decode actual diagnostic items, never treat a spelling or N as proof.
+
+    Template numbering is first-use order. Equal text in distinct templates is
+    legal: the producer shares only actual body owners with equal headers.
+    The scalar profile still rejects nonfunction items after reconstruction.
+    """
+    lines = [line for line in text.splitlines(keepends=True) if 'zil-current-class-input-v1' in line]
+    require(len(lines) <= 1 and (lines or not required), 'missing or duplicate current class input witness')
+    if not lines:
+        return text, None
+    line = lines[0]
+    require(line.startswith(CLASS_INPUT_PREFIX) and line.endswith('\n') and len(line) <= 16*1024*1024,
+            'malformed current class input witness envelope')
+
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result, 'duplicate current class input JSON key')
+            result[key] = value
+        return result
+
+    def invalid_constant(value):
+        raise ValueError('nonfinite current class input JSON value: '+value)
+
+    value = json.loads(line[len(CLASS_INPUT_PREFIX):], object_pairs_hook=unique_object,
+                       parse_constant=invalid_constant)
+    require(type(value) is dict and set(value) == {'templates', 'items', 'copy_allowance'},
+            'unknown current class input schema')
+    templates, rows, allowance = value['templates'], value['items'], value['copy_allowance']
+    require(type(templates) is list and type(rows) is list and 0 < len(templates) <= len(rows) <= 262144
+            and all(type(template) is str and template for template in templates)
+            and type(allowance) is int and allowance >= 0, 'invalid current class input fields')
+    text = text.replace(line, '', 1)
+    fingerprints = re.findall(r'(?m)^; verified-fingerprint: ([0-9a-f]{64})$', text)
+    triples = re.findall(r'(?m)^target triple = "([^"]+)"$', text)
+    require(len(fingerprints) == len(triples) == 1 and triples[0] == 'x86_64-unknown-linux-gnu'
+            and len(re.findall(r'(?m)^; verified-fingerprint:', text)) == 1
+            and len(re.findall(r'(?m)^target triple', text)) == 1,
+            'class witness requires exact current outer fingerprint and target')
+    items, seen, names = [], set(), set()
+    for row in rows:
+        require(type(row) is list and len(row) == 2, 'invalid current class input item row')
+        name, index = row
+        require(type(index) is int and 0 <= index < len(templates), 'invalid class template reference')
+        if index not in seen:
+            require(index == len(seen), 'noncanonical class template first-use order')
+            seen.add(index)
+        template = templates[index]
+        if name is None:
+            require(template.startswith(('@', '%')) and template.endswith('\n')
+                    and len(template.splitlines()) == 1, 'nonfunction class witness row contains another item')
+            item = template
+        else:
+            require(type(name) is str and re.fullmatch(r'[A-Za-z0-9_.]+', name)
+                    and name != CLASS_INPUT_OUTER and name not in names,
+                    'bad or duplicate class witness symbol')
+            names.add(name)
+            header = re.match(r'^(declare|define) [^\n]*?@'+CLASS_INPUT_OUTER+r'\(', template)
+            require(header is not None and template.endswith('\n')
+                    and len(re.findall(r'(?m)^(?:declare|define) ', template)) == 1,
+                    'class template must contain exactly one placeholder function')
+            if header[1] == 'declare':
+                require(len(template.splitlines()) == 1, 'class declaration template contains extra text')
+            else:
+                require(re.fullmatch(r'define [^\n]+ \{\n(?:[^\n]*\n)*\}\n', template) is not None,
+                        'malformed complete class definition template')
+            # Never rewrite calls, addresses or local identifiers in the body.
+            position = header.end()-len(CLASS_INPUT_OUTER)-2
+            item = template[:position]+'@'+name+'('+template[header.end():]
+        items.append(item)
+    require(len(seen) == len(templates), 'unused class input template')
+    snapshot = _scalar_model(''.join(items).encode('ascii'))
+    require(snapshot['classes'], 'class input witness has no minted classes')
+    cost = sum(n for name, n in snapshot['function_costs'].items() if re.fullmatch(r'zil\.fn\.\d+', name))
+    require(allowance == cost, 'class witness copy allowance differs from complete original source cost')
+    snapshot['original_source_cost'] = cost
+    return text, snapshot
+
+
+def scalar_model(llvm, require_witness=False):
+    text, snapshot = class_input_snapshot(llvm.decode('ascii'), require_witness)
+    return _scalar_model(text.encode('ascii'), snapshot)
+
+
+def _scalar_model(llvm, snapshot=None):
     text = llvm.decode('ascii')
     require(not re.search(r'(?m)^[@%!]|\b(?:blockaddress|indirectbr|callbr|invoke|asm|alias|ifunc|personality|global|constant)\b', text),
             'globals/address/callback/exception LLVM outside scalar ABI scope')
@@ -376,6 +467,10 @@ def scalar_model(llvm):
     require(signatures.get('main') == ('i32', '') and signatures.get('getchar') == ('i32', '')
             and signatures.get('putchar') == ('i32', 'i32'), 'exact C main/getchar/putchar ABI required')
     require(all(ref in signatures for refs in calls.values() for ref in refs), 'undeclared scalar call')
+    if snapshot is not None:
+        require(classes <= snapshot['classes'] and definitions <= snapshot['definitions']
+                and all(snapshot['signatures'].get(name) == signature for name, signature in signatures.items()),
+                'final symbols/classes/ABI differ from current class input witness')
     # The spelling only locates candidates. Every class must be an exact clone
     # of a current source definition, including signature, SSA, blocks and calls.
     validate_pure_bodies(bodies, pure)
@@ -387,8 +482,11 @@ def scalar_model(llvm):
     parents = {name: [] for name in classes}
     remaining = {}
     for name in classes:
-        require(bodies[name] in source_bodies, 'class lacks an equal complete current source body')
-        class_sources[name] = sorted(source_bodies[bodies[name]])
+        if snapshot is None:
+            require(bodies[name] in source_bodies, 'class lacks an equal complete current source body')
+            class_sources[name] = sorted(source_bodies[bodies[name]])
+        else:
+            class_sources[name] = snapshot['class_sources'][name]
         require(calls[name] <= classes | intrinsics.keys(), 'class must contain only pure class/intrinsic direct calls')
         require(signatures[name][0] == 'i32', 'class requires the finite i32 result ABI')
         allowed_ops = {'add', 'sub', 'mul', 'udiv', 'sdiv', 'urem', 'srem',
@@ -429,8 +527,12 @@ def scalar_model(llvm):
             if remaining[parent] == 0:
                 ready.append(parent)
     require(visited == len(classes), 'class implementations must form an acyclic pure call graph')
-    return {'definitions': definitions, 'calls': calls, 'foreign': {'getchar', 'putchar'},
-            'classes': classes, 'class_sources': class_sources, 'function_costs': function_costs}
+    model = {'definitions': definitions, 'calls': calls, 'foreign': {'getchar', 'putchar'},
+             'classes': classes, 'class_sources': class_sources, 'function_costs': function_costs,
+             'signatures': signatures}
+    if snapshot is not None:
+        model['original_source_cost'] = snapshot['original_source_cost']
+    return model
 
 
 def elf_table(data, executable=False):
@@ -530,9 +632,9 @@ def object_abi(data, expected, cross, model, private_imports=()):
 def executable_abi(args, row):
     inv = row['inventory']
     llvm = matched.recheck_archived(args.out, row['llvm'])
-    model = scalar_model(llvm)
     candidate = row.get('arm', 'candidate') == 'candidate'
     bounded = candidate and getattr(args, 'bounded_class_imports', False)
+    model = scalar_model(llvm, require_witness=bounded)
     layout, units = current_inventory_layout(args, row['resident']['report'], inv, llvm, model,
                                              candidate=candidate)
     image = elf_table(matched.recheck_archived(args.out, row['executable']), executable=True)
@@ -629,9 +731,9 @@ def inventory(args, report, cache, llvm, executable_sha256, request_directory=No
     actual cache observations and current O2 receipts are still checked here.
     """
     policy(args)
-    model = scalar_model(llvm)
-    current_key = report_layout_key(report, model)
     candidate = str(cache.parent.name) == 'candidate'
+    model = scalar_model(llvm, require_witness=candidate and getattr(args, 'bounded_class_imports', False))
+    current_key = report_layout_key(report, model)
     if not candidate:
         result = matched.zil_inventory(args, report, cache, llvm, executable_sha256, request_directory)
         current_inventory_layout(args, report, result, llvm, model, candidate=False)
@@ -829,7 +931,8 @@ def quality(rows, args, oracle, allow_main_limit=False):
                 require(inv['object_count'] == len(inv['objects']) == inv['compiler_summary']['actual_units'] == 16
                         and inv['current_layout_matches'], 'physical sixteen-unit quality required')
                 llvm = matched.recheck_archived(args.out, row['llvm'])
-                model = scalar_model(llvm)
+                model = scalar_model(llvm, require_witness=row['arm'] == 'candidate'
+                                     and getattr(args, 'bounded_class_imports', False))
                 layout, _ = current_inventory_layout(args, row['resident']['report'], inv, llvm, model,
                                                       candidate=row['arm'] == 'candidate')
                 exports[row['arm']] = sorted({n for o in inv['objects'] for n in o['defined_functions']}

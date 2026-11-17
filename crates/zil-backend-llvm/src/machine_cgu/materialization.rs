@@ -24,7 +24,8 @@ pub(crate) struct Materialization {
     graph: Option<Arc<layout::CurrentGraph>>,
     grouping: OnceLock<Option<Arc<layout::Grouping>>>,
     grouping_input: Option<Arc<GroupingInput>>,
-    // BoundedClasses means the current 512-cost class-only transitive policy.
+    // BoundedClasses means the current 128-cost class-only transitive policy,
+    // including a current pre-prune copy allowance when graph reduction ran.
     // Both completed roles and their deferred grouping retain this selection;
     // no machine body or policy authority is restored across processes.
     imports: CallImportPolicy,

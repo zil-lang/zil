@@ -374,7 +374,7 @@ impl Layout {
             || !(2..=MAX_UNITS).contains(&count)
             || !matches!(
                 imports,
-                CallImportPolicy::Complete | CallImportPolicy::BoundedClasses
+                CallImportPolicy::Complete | CallImportPolicy::BoundedClasses(_)
             )
         {
             return None;
@@ -407,7 +407,7 @@ impl Layout {
             || !(2..=MAX_UNITS).contains(&count)
             || !matches!(
                 imports,
-                CallImportPolicy::Complete | CallImportPolicy::BoundedClasses
+                CallImportPolicy::Complete | CallImportPolicy::BoundedClasses(_)
             )
         {
             return None;
@@ -607,7 +607,7 @@ impl Layout {
             }
             let mut imports = Vec::new();
             while let Some(index) = pending.pop() {
-                if imports_policy == CallImportPolicy::BoundedClasses && !importable[index] {
+                if imports_policy.is_bounded() && !importable[index] {
                     continue;
                 }
                 if !importable[index]
@@ -690,7 +690,8 @@ impl Layout {
         ) {
             // Fresh roles already came from the selected current graph walk
             // above. Still check every role, clone collision and the original
-            // SOURCE-only total copy budget; class cost never enlarges it.
+            // SOURCE-only total copy budget, carried from the full current
+            // pre-prune graph when an early reduction supplies it.
             return None;
         }
         Some(layout)
@@ -1050,6 +1051,7 @@ impl Layout {
         {
             return false;
         }
+        let source_cost = imports.copy_allowance(source_cost);
         let mut copied_cost = 0usize;
         let mut previous = None;
         for unit in &self.units {
@@ -1113,7 +1115,7 @@ impl Layout {
                 {
                     return false;
                 }
-                if imports == CallImportPolicy::BoundedClasses
+                if imports.is_bounded()
                     && classes.is_none_or(|classes| {
                         !super::bounded_class_body(&module.items[index], classes)
                     })
@@ -1185,7 +1187,7 @@ impl Layout {
     ) -> Option<()> {
         if !matches!(
             imports,
-            CallImportPolicy::Complete | CallImportPolicy::BoundedClasses
+            CallImportPolicy::Complete | CallImportPolicy::BoundedClasses(_)
         ) || !self.valid_in_domain_with_policy(module, lir, count, Some(classes), imports)
         {
             return None;
@@ -1262,7 +1264,7 @@ impl Layout {
             }
             let mut reached = 0usize;
             while let Some(index) = pending.pop() {
-                if imports == CallImportPolicy::BoundedClasses && !importable[index] {
+                if imports.is_bounded() && !importable[index] {
                     continue;
                 }
                 if imported[index] != stamp || !importable[index] {
@@ -1604,9 +1606,10 @@ fn action_key(
     count.hash(&mut state);
     split.hash(&mut state);
     imports.hash(&mut state);
-    if imports == CallImportPolicy::BoundedClasses {
+    if imports.is_bounded() {
         super::BOUNDED_CLASS_IMPORT_ID.hash(&mut state);
         super::MAX_CLASS_IMPORT_COST.hash(&mut state);
+        imports.hash(&mut state);
     }
     match entry {
         EntryPoint::None => 0u8.hash(&mut state),
@@ -1656,7 +1659,7 @@ fn action_key(
         items,
     } = module;
     triple.hash(&mut state);
-    if imports == CallImportPolicy::BoundedClasses {
+    if imports.is_bounded() {
         hash_shared_items(items, &mut state);
     } else {
         items.hash(&mut state);

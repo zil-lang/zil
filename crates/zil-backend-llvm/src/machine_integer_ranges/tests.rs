@@ -735,3 +735,58 @@ fn indexed_range_fold_keeps_original_shared_body_budget_and_malformed_preflight(
         }
     }
 }
+
+#[test]
+fn current_class_membership_keeps_all_callers_and_protected_argument_bounds() {
+    let rename = |mut module: Module| {
+        for item in &mut module.items {
+            if let Item::Function(f) = item {
+                if f.name == "zil.fn.2" {
+                    f.name = "zil.class.current".into();
+                }
+                for inst in f
+                    .blocks
+                    .iter_mut()
+                    .flatten()
+                    .flat_map(|b| &mut b.instructions)
+                {
+                    if let Op::Call {
+                        callee: Val::Global(name),
+                        ..
+                    } = &mut inst.op
+                        && name == "zil.fn.2"
+                    {
+                        *name = "zil.class.current".into();
+                    }
+                }
+            }
+        }
+        module
+    };
+    let protected = BTreeSet::from(["root".into()]);
+    let classes = BTreeSet::from(["zil.class.current".into()]);
+    let mut without = rename(generated_with_bounded_root(false));
+    assert_eq!(fold(&mut without, &protected, &mut Default::default()), 3);
+    let mut narrow = rename(generated_with_bounded_root(false));
+    assert_eq!(
+        fold_classes(&mut narrow, &protected, &classes, &mut Default::default()),
+        6
+    );
+    zil_llvm_api::validate_module(&narrow).unwrap();
+    let mut wide = rename(generated_with_bounded_root(true));
+    assert_eq!(
+        fold_classes(&mut wide, &protected, &classes, &mut Default::default()),
+        3
+    );
+    zil_llvm_api::validate_module(&wide).unwrap();
+    let mut protected_class = rename(generated_with_bounded_root(false));
+    assert_eq!(
+        fold_classes(
+            &mut protected_class,
+            &BTreeSet::from(["root".into(), "zil.class.current".into()]),
+            &classes,
+            &mut Default::default()
+        ),
+        3
+    );
+}

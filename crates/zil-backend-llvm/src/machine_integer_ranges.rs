@@ -319,12 +319,40 @@ pub(crate) fn fold(
     protected: &BTreeSet<String>,
     preflight: &mut crate::machine_preflight::CurrentPreflight,
 ) -> usize {
-    fold_with_work(module, protected, preflight, MAX_WORK, true)
+    fold_classes(module, protected, &BTreeSet::new(), preflight)
 }
 
+pub(crate) fn fold_classes(
+    module: &mut Module,
+    protected: &BTreeSet<String>,
+    classes: &BTreeSet<String>,
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
+) -> usize {
+    fold_with_work_and_classes(module, protected, classes, preflight, MAX_WORK, true)
+}
+
+#[cfg(test)]
 fn fold_with_work(
     module: &mut Module,
     protected: &BTreeSet<String>,
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
+    work: usize,
+    reuse_rounds: bool,
+) -> usize {
+    fold_with_work_and_classes(
+        module,
+        protected,
+        &BTreeSet::new(),
+        preflight,
+        work,
+        reuse_rounds,
+    )
+}
+
+fn fold_with_work_and_classes(
+    module: &mut Module,
+    protected: &BTreeSet<String>,
+    classes: &BTreeSet<String>,
     preflight: &mut crate::machine_preflight::CurrentPreflight,
     mut work: usize,
     reuse_rounds: bool,
@@ -426,7 +454,7 @@ fn fold_with_work(
     for item in &module.items {
         if let Item::Function(f) = item
             && eligible(f, &excluded)
-            && f.name.starts_with("zil.fn.")
+            && (f.name.starts_with("zil.fn.") || classes.contains(&f.name))
             && !f.signature.variadic
             && f.signature.params.iter().all(|p| p.ty == Ty::Int(32))
         {

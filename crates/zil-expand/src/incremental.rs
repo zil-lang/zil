@@ -7,10 +7,13 @@ use std::time::Instant;
 use zil_base::{FileId, Fingerprint, FingerprintBuilder, ModuleId, TargetProfile};
 use zil_syntax::ParsedSource;
 
+#[path = "frontend_recovery.rs"]
+mod recovery;
 #[path = "scalar_admission.rs"]
 pub(super) mod scalar_admission;
 #[path = "scalar_placement.rs"]
 mod scalar_placement;
+pub use recovery::FrontendProducts;
 
 #[derive(Clone, Debug)]
 pub struct ModuleRevision(Arc<()>);
@@ -298,6 +301,7 @@ statistics!(
     plain_lifetimes_modules,
     restore_modules,
     lower_modules,
+    recovered_frontend_modules,
     reused_lower_modules,
     reused_lower_items,
     executed_lower_items,
@@ -695,6 +699,9 @@ struct Entry {
     // A changed absolute binding must validate against all current sources at
     // its actual Lower entry allowance before a cached product can escape.
     relocated_lower: bool,
+    recovered_lower: bool,
+    output_imports: Vec<CoreImport>,
+    recovery_encoding: Arc<std::sync::OnceLock<Arc<[u8]>>>,
     revision: ModuleRevision,
     functions: Arc<BTreeMap<String, FunctionInput>>,
 }
@@ -710,6 +717,7 @@ pub struct ExpandSession {
     scalar_inventory: Option<Arc<modules::ScalarInventory>>,
     stats: ProducerStats,
     profiling: bool,
+    recovery: Option<FrontendProducts>,
 }
 impl ExpandSession {
     pub fn set_cost_profiling(&mut self, enabled: bool) {
@@ -765,7 +773,25 @@ impl ExpandSession {
     ) -> CompileResult<Option<ExpandedProgram>> {
         self.stats = ProducerStats::default();
         let total = self.profiling.then(Instant::now);
-        let result = self.expand_parsed_inner(parsed, imports, limits, target, context);
+        let recovering =
+            self.recovery.is_some() || self.entries.values().any(|e| e.recovered_lower);
+        let admission = recovering.then(|| self.admission.clone());
+        let mut result = self.expand_parsed_inner(parsed, imports, limits, target, context);
+        // An insufficient Lower allowance is a cache miss, before a diagnostic
+        // or output is committed. Re-enter the same scalar producer and its
+        // original ledgers/admission, never the differently charged raw route.
+        if recovering && matches!(result, Ok(None)) {
+            let mut fresh = Self {
+                admission: admission.expect("recovery checkpoint"),
+                profiling: self.profiling,
+                ..Self::default()
+            };
+            result = fresh.expand_parsed_inner(parsed, imports, limits, target, context);
+            if matches!(result, Ok(Some(_))) {
+                *self = fresh;
+            }
+        }
+        self.recovery = None;
         self.admission.finish_request();
         if let Some(start) = total {
             self.stats.total_ns = nanos(start);
@@ -911,6 +937,9 @@ impl ExpandSession {
                     restored: None,
                     lower: None,
                     relocated_lower: false,
+                    recovered_lower: false,
+                    output_imports: Vec::new(),
+                    recovery_encoding: Arc::default(),
                     revision: ModuleRevision(Arc::new(())),
                     // Only the complete compatible environment below can keep
                     // a previous function's sealed lowering input evidence.
@@ -980,6 +1009,8 @@ impl ExpandSession {
                 entry.restored = None;
                 entry.lower = None;
                 entry.relocated_lower = false;
+                entry.recovered_lower = false;
+                entry.recovery_encoding = Arc::default();
                 entry.revision = ModuleRevision(Arc::new(()));
                 if !same_namespace {
                     entry.functions = Arc::default();
@@ -1139,6 +1170,12 @@ impl ExpandSession {
                 }
             }
         }
+        self.stats.recovered_frontend_modules = recovery::admit(
+            self.recovery.as_ref(),
+            &environment,
+            &normalization_environment,
+            &mut entries,
+        );
         let mut reuse = Reuse {
             normalization_environment: normalization_environment.clone(),
             normalized_environment_checks: BTreeMap::new(),
@@ -1178,6 +1215,10 @@ impl ExpandSession {
             let Some(entry) = entries.get_mut(&module.core.module_id) else {
                 return Ok(None);
             };
+            if entry.output_imports != module.imports {
+                entry.recovery_encoding = Arc::default();
+            }
+            entry.output_imports = module.imports.clone();
             if self
                 .entries
                 .get(&module.core.module_id)
@@ -1643,7 +1684,16 @@ impl Reuse<'_> {
         self.stats.borrowed_restore_fallback_items += 1;
     }
     pub(crate) fn cold_scalar_request(&self) -> bool {
-        self.prior_entries.is_empty()
+        self.prior_entries.is_empty() && !self.entries.values().any(|e| e.recovered_lower)
+    }
+    pub(crate) fn recovered_module(&mut self, file: FileId) -> Option<modules::ScalarModule> {
+        let entry = self.entry(file);
+        entry
+            .recovered_lower
+            .then(|| modules::ScalarModule::Recovered {
+                parsed: entry.parsed.clone(),
+                imports: entry.output_imports.clone(),
+            })
     }
     pub(crate) fn current_parser(&mut self, module: &s::Module) -> Option<ParsedSource> {
         let parsed = &self.entry(module.span.file).parsed;
@@ -2147,6 +2197,9 @@ impl Reuse<'_> {
                 self.stats.reused_lower_modules -= 1;
                 self.stats.retained_lower_cores -= 1;
                 self.stats.retained_lower_source_maps -= 1;
+                if self.entry(file).recovered_lower {
+                    return Ok(None);
+                }
                 return Err(errors);
             }
             self.entry(file).relocated_lower = false;
@@ -2195,6 +2248,7 @@ impl Reuse<'_> {
         self.stats.executed_lower_items += value.executed_lower_items as u64;
         self.stats.copied_lower_map_entries += value.copied_lower_map_entries as u64;
         let entry = self.entry(file);
+        entry.recovery_encoding = Arc::default();
         entry.lower = Some((limits.clone(), value));
         entry.relocated_lower = false;
         entry.revision = ModuleRevision(Arc::new(()));

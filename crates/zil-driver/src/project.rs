@@ -15,6 +15,8 @@ use zil_syntax::{ParseResult, ast};
 
 #[path = "project_discovery_cache.rs"]
 mod discovery_cache;
+#[path = "project_frontend_cache.rs"]
+mod frontend_cache;
 #[path = "stdlib.rs"]
 mod stdlib;
 
@@ -468,12 +470,26 @@ impl CompilationSession {
             // Raw function work products receive the same rejected-candidate
             // fallback as whole-project semantic candidates. Reuse the immutable
             // current source graph; never reread files or retry cancellation/IO.
+            let frontend_reused = report
+                .producer_work
+                .as_ref()
+                .is_some_and(|work| work.recovered_frontend_modules > 0);
             let retry = !options.cancellation.is_cancelled()
-                && report
+                && ((report
                     .function_type_work
                     .as_deref()
                     .is_some_and(|work| work.restored_reused_functions > 0)
-                && matches!(report.phase, Phase::Types | Phase::Analyze)
+                    && matches!(report.phase, Phase::Types | Phase::Analyze))
+                    || (frontend_reused
+                        && matches!(
+                            report.phase,
+                            Phase::Parse
+                                | Phase::Expand
+                                | Phase::Ct
+                                | Phase::Types
+                                | Phase::Analyze
+                                | Phase::Verify
+                        )))
                 && errors.iter().all(|e| {
                     matches!(
                         e.category,
@@ -483,7 +499,11 @@ impl CompilationSession {
             if retry {
                 report.restart_attempt(
                     CompileReport::new(root),
-                    "rejected_function_work_product",
+                    if frontend_reused {
+                        "rejected_frontend_work_product"
+                    } else {
+                        "rejected_function_work_product"
+                    },
                     errors,
                 );
                 report.disk_cache = DiskCacheStatus::Rebuilt;
@@ -991,8 +1011,15 @@ impl CompilationSession {
             } else {
                 None
             };
+        let frontend_store =
+            frontend_cache::Store::new(root, &key(Phase::Expand, true), options, &mut artifacts);
         let mut producer = std::mem::take(&mut self.producer);
         let mut materializer = std::mem::take(&mut self.materializer);
+        let recovery_start = cost_start(options.profile_compilation);
+        if let Some(store) = &frontend_store {
+            store.load(options, &mut producer, &mut materializer);
+        }
+        report.record_driver_cost("frontend_product_read", recovery_start);
         producer.set_cost_profiling(options.profile_compilation);
         let checkpoint_start = cost_start(options.profile_compilation);
         let producer_checkpoint = options
@@ -1727,6 +1754,13 @@ impl CompilationSession {
             }
         }
         report.record_driver_cost("semantic_candidate_publication", persistence_start);
+        let persistence_start = cost_start(options.profile_compilation);
+        if result.is_ok()
+            && let Some(store) = &frontend_store
+        {
+            store.save(&self.producer, &self.materializer, options, &artifacts);
+        }
+        report.record_driver_cost("frontend_product_publication", persistence_start);
         let persistence_start = cost_start(options.profile_compilation);
         if result.is_ok()
             && let Some(store) = &function_store
@@ -3214,6 +3248,166 @@ pub fn main()->i32=>0",
             cleared.to_json()
         );
         assert_eq!(cleared.verification_runs, 1);
+        fs::remove_dir_all(dir.0).unwrap();
+    }
+
+    #[test]
+    fn scalar_5105_frontend_products_fit_and_recover_before_first_edit() {
+        // Same 100 x (50 helpers + value), main and four IO declarations as
+        // native_workloads.generated(100, 50, 1, mixed=False), original budgets.
+        let dir = Dir::new();
+        let path = dir.0.join("main.zil");
+        let io = include_str!("../../../examples/mainline/resource_closures/io.zil");
+        fs::write(dir.0.join("io.zil"), io).unwrap();
+        let mut main = String::from("import io\n");
+        for module in 0..100 {
+            main.push_str(&format!("import m{module}\n"));
+            let mut text = String::new();
+            for function in 0..50 {
+                let a = (module + function) % 13 + 1;
+                let b = (function * 3) % 11 + 2;
+                text.push_str(&format!("fn h{function}(x: i32) -> i32 {{\n    var y: i32 = x\n    if y % 3 == 0 {{ y = (y * 2 + {a}) % 251 }} else {{ y = (y + {b}) % 251 }}\n    return y\n}}\n"));
+            }
+            text.push_str("pub fn value(x: i32) -> i32 {\n    var total: i32 = x\n");
+            for function in 0..50 {
+                text.push_str(&format!("    total = (total + h{function}(x)) % 65521\n"));
+            }
+            text.push_str("    return total\n}\n");
+            fs::write(dir.0.join(format!("m{module}.zil")), text).unwrap();
+        }
+        main.push_str("fn main() -> i32 {\n    var x: i32 = io.read()\n    if x < 0 { x = 0 }\n    x = x % 251\n    var total: i32 = 0\n");
+        for module in 0..100 {
+            main.push_str(&format!(
+                "    total = (total + m{module}.value(x)) % 65521\n"
+            ));
+        }
+        for shift in [0, 8, 16, 24] {
+            main.push_str(&format!("    io.emit((total >> {shift}) & 255)\n"));
+        }
+        main.push_str("    return 0\n}\n");
+        fs::write(&path, main).unwrap();
+        let options = CompileOptions {
+            stop_after: Stage::Verify,
+            push_reuse: true,
+            closed_executable: true,
+            profile_compilation: true,
+            semantic_cache: Some(dir.0.join("cache")),
+            ..Default::default()
+        };
+        let mut cold_session = CompilationSession::default();
+        let cold = cold_session.compile_path(&path, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        let products = cold_session
+            .producer
+            .encode_frontend_products(&options.limits)
+            .unwrap();
+        assert_eq!(
+            products.modules.len(),
+            102,
+            "all real scalar modules must encode"
+        );
+        let cache = dir.0.join("cache/frontend-v1");
+        let files = fs::read_dir(&cache)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.extension().is_some_and(|e| e == "candidate"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            files.len(),
+            103,
+            "102 Core products plus the context/CT manifest"
+        );
+        let retained_bytes: u64 = files.iter().map(|p| fs::metadata(p).unwrap().len()).sum();
+        assert!(
+            retained_bytes <= options.limits.max_source_bytes as u64,
+            "complete Source/Core/CT cache is {retained_bytes} bytes"
+        );
+        drop(products);
+        drop(cold_session);
+        let changed_path = dir.0.join("m0.zil");
+        let changed =
+            fs::read_to_string(&changed_path)
+                .unwrap()
+                .replacen("y * 2 + 1", "y * 2 + 2", 1);
+        fs::write(&changed_path, changed).unwrap();
+        let first = CompilationSession::default().compile_path(&path, &options);
+        assert_eq!(first.status, ResultCategory::Success, "{}", first.to_json());
+        assert_eq!(first.verification_runs, 1);
+        let work = first.producer_work.as_ref().unwrap();
+        assert_eq!(work.recovered_frontend_modules, 101, "{}", first.to_json());
+        assert_eq!(work.lower_modules, 1);
+        assert_eq!(work.normalize_modules, 1);
+        assert_eq!(work.restore_modules, 1);
+        let ct = first.materialization_work.unwrap();
+        assert_eq!(ct.reused_modules, 101);
+        assert_eq!(ct.executed_modules, 1);
+        fs::remove_dir_all(dir.0).unwrap();
+    }
+
+    #[test]
+    fn direct_first_edit_recovers_raw_frontend_and_still_verifies_current_program() {
+        let dir = Dir::new();
+        let path = dir.0.join("main.zil");
+        fs::write(&path, "import dep; pub fn main()->i32{return dep.f(7);}").unwrap();
+        fs::write(dir.0.join("dep.zil"), "pub fn f(x:i32)->i32{return x+1;}").unwrap();
+        let options = CompileOptions {
+            stop_after: Stage::Verify,
+            push_reuse: true,
+            closed_executable: true,
+            profile_compilation: true,
+            semantic_cache: Some(dir.0.join("cache")),
+            ..Default::default()
+        };
+        let cold = CompilationSession::default().compile_path(&path, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        assert!(dir.0.join("cache/frontend-v1").is_dir());
+        // Edit before creating the next compiler process/session. No warmup.
+        fs::write(&path, "import dep; pub fn main()->i32{return dep.f(8);}").unwrap();
+        let first = CompilationSession::default().compile_path(&path, &options);
+        assert_eq!(first.status, ResultCategory::Success, "{}", first.to_json());
+        assert_eq!(first.verification_runs, 1);
+        let work = first.producer_work.as_ref().unwrap();
+        assert_eq!(work.recovered_frontend_modules, 1);
+        assert_eq!(work.lower_modules, 1);
+        assert_eq!(work.normalize_modules, 1);
+        assert_eq!(work.restore_modules, 1);
+        if let Some(work) = first.materialization_work {
+            assert_eq!(work.reused_modules, 1);
+        }
+        let mut reference_options = options.clone();
+        reference_options.semantic_cache = None;
+        let reference = CompilationSession::default().compile_path(&path, &reference_options);
+        assert_eq!(reference.status, first.status);
+        assert_eq!(reference.diagnostics, first.diagnostics);
+        // A current source error cannot be hidden by the previous raw products.
+        fs::write(
+            dir.0.join("dep.zil"),
+            "pub fn f(x:i32)->i32{return missing;}",
+        )
+        .unwrap();
+        let bad = CompilationSession::default().compile_path(&path, &options);
+        let reference = CompilationSession::default().compile_path(&path, &reference_options);
+        assert_ne!(bad.status, ResultCategory::Success);
+        assert_eq!(bad.status, reference.status);
+        assert_eq!(bad.diagnostics, reference.diagnostics);
+        // The failed request does not replace the last successful publication.
+        fs::write(dir.0.join("dep.zil"), "pub fn f(x:i32)->i32{return x+1;}").unwrap();
+        let repaired = CompilationSession::default().compile_path(&path, &options);
+        assert_eq!(
+            repaired.status,
+            ResultCategory::Success,
+            "{}",
+            repaired.to_json()
+        );
+        assert_eq!(repaired.verification_runs, 1);
+        assert_eq!(
+            repaired
+                .producer_work
+                .as_ref()
+                .unwrap()
+                .recovered_frontend_modules,
+            2
+        );
         fs::remove_dir_all(dir.0).unwrap();
     }
 

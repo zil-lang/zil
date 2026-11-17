@@ -450,7 +450,16 @@ pub(crate) fn fold_known_leaf_calls_with_preflight(
     lir: &LirView<'_>,
     preflight: &mut crate::machine_preflight::CurrentPreflight,
 ) -> usize {
-    let sources = lir
+    fold_known_leaf_calls_with_classes(module, lir, &BTreeSet::new(), preflight)
+}
+
+pub(crate) fn fold_known_leaf_calls_with_classes(
+    module: &mut Module,
+    lir: &LirView<'_>,
+    classes: &BTreeSet<String>,
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
+) -> usize {
+    let mut sources = lir
         .functions
         .iter()
         .filter(|function| {
@@ -466,6 +475,7 @@ pub(crate) fn fold_known_leaf_calls_with_preflight(
         })
         .map(|function| format!("zil.fn.{}", function.id.0))
         .collect::<BTreeSet<_>>();
+    sources.extend(classes.iter().cloned());
     fold_with_sources_and_preflight(module, &sources, preflight)
 }
 

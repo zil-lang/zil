@@ -59,9 +59,17 @@ pub(super) struct SharedScalarModule {
     pub(super) items: Arc<[Arc<Item>]>,
     pub(super) imports: Vec<CoreImport>,
 }
+pub(super) enum ScalarModule {
+    Syntax(Arc<SharedScalarModule>),
+    // Raw Core recovery deliberately has no pretend normalized/restored AST.
+    Recovered {
+        parsed: zil_syntax::ParsedSource,
+        imports: Vec<CoreImport>,
+    },
+}
 pub(super) enum SpecializedModules {
     Ordinary(ModuleProducts),
-    SharedScalar(Vec<Arc<SharedScalarModule>>),
+    SharedScalar(Vec<ScalarModule>),
     BorrowedScalar(Vec<scalar_walk::ModuleView>),
 }
 impl SpecializedModules {
@@ -87,6 +95,9 @@ impl SpecializedModules {
             Self::SharedScalar(modules) => modules
                 .into_iter()
                 .map(|module| {
+                    let ScalarModule::Syntax(module) = module else {
+                        unreachable!("raw API never installs recovery candidates")
+                    };
                     let full = Module {
                         id: module.id,
                         span: module.span,
@@ -1315,11 +1326,18 @@ fn normalize_scalar(
     }
     let mut output = Vec::with_capacity(modules.len());
     for ((module, edges), items) in modules.iter().zip(imports).zip(positions) {
+        if let Some(recovered) = reuse.recovered_module(module.span.file)
+            && reuse.replay(Stage::Restore, module.span, &mut budget)
+        {
+            reuse.retain_restored();
+            output.push(recovered);
+            continue;
+        }
         if let Some(restored) = reuse.shared_restored(module.span.file)
             && reuse.replay(Stage::Restore, module.span, &mut budget)
         {
             reuse.retain_restored();
-            output.push(restored);
+            output.push(ScalarModule::Syntax(restored));
             continue;
         }
         let before = budget.remaining_limits();
@@ -1376,7 +1394,7 @@ fn normalize_scalar(
             imports: edges,
         });
         reuse.save_shared_restored(module.span.file, restored.clone());
-        output.push(restored);
+        output.push(ScalarModule::Syntax(restored));
     }
     products
         .storage

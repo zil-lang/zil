@@ -285,6 +285,7 @@ pub(crate) struct TransformProduct {
     pub(crate) policy: TransformPolicy,
     /// This optional pass depends on flags beyond the raw lowering identity.
     pub(crate) call_classes_enabled: bool,
+    pub(crate) early_closed_graph: Option<crate::machine_closed_graph::Reduction>,
     pub(crate) call_classes: Option<crate::machine_call_classes::Stats>,
     pub(crate) class_symbols: std::collections::BTreeSet<String>,
     pub(crate) class_cache: Option<Arc<crate::machine_call_classes::Cache>>,
@@ -355,6 +356,7 @@ pub(crate) struct PartitionInput {
     options: BuildOptions,
     transform_policy: Option<TransformPolicy>,
     class_symbols: std::collections::BTreeSet<String>,
+    early_closed_graph: Option<crate::machine_closed_graph::Reduction>,
     names: Option<Vec<(FunctionId, String)>>,
     collected: bool,
     closures: Vec<FunctionId>,
@@ -410,6 +412,7 @@ impl PartitionInput {
             options,
             transform_policy: None,
             class_symbols: Default::default(),
+            early_closed_graph: None,
             names: names.map(<[_]>::to_vec),
             collected,
             closures: lir
@@ -441,6 +444,13 @@ impl PartitionInput {
         self.class_symbols = symbols.clone();
         self
     }
+    pub(crate) fn with_closed_graph(
+        mut self,
+        reduction: Option<&crate::machine_closed_graph::Reduction>,
+    ) -> Self {
+        self.early_closed_graph = reduction.cloned();
+        self
+    }
     pub(crate) fn same_completed_output(&self, other: &Self) -> bool {
         self.same_recipe_environment(other)
             && matches!((&self.scalar, &other.scalar), (Some((_, left)), Some((_, right)))
@@ -449,12 +459,15 @@ impl PartitionInput {
             && self.output.same_values(&other.output)
     }
     pub(crate) fn same_build_options(&self, other: &Self) -> bool {
-        self.options == other.options && self.transform_policy == other.transform_policy
+        self.options == other.options
+            && self.transform_policy == other.transform_policy
+            && self.early_closed_graph == other.early_closed_graph
     }
     pub(crate) fn same_recipe_environment(&self, other: &Self) -> bool {
         self.options == other.options
             && self.transform_policy == other.transform_policy
             && self.class_symbols == other.class_symbols
+            && self.early_closed_graph == other.early_closed_graph
             && self.names == other.names
             && self.collected == other.collected
             && self.closures == other.closures
@@ -466,6 +479,7 @@ impl PartialEq for PartitionInput {
         if self.options != other.options
             || self.transform_policy != other.transform_policy
             || self.class_symbols != other.class_symbols
+            || self.early_closed_graph != other.early_closed_graph
             || self.names != other.names
             || self.collected != other.collected
             || self.closures != other.closures
@@ -528,6 +542,10 @@ impl From<String> for DiagnosticText {
     }
 }
 impl DiagnosticText {
+    pub(crate) fn with_class_witness(mut self, witness: &Arc<String>) -> Self {
+        self.fragments.push(witness.clone());
+        self
+    }
     pub(crate) fn current(&self, fingerprint: &str) -> Self {
         Self {
             text: self.text.clone(),

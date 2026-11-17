@@ -35,6 +35,7 @@ pub use incremental::{BackendSession, BackendSessionSummary};
 mod machine_call_classes;
 mod machine_cgu;
 mod machine_checked_add_chain;
+mod machine_closed_graph;
 mod machine_closed_prune;
 mod machine_closure_linkage;
 mod machine_integer_ranges;

@@ -3,6 +3,7 @@
 import copy
 import json
 from pathlib import Path
+import re
 import struct
 import sys
 import tempfile
@@ -17,6 +18,141 @@ import closed_project_quality as quality
 
 
 class ClosedProjectTests(unittest.TestCase):
+    def witness(self, llvm):
+        templates, rows = [], []
+        for match in re.finditer(rb'(?m)^declare [^\n]+\n|^define [^\n]+\n[\s\S]*?^\}\n', llvm):
+            item = match[0].decode('ascii')
+            name = re.search(r'@([A-Za-z0-9_.]+)\(', item)[1]
+            template = item.replace('@'+name+'(', '@'+quality.CLASS_INPUT_OUTER+'(', 1)
+            # Test fixtures may share text; production shares actual immutable
+            # owners. The qualifier does not infer owner identity from bytes.
+            if template not in templates:
+                templates.append(template)
+            rows.append([name, templates.index(template)])
+        model = quality.scalar_model(llvm)
+        return dict(templates=templates, items=rows,
+                    copy_allowance=sum(cost for name, cost in model['function_costs'].items()
+                                       if re.fullmatch(r'zil\.fn\.\d+', name)))
+
+    def with_witness(self, llvm, witness):
+        context = ('; ZIL verified LLVM module\n; verified-fingerprint: '+'f'*64+
+                   '\ntarget triple = "x86_64-unknown-linux-gnu"\n\n').encode()
+        return context+llvm+(quality.CLASS_INPUT_PREFIX+json.dumps(witness)+'\n').encode()
+
+    def boundary_fixture(self):
+        name = 'zil.class.'+'a'*64
+        llvm = ('declare i32 @getchar() nonlazybind\ndeclare i32 @putchar(i32) nonlazybind\n'
+                'define i32 @main() {\nentry:\n ret i32 0\n}\n'
+                'define i32 @zil.fn.1(i32 %x) {\nentry:\n ret i32 %x\n}\n'
+                f'define i32 @{name}(i32 %x) {{\nentry:\n ret i32 %x\n}}\n').encode()
+        witness = self.witness(llvm)
+        final = re.sub(rb'(?m)^define i32 @zil\.fn\.1[^\n]+\n[\s\S]*?^\}\n', b'', llvm)
+        return name, final, witness
+
+    def test_class_boundary_witness_survives_pruning_and_current_transforms(self):
+        name, final, witness = self.boundary_fixture()
+        final = final.replace(b'entry:\n ret i32 %x', b'entry:\n %sum = add i32 %x, 0\n ret i32 %sum')
+        model = quality.scalar_model(self.with_witness(final, witness), require_witness=True)
+        self.assertEqual(model['classes'], {name})
+        self.assertEqual(model['class_sources'], {name: ['zil.fn.1']})
+        self.assertNotIn('zil.fn.1', model['definitions'])
+        self.assertEqual(model['original_source_cost'], 2)
+        self.assertEqual(model['function_costs'][name], 3)
+        with self.assertRaises(ValueError):
+            quality.scalar_model(final)
+        with self.assertRaises(ValueError):
+            quality.scalar_model(final, require_witness=True)
+        # Equal rendered templates can come from different actual body owners.
+        independent = copy.deepcopy(witness)
+        independent['templates'].append(independent['templates'][independent['items'][-1][1]])
+        independent['items'][-1][1] = len(independent['templates'])-1
+        quality.scalar_model(self.with_witness(final, independent), require_witness=True)
+
+    def test_class_boundary_witness_rejects_malformed_rows_templates_names_and_allowance(self):
+        _, final, witness = self.boundary_fixture()
+        changes = ('false_cost', 'bool_cost', 'missing_field', 'extra_field', 'bad_row', 'bool_ref',
+                   'negative_ref', 'large_ref', 'first_use', 'unused_template', 'duplicate_name',
+                   'bad_name', 'wrong_placeholder', 'extra_function', 'null_function', 'literal_global')
+        for change in changes:
+            bad = copy.deepcopy(witness)
+            if change == 'false_cost': bad['copy_allowance'] += 1
+            if change == 'bool_cost': bad['copy_allowance'] = True
+            if change == 'missing_field': del bad['items']
+            if change == 'extra_field': bad['authority'] = True
+            if change == 'bad_row': bad['items'][0].append(0)
+            if change == 'bool_ref': bad['items'][0][1] = False
+            if change == 'negative_ref': bad['items'][0][1] = -1
+            if change == 'large_ref': bad['items'][0][1] = len(bad['templates'])
+            if change == 'first_use': bad['items'][0][1] = 1
+            if change == 'unused_template': bad['templates'].append(bad['templates'][0])
+            if change == 'duplicate_name': bad['items'].append(bad['items'][-1])
+            if change == 'bad_name': bad['items'][-1][0] = 'zil.class.not-a-receipt'
+            if change == 'wrong_placeholder': bad['templates'][0] = bad['templates'][0].replace(quality.CLASS_INPUT_OUTER, 'getchar')
+            if change == 'extra_function': bad['templates'][0] += bad['templates'][1]
+            if change == 'null_function': bad['items'][0][0] = None
+            if change == 'literal_global':
+                bad['items'].append([None, len(bad['templates'])])
+                bad['templates'].append('@address = global i32 0\n')
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                quality.scalar_model(self.with_witness(final, bad), require_witness=True)
+        good = self.with_witness(final, witness)
+        comment = (quality.CLASS_INPUT_PREFIX+json.dumps(witness)+'\n').encode()
+        for bad in (good+comment, good.replace(comment, b'; zil-current-class-input-v1 nope\n'),
+                    good.replace(comment, (quality.CLASS_INPUT_PREFIX+'{"templates":[],"templates":[]}\n').encode()),
+                    good.replace(b'"x86_64-unknown-linux-gnu"', b'"another-target"'),
+                    good.replace(b'; verified-fingerprint: ', b'; missing-fingerprint: '), good[:-1]):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                quality.scalar_model(bad, require_witness=True)
+
+    def test_class_boundary_rejects_forged_class_abi_and_unsafe_final_bodies(self):
+        name, final, witness = self.boundary_fixture()
+        forged = copy.deepcopy(witness)
+        forged['templates'].append(forged['templates'][forged['items'][-1][1]].replace('ret i32 %x', 'ret i32 42'))
+        forged['items'][-1][1] = len(forged['templates'])-1
+        with self.assertRaisesRegex(ValueError, 'equal complete current source body'):
+            quality.scalar_model(self.with_witness(final, forged), require_witness=True)
+        for bad in (final.replace(name.encode(), ('zil.class.'+'b'*64).encode()),
+                    final.replace(b'(i32 %x)', b'(i32 %x, i32 %y)'),
+                    final.replace(b'ret i32 %x', b'ret i32 poison'),
+                    final.replace(b'ret i32 %x', b'%p = load i32, ptr null\n ret i32 %p'),
+                    final.replace(b'ret i32 %x', f'%r = call i32 @{name}(i32 %x)\n ret i32 %r'.encode()),
+                    final.replace(b'(i32 %x) {', b'(i32 %x) nounwind willreturn memory(none) {')
+                         .replace(b'ret i32 %x', b'%r = call i32 @getchar()\n ret i32 %r')):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                quality.scalar_model(self.with_witness(bad, witness), require_witness=True)
+        # A placeholder in an operand is not an instruction to rename it.
+        forged = copy.deepcopy(witness)
+        index = forged['items'][-1][1]
+        forged['templates'][index] = forged['templates'][index].replace(
+            'ret i32 %x', f'%r = call i32 @{quality.CLASS_INPUT_OUTER}(i32 %x)\n ret i32 %r')
+        with self.assertRaises(ValueError):
+            quality.scalar_model(self.with_witness(final, forged), require_witness=True)
+
+    def test_reduced_layout_uses_recomputed_boundary_copy_allowance(self):
+        name = 'zil.class.'+'a'*64
+        original = ('declare i32 @getchar() nonlazybind\ndeclare i32 @putchar(i32) nonlazybind\n'
+                    f'define i32 @main() {{\nentry:\n %a = call i32 @{name}(i32 1)\n'
+                    ' %b = call i32 @zil.fn.2(i32 %a)\n ret i32 %b\n}\n'
+                    'define i32 @zil.fn.1(i32 %x) {\nentry:\n ret i32 %x\n}\n'
+                    f'define i32 @zil.fn.2(i32 %x) {{\nentry:\n %a = call i32 @{name}(i32 %x)\n ret i32 %a\n}}\n'
+                    f'define i32 @{name}(i32 %x) {{\nentry:\n ret i32 %x\n}}\n').encode()
+        final = re.sub(rb'(?m)^define i32 @zil\.fn\.1[^\n]+\n[\s\S]*?^\}\n', b'', original)
+        model = quality.scalar_model(self.with_witness(final, self.witness(original)), require_witness=True)
+        items = [('declare', 'getchar'), ('declare', 'putchar'), ('define', 'main'),
+                 ('define', 'zil.fn.2'), ('define', name)]
+        units = [dict(owner=i, definitions=[i+2] if i < 3 else [], imports=[], prelude=[], declarations=[])
+                 for i in range(16)]
+        units[0].update(imports=[4], declarations=[3])
+        units[1]['imports'] = [4]
+        self.assertEqual(model['original_source_cost'], 5)
+        self.assertEqual(model['function_costs']['zil.fn.2'], 3)
+        self.assertTrue(quality.layout_roles(units, items, model, True, True)[2])
+        # The old final-source-only denominator incorrectly rejects these four
+        # copied instructions/blocks. A genuinely lower allowance still fails.
+        bad = dict(model, original_source_cost=3)
+        with self.assertRaisesRegex(ValueError, 'source-only total copy cost'):
+            quality.layout_roles(units, items, bad, True, True)
+
     def args(self, out=None, preset='1000'):
         return types.SimpleNamespace(out=out, repo=matrix.ROOT, preset=preset, modules=100,
             shape=matrix.SHAPES[preset], graph='wide', mode='o2', native_repetitions=1,
@@ -229,6 +365,7 @@ class ClosedProjectTests(unittest.TestCase):
         llvm += f'define i32 @{first}(i32 %x) {{\n'+first_body+'}\n'
         llvm += f'define i32 @{leaf}(i32 %x) {{\n'+leaf_body+'}\n'
         llvm = llvm.encode()
+        llvm = self.with_witness(llvm, self.witness(llvm))
         model = quality.scalar_model(llvm)
         items = [('declare', 'getchar'), ('declare', 'putchar'), ('define', 'main')]
         items += [('define', f'zil.fn.{index}') for index in range(1, 16)]
@@ -268,7 +405,7 @@ class ClosedProjectTests(unittest.TestCase):
         args.bounded_class_imports = True
         quality.policy(args)
         self.assertEqual(quality.schema(args), quality.BOUNDED_SCHEMA)
-        self.assertEqual(quality.policy_identity(args), 'closed+off+bounded-classes-128-v3')
+        self.assertEqual(quality.policy_identity(args), 'closed+off+bounded-classes-128-v4')
         self.assertEqual(quality.runtime_decision([self.runtime_case()], args)['schema'], quality.BOUNDED_SCHEMA)
         for arm in ('baseline', 'candidate'):
             command = matrix.zil_command(args, arm, Path('/src/main.zil'), Path('/work')/arm)

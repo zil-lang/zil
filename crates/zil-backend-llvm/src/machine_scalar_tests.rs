@@ -1384,3 +1384,40 @@ fn fused_scalar_edits_keep_different_plans_and_invalid_originals_separate() {
         error
     );
 }
+
+#[test]
+fn minted_class_candidates_reach_scalar_folding_without_source_aliases() {
+    let lir = zil_ir::LirModule {
+        schema_version: zil_ir::SCHEMA_VERSION,
+        module_id: zil_ir::ModuleId(0),
+        verified_fingerprint: zil_base::Fingerprint::ZERO,
+        target: zil_base::TargetProfile::host_llvm(),
+        functions: Default::default(),
+        closures: vec![],
+        resources: vec![],
+        layouts: vec![],
+    };
+    let original = checked_model(32, "sadd", 3, 4);
+    let mut none = original.clone();
+    assert_eq!(
+        fold_known_leaf_calls_with_classes(
+            &mut none,
+            &lir.as_view(),
+            &BTreeSet::new(),
+            &mut Default::default()
+        ),
+        0
+    );
+    assert_eq!(none, original);
+    let mut current = original;
+    assert_eq!(
+        fold_known_leaf_calls_with_classes(
+            &mut current,
+            &lir.as_view(),
+            &sources(),
+            &mut Default::default()
+        ),
+        1
+    );
+    zil_llvm_api::validate_module(&current).unwrap();
+}

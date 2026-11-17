@@ -504,6 +504,7 @@ pub fn build_view_with_cancellation_and_session(
         .cloned();
     let original_machine = machine.clone();
     let mut call_classes = None;
+    let mut early_closed_graph = None;
     let mut class_symbols = std::collections::BTreeSet::new();
     let mut class_cache = None;
     let mut class_import_fallback = None;
@@ -531,6 +532,7 @@ pub fn build_view_with_cancellation_and_session(
         .cloned();
     if let Some(cached) = reused_transform {
         call_classes = cached.call_classes;
+        early_closed_graph = cached.early_closed_graph.clone();
         class_symbols = cached.class_symbols.clone();
         class_import_fallback = cached.class_import_fallback;
         checked_add_cache = cached.checked_add_cache.clone();
@@ -544,11 +546,55 @@ pub fn build_view_with_cancellation_and_session(
     } else {
         if options.optimization == Optimization::O2 && options.incremental_o2 {
             let mut flat = machine.to_module();
+            if call_classes_enabled && options.bounded_class_imports && !collected_closed {
+                let pass_started = std::time::Instant::now();
+                machine_preflight.check(&flat).map_err(api_error)?;
+                let mut reduced = flat.clone();
+                let previous = session
+                    .as_ref()
+                    .and_then(|s| s.transformed.as_ref())
+                    .filter(|old| old.policy == transform_policy)
+                    .and_then(|old| old.class_cache.as_deref());
+                if let Some((stats, mut symbols, cache)) =
+                    crate::machine_call_classes::canonicalize_stable_cached(
+                        &mut reduced,
+                        &transform_policy.protected,
+                        cancelled,
+                        previous,
+                    )
+                    && !symbols.is_empty()
+                    && let Some(reduction) = crate::machine_closed_graph::prune(
+                        &mut reduced,
+                        lir,
+                        &mut symbols,
+                        &transform_policy.protected,
+                        cancelled,
+                    )
+                    .map_err(api_error)?
+                    && !symbols.is_empty()
+                    && reduction.source_functions(&reduced, lir).is_some()
+                {
+                    early_closed_graph = Some(reduction);
+                    call_classes = Some(stats);
+                    class_symbols = symbols;
+                    class_work = Some((
+                        cache.reused_inputs,
+                        cache.rebuilt_inputs,
+                        cache.reused_keys,
+                        cache.rebuilt_keys,
+                    ));
+                    class_cache = Some(std::sync::Arc::new(cache));
+                    flat = reduced;
+                }
+                check_cancelled(cancelled)?;
+                timings.transform_call_classes_ns += crate::object_cache::elapsed_ns(pass_started);
+            }
             if options.bounded_class_imports {
                 let pass_started = std::time::Instant::now();
-                crate::machine_integer_ranges::fold(
+                crate::machine_integer_ranges::fold_classes(
                     &mut flat,
                     &transform_policy.protected,
+                    &class_symbols,
                     &mut machine_preflight,
                 );
                 timings.transform_ranges_ns += crate::object_cache::elapsed_ns(pass_started);
@@ -563,13 +609,14 @@ pub fn build_view_with_cancellation_and_session(
             checked_add_work.0 += checked_add_cache.checked_functions;
             checked_add_work.1 += checked_add_cache.reused_functions;
             let pass_started = std::time::Instant::now();
-            crate::machine_scalar::fold_known_leaf_calls_with_preflight(
+            crate::machine_scalar::fold_known_leaf_calls_with_classes(
                 &mut flat,
                 lir,
+                &class_symbols,
                 &mut machine_preflight,
             );
             timings.transform_scalar_ns += crate::object_cache::elapsed_ns(pass_started);
-            if call_classes_enabled {
+            if call_classes_enabled && early_closed_graph.is_none() {
                 let pass_started = std::time::Instant::now();
                 check_cancelled(cancelled)?;
                 // The class pass reads and stages a complete model. A source
@@ -626,6 +673,7 @@ pub fn build_view_with_cancellation_and_session(
                 input,
                 policy: transform_policy.clone(),
                 call_classes_enabled,
+                early_closed_graph: early_closed_graph.clone(),
                 call_classes,
                 class_symbols: class_symbols.clone(),
                 class_cache: class_cache.clone(),
@@ -684,6 +732,7 @@ pub fn build_view_with_cancellation_and_session(
         )
         .with_transform_policy(transform_policy.clone())
         .with_class_symbols(&class_symbols)
+        .with_closed_graph(early_closed_graph.as_ref())
     });
     let cached_partition = session
         .as_ref()
@@ -760,6 +809,13 @@ pub fn build_view_with_cancellation_and_session(
                         .is_some_and(|input| old.input.same_build_options(input))
                 })
                 .and_then(|old| old.materialization.as_ref());
+            let partition_functions = early_closed_graph
+                .as_ref()
+                .and_then(|reduction| reduction.source_functions(&machine.to_module(), lir));
+            let mut partition_lir = lir.clone();
+            if let Some(functions) = &partition_functions {
+                partition_lir.functions = functions;
+            }
             if options.bounded_class_imports {
                 // Whole-closure imports make the entry unit contain the whole
                 // reachable program again. A private edit then recompiles that
@@ -768,13 +824,17 @@ pub fn build_view_with_cancellation_and_session(
                 // across units in this explicit research strategy.
                 crate::machine_cgu::partition_classes_reusing_with_policy(
                     machine.to_module(),
-                    lir,
+                    &partition_lir,
                     options.emit.entry,
                     options.codegen.units,
                     &class_symbols,
                     options.object_cache.as_deref(),
                     previous,
-                    crate::machine_cgu::CallImportPolicy::BoundedClasses,
+                    crate::machine_cgu::CallImportPolicy::BoundedClasses(
+                        early_closed_graph
+                            .as_ref()
+                            .map(|graph| graph.copy_allowance),
+                    ),
                 )
             } else {
                 crate::machine_cgu::partition_classes_reusing(
@@ -798,6 +858,7 @@ pub fn build_view_with_cancellation_and_session(
             // from the actual current original emitter output, not a partial
             // helper plan; this attempt remains inside the request's timing.
             let mut flat = original_machine.to_module();
+            early_closed_graph = None;
             if options.bounded_class_imports {
                 let pass_started = std::time::Instant::now();
                 crate::machine_integer_ranges::fold(
@@ -852,6 +913,7 @@ pub fn build_view_with_cancellation_and_session(
                             input,
                             policy: transform_policy.clone(),
                             call_classes_enabled,
+                            early_closed_graph: early_closed_graph.clone(),
                             call_classes,
                             class_symbols: class_symbols.clone(),
                             class_cache: class_cache.clone(),
@@ -870,7 +932,8 @@ pub fn build_view_with_cancellation_and_session(
                         session.lower.identity(),
                     )
                     .with_transform_policy(transform_policy.clone())
-                    .with_class_symbols(&class_symbols),
+                    .with_class_symbols(&class_symbols)
+                    .with_closed_graph(early_closed_graph.as_ref()),
                 );
             }
         }
@@ -920,6 +983,11 @@ pub fn build_view_with_cancellation_and_session(
             session.render_output(&machine)
         } else {
             crate::incremental::DiagnosticText::from(machine.to_module().to_text())
+        };
+        let llvm = if let Some(reduction) = &early_closed_graph {
+            llvm.with_class_witness(&reduction.witness)
+        } else {
+            llvm
         };
         timings.diagnostic_ns += crate::object_cache::elapsed_ns(diagnostic_started);
         let mut pending_layout = None;
@@ -1253,7 +1321,7 @@ pub fn build_view_with_cancellation_and_session(
         closed_prune,
         partition_layout_key,
         class_import_requested: if options.bounded_class_imports {
-            Some("bounded-classes-128-v3")
+            Some("bounded-classes-128-v4")
         } else {
             call_classes_enabled.then_some("complete")
         },
@@ -1261,7 +1329,7 @@ pub fn build_view_with_cancellation_and_session(
             Some("complete")
         } else {
             (!class_symbols.is_empty()).then_some(if options.bounded_class_imports {
-                "bounded-classes-128-v3"
+                "bounded-classes-128-v4"
             } else {
                 "complete"
             })

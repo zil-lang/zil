@@ -92,10 +92,27 @@ impl ScalarMaterialization {
 pub(crate) struct ScalarMaterializationSession {
     entries: BTreeMap<ModuleId, Arc<Entry>>,
     stats: ScalarMaterializationStats,
+    recovery: BTreeMap<ModuleId, Arc<[u8]>>,
     #[cfg(test)]
     cloned_walk: bool,
 }
 impl ScalarMaterializationSession {
+    pub(crate) fn restore_raw_receipts(&mut self, receipts: BTreeMap<ModuleId, Arc<[u8]>>) {
+        if self.entries.is_empty() {
+            self.recovery = receipts;
+        }
+    }
+    pub(crate) fn encode_raw_receipts(&self, limits: &Limits) -> BTreeMap<ModuleId, Arc<[u8]>> {
+        let mut remaining = limits.max_source_bytes;
+        self.entries
+            .iter()
+            .filter_map(|(id, entry)| {
+                let bytes = encode_raw_receipt(entry, remaining)?;
+                remaining -= bytes.len();
+                Some((*id, bytes.into()))
+            })
+            .collect()
+    }
     pub(crate) fn checkpoint(&self) -> Self {
         self.clone()
     }
@@ -203,11 +220,21 @@ impl ScalarMaterializationSession {
         for input in inputs {
             let module = &input.parsed().module;
             let path_capacity = materializer.item_path.capacity();
-            let prior = self.entries.get(&module.id).filter(|entry| {
-                entry.parsed.same_revision(input)
-                    && entry.max_depth == limits.max_call_depth
-                    && entry.path_capacity == path_capacity
-            });
+            // Raw receipts are rebound only after current scalar admission,
+            // original capture, graph checks and complete environment setup.
+            let recovered = self
+                .recovery
+                .get(&module.id)
+                .and_then(|bytes| decode_raw_receipt(bytes, input, limits));
+            let prior = self
+                .entries
+                .get(&module.id)
+                .or(recovered.as_ref())
+                .filter(|entry| {
+                    entry.parsed.same_revision(input)
+                        && entry.max_depth == limits.max_call_depth
+                        && entry.path_capacity == path_capacity
+                });
             if let Some(entry) = prior {
                 if entry.receipt.fits(&materializer.environment.budget) {
                     entry.receipt.replay(&mut materializer.environment.budget)?;
@@ -264,8 +291,101 @@ impl ScalarMaterializationSession {
             .checked_add((limits.max_nodes - capture_remaining.max_nodes) as u64)
             .ok_or_else(|| category("declaration capture node count overflow", Span::default()))?;
         self.entries = next;
+        self.recovery.clear();
         Ok(Some(ScalarMaterialization { usage, remaining }))
     }
+}
+
+// This format contains ordinary bytes/counts only, never ScalarMaterialization
+// or the parser/capture admission. The driver binds compiler and option identity.
+fn encode_raw_receipt(entry: &Entry, maximum: usize) -> Option<Vec<u8>> {
+    let source = entry.parsed.source();
+    let placement = raw_placement(&entry.parsed);
+    let size = 8usize
+        .checked_add(9 * 8)?
+        .checked_add(source.path.len())?
+        .checked_add(source.text.len())?
+        .checked_add(placement.len())?;
+    if size > maximum {
+        return None;
+    }
+    let mut bytes = Vec::with_capacity(size);
+    bytes.extend_from_slice(b"ZILCTMR1");
+    for value in [
+        entry.max_depth as u64,
+        entry.path_capacity as u64,
+        entry.resulting_path_capacity as u64,
+        entry.receipt.work,
+        entry.receipt.starting_live_bytes,
+        entry.receipt.peak_live_bytes,
+        entry.receipt.ending_live_bytes,
+        source.path.len() as u64,
+        source.text.len() as u64,
+    ] {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+    bytes.extend_from_slice(source.path.as_bytes());
+    bytes.extend_from_slice(source.text.as_bytes());
+    bytes.extend_from_slice(&placement);
+    Some(bytes)
+}
+fn raw_placement(parsed: &ParsedSource) -> Vec<u8> {
+    let source = parsed.source();
+    let module = &parsed.parsed().module;
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(&source.module_id.0.to_le_bytes());
+    bytes.extend_from_slice(&source.file_id.0.to_le_bytes());
+    for span in std::iter::once(module.span).chain(module.items.iter().map(|i| i.span)) {
+        bytes.extend_from_slice(&span.file.0.to_le_bytes());
+        bytes.extend_from_slice(&(span.start as u64).to_le_bytes());
+        bytes.extend_from_slice(&(span.end as u64).to_le_bytes());
+    }
+    bytes
+}
+fn decode_raw_receipt(bytes: &[u8], parsed: &ParsedSource, limits: &Limits) -> Option<Arc<Entry>> {
+    if bytes.len() > limits.max_source_bytes || bytes.get(..8)? != b"ZILCTMR1" {
+        return None;
+    }
+    let mut values = [0u64; 9];
+    for (i, value) in values.iter_mut().enumerate() {
+        *value = u64::from_le_bytes(bytes.get(8 + i * 8..16 + i * 8)?.try_into().ok()?);
+    }
+    let [
+        depth,
+        capacity,
+        resulting,
+        work,
+        starting,
+        peak,
+        ending,
+        path,
+        text,
+    ] = values;
+    let path_end = 80usize.checked_add(usize::try_from(path).ok()?)?;
+    let text_end = path_end.checked_add(usize::try_from(text).ok()?)?;
+    if depth != limits.max_call_depth as u64
+        || capacity > limits.max_nodes as u64
+        || resulting > limits.max_nodes as u64
+        || bytes.get(80..path_end)? != parsed.source().path.as_bytes()
+        || bytes.get(path_end..text_end)? != parsed.source().text.as_bytes()
+        || bytes.get(text_end..)? != raw_placement(parsed)
+        || peak < starting
+        || peak < ending
+    {
+        return None;
+    }
+    Some(Arc::new(Entry {
+        parsed: parsed.clone(),
+        max_depth: usize::try_from(depth).ok()?,
+        path_capacity: usize::try_from(capacity).ok()?,
+        resulting_path_capacity: usize::try_from(resulting).ok()?,
+        receipt: Receipt {
+            work,
+            starting_live_bytes: starting,
+            peak_live_bytes: peak,
+            ending_live_bytes: ending,
+        },
+    }))
 }
 
 /// A successful module runs with the exact old allowance/live state, but a
@@ -523,6 +643,73 @@ mod tests {
     fn same_current(actual: &ScalarMaterialization, fresh: &ScalarMaterialization) {
         assert_eq!(actual.usage(), fresh.usage());
         assert_eq!(actual.remaining(), fresh.remaining());
+    }
+
+    #[test]
+    fn raw_materialization_receipts_rebind_only_after_current_source_admission() {
+        let limits = Limits::default();
+        let original = Fixture::new("return left.emit(1)+right.emit(2);");
+        let mut cold = ScalarMaterializationSession::default();
+        original.run(&mut cold, &limits).unwrap().unwrap();
+        let bytes = cold.encode_raw_receipts(&limits);
+        assert_eq!(bytes.len(), 3);
+        let current = Fixture::new("return left.emit(100)+right.emit(2);");
+        let mut restored = ScalarMaterializationSession::default();
+        restored.restore_raw_receipts(bytes.clone());
+        let actual = current.run(&mut restored, &limits).unwrap().unwrap();
+        let reference = current.fresh(&limits);
+        assert_eq!(actual.usage(), reference.usage());
+        assert_eq!(actual.remaining(), reference.remaining());
+        assert_eq!(restored.last_stats().reused_modules, 2);
+        assert_eq!(restored.last_stats().executed_modules, 1);
+        let mut corrupt = bytes;
+        corrupt.insert(ModuleId(1), Arc::from(&b"truncated"[..]));
+        let mut restored = ScalarMaterializationSession::default();
+        restored.restore_raw_receipts(corrupt);
+        let actual = current.run(&mut restored, &limits).unwrap().unwrap();
+        assert_eq!(actual.usage(), reference.usage());
+        assert_eq!(actual.remaining(), reference.remaining());
+        assert_eq!(restored.last_stats().reused_modules, 1);
+    }
+
+    #[test]
+    fn raw_materialization_preserves_work_and_live_byte_boundaries() {
+        let original = Fixture::new("return left.emit(1)+right.emit(2);");
+        let mut cold = ScalarMaterializationSession::default();
+        original
+            .run(&mut cold, &Limits::default())
+            .unwrap()
+            .unwrap();
+        let bytes = cold.encode_raw_receipts(&Limits::default());
+        for temporary in [false, true] {
+            let limits = |amount| {
+                let mut l = Limits::default();
+                if temporary {
+                    l.max_source_bytes = amount;
+                } else {
+                    l.max_analysis_steps = amount;
+                }
+                l
+            };
+            let maximum = if temporary {
+                Limits::default().max_source_bytes
+            } else {
+                Limits::default().max_analysis_steps
+            };
+            let n = original.boundary(maximum, limits);
+            let mut restored = ScalarMaterializationSession::default();
+            restored.restore_raw_receipts(bytes.clone());
+            let actual = original.run(&mut restored, &limits(n)).unwrap().unwrap();
+            let reference = original.fresh(&limits(n));
+            assert_eq!(actual.usage(), reference.usage());
+            assert_eq!(actual.remaining(), reference.remaining());
+            let mut restored = ScalarMaterializationSession::default();
+            restored.restore_raw_receipts(bytes.clone());
+            assert_eq!(
+                original.failure(&mut restored, &limits(n - 1)),
+                original.failure(&mut ScalarMaterializationSession::default(), &limits(n - 1))
+            );
+        }
     }
 
     #[test]

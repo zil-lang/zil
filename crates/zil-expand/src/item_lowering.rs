@@ -318,7 +318,7 @@ pub(super) fn debit_expanded(
 /// admitted these exact items; richer products keep the ordinary full pipeline.
 pub(super) fn expand_shared_scalar<S: std::borrow::Borrow<SourceUnit>>(
     sources: &[S],
-    modules: &[Arc<modules::SharedScalarModule>],
+    modules: &[modules::ScalarModule],
     limits: &Limits,
     products: &mut generics::products::Products,
     reuse: &mut incremental::Reuse<'_>,
@@ -327,6 +327,9 @@ pub(super) fn expand_shared_scalar<S: std::borrow::Borrow<SourceUnit>>(
         || products.has_publications()
         || sources.len() != modules.len()
         || modules.iter().any(|module| {
+            let modules::ScalarModule::Syntax(module) = module else {
+                return false;
+            };
             module.items.iter().any(|item| {
                 !matches!(
                     item.kind,
@@ -341,6 +344,46 @@ pub(super) fn expand_shared_scalar<S: std::borrow::Borrow<SourceUnit>>(
     let mut output = Vec::with_capacity(modules.len());
     for (source, module) in sources.iter().zip(modules) {
         let source: &SourceUnit = source.borrow();
+        let module = match module {
+            modules::ScalarModule::Syntax(module) => module,
+            modules::ScalarModule::Recovered { parsed, imports } => {
+                let span = parsed.parsed().module.span;
+                let Some(expanded) = reuse.lower_for_sources(span.file, &remaining, sources)?
+                else {
+                    return Ok(None);
+                };
+                debit_expanded(&expanded, &mut remaining, sources.len(), span)?;
+                let exports = parsed
+                    .parsed()
+                    .module
+                    .items
+                    .iter()
+                    .filter_map(|item| {
+                        if !item.public {
+                            return None;
+                        }
+                        let s::ItemKind::Function(function) = &item.kind else {
+                            return None;
+                        };
+                        expanded
+                            .core
+                            .functions
+                            .iter()
+                            .find(|f| f.name == function.name)
+                            .map(|f| f.id)
+                    })
+                    .collect();
+                output.push((
+                    ProgramModule {
+                        exports,
+                        core: expanded.core,
+                        imports: imports.clone(),
+                    },
+                    expanded.source_map,
+                ));
+                continue;
+            }
+        };
         let input_limits = remaining.clone();
         let cached = reuse.lower_for_sources(module.span.file, &remaining, sources)?;
         let expanded = if let Some(cached) = cached {

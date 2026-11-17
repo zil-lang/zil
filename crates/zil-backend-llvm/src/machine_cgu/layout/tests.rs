@@ -1798,7 +1798,7 @@ fn bounded_first_edit_keeps_sixteen_live_units_and_entry_work_unchanged() {
             &classes,
             Some(&directory.0),
             previous,
-            CallImportPolicy::BoundedClasses,
+            CallImportPolicy::BoundedClasses(None),
         )
         .unwrap()
     };
@@ -1810,7 +1810,7 @@ fn bounded_first_edit_keeps_sixteen_live_units_and_entry_work_unchanged() {
         EntryPoint::ReturnValue(FunctionId(0)),
         16,
         true,
-        CallImportPolicy::BoundedClasses,
+        CallImportPolicy::BoundedClasses(None),
         &mut recorded,
         None,
         &mut 0,
@@ -1908,7 +1908,7 @@ fn bounded_policy_cannot_reuse_complete_disk_or_materialization_roles() {
         EntryPoint::None,
         2,
         true,
-        CallImportPolicy::BoundedClasses,
+        CallImportPolicy::BoundedClasses(None),
     )
     .unwrap()
     .with_classes(&classes);
@@ -1922,7 +1922,7 @@ fn bounded_policy_cannot_reuse_complete_disk_or_materialization_roles() {
         EntryPoint::None,
         2,
         true,
-        CallImportPolicy::BoundedClasses,
+        CallImportPolicy::BoundedClasses(None),
     )
     .unwrap()
     .with_classes(&classes)
@@ -1945,7 +1945,7 @@ fn bounded_policy_cannot_reuse_complete_disk_or_materialization_roles() {
             &classes,
             Some(&directory.0),
             previous,
-            CallImportPolicy::BoundedClasses,
+            CallImportPolicy::BoundedClasses(None),
         )
         .unwrap()
     };
@@ -1961,7 +1961,7 @@ fn bounded_policy_cannot_reuse_complete_disk_or_materialization_roles() {
         2,
         &classes,
         &graph,
-        CallImportPolicy::BoundedClasses,
+        CallImportPolicy::BoundedClasses(None),
     )
     .unwrap();
     assert!(
@@ -2092,7 +2092,7 @@ fn bounded_helpers_check_cost_headers_local_state_and_canonical_addresses() {
             &classes,
             None,
             None,
-            CallImportPolicy::BoundedClasses,
+            CallImportPolicy::BoundedClasses(None),
         )
     };
     let graph = CurrentGraph::read(&module, None).unwrap();
@@ -2103,7 +2103,7 @@ fn bounded_helpers_check_cost_headers_local_state_and_canonical_addresses() {
         2,
         &classes,
         &graph,
-        CallImportPolicy::BoundedClasses,
+        CallImportPolicy::BoundedClasses(None),
     )
     .unwrap();
     assert!(layout.units[0].imports.contains(&helper_index));
@@ -2161,7 +2161,7 @@ fn bounded_helpers_check_cost_headers_local_state_and_canonical_addresses() {
                 2,
                 &classes,
                 &graph,
-                CallImportPolicy::BoundedClasses,
+                CallImportPolicy::BoundedClasses(None),
             )
             .is_some()
     );
@@ -2181,7 +2181,7 @@ fn bounded_helpers_check_cost_headers_local_state_and_canonical_addresses() {
                 2,
                 &classes,
                 &graph,
-                CallImportPolicy::BoundedClasses,
+                CallImportPolicy::BoundedClasses(None),
             )
             .is_none()
     );
@@ -2192,7 +2192,7 @@ fn bounded_helpers_check_cost_headers_local_state_and_canonical_addresses() {
         EntryPoint::None,
         2,
         true,
-        CallImportPolicy::BoundedClasses,
+        CallImportPolicy::BoundedClasses(None),
         &mut recorded,
         None,
         &mut 0,
@@ -2250,7 +2250,7 @@ fn bounded_helpers_check_cost_headers_local_state_and_canonical_addresses() {
                     2,
                     &classes,
                     &graph,
-                    CallImportPolicy::BoundedClasses,
+                    CallImportPolicy::BoundedClasses(None),
                 )
                 .is_none(),
             "old imported roles must be refused"
@@ -2263,7 +2263,7 @@ fn bounded_helpers_check_cost_headers_local_state_and_canonical_addresses() {
             EntryPoint::None,
             2,
             true,
-            CallImportPolicy::BoundedClasses,
+            CallImportPolicy::BoundedClasses(None),
             &mut recorded,
             None,
             &mut 0,

@@ -25,13 +25,13 @@ pub(crate) enum CallImportPolicy {
     /// Explicit closed-class strategy: retain real cross-CGU calls and copy
     /// the transitive closure of small current generated helpers. Never selected by the
     /// default O2 policy or used as a silent fallback from complete imports.
-    BoundedClasses,
+    BoundedClasses(Option<usize>),
 }
 
 // Instruction + block cost, using the same measure as the whole-plan copy cap.
 // A class identity alone never authorizes copying a large implementation.
 const MAX_CLASS_IMPORT_COST: usize = 128;
-const BOUNDED_CLASS_IMPORT_ID: &str = "bounded-classes-128-v3";
+const BOUNDED_CLASS_IMPORT_ID: &str = "bounded-classes-128-v4";
 
 fn bounded_class_body(item: &Item, classes: &BTreeSet<String>) -> bool {
     matches!(item, Item::Function(function)
@@ -42,6 +42,18 @@ fn bounded_class_body(item: &Item, classes: &BTreeSet<String>) -> bool {
             && function.cost() <= MAX_CLASS_IMPORT_COST)
 }
 impl CallImportPolicy {
+    pub(super) fn is_bounded(self) -> bool {
+        matches!(self, Self::BoundedClasses(_))
+    }
+    // Only a successful current whole-graph reduction supplies this allowance.
+    // Layout bytes cannot mint it; current graph/roles still validate all copies.
+    pub(super) fn copy_allowance(self, current_source_cost: usize) -> usize {
+        match self {
+            Self::BoundedClasses(Some(cost)) => cost,
+            _ => current_source_cost,
+        }
+    }
+
     pub(crate) fn for_incremental_o2(enabled: bool, merging: FunctionMerging) -> Self {
         if !enabled {
             Self::Disabled
@@ -428,7 +440,7 @@ pub(crate) fn partition_classes_reusing_with_policy(
 ) -> Option<ClassPartition> {
     if !matches!(
         imports,
-        CallImportPolicy::Complete | CallImportPolicy::BoundedClasses
+        CallImportPolicy::Complete | CallImportPolicy::BoundedClasses(_)
     ) {
         return None;
     }
@@ -625,7 +637,7 @@ fn partition_view_cached_impl(
     let recipe_source =
         (record_recipe && imports == CallImportPolicy::Disabled).then(|| module.clone());
 
-    if imports == CallImportPolicy::BoundedClasses {
+    if imports.is_bounded() {
         return (
             Plan {
                 units: vec![module],
@@ -940,6 +952,7 @@ fn partition_view_once_observed(
                 _ => None,
             })
             .sum::<usize>();
+        let original_cost = imports_policy.copy_allowance(original_cost);
         let mut importable = source_functions.clone();
         importable.extend(classes.iter().cloned());
         // Class handles must designate exactly one external current definition.
@@ -964,7 +977,7 @@ fn partition_view_once_observed(
                 if owners[id] == owner || !seen.insert(id) {
                     continue;
                 }
-                if imports_policy == CallImportPolicy::BoundedClasses
+                if imports_policy.is_bounded()
                     && (!bounded_class_body(&module.items[defs[id].index], classes)
                         || defs[id]
                             .refs
