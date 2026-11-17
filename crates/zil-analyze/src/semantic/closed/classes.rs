@@ -1810,6 +1810,140 @@ impl Check<'_, '_> {
             return Ok(value);
         }
         match &instruction.kind {
+            InstructionKind::MakeErrorUnion {
+                is_error,
+                value: payload,
+            } => {
+                let definition = self.inventory.definition(instance.definition, b)?;
+                let SemanticDefinitionBody::FunctionWithBody {
+                    signature,
+                    sites: recipes,
+                    ..
+                } = &definition.body
+                else {
+                    return Err(fail(
+                        "actual error carrier has no complete original function body",
+                    ));
+                };
+                let mut expected = None;
+                for site in &self.program.sites {
+                    b.spend(1, WORK)?;
+                    if site.instance != instance.id {
+                        continue;
+                    }
+                    let SemanticSiteAction::TypeUse {
+                        subject: SemanticOperand::Value(actual),
+                        ..
+                    } = &site.action
+                    else {
+                        continue;
+                    };
+                    if *actual != id {
+                        continue;
+                    }
+                    b.spend(recipes.len(), WORK)?;
+                    let recipe = recipes
+                        .iter()
+                        .find(|recipe| recipe.id == site.recipe)
+                        .ok_or_else(|| {
+                            fail("actual error carrier omits its original type-use recipe")
+                        })?;
+                    let SemanticSiteRecipeKind::TypeUse { expected: source } = &recipe.kind else {
+                        return Err(fail(
+                            "actual error carrier substitutes another original operation",
+                        ));
+                    };
+                    let original = self.recipe_value(instance, source, b, depth + 1)?;
+                    if expected.as_ref().is_some_and(|old| old != &original) {
+                        return Err(fail(
+                            "actual error carrier has competing original whole values",
+                        ));
+                    }
+                    expected = Some(original);
+                }
+                if expected.is_none() {
+                    // Compiler-generated error forwarding has no new source
+                    // expression. Its exact Return uses the original ABI's
+                    // whole result, including the inactive success domain.
+                    let mut returned = false;
+                    for actual in &function.blocks {
+                        b.spend(1, WORK)?;
+                        if matches!(actual.terminator, Terminator::Return(Some(value)) if value == id)
+                        {
+                            returned = true;
+                        }
+                    }
+                    if !returned {
+                        return Err(unknown(
+                            "actual error carrier needs its exact original construction or return boundary",
+                        ));
+                    }
+                    expected =
+                        Some(self.recipe_value(instance, &signature.result, b, depth + 1)?);
+                }
+                let expected = expected
+                    .ok_or_else(|| fail("actual error carrier lost its original whole result"))?;
+                if !geometry::same_type(&expected.ty, ty, b)? {
+                    return Err(fail(
+                        "actual error carrier changes its complete original result type",
+                    ));
+                }
+                let Type::ErrorUnion { error, result } = &expected.ty else {
+                    return Err(fail(
+                        "actual error carrier replaces its original sum constructor",
+                    ));
+                };
+                operations::available_before(
+                    function,
+                    (block, index, SemanticSiteEdge::Before),
+                    *payload,
+                    b,
+                )?;
+                let selected = if *is_error {
+                    error.as_ref()
+                } else {
+                    result.as_ref()
+                };
+                let actual = self.ssa_value(instance, function, *payload, b, depth + 1)?;
+                if !geometry::same_type(&actual.ty, selected, b)? {
+                    return Err(fail("actual error carrier changes its active payload type"));
+                }
+                if *is_error {
+                    // Task errors have an independently reconstructed zero
+                    // domain. They cannot provide or erase success classes.
+                    self.zero_data(error, b, depth + 1)?;
+                    if !actual.classes.is_empty() || !empty(&actual.life) {
+                        return Err(unknown(
+                            "error carrier needs its complete nonzero error-payload embedding",
+                        ));
+                    }
+                } else if let Some(life) = self.task_domain(selected, b)? {
+                    let child = self.task_projection(
+                        &expected,
+                        selected,
+                        PlaceProjection::ErrorArm(false),
+                        b,
+                    )?;
+                    if child.life != life || !self.capture_values_equal(&actual, &child, b)? {
+                        return Err(fail(
+                            "actual success carrier changes its complete original child classes",
+                        ));
+                    }
+                } else if self.contains_nonzero_closure(selected, b, depth + 1)? {
+                    let child =
+                        self.closure_child_value(&expected, PlaceProjection::ErrorArm(false), b)?;
+                    if !self.capture_values_equal(&actual, &child, b)? {
+                        return Err(fail(
+                            "actual success carrier changes its complete original closure domain",
+                        ));
+                    }
+                } else {
+                    return Err(unknown(
+                        "success carrier needs its complete active child-domain embedding",
+                    ));
+                }
+                Ok(expected)
+            }
             InstructionKind::ReadPackageField {
                 local,
                 index: field,
@@ -2816,7 +2950,11 @@ impl Check<'_, '_> {
                     | InstructionKind::TakeLocal { local: target }
                         if target == local =>
                     {
-                        return Err(fail("semantic local class crosses a vacant activation"));
+                        b.spend(512, WORK)?;
+                        let mut errors = fail("semantic local class crosses a vacant activation");
+                        errors[0].notes.push(format!("actual function {} local {} requested at block {} before instruction {}, reached {:?} at block {} instruction {} in original world {:?}",
+                            function.id.0, local.0, at.0.0, at.1, instruction.kind, at_block.0, index, instance.id));
+                        return Err(errors);
                     }
                     _ => {}
                 }
