@@ -9,7 +9,12 @@ impl Check<'_, '_> {
         &self,
         root: &Value,
         output: &Value,
-        role: &(value::Class, Option<value::Class>, value::Class, Option<original::LocalAnchor>),
+        role: &(
+            value::Class,
+            Option<value::Class>,
+            value::Class,
+            Option<original::LocalAnchor>,
+        ),
         anchor: Option<original::LocalAnchor>,
         b: &mut Budget,
     ) -> CompileResult<()> {
@@ -18,7 +23,9 @@ impl Check<'_, '_> {
             return Err(fail("actual view role loses its exact outer occurrence"));
         };
         if !slot.path.is_empty() || output.classes.get(slot.binder as usize) != Some(&role.2) {
-            return Err(fail("actual view changes its independently selected original lifetime role"));
+            return Err(fail(
+                "actual view changes its independently selected original lifetime role",
+            ));
         }
         match &role.1 {
             None if role.0 != role.2 => {
@@ -26,7 +33,9 @@ impl Check<'_, '_> {
                     || role.3 != anchor
                     || !matches!((&role.0, &role.2), (value::Class::Implicit(a, _), value::Class::Implicit(z, _)) if a == z)
                 {
-                    return Err(fail("actual contextual view lacks its exact original local region or projected input upper bound"));
+                    return Err(fail(
+                        "actual contextual view lacks its exact original local region or projected input upper bound",
+                    ));
                 }
                 // The following physical-place check must independently bind
                 // this exact original local to its initialized actual root.
@@ -34,13 +43,19 @@ impl Check<'_, '_> {
             }
             Some(upper) => {
                 if !matches!(root.ty, Type::Address { .. }) {
-                    return Err(fail("actual view upper has no genuine original Address source"));
+                    return Err(fail(
+                        "actual view upper has no genuine original Address source",
+                    ));
                 }
                 let [head] = root.life.slots.as_slice() else {
-                    return Err(fail("actual projected source loses its complete outer head"));
+                    return Err(fail(
+                        "actual projected source loses its complete outer head",
+                    ));
                 };
                 if !head.path.is_empty() || root.classes.get(head.binder as usize) != Some(upper) {
-                    return Err(fail("actual view upper changes its exact original source head class"));
+                    return Err(fail(
+                        "actual view upper changes its exact original source head class",
+                    ));
                 }
             }
             None => {}
@@ -106,11 +121,17 @@ impl Check<'_, '_> {
             original::LocalAnchor::Binding(statement) => {
                 let index = self.inventory.original_index(instance.definition, b)?;
                 let recipe = index.declaration_site(statement, b)?;
-                let site = self.inventory.emitted_site(self.program, instance.id, recipe, b)?;
+                let site = self
+                    .inventory
+                    .emitted_site(self.program, instance.id, recipe, b)?;
                 let SemanticSiteAction::DeclareLocal {
-                    local: SemanticLocalTarget::Typed(local), ..
-                } = site.action else {
-                    return Err(fail("original local anchor changes its actual declaration operation"));
+                    local: SemanticLocalTarget::Typed(local),
+                    ..
+                } = site.action
+                else {
+                    return Err(fail(
+                        "original local anchor changes its actual declaration operation",
+                    ));
                 };
                 Ok(local)
             }
@@ -134,6 +155,12 @@ impl Check<'_, '_> {
             let expected = self.environment_capture(instance, function, ordinal, b)?;
             return Ok(self.capture_value_origin(function, operand, b, depth + 1)? == expected);
         }
+        let local = self.anchored_local(instance, function, anchor, b)?;
+        if let Some(slot) = self.persistent_slot(instance, function, local, b)? {
+            let borrowed = matches!(function.values.get(operand.0 as usize),
+                Some(Type::Address { inner, .. }) if inner.as_ref() == &slot.logical().ty);
+            return self.slot_operand_origin(instance, function, operand, &slot, borrowed, b);
+        }
         let (_, _, read) = self.defining(function, operand, b)?;
         if !matches!(
             read.kind,
@@ -146,8 +173,232 @@ impl Check<'_, '_> {
         ) {
             return Ok(false);
         }
-        let local = self.anchored_local(instance, function, anchor, b)?;
         Ok(self.receiver_local(function, operand, b, depth + 1)? == local)
+    }
+
+    /// All actual temporary definitions must originate at this witnessed
+    /// element. Type equality alone never chooses a source or temporary.
+    pub(super) fn slot_operand_origin(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        operand: ValueId,
+        slot: &persistent_slots::Slot,
+        borrowed: bool,
+        b: &mut Budget,
+    ) -> CompileResult<bool> {
+        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+        enum Query {
+            Value(ValueId),
+            Local(LocalId, BlockId, usize),
+        }
+        let initialized = crate::shared_initialization(function, b)?;
+        let mut pending = vec![Query::Value(operand)];
+        let mut seen = BTreeSet::new();
+        let mut grounded = false;
+        while let Some(query) = pending.pop() {
+            b.lookup(seen.len(), WORK)?;
+            if !seen.insert(query) {
+                continue;
+            }
+            if seen.len() > b.helper_nodes {
+                return Err(vec![zil_base::Diagnostic::limit(
+                    zil_base::Phase::Analyze,
+                    "persistent callback operand source graph exceeds its node limit",
+                    None,
+                )]);
+            }
+            match query {
+                Query::Value(value) => {
+                    let ty = function
+                        .values
+                        .get(value.0 as usize)
+                        .ok_or_else(|| fail("persistent callback operand omits its actual type"))?;
+                    if borrowed {
+                        if !matches!(ty, Type::Address { inner, .. } if inner.as_ref() == &slot.logical().ty)
+                        {
+                            return Ok(false);
+                        }
+                    } else if !geometry::same_type(ty, &slot.logical().ty, b)? {
+                        return Ok(false);
+                    }
+                    let (block, index, actual) = self.defining(function, value, b)?;
+                    match &actual.kind {
+                        InstructionKind::TakeOwnedArrayElement { local, index: 0 } if !borrowed => {
+                            if *local != slot.local() {
+                                return Ok(false);
+                            }
+                            self.persistent_slot_value(
+                                instance,
+                                function,
+                                slot,
+                                (block, index),
+                                b,
+                                0,
+                            )?;
+                            grounded = true;
+                        }
+                        InstructionKind::BorrowOwnedArrayElement {
+                            local,
+                            index: 0,
+                            mutable,
+                        } if borrowed => {
+                            if *local != slot.local()
+                                || !matches!(ty, Type::Address { mutable: mode, .. } if mode == mutable)
+                            {
+                                return Ok(false);
+                            }
+                            self.persistent_slot_value(
+                                instance,
+                                function,
+                                slot,
+                                (block, index),
+                                b,
+                                0,
+                            )?;
+                            grounded = true;
+                        }
+                        InstructionKind::TakeLocal { local } => {
+                            if !function
+                                .locals
+                                .get(local.0 as usize)
+                                .is_some_and(|entry| entry.id == *local && &entry.ty == ty)
+                            {
+                                return Ok(false);
+                            }
+                            operations::initialized_local_before(
+                                function,
+                                (block, index),
+                                *local,
+                                b,
+                            )?;
+                            b.spend(pending.len().saturating_add(1), WORK)?;
+                            pending.push(Query::Local(*local, block, index));
+                        }
+                        InstructionKind::Load(local) if borrowed => {
+                            if !function
+                                .locals
+                                .get(local.0 as usize)
+                                .is_some_and(|entry| entry.id == *local && &entry.ty == ty)
+                            {
+                                return Ok(false);
+                            }
+                            operations::initialized_local_before(
+                                function,
+                                (block, index),
+                                *local,
+                                b,
+                            )?;
+                            b.spend(pending.len().saturating_add(1), WORK)?;
+                            pending.push(Query::Local(*local, block, index));
+                        }
+                        InstructionKind::ReborrowAddress { address, mutable } if borrowed => {
+                            operations::available_before(
+                                function,
+                                (block, index, SemanticSiteEdge::Before),
+                                *address,
+                                b,
+                            )?;
+                            if !matches!((function.values.get(address.0 as usize), ty),
+                                (Some(Type::Address { mutable: parent, inner }), Type::Address { mutable: output, inner: child })
+                                if output == mutable && (!*mutable || *parent) && inner == child)
+                            {
+                                return Ok(false);
+                            }
+                            b.spend(pending.len().saturating_add(1), WORK)?;
+                            pending.push(Query::Value(*address));
+                        }
+                        _ => {
+                            return Err(unknown(
+                                "persistent callback operand needs its exact consuming or pointer transfer",
+                            ));
+                        }
+                    }
+                }
+                Query::Local(local, block, end) => {
+                    let actual = function
+                        .blocks
+                        .get(block.0 as usize)
+                        .filter(|entry| entry.id == block && end <= entry.instructions.len())
+                        .ok_or_else(|| {
+                            fail("persistent callback temporary has no exact CFG boundary")
+                        })?;
+                    let mut found = false;
+                    for (index, instruction) in
+                        actual.instructions.iter().enumerate().take(end).rev()
+                    {
+                        b.spend(1, WORK)?;
+                        self.head_projection_barrier(function, local, &[], &instruction.kind, b)?;
+                        match instruction.kind {
+                            InstructionKind::Store {
+                                local: target,
+                                value,
+                            } if target == local => {
+                                operations::available_before(
+                                    function,
+                                    (block, index, SemanticSiteEdge::Before),
+                                    value,
+                                    b,
+                                )?;
+                                let declaration = function.locals.get(local.0 as usize).filter(|entry| entry.id == local)
+                                    .ok_or_else(|| fail("persistent callback temporary has no exact local declaration"))?;
+                                if function.values.get(value.0 as usize) != Some(&declaration.ty) {
+                                    return Ok(false);
+                                }
+                                b.spend(pending.len().saturating_add(1), WORK)?;
+                                pending.push(Query::Value(value));
+                                found = true;
+                                break;
+                            }
+                            InstructionKind::StorageLive(target)
+                            | InstructionKind::StorageDead(target)
+                            | InstructionKind::TakeLocal { local: target }
+                                if target == local =>
+                            {
+                                return Err(fail(
+                                    "persistent callback temporary crosses a vacant activation",
+                                ));
+                            }
+                            _ => {}
+                        }
+                    }
+                    if found {
+                        continue;
+                    }
+                    if block == function.entry {
+                        return Err(unknown(
+                            "persistent callback temporary has no initialized transfer origin",
+                        ));
+                    }
+                    let mut incoming = false;
+                    for predecessor in &initialized.predecessors[block.0 as usize] {
+                        b.spend(1, WORK)?;
+                        if !initialized.reachable[*predecessor] {
+                            continue;
+                        }
+                        let previous = &function.blocks[*predecessor];
+                        b.spend(pending.len().saturating_add(1), WORK)?;
+                        pending.push(Query::Local(
+                            local,
+                            previous.id,
+                            previous.instructions.len(),
+                        ));
+                        incoming = true;
+                    }
+                    if !incoming {
+                        return Err(fail(
+                            "persistent callback temporary has no reachable predecessor",
+                        ));
+                    }
+                }
+            }
+        }
+        if !grounded {
+            return Err(unknown(
+                "persistent callback transfer cycle has no actual element source",
+            ));
+        }
+        Ok(true)
     }
 
     pub(super) fn receiver_local(
@@ -168,6 +419,20 @@ impl Check<'_, '_> {
             | InstructionKind::BorrowLocal { local }
             | InstructionKind::BorrowLocalMut { local }
             | InstructionKind::BorrowDynOwned { local, .. } => Ok(local),
+            InstructionKind::TakeOwnedArrayElement { local, index: 0 }
+            | InstructionKind::BorrowOwnedArrayElement {
+                local, index: 0, ..
+            } => {
+                if !matches!(function.locals.get(local.0 as usize),
+                    Some(entry) if entry.id == local && matches!(&entry.ty, Type::Array { length: 1, element }
+                        if matches!(element.as_ref(), Type::Closure(_))))
+                {
+                    return Err(fail(
+                        "actual callback receiver changes its physical element root",
+                    ));
+                }
+                Ok(local)
+            }
             InstructionKind::ReborrowAddress { address, .. } => {
                 self.receiver_local(function, address, b, depth + 1)
             }
@@ -188,7 +453,12 @@ impl Check<'_, '_> {
     ) -> CompileResult<Vec<Value>> {
         let mut selected = None;
         for site in self.inventory.sites_at(
-            self.program, instance.id, block, index, SemanticSiteEdge::After, b,
+            self.program,
+            instance.id,
+            block,
+            index,
+            SemanticSiteEdge::After,
+            b,
         )? {
             b.spend(1, WORK)?;
             if site.instance != instance.id
@@ -208,10 +478,14 @@ impl Check<'_, '_> {
                 b,
             )?;
             let worlds = self.function_worlds(callee, b)?;
-            if worlds.is_empty() { return Err(fail("actual call role has no complete target world")); }
+            if worlds.is_empty() {
+                return Err(fail("actual call role has no complete target world"));
+            }
             for world in worlds {
                 if world.definition != target {
-                    return Err(fail("actual call role changes its original target definition"));
+                    return Err(fail(
+                        "actual call role changes its original target definition",
+                    ));
                 }
             }
             if selected.replace(values).is_some() {
@@ -222,20 +496,43 @@ impl Check<'_, '_> {
         selected.ok_or_else(|| unknown("actual call has no complete original input role anchor"))
     }
 
-    pub(super) fn static_call_result(&self, instance: &SemanticInstance, block: BlockId, index: usize,
-        b: &mut Budget) -> CompileResult<Value> {
+    pub(super) fn static_call_result(
+        &self,
+        instance: &SemanticInstance,
+        block: BlockId,
+        index: usize,
+        b: &mut Budget,
+    ) -> CompileResult<Value> {
         let mut selected = None;
         for site in self.inventory.sites_at(
-            self.program, instance.id, block, index, SemanticSiteEdge::After, b,
+            self.program,
+            instance.id,
+            block,
+            index,
+            SemanticSiteEdge::After,
+            b,
         )? {
             b.spend(1, WORK)?;
             if site.instance != instance.id
                 || !matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After }
                     if actual == block && instruction as usize == index)
-                || !matches!(site.action, SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. })
-            { continue; }
-            let value = self.original.call_output(instance, site.recipe, self.program, self.inventory, b)?;
-            if selected.replace(value).is_some() { return Err(fail("call output has competing original receipts")); }
+                || !matches!(
+                    site.action,
+                    SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. }
+                )
+            {
+                continue;
+            }
+            let value = self.original.call_output(
+                instance,
+                site.recipe,
+                self.program,
+                self.inventory,
+                b,
+            )?;
+            if selected.replace(value).is_some() {
+                return Err(fail("call output has competing original receipts"));
+            }
         }
         selected.ok_or_else(|| fail("call output has no exact original receipt"))
     }
@@ -269,25 +566,37 @@ impl Check<'_, '_> {
         // and its full header_relation before any site is interpreted. The
         // occurrence mapping below still independently checks this call's
         // actual arguments and its original adapter classes.
-        let contract = callee.storage_life.as_ref().ok_or_else(|| {
-            unknown("class-bearing call result has no complete callee header")
-        })?;
+        let contract = callee
+            .storage_life
+            .as_ref()
+            .ok_or_else(|| unknown("class-bearing call result has no complete callee header"))?;
         let count = match ty {
-            Type::Managed(_) if self.task_domain(ty, b)?.is_some() =>
-                u32::try_from(original_output.as_ref().ok_or_else(|| fail("Task call output omits its original full domain"))?.classes.len())
-                    .map_err(|_| fail("Task call output domain exceeds its ordinal carrier"))?,
-            Type::Address { .. } | Type::Desc(_) | Type::Dyn { .. } | Type::OwnedDyn { .. }
-            | Type::ErrorUnion { .. } => u32::try_from(original_output.as_ref().ok_or_else(||
-                fail("call result omits its complete original output"))?.classes.len())
-                .map_err(|_| fail("complete call output domain exceeds its ordinal carrier"))?,
+            Type::Managed(_) if self.task_domain(ty, b)?.is_some() => u32::try_from(
+                original_output
+                    .as_ref()
+                    .ok_or_else(|| fail("Task call output omits its original full domain"))?
+                    .classes
+                    .len(),
+            )
+            .map_err(|_| fail("Task call output domain exceeds its ordinal carrier"))?,
+            Type::Address { .. }
+            | Type::Desc(_)
+            | Type::Dyn { .. }
+            | Type::OwnedDyn { .. }
+            | Type::ErrorUnion { .. } => u32::try_from(
+                original_output
+                    .as_ref()
+                    .ok_or_else(|| fail("call result omits its complete original output"))?
+                    .classes
+                    .len(),
+            )
+            .map_err(|_| fail("complete call output domain exceeds its ordinal carrier"))?,
             Type::Closure(id) => {
                 self.module
                     .closures
                     .get(id.0 as usize)
                     .and_then(|closure| closure.storage_life.as_ref())
-                    .ok_or_else(|| {
-                        unknown("call result closure has no complete intrinsic domain")
-                    })?
+                    .ok_or_else(|| unknown("call result closure has no complete intrinsic domain"))?
                     .fixed_binder_count
             }
             Type::BorrowedStorage { life, .. } => life.binder_count,
@@ -301,11 +610,19 @@ impl Check<'_, '_> {
         for child in 0..count {
             let mut result = None;
             if let Some(output) = &original_output
-                && (matches!(ty, Type::Address { .. } | Type::Desc(_)) || self.dyn_sum_type(ty, b)? || self.task_domain(ty, b)?.is_some()) {
+                && (matches!(ty, Type::Address { .. } | Type::Desc(_))
+                    || self.dyn_sum_type(ty, b)?
+                    || self.task_domain(ty, b)?.is_some())
+            {
                 for slot in &output.life.slots {
-                    if slot.binder != child { continue; }
+                    if slot.binder != child {
+                        continue;
+                    }
                     for row in &contract.bindings {
-                        b.spend(row.position.path.len().saturating_add(slot.path.len() + 1), WORK)?;
+                        b.spend(
+                            row.position.path.len().saturating_add(slot.path.len() + 1),
+                            WORK,
+                        )?;
                         if row.position.base == StorageBase::Result
                             && row.position.path.len() == slot.path.len()
                             && row.position.path.iter().zip(&slot.path).all(|(actual, expected)| matches!(actual, ContractProjection::Place(step) if step == expected))
@@ -316,11 +633,26 @@ impl Check<'_, '_> {
                     }
                 }
                 for retained in &output.life.retained {
-                    if retained.binder != child { continue; }
+                    if retained.binder != child {
+                        continue;
+                    }
                     for row in &contract.classes {
-                        b.spend(row.position.path.len().saturating_add(retained.path.len() + 1), WORK)?;
-                        if row.position.base == StorageBase::Result && row.position.path == retained.path && row.position.class == retained.class {
-                            if result.is_some_and(|old| old != row.binder) { return Err(fail("call child result has competing complete header binders")); }
+                        b.spend(
+                            row.position
+                                .path
+                                .len()
+                                .saturating_add(retained.path.len() + 1),
+                            WORK,
+                        )?;
+                        if row.position.base == StorageBase::Result
+                            && row.position.path == retained.path
+                            && row.position.class == retained.class
+                        {
+                            if result.is_some_and(|old| old != row.binder) {
+                                return Err(fail(
+                                    "call child result has competing complete header binders",
+                                ));
+                            }
                             result = Some(row.binder);
                         }
                     }
@@ -328,17 +660,27 @@ impl Check<'_, '_> {
             } else {
                 for row in &contract.classes {
                     b.spend(row.position.path.len() + 1, WORK)?;
-                    if row.position.base == StorageBase::Result && row.position.path.is_empty()
-                        && row.position.class == child && result.replace(row.binder).is_some()
-                    { return Err(fail("callee result repeats an intrinsic class occurrence")); }
+                    if row.position.base == StorageBase::Result
+                        && row.position.path.is_empty()
+                        && row.position.class == child
+                        && result.replace(row.binder).is_some()
+                    {
+                        return Err(fail("callee result repeats an intrinsic class occurrence"));
+                    }
                 }
             }
-            let binder = result
-                .ok_or_else(|| fail("callee result omits an intrinsic class occurrence"))?;
+            let binder =
+                result.ok_or_else(|| fail("callee result omits an intrinsic class occurrence"))?;
             let input_binders = self.call_result_input_binders(callee, binder, b)?;
             let mut source = None;
             for row in &contract.bindings {
-                b.spend(row.position.path.len().saturating_add(input_binders.len() + 1), WORK)?;
+                b.spend(
+                    row.position
+                        .path
+                        .len()
+                        .saturating_add(input_binders.len() + 1),
+                    WORK,
+                )?;
                 if !input_binders.contains(&row.binder) {
                     continue;
                 }
@@ -346,25 +688,54 @@ impl Check<'_, '_> {
                     continue;
                 };
                 if !row.position.path.is_empty()
-                    && row.position.path.iter().all(|step| matches!(step, ContractProjection::Place(_))) {
-                    let expected = expected_parameters.get(parameter as usize)
-                        .ok_or_else(|| fail("projected call source omits its complete original input"))?;
-                    let operand = *arguments.get(parameter as usize)
+                    && row
+                        .position
+                        .path
+                        .iter()
+                        .all(|step| matches!(step, ContractProjection::Place(_)))
+                {
+                    let expected =
+                        expected_parameters.get(parameter as usize).ok_or_else(|| {
+                            fail("projected call source omits its complete original input")
+                        })?;
+                    let operand = *arguments
+                        .get(parameter as usize)
                         .ok_or_else(|| fail("projected call source omits its actual SSA input"))?;
                     let actual = self.ssa_value(instance, function, operand, b, depth + 1)?;
                     let (actual, expected) = if matches!(expected.ty, Type::Address { .. }) {
-                        if !self.outer_call_role(instance, function, (block, index), parameter as usize,
-                            operand, &actual, expected, b, depth + 1)? {
-                            return Err(fail("projected call source changes its exact outer receiving role"));
+                        if !self.outer_call_role(
+                            instance,
+                            function,
+                            (block, index),
+                            parameter as usize,
+                            operand,
+                            &actual,
+                            expected,
+                            b,
+                            depth + 1,
+                        )? {
+                            return Err(fail(
+                                "projected call source changes its exact outer receiving role",
+                            ));
                         }
                         (self.pointee(&actual, b)?, self.pointee(expected, b)?)
-                    } else { (actual, expected.copy(b)?) };
+                    } else {
+                        (actual, expected.copy(b)?)
+                    };
                     if !actual.equal_paid(&expected, b)? {
-                        return Err(fail("projected call source changes its complete original input domain"));
+                        return Err(fail(
+                            "projected call source changes its complete original input domain",
+                        ));
                     }
                     let mut selected = None;
                     for slot in &expected.life.slots {
-                        b.spend(slot.path.len().saturating_add(row.position.path.len()).saturating_add(1), WORK)?;
+                        b.spend(
+                            slot.path
+                                .len()
+                                .saturating_add(row.position.path.len())
+                                .saturating_add(1),
+                            WORK,
+                        )?;
                         if slot.path.len() == row.position.path.len()
                             && slot.path.iter().zip(&row.position.path).all(|(expected, actual)|
                                 matches!(actual, ContractProjection::Place(step) if step == expected)) {
@@ -373,17 +744,26 @@ impl Check<'_, '_> {
                             }
                         }
                     }
-                    let class = expected.classes.get(selected.ok_or_else(||
-                        fail("projected call source has no complete physical input slot"))? as usize).cloned()
-                        .ok_or_else(|| fail("projected call source leaves its full intrinsic domain"))?;
+                    let class = expected
+                        .classes
+                        .get(selected.ok_or_else(|| {
+                            fail("projected call source has no complete physical input slot")
+                        })? as usize)
+                        .cloned()
+                        .ok_or_else(|| {
+                            fail("projected call source leaves its full intrinsic domain")
+                        })?;
                     if source.as_ref().is_some_and(|old| old != &class) {
-                        return Err(fail("projected call result has competing original source classes"));
+                        return Err(fail(
+                            "projected call result has competing original source classes",
+                        ));
                     }
                     source = Some(class);
                     continue;
                 }
                 if !row.position.path.is_empty() {
-                    let expected = expected_parameters.get(parameter as usize)
+                    let expected = expected_parameters
+                        .get(parameter as usize)
                         .ok_or_else(|| fail("Task call port omits its original complete input"))?;
                     let mut port_class = None;
                     for (path, class) in self.task_ports(expected, b)? {
@@ -391,16 +771,31 @@ impl Check<'_, '_> {
                             return Err(fail("Task call input repeats a physical retained port"));
                         }
                     }
-                    let class = port_class.ok_or_else(|| unknown("call result requires its complete projected input class transport"))?;
-                    let actual = *arguments.get(parameter as usize)
+                    let class = port_class.ok_or_else(|| {
+                        unknown("call result requires its complete projected input class transport")
+                    })?;
+                    let actual = *arguments
+                        .get(parameter as usize)
                         .ok_or_else(|| fail("Task call port omits its actual input"))?;
-                    if !self.ssa_value(instance, function, actual, b, depth + 1)?.equal_paid(expected, b)? {
-                        return Err(fail("Task call port changes its complete original owning input value"));
+                    if !self
+                        .ssa_value(instance, function, actual, b, depth + 1)?
+                        .equal_paid(expected, b)?
+                    {
+                        return Err(fail(
+                            "Task call port changes its complete original owning input value",
+                        ));
                     }
-                    let class = expected.classes.get(class as usize).cloned()
-                        .ok_or_else(|| fail("Task call port leaves its complete input class domain"))?;
+                    let class = expected
+                        .classes
+                        .get(class as usize)
+                        .cloned()
+                        .ok_or_else(|| {
+                            fail("Task call port leaves its complete input class domain")
+                        })?;
                     if source.as_ref().is_some_and(|old| old != &class) {
-                        return Err(fail("Task call result has competing original input class sources"));
+                        return Err(fail(
+                            "Task call result has competing original input class sources",
+                        ));
                     }
                     source = Some(class);
                     continue;
@@ -447,16 +842,22 @@ impl Check<'_, '_> {
                 // Fixed/input-class sources require the same exact
                 // real header occurrence; no result class self-proof.
                 for row in &contract.classes {
-                    b.spend(row.position.path.len().saturating_add(input_binders.len() + 1), WORK)?;
+                    b.spend(
+                        row.position
+                            .path
+                            .len()
+                            .saturating_add(input_binders.len() + 1),
+                        WORK,
+                    )?;
                     if !input_binders.contains(&row.binder) {
                         continue;
                     }
                     let StorageBase::Parameter(parameter) = row.position.base else {
                         continue;
                     };
-                    let actual = *arguments.get(parameter as usize).ok_or_else(|| {
-                        fail("callee class input omits an actual argument")
-                    })?;
+                    let actual = *arguments
+                        .get(parameter as usize)
+                        .ok_or_else(|| fail("callee class input omits an actual argument"))?;
                     let mut input = self.ssa_value(instance, function, actual, b, depth + 1)?;
                     let expected = expected_parameters
                         .get(parameter as usize)
@@ -466,27 +867,50 @@ impl Check<'_, '_> {
                         expected
                     } else if row.position.path.as_slice() == [LifeTypeProjection::Pointee] {
                         if self.task_domain(&expected.ty, b)?.is_some() {
-                            if !input.equal_paid(expected, b)? { return Err(fail("Task call input changes its complete original owning value")); }
+                            if !input.equal_paid(expected, b)? {
+                                return Err(fail(
+                                    "Task call input changes its complete original owning value",
+                                ));
+                            }
                             input = self.task_child(&input, b)?;
                             child = self.task_child(expected, b)?;
                         } else {
-                            if !self.outer_call_role(instance, function, (block, index), parameter as usize, actual, &input, expected, b, depth + 1)? {
-                                return Err(fail("callee child class input changes its independently proved outer call role"));
+                            if !self.outer_call_role(
+                                instance,
+                                function,
+                                (block, index),
+                                parameter as usize,
+                                actual,
+                                &input,
+                                expected,
+                                b,
+                                depth + 1,
+                            )? {
+                                return Err(fail(
+                                    "callee child class input changes its independently proved outer call role",
+                                ));
                             }
                             input = self.pointee(&input, b)?;
                             child = self.pointee(expected, b)?;
                         }
                         &child
                     } else {
-                        return Err(unknown("call result child requires its full projected input relation"));
+                        return Err(unknown(
+                            "call result child requires its full projected input relation",
+                        ));
                     };
                     if input != *expected {
                         return Err(fail(
                             "actual intrinsic input changes its complete original class domain",
                         ));
                     }
-                    let class = expected.classes.get(row.position.class as usize).cloned()
-                        .ok_or_else(|| fail("callee class input is absent from its original whole value"))?;
+                    let class = expected
+                        .classes
+                        .get(row.position.class as usize)
+                        .cloned()
+                        .ok_or_else(|| {
+                            fail("callee class input is absent from its original whole value")
+                        })?;
                     if source.as_ref().is_some_and(|old| old != &class) {
                         return Err(unknown(
                             "callee class input needs its complete role dependency union",
@@ -495,16 +919,32 @@ impl Check<'_, '_> {
                     source = Some(class);
                 }
             }
-            if source.is_none() && let Some(output) = &original_output {
-                source = self.reference_call_result_class(instance, function, (block, index),
-                    callee, child, output, b, depth + 1)?;
+            if source.is_none()
+                && let Some(output) = &original_output
+            {
+                source = self.reference_call_result_class(
+                    instance,
+                    function,
+                    (block, index),
+                    callee,
+                    child,
+                    output,
+                    b,
+                    depth + 1,
+                )?;
             }
-            let class=source.ok_or_else(||unknown("callee result class has no independently proved input/static/role source"))?;
+            let class = source.ok_or_else(|| {
+                unknown("callee result class has no independently proved input/static/role source")
+            })?;
             self.push_value(&mut classes, class, b)?;
         }
         if let Some(output) = original_output {
             b.spend(output.classes.len().saturating_add(classes.len()), WORK)?;
-            if output.classes != classes { return Err(fail("call result header changes its independently proved original outer/child role")); }
+            if output.classes != classes {
+                return Err(fail(
+                    "call result header changes its independently proved original outer/child role",
+                ));
+            }
             return output.with_classes(classes, b);
         }
         let detached_shape;
@@ -530,13 +970,27 @@ impl Check<'_, '_> {
     // Independent physical header slots may denote the same declared
     // original lifetime. Prove that equation in every actual world, rather
     // than requiring equal slot numbers or equating their runtime loans.
-    pub(super) fn call_result_input_binders(&self, callee: &TypedFunction,
-        result: StorageBinder, b: &mut Budget) -> CompileResult<Vec<StorageBinder>> {
-        let contract = callee.storage_life.as_ref()
+    pub(super) fn call_result_input_binders(
+        &self,
+        callee: &TypedFunction,
+        result: StorageBinder,
+        b: &mut Budget,
+    ) -> CompileResult<Vec<StorageBinder>> {
+        let contract = callee
+            .storage_life
+            .as_ref()
             .ok_or_else(|| fail("call class source has no complete actual header"))?;
         let mut candidates = Vec::new();
-        for (base, binder) in contract.bindings.iter().map(|row| (row.position.base, row.binder))
-            .chain(contract.classes.iter().map(|row| (row.position.base, row.binder)))
+        for (base, binder) in contract
+            .bindings
+            .iter()
+            .map(|row| (row.position.base, row.binder))
+            .chain(
+                contract
+                    .classes
+                    .iter()
+                    .map(|row| (row.position.base, row.binder)),
+            )
         {
             b.spend(candidates.len().saturating_add(1), WORK)?;
             if matches!(base, StorageBase::Parameter(_)) && !candidates.contains(&binder) {
@@ -549,14 +1003,21 @@ impl Check<'_, '_> {
             self.push_value(&mut exact, result, b)?;
             return Ok(exact);
         }
-        if candidates.is_empty() { return Ok(Vec::new()); }
+        if candidates.is_empty() {
+            return Ok(Vec::new());
+        }
         let worlds = self.function_worlds(callee.id, b)?;
-        if worlds.is_empty() { return Err(fail("call result class has no original callee world")); }
+        if worlds.is_empty() {
+            return Err(fail("call result class has no original callee world"));
+        }
         for world in worlds {
             let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
-                &self.inventory.definition(world.definition, b)?.body else {
-                    return Err(fail("call class equation omits its complete original declaration"));
-                };
+                &self.inventory.definition(world.definition, b)?.body
+            else {
+                return Err(fail(
+                    "call class equation omits its complete original declaration",
+                ));
+            };
             // This checks all source parameters, full result domain and exact
             // embeddings against the independently checked original recipes.
             self.header_relation(world, callee, signature, b)?;
@@ -752,7 +1213,10 @@ impl Check<'_, '_> {
             return Err(fail("actual borrow omits its complete original definition"));
         };
         let mut selected = None;
-        for site in self.inventory.sites_for_value(self.program, instance.id, id, b)? {
+        for site in self
+            .inventory
+            .sites_for_value(self.program, instance.id, id, b)?
+        {
             b.spend(1, WORK)?;
             if site.instance != instance.id {
                 continue;
@@ -793,7 +1257,9 @@ impl Check<'_, '_> {
                     "actual borrow changes its complete original occurrence value",
                 ));
             }
-            let role = source.role.as_ref().ok_or_else(|| fail("actual source borrow omits its independently checked occurrence role"))?;
+            let role = source.role.as_ref().ok_or_else(|| {
+                fail("actual source borrow omits its independently checked occurrence role")
+            })?;
             self.checked_view_role(&source.root, &expected, role, source.anchor, b)?;
             let Type::Address { mutable, .. } = expected.ty else {
                 return Err(fail("original borrow does not produce a reference"));

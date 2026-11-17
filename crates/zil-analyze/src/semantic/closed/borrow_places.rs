@@ -4,6 +4,7 @@ use super::*;
 
 enum Root {
     Local(LocalId, BlockId, usize, bool), // bool: loaded an existing address
+    Slot(LocalId, BlockId, usize),
     Capture(u32, bool),
     Expression(ValueId),
 }
@@ -77,6 +78,35 @@ impl Check<'_, '_> {
             ));
         }
         b.spend(source.path.len().saturating_add(1), WORK)?;
+        if let InstructionKind::TakeOwnedArrayElement {
+            local: actual,
+            index: 0,
+        } = instruction.kind
+            && actual == local
+            && source.path.is_empty()
+        {
+            let slot = self
+                .persistent_slot(instance, function, local, b)?
+                .ok_or_else(|| {
+                    fail("owning callback element lacks its exact original slot witness")
+                })?;
+            let root = self.persistent_slot_value(
+                instance,
+                function,
+                &slot,
+                (block, index),
+                b,
+                depth + 1,
+            )?;
+            if !self.capture_values_equal(&root, &source.root, b)?
+                || !self.capture_values_equal(&root, &source.inner, b)?
+            {
+                return Err(fail(
+                    "owning callback element changes its complete original source value",
+                ));
+            }
+            return Ok(());
+        }
         let matches = match &instruction.kind {
             InstructionKind::TakeLocal { local: actual } => {
                 *actual == local && source.path.is_empty()
@@ -304,6 +334,31 @@ impl Check<'_, '_> {
             ));
         };
         match &instruction.kind {
+            InstructionKind::BorrowOwnedArrayElement {
+                local,
+                index: 0,
+                mutable,
+            } => {
+                let actual = function
+                    .locals
+                    .get(local.0 as usize)
+                    .filter(|entry| entry.id == *local)
+                    .ok_or_else(|| fail("actual callback borrow lacks its exact element owner"))?;
+                if *mutable != *output_mutable
+                    || !matches!(&actual.ty, Type::Array { length: 1, element }
+                        if element == output_inner && matches!(element.as_ref(), Type::Closure(_)))
+                {
+                    return Err(fail(
+                        "actual callback element borrow changes its complete type or mode",
+                    ));
+                }
+                Ok(Origin {
+                    root: Root::Slot(*local, block, index),
+                    path: Vec::new(),
+                    index: None,
+                    fresh: true,
+                })
+            }
             InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
                 let mutable = matches!(instruction.kind, InstructionKind::BorrowLocalMut { .. });
                 let actual = function
@@ -320,19 +375,31 @@ impl Check<'_, '_> {
                     fresh: true,
                 })
             }
-            InstructionKind::BorrowPackageField { local, index: field, mutable } => {
-                let actual = function.locals.get(local.0 as usize)
+            InstructionKind::BorrowPackageField {
+                local,
+                index: field,
+                mutable,
+            } => {
+                let actual = function
+                    .locals
+                    .get(local.0 as usize)
                     .filter(|declaration| declaration.id == *local)
                     .ok_or_else(|| fail("actual package field borrow has no local declaration"))?;
                 if !matches!(actual.ty, Type::Package { .. })
                     || *mutable != *output_mutable
                     || self.borrow_field_type(&actual.ty, &[*field], b)? != output_inner.as_ref()
                 {
-                    return Err(fail("actual package field borrow changes its complete leaf or mode"));
+                    return Err(fail(
+                        "actual package field borrow changes its complete leaf or mode",
+                    ));
                 }
                 b.spend(1, WORK)?;
-                Ok(Origin { root: Root::Local(*local, block, index, false),
-                    path: vec![*field], index: None, fresh: true })
+                Ok(Origin {
+                    root: Root::Local(*local, block, index, false),
+                    path: vec![*field],
+                    index: None,
+                    fresh: true,
+                })
             }
             InstructionKind::BorrowPlaceLocal {
                 local,
@@ -534,6 +601,30 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> CompileResult<()> {
         let mut origin = self.projected_borrow_origin(function, id, b, depth + 1)?;
+        if let Some(anchor) = source.anchor
+            && !matches!(anchor, original::LocalAnchor::Environment(_))
+            && !source.indirect
+            && source.path.is_empty()
+        {
+            let local = self.anchored_local(instance, function, anchor, b)?;
+            if let Some(slot) = self.persistent_slot(instance, function, local, b)? {
+                if !self.slot_operand_origin(instance, function, id, &slot, true, b)? {
+                    return Err(fail(
+                        "actual callback borrow selects another original element source",
+                    ));
+                }
+                // The real borrow/temporary graph is proved above. The
+                // independently checked class invariant holds at this exact
+                // consuming point; physical loans and epochs remain actual.
+                let (block, index, _) = self.defining(function, id, b)?;
+                origin = Origin {
+                    root: Root::Slot(local, block, index),
+                    path: Vec::new(),
+                    index: None,
+                    fresh: true,
+                };
+            }
+        }
         if let Root::Local(local, block, index, true) = &origin.root
             && matches!(source.anchor, Some(original::LocalAnchor::Environment(_)))
             && !source.indirect
@@ -542,21 +633,29 @@ impl Check<'_, '_> {
             // Loading this compiler slot preserves the actual BorrowCapture;
             // it is not a read of a pointer stored inside lexical F. The
             // finite capture-origin proof checks every initialized CFG source.
-            let capture = self.capture_local_origin(function, *local, (*block, *index), b, depth + 1)?;
-            let closure = function.environment
+            let capture =
+                self.capture_local_origin(function, *local, (*block, *index), b, depth + 1)?;
+            let closure = function
+                .environment
                 .and_then(|id| self.module.closures.get(id.0 as usize))
                 .filter(|closure| closure.function == function.id)
                 .ok_or_else(|| fail("borrowed capture spill has another actual environment"))?;
-            let captured = closure.captures.get(capture as usize)
-                .ok_or_else(|| fail("borrowed capture spill leaves its actual capture directory"))?;
-            let local_type = &function.locals.get(local.0 as usize)
+            let captured = closure.captures.get(capture as usize).ok_or_else(|| {
+                fail("borrowed capture spill leaves its actual capture directory")
+            })?;
+            let local_type = &function
+                .locals
+                .get(local.0 as usize)
                 .filter(|item| item.id == *local)
-                .ok_or_else(|| fail("borrowed capture spill has no actual local"))?.ty;
+                .ok_or_else(|| fail("borrowed capture spill has no actual local"))?
+                .ty;
             if !geometry::same_type(captured, &source.root.ty, b)?
                 || !matches!(local_type, Type::Address { inner, .. }
                     if inner.as_ref() == captured)
             {
-                return Err(fail("borrowed capture spill changes its complete lexical value or physical pointer boundary"));
+                return Err(fail(
+                    "borrowed capture spill changes its complete lexical value or physical pointer boundary",
+                ));
             }
             // Normalize only the canonical capture-borrow spill. A copied
             // value subsequently borrowed from another local is another
@@ -566,26 +665,36 @@ impl Check<'_, '_> {
                 for item in &actual_block.instructions {
                     b.spend(1, WORK)?;
                     match &item.kind {
-                        InstructionKind::Store { local: target, value } if target == local => {
+                        InstructionKind::Store {
+                            local: target,
+                            value,
+                        } if target == local => {
                             stores = stores.saturating_add(1);
                             let (_, _, producer) = self.defining(function, *value, b)?;
                             if actual_block.id != function.entry
                                 || !matches!(producer.kind, InstructionKind::BorrowCapture { index, .. }
                                     if index == capture)
                             {
-                                return Err(fail("borrowed capture spill is not its genuine entry capture borrow"));
+                                return Err(fail(
+                                    "borrowed capture spill is not its genuine entry capture borrow",
+                                ));
                             }
                         }
                         kind if matches!(crate::incremental::Operation::of(kind),
-                            crate::incremental::Operation::Store(target) if target == *local) => {
-                            return Err(fail("borrowed capture spill has another actual defining write"));
+                            crate::incremental::Operation::Store(target) if target == *local) =>
+                        {
+                            return Err(fail(
+                                "borrowed capture spill has another actual defining write",
+                            ));
                         }
                         _ => {}
                     }
                 }
             }
             if stores != 1 {
-                return Err(fail("borrowed capture spill has no unique genuine capture borrow"));
+                return Err(fail(
+                    "borrowed capture spill has no unique genuine capture borrow",
+                ));
             }
             origin.root = Root::Capture(capture, false);
             origin.fresh = true;
@@ -597,6 +706,32 @@ impl Check<'_, '_> {
             ));
         }
         let (root, indirect) = match origin.root {
+            Root::Slot(local, block, index) => {
+                let anchor = source.anchor.ok_or_else(|| {
+                    fail("actual callback element replaces an original lexical place")
+                })?;
+                if self.anchored_local(instance, function, anchor, b)? != local {
+                    return Err(fail(
+                        "actual callback element has another original local anchor",
+                    ));
+                }
+                let slot = self
+                    .persistent_slot(instance, function, local, b)?
+                    .ok_or_else(|| {
+                        fail("actual callback element lacks its exact original representation")
+                    })?;
+                (
+                    self.persistent_slot_value(
+                        instance,
+                        function,
+                        &slot,
+                        (block, index),
+                        b,
+                        depth + 1,
+                    )?,
+                    false,
+                )
+            }
             Root::Local(local, block, index, indirect) => {
                 if self.anchored_local(
                     instance,
@@ -644,7 +779,8 @@ impl Check<'_, '_> {
             }
         };
         if !self.capture_values_equal(&root, &source.root, b)?
-            || indirect != (source.indirect || address_input) {
+            || indirect != (source.indirect || address_input)
+        {
             return Err(fail(
                 "actual borrowed root changes its original whole classes or pointer boundary",
             ));
