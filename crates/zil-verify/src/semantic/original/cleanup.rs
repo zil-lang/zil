@@ -309,4 +309,26 @@ mod materialized_capture_cleanup_tests{
             else{result.unwrap();assert!(checked.direct_cleanup_snapshots.is_empty());assert!(checked.callable_retirements.is_empty(),"unused creator lookup names produce neither an owner nor a cleanup capability");}
         }
     }
+    #[test]
+    fn write_only_capture_keeps_overwrite_and_earlier_exit_debt_but_shadowing_does_not_capture(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let context=CheckedContext::catalogue(&module,&mut b).unwrap();let definition=module.semantic.as_ref().unwrap().definitions.iter().find(|row|matches!(row.kind,SemanticDefinitionKind::Function)).unwrap().id;
+        let capture=Binder::Capture{definition,source:Box::new(Binder::Parameter{definition,ordinal:0})};let local=Binder::Local{definition,node:NodeId(20),name:"task".into()};
+        let env=Env{lexical:vec![Frame{definition,actuals:vec![],environment:vec![]}],bounds:vec![],invocation:vec![],self_type:None};
+        let ty=Ty::Managed(Box::new(Ty::Carrier{kind:CarrierKind::Task,child:Box::new(Ty::Atom(Type::I32)),retained:Box::default()}));
+        for scenario in 0..3{
+            let mut checked=CheckedOriginal::default();checked.current=Some(definition);
+            checked.prototypes.insert(definition,Prototype{parameters:vec![],result:Ty::Atom(Type::Unit),environment:env.clone(),modes:vec![],result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound_lifetimes:0,invocation_lifetimes:0,premise_bounds:vec![],callable_kind:Some(CallableKind::FnOnce)});
+            // The first snapshot can be an early Return checked before another
+            // original branch reveals this same real captured mutable binder.
+            checked.cleanups.push(Cleanup{definition,binding:Binding{ty:ty.clone(),mutable:true,identity:capture.clone()},path:vec![],capture_exit:scenario!=0,uses:Uses::default(),environment:env.clone()});
+            let selected=if scenario==1{local.clone()}else{capture.clone()};let bindings=BTreeMap::from([("task".into(),Binding{ty:ty.clone(),mutable:true,identity:selected.clone()})]);
+            let target=SemanticOriginalExpr{id:NodeId(21),span:Default::default(),kind:CoreExprKind::Name("task".into())};let mut active=ActiveQueries::new();
+            checked.mutable_place(&module,&context,&target,&env,&bindings,&mut active,&mut b).unwrap();assert!(checked.used[&definition].contains(&selected));
+            let result=checked.check_cleanups(&module,&context,&mut active,&mut b);
+            if scenario==1{assert!(!checked.used[&definition].contains(&capture));result.unwrap();assert!(checked.direct_cleanup_snapshots.is_empty(),"same spelling of a local is not the original Capture");}
+            else{assert!(result.is_err(),"write-only captured old Unknown Task keeps its overwrite/early-exit responsibility");}
+        }
+    }
+
 }

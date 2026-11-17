@@ -192,7 +192,16 @@ impl CheckedOriginal {
         // must not execute a base, index or call expression a second time.
         b.spend(1)?;
         match &target.kind {
-            CoreExprKind::Name(name)if bindings.get(name).is_some_and(|row|row.mutable)=>{let binding=bindings.get(name).unwrap();self.written.entry(env.current()?).or_default().insert(binding.identity.clone());Ok(())},
+            CoreExprKind::Name(name)if bindings.get(name).is_some_and(|row|row.mutable)=>{
+                let binding=bindings.get(name).unwrap();let definition=env.current()?;
+                binding.identity.charge_clone(b)?;binding.identity.charge_clone(b)?;
+                b.spend(self.used.get(&definition).map_or(0,BTreeSet::len).checked_ilog2().map_or(1,|n|n as usize+1))?;
+                // Assigning the exact captured binder forms an environment use
+                // even when no expression reads its old value. This does not
+                // consume/read the occupant or invent its cleanup capability.
+                self.used.entry(definition).or_default().insert(binding.identity.clone());
+                self.written.entry(definition).or_default().insert(binding.identity.clone());Ok(())
+            },
             CoreExprKind::Group(inner)=>self.mutable_place(module,context,inner,env,bindings,active,b),
             CoreExprKind::Unary{op:UnaryOp::Dereference,operand}=>{
                 let ty=self.write_parent_type(module,context,operand,env,active,b)?;
