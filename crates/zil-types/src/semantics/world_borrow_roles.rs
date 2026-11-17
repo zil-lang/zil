@@ -1919,6 +1919,32 @@ fn original_read_value(
 
 }
 
+/// Only a transparent local-pointer read/alias transports the same referent.
+/// Group/ascription add no path step. Field/index/deref/borrow and call edges
+/// must form their own source receipt after the complete actual trace.
+fn local_source_copy(
+    root: ViewBorrowRoot, steps: &[crate::semantics::original::ViewBorrowStep],
+) -> bool {
+    let ViewBorrowRoot::Local(binding) = root else { return false; };
+    let mut read = false;
+    for step in steps {
+        match &step.kind {
+            ViewBorrowStepKind::ReadLocal { binding: selected } if *selected == binding => read = true,
+            ViewBorrowStepKind::Alias { .. } => {}
+            ViewBorrowStepKind::ReadLocal { .. }
+            | ViewBorrowStepKind::Parameter | ViewBorrowStepKind::ParameterStorage
+            | ViewBorrowStepKind::Slice | ViewBorrowStepKind::Index { .. }
+            | ViewBorrowStepKind::Dereference | ViewBorrowStepKind::CallResult { .. }
+            | ViewBorrowStepKind::CallInputs { .. } | ViewBorrowStepKind::CallableReceiver { .. }
+            | ViewBorrowStepKind::BytesBorrow { .. } | ViewBorrowStepKind::Capture { .. }
+            | ViewBorrowStepKind::ProjectedLocal { .. } | ViewBorrowStepKind::Local { .. }
+            | ViewBorrowStepKind::Field { .. } | ViewBorrowStepKind::StoreBorrow { .. }
+            | ViewBorrowStepKind::Borrow => return false,
+        }
+    }
+    read
+}
+
 /// Establish an original source receipt only at its real executed expression
 /// boundary, after the ordinary whole-type constraint has succeeded. The
 /// receipt travels with the existing incoming role fact; it never revives an
@@ -1951,11 +1977,17 @@ pub(super) fn record_source(
     }
     trace_steps(world, instance, original, function, root, &steps, Cursor::Value(operand),
         values, locals, implicit, false, 0)?;
-    // An actual copy of a mutable source role transports its prior receipt;
-    // it is not a new root merely because this read has a new source NodeId.
-    if matches!(root, ViewBorrowRoot::Local(_)) && steps.iter()
-        .any(|step| matches!(step.kind, ViewBorrowStepKind::ReadLocal { .. }))
-    { return Ok(()); }
+    // A pure local-pointer copy preserves its already transported source.
+    // ReadLocal followed by Field (or another referent-selecting operation)
+    // is not such a copy: its projection deliberately dropped the storage
+    // origin and the full trace above now forms the leaf's own receipt below.
+    world.pay(steps.len().saturating_add(index::search(world.value_role_sources.len())).saturating_add(1))?;
+    if local_source_copy(root, &steps) {
+        if world.value_role_sources.get(&operand).and_then(|source| source.origin.as_ref()).is_none() {
+            return Err(bad("local-pointer source copy has no transported original receipt"));
+        }
+        return Ok(());
+    }
     let roots = proof.view_source_roots(original.id, root, &steps, world.limits, world.left)?;
     // No complete root result is an unknown theorem, never an outside
     // parameter/capture premise (notably ParameterStorage is activation local).
