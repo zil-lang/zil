@@ -7,6 +7,7 @@ use std::cell::RefCell;
 
 pub(crate) struct Session {
     module:usize,
+    frozen_execution:Option<(usize,Box<TypedModule>)>,
     context:semantic::CheckedContext,
     active:RefCell<semantic::ActiveQueries>,
     worlds:Vec<(SemanticInstanceId,EvalEnv)>,
@@ -14,8 +15,18 @@ pub(crate) struct Session {
 }
 impl Session {
     pub(crate) fn new(module:&TypedModule,context:semantic::CheckedContext,active:semantic::ActiveQueries,worlds:Vec<(SemanticInstanceId,EvalEnv)>,results:Vec<(SemanticInstanceId,CheckedType)>)->Self{
-        Self{module:module as *const TypedModule as usize,context,active:RefCell::new(active),worlds,results}
+        Self{module:module as *const TypedModule as usize,frozen_execution:None,context,active:RefCell::new(active),worlds,results}
     }
+}
+
+/// Called only by the independently checked frozen S/E construction. The
+/// already charged view is moved, not reconstructed from an execution claim.
+pub(crate) fn retain_frozen_execution_view(execution:&TypedModule,view:TypedModule,checked_address:usize,b:&mut Budget)->Check<()>{
+    b.spend(1)?;
+    let session=b.semantic_checked.as_mut().and_then(std::rc::Rc::get_mut).ok_or_else(||bad("frozen final obligations have no unique completed session"))?;
+    if session.module!=checked_address||session.frozen_execution.is_some(){return Err(bad("frozen final obligations select another checked source view"));}
+    let view=Box::new(view);session.module=view.as_ref() as *const TypedModule as usize;
+    session.frozen_execution=Some((execution as *const TypedModule as usize,view));Ok(())
 }
 
 /// Bind a source parameter to its original universal capability theorem.
@@ -40,8 +51,12 @@ pub(crate) fn closed_task_input(module:&TypedModule,function:&TypedFunction,posi
 pub(crate) fn finish_original_callable_retirements(module:&TypedModule,b:&mut Budget)->Check<()>{
     if module.semantic.is_none(){return Ok(());}
     let session=b.semantic_checked.clone().ok_or_else(||bad("callable retirement has no completed semantic session"))?;
-    if session.module!=module as *const TypedModule as usize{return Err(bad("callable retirement session belongs to another actual module"));}
-    session.context.finish_original_callable_retirements(module,&session.worlds,b)
+    let proof=if session.module==module as *const TypedModule as usize{module}else{
+        let Some((execution,view))=&session.frozen_execution else{return Err(bad("callable retirement session belongs to another actual module"));};
+        if *execution!=module as *const TypedModule as usize{return Err(bad("callable retirement frozen view belongs to another execution module"));}
+        view.as_ref()
+    };
+    session.context.finish_original_callable_retirements(proof,&session.worlds,b)
 }
 
 /// Only the completed exact-module semantic session exposes ordinary member
@@ -294,4 +309,20 @@ pub(super) fn checked_result_sources(module:&TypedModule,function:&TypedFunction
         for(result,source,_)in rows{if *result==term{sources.push((*result,*source));}}
     }
     Ok(sources)
+}
+
+#[cfg(test)]
+mod retirement_session_tests{
+    use super::*;
+    #[test]
+    fn frozen_retirement_session_keeps_checked_view_and_exact_execution_identity(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);
+        let(view,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../semantic/fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let execution=view.clone();let checked_address=&view as *const TypedModule as usize;
+        semantic::check_program(&view,&mut b).unwrap();
+        retain_frozen_execution_view(&execution,view,checked_address,&mut b).unwrap();
+        finish_original_callable_retirements(&execution,&mut b).unwrap();
+        let other=execution.clone();
+        assert!(finish_original_callable_retirements(&other,&mut b).is_err(),"an equal cloned module is not this checked frozen execution and cannot borrow its final retirement proof");
+    }
 }

@@ -3,6 +3,8 @@
 use super::*;
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub(super) enum CallableRetirement{ActivationCapture,SuspendedOwner}
+#[derive(Clone,Copy)]
+enum DropPurpose{Ordinary{capture_exit:bool},DirectConsuming}
 #[derive(Clone)]
 pub(super) struct Cleanup {definition:SemanticDefinitionId,binding:Binding,path:Vec<String>,capture_exit:bool,uses:Uses,environment:Env}
 impl CheckedOriginal {
@@ -70,18 +72,28 @@ impl CheckedOriginal {
     pub(super) fn check_cleanups(&mut self,module:&TypedModule,context:&CheckedContext,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         let cleanups=std::mem::take(&mut self.cleanups);
         for cleanup in cleanups{self.current=Some(cleanup.definition);
+            if cleanup.capture_exit&&matches!(cleanup.binding.identity,Binder::Capture{..}){
+                cleanup.binding.identity.charge_clone(b)?;
+                let ty=self.resolved(&cleanup.binding.ty,b)?;
+                for place in cleanup.uses.moved.iter().chain(&cleanup.uses.definite){place.binder.charge_clone(b)?;b.spend(place.fields.iter().map(String::len).sum::<usize>().saturating_add(1))?;}
+                b.spend(cleanup.path.iter().map(String::len).sum::<usize>().saturating_add(2))?;
+                let environment=self.copy_environment(&cleanup.environment,b)?;
+                self.direct_cleanup_snapshots.push(Cleanup{definition:cleanup.definition,binding:Binding{ty,mutable:cleanup.binding.mutable,identity:cleanup.binding.identity.clone()},path:cleanup.path.clone(),capture_exit:cleanup.capture_exit,uses:cleanup.uses.clone(),environment});
+            }
             if cleanup.capture_exit&&matches!(cleanup.binding.identity,Binder::Capture{..})&&!self.prototypes.get(&cleanup.definition).is_some_and(|prototype|prototype.callable_kind==Some(CallableKind::FnOnce)){continue;}
             let place=Place{binder:cleanup.binding.identity.clone(),fields:cleanup.path.clone()};
-            self.remaining_drop(module,context,&cleanup.binding.ty,&place,&cleanup.uses,&cleanup.environment,cleanup.capture_exit,active,b)?;
+            self.remaining_drop(module,context,&cleanup.binding.ty,&place,&cleanup.uses,&cleanup.environment,DropPurpose::Ordinary{capture_exit:cleanup.capture_exit},active,b)?;
         }self.current=None;Ok(())
     }
-    fn remaining_drop(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,place:&Place,uses:&Uses,env:&Env,capture_exit:bool,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+    fn remaining_drop(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,place:&Place,uses:&Uses,env:&Env,purpose:DropPurpose,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+        let capture_exit=matches!(purpose,DropPurpose::Ordinary{capture_exit:true});
+        let direct=matches!(purpose,DropPurpose::DirectConsuming);
         b.spend(uses.moved.len().saturating_mul(place.fields.len().saturating_add(1)))?;
         if uses.definite.iter().any(|moved|moved.binder==place.binder&&place.fields.starts_with(&moved.fields)){return Ok(());}
         if self.is_copy(module,context,ty,env,active,b)?{return Ok(());}
         if let Ty::Opaque(owner,arguments)=self.resolved(ty,b)?{
             let hidden=self.opaque_hidden(module,context,owner,&arguments,active,b)?;
-            return self.remaining_drop(module,context,&hidden,place,uses,env,capture_exit,active,b);
+            return self.remaining_drop(module,context,&hidden,place,uses,env,purpose,active,b);
         }
         let partial=uses.definite.iter().any(|moved|moved.binder==place.binder&&moved.fields.starts_with(&place.fields));
         b.spend(self.task_closed_cleanups.len().saturating_add(self.task_async_cleanups.len()).saturating_add(self.task_synchronous_cleanups.len()).saturating_add(self.callable_retirements.len()))?;
@@ -98,15 +110,17 @@ impl CheckedOriginal {
                 },
                 _=>return Err(unsupported("original partial cleanup needs its complete value/array debt ledger",None)),
             };
-            for(name,field)in fields{let mut child=place.clone();child.fields.push(name);self.remaining_drop(module,context,&field,&child,uses,env,capture_exit,active,b)?;}return Ok(());
+            for(name,field)in fields{let mut child=place.clone();child.fields.push(name);self.remaining_drop(module,context,&field,&child,uses,env,purpose,active,b)?;}return Ok(());
         }
         // This exact-place set is published only after the phase engine has
         // proved every cleanup edge, including all old loop generations.
-        if self.task_closed_cleanups.contains(&(env.current()?,place.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
-        if self.task_async_cleanups.contains(&(env.current()?,place.clone()))&&self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.call_kind==CallKind::Suspend)&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
+        if !direct&&self.task_closed_cleanups.contains(&(env.current()?,place.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
+        if !direct&&self.task_async_cleanups.contains(&(env.current()?,place.clone()))&&self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.call_kind==CallKind::Suspend)&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
         // This is a proved source/occupant relation, not Task<T>:SyncDrop.
         // The actual worker/source graph and every real cleanup remain required.
-        if self.task_synchronous_cleanups.contains(&(env.current()?,place.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
+        if !direct&&self.task_synchronous_cleanups.contains(&(env.current()?,place.clone()))&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..})){return Ok(());}
+        if direct&&self.sync_drop(module,context,ty,env,active,b)?{return Ok(());}
+        if direct&&matches!(self.resolved(ty,b)?,Ty::Managed(inner)if matches!(*inner,Ty::Carrier{kind:CarrierKind::Task,..}))&&self.direct_capture_retirement(env.current()?,place,b)?{return Ok(());}
         if capture_exit&&self.callable_retirements.get(&(env.current()?,place.clone()))==Some(&CallableRetirement::ActivationCapture)
             &&matches!(place.binder,Binder::Capture{definition,..}if definition==env.current()?)
             &&self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.callable_kind==Some(CallableKind::FnOnce))
@@ -118,7 +132,7 @@ impl CheckedOriginal {
             return Ok(());
         }
         if self.sync_drop(module,context,ty,env,active,b)?{return Ok(());}
-        if self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.call_kind==CallKind::Suspend)
+        if !direct&&self.prototypes.get(&env.current()?).is_some_and(|prototype|prototype.call_kind==CallKind::Suspend)
             &&self.callable_premise(module,context,ty,env,active,b)?.is_some_and(|prototype|matches!(prototype.callable_kind,Some(CallableKind::Fn|CallableKind::FnMut|CallableKind::FnOnce)))
             &&self.closed_value(module,context,ty,env,active,b)?{
             // This is the declared Suspend upper for retiring this exact owner,
@@ -127,6 +141,27 @@ impl CheckedOriginal {
             return Ok(());
         }
         Err(bad("original cleanup edge has no original SyncDrop proof"))
+    }
+    /// Prove concrete providers in their universal declaration, even with no
+    /// actual instance. The stored creator/receiver validates source identity;
+    /// it never specializes away an original unknown incoming capability.
+    pub(in crate::semantic) fn verify_direct_consuming_goals(&mut self,module:&TypedModule,context:&CheckedContext,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{
+        let goals=std::mem::take(&mut self.direct_consuming_goals);
+        let snapshots=std::mem::take(&mut self.direct_cleanup_snapshots);
+        for(definition,receiver,creator)in goals{
+            if !matches!(receiver,Ty::Closure(id,..)if id==definition)||!self.checked.contains(&definition)||creator.lexical.first().is_none_or(|frame|frame.definition!=definition){return Err(bad("original Direct consuming provider loses its exact checked creator/receiver"));}
+            if !self.creator_moves.get(&definition).copied().ok_or_else(||bad("original consuming provider has no original capture mode"))?{continue;}
+            for cleanup in snapshots.iter().filter(|cleanup|cleanup.definition==definition){
+                self.current=Some(definition);
+                let place=Place{binder:cleanup.binding.identity.clone(),fields:cleanup.path.clone()};
+                // This is an original caller-closed substitution, never a
+                // Typed actual specialization. Declaration goals keep their
+                // rigid creator formals and cannot be washed by safe main.
+                let ty=self.apply_type(&cleanup.binding.ty,&creator,b)?;
+                self.remaining_drop(module,context,&ty,&place,&cleanup.uses,&creator,DropPurpose::DirectConsuming,active,b)?;
+            }
+        }
+        self.current=None;Ok(())
     }
     pub(super) fn remember_callable_retirement(&mut self,definition:SemanticDefinitionId,place:&Place,role:CallableRetirement,b:&mut Budget)->Check<()>{
         place.binder.charge_clone(b)?;b.spend(place.fields.iter().fold(1usize,|n,field|n.saturating_add(field.len())).saturating_add(self.callable_retirements.len().checked_ilog2().map_or(1,|n|n as usize+1)))?;
@@ -152,7 +187,7 @@ impl CheckedOriginal {
             }
             // Zero actual instances supplies no additional original premise:
             // the exact declaration/role/upper was proved above even when unused.
-            for instance in program.instances.iter().filter(|instance|instance.definition==*definition){
+            for instance in program.instances.iter().filter(|instance|instance.definition==*definition&&matches!(instance.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(_)))){
                 let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id))=instance.target else{return Err(bad("callable retirement substitutes a nonexecutable original world"));};
                 if !worlds.iter().any(|(checked,_)|*checked==instance.id){return Err(bad("callable retirement has an unfinished exact actual world"));}
                 let function=module.functions.get(id.0 as usize).filter(|function|function.id==id&&function.foreign.is_none()).ok_or_else(||bad("callable retirement actual function is absent"))?;

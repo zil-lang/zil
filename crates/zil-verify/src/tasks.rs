@@ -16,6 +16,15 @@ pub(super) use drop_sync::{
 };
 pub(super) use owned::once_cleanup_resumable;
 
+/// Structural eligibility for a complete consuming Suspend upper. Every
+/// actual invocation still needs its real Task frame/root and resource proof;
+/// this check grants no Direct retirement or synchronous destructor.
+pub(crate) fn require_suspend_consuming_environment(module:&TypedModule,id:ClosureId,b:&mut Budget)->Check<()>{
+    crate::registration::semantic_closed_environment(module,id,b)?;
+    if !owned::pollable_storage(module,&Type::Closure(id),b)?{return Err(unsupported("consuming Suspend environment has no complete Task continuation layout",None));}
+    Ok(())
+}
+
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
         binder_count: 0,

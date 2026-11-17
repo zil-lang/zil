@@ -41,7 +41,7 @@ pub(crate) fn drain(module:&TypedModule,b:&mut Budget)->Check<()> {
         let request=&pending.request;charge(request,b)?;
         let definition=closure(module,request.closure,request.function,b)?;
         let function=module.functions.get(request.function.0 as usize).filter(|row|row.id==request.function&&row.environment==Some(request.closure)&&row.foreign.is_none()).ok_or_else(||bad("Callable final actual entry identity is absent"))?;
-        if definition.storage_life.as_ref()!=Some(&request.actual_header)||function.storage_life.as_ref()!=Some(&request.actual_header)||function.call_kind!=request.call_kind||function.result_mode!=request.result_mode||definition.result!=request.result.ty||definition.parameters.len()!=request.parameters.len()||request.parameter_modes.len()!=request.parameters.len(){return Err(bad("Callable final actual ABI/domain differs from its original requirement"));}
+        if definition.storage_life.as_ref()!=Some(&request.actual_header)||function.storage_life.as_ref()!=Some(&request.actual_header)||!dynamic_witness::consuming_upper_compatible(request.kind,function.call_kind,request.call_kind)||function.result_mode!=request.result_mode||definition.result!=request.result.ty||definition.parameters.len()!=request.parameters.len()||request.parameter_modes.len()!=request.parameters.len(){return Err(bad("Callable final actual ABI/domain differs from its original requirement"));}
         if !matches!((definition.kind,request.kind),(CallableKind::Fn,_)|(CallableKind::FnMut,CallableKind::FnMut|CallableKind::FnOnce)|(CallableKind::FnOnce,CallableKind::FnOnce)){return Err(bad("Callable final role exceeds its actual entry role"));}
         for(actual,required)in definition.parameters.iter().zip(&request.parameters){if actual!=&required.ty{return Err(bad("Callable final whole parameter type differs"));}}
         if request.kind==CallableKind::FnOnce&&request.call_kind==CallKind::Direct{
@@ -49,6 +49,10 @@ pub(crate) fn drain(module:&TypedModule,b:&mut Budget)->Check<()> {
             // A Suspend caller's resumable fallback cannot fulfill a Direct bound.
             crate::tasks::require_direct_consuming_environment(module,request.closure,b)?;
         }
+        if request.kind==CallableKind::FnOnce&&request.call_kind==CallKind::Suspend&&function.call_kind==CallKind::Direct{
+            crate::tasks::require_suspend_consuming_environment(module,request.closure,b)?;
+        }
+
         let program=module.semantic.as_ref().ok_or_else(||bad("Callable final original programme is absent"))?;
         for world in pending.worlds{b.spend(program.instances.len())?;let mut rows=program.instances.iter().filter(|row|row.id==world);let row=rows.next().ok_or_else(||bad("Callable final exact world disappeared"))?;if rows.next().is_some()||!matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id))if id==request.function){return Err(bad("Callable final world changed its actual target"));}}
         // The full static validator has checked all real construction/write

@@ -1075,6 +1075,7 @@ fn check_environment_mutations(module:&TypedModule,entry:FunctionId,b:&mut Budge
 /// synchronous upper. Real constructors and environment writes must all agree.
 pub(crate) fn require_direct_consuming_environment(module:&TypedModule,id:ClosureId,b:&mut Budget)->Check<()>{
     let definition=crate::closures::definition(module,id,None)?;
+    if definition.captures.iter().map(|ty|Ok(contains_kind(module,ty,b,false)?||contains_kind(module,ty,b,true)?)).collect::<Check<Vec<_>>>()?.into_iter().any(|has|has){check_environment_mutations(module,definition.function,b)?;}
     if once_cleanup_has_no_task(module,id,b)?||once_cleanup_closed(module,id,b)?{return Ok(());}
     // The complete entry/helper execution graph is part of the consuming
     // operation. Safe initial fields alone cannot certify its final occupant.
@@ -1096,6 +1097,23 @@ pub(crate) fn require_direct_consuming_environment(module:&TypedModule,id:Closur
 #[cfg(test)]
 mod direct_consuming_tests{
     use super::*;
+    #[test]
+    fn direct_consuming_closed_exit_cannot_survive_an_unmodelled_owner_replacement(){
+        let limits=Limits::default();let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
+        let task=Type::Managed(Box::new(Type::Task{result:Box::new(Type::I32),retained_life:super::super::empty_context()}));
+        let op=|result:Option<u32>,kind|Instruction{result:result.map(ValueId),kind,span};
+        let entry=&mut module.functions[0];entry.environment=Some(ClosureId(0));entry.parameters=vec![LocalId(0)];entry.locals=vec![LocalDecl{id:LocalId(0),name:"new_occupant".into(),ty:task.clone(),mutable:true,span}];
+        entry.values=vec![Type::Address{mutable:true,inner:Box::new(task.clone())},super::super::task_poll_type(&Type::Unit),Type::I32,Type::I32,Type::Bool,Type::I32,task.clone()];
+        entry.blocks=vec![BasicBlock{id:BlockId(0),instructions:vec![op(Some(0),InstructionKind::BorrowCapture{index:0,mutable:true}),op(Some(1),InstructionKind::TaskPollClose{task:ValueId(0)}),op(Some(2),InstructionKind::VariantTag{value:ValueId(1)}),op(Some(3),InstructionKind::Constant(Constant::I32(1))),op(Some(4),InstructionKind::Binary{op:BinaryOp::Equal,left:ValueId(2),right:ValueId(3)})],terminator:Terminator::Branch{condition:ValueId(4),then_block:BlockId(1),else_block:BlockId(0)}},BasicBlock{id:BlockId(1),instructions:vec![op(Some(5),InstructionKind::Constant(Constant::I32(7)))],terminator:Terminator::Return(Some(ValueId(5)))}];
+        module.closures=vec![ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![task.clone()],parameters:vec![task],result:Type::I32,kind:CallableKind::FnMut,lending_captures:vec![],storage_life:None}];
+        for wire in [false,true]{
+            let decoded;let original=if wire{let bytes=zil_ir::wire::encode_module_candidate(&module,&CandidatePlan::empty_for(&module),&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;decoded}else{module.clone()};
+            let mut b=Budget::new(&limits);b.task_origin_roots=true;assert!(once_cleanup_closed(&original,ClosureId(0),&mut b).unwrap());require_direct_consuming_environment(&original,ClosureId(0),&mut b).unwrap();
+            let mut changed=original;changed.functions[0].blocks[1].instructions.extend([op(Some(6),InstructionKind::TakeLocal{local:LocalId(0)}),op(None,InstructionKind::ReservePlaceAddress{reservation:ReservationId(0),address:ValueId(0),path:vec![]}),op(None,InstructionKind::CommitPlaceReplace{reservation:ReservationId(0),value:ValueId(6)})]);
+            let mut b=Budget::new(&limits);b.task_origin_roots=true;
+            assert!(require_direct_consuming_environment(&changed,ClosureId(0),&mut b).is_err(),"a prior Ready capture proof cannot certify its new live occupant, wire {wire}");
+        }
+    }
     #[test]
     fn direct_consuming_capability_checks_every_constructor_and_rejects_unknown_replacements_raw_wire(){
         let limits=Limits::default();let(mut module,_)=crate::tests::baseline();let template=module.functions[0].clone();let span=template.span;

@@ -290,7 +290,7 @@ impl CheckedOriginal{
         let receiver_recipe=receiver;
         let receiver=self.ty(module,context,receiver_recipe,target,active,b)?;let receiver=self.resolved(&receiver,b)?;
         let wanted=self.signature(module,context,signature,target,active,b)?;
-        let (actual,owner,selected)=match &receiver{
+        let (mut actual,owner,selected)=match &receiver{
             Ty::Closure(id,actuals,sealed)=>{
                 if !self.checked.contains(id){return Err(bad("original Callable source body is not independently complete"));}
                 let prototype=self.prototypes.get(id).cloned().ok_or_else(||bad("original Callable source lacks its complete prototype"))?;
@@ -310,6 +310,14 @@ impl CheckedOriginal{
             _=>(self.callable_premise(module,context,&receiver,caller,active,b)?.ok_or_else(||bad("original caller does not prove the target Callable requirement"))?,None,None),
         };
         if !callable_accepts(actual.callable_kind,kind){return Err(unsupported("original Callable source capability is not independently established",None));}
+        if kind==CallableKind::FnOnce&&actual.call_kind==CallKind::Direct&&wanted.call_kind==CallKind::Suspend{
+            // The complete consuming operation may retain its owned environment
+            // under a Task continuation. This changes neither the source body
+            // ABI nor the Direct upper of any ordinary nonconsuming invocation.
+            if actual.callable_kind!=Some(CallableKind::FnOnce)&&!self.sync_drop(module,context,&receiver,caller,active,b)?&&!self.closed_value(module,context,&receiver,caller,active,b)?{return Err(unsupported("original consuming Suspend adaptation needs its exact environment cleanup/data premise",None));}
+            actual.call_kind=CallKind::Suspend;
+        }
+
         // Universal elimination instantiates only this source code scheme's
         // private roles. A source's elided Invocation and a target's outer
         // ForAll need not put equivalent quantifiers in the same code field.
@@ -323,7 +331,26 @@ impl CheckedOriginal{
         }
         let actual=self.normalize_original_type(module,context,&actual.result,caller,active,b)?;
         let wanted=self.normalize_original_type(module,context,&wanted.result,caller,active,b)?;
-        self.callable_goal_type(&actual,&wanted,&flexible,b).map_err(|error|error.with_note(format!("Callable source receiver {:?}; target lexical frames {:?}; caller lexical frames {:?}",receiver,target.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>(),caller.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>())))
+        self.callable_goal_type(&actual,&wanted,&flexible,b).map_err(|error|error.with_note(format!("Callable source receiver {:?}; target lexical frames {:?}; caller lexical frames {:?}",receiver,target.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>(),caller.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>())))?;
+        if kind==CallableKind::FnOnce&&signature.call_kind==CallKind::Direct{
+            // An opaque Fn/FnMut source may be used through FnOnce without
+            // exposing more of its public interface. Its concrete provider
+            // must still prove complete Direct environment retirement.
+            let provider=if let Some(owner)=owner{Some((owner,self.resolved(&receiver,b)?,self.copy_environment(selected.as_ref().ok_or_else(||bad("original consuming provider has no exact creator environment"))?,b)?))}
+            else if let Ty::Opaque(opaque,arguments)=&receiver{
+                let hidden=self.opaque_hidden(module,context,*opaque,arguments,active,b)?;
+                if let Ty::Closure(id,own,sealed)=&hidden{
+                    let mut source=self.environment(module,context,*opaque,active,b)?;source.lexical[0].actuals=self.resolve_arguments(arguments,0,b)?;
+                    let selected=self.closure_creator_environment(module,context,*id,own,sealed,&source,active,b)?;
+                    Some((*id,hidden,selected))
+                }else{None}
+            }else{None};
+            if let Some((owner,receiver,creator))=provider{
+                if self.direct_consuming_goals.len()>=b.limits.max_nodes{return Err(limit("original Direct consuming goal inventory exceeded"));}
+                self.direct_consuming_goals.push((owner,receiver,creator));
+            }
+        }
+        Ok(())
     }
     fn callable_goal_source(&mut self,actual:&Prototype,wanted:&Prototype,owner:Option<SemanticDefinitionId>,selected:Option<&Env>,b:&mut Budget)->Check<(Prototype,BTreeSet<Life>)>{
         if actual.parameters.len()!=wanted.parameters.len()||actual.modes!=wanted.modes||actual.result_mode!=wanted.result_mode||actual.call_kind!=wanted.call_kind{return Err(bad("original Callable requirement has different complete modes/kind"));}

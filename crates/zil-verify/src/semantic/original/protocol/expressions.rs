@@ -476,6 +476,10 @@ impl Engine<'_> {
             return self.static_call(target, site, node, values, state, b);
         }
         let role=self.callable_roles.get(&node.id).cloned();
+        // Full call-before sources survive the consuming activation's updates.
+        let receiver_sources=self.result_sources(state,receiver,b)?;
+        let mut input_sources=Vec::new();for value in values{input_sources.push(self.result_sources(state,value,b)?);}
+        let target=self.callable_targets.get(&node.id).copied();
         if role.is_none()&&(tasks::owner_value(receiver)||values.iter().any(tasks::owner_value)){
             return Err(unsupported("original callable owner transfer lacks its complete checked signature role",Some(node.span)));
         }
@@ -502,7 +506,9 @@ impl Engine<'_> {
                 if !matches!(mode,PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe|PassingMode::Copy){self.task_transfer_value(state,value,b)?;}
             }
         }
-        self.result_value(node,state,b)
+        let mut result=self.result_value(node,state,b)?;
+        if let Some(target)=target{if let Some(summary)=self.result_sources_by_function.get(&target){self.apply_result_sources(state,&mut result,summary,&input_sources,target,Some(&receiver_sources),b)?;}}
+        Ok(result)
     }
     fn result_value(&mut self, node: &SemanticOriginalExpr,state:&mut State, b: &mut Budget) -> Check<Value> {
         if let Some(shape)=self.result_shapes.get(&node.id).cloned(){
@@ -698,7 +704,7 @@ impl Engine<'_> {
         } else {
             let mut value=self.result_value(node,state,b)?;
             if let Some(summary)=self.result_sources_by_function.get(&target){
-                self.apply_result_sources(state,&mut value,summary,&input_sources,target,b)?;
+                self.apply_result_sources(state,&mut value,summary,&input_sources,target,None,b)?;
             }
             Ok(value)
         }

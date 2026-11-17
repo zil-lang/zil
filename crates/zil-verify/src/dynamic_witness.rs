@@ -49,8 +49,13 @@ mod symbols;
 pub(crate) mod semantic_external;
 mod semantic_capabilities;
 
+/// Only the complete FnOnce consuming operation can use this explicit upper
+/// adapter; ordinary function-pointer/vtable ABI matching stays invariant.
+pub(crate) fn consuming_upper_compatible(kind:CallableKind,actual:CallKind,required:CallKind)->bool{callables::consuming_upper_compatible(kind,actual,required)}
+
 /// Complete actual Typed domain only. Pending sources remain pending; neither
 /// the cardinality nor successful shape validation grants memory authority.
+#[track_caller]
 pub(crate) fn intrinsic_domain(
     module: &TypedModule,
     ty: &Type,

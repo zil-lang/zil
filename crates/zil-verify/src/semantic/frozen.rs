@@ -159,7 +159,9 @@ impl<'s> FrozenContext<'s> {
         }
         view.semantic=Some(semantic);
         self.wrapper_identity(&view,execution,b)?;
-        flow::check_program_mode(&view,Some(self),b)
+        let checked_address=&view as *const TypedModule as usize;
+        flow::check_program_mode(&view,Some(self),b)?;
+        dynamic_witness::semantic_patterns::retain_frozen_execution_view(execution,view,checked_address,b)
     }
     fn charge_execution(&self,module:&TypedModule,b:&mut Budget)->Check<()> {
         b.spend(module.functions.len())?;

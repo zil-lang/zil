@@ -146,7 +146,7 @@ pub(super) fn check_shape(
     fixed_relations_allowed: bool,
     b: &mut Budget,
 ) -> Check<ShapeObligation> {
-    check_shape_with_source(module,receiver,kind,signature,None,scope,fixed_relations_allowed,b)
+    check_shape_inner(module,receiver,kind,signature,None,scope,fixed_relations_allowed,false,b)
 }
 
 /// Only semantic callers with an exact pending creator cursor can supply this
@@ -156,6 +156,13 @@ pub(super) fn check_shape_with_source(
     module:&TypedModule,receiver:&terms::Value,kind:CallableKind,signature:&Shape,
     source:Option<&Shape>,scope:DynInstantiationScope,fixed_relations_allowed:bool,b:&mut Budget,
 )->Check<ShapeObligation>{
+    check_shape_inner(module,receiver,kind,signature,source,scope,fixed_relations_allowed,true,b)
+}
+pub(super) fn consuming_upper_compatible(kind:CallableKind,actual:CallKind,required:CallKind)->bool{
+    actual==required||kind==CallableKind::FnOnce&&actual==CallKind::Direct&&required==CallKind::Suspend
+}
+#[allow(clippy::too_many_arguments)]
+fn check_shape_inner(module:&TypedModule,receiver:&terms::Value,kind:CallableKind,signature:&Shape,source:Option<&Shape>,scope:DynInstantiationScope,fixed_relations_allowed:bool,semantic_consumption:bool,b:&mut Budget)->Check<ShapeObligation>{
     let Type::Closure(id) = receiver.raw.ty else {
         return Err(bad(
             "callable premise requires a complete actual closure definition",
@@ -183,7 +190,7 @@ pub(super) fn check_shape_with_source(
             "closure callable entry must have an actual executable environment body",
         ));
     }
-    if signature.call_kind != actual.call_kind
+    if !(signature.call_kind==actual.call_kind||semantic_consumption&&consuming_upper_compatible(kind,actual.call_kind,signature.call_kind))
         || signature.result_mode != actual.result_mode
         || signature.parameters.len() != definition.parameters.len()
         || signature.result.raw.ty != definition.result
@@ -210,7 +217,7 @@ pub(super) fn check_shape_with_source(
     }
     let expected = headers::expected(module, &signature.parameters, &signature.result, b)?;
     let source_header=if let Some(source)=source{
-        if source.parameters.len()!=signature.parameters.len()||source.parameter_modes!=signature.parameter_modes||source.result_mode!=signature.result_mode||source.call_kind!=signature.call_kind{return Err(bad("Callable original source changes its complete ABI or modes"));}
+        if source.parameters.len()!=signature.parameters.len()||source.parameter_modes!=signature.parameter_modes||source.result_mode!=signature.result_mode||!consuming_upper_compatible(kind,source.call_kind,signature.call_kind){return Err(bad("Callable original source changes its complete ABI or modes"));}
         for(a,z)in source.parameters.iter().chain(std::iter::once(&source.result)).zip(signature.parameters.iter().chain(std::iter::once(&signature.result))){
             dynamic_metadata::recipe(&a.raw,b)?;dynamic_metadata::recipe(&z.raw,b)?;
             if a.raw.ty!=z.raw.ty||a.raw.life!=z.raw.life{return Err(bad("Callable original source changes its whole type or intrinsic geometry"));}
@@ -483,6 +490,23 @@ pub(super) mod tests {
             },
             image,
         }
+    }
+    #[test]
+    fn semantic_consuming_upper_keeps_raw_abi_and_direct_retirement_strict(){
+        let limits=Limits::default();let(mut module,_)=crate::tests::baseline();
+        let header=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],classes:vec![],static_bindings:vec![]};
+        module.functions[0].environment=Some(ClosureId(0));module.functions[0].parameters.clear();module.functions[0].storage_life=Some(header.clone());
+        module.closures=vec![ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![],parameters:vec![],result:Type::I32,kind:CallableKind::FnMut,lending_captures:vec![],storage_life:Some(header)}];
+        let raw=DynTypeValue{ty:Type::Closure(ClosureId(0)),life:StorageLifeShape{binder_count:0,slots:vec![],retained:vec![],nominal_arguments:vec![]},classes:vec![]};
+        let receiver=terms::Value::anchored(&raw,terms::Owner::Function(FunctionId(0)),terms::Root::Receiver,&mut Budget::new(&limits)).unwrap();
+        let mut shape=Shape{parameters:vec![],parameter_modes:vec![],result:blank(Type::I32),result_mode:PassingMode::Infer,call_kind:CallKind::Suspend};
+        let scope=DynInstantiationScope{fixed_binder_count:0,invocation_binder_count:0};
+        assert!(check_shape(&module,&receiver,CallableKind::FnOnce,&shape,scope,false,&mut Budget::new(&limits)).is_err(),"raw ABI metadata alone cannot invent the semantic consuming adapter");
+        let mut b=Budget::new(&limits);let request=check_shape_with_source(&module,&receiver,CallableKind::FnOnce,&shape,None,scope,false,&mut b).unwrap().request(&module,&mut b).unwrap();
+        assert_eq!(request.call_kind,CallKind::Suspend);assert_eq!(module.functions[0].call_kind,CallKind::Direct);assert!(b.semantic_callables.is_empty(),"structural adaptation is still no sealed/final executable permission");
+        assert!(check_shape_with_source(&module,&receiver,CallableKind::FnMut,&shape,None,scope,false,&mut Budget::new(&limits)).is_err(),"nonconsuming invocation has no environment-retirement adapter");
+        shape.call_kind=CallKind::Direct;module.functions[0].call_kind=CallKind::Suspend;
+        assert!(check_shape_with_source(&module,&receiver,CallableKind::FnOnce,&shape,None,scope,false,&mut Budget::new(&limits)).is_err(),"a Suspend body/retirement cannot satisfy the complete Direct upper");
     }
     #[test]
     fn original_occurrence_bridge_preserves_independent_receiver_and_child_origins(){
@@ -994,7 +1018,7 @@ impl ShapeObligation {
                 function.id == self.function && function.environment == Some(self.closure)
             })
             .ok_or_else(|| bad("Callable shape lost its exact executable entry"))?;
-        if actual.call_kind != self.signature.call_kind
+        if !consuming_upper_compatible(self.kind,actual.call_kind,self.signature.call_kind)
             || actual.result_mode != self.signature.result_mode
         {
             return Err(bad(

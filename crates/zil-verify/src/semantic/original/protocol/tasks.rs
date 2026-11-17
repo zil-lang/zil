@@ -78,7 +78,8 @@ impl SynchronousBirths{
         root.binder.charge_clone(b)?;b.spend(root.fields.iter().map(String::len).sum::<usize>().saturating_add(source_width(&owner.sources)).saturating_add(2))?;
         self.pending.push((definition,root.clone(),owner.generation,owner.states,owner.sources.clone()));Ok(())
     }
-    pub(super) fn finish(mut self,b:&mut Budget)->Check<Vec<(SemanticDefinitionId,Place)>>{
+    pub(super) fn proven(&self,b:&mut Budget)->Check<BTreeSet<Birth>>{b.spend(self.known.len())?;Ok(self.known.clone())}
+    pub(super) fn finish(&mut self,b:&mut Budget)->Check<Vec<(SemanticDefinitionId,Place)>>{
         // Least fixed point of all-source obligations. Original Input/Unknown,
         // absent creation observations and source-only cycles are not anchors.
         let mut changed=true;
@@ -88,7 +89,7 @@ impl SynchronousBirths{
             if self.conditional.contains(birth)&&sources.iter().all(|source|matches!(source,TaskSource::Birth{definition,node}if self.known.contains(&(*definition,*node)))){self.known.insert(*birth);changed=true;}
         }}
         let mut ready=Vec::new();
-        for(definition,root,generation,phase,sources)in self.pending{
+        for(definition,root,generation,phase,sources)in std::mem::take(&mut self.pending){
             b.spend(source_width(&sources).saturating_add(1))?;
             if !sources.iter().all(|source|matches!(source,TaskSource::Birth{definition,node}if self.known.contains(&(*definition,*node)))){
                 return Err(bad("original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend").with_note(format!("original cleanup {definition:?} {root:?} generation {generation}, phase {phase}; incomplete all-source creation dependencies {sources:?}")));
@@ -222,6 +223,15 @@ impl CheckedOriginal {
     }
 }
 
+fn entry_sources(place:&Place,b:&mut Budget)->Check<Sources>{
+    place.binder.charge_clone(b)?;b.spend(place.fields.iter().map(String::len).sum::<usize>().saturating_add(1))?;
+    Ok(match &place.binder{
+        Binder::Parameter{definition,ordinal}=>BTreeSet::from([TaskSource::Input{definition:*definition,ordinal:*ordinal,path:place.fields.clone()}]),
+        Binder::Capture{definition,source}=>BTreeSet::from([TaskSource::Capture{definition:*definition,source:source.clone(),path:place.fields.clone()}]),
+        _=>unknown_sources(),
+    })
+}
+
 impl<'a> Engine<'a> {
     pub(super) fn task_bind(
         &mut self,
@@ -339,7 +349,7 @@ impl<'a> Engine<'a> {
             Shape::Plain => Value::Plain,
             Shape::FallibleTask => Value::FallibleTask(PendingTask{
                 states:LIVE,
-                sources:match &place.binder{Binder::Parameter{definition,ordinal}=>BTreeSet::from([TaskSource::Input{definition:*definition,ordinal:*ordinal,path:place.fields.clone()}]),_=>unknown_sources()},
+                sources:entry_sources(place,b)?,
             }),
             Shape::Task { borrowed } => {
                 if state.owners.get(place).is_some_and(|owner|owner.states!=DEAD){
@@ -353,7 +363,7 @@ impl<'a> Engine<'a> {
                         generation,
                         task: true,
                         owned: !*borrowed,
-                        sources:match &place.binder{Binder::Parameter{definition,ordinal}=>BTreeSet::from([TaskSource::Input{definition:*definition,ordinal:*ordinal,path:place.fields.clone()}]),_=>unknown_sources()},
+                        sources:entry_sources(place,b)?,
                     },
                 );
                 Value::Owner {
@@ -523,6 +533,15 @@ impl<'a> Engine<'a> {
         Ok(())
     }
     pub(super) fn task_exit(&mut self, state: &mut State, b: &mut Budget) -> Check<()> {
+        // Snapshot before activation exit changes ownership. Closed is tied
+        // to this generation; neither a later exit nor actual callers replace it.
+        for(root,owner)in &state.owners{
+            if owner.task&&owner.owned&&matches!(root.binder,Binder::Capture{definition,..}if definition==self.current){
+                root.binder.charge_clone(b)?;b.spend(root.fields.iter().map(String::len).sum::<usize>().saturating_add(source_width(&owner.sources)).saturating_add(3))?;
+                if self.capture_exits.len()>=b.limits.max_nodes{return Err(limit("original capture exit inventory exceeded"));}
+                self.capture_exits.push(CaptureExit{root:root.clone(),generation:owner.generation,phase:owner.states,sources:owner.sources.clone()});
+            }
+        }
         b.spend(state.width())?;
         let roots = state
             .owners
@@ -937,36 +956,43 @@ impl Engine<'_>{
         }else{self.returned_sources=Some(incoming);}
         Ok(())
     }
-    pub(super) fn apply_result_sources(&self,state:&mut State,value:&mut Value,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,b:&mut Budget)->Check<()>{
-        fn sources(path:&[String],summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,b:&mut Budget)->Check<Sources>{
+    pub(super) fn apply_result_sources(&self,state:&mut State,value:&mut Value,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,receiver:Option<&ResultSources>,b:&mut Budget)->Check<()>{
+        fn sources(path:&[String],summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,receiver:Option<&ResultSources>,original:&CheckedOriginal,b:&mut Budget)->Check<Sources>{
             let mut sources=Sources::new();
                     if let Some(rows)=summary.get(path){for source in rows{b.spend(1)?;match source{
                         TaskSource::Input{definition,ordinal,path}if *definition==target=>{
                             if let Some(actual)=inputs.get(*ordinal as usize).and_then(|input|input.get(path)){b.spend(source_width(actual))?;sources.extend(actual.iter().cloned());}else{sources.insert(TaskSource::Unknown);}
                         },
-                        TaskSource::Input{..}|TaskSource::Unknown=>{sources.insert(TaskSource::Unknown);},
+                        TaskSource::Capture{definition,source,path}if *definition==target=>{
+                            let mut names=original.free_values.get(&target).into_iter().flat_map(|rows|rows.iter()).filter(|(_,binding)|binding.identity==**source);
+                            let Some((name,_))=names.next()else{sources.insert(TaskSource::Unknown);continue;};
+                            if names.next().is_some(){return Err(bad("closure result source has ambiguous original captured binders"));}
+                            let mut selected=vec![CheckedOriginal::capture_field(name,b)?];b.spend(path.iter().map(String::len).sum::<usize>().saturating_add(1))?;selected.extend_from_slice(path);
+                            if let Some(actual)=receiver.and_then(|rows|rows.get(&selected)){b.spend(source_width(actual))?;sources.extend(actual.iter().cloned());}else{sources.insert(TaskSource::Unknown);}
+                        },
+                        TaskSource::Input{..}|TaskSource::Capture{..}|TaskSource::Unknown=>{sources.insert(TaskSource::Unknown);},
                         birth@TaskSource::Birth{..}=>{sources.insert(birth.clone());},
                     }}}else{sources.insert(TaskSource::Unknown);}
                     if sources.is_empty(){sources.insert(TaskSource::Unknown);}
             Ok(sources)
         }
-        fn walk(state:&mut State,value:&mut Value,path:&mut Vec<String>,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,b:&mut Budget)->Check<()>{
+        fn walk(state:&mut State,value:&mut Value,path:&mut Vec<String>,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,receiver:Option<&ResultSources>,original:&CheckedOriginal,b:&mut Budget)->Check<()>{
             b.spend(path.iter().fold(1usize,|n,s|n.saturating_add(s.len())))?;
             match value{
                 Value::Owner{root,..}=>{
-                    let sources=sources(path,summary,inputs,target,b)?;
+                    let sources=sources(path,summary,inputs,target,receiver,original,b)?;
                     let owner=state.owners.get_mut(root).ok_or_else(||bad("helper Return source lost its exact newly initialized owner"))?;
                     if owner.task{owner.sources=sources;}
                 },
-                Value::FreshTask(task)|Value::FallibleTask(task)=>task.sources=sources(path,summary,inputs,target,b)?,
-                Value::Product(fields)=>for(name,value)in fields{path.push(name.clone());walk(state,value,path,summary,inputs,target,b)?;path.pop();},
+                Value::FreshTask(task)|Value::FallibleTask(task)=>task.sources=sources(path,summary,inputs,target,receiver,original,b)?,
+                Value::Product(fields)=>for(name,value)in fields{path.push(name.clone());walk(state,value,path,summary,inputs,target,receiver,original,b)?;path.pop();},
                 _=>{},
             }
             Ok(())
         }
         // The caller supplies the callee identity explicitly, never infers it
         // from a compatible type, source name, or current concrete occupant.
-        walk(state,value,&mut vec![],summary,inputs,target,b)
+        walk(state,value,&mut vec![],summary,inputs,target,receiver,self.original,b)
     }
 }
 

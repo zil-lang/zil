@@ -9,6 +9,7 @@ mod walk;
 use intrinsics::Intrinsic;
 use state::*;
 
+pub(super) struct CaptureExit{root:Place,generation:u64,phase:u8,sources:Sources}
 struct Engine<'a> {
     original: &'a CheckedOriginal,
     module: &'a TypedModule,
@@ -21,6 +22,7 @@ struct Engine<'a> {
     closed_tasks: BTreeSet<Place>,
     async_tasks: BTreeSet<Place>,
     retiring_captures:BTreeSet<Place>,
+    capture_exits:Vec<CaptureExit>,
     synchronous_births:&'a mut tasks::SynchronousBirths,
     result_sources_by_function:&'a BTreeMap<SemanticDefinitionId,ResultSources>,
     returned_sources:Option<ResultSources>,
@@ -29,6 +31,7 @@ struct Engine<'a> {
     task_loop_keys: Vec<BTreeSet<Binder>>,
     result_shapes:BTreeMap<NodeId,tasks::Shape>,
     callable_roles:BTreeMap<NodeId,(CallableKind,Vec<PassingMode>)>,
+    callable_targets:BTreeMap<NodeId,SemanticDefinitionId>,
     creation_shapes:BTreeMap<NodeId,Vec<tasks::Shape>>,
 }
 
@@ -41,9 +44,27 @@ impl CheckedOriginal {
         active: &mut ActiveQueries,
         b: &mut Budget,
     ) -> Check<()> {
+        let mut closure_targets=BTreeMap::new();
+        for(&id,function)in &index.definitions{
+            let previous=self.current.replace(id);
+            for expression in function.expressions.values(){
+                let CoreExprKind::Call{callee,..}=&expression.kind else{continue;};
+                let Some(ty)=self.expressions.get(&(id,callee.id))else{continue;};
+                let mut ty=self.resolved(ty,b)?;let mut depth=0;
+                loop{b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original closure call target depth exceeded"));}depth+=1;
+                    match ty{
+                        Ty::Address{inner,..}|Ty::Desc{inner,..}=>ty=self.resolved(&inner,b)?,
+                        Ty::Opaque(owner,arguments)=>ty=self.opaque_hidden(module,context,owner,&arguments,active,b)?,
+                        Ty::Closure(owner,..)=>{closure_targets.entry(id).or_insert_with(BTreeMap::new).insert(expression.id,owner);break;},
+                        _=>break,
+                    }
+                }
+            }
+            self.current=previous;
+        }
         let mut synchronous_births=self.synchronous_task_births(module,context,index,active,b)?;
         let mut result_sources_by_function=BTreeMap::new();
-        for id in protocol_order(self,index,b)? {
+        for id in protocol_order(self,index,&closure_targets,b)? {
             let function=&index.definitions[&id];
             b.spend(1)?;
             let SemanticDefinitionBody::FunctionWithBody {
@@ -173,7 +194,7 @@ impl CheckedOriginal {
                 next: 0,
                 closed_tasks: BTreeSet::new(),
                 async_tasks: BTreeSet::new(),
-                retiring_captures:BTreeSet::new(),
+                retiring_captures:BTreeSet::new(),capture_exits:vec![],
                 synchronous_births:&mut synchronous_births,
                 result_sources_by_function:&result_sources_by_function,
                 returned_sources:None,
@@ -182,6 +203,7 @@ impl CheckedOriginal {
                 task_loop_keys: Vec::new(),
                 result_shapes,
                 callable_roles,
+                callable_targets:closure_targets.get(&id).cloned().unwrap_or_default(),
                 creation_shapes,
             };
             engine.poll = engine.poll_type(&prototype.result, b)?;
@@ -290,8 +312,10 @@ impl CheckedOriginal {
             let closed = std::mem::take(&mut engine.closed_tasks);
             let asynchronous = std::mem::take(&mut engine.async_tasks);
             let retiring_captures=std::mem::take(&mut engine.retiring_captures);
+            let capture_exits=std::mem::take(&mut engine.capture_exits);
             let returned=engine.returned_sources.take();
             drop(engine);
+            self.capture_exit_snapshots.insert(id,capture_exits);
             for root in retiring_captures{self.remember_callable_retirement(id,&root,cleanup::CallableRetirement::ActivationCapture,b)?;}
             if let Some(returned)=returned{b.spend(returned.len())?;result_sources_by_function.insert(id,returned);}
             for root in closed {
@@ -305,6 +329,7 @@ impl CheckedOriginal {
             self.current=previous;
         }
         for(definition,root)in synchronous_births.finish(b)?{b.spend(1)?;self.task_synchronous_cleanups.insert((definition,root));}
+        self.proven_synchronous_births=synchronous_births.proven(b)?;
         Ok(())
     }
 }
@@ -567,13 +592,33 @@ impl<'a> Engine<'a> {
 
 /// Visit statically selected original callees before their users. A recursive
 /// edge does not assume its own Return summary: a missing summary stays unknown.
-fn protocol_order(original:&CheckedOriginal,index:&index::Index<'_>,b:&mut Budget)->Check<Vec<SemanticDefinitionId>>{
+fn protocol_order(original:&CheckedOriginal,index:&index::Index<'_>,closures:&BTreeMap<SemanticDefinitionId,BTreeMap<NodeId,SemanticDefinitionId>>,b:&mut Budget)->Check<Vec<SemanticDefinitionId>>{
     let mut edges=BTreeMap::<SemanticDefinitionId,BTreeSet<SemanticDefinitionId>>::new();
     for((caller,_),callee)in &original.call_targets{b.spend(1)?;if index.definitions.contains_key(callee){edges.entry(*caller).or_default().insert(*callee);}}
+    for(&owner,function)in &index.definitions{for child in function.closures.values(){b.spend(1)?;edges.entry(owner).or_default().insert(*child);}}
+    for(&owner,targets)in closures{for child in targets.values(){b.spend(1)?;edges.entry(owner).or_default().insert(*child);}}
     let mut entered=BTreeSet::new();let mut done=BTreeSet::new();let mut result=Vec::new();
     for id in index.definitions.keys(){
         let mut pending=vec![(*id,false)];
         while let Some((id,exit))=pending.pop(){b.spend(1)?;if exit{if done.insert(id){result.push(id);}continue;}if !entered.insert(id){continue;}pending.push((id,true));if let Some(callees)=edges.get(&id){for callee in callees{b.spend(1)?;pending.push((*callee,false));}}}
     }
     Ok(result)
+}
+
+impl CheckedOriginal{
+    /// Every original exit contributes independently, including persistent
+    /// Fn/FnMut activations being offered as a consuming Direct capability.
+    pub(super) fn direct_capture_retirement(&self,definition:SemanticDefinitionId,place:&Place,b:&mut Budget)->Check<bool>{
+        let Some(exits)=self.capture_exit_snapshots.get(&definition)else{return Ok(false);};
+        let mut seen=false;
+        for exit in exits{
+            b.spend(source_width(&exit.sources).saturating_add(exit.root.fields.len()).saturating_add(1))?;
+            if exit.root!=*place{continue;}seen=true;
+            if exit.phase==DEAD||exit.phase!=0&&exit.phase&!CLOSED==0{continue;}
+            if exit.phase==0||exit.sources.is_empty()||!exit.sources.iter().all(|source|matches!(source,TaskSource::Birth{definition,node}if self.proven_synchronous_births.contains(&(*definition,*node)))){
+                return Err(bad("original Direct consuming provider has no all-exit synchronous capture retirement proof").with_note(format!("original provider {definition:?}, capture {place:?}, generation {}, phase {}, universal sources {:?}",exit.generation,exit.phase,exit.sources)));
+            }
+        }
+        Ok(seen)
+    }
 }

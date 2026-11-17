@@ -26,11 +26,12 @@ pub(super) enum TaskSource{
     Unknown,
     Input{definition:SemanticDefinitionId,ordinal:u32,path:Vec<String>},
     Birth{definition:SemanticDefinitionId,node:NodeId},
+    Capture{definition:SemanticDefinitionId,source:Box<Binder>,path:Vec<String>},
 }
 pub(super) type Sources=BTreeSet<TaskSource>;
 pub(super) type ResultSources=BTreeMap<Vec<String>,Sources>;
 pub(super) fn unknown_sources()->Sources{BTreeSet::from([TaskSource::Unknown])}
-pub(super) fn source_width(sources:&Sources)->usize{sources.iter().fold(1usize,|n,source|n.saturating_add(match source{TaskSource::Input{path,..}=>path.iter().fold(2usize,|n,s|n.saturating_add(s.len())),_=>1}))}
+pub(super) fn source_width(sources:&Sources)->usize{sources.iter().fold(1usize,|n,source|n.saturating_add(match source{TaskSource::Input{path,..}=>path.iter().fold(2usize,|n,s|n.saturating_add(s.len())),TaskSource::Capture{source,path,..}=>path.iter().fold(binder_width(source).saturating_add(2),|n,s|n.saturating_add(s.len())),_=>1}))}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Owner {
     pub(super) states: u8,
@@ -418,13 +419,55 @@ impl Engine<'_> {
 mod source_tests{
     use super::*;
     #[test]
+    fn consuming_direct_proof_keeps_every_original_capture_exit_generation(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);
+        let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let index=index::build(&module,&mut b).unwrap();let definition=index.definitions.keys().next().copied().unwrap();
+        let mut original=CheckedOriginal::default();
+        original.prototypes.insert(definition,Prototype{parameters:vec![],result:Ty::Atom(Type::I32),environment:Env{lexical:vec![],bounds:vec![],invocation:vec![],self_type:None},modes:vec![],result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound_lifetimes:0,invocation_lifetimes:0,premise_bounds:vec![],callable_kind:Some(CallableKind::FnMut)});
+        let mut births=tasks::SynchronousBirths::default();let summaries=BTreeMap::new();
+        let source=Binder::Parameter{definition,ordinal:0};let binder=Binder::Capture{definition,source:Box::new(source)};let root=root_place(&binder);
+        let mut state=State::default();state.owners.insert(root.clone(),Owner{states:CLOSED,generation:1,task:true,owned:true,sources:unknown_sources()});
+        let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:1,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),retiring_captures:BTreeSet::new(),capture_exits:vec![],synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),callable_targets:BTreeMap::new(),creation_shapes:BTreeMap::new()};
+        engine.task_exit(&mut state,&mut b).unwrap();
+        assert_eq!(state.owner(&root,&mut b).unwrap().states,CLOSED,"checking FnMut consumption never destroys its persistent activation");
+        let first=std::mem::take(&mut engine.capture_exits);
+        engine.invalidate_task_source(&mut state,&root,&mut b).unwrap();engine.update(&mut state,&root,LIVE,&mut b).unwrap();engine.task_exit(&mut state,&mut b).unwrap();
+        let second=std::mem::take(&mut engine.capture_exits);drop(engine);
+        original.capture_exit_snapshots.insert(definition,first);assert!(original.direct_capture_retirement(definition,&root,&mut b).unwrap());
+        original.capture_exit_snapshots.get_mut(&definition).unwrap().extend(second);
+        assert!(original.direct_capture_retirement(definition,&root,&mut b).is_err(),"a second live Unknown exit cannot borrow another generation's Closed witness");
+    }
+    #[test]
+    fn original_closure_result_substitutes_only_the_selected_capture_once(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);
+        let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let index=index::build(&module,&mut b).unwrap();let definition=index.definitions.keys().next().copied().unwrap();
+        let first=Binder::Parameter{definition,ordinal:0};let second=Binder::Parameter{definition,ordinal:1};
+        let mut original=CheckedOriginal::default();original.free_values.insert(definition,BTreeMap::from([("first".into(),Binding{ty:Ty::Atom(Type::I32),mutable:false,identity:first.clone()}),("second".into(),Binding{ty:Ty::Atom(Type::I32),mutable:false,identity:second.clone()})]));
+        let mut births=tasks::SynchronousBirths::default();let summaries=BTreeMap::new();
+        let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:2,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),retiring_captures:BTreeSet::new(),capture_exits:vec![],synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),callable_targets:BTreeMap::new(),creation_shapes:BTreeMap::new()};
+        let mut state=State::default();let a=root_place(&first);let z=root_place(&second);
+        let a_source=BTreeSet::from([TaskSource::Birth{definition,node:NodeId(7)}]);
+        let z_source=BTreeSet::from([TaskSource::Input{definition,ordinal:0,path:vec![]}]);
+        state.owners.insert(a.clone(),Owner{states:LIVE,generation:1,task:true,owned:true,sources:a_source.clone()});state.owners.insert(z.clone(),Owner{states:LIVE,generation:2,task:true,owned:true,sources:z_source.clone()});
+        let receiver=Value::Product(vec![("$capture:first".into(),Value::Owner{root:a,borrowed:false}),("$capture:second".into(),Value::Owner{root:z,borrowed:false})]);
+        let before=engine.result_sources(&state,&receiver,&mut b).unwrap();engine.task_transfer_value(&mut state,&receiver,&mut b).unwrap();
+        for(source,wanted)in [(second,z_source),(first,a_source)]{
+            let summary=BTreeMap::from([(vec![],BTreeSet::from([TaskSource::Capture{definition,source:Box::new(source),path:vec![]}]))]);
+            let mut result=Value::FreshTask(PendingTask{states:LIVE,sources:unknown_sources()});
+            engine.apply_result_sources(&mut state,&mut result,&summary,&[],definition,Some(&before),&mut b).unwrap();
+            let Value::FreshTask(result)=result else{unreachable!()};assert_eq!(result.sources,wanted,"same-type captures keep exact binder identity and call-before source; replacement Input is not substituted a second time");
+        }
+    }
+    #[test]
     fn original_state_join_never_discards_a_conditional_owner_missing_on_either_edge(){
         let limits=Limits::default();let mut b=Budget::new(&limits);
         let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
         let original=CheckedOriginal::default();let index=index::build(&module,&mut b).unwrap();
         let definition=index.definitions.keys().next().copied().unwrap();
         let mut births=tasks::SynchronousBirths::default();let summaries=BTreeMap::new();
-        let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),retiring_captures:BTreeSet::new(),synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),creation_shapes:BTreeMap::new()};
+        let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),retiring_captures:BTreeSet::new(),capture_exits:vec![],synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),callable_targets:BTreeMap::new(),creation_shapes:BTreeMap::new()};
         let binder=Binder::Parameter{definition,ordinal:0};
         let pending=Value::FallibleTask(PendingTask{sources:BTreeSet::from([TaskSource::Birth{definition,node:NodeId(4)}]),states:OPEN});
         let mut present=State::default();present.values.insert(binder.clone(),pending.clone());

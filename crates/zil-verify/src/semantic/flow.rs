@@ -41,6 +41,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
     let mut original=original::CheckedOriginal::check(module,&context,&mut active,b)?;
     b.diagnostic_stage("original frozen schemes");
     original.frozen_schemes(module,&context,&mut active,b)?;
+    original.verify_direct_consuming_goals(module,&context,&mut active,b)?;
     *context.original.borrow_mut()=Some(original);
     let mut external=dynamic_witness::semantic_external::Proofs::default();
     b.diagnostic_stage("task context metadata");

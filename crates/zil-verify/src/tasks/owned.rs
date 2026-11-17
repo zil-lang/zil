@@ -294,7 +294,7 @@ fn storage(t: &Type, budget: &mut Budget) -> Check<bool> {
 }
 // A private continuation profile, independently reconstructed from actual
 // concrete captures. It grants no Closed/no-future state and admits no borrow.
-fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Check<bool> {
+pub(super) fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Check<bool> {
     resources::charge_payload(t, budget)?;
     budget.spend(1)?;
     match t {

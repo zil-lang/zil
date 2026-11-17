@@ -243,7 +243,7 @@ fn closed(
             .ok_or_else(|| error(span, "registration entry is absent"))?;
         budget.spend(c.parameters.len().saturating_add(1))?;
         if entry.environment != Some(id)
-            || entry.call_kind!=CallKind::Direct
+            || !purpose.semantic()&&entry.call_kind!=CallKind::Direct
             || entry.foreign.is_some()
             || entry.parameters.len() != c.parameters.len()
             || entry.return_type != c.result
@@ -840,12 +840,16 @@ mod static_capture_tests{
         let entry=&mut module.functions[0];entry.environment=Some(ClosureId(0));entry.storage_life=Some(header.clone());entry.parameters.clear();entry.locals.clear();entry.values=vec![capture.clone(),leaf.clone()];entry.return_type=leaf.clone();
         entry.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::ReadCapture{index:0},span},Instruction{result:Some(ValueId(1)),kind:InstructionKind::ExtractField{aggregate:ValueId(0),index:0},span}];entry.blocks[0].terminator=Terminator::Return(Some(ValueId(1)));
         module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![capture],parameters:vec![],result:leaf,kind:CallableKind::FnOnce,storage_life:Some(header),lending_captures:vec![]});
+        let mut suspended=module.clone();suspended.functions[0].call_kind=CallKind::Suspend;
+        let mut data=Budget::new(&limits);semantic_closed_environment(&suspended,ClosureId(0),&mut data).unwrap();
+        assert!(data.proven_static_occurrences.is_empty(),"a data CE obligation does not prove Static sources or synchronous execution");
+        assert!(closed(&suspended,ClosureId(0),None,&mut Budget::new(&limits),ClosedPurpose::Registration{asynchronous:false}).is_err(),"C registration retains its independent Direct/no-future contract");
         for mutation in 0..8{
             let mut proposed=module.clone();
             match mutation{
                 1=>proposed.closures[0].storage_life.as_mut().unwrap().static_bindings[0].path[0]=ContractProjection::Place(PlaceProjection::Field(1)),
                 2=>{let Type::Tuple(fields)=&mut proposed.closures[0].captures[0]else{unreachable!()};let Type::Address{mutable,..}=&mut fields[0]else{unreachable!()};*mutable=true;},
-                3=>proposed.functions[0].call_kind=CallKind::Suspend,
+                3=>proposed.functions[0].environment=None,
                 4=>proposed.closures[0].storage_life=None,
                 5=>{proposed.closures[0].storage_life.as_mut().unwrap().static_bindings.remove(0);},
                 6=>proposed.closures[0].storage_life.as_mut().unwrap().fixed_binder_count=1,
