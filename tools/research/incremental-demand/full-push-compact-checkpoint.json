@@ -1,24 +1,24 @@
 {
-  "schema": "zil.compiler-pain-continuation.v17",
+  "schema": "zil.compiler-pain-continuation.v18",
   "construction_branch": "research/full-push-native",
-  "compiled_source": "bef2a67ee97e75d3609971269688cd11f23cce0e",
-  "production_source": "bef2a67ee97e75d3609971269688cd11f23cce0e",
-  "binary_sha256": "607a32b3acd7ded7e0c04fd8b0e26ad4663880d5f040efbdb5ffd591c47d143a",
-  "binary": "/workspace/zil-push-main/out/binaries/bef2a67ee97e75d3609971269688cd11f23cce0e/zil",
+  "compiled_source": "3fef2e582e0c93e051b8500c85dfe33b66319bda",
+  "production_source": "3fef2e582e0c93e051b8500c85dfe33b66319bda",
+  "binary_sha256": "85d6b2c71fc3121ca02f51dff6945b91884ee3074eae1cace00fcb5d0afa0a93",
+  "binary": "/workspace/zil-push-main/out/binaries/3fef2e582e0c93e051b8500c85dfe33b66319bda/zil",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "window21 firstedit 1.957/Rust1.007s still slower. Core101hits/1producer, currentgraph166items. All functional/runtime gates PASS; gates49strict/E145/CT78/D239/pub2/fmt/release, backend376/tool31g48 reused. No main merge.",
+  "status": "window23 firstedit1.871/Rust1.276s; actual243 raw-machine templates restored, Core101hit/1producer. Quality PASS; comprehensive/main gates open.",
   "current_result": "tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
   "previous_native_result": "https://github.com/zil-lang/zil/blob/a68ede06531f443776029607ee69f3196fd41d35/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
   "previous_check_source": "54a0258ab9e081085254084e4b081309dc06eda9",
   "previous_check_result": "tools/research/incremental-demand/check-restart-scope-chain-20261116/summary.json",
   "work_in_this_commit": [
-    "Trusted-local per-module raw Core/SourceMap/ordered frontend fee candidates bind exact current source bytes, placement, parser admission, full current context/target/limit domain. Current-source errors and insufficient budgets re-enter the original path; successful source/CT products never deserialize checker authority.",
-    "Close/edit/restart now recovers101 unchanged modules and produces1; Source/Core complete output and all fee-prefix controls pass. Parser eviction retains equal actual recovered inputs under exact parser configuration/source checks; after actual lowering equal Core leaves keep current-process CT owner continuity. Original1check/305reuse regression unchanged and passes.",
-    "Explicit bounded-classes-128-v4 constructs current classes before range/scalar planning, validates the complete original model, protects exports/address roots, atomically prunes unreachable definitions, restores surviving linkage, and passes only accounted source removals to partition. Original pre-prune source copy cap is bound to both planner/validator, layout keys, resident equality and fallback.",
-    "Independent qualifier reconstructs the exact compact current class-production snapshot, checks full class/source body equality at that boundary and recomputes source copy cap, then checks live ABI/purity/opcode/DAG/physical layouts and all257inputs. Full actual-unit preflight/fullO2 remain. Real private-edit machine graph166items, partition materialization1331items; hits alone are not a compile win."
+    "Source/Core exact bounded binary context replaces Debug formatting; same dependency predicate memo shares admission/publication encoding. Unchanged module bytes skip publication guards; actual writes use held namespace identities and complete boundary guards, avoiding repeated full path-collision scans.",
+    "ArtifactCache content-key reads reuse the already computed envelope digest and remove headers in place. Packed readers memo successful unique immutable segments within original aggregate caps, still observe cancellation first, and publishers compare full current item bytes before reusing old locations.",
+    "Explicit trusted semantic-cache/push-reuse raw emitted functions retain bounded primitive machine DATA, full compiler/DSO/context/callee-summary/current body bindings, original reservations and complete current preflight/full O2. Per-body representatives plus aliases share actual decoded owners and retain accepted bytes. No Source/Verify/WorldBound permission serialized; defaults off.",
+    "Cold absent semantic roots are privately created only after complete destination planning, rechecked and pinned. Raw manifest commits only after successful guarded native publication. Fresh-session native regression proves cold seeding, direct first-edit restored+changed templates, exact outputs/current preflight and SafeReject without cache advancement."
   ],
   "invariants": "Default research off; current full Source/LIR bindings, original budgets, independent Verify, full default<O2>; main/goal/archive separate; no LLVM rebuild or evidence packing.",
   "sdk": "Installed SDK18/native-link reused, V32 pins unchanged; no assumption of historical local caches. Completed old user caches retired only after raw/results preserved; not product disk improvement.",
   "goal_status": "Full Rust/main/industrial gates OPEN; old7e/98fa/021997/54a/e402/f828 figures stay source-bound.",
-  "active_work": "Formal21 complete. Root locating remaining CPU cost with own-child sampler; Astra Plato actively optimizing Source/Core context serialization and publication guards. Existing source WIP is not measured21. Kernel perf events unavailable. SDK18/native-link reused; no LLVM rebuild/archive."
+  "active_work": "Formal23 complete and real rawmachine243hits confirmed, still1.871/Rust1.276s. Same-source profile23 shows codegen1008ms, semanticpublication111ms, Types157ms, SourceCore104ms, Analyze105ms, Verify74ms; diagnostic only. Own-child213samples locate raw machine codec allocations/validation and class COW clones. Astra found missing raw Analyze restart consumer plus missing original fee accounting; no current plan-only shortcut is sound. Next whole chain targets machine allocation and fee-compatible raw Analyze data; no current new production result."
 }
