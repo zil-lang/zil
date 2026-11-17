@@ -64,7 +64,7 @@ fn definition(
         *id,
         budget,
         span,
-        matches!(payload, Type::AsyncRegistration { .. }),
+        ClosedUse::Retained { asynchronous: matches!(payload, Type::AsyncRegistration { .. }) },
     )
 }
 fn static_capture(
@@ -130,13 +130,19 @@ fn static_capture(
     Ok(true)
 }
 
+// A source environment bound and a foreign retained callback have distinct
+// obligations. Closed storage alone promises no synchronous teardown or ABI.
+#[derive(Clone, Copy)]
+enum ClosedUse { Environment, Retained { asynchronous: bool } }
+
 fn closed(
     module: &TypedModule,
     root: ClosureId,
     budget: &mut Budget,
     span: Span,
-    asynchronous: bool,
+    purpose: ClosedUse,
 ) -> CompileResult<()> {
+    let asynchronous = matches!(purpose, ClosedUse::Retained { asynchronous: true });
     let mut seen = BTreeSet::new();
     let mut pending = vec![root];
     let mut functions = Vec::new();
@@ -225,6 +231,14 @@ fn closed(
                     budget.spend(1, "registration nested concrete environment")?;
                     pending.push(*id)
                 }
+                Type::Managed(t) if matches!(purpose, ClosedUse::Environment)
+                    && matches!(t.as_ref(), Type::Task { retained_life, .. }
+                        if retained_life.binder_count == 0 && retained_life.ports.is_empty()
+                            && retained_life.retained.is_empty() && retained_life.nominal_arguments.is_empty()) => {
+                    // This checks the immutable actual constructor/worker and
+                    // resource identity, not a type-name or header permission.
+                    crate::tasks::closed_environment_task(module, t, budget, span)?;
+                }
                 Type::Managed(t) => {
                     budget.spend(
                         module.resources.len(),
@@ -296,6 +310,11 @@ fn closed(
                 | Type::TaskI32 => {}
             }
         }
+    }
+    if matches!(purpose, ClosedUse::Environment) {
+        // Actual entries, effects, resources, loans and cleanup are still
+        // checked by their ordinary independent consumers. CE is storage only.
+        return Ok(());
     }
     let mut visited = BTreeSet::new();
     while let Some(id) = functions.pop() {
@@ -662,7 +681,7 @@ pub(super) fn factory(
         *id,
         budget,
         f.span,
-        matches!(p.as_ref(), Type::AsyncRegistration { .. }),
+        ClosedUse::Retained { asynchronous: matches!(p.as_ref(), Type::AsyncRegistration { .. }) },
     )?;
     Ok(true)
 }
@@ -848,7 +867,7 @@ pub(crate) fn semantic_closed_environment(
     closure: ClosureId,
     budget: &mut Budget,
 ) -> CompileResult<()> {
-    closed(module, closure, budget, Span::default(), false)
+    closed(module, closure, budget, Span::default(), ClosedUse::Environment)
 }
 pub(crate) fn semantic_thread_callable(
     module: &TypedModule,

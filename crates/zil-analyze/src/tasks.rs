@@ -15,6 +15,17 @@ pub(crate) fn semantic_type_domain_zero(payload: &Type, budget: &mut Budget) -> 
     semantic_scope::type_domain_zero(payload, budget)
 }
 
+/// A captured owning head's complete external-free domain is separate from
+/// either a retained callback teardown or a synchronous Task graph theorem.
+pub(crate) fn closed_environment_task(module: &TypedModule, payload: &Type,
+    budget: &mut Budget, _span: zil_base::Span) -> CompileResult<()> {
+    // semantic_scope's builder consumes only these current raw metadata bounds,
+    // as input_scope::known_zero does. No analysis/CT quota is replaced.
+    let limits = Limits { max_nodes: budget.helper_nodes,
+        max_call_depth: budget.partial_depth, ..Limits::default() };
+    semantic_scope::zero(module, payload, &limits, budget)
+}
+
 pub(crate) fn semantic_resource_scope(
     module: &TypedModule,
     payload: &Type,
