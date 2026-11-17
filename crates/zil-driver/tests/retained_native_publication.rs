@@ -479,3 +479,102 @@ fn stable_class_layout_receipt_survives_edits_partition_and_final_artifact_reuse
         "distinct actual machine inputs keep their own receipt keys"
     );
 }
+
+#[test]
+#[ignore = "requires an explicitly installed native link profile; run with ZIL_TEST_NATIVE_LINK_PROFILE"]
+fn cold_build_seeds_raw_machine_products_before_restart_first_edit() {
+    let profile = PathBuf::from(std::env::var_os("ZIL_TEST_NATIVE_LINK_PROFILE").unwrap());
+    let case = Case::new();
+    fs::write(
+        case.0.join("main.zil"),
+        "import left\nimport right\nfn main()->i32{return left.value(1)+right.value(2);}",
+    )
+    .unwrap();
+    let left = |value| {
+        format!(
+            "fn hidden(x:i32)->i32{{return x+{value};}}\npub fn value(x:i32)->i32{{return hidden(x);}}"
+        )
+    };
+    fs::write(case.0.join("left.zil"), left(19)).unwrap();
+    fs::write(
+        case.0.join("right.zil"),
+        "pub fn value(x:i32)->i32{return x*11;}",
+    )
+    .unwrap();
+    let mut options = case.options(profile);
+    options.cache_dir = None;
+    options.emit_dir = None;
+    options.semantic_cache = Some(case.0.join("semantic"));
+    options.closed_executable = true;
+    options.incremental_o2 = true;
+    options.bounded_class_imports = true;
+    assert!(!options.semantic_cache.as_ref().unwrap().exists());
+    let cold = case.compile(
+        &mut CompilationSession::default(),
+        &options,
+        "cold-raw-seed",
+    );
+    successful(&cold, 42);
+    assert!(
+        cold.backend_work
+            .as_ref()
+            .unwrap()
+            .raw_emission_cache_misses
+            > 0,
+        "the actual first build must stage raw emission: {}",
+        cold.to_json()
+    );
+    // No unchanged request warms a process or fills the missing cold epoch.
+    fs::write(case.0.join("left.zil"), left(20)).unwrap();
+    let edited = case.compile(
+        &mut CompilationSession::default(),
+        &options,
+        "restart-first-edit-raw-hit",
+    );
+    successful(&edited, 43);
+    let work = edited.backend_work.as_ref().unwrap();
+    assert!(work.restored_emission_templates > 0, "{}", edited.to_json());
+    assert!(
+        work.raw_emission_cache_misses > 0,
+        "changed body must run its producer"
+    );
+    assert!(work.machine_preflights_checked > 0);
+    let cache = options
+        .semantic_cache
+        .as_ref()
+        .unwrap()
+        .join("raw-emission-v1");
+    let inventory = || {
+        fs::read_dir(&cache)
+            .unwrap()
+            .flat_map(|entry| {
+                fs::read_dir(entry.unwrap().path())
+                    .unwrap()
+                    .map(|entry| {
+                        let path = entry.unwrap().path();
+                        let bytes = fs::read(&path).unwrap();
+                        (path, bytes)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<BTreeMap<_, _>>()
+    };
+    let before = inventory();
+    assert!(
+        before
+            .keys()
+            .any(|path| path.file_name().unwrap() == "current.manifest")
+    );
+    fs::write(case.0.join("left.zil"), INVALID).unwrap();
+    let rejected = case.compile(
+        &mut CompilationSession::default(),
+        &options,
+        "invalid-source-no-raw-publication",
+    );
+    assert_ne!(rejected.status, zil_base::ResultCategory::Success);
+    assert_eq!(
+        inventory(),
+        before,
+        "rejected source cannot advance the raw epoch"
+    );
+}

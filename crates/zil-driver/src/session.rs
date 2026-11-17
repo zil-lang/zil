@@ -36,16 +36,27 @@ fn trusted_emission_namespace(
         return None;
     }
     let semantic = options.semantic_cache.as_ref()?;
-    let parent = fs::symlink_metadata(semantic).ok()?;
-    if !parent.is_dir() || parent.file_type().is_symlink() {
-        return None;
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if parent.permissions().mode() & 0o022 != 0 {
-            return None;
+    let private = |metadata: &fs::Metadata| {
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return false;
         }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if metadata.permissions().mode() & 0o022 != 0 {
+                return false;
+            }
+        }
+        true
+    };
+    // The first successful build must produce the epoch consumed by the first
+    // edit. A fresh semantic root is created only AFTER the complete raw-cache
+    // destination is planned against all current source and artifact paths.
+    match fs::symlink_metadata(semantic) {
+        Ok(metadata) if !private(&metadata) => return None,
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(_) => return None,
     }
     let mut plan = artifacts.clone();
     let root = plan
@@ -59,6 +70,9 @@ fn trusted_emission_namespace(
         builder.mode(0o700);
     }
     builder.create(&root).ok()?;
+    if !private(&fs::symlink_metadata(semantic).ok()?) {
+        return None;
+    }
     let meta = fs::symlink_metadata(&root).ok()?;
     if !meta.is_dir() || meta.file_type().is_symlink() {
         return None;
