@@ -14,7 +14,14 @@ impl CheckedOriginal {
                         if self.same(&payload,&sum,b)?{return Ok(payload);}
                         let failed=self.same(&payload,error,b)?;
                         let succeeded=self.same(&payload,result,b)?;
-                        if failed==succeeded{return Err(bad("original implicit error injection has no unique complete payload arm"));}
+                        if failed==succeeded{
+                            let payload=self.resolved(&payload,b)?;
+                            let error=self.resolved(error,b)?;
+                            let result=self.resolved(result,b)?;
+                            let detail=format!("original injection complete types: payload {payload:?}; error {error:?}; result {result:?}; matching arms error={failed}, result={succeeded}");
+                            b.spend(detail.len())?;
+                            return Err(bad("original implicit error injection has no unique complete payload arm").with_note(detail));
+                        }
                         b.spend(2)?;
                         self.injections.insert((id,expression.id),(failed,payload));
                         self.expressions.insert((id,expression.id),sum.clone());
