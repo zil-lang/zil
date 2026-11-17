@@ -109,6 +109,15 @@ fn verifies_original(text: &str) {
     assert_eq!(report.verification_runs, 1);
 }
 
+pub(super) fn consuming_operation_requires_suspend(diagnostic: &zil_base::Diagnostic) -> bool {
+    diagnostic.phase == zil_base::Phase::Types
+        && diagnostic.category == ResultCategory::SafeReject
+        && diagnostic.code == "E-SEMANTIC-ORIGINAL"
+        && diagnostic.message == "original callable changes its complete scoped call scheme"
+        && diagnostic.notes.iter().any(|note| note ==
+            "original callable scheme: actual P=0 Bound=0 Invocation=0 ABI=Suspend resultMode=Infer; wanted P=0 Bound=0 Invocation=0 ABI=Direct resultMode=Infer")
+}
+
 fn inferred_once_requires_a_real_suspend_consumer(original: &str) {
     // These original bytes were previously rejected by a natural-FnMut-only
     // whitelist. The independently Suspend parent can infer its omitted
@@ -123,12 +132,7 @@ fn inferred_once_requires_a_real_suspend_consumer(original: &str) {
         "(callback:F)->i32 contract{effects(io);}{\n let answer=callback();",
         1,
     );
-    rejects_matching(&direct, |diagnostic| {
-        diagnostic.code == "E-SEMANTIC-ORIGINAL"
-            && diagnostic.message == "original callable changes its complete scoped call scheme"
-            && diagnostic.notes.iter().any(|note| note ==
-                "original callable scheme: actual P=0 Bound=0 Invocation=0 ABI=Suspend resultMode=Infer; wanted P=0 Bound=0 Invocation=0 ABI=Direct resultMode=Infer")
-    });
+    rejects_matching(&direct, consuming_operation_requires_suspend);
 }
 
 #[test]

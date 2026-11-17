@@ -71,6 +71,7 @@ fn pending_once_cleanup_keeps_its_environment_and_every_returned_owner_raw_and_w
         assert_ne!(rejected.status, ResultCategory::Success, "{}", rejected.to_json());
         assert!(rejected.diagnostics.iter().any(|d|
             d.code == "E-TASK-ABI" || d.code == "E-VERIFY-TASK"
+            || super::source_contracts::consuming_operation_requires_suspend(d)
             || (d.phase == zil_base::Phase::Types
                 && d.category == ResultCategory::SafeReject
                 && d.code == "E-ORIGINAL-CLEANUP"

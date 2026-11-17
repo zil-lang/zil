@@ -157,7 +157,11 @@ fn canonical_ready_cannot_be_replaced_by_an_equal_shaped_ready_raw_and_wire() {
     assert_eq!(changed, 1);
     let rejected = zil_analyze::analyze(&raw, &limits).unwrap_err();
     assert!(
-        rejected.iter().any(|d| d.code == "E-TASK-ABI"),
+        rejected.iter().any(|d| d.code == "E-TASK-ABI"
+            || (d.phase == zil_base::Phase::Analyze
+                && d.category == ResultCategory::SafeReject
+                && d.code == "E-ANALYZE-IR"
+                && d.message == "semantic program: actual Task opcode replaces another original sealed operation")),
         "{rejected:?}"
     );
     plan.module_fingerprint = raw.fingerprint();
