@@ -152,7 +152,14 @@ fn raw_restart_actual_body_aliases_share_facts_comparisons_and_keep_each_fee() {
     let limits = Limits::default();
     let raw = seed(&source, &limits);
     let mut restored = AnalysisSession::default();
-    check(&mut restored, &edit(&source, 8), &limits, &raw).unwrap();
+    // Relocate every outer diagnostic binding so all rows require a semantic
+    // comparison while unchanged immutable columns still share one owner.
+    let mut current = (*edit(&source, 8)).clone();
+    for function in &mut current.module.functions {
+        function.span.start += 4;
+        function.span.end += 4;
+    }
+    check(&mut restored, &Arc::new(current), &limits, &raw).unwrap();
     let stats = restored.last_stats();
     assert_eq!(stats.raw_functions_restored, 127);
     assert_eq!(stats.raw_body_facts_built, 1);

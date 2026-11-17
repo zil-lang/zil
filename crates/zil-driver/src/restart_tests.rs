@@ -548,6 +548,17 @@ fn wrong_decoded_hydration_values_cannot_supply_results_checks_or_fees() {
         if function_cache.exists() {
             fs::remove_dir_all(function_cache).unwrap();
         }
+        // This counterexample isolates the corrupted whole-program anchor.
+        // The new independently valid Analyze base has its own restart tests;
+        // retire it here too so all nine original checks remain required.
+        let analysis_cache = options
+            .semantic_cache
+            .as_ref()
+            .unwrap()
+            .join("analyze-recovery-v1");
+        if analysis_cache.exists() {
+            fs::remove_dir_all(analysis_cache).unwrap();
+        }
         let mut session = CompilationSession::default();
         let report = session.compile_project_request(
             &project,

@@ -312,6 +312,7 @@ fn native_restart_raw_analyze_private_edit_and_failed_publication_recover() {
     options.closed_executable = true;
     options.incremental_o2 = true;
     options.bounded_class_imports = true;
+    options.codegen = crate::CodegenOptions { units: 2, jobs: 1 };
     let source = case.project(19);
     let mut cold = CompilationSession::default();
     success(&cold.compile_project(&source, &options));
@@ -403,7 +404,8 @@ fn source_restart_with_foreign_input_restores_analysis_instead_of_silently_missi
     success(&report);
     reference(&current, &options, &report);
     let stats = report.initialization_work.unwrap();
-    assert_eq!(stats.raw_functions_restored, count);
+    // Restored counts adopted unchanged rows; the changed row runs its producer.
+    assert_eq!(stats.raw_functions_restored, count - 1);
     assert_eq!(stats.product_function_queries_executed, 1);
     assert_eq!(stats.product_function_queries_reused, count - 1);
 }
