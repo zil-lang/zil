@@ -40,7 +40,7 @@ impl Solver<'_, '_> {
         }
         if frame.alive {
             let prefix = flow.prefix;
-            self.cleanup(&frame.locals[prefix..], b)?;
+            self.cleanup(frame.definition, &frame.locals[prefix..], b)?;
             let locals = self.copy_locals(&frame.locals[..prefix], b)?;
             let target = if is_break {
                 &mut self.loops[index].breaks
@@ -250,7 +250,7 @@ impl Solver<'_, '_> {
             .ok_or_else(|| fail("original loop loses its control frame"))?;
         checked_body?;
         if frame.alive {
-            self.cleanup(&frame.locals[before.len()..], b)?;
+            self.cleanup(frame.definition, &frame.locals[before.len()..], b)?;
             frame.locals.truncate(before.len());
             let locals = self.copy_locals(&frame.locals, b)?;
             Self::push(&mut flow.continues, locals, b)?;

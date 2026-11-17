@@ -792,7 +792,7 @@ impl Check<'_, '_> {
         &self,
         id: ClosureId,
         b: &mut Budget,
-    ) -> CompileResult<Vec<u32>> {
+    ) -> CompileResult<Vec<BTreeSet<(u32, u32)>>> {
         let closure = self
             .module
             .closures
@@ -841,7 +841,7 @@ impl Check<'_, '_> {
             return Err(fail("ghost capture omits its complete original body"));
         };
         b.spend(contract.fixed_binder_count as usize, WORK)?;
-        let mut directory = vec![None; contract.fixed_binder_count as usize];
+        let mut directory = vec![BTreeSet::new(); contract.fixed_binder_count as usize];
         let mut mapped = BTreeSet::new();
         let mut used_rows = BTreeSet::new();
         let mut used_slots = BTreeSet::new();
@@ -1055,11 +1055,12 @@ impl Check<'_, '_> {
         }
         let mut result = Vec::new();
         for entry in directory {
+            if entry.is_empty() {
+                return Err(fail("ghost capture Fixed class has no actual original occurrence"));
+            }
             self.push_value(
                 &mut result,
-                entry.ok_or_else(|| {
-                    fail("ghost capture Fixed class has no actual original occurrence")
-                })?,
+                entry,
                 b,
             )?;
         }
@@ -1176,7 +1177,7 @@ impl Check<'_, '_> {
         contract: &StorageLifeContract,
         capture: u32,
         expected: &Value,
-        directory: &mut [Option<u32>],
+        directory: &mut [BTreeSet<(u32, u32)>],
         mapped: &mut BTreeSet<u32>,
         used_rows: &mut BTreeSet<usize>,
         used_slots: &mut BTreeSet<usize>,
@@ -1218,12 +1219,11 @@ impl Check<'_, '_> {
                 let slot = directory
                     .get_mut(index as usize)
                     .ok_or_else(|| fail("capture Fixed class is out of range"))?;
-                if slot.is_some_and(|old| old != capture) {
-                    return Err(unknown(
-                        "several captures need their complete original intrinsic equality proof",
-                    ));
-                }
-                *slot = Some(capture);
+                // Each occurrence has independently matched the exact original
+                // class above. Keep all capture/child selectors; a common
+                // lifetime image never equates their real owner/source roots.
+                b.lookup(slot.len(), WORK)?;
+                slot.insert((capture, child as u32));
                 if physical {
                     b.lookup(used_slots.len(), WORK)?;
                     used_slots.insert(row);
@@ -2142,7 +2142,7 @@ impl Check<'_, '_> {
         Ok(output)
     }
 
-    fn static_byte_returns(&self, target: &TypedFunction, ty: &Type, b: &mut Budget) -> CompileResult<()> {
+    pub(super) fn static_byte_returns(&self, target: &TypedFunction, ty: &Type, b: &mut Budget) -> CompileResult<()> {
         if !original::strings::is_byte_type(ty) || target.return_type != *ty {
             return Err(fail("Static byte producer changes its complete actual returned type"));
         }

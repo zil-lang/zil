@@ -2,6 +2,110 @@
 //! fresh call result, never assuming that an arbitrary input is already Closed.
 use super::*;
 impl Proof<'_, '_> {
+    pub(super) fn owned_creation(
+        &self,
+        state: &mut State,
+        node: NodeId,
+        expressions: &[SemanticOriginalExpr],
+        arguments: &[Data],
+        b: &mut Budget,
+    ) -> CompileResult<Data> {
+        let Kind::ErrorUnion { error, .. } = self.checked.arena[self.expression_term(node, b)?] else {
+            return Err(fail("original owning Task constructor loses its full result carrier"));
+        };
+        let Kind::Nominal { definition, fields, .. } = &self.checked.arena[self.checked.root(error, b)?] else {
+            return Err(fail("original owning Task constructor loses its input-return failure product"));
+        };
+        let declaration = self.inventory.definition(*definition, b)?;
+        let SemanticDefinitionBody::Nominal { declaration: identity, .. } = declaration.body else {
+            return Err(fail("original owning Task failure has no full nominal declaration"));
+        };
+        if ![zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD,
+            zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE].contains(&identity)
+            || self.inventory.protocol_task_definition(identity, b)? != *definition
+            || fields.len() != 2 || expressions.len() != arguments.len() || arguments.is_empty()
+        {
+            return Err(fail("original owning Task changes its authenticated complete input-return constructor"));
+        }
+        let Kind::Tuple(inputs) = &self.checked.arena[self.checked.root(fields[1], b)?] else {
+            return Err(fail("original owning Task failure inputs have no complete ordered tuple"));
+        };
+        if inputs.len() + 1 != arguments.len() {
+            return Err(fail("original owning Task failure changes its ordered input arity"));
+        }
+        let before = state.copy(b)?;
+        let mut consumed = Vec::new();
+        for expression in expressions {
+            Solver::push(&mut consumed, self.async_owner(self.expression_term(expression.id, b)?, b)?, b)?;
+        }
+        state.call_effect(arguments, &consumed, b)?;
+        let mut result = self.fresh_owner(state, node, b)?;
+        let result_role = result.alias.ok_or_else(|| fail("original owning Task loses its fresh result occurrence"))?;
+        let mut failure = before.phases;
+        b.lookup(failure.len(), WORK)?;
+        failure.insert(result_role, 0);
+        for (index, input) in arguments.iter().skip(1).enumerate() {
+            input.charge_parts(b)?;
+            let ordinal = u32::try_from(index).map_err(|_| resource("original returned input ordinal overflow"))?;
+            let prefix = [PlaceProjection::ErrorArm(true), PlaceProjection::Field(1), PlaceProjection::Field(ordinal)];
+            if let Some(role) = input.alias {
+                b.lookup(result.parts.len(), WORK)?;
+                result.parts.insert(prefix.to_vec(), role);
+            }
+            for (path, role) in &input.parts {
+                b.spend(path.len().saturating_add(prefix.len()), WORK)?;
+                let mut selected = prefix.to_vec();
+                selected.extend_from_slice(path);
+                b.lookup(result.parts.len(), WORK)?;
+                result.parts.insert(selected, *role);
+            }
+        }
+        b.spend(state.phases.len(), WORK)?;
+        Solver::push(&mut result.outcomes, (ProtocolExit::ErrorOk, state.phases.clone()), b)?;
+        Solver::push(&mut result.outcomes, (ProtocolExit::ErrorErr, failure.clone()), b)?;
+        for (role, phase) in failure {
+            b.lookup(state.phases.len(), WORK)?;
+            *state.phases.entry(role).or_insert(0) |= phase;
+        }
+        Ok(result)
+    }
+
+    pub(super) fn projected_field(&self, node: NodeId, member: &str, b: &mut Budget) -> CompileResult<u32> {
+        let term = self.expression_term(node, b)?;
+        if let Kind::Tuple(fields) = &self.checked.arena[term] {
+            b.spend(member.len().saturating_add(fields.len() + 1), WORK)?;
+            if member.is_empty() || !member.bytes().all(|byte| byte.is_ascii_digit()) {
+                return Err(fail("original projected tuple owner selects no numeric field"));
+            }
+            let ordinal = member.parse::<u32>()
+                .map_err(|_| resource("original projected tuple owner ordinal overflow"))?;
+            if ordinal as usize >= fields.len() {
+                return Err(fail("original projected tuple owner exceeds its complete arity"));
+            }
+            return Ok(ordinal);
+        }
+        let Kind::Nominal { definition, fields, .. } = &self.checked.arena[term] else {
+            return Err(unknown("original projected owner needs its exact complete product field"));
+        };
+        let SemanticDefinitionBody::Nominal {
+            body: SemanticNominalBody::Product { fields: recipes }, ..
+        } = &self.inventory.definition(*definition, b)?.body else {
+            return Err(fail("original projected owner selects another nominal family"));
+        };
+        if fields.len() != recipes.len() {
+            return Err(fail("original projected owner product omits an original field"));
+        }
+        let mut selected = None;
+        for (index, field) in recipes.iter().enumerate() {
+            b.spend(member.len().saturating_add(field.name.len() + 1), WORK)?;
+            if field.name == member && selected.replace(index).is_some() {
+                return Err(fail("original projected owner product has duplicate fields"));
+            }
+        }
+        u32::try_from(selected.ok_or_else(|| fail("original projected owner selects no declared field"))?)
+            .map_err(|_| resource("original projected owner field ordinal overflow"))
+    }
+
     pub(super) fn async_owner(&self, mut term: Term, b: &mut Budget) -> CompileResult<bool> {
         for _ in 0..=b.partial_depth {
             term = self.checked.root(term, b)?;
@@ -62,6 +166,7 @@ impl Proof<'_, '_> {
         }
         state.phases.insert(role, ANY);
         Ok(Data {
+            parts: BTreeMap::new(),
             alias: Some(role),
             exposed: false,
             outcomes: Vec::new(),
@@ -139,6 +244,7 @@ impl Proof<'_, '_> {
                 (
                     local.name.clone(),
                     Data {
+                        parts: BTreeMap::new(),
                         alias,
                         exposed: !head && self.captured_exposure(root, b, 0)?,
                         outcomes: Vec::new(),

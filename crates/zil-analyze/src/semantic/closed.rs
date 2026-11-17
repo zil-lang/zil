@@ -15,6 +15,7 @@ mod capture_origins;
 mod capture_places;
 mod class_origins;
 mod classes;
+mod cleanup;
 mod descriptions;
 mod dyn_owners;
 mod dyn_tables;
@@ -1075,6 +1076,8 @@ pub(super) fn check(
     checker.sites(b)?;
     inventory.profile_stage("constructor class sources", b);
     checker.constructor_class_sources(b)?;
+    inventory.profile_stage("original cleanup occurrences", b);
+    checker.cleanup_occurrences(b)?;
     inventory.profile_stage("completed world publication", b);
     // Publish only a completed intrinsic-domain result. Raw Some(0), an
     // absent environment, or scalar-looking entry ABI alone is not evidence.

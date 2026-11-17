@@ -10,6 +10,26 @@ pub(super) enum Head {
 }
 pub(super) type Heads = BTreeSet<Head>;
 
+// An opaque child's Fixed class may have several original occurrences. Its
+// class equality theorem is not an actual storage/head selection interface.
+pub(super) enum CaptureDirectory {
+    Address(Vec<u32>),
+    Ghost(Vec<BTreeSet<(u32, u32)>>),
+}
+impl CaptureDirectory {
+    pub(super) fn len(&self) -> usize {
+        match self { Self::Address(rows) => rows.len(), Self::Ghost(rows) => rows.len() }
+    }
+    pub(super) fn is_empty(&self) -> bool { self.len() == 0 }
+    fn address(self) -> CompileResult<Vec<u32>> {
+        match self {
+            Self::Address(rows) => Ok(rows),
+            Self::Ghost(_) => Err(unknown(
+                "opaque class needs its exact child/capture source selector, not an equal class image")),
+        }
+    }
+}
+
 impl Check<'_, '_> {
     pub(super) fn creator_heads(
         &self,
@@ -27,7 +47,7 @@ impl Check<'_, '_> {
             ));
         };
         let function = self.inventory.function(target, b)?;
-        for index in self.capture_directory(closure, b)? {
+        for index in self.capture_directory(closure, b)?.address()? {
             let value = captures
                 .get(index as usize)
                 .ok_or_else(|| fail("actual creator omits its implicit captured head"))?;
@@ -91,14 +111,14 @@ impl Check<'_, '_> {
         selected.ok_or_else(|| fail("original implicit capture occurrence has no actual head"))
     }
 
-    /// Fixed ordinal -> actual physical capture ordinal. Every row is derived
-    /// from the original free-name occurrence and its real ReadCapture, never
-    /// from the order or count of captured Types.
+    /// Complete Fixed occurrence inventory. Address rows select one actual
+    /// head; opaque rows retain every original capture/child selector. Neither
+    /// captured Type order nor equal lifetime images choose an owning root.
     pub(super) fn capture_directory(
         &self,
         id: ClosureId,
         b: &mut Budget,
-    ) -> CompileResult<Vec<u32>> {
+    ) -> CompileResult<CaptureDirectory> {
         {
             let mut active = self.scope_queries.borrow_mut();
             b.lookup(active.len(), WORK)?;
@@ -112,9 +132,9 @@ impl Check<'_, '_> {
         self.scope_queries.borrow_mut().remove(&id);
         result
     }
-    fn capture_directory_inner(&self, id: ClosureId, b: &mut Budget) -> CompileResult<Vec<u32>> {
+    fn capture_directory_inner(&self, id: ClosureId, b: &mut Budget) -> CompileResult<CaptureDirectory> {
         if self.has_ghost_capture(id, b)? {
-            return self.ghost_capture_directory(id, b);
+            return self.ghost_capture_directory(id, b).map(CaptureDirectory::Ghost);
         }
         b.spend(self.module.closures.len().saturating_add(1), WORK)?;
         let closure = self
@@ -467,7 +487,7 @@ impl Check<'_, '_> {
         directory
             .into_iter()
             .map(|row| row.ok_or_else(|| fail("implicit head directory is incomplete")))
-            .collect()
+            .collect::<CompileResult<Vec<_>>>().map(CaptureDirectory::Address)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -669,7 +689,7 @@ impl Check<'_, '_> {
                     b,
                 ),
             (InstructionKind::MakeClosure { closure, captures }, Some(class)) => {
-                let directory = self.capture_directory(*closure, b)?;
+                let directory = self.capture_directory(*closure, b)?.address()?;
                 let index = directory.get(class as usize).ok_or_else(|| {
                     fail("implicit closure class is outside the actual complete directory")
                 })?;

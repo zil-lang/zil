@@ -282,6 +282,7 @@ pub(super) struct Checked {
     reference_roles: BTreeMap<(SemanticDefinitionId, NodeId), local_reference_roles::Role>,
     call_regions: BTreeMap<(SemanticDefinitionId, u32), call_regions::Region>,
     call_uses: BTreeMap<(SemanticDefinitionId, NodeId), Vec<call_regions::Use>>,
+    pending_cleanups: Vec<cleanup::Pending>,
 }
 struct Solver<'a, 'i> {
     inventory: &'i Inventory<'a>,
@@ -296,6 +297,7 @@ struct Solver<'a, 'i> {
     integers: Vec<Term>,
     needs: Vec<Need>,
     cleanup_terms: Vec<Term>,
+    cleanup_origins: BTreeMap<usize, (SemanticDefinitionId, LocalAnchor)>,
     callable_needs: Vec<CallableNeed>,
     mutating_closures: BTreeSet<SemanticDefinitionId>,
     role_frames: Vec<roles::RoleFrame>,
@@ -1832,7 +1834,7 @@ impl Solver<'_, '_> {
                     self.unify(error, expected_error, depth + 1, b)?;
                     if frame.alive {
                         self.capture_exit(frame, b)?;
-                        self.cleanup(&frame.locals[frame.inherited..], b)?;
+                        self.cleanup(frame.definition, &frame.locals[frame.inherited..], b)?;
                     }
                     result
                 }
@@ -3133,7 +3135,7 @@ impl Solver<'_, '_> {
                     }
                     if frame.alive {
                         self.capture_exit(frame, b)?;
-                        self.cleanup(&frame.locals[frame.inherited..], b)?;
+                        self.cleanup(frame.definition, &frame.locals[frame.inherited..], b)?;
                     }
                     frame.alive = false;
                 }
@@ -3459,7 +3461,7 @@ impl Solver<'_, '_> {
             }
         }
         if frame.alive {
-            self.cleanup(&frame.locals[scope..], b)?;
+            self.cleanup(frame.definition, &frame.locals[scope..], b)?;
         }
         frame.locals.truncate(scope);
         Ok(())
@@ -3759,7 +3761,7 @@ impl Solver<'_, '_> {
         }
         if frame.alive && matches!(body, SemanticOriginalFunctionBody::Defined(_)) {
             self.capture_exit(&frame, b)?;
-            self.cleanup(&frame.locals[frame.inherited..], b)?;
+            self.cleanup(frame.definition, &frame.locals[frame.inherited..], b)?;
             let unit = self.atom(Type::Unit, b)?;
             if let Kind::ErrorUnion { result, .. } =
                 self.state.arena[self.type_root(frame.result, b)?]
@@ -4143,6 +4145,7 @@ pub(super) fn check(
             reference_roles: BTreeMap::new(),
             call_regions: BTreeMap::new(),
             call_uses: BTreeMap::new(),
+            pending_cleanups: Vec::new(),
         },
         active: BTreeSet::new(),
         creators: BTreeMap::new(),
@@ -4152,6 +4155,7 @@ pub(super) fn check(
         integers: Vec::new(),
         needs: Vec::new(),
         cleanup_terms: Vec::new(),
+        cleanup_origins: BTreeMap::new(),
         callable_needs: Vec::new(),
         mutating_closures: BTreeSet::new(),
         role_frames: Vec::new(),
@@ -4595,11 +4599,18 @@ impl Solver<'_, '_> {
             _ => Ok(()),
         }
     }
-    fn cleanup(&mut self, locals: &[Local], b: &mut Budget) -> CompileResult<()> {
+    fn cleanup(&mut self, definition: SemanticDefinitionId, locals: &[Local], b: &mut Budget) -> CompileResult<()> {
         for local in locals {
             b.spend(1, WORK)?;
             if local.live && !local.borrowed {
+                let first = self.cleanup_terms.len();
                 self.cleanup_partial(local.ty, &[], &local.vacant, b, 0)?;
+                if local.vacant.is_empty() && let Some(anchor) = local.anchor {
+                    for ordinal in first..self.cleanup_terms.len() {
+                        b.lookup(self.cleanup_origins.len(), WORK)?;
+                        self.cleanup_origins.insert(ordinal, (definition, anchor));
+                    }
+                }
             }
         }
         Ok(())

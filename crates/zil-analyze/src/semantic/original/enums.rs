@@ -550,7 +550,7 @@ impl Solver<'_, '_> {
         )?;
         self.block(frame, then_body, b, depth + 1)?;
         if frame.alive {
-            self.cleanup(&frame.locals[prefix..], b)?;
+            self.cleanup(frame.definition, &frame.locals[prefix..], b)?;
         }
         frame.locals.truncate(prefix);
         let then_alive = frame.alive;
@@ -660,7 +660,7 @@ impl Solver<'_, '_> {
             }
             self.block(frame, &arm.body, b, depth + 1)?;
             if frame.alive {
-                self.cleanup(&frame.locals[base_len..], b)?;
+                self.cleanup(frame.definition, &frame.locals[base_len..], b)?;
                 frame.locals.truncate(base_len);
                 if let Some(previous) = &mut joined {
                     if previous.len() != frame.locals.len() {

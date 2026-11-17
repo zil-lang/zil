@@ -149,10 +149,52 @@ fn shape(
 #[derive(Clone, PartialEq, Eq, Default)]
 struct Data {
     alias: Option<u32>,
+    // Exact owning subplaces transported by a checked constructor. Equal
+    // Types/classes never establish these original source identities.
+    parts: BTreeMap<Vec<PlaceProjection>, u32>,
     // A value may hide access to a tracked original head through a callable
     // or an aggregate. Calls must not preserve a phase through that exposure.
     exposed: bool,
     outcomes: Vec<(ProtocolExit, BTreeMap<u32, u8>)>,
+}
+impl Data {
+    fn charge_parts(&self, b: &mut Budget) -> CompileResult<()> {
+        for path in self.parts.keys() {
+            b.spend(path.len().saturating_add(1), WORK)?;
+        }
+        Ok(())
+    }
+    fn project(&self, step: PlaceProjection, b: &mut Budget) -> CompileResult<Self> {
+        let mut result = Self { exposed: self.exposed || self.alias.is_some(), ..Self::default() };
+        for (path, role) in &self.parts {
+            b.spend(path.len().saturating_add(1), WORK)?;
+            if path.first() != Some(&step) { continue; }
+            if path.len() == 1 {
+                if result.alias.replace(*role).is_some() {
+                    return Err(fail("original projected owner has competing source identities"));
+                }
+            } else {
+                b.lookup(result.parts.len(), WORK)?;
+                result.parts.insert(path[1..].to_vec(), *role);
+            }
+        }
+        Ok(result)
+    }
+    fn error_payload(&self, is_error: bool, b: &mut Budget) -> CompileResult<Self> {
+        let mut result = self.project(PlaceProjection::ErrorArm(is_error), b)?;
+        if !is_error {
+            if result.alias.is_some_and(|role| Some(role) != self.alias) {
+                return Err(fail("original success payload changes its owning result identity"));
+            }
+            result.alias = self.alias;
+        }
+        result.exposed = self.exposed;
+        Ok(result)
+    }
+    fn payload(&self, b: &mut Budget) -> CompileResult<Self> {
+        self.charge_parts(b)?;
+        Ok(Self { alias: self.alias, parts: self.parts.clone(), exposed: self.exposed, outcomes: Vec::new() })
+    }
 }
 #[derive(Clone, PartialEq, Eq)]
 struct State {
@@ -173,6 +215,7 @@ impl State {
     fn copy(&self, b: &mut Budget) -> CompileResult<Self> {
         let mut locals = Vec::new();
         for (name, data) in &self.locals {
+            data.charge_parts(b)?;
             b.spend(
                 name.len().saturating_add(
                     data.outcomes
@@ -229,6 +272,8 @@ impl State {
             *self.phases.entry(*role).or_insert(0) |= *value;
         }
         for ((name, data), (other_name, other_data)) in self.locals.iter_mut().zip(&other.locals) {
+            data.charge_parts(b)?;
+            other_data.charge_parts(b)?;
             b.spend(
                 name.len().saturating_add(
                     other_name.len()
@@ -249,7 +294,7 @@ impl State {
             if name != other_name {
                 return Err(fail("original protocol join changes a lexical binder"));
             }
-            if data.alias != other_data.alias {
+            if data.alias != other_data.alias || data.parts != other_data.parts {
                 return Err(unknown(
                     "original protocol alias join requires its complete possible-head relation",
                 ));
@@ -385,6 +430,7 @@ impl Proof<'_, '_> {
                         WORK,
                     )?;
                     if key == name {
+                        data.charge_parts(b)?;
                         return Ok(data.clone());
                     }
                 }
@@ -437,6 +483,7 @@ impl Proof<'_, '_> {
                         };
                         b.spend(state.phases.len(), WORK)?;
                         return Ok(Data {
+                            parts: BTreeMap::new(),
                             alias: None,
                             exposed: false,
                             outcomes: vec![(exit, state.phases.clone())],
@@ -534,6 +581,7 @@ impl Proof<'_, '_> {
                                     },
                                 );
                                 Ok(Data {
+                                    parts: BTreeMap::new(),
                                     alias: None,
                                     exposed: false,
                                     outcomes,
@@ -551,6 +599,7 @@ impl Proof<'_, '_> {
                                     },
                                 );
                                 Ok(Data {
+                                    parts: BTreeMap::new(),
                                     alias: None,
                                     exposed: true,
                                     outcomes: Vec::new(),
@@ -568,9 +617,11 @@ impl Proof<'_, '_> {
                         | sealed::Intrinsic::RegistrationValid
                         | sealed::Intrinsic::SliceLength,
                     ) => Ok(Data::default()),
+                    sealed::Resolution::Intrinsic(sealed::Intrinsic::TaskCreateOwned) => {
+                        self.owned_creation(state, value.id, arguments, &actuals, b)
+                    }
                     sealed::Resolution::Intrinsic(
-                        sealed::Intrinsic::RegisterAsync | sealed::Intrinsic::TaskCreate
-                            | sealed::Intrinsic::TaskCreateOwned,
+                        sealed::Intrinsic::RegisterAsync | sealed::Intrinsic::TaskCreate,
                     ) => {
                         state.call_effect(&actuals, &[], b)?;
                         self.fresh_owner(state, value.id, b)
@@ -610,6 +661,8 @@ impl Proof<'_, '_> {
                 let left_value = self.expression(state, then_value, b, depth + 1)?;
                 let right_value = self.expression(&mut right, else_value, b, depth + 1)?;
                 state.join(&right, b)?;
+                left_value.charge_parts(b)?;
+                right_value.charge_parts(b)?;
                 if left_value != right_value {
                     return Err(unknown(
                         "original protocol conditional result requires its complete outcome relation",
@@ -647,6 +700,7 @@ impl Proof<'_, '_> {
                 let index = self.expression(state, index, b, depth + 1)?;
                 self.plain(&index)?;
                 Ok(Data {
+                    parts: BTreeMap::new(),
                     alias: None,
                     exposed: object.exposed || object.alias.is_some(),
                     outcomes: Vec::new(),
@@ -659,6 +713,7 @@ impl Proof<'_, '_> {
                 let data = self.expression(state, operand, b, depth + 1)?;
                 self.plain(&data)?;
                 Ok(Data {
+                    parts: BTreeMap::new(),
                     alias: None,
                     exposed: data.exposed || data.alias.is_some(),
                     outcomes: Vec::new(),
@@ -671,10 +726,15 @@ impl Proof<'_, '_> {
                 self.plain(&data)?;
                 Ok(Data::default())
             }
-            CoreExprKind::Member { object, .. } => {
+            CoreExprKind::Member { object, member, .. } => {
                 let data = self.expression(state, object, b, depth + 1)?;
                 self.plain(&data)?;
+                if !data.parts.is_empty() {
+                    let ordinal = self.projected_field(object.id, member, b)?;
+                    return data.project(PlaceProjection::Field(ordinal), b);
+                }
                 Ok(Data {
+                    parts: BTreeMap::new(),
                     alias: None,
                     exposed: data.exposed || data.alias.is_some(),
                     outcomes: Vec::new(),
@@ -693,6 +753,7 @@ impl Proof<'_, '_> {
                     }
                 }
                 Ok(Data {
+                    parts: BTreeMap::new(),
                     alias: None,
                     exposed,
                     outcomes: Vec::new(),
@@ -712,6 +773,7 @@ impl Proof<'_, '_> {
                     }
                 }
                 Ok(Data {
+                    parts: BTreeMap::new(),
                     alias: None,
                     exposed,
                     outcomes: Vec::new(),
@@ -737,6 +799,7 @@ impl Proof<'_, '_> {
                     }
                 }
                 Ok(Data {
+                    parts: BTreeMap::new(),
                     alias: None,
                     exposed,
                     outcomes: Vec::new(),
@@ -761,6 +824,7 @@ impl Proof<'_, '_> {
                     self.plain(&data)?;
                 }
                 Ok(Data {
+                    parts: BTreeMap::new(),
                     alias: None,
                     exposed: data.exposed || data.alias.is_some(),
                     outcomes: Vec::new(),
@@ -769,6 +833,7 @@ impl Proof<'_, '_> {
             CoreExprKind::Closure { .. } => {
                 state.cleanup_unknown = true;
                 Ok(Data {
+                    parts: BTreeMap::new(),
                     alias: None,
                     exposed: state.phases.values().any(|phase| *phase != 0),
                     outcomes: Vec::new(),
@@ -816,6 +881,7 @@ impl Proof<'_, '_> {
             }
             state.call_effect(arguments, &consumed, b)?;
             return Ok(Data {
+                parts: BTreeMap::new(),
                 alias: None,
                 exposed: arguments
                     .iter()
@@ -914,6 +980,7 @@ impl Proof<'_, '_> {
             Ok(Data::default())
         } else {
             Ok(Data {
+                parts: BTreeMap::new(),
                 alias: None,
                 exposed: false,
                 outcomes,
@@ -1209,6 +1276,7 @@ pub(super) fn check(
                         (
                             parameter.name.clone(),
                             Data {
+                                parts: BTreeMap::new(),
                                 alias,
                                 exposed: false,
                                 outcomes: Vec::new(),
@@ -1242,6 +1310,7 @@ pub(super) fn check(
                 for (ordinal, parameter) in parameters.iter().enumerate() {
                     b.spend(parameter.name.len(), WORK)?;
                     let data = Data {
+                        parts: BTreeMap::new(),
                         alias: phases
                             .contains_key(&(ordinal as u32))
                             .then_some(ordinal as u32),

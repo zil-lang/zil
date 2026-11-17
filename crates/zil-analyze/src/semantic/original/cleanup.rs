@@ -3,88 +3,27 @@
 //! worker/frame proof until raw preflight and the resource ledger complete.
 use super::*;
 
-impl Solver<'_, '_> {
-    fn bind_task_cleanup(
-        &self,
-        module: &TypedModule,
-        term: Term,
-        b: &mut Budget,
-    ) -> CompileResult<bool> {
-        let root = self.type_root(term, b)?;
-        let Kind::Wrapped(Wrapper::Managed, payload) = self.state.arena[root] else {
-            return Ok(false);
-        };
-        if !matches!(self.state.arena[self.type_root(payload, b)?], Kind::Task(_)) {
-            return Ok(false);
-        }
-        let mut locals = BTreeSet::new();
-        for frame in self.state.frames.values() {
-            for (binding, original) in &frame.bindings {
-                b.spend(1, WORK)?;
-                // Select the independently checked binding node, never a
-                // same-typed local, name, layout or caller's concrete image.
-                if self.type_root(*original, b)? != root {
-                    continue;
-                }
-                let index = self.inventory.original_index(frame.definition, b)?;
-                let recipe = index.declaration_site(*binding, b)?;
-                let mut instances = 0usize;
-                for instance in &self.program.instances {
-                    b.spend(1, WORK)?;
-                    if instance.definition != frame.definition {
-                        continue;
-                    }
-                    let SemanticInstanceTarget::Function(target) = &instance.target else {
-                        return Err(fail("original Task cleanup binding has no actual function instance"));
-                    };
-                    let function = self.inventory.function(target, b)?;
-                    let site = self.inventory.emitted_site(self.program, instance.id, recipe, b)?;
-                    let SemanticSiteAction::DeclareLocal {
-                        local: SemanticLocalTarget::Typed(local), ..
-                    } = site.action else {
-                        return Err(fail("original Task cleanup changes its actual binding operation"));
-                    };
-                    if !function.locals.get(local.0 as usize)
-                        .filter(|declaration| declaration.id == local)
-                        .is_some_and(|declaration| matches!(&declaration.ty,
-                            Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. })))
-                    {
-                        return Err(fail("original Task cleanup binding changes its actual owning family"));
-                    }
-                    b.lookup(locals.len(), WORK)?;
-                    locals.insert((function.id, local));
-                    instances += 1;
-                }
-                if instances == 0 {
-                    return Err(fail("original Task cleanup binding has no complete actual instances"));
-                }
-            }
-        }
-        if locals.is_empty() {
-            return Ok(false);
-        }
-        for (function, local) in locals {
-            let function = module.functions.get(function.0 as usize)
-                .filter(|actual| actual.id == function)
-                .ok_or_else(|| fail("original Task cleanup loses its actual binding function"))?;
-            let mut found = false;
-            for block in &function.blocks {
-                for (position, instruction) in block.instructions.iter().enumerate() {
-                    b.spend(1, WORK)?;
-                    if matches!(instruction.kind, InstructionKind::DropManaged { local: actual } if actual == local) {
-                        b.lookup(b.semantic_cleanup_sites.len(), WORK)?;
-                        b.semantic_cleanup_sites.insert((function.id, block.id, position, local, None));
-                        found = true;
-                    }
-                }
-            }
-            if !found {
-                return Err(fail("original Task cleanup binding has no actual DropManaged site"));
-            }
-        }
-        Ok(true)
-    }
+pub(in crate::semantic) struct Pending {
+    pub(in crate::semantic) definition: SemanticDefinitionId,
+    pub(in crate::semantic) anchor: LocalAnchor,
+    term: Term,
+}
 
+impl Checked {
+    pub(in crate::semantic) fn pending_cleanups(&self) -> &[Pending] { &self.pending_cleanups }
+
+    pub(in crate::semantic) fn cleanup_value(&self, ordinal: usize,
+        context: &SemanticInstance, program: &SemanticModule, inventory: &Inventory<'_>,
+        b: &mut Budget) -> CompileResult<crate::semantic::value::Value> {
+        b.lookup(self.pending_cleanups.len(), WORK)?;
+        let pending = self.pending_cleanups.get(ordinal)
+            .filter(|pending| pending.definition == context.definition)
+            .ok_or_else(|| fail("original cleanup occurrence changes its declaration scope"))?;
+        self.value(pending.term, context, program, inventory, b, 0)
+    }
+}
+
+impl Solver<'_, '_> {
     fn task_cleanup_environment(
         &self,
         term: Term,
@@ -199,15 +138,34 @@ impl Solver<'_, '_> {
         Ok(true)
     }
 
-    pub(super) fn check_cleanups(&self, module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
-        for term in &self.cleanup_terms {
-            if self.satisfies(*term, Predicate::SyncDrop, b, 0)? {
+    pub(super) fn check_cleanups(&mut self, module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+        for ordinal in 0..self.cleanup_terms.len() {
+            let term = self.cleanup_terms[ordinal];
+            if self.satisfies(term, Predicate::SyncDrop, b, 0)? {
                 continue;
             }
-            if !self.bind_cleanup(module, *term, b)? && !self.bind_task_cleanup(module, *term, b)? {
+            b.lookup(self.cleanup_origins.len(), WORK)?;
+            if let Some((definition, anchor)) = self.cleanup_origins.get(&ordinal).copied() {
+                let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
+                    &self.inventory.definition(definition, b)?.body else {
+                        return Err(fail("original cleanup occurrence has no complete declaration ABI"));
+                    };
+                let suspend = signature.call_kind == CallKind::Suspend;
+                // A concrete owning Task can owe an actual cleanup theorem.
+                // An abstract closed environment can owe a Suspend frame
+                // theorem, never a SyncDrop predicate or Direct permission.
+                if self.task_cleanup_environment(term, b, 0)?
+                    || suspend && self.satisfies(term,
+                        Predicate::Capability(SemanticBuiltinTrait::ClosedEnvironment), b, 0)?
+                {
+                    Self::push(&mut self.state.pending_cleanups, Pending { definition, anchor, term }, b)?;
+                    continue;
+                }
+            }
+            if !self.bind_cleanup(module, term, b)? {
                 let mut errors = fail("original live cleanup edge requires SyncDrop or its complete actual Task cleanup proof");
                 errors[0].notes.push(format!("original cleanup term {}, whole kind {:?}",
-                    self.type_root(*term, b)?, std::mem::discriminant(&self.state.arena[self.type_root(*term, b)?])));
+                    self.type_root(term, b)?, std::mem::discriminant(&self.state.arena[self.type_root(term, b)?])));
                 return Err(errors);
             }
         }

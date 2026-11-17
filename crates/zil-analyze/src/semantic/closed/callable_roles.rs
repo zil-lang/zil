@@ -273,6 +273,15 @@ impl Check<'_, '_> {
                     "actual callable parameter or result changes the complete original type",
                 ));
             }
+            if base == StorageBase::Result && original::strings::is_byte_type(&value.ty)
+                && empty(&value.life) && value.classes.is_empty()
+            {
+                // A complete Static result has no borrowed class slot to
+                // enumerate. Prove its actual literal returns independently;
+                // capture Static occurrences belong to the separate directory.
+                self.static_byte_returns(entry, &value.ty, b)?;
+                used_statics += 1;
+            }
             for slot in &value.life.slots {
                 let class = value
                     .classes

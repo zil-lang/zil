@@ -9,15 +9,17 @@ impl State {
         b: &mut Budget,
     ) -> CompileResult<()> {
         self.invalidate(b)?;
-        let exposed = arguments.iter().any(|argument| argument.exposed);
+        let exposed = arguments.iter().any(|argument| argument.exposed || !argument.parts.is_empty());
+        for argument in arguments { argument.charge_parts(b)?; }
         for (role, phase) in &mut self.phases {
-            b.spend(arguments.len().saturating_add(1), WORK)?;
+            b.spend(arguments.iter().fold(arguments.len().saturating_add(1),
+                |work, argument| work.saturating_add(argument.parts.len())), WORK)?;
             let mut passed = false;
             let mut retired = false;
             for (index, argument) in arguments.iter().enumerate() {
-                if argument.alias == Some(*role) {
+                if argument.alias == Some(*role) || argument.parts.values().any(|source| *source == *role) {
                     passed = true;
-                    retired |= consumed.get(index) == Some(&true);
+                    retired |= argument.alias == Some(*role) && consumed.get(index) == Some(&true);
                 }
             }
             if *phase == 0 {
@@ -71,13 +73,14 @@ impl Proof<'_, '_> {
             self.exit(
                 &failure,
                 &Data {
+                    parts: BTreeMap::new(),
                     alias: None,
                     exposed: false,
                     outcomes: vec![(ProtocolExit::ErrorErr, failure.phases.clone())],
                 },
                 b,
             )?;
-            return Ok(data);
+            return data.error_payload(false, b);
         }
         let mut success = None::<State>;
         for (exit, phases) in &data.outcomes {
@@ -93,6 +96,7 @@ impl Proof<'_, '_> {
                     self.exit(
                         &branch,
                         &Data {
+                            parts: BTreeMap::new(),
                             alias: None,
                             exposed: false,
                             outcomes: vec![(*exit, branch.phases.clone())],
@@ -119,11 +123,7 @@ impl Proof<'_, '_> {
         } else {
             state.alive = false;
         }
-        Ok(Data {
-            alias: data.alias,
-            exposed: data.exposed,
-            outcomes: Vec::new(),
-        })
+        data.error_payload(false, b)
     }
     pub(super) fn return_value(
         &self,

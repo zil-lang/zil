@@ -136,6 +136,7 @@ impl Proof<'_, '_> {
         self.step(b, depth)?;
         match &pattern.kind {
             CorePatternKind::Name(name) => {
+                data.charge_parts(b)?;
                 b.spend(name.len().saturating_add(data.outcomes.len()), WORK)?;
                 Solver::push(&mut state.locals, (name.clone(), data.clone()), b)
             }
@@ -143,16 +144,11 @@ impl Proof<'_, '_> {
                 Ok(())
             }
             CorePatternKind::ErrorArm { is_error, pattern } => {
-                let empty = Data::default();
-                let payload = Data {
-                    alias: data.alias,
-                    exposed: data.exposed,
-                    outcomes: Vec::new(),
-                };
+                let payload = data.error_payload(*is_error, b)?;
                 self.bind_pattern(
                     state,
                     pattern,
-                    if *is_error { &empty } else { &payload },
+                    &payload,
                     b,
                     depth + 1,
                 )
@@ -162,7 +158,7 @@ impl Proof<'_, '_> {
             }
             CorePatternKind::Record { fields, .. }
             | CorePatternKind::RecordConstructor { fields, .. } => {
-                if data.alias.is_some() {
+                if data.alias.is_some() || !data.parts.is_empty() {
                     return Err(unknown(
                         "original protocol product pattern needs its complete nested owner-place mapping",
                     ));
@@ -172,6 +168,7 @@ impl Proof<'_, '_> {
                         state,
                         field,
                         &Data {
+                            parts: BTreeMap::new(),
                             alias: None,
                             exposed: data.exposed,
                             outcomes: Vec::new(),
@@ -182,10 +179,20 @@ impl Proof<'_, '_> {
                 }
                 Ok(())
             }
-            CorePatternKind::Tuple(fields)
-            | CorePatternKind::Constructor { fields, .. }
-            | CorePatternKind::Variant { fields, .. } => {
+            CorePatternKind::Tuple(fields) => {
                 if data.alias.is_some() {
+                    return Err(unknown("original tuple pattern cannot project an unexpanded owning head"));
+                }
+                for (index, field) in fields.iter().enumerate() {
+                    let ordinal = u32::try_from(index).map_err(|_| resource("original owner tuple ordinal overflow"))?;
+                    let projected = data.project(PlaceProjection::Field(ordinal), b)?;
+                    self.bind_pattern(state, field, &projected, b, depth + 1)?;
+                }
+                Ok(())
+            }
+            CorePatternKind::Constructor { fields, .. }
+            | CorePatternKind::Variant { fields, .. } => {
+                if data.alias.is_some() || !data.parts.is_empty() {
                     return Err(unknown(
                         "original protocol sum/tuple pattern needs its complete nested owner-place mapping",
                     ));
@@ -195,6 +202,7 @@ impl Proof<'_, '_> {
                         state,
                         field,
                         &Data {
+                            parts: BTreeMap::new(),
                             alias: None,
                             exposed: data.exposed,
                             outcomes: Vec::new(),
@@ -333,20 +341,11 @@ impl Proof<'_, '_> {
                 Solver::push(&mut branches, branch, b)?;
             }
             for mut branch in branches {
-                let empty = Data::default();
-                let payload = Data {
-                    alias: data.alias,
-                    exposed: data.exposed,
-                    outcomes: Vec::new(),
-                };
+                let payload = data.payload(b)?;
                 self.bind_pattern(
                     &mut branch,
                     &arm.pattern,
-                    if carrier.is_none() || matches!(selected, Some(ProtocolExit::ErrorOk)) {
-                        &payload
-                    } else {
-                        &empty
-                    },
+                    &payload,
                     b,
                     depth + 1,
                 )?;
@@ -437,11 +436,7 @@ impl Proof<'_, '_> {
         let mut joined = state.copy(b)?;
         joined.alive = false;
         for mut branch in yes {
-            let payload = Data {
-                alias: data.alias,
-                exposed: data.exposed,
-                outcomes: Vec::new(),
-            };
+            let payload = data.payload(b)?;
             self.bind_pattern(&mut branch, pattern, &payload, b, depth + 1)?;
             self.block(&mut branch, then_body, b, depth + 1)?;
             branch.locals.truncate(scope);
@@ -474,11 +469,7 @@ impl Proof<'_, '_> {
             let (yes, mut exits) = self.pattern_states(&iteration, &data, value.id, pattern, b)?;
             let scope = iteration.locals.len();
             for mut branch in yes {
-                let payload = Data {
-                    alias: data.alias,
-                    exposed: data.exposed,
-                    outcomes: Vec::new(),
-                };
+                let payload = data.payload(b)?;
                 self.bind_pattern(&mut branch, pattern, &payload, b, depth + 1)?;
                 Solver::push(
                     &mut self.loops.borrow_mut(),
