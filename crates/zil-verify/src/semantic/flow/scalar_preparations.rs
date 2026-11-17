@@ -138,7 +138,7 @@ mod tests {
     }
     #[test]
     fn owning_preparation_preserves_exact_stored_instance_and_rejects_aliases_and_replacement(){
-        let(module,mut f)=prepared();
+        let(_,mut f)=prepared();let module=fixture::captured_fixed(CallableKind::FnMut,false);
         let closure=Type::Closure(ClosureId(0));
         f.locals[0].ty=closure.clone();f.locals[1].ty=closure.clone();f.locals[1].mutable=true;
         f.values=vec![closure.clone();3];f.return_type=closure;
