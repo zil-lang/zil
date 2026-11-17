@@ -531,6 +531,14 @@ fn clone_query(query: &Option<Query>, b: &mut Budget) -> CompileResult<Option<Qu
     Ok(query.clone())
 }
 
+// Ending or replacing an address/descriptor slot ends that view, not the
+// captured owner it names. Actual writes and unknown calls invalidate the
+// owner's facts separately. Owning storage still retires its full epoch.
+fn owns_alias_storage(f: &TypedFunction, local: LocalId) -> bool {
+    !matches!(f.locals.get(local.0 as usize).map(|local| &local.ty),
+        Some(Type::Address { .. } | Type::Desc(_)))
+}
+
 fn step(
     module: &TypedModule,
     f: &TypedFunction,
@@ -733,8 +741,10 @@ fn step(
                 return Err(fail(i.span, "closed store arena mismatch"));
             }
             let alias = state.aliases[source].copy(b)?;
-            for previous in state.local_aliases[target].tokens(b)? {
-                if !alias.contains(previous, b)? { state.retire(previous, b)?; }
+            if owns_alias_storage(f, *local) {
+                for previous in state.local_aliases[target].tokens(b)? {
+                    if !alias.contains(previous, b)? { state.retire(previous, b)?; }
+                }
             }
             state.local_aliases[target] = alias;
             state.local_queries[target] = clone_query(&state.queries[source], b)?;
@@ -859,7 +869,8 @@ fn step(
         | InstructionKind::DropOwnedArray { local }
         | InstructionKind::StorageDead(local)
         | InstructionKind::StorageLive(local) => {
-            if let Some(alias) = state.local_aliases.get(local.0 as usize) {
+            if owns_alias_storage(f, *local)
+                && let Some(alias) = state.local_aliases.get(local.0 as usize) {
                 for token in alias.tokens(b)? { state.retire(token, b)?; }
             }
             if let Some(alias) = state.local_aliases.get_mut(local.0 as usize) {
