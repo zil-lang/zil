@@ -1,23 +1,24 @@
 {
-  "schema": "zil.compiler-pain-continuation.v19",
+  "schema": "zil.compiler-pain-continuation.v20",
   "construction_branch": "research/full-push-native",
-  "compiled_source": "e4cf6071eaeb2faaa426046473f7f48e72dbf685",
-  "production_source": "e4cf6071eaeb2faaa426046473f7f48e72dbf685",
-  "binary_sha256": "12fdd54ce48135cb3ece78be8e89cb7d54fef2e54cb89e369e2fc1e8459019e2",
-  "binary": "/workspace/zil-push-main/out/binaries/e4cf6071eaeb2faaa426046473f7f48e72dbf685/zil",
+  "compiled_source": "861e9bb692baca50f9c7b2e8bbeceb5e7dfb8727",
+  "production_source": "861e9bb692baca50f9c7b2e8bbeceb5e7dfb8727",
+  "binary_sha256": "6d89c2f4ac4bc49837c966761db4b0b46d0dabd2b9c09d07aa3eedbfd735bda7",
+  "binary": "/workspace/zil-push-main/out/binaries/861e9bb692baca50f9c7b2e8bbeceb5e7dfb8727/zil",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "window24 NoGo firstedit1.818/Rust1.259; qualityPASS; currentrestoration243machine/101Core/5104Analyze but physicalplan duplication costly.",
+  "status": "NoGo: firstedit1.477/Rust1.100s (34.28% slower). Cold2.947/Rust6.687s. Analyze physical template duplication fixed but comprehensive Rust goal remains OPEN.",
   "current_result": "tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
-  "previous_native_result": "https://github.com/zil-lang/zil/blob/a68ede06531f443776029607ee69f3196fd41d35/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
+  "previous_native_result": "https://github.com/zil-lang/zil/blob/033030437ee0b29c81b7442d2cb2e6f7cd9b4279/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
   "previous_check_source": "54a0258ab9e081085254084e4b081309dc06eda9",
   "previous_check_result": "tools/research/incremental-demand/check-restart-scope-chain-20261116/summary.json",
   "work_in_this_commit": [
-    "Current normalized machine results use shared immutable holders; actual current callee names compare by borrow; the current classified normalized body supplies the identical rewrite output, avoiding a second full COW clone. Decoder uses bounded preallocation. Protected/callee-change and full output controls pass.",
-    "Explicit default-off host-jemalloc build matches rustc58cf8f9 process C override with tikv-jemalloc-sys0.6.1. Release verifies6T allocator exports, noLD_PRELOAD/MALLOC_CONF. No target allocator or defaultO2 change.",
-    "Raw Analyze producer exports actual five stage costs/globalcost with bounded trusted input/plan DATA; restart consumes current exact headers/contexts and original update ledger, retains complete independentVerify; only successful guarded enclosing publication replaces manifest. Positiveforeign input, quota/firsterror, corruption and native failure/newSession controls pass. Actual cold owner-only plan publication fails to deduplicate independently allocated equivalent bodies, so5105planshapechecks and5101bodycomparisons remain a measured bottleneck."
+    "Cold raw Analyze publication groups independently allocated semantically equal Source functions using bounded randomized selector buckets; complete body and plan equality authorize every alias, original five fees remain per logical function. No digest/pointer grants permission.",
+    "Restart decodes each raw template once; fresh private current FunctionProduct + full decoder byte/header relation may adopt actual current owner, sensitive foreign/unsafe placement stays exact. Current independent Analyze obligations/Verify and original failure order remain.",
+    "Raw plan shape memo binds exactly the lengths and immutable plan columns actually read. Full body/header binding and aggregate quotas stay mandatory; malformed differing-local-bound test must reject.",
+    "Real Source128 separate-body regression covers reduced physical plans, fresh private edit with no warmup, reference/current plan equality, five fees/global cost, publication caps and cleanup."
   ],
   "invariants": "Default research off; current full Source/LIR bindings, original budgets, independent Verify, full default<O2>; main/goal/archive separate; no LLVM rebuild or evidence packing.",
   "sdk": "Installed SDK18/native-link reused, V32 pins unchanged; no assumption of historical local caches. Completed old user caches retired only after raw/results preserved; not product disk improvement.",
   "goal_status": "Full Rust/main/industrial gates OPEN; old7e/98fa/021997/54a/e402/f828 figures stay source-bound.",
-  "active_work": "Formal24 complete. Astra fixing actual cold-source semantic plan grouping and fresh current-result binding; root narrows plan-shape memo to its actual read dimensions. No new speed claim. All original limits/Verify/O2 retained. SDK18 reused; no LLVM rebuild/fullpack."
+  "active_work": "Formal25 and paired samehistory phase diagnostic25c complete. No active agents/builds. Source861 pushed. Biggest current avoidable work lies before object hit: fresh machine class/reachability/partition reconstruction; Source materialization/cache read/semantic publication also remain. Next change must follow actual rustc CGU reuse-before-build logic, current raw full bindings and preflight retained; not implemented/accepted yet. No mainmerge/fullpack/LLVM rebuild."
 }
