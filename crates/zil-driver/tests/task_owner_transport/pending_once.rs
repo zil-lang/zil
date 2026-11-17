@@ -126,7 +126,7 @@ fn pending_once_cleanup_preserves_actual_spill_flags_returned_owners_and_retry_n
                         assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
                         let generated = report.native_codegen.as_ref().unwrap();
                         assert_eq!(generated.backend, backend);assert!(generated.fallback.is_none());
-                        let llvm = fs::read_to_string(dir.join("phases/llvm.ll")).unwrap();
+                        let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
                         assert!(llvm.contains("zil.task.owner.retarget"), "{name}");
                         assert!(!llvm.contains("%closure.once."),
                             "a poll-stack environment escaped its activation: {llvm}");
