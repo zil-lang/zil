@@ -1,0 +1,75 @@
+{
+  "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+  "rows": [
+    {
+      "library": "zil_types",
+      "exit": 101,
+      "command": [
+        "/workspace/.zil-env/target-language-alpha/debug/deps/zil_types-0b59acc52379c858",
+        "--test-threads=2",
+        "--show-output"
+      ],
+      "executable_sha256": "67be81cf774170e05c5fab51a1421c5d74928b658b8f6735c54196bdff0ebcfd",
+      "seconds": 8.481071949005127,
+      "passed": 101,
+      "failed": 1,
+      "ignored": 0
+    },
+    {
+      "library": "zil_expand",
+      "exit": 0,
+      "command": [
+        "/workspace/.zil-env/target-language-alpha/debug/deps/zil_expand-76413a37baf3401c",
+        "--test-threads=2",
+        "--show-output"
+      ],
+      "executable_sha256": "2ad831bf4036c9c3963fa841f71fa030bed8ca554b2a319bdcab5aa412c79757",
+      "seconds": 1.1761484146118164,
+      "passed": 181,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "library": "zil_analyze",
+      "exit": 101,
+      "command": [
+        "/workspace/.zil-env/target-language-alpha/debug/deps/zil_analyze-5128daaa4e21a95d",
+        "--test-threads=2",
+        "--show-output"
+      ],
+      "executable_sha256": "8cecc2aace6cea5de20b27daa4d8029a412b216c1782febbcef9b0069c735f43",
+      "seconds": 8.66373324394226,
+      "passed": 322,
+      "failed": 1,
+      "ignored": 0
+    },
+    {
+      "library": "zil_ir",
+      "exit": 0,
+      "command": [
+        "/workspace/.zil-env/target-language-alpha/debug/deps/zil_ir-12256bce93f5caac",
+        "--test-threads=2",
+        "--show-output"
+      ],
+      "executable_sha256": "e21126b8198936b3c7c66c462ddb898cb1d4d95dda0403a1bd9cdb2ba4599555",
+      "seconds": 0.14127445220947266,
+      "passed": 103,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "library": "zil_verify",
+      "exit": 101,
+      "command": [
+        "/workspace/.zil-env/target-language-alpha/debug/deps/zil_verify-ee12d5bcead6e00c",
+        "--test-threads=2",
+        "--show-output"
+      ],
+      "executable_sha256": "631ee47110edff7206b2092b8674b368553e2d25c592576615a24f1940cf052a",
+      "seconds": 5.429242849349976,
+      "passed": 902,
+      "failed": 1,
+      "ignored": 0
+    }
+  ]
+}

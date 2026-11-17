@@ -1,0 +1,78 @@
+{
+  "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+  "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+  "scope": "Selected Task Source/SDK/native batch only; product/CT/project/core/full native plan/recovery gates remain separate",
+  "command_exit_is_not_acceptance": true,
+  "observed_failures": true,
+  "missing_required_evidence": [],
+  "selected_batch_passed": false,
+  "success_set_preservation": {
+    "source_sha_identities_preserved": true,
+    "required_preserved_successes": [
+      "adapter-default-local",
+      "child-frame-cleanup",
+      "closed-task-fnonce",
+      "direct-default-local",
+      "equal-shared-task-classes",
+      "returned-second-task-fnonce",
+      "returned-task-result-fnonce",
+      "static-callable-input"
+    ],
+    "regressions": [],
+    "new_successes": [],
+    "current_successes": [
+      "adapter-default-local",
+      "child-frame-cleanup",
+      "closed-task-fnonce",
+      "direct-default-local",
+      "equal-shared-task-classes",
+      "returned-second-task-fnonce",
+      "returned-task-result-fnonce",
+      "static-callable-input"
+    ],
+    "passed": true
+  },
+  "actual_tests": [
+    {
+      "suite": "task-owner-complete",
+      "executed_passed": 25,
+      "executed_failed": 11,
+      "ignored": 0,
+      "command_exit": 101,
+      "passed": false
+    },
+    {
+      "suite": "source-integrations",
+      "executed_passed": 19,
+      "executed_failed": 0,
+      "ignored": 0,
+      "command_exit": 0,
+      "passed": true
+    },
+    {
+      "suite": "source-static-controls",
+      "executed_passed": 2,
+      "executed_failed": 0,
+      "ignored": 0,
+      "command_exit": 0,
+      "passed": true
+    },
+    {
+      "suite": "address-product-controls",
+      "executed_passed": 3,
+      "executed_failed": 0,
+      "ignored": 0,
+      "command_exit": 0,
+      "passed": true
+    },
+    {
+      "suite": "frame-consumer-controls",
+      "executed_passed": 4,
+      "executed_failed": 0,
+      "ignored": 0,
+      "command_exit": 0,
+      "passed": true
+    }
+  ],
+  "alpha_acceptance_claim": false
+}
