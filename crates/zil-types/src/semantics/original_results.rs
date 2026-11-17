@@ -303,6 +303,35 @@ impl Proof {
     ) -> R<Option<(SemanticDefinitionId, &'a SemanticTypeRecipe)>> {
         self.closed_opaque_result_inner(program, ty, limits, left, 0)
     }
+    /// A closed generic Type application is independent of a particular
+    /// runtime result occurrence only after its complete original domain is
+    /// proved empty. This does not identify any value, creator or cleanup root.
+    pub(in crate::semantics) fn closed_opaque_application<'a>(
+        &'a self, program: &SemanticModule, owner: SemanticDefinitionId,
+        ty: &SemanticTypeRecipe, limits: &Limits, left: &mut usize,
+    ) -> R<Option<(SemanticDefinitionId, &'a SemanticTypeRecipe)>> {
+        let SemanticTypeRecipe::Opaque { definition, arguments, .. } = ty else {
+            return Ok(None);
+        };
+        *left = left.checked_sub(self.complete.len().saturating_add(1).ilog2() as usize + 1)
+            .ok_or_else(|| Diagnostic::limit(Phase::Types,
+                "closed opaque application owner lookup exceeded", None))?;
+        if arguments.is_empty() || !self.complete.contains(&owner) { return Ok(None); }
+        // The complete mixed vector, phantom arguments, declaration where
+        // clauses, defining all-return equation and D-to-owner mapping are all
+        // checked by this theorem. Its result is not definition-only cached.
+        let zero = match zero_original_domain(program, self, owner, ty,
+            limits, left, 0, &mut Vec::new(), None)
+        {
+            Ok(zero) => zero,
+            Err(error) if error.category == zil_base::ResultCategory::Unsupported => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        if !zero { return Ok(None); }
+        let result = self.types.get(&(*definition, Query::Result))
+            .ok_or_else(|| bad("closed opaque application has no complete defining result"))?;
+        Ok(Some((*definition, result)))
+    }
     fn closed_opaque_result_inner<'a>(
         &'a self,
         program: &SemanticModule,

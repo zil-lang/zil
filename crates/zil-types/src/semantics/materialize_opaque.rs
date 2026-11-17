@@ -11,26 +11,42 @@ struct ClosedContext {
 }
 
 impl Eval<'_, '_, '_> {
-    /// A monomorphic opaque with an independently proved closed result has a
-    /// fixed defining type, independent of runtime value arguments. Interpret
-    /// every emitted defining world; never select a convenient caller image.
+    /// An independently proved closed original Type application is separate
+    /// from runtime value provenance. Interpret every exact defining world;
+    /// the physical hint never chooses a creator or an actual argument.
     pub(super) fn closed_opaque_definition(
         &mut self,
-        _caller: SemanticInstanceId,
+        caller: SemanticInstanceId,
         recipe: &SemanticTypeRecipe,
         hint: Option<&Type>,
         depth: usize,
     ) -> R<Option<SemanticTypeValue>> {
         self.node(depth)?;
-        let Some((definition, result_recipe)) = ({
+        let owner = self.instance(caller)?.definition;
+        let Some((definition, result_recipe, generic)) = ({
             let proof = self.ledger.original.borrow();
             let proof = proof
                 .as_ref()
                 .ok_or_else(|| bad("closed opaque lacks its original all-return proof"))?;
-            proof.closed_opaque_result(self.input, recipe, self.limits, self.left)?
+            if let Some((definition, result)) = proof.closed_opaque_result(
+                self.input, recipe, self.limits, self.left,
+            )? { Some((definition, result, false)) }
+            else { proof.closed_opaque_application(self.input, owner, recipe, self.limits, self.left)?
+                .map(|(definition, result)| (definition, result, true)) }
         }) else {
             return Ok(None);
         };
+        let mut expected_actuals = Vec::new();
+        if generic {
+            let SemanticTypeRecipe::Opaque { arguments, .. } = recipe else { unreachable!() };
+            self.fee(arguments.len().saturating_mul(
+                std::mem::size_of::<SemanticActual>().saturating_add(1),
+            ))?;
+            expected_actuals = Vec::with_capacity(arguments.len());
+            for argument in arguments {
+                expected_actuals.push(self.recipe_actual(caller, argument, depth + 1)?);
+            }
+        }
         self.fee(self.input.instances.len())?;
         let mut result: Option<(SemanticTypeValue, ClosedContext)> = None;
         for original in &self.input.instances {
@@ -44,14 +60,20 @@ impl Eval<'_, '_, '_> {
             ) {
                 continue;
             }
-            if !instance.actuals.is_empty()
-                || instance.parent.is_some()
+            if generic {
+                if !self.closed_application_actuals_match(instance, &expected_actuals, depth + 1)? {
+                    continue;
+                }
+            } else if !instance.actuals.is_empty() {
+                return Err(bad("closed opaque defining world adds original mixed actuals"));
+            }
+            if instance.parent.is_some()
                 || instance.environment.is_some()
                 || instance.self_type.is_some()
                 || instance.lifetime_instantiation != SemanticLifetimeInstantiation::Rigid
             {
                 return Err(bad(
-                    "closed opaque defining world changes its original monomorphic context",
+                    "closed opaque defining world changes its complete original lexical context",
                 ));
             }
             let value = self.ty(instance.id, &result_recipe, None, depth + 1)?;
@@ -65,15 +87,8 @@ impl Eval<'_, '_, '_> {
                     1,
                 )?;
                 crate::dyn_metadata::semantic_operand_snapshot(&value, self.limits, self.left, 1)?;
-                self.fee(
-                    previous_context
-                        .arguments
-                        .len()
-                        .saturating_add(context.arguments.len())
-                        .saturating_add(previous_context.environment.len())
-                        .saturating_add(context.environment.len())
-                        .saturating_add(1),
-                )?;
+                self.charge_closed_context(Some(previous_context))?;
+                self.charge_closed_context(Some(&context))?;
                 if previous != &value || previous_context != &context {
                     return Err(bad(
                         "closed opaque defining worlds disagree in complete result type or original environment",
@@ -99,6 +114,22 @@ impl Eval<'_, '_, '_> {
             }
         }
         Ok(Some(value))
+    }
+    fn closed_application_actuals_match(
+        &mut self, candidate: &SemanticInstance, expected: &[SemanticActual], depth: usize,
+    ) -> R<bool> {
+        self.node(depth)?;
+        self.fee(candidate.actuals.len().saturating_add(expected.len()))?;
+        if candidate.actuals.len() != expected.len() { return Ok(false); }
+        for (ordinal, (claim, expected)) in candidate.actuals.iter().zip(expected).enumerate() {
+            // CoreInferred is resolved through its own genuine original
+            // scope/call/formal receipt. There is no invented current callsite.
+            let actual = self.holder_actual(candidate.id, ordinal as u32, claim, depth + 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(expected, self.limits, self.left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(&actual, self.limits, self.left, 1)?;
+            if &actual != expected { return Ok(false); }
+        }
+        Ok(true)
     }
     fn opaque_actuals_match(
         &mut self,
