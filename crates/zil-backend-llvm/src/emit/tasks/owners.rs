@@ -41,8 +41,8 @@ pub(super) fn plan(
     for owner in ownership.owners() {
         nodes.push(frame.fields.len() as u32);
         frame.fields.push(node_ty());
-        let registration = matches!(owner.ty(),Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}));
-        let child = matches!(owner.ty(),Type::Managed(p) if matches!(p.as_ref(),Type::Task{..}|Type::TaskI32));
+        let registration = matches!(enums::storage_shape(owner.ty()),Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}));
+        let child = matches!(enums::storage_shape(owner.ty()),Type::Managed(p) if matches!(p.as_ref(),Type::Task{..}|Type::TaskI32));
         let group = owner_groups::closure(module, owner.ty(), meter)?;
         groups.push(group.is_some());
         pollable.push(if let Some(id) = group {
@@ -67,8 +67,8 @@ pub(super) fn plan(
         let index = nodes.len();
         nodes.push(frame.fields.len() as u32);
         frame.fields.push(node_ty());
-        let registration = matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::AsyncRegistration { .. }));
-        let child = matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. } | Type::TaskI32));
+        let registration = matches!(enums::storage_shape(ty), Type::Managed(payload) if matches!(payload.as_ref(), Type::AsyncRegistration { .. }));
+        let child = matches!(enums::storage_shape(ty), Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. } | Type::TaskI32));
         let group = owner_groups::closure(module, ty, meter)?;
         groups.push(group.is_some());
         pollable.push(if let Some(id) = group {

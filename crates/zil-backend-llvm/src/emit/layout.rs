@@ -60,7 +60,8 @@ pub(super) struct LayoutContext<'a> {
 /// Package groups are shell followed by the same owned direct fields used by
 /// local storage, Take/refill, capture binding and destruction.
 pub(super) fn capture_flag_count(ty: &Type) -> usize {
-    match packages::physical_package(ty).unwrap_or(ty) {
+    if matches!(ty,Type::BorrowedStorage{..}) && packages::physical_package(ty).is_none() && !drop_plan::scoped_debt(ty) {return 0;}
+    match enums::storage_shape(ty) {
         Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. } => 1,
         ty if drop_plan::owned_sum(ty) => 1,
         Type::Package { fields, .. } => {
@@ -73,6 +74,22 @@ pub(super) fn capture_flag_count(ty: &Type) -> usize {
     }
 }
 
+/// Pay traversal, names, containers and the full copy before allocating a
+/// machine type. Arrays clone one element type, not their runtime cardinality.
+fn clone_machine_with(ty:&m::Ty,limits:&zil_base::Limits,charge:&mut impl FnMut(usize)->CompileResult<()>)->CompileResult<m::Ty> {
+    fn weight(ty:&m::Ty,limits:&zil_base::Limits,charge:&mut impl FnMut(usize)->CompileResult<()>,nodes:&mut usize,depth:usize)->CompileResult<usize> {
+        charge(1)?;*nodes=nodes.checked_add(1).ok_or_else(overflow)?;
+        if depth>limits.max_call_depth.min(zil_base::Limits::default().max_call_depth)||*nodes>limits.max_nodes{return Err(overflow());}
+        Ok(match ty {
+            m::Ty::Named(name)=>{charge(name.len())?;name.len().saturating_add(1)},
+            m::Ty::Struct(fields)=>{charge(fields.len())?;let mut out=fields.len().saturating_add(1);for field in fields {out=out.checked_add(weight(field,limits,charge,nodes,depth+1)?).ok_or_else(overflow)?;}out},
+            m::Ty::Array(_,element)=>weight(element,limits,charge,nodes,depth+1)?.checked_add(1).ok_or_else(overflow)?,
+            _=>1
+        })
+    }
+    let work=weight(ty,limits,charge,&mut 0,0)?;charge(work)?;Ok(ty.clone())
+}
+fn lookup_work(entries:usize,width:usize)->usize {width.saturating_mul(entries.checked_ilog2().map_or(1,|log|log as usize+2))}
 trait Environments {
     fn environment(
         &mut self,
@@ -135,7 +152,6 @@ fn product(
     let mut fields = Vec::with_capacity(children.len());
     let mut machine = Vec::with_capacity(children.len());
     for (role, child) in children {
-        cx.spend(child.nodes)?;
         let offset = round(size, child.align)?;
         size = offset
             .checked_add(child.size)
@@ -144,7 +160,7 @@ fn product(
         align = align.max(child.align);
         nodes = nodes.checked_add(child.nodes).ok_or_else(overflow)?;
         let index = u32::try_from(fields.len()).map_err(|_| overflow())?;
-        machine.push(child.machine.clone());
+        machine.push(clone_machine_with(&child.machine,cx.limits(),&mut |amount|cx.spend(amount))?);
         fields.push(Field {
             index,
             offset,
@@ -271,7 +287,7 @@ fn compute(
                 .filter(|n| *n <= i64::MAX as u64)
                 .ok_or_else(overflow)?;
             Arc::new(Recipe {
-                machine: m::Ty::array(u64::from(*length), child.machine.clone()),
+                machine: m::Ty::array(u64::from(*length), clone_machine_with(&child.machine,cx.limits(),&mut |amount|cx.spend(amount))?),
                 size,
                 align: child.align,
                 fields: vec![Field {
@@ -377,13 +393,16 @@ impl Environments for Builder<'_, '_, '_> {
         scratch: &mut Scratch,
     ) -> CompileResult<Arc<Recipe>> {
         node(self, depth, scratch)?;
+        self.meter.spend(lookup_work(self.environments.len(),1))?;
         if let Some(recipe) = self.environments.get(&id) {
             self.meter.spend(1)?;
             return Ok(recipe.clone());
         }
+        self.meter.spend(lookup_work(self.active.len(),1))?;
         if !self.active.insert(id) {
             return fail("closure environment contains an infinite inline layout cycle");
         }
+        self.meter.spend(lookup_work(self.closures.len(),1))?;
         let definition = *self.closures.get(&id).ok_or_else(|| {
             vec![Diagnostic::error(
                 Phase::Codegen,
@@ -420,9 +439,8 @@ impl Environments for Builder<'_, '_, '_> {
             }
         }
         let mut recipe = product(self, fields)?;
-        Arc::get_mut(&mut recipe)
-            .expect("new environment recipe")
-            .machine = environment_type(id);
+        self.meter.spend(lookup_work(self.active.len(),1).saturating_add(lookup_work(self.environments.len(),1)).saturating_add(32))?;
+        Arc::get_mut(&mut recipe).expect("new environment recipe").machine=environment_type(id);
         self.active.remove(&id);
         self.environments.insert(id, recipe.clone());
         Ok(recipe)
@@ -443,6 +461,7 @@ impl Environments for Reader<'_, '_> {
         scratch: &mut Scratch,
     ) -> CompileResult<Arc<Recipe>> {
         node(self, depth, scratch)?;
+        self.0.meter.spend(lookup_work(self.0.environments.len(),1))?;
         self.0.environments.get(&id).cloned().ok_or_else(|| {
             vec![Diagnostic::error(
                 Phase::Codegen,
@@ -481,6 +500,7 @@ impl<'a> LayoutContext<'a> {
         meter.spend(definitions.len().saturating_mul(3))?;
         let mut closures = BTreeMap::new();
         for (ordinal, definition) in definitions.iter().enumerate() {
+            meter.spend(lookup_work(closures.len(),1))?;
             if definition.id.0 as usize != ordinal
                 || closures.insert(definition.id, definition).is_some()
             {
@@ -551,7 +571,7 @@ impl<'a> LayoutContext<'a> {
             let m::Ty::Named(name) = &recipe.machine else {
                 return fail("environment recipe lost its actual nominal identity");
             };
-            meter.spend(name.len())?;
+            meter.spend(lookup_work(names.len(),name.len()).saturating_add(name.len()))?;
             if names.insert(name.clone(), *id).is_some() {
                 return fail("environment physical name repeats");
             }
@@ -576,24 +596,21 @@ impl<'a> LayoutContext<'a> {
     }
     pub(super) fn value_type(&self, ty: &Type) -> CompileResult<m::Ty> {
         let recipe = self.recipe(ty, Position::Value)?;
-        self.meter.spend(recipe.nodes)?;
-        Ok(recipe.machine.clone())
+        self.clone_machine(&recipe.machine)
     }
     pub(super) fn field_type(&self, ty: &Type) -> CompileResult<m::Ty> {
         let recipe = self.recipe(ty, Position::Field)?;
-        self.meter.spend(recipe.nodes)?;
-        Ok(recipe.machine.clone())
+        self.clone_machine(&recipe.machine)
     }
     pub(super) fn capture_type(&self, ty: &Type) -> CompileResult<m::Ty> {
         let recipe = self.recipe(ty, Position::Capture)?;
-        self.meter.spend(recipe.nodes)?;
-        Ok(recipe.machine.clone())
+        self.clone_machine(&recipe.machine)
     }
     pub(super) fn alignment(&self, ty: &Type) -> CompileResult<u32> {
         Ok(self.recipe(ty, Position::Field)?.align)
     }
     pub(super) fn environment(&self, id: ClosureId) -> CompileResult<&Recipe> {
-        self.meter.spend(1)?;
+        self.meter.spend(lookup_work(self.environments.len(),1))?;
         self.environments
             .get(&id)
             .map(AsRef::as_ref)
@@ -615,14 +632,10 @@ impl<'a> LayoutContext<'a> {
         self.meter
             .spend(recipe.nodes.saturating_mul(per_node).saturating_add(128))
     }
-    pub(super) fn environment_fields(&self, id: ClosureId) -> CompileResult<Vec<m::Ty>> {
-        let recipe = self.environment(id)?;
-        self.meter.spend(recipe.nodes)?;
-        Ok(recipe
-            .fields
-            .iter()
-            .map(|field| field.recipe.machine.clone())
-            .collect())
+    pub(super) fn clone_machine(&self,ty:&m::Ty)->CompileResult<m::Ty>{clone_machine_with(ty,&self.limits,&mut |amount|self.meter.spend(amount))}
+    pub(super) fn environment_fields(&self,id:ClosureId)->CompileResult<Vec<m::Ty>> {
+        let recipe=self.environment(id)?;self.meter.spend(recipe.fields.len())?;
+        recipe.fields.iter().map(|field|self.clone_machine(&field.recipe.machine)).collect()
     }
     pub(super) fn flag_start(&self, id: ClosureId, capture: u32) -> CompileResult<usize> {
         let recipe = self.environment(id)?;
@@ -669,6 +682,7 @@ impl<'a> LayoutContext<'a> {
     }
     pub(super) fn union(&self, ty: &Type) -> CompileResult<Enum> {
         let recipe = self.recipe(ty, Position::Field)?;
+        if let Some(enumeration)=&recipe.enumeration {self.meter.spend(enumeration.variants.len().saturating_add(enumeration.variants.iter().map(|variant|variant.fields.len()).sum::<usize>()))?;}
         recipe.enumeration.clone().ok_or_else(|| {
             vec![Diagnostic::error(
                 Phase::Codegen,
@@ -682,7 +696,7 @@ impl<'a> LayoutContext<'a> {
         machine_layout_with(
             ty,
             &mut |name| {
-                self.meter.spend(name.len())?;
+                self.meter.spend(lookup_work(self.names.len(),name.len()))?;
                 let id = self.names.get(name).ok_or_else(|| {
                     vec![Diagnostic::error(
                         Phase::Codegen,
@@ -848,7 +862,7 @@ pub(crate) fn machine_layout_with<'a>(
                 }
             }
             m::Ty::Named(name) => {
-                charge(name.len().saturating_add(active.len()).saturating_add(1))?;
+                charge(lookup_work(active.len(),name.len()).saturating_add(name.len()))?;
                 if !active.insert(name.clone()) {
                     return fail("machine named type is recursively inline");
                 }
@@ -1070,5 +1084,47 @@ mod tests {
             }),
         };
         assert!(context.recipe(&overflow, Position::Field).is_err());
+    }
+}
+
+#[cfg(test)]
+mod revision_tests {
+    use super::*;
+    fn qualified(storage:Type)->Type {
+        Type::BorrowedStorage{storage:Box::new(storage),life:zil_ir::StorageLifeShape{binder_count:0,slots:vec![],retained:vec![],nominal_arguments:vec![]}}
+    }
+    #[test]
+    fn qualified_owner_captures_preserve_storage_debt_and_package_partial_flags() {
+        // This inspects physical recipes only. No life shape, including N0,
+        // supplies a Copy, Closed or SyncDrop proof to the semantic checker.
+        let bytes=Type::Managed(Box::new(Type::ByteBuffer));
+        let package=Type::Package{name:"Partial".into(),fields:vec![("a".into(),bytes.clone()),("b".into(),bytes.clone())]};
+        let owners=vec![qualified(Type::Enum{name:"Choice".into(),variants:vec![("Some".into(),vec![bytes.clone()])]}),qualified(Type::Array{element:Box::new(bytes.clone()),length:2}),qualified(Type::ErrorUnion{error:Box::new(Type::Unit),result:Box::new(bytes.clone())}),qualified(qualified(Type::Tuple(vec![bytes]))),qualified(qualified(package))];
+        for ty in &owners[..4]{assert_eq!(capture_flag_count(ty),1);assert!(drop_plan::scoped_debt(ty));}
+        assert_eq!(capture_flag_count(&owners[4]),3,"the Package shell and both child flags remain distinct");
+        let mut module=test_environments(vec![owners]);module.resources=vec![ResourceDefinition{name:zil_ir::BYTE_BUFFER_RESOURCE_NAME.into(),payload:Type::ByteBuffer,teardown:None}];
+        let context=LayoutContext::for_test_module(&module,&zil_base::Limits::default()).unwrap();
+        assert_eq!(context.environment(ClosureId(0)).unwrap().fields.len(),12);
+        assert_eq!(context.flag_start(ClosureId(0),4).unwrap(),9);
+        let code=resource_closures::drop_functions(&context,&module.closures,&module.resources).unwrap();
+        for index in 0..5 {assert!(code.0.iter().any(|event|matches!(event,m::Event::Begin(function)if function.name==resource_closures::capture_drop_symbol(ClosureId(0),index))));}
+        assert!(code.0.iter().any(|event|matches!(event,m::Event::Instruction(m::Inst{op:m::Op::CondBranch{yes,..},..})if yes=="field.drop.4.1")));
+        let borrowed=qualified(Type::Tuple(vec![Type::Address{mutable:true,inner:Box::new(Type::I32)}]));
+        assert_eq!(capture_flag_count(&borrowed),0,"a borrowed pointee never becomes a native owner");
+    }
+    #[test]
+    fn repeated_full_machine_clones_are_prepaid_with_exact_fresh_request_boundaries() {
+        let module=test_environments(vec![vec![]]);
+        let tree=m::Ty::Struct((0..32).map(|_|m::Ty::Struct(vec![environment_type(ClosureId(0)),m::Ty::Int(64)])).collect());
+        let run=|steps|->CompileResult<usize>{
+            let limits=zil_base::Limits{max_analysis_steps:steps,..zil_base::Limits::default()};
+            let context=LayoutContext::for_test_module(&module,&limits)?;
+            for _ in 0..32{let copy=context.clone_machine(&tree)?;assert_eq!(copy,tree);}
+            Ok(steps-context.meter().remaining())
+        };
+        let exact=run(1_000_000).unwrap();assert!(exact>32*32*10,"complete repeated names and field trees must be charged");
+        assert_eq!(run(exact).unwrap(),exact);
+        assert_eq!(run(exact-1).unwrap_err()[0].category,zil_base::ResultCategory::ResourceLimit);
+        assert_eq!(run(exact).unwrap(),exact);
     }
 }

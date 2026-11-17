@@ -2798,11 +2798,11 @@ impl FunctionEmitter<'_> {
                             align: (self.layouts.alignment(&ty)?) as u32,
                         },
                     )));
-                    if drop_plan::owned_sum(&ty) {
+                    if layout::capture_flag_count(&ty)>0 {
                         // Verify proved that TakeCapture emptied this exact
                         // owning field and this write refills it once. Publish
                         // liveness only after its complete payload/tag write.
-                        self.refill_owned_sum_capture(environment, *index)?;
+                        self.refill_capture_flags(environment, *index)?;
                     }
                 }
             }

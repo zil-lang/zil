@@ -12,6 +12,8 @@ pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
         || matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
 }
 
+pub(super) fn capture_drop_symbol(id:ClosureId,index:u32)->String{format!("zil.closure.capture.drop.{}.{index}",id.0)}
+
 /// Field cleanup follows the fixed source capture order. The local containing
 /// this environment has already surrendered its responsibility before entry.
 pub(super) fn drop_functions(
@@ -25,10 +27,12 @@ pub(super) fn drop_functions(
     // without inventing a capture cleanup obligation.
     for definition in closures {
         layouts.reserve_environment_emission(definition.id,256)?;
+        for (index,ty) in definition.captures.iter().enumerate() {
+            if layout::capture_flag_count(ty)==0 {continue;}
         let env = environment_type(definition.id);
         text.append(m::Code::from(vec![
             m::Event::Begin(m::Function {
-                name: format!("zil.closure.drop.{}", definition.id.0),
+                name: capture_drop_symbol(definition.id,index as u32),
                 linkage: m::Linkage::Internal,
                 signature: m::Signature {
                     result: m::Ty::Void,
@@ -45,10 +49,7 @@ pub(super) fn drop_functions(
             }),
             m::Event::Label("entry".into()),
         ]));
-        for (index, ty) in definition.captures.iter().enumerate() {
-            if layout::capture_flag_count(ty) == 0 {
-                continue;
-            }
+
             let flag = layouts.flag_start(definition.id, index as u32)?;
             text.append(m::Code::from(vec![
                 m::Event::Instruction(m::Inst::new(
@@ -88,7 +89,7 @@ pub(super) fn drop_functions(
                     },
                 )),
             ]));
-            match packages::physical_package(ty).unwrap_or(ty) {
+            match enums::storage_shape(ty) {
                 Type::OwnedDyn { interface } => {
                     text.push(m::Event::Instruction(m::Inst::new(
                         Some(format!("payload.{index}")),
@@ -117,7 +118,7 @@ pub(super) fn drop_functions(
                 }
                 Type::Managed(payload) => {
                     let teardown = if matches!(payload.as_ref(),Type::Mutex{..}|Type::AsyncRegistration{..}) {
-                        Some(drop_plan::manager_symbol(ty))
+                        Some(drop_plan::manager_symbol(enums::storage_shape(ty)))
                     } else if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
                         Some(dynamic_store::helper(payload, resources, "drop")?)
                     } else {
@@ -323,43 +324,39 @@ pub(super) fn drop_functions(
                 m::Event::Instruction(m::Inst::new(None, m::Op::Branch(format!("done.{}", index)))),
                 m::Event::Label(format!("done.{}", index)),
             ]));
-        }
-        text.append(m::Code::from(vec![
+                text.append(m::Code::from(vec![
             m::Event::Instruction(m::Inst::new(None, m::Op::Return(None))),
             m::Event::End,
         ]));
-    }
+            }
+        text.push(m::Event::Begin(m::Function{name:format!("zil.closure.drop.{}",definition.id.0),linkage:m::Linkage::Internal,signature:m::Signature::new(m::Ty::Void,vec![m::Param::new(m::Ty::Ptr,"env")]),attrs:vec![],blocks:None}));
+        text.push(m::Event::Label("entry".into()));
+        for(index,ty)in definition.captures.iter().enumerate(){
+            if layout::capture_flag_count(ty)!=0 {
+                text.push(m::Event::Instruction(m::Inst::new(None,m::Op::Call{result:m::Ty::Void,result_attrs:vec![],callee:m::global(capture_drop_symbol(definition.id,index as u32)),args:vec![m::Arg::new(m::Ty::Ptr,m::local("env".into()))],vararg:None})));
+            }
+        }
+        text.push(m::Event::Instruction(m::Inst::new(None,m::Op::Return(None))));text.push(m::Event::End);
+}
     Ok(text)
 }
 
 impl FunctionEmitter<'_> {
-    pub(super) fn refill_owned_sum_capture(
+    pub(super) fn refill_capture_flags(
         &mut self,
         environment: ClosureId,
         index: u32,
     ) -> CompileResult<()> {
-        let definition = self.closure_definition(environment)?;
-        let flag = self.layouts.flag_start(definition.id, index)?;
-        let pointer = self.temp();
-        self.event(m::Event::Instruction(m::Inst::new(
-            Some(m::name(pointer.clone())),
-            m::Op::Gep {
-                ty: environment_type(environment),
-                ptr: m::local("env".into()),
-                indices: vec![
-                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
-                    m::Arg::new(m::Ty::Int(32), m::val(flag)),
-                ],
-            },
-        )));
-        self.event(m::Event::Instruction(m::Inst::new(
-            None,
-            m::Op::Store {
-                arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(true)),
-                ptr: m::val(pointer),
-                align: 1,
-            },
-        )));
+        let recipe=self.layouts.environment(environment)?;
+        self.layouts.meter().spend(recipe.fields.len())?;
+        let flags=recipe.fields.iter().filter_map(|field|match field.role {
+            layout::FieldRole::CaptureFlag{capture,..}if capture==index=>Some(field.index),_=>None
+        }).collect::<Vec<_>>();
+        for flag in flags {
+            self.layouts.meter().spend(16)?;let pointer=self.temp();
+            self.event(m::Event::Instruction(m::Inst::new(Some(m::name(pointer.clone())),m::Op::Gep{ty:environment_type(environment),ptr:m::local("env".into()),indices:vec![m::Arg::new(m::Ty::Int(32),0),m::Arg::new(m::Ty::Int(32),flag)]})));
+            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Store{arg:m::Arg::new(m::Ty::Int(1),true),ptr:m::val(pointer),align:1})));
+        }
         Ok(())
     }
 
@@ -459,19 +456,12 @@ impl FunctionEmitter<'_> {
             | Type::Package { .. }
             | Type::MutexGuard { .. }
             | Type::OwnedDyn { .. } => true,
-            Type::BorrowedStorage { storage, .. }
-                if matches!(storage.as_ref(), Type::Package { .. }) =>
-            {
-                true
-            }
-            Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Tuple(_)) => {
-                let Type::Tuple(fields) = storage.as_ref() else {
-                    unreachable!()
-                };
-                fields.iter().any(|field| self.owns_resource(field))
+            Type::BorrowedStorage { storage,.. }=> {
+                packages::physical_package(storage).is_some()||drop_plan::scoped_debt(storage)
             }
             Type::ErrorUnion { .. } => errors::owned(ty),
             Type::Enum { .. } | Type::Tuple(_) => !ty.is_copy_value(),
+            Type::Record{..}=>drop_plan::scoped_debt(ty),
             Type::Closure(id) => self.closures.get(id).is_some_and(|definition| {
                 owns(definition) || definition.kind == CallableKind::FnOnce
             }),
@@ -904,12 +894,12 @@ mod capture_cleanup_tests {
                 m::Event::Instruction(m::Inst { op: m::Op::Call { callee, .. }, .. })
                 if *callee == m::global(symbol.clone()))).count(), 1);
         }
-        // No new Record capture ABI or Array-of-callable-Package ABI is implied
-        // by admitting a complete Package through its established field route.
+        // Complete physical Record/Array compositions now use the same owner
+        // recipe; this component check supplies no language capability.
         let Type::Package { name, fields } = package.clone() else { unreachable!() };
         let record = Type::Record { name, fields };
-        assert!(!packages::capture_admission(&record, &[], &limits, &mut work).unwrap().0);
-        assert!(!drop_plan::value_type(&record, &[]));
+        assert!(packages::capture_admission(&record, &[], &limits, &mut work).unwrap().0);
+        assert!(drop_plan::value_type(&record, &[]));
         let array = Type::Array { element: Box::new(package), length: 2 };
         assert!(drop_plan::value_type(&array, &[]),"complete callable arrays retain their opaque owner cleanup recipe");
     }

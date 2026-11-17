@@ -4,11 +4,9 @@ use super::*;
 
 /// Borrow only the machine storage view. The verified function/value types
 /// retain their complete qualified metadata throughout lowering.
-pub(super) fn storage_shape(ty: &Type) -> &Type {
-    match ty {
-        Type::BorrowedStorage { storage, .. } => storage,
-        _ => ty,
-    }
+pub(super) fn storage_shape(mut ty:&Type)->&Type {
+    while let Type::BorrowedStorage{storage,..}=ty {ty=storage;}
+    ty
 }
 
 /// Read the existing x64 LLVM value layout of a complete, driver-checked shape.
@@ -492,21 +490,18 @@ impl FunctionEmitter<'_> {
         let recipe=self.layouts.recipe(ty,layout::Position::Field)?;
         self.store_recipe(&recipe,source,address)
     }
-    fn payload_field(&mut self,machine:&m::Ty,address:&str,index:u32)->String {
-        let out=self.temp();
-        self.event(m::Event::Instruction(m::Inst::new(Some(m::name(out.clone())),m::Op::Gep{
-            ty:machine.clone(),ptr:m::val(address),indices:vec![m::Arg::new(m::Ty::Int(32),0),m::Arg::new(m::Ty::Int(32),index)]
-        })));out
+    fn payload_field(&mut self,machine:&m::Ty,address:&str,index:u32)->CompileResult<String> {
+        let ty=self.layouts.clone_machine(machine)?;let out=self.temp();
+        self.event(m::Event::Instruction(m::Inst::new(Some(m::name(out.clone())),m::Op::Gep{ty,ptr:m::val(address),indices:vec![m::Arg::new(m::Ty::Int(32),0),m::Arg::new(m::Ty::Int(32),index)]})));Ok(out)
     }
-    fn payload_extract(&mut self,machine:&m::Ty,source:&str,index:u32)->String {
-        let out=self.temp();self.event(m::Event::Instruction(m::Inst::new(Some(m::name(out.clone())),m::Op::Extract{arg:m::Arg::new(machine.clone(),m::val(source)),index})));out
+    fn payload_extract(&mut self,machine:&m::Ty,source:&str,index:u32)->CompileResult<String> {
+        let ty=self.layouts.clone_machine(machine)?;let out=self.temp();self.event(m::Event::Instruction(m::Inst::new(Some(m::name(out.clone())),m::Op::Extract{arg:m::Arg::new(ty,m::val(source)),index})));Ok(out)
     }
     fn payload_scratch(&mut self,recipe:&layout::Recipe)->CompileResult<String> {
-        // Place scratch in the real entry block, even when the triggering
-        // operation lives in a loop. No iteration grows the native stack.
         self.layouts.meter().spend(self.text.0.len().saturating_add(1))?;
-        let out=self.temp();let at=self.text.0.iter().position(|event|matches!(event,m::Event::Label(name)if name=="entry")).ok_or_else(||vec![Diagnostic::error(Phase::Codegen,"E-CODEGEN-CFG",None,"payload scratch has no actual entry block")])?+1;
-        self.text.0.insert(at,m::Event::Instruction(m::Inst::new(Some(m::name(out.clone())),m::Op::Alloca{ty:recipe.machine.clone(),align:recipe.align})));Ok(out)
+        let ty=self.layouts.clone_machine(&recipe.machine)?;let out=self.temp();
+        let at=self.text.0.iter().position(|event|matches!(event,m::Event::Label(name)if name=="entry")).ok_or_else(||vec![Diagnostic::error(Phase::Codegen,"E-CODEGEN-CFG",None,"payload scratch has no actual entry block")])?+1;
+        self.text.0.insert(at,m::Event::Instruction(m::Inst::new(Some(m::name(out.clone())),m::Op::Alloca{ty,align:recipe.align})));Ok(out)
     }
     fn zero_payload(&mut self,recipe:&layout::Recipe,address:&str)->CompileResult<()> {
         self.layouts.meter().spend(8)?;
@@ -518,11 +513,11 @@ impl FunctionEmitter<'_> {
         let machine=&recipe.machine;
         if let Some(enumeration)=&recipe.enumeration {
             let scratch=self.payload_scratch(recipe)?;
-            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Store{arg:m::Arg::new(machine.clone(),m::val(source)),ptr:m::val(&scratch),align:recipe.align})));
+            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Store{arg:m::Arg::new(self.layouts.clone_machine(machine)?,m::val(source)),ptr:m::val(&scratch),align:recipe.align})));
             self.zero_payload(recipe,address)?;
-            let tag=self.payload_extract(machine,source,0);let tag_address=self.payload_field(machine,address,0);
+            let tag=self.payload_extract(machine,source,0)?;let tag_address=self.payload_field(machine,address,0)?;
             self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Store{arg:m::Arg::new(m::Ty::Int(32),m::val(&tag)),ptr:m::val(tag_address),align:4})));
-            let from=self.payload_field(machine,&scratch,1);let to=self.payload_field(machine,address,1);
+            let from=self.payload_field(machine,&scratch,1)?;let to=self.payload_field(machine,address,1)?;
             let id=self.continuation;self.continuation+=1;let done=format!("payload.done.{id}");
             for(index,variant)in enumeration.variants.iter().enumerate() {
                 self.layouts.meter().spend(variant.fields.len().saturating_add(8))?;
@@ -530,11 +525,11 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Instruction(m::Inst::new(Some(m::name(matched.clone())),m::Op::Compare{predicate:"eq".into(),ty:m::Ty::Int(32),left:m::val(&tag),right:m::val(index as u32)})));
                 self.event(m::Event::Instruction(m::Inst::new(None,m::Op::CondBranch{condition:m::val(matched),yes:yes.clone(),no:no.clone()})));
                 self.event(m::Event::Label(yes));
-                let payload=m::Ty::Struct(variant.fields.iter().map(|field|field.recipe.machine.clone()).collect());
+                let payload=m::Ty::Struct(variant.fields.iter().map(|field|self.layouts.clone_machine(&field.recipe.machine)).collect::<CompileResult<Vec<_>>>()?);
                 for field in &variant.fields {
                     if field.recipe.size==0{continue;}
-                    let source_address=self.payload_field(&payload,&from,field.index);let target_address=self.payload_field(&payload,&to,field.index);let loaded=self.temp();
-                    self.event(m::Event::Instruction(m::Inst::new(Some(m::name(loaded.clone())),m::Op::Load{ty:field.recipe.machine.clone(),ptr:m::val(source_address),align:field.recipe.align})));
+                    let source_address=self.payload_field(&payload,&from,field.index)?;let target_address=self.payload_field(&payload,&to,field.index)?;let loaded=self.temp();
+                    self.event(m::Event::Instruction(m::Inst::new(Some(m::name(loaded.clone())),m::Op::Load{ty:self.layouts.clone_machine(&field.recipe.machine)?,ptr:m::val(source_address),align:field.recipe.align})));
                     self.store_recipe(&field.recipe,&loaded,&target_address)?;
                 }
                 self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Branch(done.clone()))));self.event(m::Event::Label(no));
@@ -544,11 +539,11 @@ impl FunctionEmitter<'_> {
         }
         if recipe.error_union {
             self.zero_payload(recipe,address)?;
-            let tag=self.payload_extract(machine,source,0);let target=self.payload_field(machine,address,0);self.store_recipe(&recipe.fields[0].recipe,&tag,&target)?;
+            let tag=self.payload_extract(machine,source,0)?;let target=self.payload_field(machine,address,0)?;self.store_recipe(&recipe.fields[0].recipe,&tag,&target)?;
             let id=self.continuation;self.continuation+=1;let yes=format!("payload.error.{id}");let no=format!("payload.ok.{id}");let done=format!("payload.join.{id}");
             self.event(m::Event::Instruction(m::Inst::new(None,m::Op::CondBranch{condition:m::val(tag),yes:yes.clone(),no:no.clone()})));
             for(index,label)in [(1,yes),(2,no)] {
-                self.event(m::Event::Label(label));let field=&recipe.fields[index];if field.recipe.size!=0 {let value=self.payload_extract(machine,source,index as u32);let target=self.payload_field(machine,address,index as u32);self.store_recipe(&field.recipe,&value,&target)?;}
+                self.event(m::Event::Label(label));let field=&recipe.fields[index];if field.recipe.size!=0 {let value=self.payload_extract(machine,source,index as u32)?;let target=self.payload_field(machine,address,index as u32)?;self.store_recipe(&field.recipe,&value,&target)?;}
                 self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Branch(done.clone()))));
             }
             self.event(m::Event::Label(done));return Ok(());
@@ -558,14 +553,14 @@ impl FunctionEmitter<'_> {
             let child=&recipe.fields[0].recipe;
             for index in 0..*length {
                 let index=u32::try_from(index).map_err(|_|vec![Diagnostic::limit(Phase::Codegen,"array payload index exceeds machine extract range",None)])?;
-                let value=self.payload_extract(machine,source,index);let target=self.payload_field(machine,address,index);self.store_recipe(child,&value,&target)?;
+                let value=self.payload_extract(machine,source,index)?;let target=self.payload_field(machine,address,index)?;self.store_recipe(child,&value,&target)?;
             }
         } else if !recipe.fields.is_empty() {
-            for field in &recipe.fields {if field.recipe.size==0{continue;}let value=self.payload_extract(machine,source,field.index);let target=self.payload_field(machine,address,field.index);self.store_recipe(&field.recipe,&value,&target)?;}
+            for field in &recipe.fields {if field.recipe.size==0{continue;}let value=self.payload_extract(machine,source,field.index)?;let target=self.payload_field(machine,address,field.index)?;self.store_recipe(&field.recipe,&value,&target)?;}
         } else {
             let (ty,value)=if *machine==m::Ty::Int(1) {
                 let wide=self.temp();self.event(m::Event::Instruction(m::Inst::new(Some(m::name(wide.clone())),m::Op::Cast{opcode:"zext".into(),arg:m::Arg::new(m::Ty::Int(1),m::val(source)),to:m::Ty::Int(8)})));(m::Ty::Int(8),m::val(wide))
-            } else {(machine.clone(),m::val(source))};
+            } else {(self.layouts.clone_machine(machine)?,m::val(source))};
             self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Store{arg:m::Arg::new(ty,value),ptr:m::val(address),align:recipe.align})));
         }
         Ok(())

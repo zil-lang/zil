@@ -56,7 +56,7 @@ pub(super) fn plan(layouts: &LayoutContext<'_>,
                 continue;
             }
             let machine = layouts.value_type(ty)?;
-            if unresolved_layout(&machine) {
+            if preserves_environment_abi(&machine) {
                 continue;
             }
             let (bytes, align) = layouts.machine_layout(&machine)?;

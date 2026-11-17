@@ -3,15 +3,7 @@
 use super::*;
 
 pub(super) fn physical_package(ty: &Type) -> Option<&Type> {
-    match ty {
-        Type::Package { .. } => Some(ty),
-        Type::BorrowedStorage { storage, .. }
-            if matches!(storage.as_ref(), Type::Package { .. }) =>
-        {
-            Some(storage)
-        }
-        _ => None,
-    }
+    match enums::storage_shape(ty) {package@Type::Package{..}=>Some(package),_=>None}
 }
 
 pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
@@ -169,8 +161,7 @@ pub(super) fn teardown_paths(
     let mut result = Vec::new();
     while let Some((ty, path)) = pending.pop() {
         match ty {
-            Type::BorrowedStorage { storage, .. }
-                if matches!(storage.as_ref(), Type::Package { .. } | Type::Record { .. }) =>
+            Type::BorrowedStorage { storage, .. } =>
             {
                 pending.push((storage.as_ref(), path));
             }

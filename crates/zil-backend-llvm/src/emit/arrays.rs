@@ -3,7 +3,7 @@
 use super::*;
 
 pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
-    matches!(ty, Type::Array { element, .. }
+    matches!(enums::storage_shape(ty), Type::Array { element, .. }
         if !element.is_copy_value() && drop_plan::value_type(element, resources))
 }
 
@@ -22,10 +22,11 @@ impl FunctionEmitter<'_> {
         if !supported_type(ty, self.resources) {
             return Ok(());
         }
-        let Type::Array { length, .. } = ty else {
+        let Type::Array { length, .. } = enums::storage_shape(ty) else {
             unreachable!()
         };
         let length = *length;
+        self.layouts.meter().spend((length as usize).saturating_mul(64))?;
         for index in 0..length {
             if allocate {
                 self.event(m::Event::Instruction(m::Inst::new(
@@ -50,7 +51,7 @@ impl FunctionEmitter<'_> {
 
     fn owned_array_shape(&self, local: LocalId) -> CompileResult<(m::Ty, Type, u32)> {
         let ty = self.local_type(local)?;
-        let Type::Array { element, length } = ty else {
+        let Type::Array { element, length } = enums::storage_shape(ty) else {
             return invalid(
                 "E-CODEGEN-CFG",
                 "owning array operation requires an array local",
@@ -90,7 +91,7 @@ impl FunctionEmitter<'_> {
         }
         match instruction.kind {
             InstructionKind::ProjectOwnedArrayField { index, field, .. } => {
-                let Type::Package { fields, .. } = &element else {
+                let Type::Package { fields, .. } = enums::storage_shape(&element) else {
                     unreachable!()
                 };
                 let (_, ty) = fields.get(field as usize).ok_or_else(|| {
@@ -108,7 +109,7 @@ impl FunctionEmitter<'_> {
                     self.event(m::Event::Instruction(m::Inst::new(
                         Some(m::name((value(result(instruction)?)).clone())),
                         m::Op::Gep {
-                            ty: (array).clone(),
+                            ty: self.layouts.clone_machine(&array)?,
                             ptr: m::local(format!("local.{}", local.0)),
                             indices: vec![
                                 m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
@@ -122,7 +123,7 @@ impl FunctionEmitter<'_> {
                     self.event(m::Event::Instruction(m::Inst::new(
                         Some(m::name((pointer).clone())),
                         m::Op::Gep {
-                            ty: (array).clone(),
+                            ty: self.layouts.clone_machine(&array)?,
                             ptr: m::local(format!("local.{}", local.0)),
                             indices: vec![
                                 m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
@@ -146,7 +147,7 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(m::name((pointer).clone())),
                     m::Op::Gep {
-                        ty: (array).clone(),
+                        ty: self.layouts.clone_machine(&array)?,
                         ptr: m::local(format!("local.{}", local.0)),
                         indices: vec![
                             m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
@@ -176,7 +177,9 @@ impl FunctionEmitter<'_> {
                 value: input,
                 ..
             } => {
-                if self.value_type(input)? != &element {
+                // Immutable V binding already fixes the complete logical
+                // element/class relation. This is only its physical store ABI.
+                if self.layouts.value_type(self.value_type(input)?)? != self.layouts.field_type(&element)? {
                     return invalid(
                         "E-CODEGEN-CFG",
                         "owning array store type differs",
@@ -187,7 +190,7 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(m::name((pointer).clone())),
                     m::Op::Gep {
-                        ty: (array).clone(),
+                        ty: self.layouts.clone_machine(&array)?,
                         ptr: m::local(format!("local.{}", local.0)),
                         indices: vec![
                             m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
@@ -259,7 +262,7 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Label(format!("array.done.{}", label)));
             }
             InstructionKind::BorrowOwnedArrayElement { index, .. } => {
-                if !matches!(element, Type::Closure(_)) {
+                if !matches!(enums::storage_shape(&element), Type::Closure(_)) {
                     return invalid(
                         "E-CODEGEN-CFG",
                         "callback array borrow requires a concrete closure",
@@ -269,7 +272,7 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(m::name((value(result(instruction)?)).clone())),
                     m::Op::Gep {
-                        ty: (array).clone(),
+                        ty: self.layouts.clone_machine(&array)?,
                         ptr: m::local(format!("local.{}", local.0)),
                         indices: vec![
                             m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
@@ -352,7 +355,7 @@ impl FunctionEmitter<'_> {
             self.event(m::Event::Instruction(m::Inst::new(
                 Some(m::name((pointer).clone())),
                 m::Op::Gep {
-                    ty: (array).clone(),
+                    ty: self.layouts.clone_machine(&array)?,
                     ptr: m::local(format!("local.{}", local.0)),
                     indices: {
                         let mut args = vec![

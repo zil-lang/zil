@@ -3,7 +3,7 @@
 use super::*;
 use std::hash::Hash;
 
-fn scoped_debt(ty: &Type) -> bool {
+pub(super) fn scoped_debt(ty: &Type) -> bool {
     match ty {
         Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. } | Type::MutexGuard { .. } => {
             true
@@ -11,7 +11,7 @@ fn scoped_debt(ty: &Type) -> bool {
         Type::BorrowedStorage { storage, .. } => scoped_debt(storage),
         Type::Tuple(fields) => fields.iter().any(scoped_debt),
         Type::Array{element,..}=>scoped_debt(element),
-        Type::Package { fields, .. } => fields.iter().any(|(_, ty)| scoped_debt(ty)),
+        Type::Package { fields, .. } | Type::Record{fields,..} => fields.iter().any(|(_, ty)| scoped_debt(ty)),
         Type::Enum { variants, .. } => variants.iter().any(|(_, ts)| ts.iter().any(scoped_debt)),
         Type::ErrorUnion { error, result } => scoped_debt(error) || scoped_debt(result),
         _ => false,
@@ -48,8 +48,11 @@ pub(super) fn borrower_tuple(ty: &Type) -> bool {
 
 pub(super) fn owned_sum(ty: &Type) -> bool {
     if let Type::BorrowedStorage { storage, .. } = ty {
-        return matches!(storage.as_ref(), Type::Tuple(_)) && scoped_debt(storage);
+        // A qualified wrapper preserves the same physical owner tree. Package
+        // shell/direct-child flags remain their independent partial protocol.
+        return packages::physical_package(storage).is_none() && scoped_debt(storage);
     }
+    if matches!(ty,Type::Record{..}){return scoped_debt(ty);}
     matches!(
         ty,
         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Array{..}
@@ -68,6 +71,7 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
         Type::Closure(_) | Type::OwnedDyn { .. } => true,
         Type::Address { inner, .. } if inner.is_address_pointee() => true,
         Type::Managed(_) => resources::supported_type(ty, resources),
+        Type::Record{fields,..}=>fields.iter().all(|(_,field)|value_type(field,resources)),
         Type::Array { element, .. } => value_type(element, resources),
         Type::Tuple(fields) => fields.iter().all(|t| value_type(t, resources)),
         Type::Package { fields, .. } =>
@@ -426,7 +430,7 @@ fn link(
     }
     if matches!(
         ty,
-        Type::Tuple(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Array{..}
+        Type::Tuple(_) | Type::Record{..} | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Array{..}
     ) {
         return Ok(DropPlan::Leaf(symbol(ty)));
     }
@@ -578,12 +582,13 @@ fn plan(layouts: &LayoutContext<'_>,
     })
 }
 
-struct Emitter {
+struct Emitter<'a> {
+    layouts: &'a LayoutContext<'a>,
     code: m::Code,
     next: usize,
     current: String,
 }
-impl Emitter {
+impl Emitter<'_> {
     fn label(&mut self,name:String) {self.current=name.clone();self.code.push(m::Event::Label(name));}
     fn fresh(&mut self) -> String {
         let n = self.next;
@@ -594,12 +599,12 @@ impl Emitter {
         self.code
             .push(m::Event::Instruction(m::Inst::new(result, op)));
     }
-    fn gep(&mut self, ty: &m::Ty, ptr: &str, index: u32) -> String {
+    fn gep(&mut self, ty: &m::Ty, ptr: &str, index: u32) -> CompileResult<String> {
         let name = self.fresh();
         self.inst(
             Some(name.clone()),
             m::Op::Gep {
-                ty: ty.clone(),
+                ty: self.layouts.clone_machine(ty)?,
                 ptr: m::local(ptr.into()),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), 0),
@@ -607,9 +612,10 @@ impl Emitter {
                 ],
             },
         );
-        name
+        Ok(name)
     }
-    fn emit(&mut self, plan: &DropPlan, ptr: &str) {
+    fn emit(&mut self, plan: &DropPlan, ptr: &str) -> CompileResult<()> {
+        self.layouts.meter().spend(64)?;
         match plan {
             DropPlan::Empty => {}
             DropPlan::Leaf(callee) => self.inst(
@@ -625,8 +631,8 @@ impl Emitter {
             DropPlan::Product(ty, fields) => {
                 for (index, p) in fields {
                     if !matches!(p, DropPlan::Empty) {
-                        let child = self.gep(ty, ptr, *index);
-                        self.emit(p, &child);
+                        let child = self.gep(ty, ptr, *index)?;
+                        self.emit(p, &child)?;
                     }
                 }
             }
@@ -643,24 +649,24 @@ impl Emitter {
                 self.inst(Some(good.clone()),m::Op::Compare{predicate:"eq".into(),ty:m::Ty::Int(32),left:m::local(status),right:m::Val::Int(0)});
                 self.inst(None,m::Op::CondBranch{condition:m::local(good),yes:ready.clone(),no:invalid.clone()});self.label(invalid);
                 self.inst(None,m::Op::Call{result:m::Ty::Void,result_attrs:vec![],callee:m::global("llvm.trap".into()),args:vec![],vararg:None});self.inst(None,m::Op::Unreachable);self.label(ready);
-                let payload=self.gep(ty,&head,1);self.emit(child,&payload);
+                let payload=self.gep(ty,&head,1)?;self.emit(child,&payload)?;
                 self.inst(None,m::Op::Call{result:m::Ty::Void,result_attrs:vec![],callee:m::global("free".into()),args:vec![m::Arg::new(m::Ty::Ptr,m::local(head))],vararg:None});
             }
             DropPlan::Array(ty,length,child)=>{
-                if *length==0||matches!(child.as_ref(),DropPlan::Empty){return;}
+                if *length==0||matches!(child.as_ref(),DropPlan::Empty){return Ok(());}
                 let preheader=self.current.clone();let head=self.fresh();let body=self.fresh();let done=self.fresh();let index=self.fresh();
                 self.inst(None,m::Op::Branch(head.clone()));self.label(head.clone());
                 let phi=self.code.0.len();self.inst(Some(index.clone()),m::Op::Phi{ty:m::Ty::Int(64),incoming:vec![(m::Val::Int(0),preheader)]});
                 let end=self.fresh();self.inst(Some(end.clone()),m::Op::Compare{predicate:"eq".into(),ty:m::Ty::Int(64),left:m::local(index.clone()),right:m::val(*length)});
                 self.inst(None,m::Op::CondBranch{condition:m::local(end),yes:done.clone(),no:body.clone()});self.label(body);
-                let element=self.fresh();self.inst(Some(element.clone()),m::Op::Gep{ty:ty.clone(),ptr:m::local(ptr.into()),indices:vec![m::Arg::new(m::Ty::Int(32),0),m::Arg::new(m::Ty::Int(64),m::local(index.clone()))]});
-                self.emit(child,&element);let next=self.fresh();self.inst(Some(next.clone()),m::Op::Binary{opcode:"add".into(),ty:m::Ty::Int(64),left:m::local(index),right:m::Val::Int(1)});
+                let element=self.fresh();self.inst(Some(element.clone()),m::Op::Gep{ty:self.layouts.clone_machine(ty)?,ptr:m::local(ptr.into()),indices:vec![m::Arg::new(m::Ty::Int(32),0),m::Arg::new(m::Ty::Int(64),m::local(index.clone()))]});
+                self.emit(child,&element)?;let next=self.fresh();self.inst(Some(next.clone()),m::Op::Binary{opcode:"add".into(),ty:m::Ty::Int(64),left:m::local(index),right:m::Val::Int(1)});
                 let tail=self.current.clone();self.inst(None,m::Op::Branch(head));
                 if let m::Event::Instruction(m::Inst{op:m::Op::Phi{incoming,..},..})=&mut self.code.0[phi] {incoming.push((m::local(next),tail));}else{unreachable!("retained array phi event");}
                 self.label(done);
             }
             DropPlan::Error(ty, error, result) => {
-                let tagp = self.gep(ty, ptr, 0);
+                let tagp = self.gep(ty, ptr, 0)?;
                 let tag = self.fresh();
                 self.inst(
                     Some(tag.clone()),
@@ -682,17 +688,18 @@ impl Emitter {
                     },
                 );
                 self.label(yes);
-                let child = self.gep(ty, ptr, 1);
-                self.emit(error, &child);
+                let child = self.gep(ty, ptr, 1)?;
+                self.emit(error, &child)?;
                 self.inst(None, m::Op::Branch(done.clone()));
                 self.label(no);
-                let child = self.gep(ty, ptr, 2);
-                self.emit(result, &child);
+                let child = self.gep(ty, ptr, 2)?;
+                self.emit(result, &child)?;
                 self.inst(None, m::Op::Branch(done.clone()));
                 self.label(done);
             }
             DropPlan::Enum(ty, variants) => {
-                let tagp = self.gep(ty, ptr, 0);
+                self.layouts.meter().spend(variants.len().saturating_mul(64))?;
+                let tagp = self.gep(ty, ptr, 0)?;
                 let tag = self.fresh();
                 self.inst(
                     Some(tag.clone()),
@@ -725,8 +732,8 @@ impl Emitter {
                         },
                     );
                     self.label(yes);
-                    let child = self.gep(ty, ptr, 1);
-                    self.emit(p, &child);
+                    let child = self.gep(ty, ptr, 1)?;
+                    self.emit(p, &child)?;
                     self.inst(None, m::Op::Branch(done.clone()));
                     self.label(no);
                 }
@@ -744,7 +751,9 @@ impl Emitter {
                 self.label(done);
             }
         }
+        Ok(())
     }
+
 }
 
 fn collect<'a>(
@@ -779,7 +788,7 @@ fn collect<'a>(
         return Ok(());
     }
     let manager=matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Mutex{..}|Type::AsyncRegistration{..}));
-    if manager || (!ty.is_copy_value() && matches!(ty,Type::Tuple(_)|Type::Package{..}|Type::Enum{..}|Type::ErrorUnion{..}|Type::BorrowedStorage{..}|Type::Array{..})) {
+    if manager || (!ty.is_copy_value() && matches!(ty,Type::Tuple(_)|Type::Record{..}|Type::Package{..}|Type::Enum{..}|Type::ErrorUnion{..}|Type::BorrowedStorage{..}|Type::Array{..})) {
         found.insert(hash,ty);
     }
     match ty {
@@ -1020,6 +1029,7 @@ pub(super) fn functions<'a>(layouts: &LayoutContext<'_>,
     for ty in found.values() {
         let p = plan(layouts, ty, lir.resources, &mut budget, 0)?;
         let mut emitter = Emitter {
+            layouts,
             code: m::Code::new(),
             next: 0,
             current: String::new(),
@@ -1037,7 +1047,7 @@ pub(super) fn functions<'a>(layouts: &LayoutContext<'_>,
             blocks: None,
         }));
         emitter.label("entry".into());
-        emitter.emit(&p, "payload");
+        emitter.emit(&p, "payload")?;
         emitter.inst(None, m::Op::Return(None));
         emitter.code.push(m::Event::End);
         code.append(emitter.code);
@@ -1105,6 +1115,7 @@ pub(super) fn task_helpers(layouts: &LayoutContext<'_>,
         for ty in missing {
             let p = plan(layouts, ty, &verified.module().resources, &mut budget, 0)?;
             let mut emitter = Emitter {
+            layouts,
                 code: m::Code::new(),
                 next: 0,
             current: String::new(),
@@ -1120,7 +1131,7 @@ pub(super) fn task_helpers(layouts: &LayoutContext<'_>,
                 blocks: None,
             }));
             emitter.label("entry".into());
-            emitter.emit(&p, "payload");
+            emitter.emit(&p, "payload")?;
             emitter.inst(None, m::Op::Return(None));
             emitter.code.push(m::Event::End);
             code.append(emitter.code);
