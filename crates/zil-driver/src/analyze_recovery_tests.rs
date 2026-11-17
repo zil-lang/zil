@@ -335,6 +335,10 @@ fn native_restart_raw_analyze_private_edit_and_failed_publication_recover() {
         ResultCategory::Success
     );
     assert_eq!(fs::read(&manifest).unwrap(), prior);
+    // Discard valid process-local stage queries from the failed invocation:
+    // this assertion measures recovery from the last successful disk base.
+    drop(restart);
+    let mut restart = CompilationSession::default();
     let report = restart.compile_project(&current, &options);
     success(&report);
     assert_eq!(
