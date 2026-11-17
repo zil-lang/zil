@@ -2928,6 +2928,7 @@ impl World<'_, '_> {
                                 .result
                                 .ok_or_else(|| bad("reborrow has no actual result occurrence"))?;
                             let source = roles::outer(self, &parent)?;
+                            let static_source = matches!(source, roles::Source::Static);
                             self.pay(1)?;
                             self.reborrows.insert(
                                 result,
@@ -2936,12 +2937,31 @@ impl World<'_, '_> {
                                     source,
                                 },
                             );
-                            let image = self.occurrence(f, result)?;
-                            Some(self.address(
-                                ty.ok_or_else(|| bad("reborrow has no type"))?,
-                                image,
-                                &child,
-                            )?)
+                            // The actual parent SSA has already been checked;
+                            // its Static source is not inferred from a proposed
+                            // type or from a zero class count. Preserve this
+                            // source through a shared view, with the complete
+                            // child domain and the real reborrow receipt above.
+                            // Variable sources still get a fresh occurrence.
+                            if static_source {
+                                if !matches!(ty, Some(Type::Address { mutable: false, .. })) {
+                                    return Err(bad(
+                                        "static reborrow cannot provide an exclusive outer mode",
+                                    ));
+                                }
+                                Some(self.address_projection(
+                                    ty.ok_or_else(|| bad("static reborrow has no complete type"))?,
+                                    &parent,
+                                    &child,
+                                )?)
+                            } else {
+                                let image = self.occurrence(f, result)?;
+                                Some(self.address(
+                                    ty.ok_or_else(|| bad("reborrow has no type"))?,
+                                    image,
+                                    &child,
+                                )?)
+                            }
                         }
                         InstructionKind::ReadCapture { index } => {
                             let value = self.capture(instance, *index)?;
