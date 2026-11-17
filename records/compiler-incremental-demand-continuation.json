@@ -1,94 +1,75 @@
 {
-  "schema": "zil.compiler-current-native-continuation.v7",
-  "branch": "research/full-push-native",
-  "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-  "production_source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-  "reporting_source": "adc3d54baa592aa534f401e2fee5eede0d2db9e5",
-  "result_commit": "909e11f20b84aed2ab413cd43d090c7bcc88121b",
-  "binary_sha256": "8f5a44be3f4a6ab879366ac8a787ab5f63c25f3377d1ff6d1e9afb3800f3acc2",
+  "source": "15f858c4ce183fedee9eb3a46082b4ee74ee404b",
+  "binary_sha256": "0bc88ec30978d8f3869354fca77747372bfbd9a7828008111ed0fde8dacbb0ee",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "goal_read_sha": "2545cc9335254c183c3bc72676d6bc33b5c8535d",
-  "status": "window28 firstedit 1.710628/Rust1.304979s; NoGo: firstedit still slower; comprehensive target remains open",
-  "latest_native": {
-    "scope": "Original5105 functions/102 sourcefiles, actualmain/current/Rust, O2/CGU16/compilerjobs1. Explicit default-off bounded-classes-128-v4 and host-jemalloc; SDK18 reused. Original direct first resident request excludes startup/drop; ordinaryCLI companion includes complete process.",
-    "counts": {
-      "formal_workflow_requests": 30,
-      "runtime_profile_build_requests": 12,
-      "functional_cells": 10,
-      "sustained_runtime_cases": 4
+  "scope": "5105functions/102files; actualmain/candidate/Rust; fullO2/CGU16/compilerjobs1; SDK18/native-link reused, noLLVMrebuild; explicit default-off research flags and host-jemalloc.",
+  "counts": {
+    "formal_requests": 30,
+    "functional_cells": 10,
+    "runtime_builds": 12,
+    "runtime_cases": 4,
+    "ordinary_cli_builds": 36,
+    "ordinary_cli_balanced_blocks": 6
+  },
+  "compile_median_ms": {
+    "cold": {
+      "candidate": 3270.9233480000003,
+      "rust": 6154.448856
     },
-    "compile_median_ms": {
-      "cold": {
-        "candidate": 3683.178373,
-        "rust": 6731.854413
-      },
-      "unchanged": {
-        "candidate": 61.2595855,
-        "rust": 20.822907
-      },
-      "private-001": {
-        "candidate": 1710.6276305000001,
-        "rust": 1304.97887
-      },
-      "recovery": {
-        "candidate": 1628.708768,
-        "rust": 5889.599071500001
-      },
-      "error": {
-        "candidate": 1386.779284,
-        "rust": 1799.1446975
-      }
+    "unchanged": {
+      "candidate": 109.76647,
+      "rust": 22.4452995
     },
-    "runtime_ms": {
-      "5105/cold": {
-        "candidate": 32.04415,
-        "rust": 190.3089625
-      },
-      "5105/unchanged": {
-        "candidate": 32.438483,
-        "rust": 197.209876
-      },
-      "5105/private-001": {
-        "candidate": 31.983014999999998,
-        "rust": 184.15299800000003
-      },
-      "5105/recovery": {
-        "candidate": 33.106415999999996,
-        "rust": 189.8437145
-      }
+    "private-001": {
+      "candidate": 1739.0862204999999,
+      "rust": 1445.6581715
     },
-    "user_disk_boundary_peak_physical_bytes": [
-      {
-        "block": 0,
-        "candidate": 50003968,
-        "rust": 76734464
-      },
-      {
-        "block": 1,
-        "candidate": 50036736,
-        "rust": 61546496
-      }
-    ],
-    "raw": "out/runs/direct-firstedit-performance-direct-28"
+    "recovery": {
+      "candidate": 1989.996701,
+      "rust": 5898.5681325000005
+    }
   },
   "ordinary_cli": {
     "execution_complete": true,
-    "rows": 12,
-    "tool_source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-    "candidate_source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-    "candidate_binary_sha256": "8f5a44be3f4a6ab879366ac8a787ab5f63c25f3377d1ff6d1e9afb3800f3acc2",
-    "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-    "parent": "/workspace/zil-push-main/out/runs/direct-firstedit-performance-direct-28",
+    "rows": 36,
+    "blocks": 6,
+    "first_edit_pairs_ms": [
+      {
+        "candidate": 2268.5122,
+        "rust": 1729.099337
+      },
+      {
+        "candidate": 1232.588115,
+        "rust": 1246.904712
+      },
+      {
+        "candidate": 1832.118169,
+        "rust": 1384.304415
+      },
+      {
+        "candidate": 1736.391125,
+        "rust": 976.316553
+      },
+      {
+        "candidate": 1760.29613,
+        "rust": 976.391084
+      },
+      {
+        "candidate": 2104.304783,
+        "rust": 1229.218121
+      }
+    ],
+    "candidate_faster_in_every_first_edit_pair": false,
     "median_ms": {
       "cold": {
-        "baseline": 737.3988925,
-        "candidate": 3161.099756,
-        "rust": 6830.975657999999
+        "baseline": 528.606162,
+        "candidate": 2715.801643,
+        "rust": 6352.213339
       },
       "private-001": {
-        "baseline": 493.50435949999996,
-        "candidate": 2171.3766244999997,
-        "rust": 1241.3314125
+        "baseline": 566.6687105000001,
+        "candidate": 1796.2071495,
+        "rust": 1238.0614165000002
       }
     },
     "clock": "ordinary CLI launch through process exit; default session capacity; no diagnostic flags",
@@ -96,50 +77,182 @@
     "history": "empty per-block user caches -> cold -> process exit -> edit -> fresh process first build",
     "full_runtime_gate": "parent matrix; three output controls per successful CLI build only"
   },
-  "gates": {
-    "strict": {
-      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-      "valid": true,
-      "test_results": []
+  "user_disk_boundaries": [
+    {
+      "block": 0,
+      "candidate": {
+        "logical_bytes": 29544957,
+        "physical_bytes": 30048256
+      },
+      "rust": {
+        "logical_bytes": 76553667,
+        "physical_bytes": 76734464
+      }
     },
-    "types": {
-      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-      "valid": true,
-      "test_results": [
-        [
-          "ok",
-          "127",
-          "0",
-          "0"
-        ]
-      ]
+    {
+      "block": 1,
+      "candidate": {
+        "logical_bytes": 29464411,
+        "physical_bytes": 29966336
+      },
+      "rust": {
+        "logical_bytes": 61371067,
+        "physical_bytes": 61546496
+      }
+    }
+  ],
+  "ordinary_cli_disk_boundaries": [
+    {
+      "block": 0,
+      "candidate": {
+        "logical_bytes": 27984222,
+        "physical_bytes": 28459008
+      },
+      "rust": {
+        "logical_bytes": 60994590,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 1,
+      "candidate": {
+        "logical_bytes": 28048151,
+        "physical_bytes": 28524544
+      },
+      "rust": {
+        "logical_bytes": 60994590,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 2,
+      "candidate": {
+        "logical_bytes": 27989070,
+        "physical_bytes": 28467200
+      },
+      "rust": {
+        "logical_bytes": 60994589,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 3,
+      "candidate": {
+        "logical_bytes": 28011977,
+        "physical_bytes": 28487680
+      },
+      "rust": {
+        "logical_bytes": 60994589,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 4,
+      "candidate": {
+        "logical_bytes": 28000290,
+        "physical_bytes": 28475392
+      },
+      "rust": {
+        "logical_bytes": 60994590,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 5,
+      "candidate": {
+        "logical_bytes": 28012140,
+        "physical_bytes": 28487680
+      },
+      "rust": {
+        "logical_bytes": 60994590,
+        "physical_bytes": 61153280
+      }
+    }
+  ],
+  "runtime_ms": {
+    "5105/cold": {
+      "candidate": 31.217326999999997,
+      "rust": 190.63201700000002
+    },
+    "5105/unchanged": {
+      "candidate": 32.212877500000005,
+      "rust": 193.475593
+    },
+    "5105/private-001": {
+      "candidate": 33.448847,
+      "rust": 196.77203150000003
+    },
+    "5105/recovery": {
+      "candidate": 32.085559,
+      "rust": 185.1607475
+    }
+  },
+  "changes": [
+    "One immutable checked raw-file owner supplies all bounded record and machine-product views; restore does not copy every blob or allocate unused wire ownership.",
+    "Original bounded function decoder consumes borrowed fragments with the same remaining aggregate node limit and exact EOF.",
+    "Pending cache publication retains immutable byte segments, hashes and writes the identical wire stream through bounded buffers; removes full payload concatenation and repeated growth/copies. Same complete payload comparisons, byte cap, file guards and manifest-last transaction."
+  ],
+  "ordinary_cli_phase_median_ms": {
+    "note": "Each phase median computed separately; nested backend fields are not additive and these are not paired Rust phase equivalents.",
+    "phases": {
+      "parse": 0.1617955,
+      "expand": 113.25846250000001,
+      "types": 195.14153599999997,
+      "analyze": 36.015012,
+      "verify": 74.024711,
+      "lower": 4.958494,
+      "codegen": 635.172373,
+      "ct": 52.383628
     },
     "backend": {
-      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-      "valid": true,
-      "test_results": [
-        [
-          "ok",
-          "394",
-          "0",
-          "0"
-        ]
-      ]
+      "machine_ns": 432.0990155,
+      "machine_emit_ns": 237.71356,
+      "machine_transform_ns": 183.7387095,
+      "transform_ranges_ns": 12.860428,
+      "transform_checked_add_ns": 1.2127949999999998,
+      "transform_scalar_ns": 1.4565195,
+      "transform_call_classes_ns": 167.9396845,
+      "transform_purity_ns": 0.40372600000000003,
+      "machine_preflight_ns": 36.426696,
+      "partition_ns": 11.2067005,
+      "diagnostic_ns": 8.3444635,
+      "object_ns": 118.7285785,
+      "link_key_ns": 27.475021,
+      "link_execution_ns": 23.1209575,
+      "other_ns": 14.7070955,
+      "total_ns": 634.4020575
     },
-    "driver": {
-      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-      "valid": true,
-      "test_results": [
-        [
-          "ok",
-          "255",
-          "0",
-          "0"
-        ]
-      ]
+    "process_minus_report": 122.06111799999996
+  },
+  "diagnostic_only": {
+    "source": "15f858c4ce183fedee9eb3a46082b4ee74ee404b",
+    "raw": "out/runs/native-direct-syscalls-31",
+    "method": "Fresh own-child cold -> exit -> private001, strace seccomp-bpf fsync/fdatasync/madvise only; profile-compilation enabled. Not formal timing/ratio.",
+    "syscall_count": {
+      "madvise": 68,
+      "fsync": 13
     },
+    "syscall_ms": {
+      "madvise": 13.291,
+      "fsync": 12.335999999999997
+    },
+    "finding": "This sample did not reproduce the hundreds-of-ms spikes. No fsync/allocator policy change justified by these small observed costs."
+  },
+  "remaining": [
+    "OrdinaryCLI firstedit still fails target. Do not claim success based on cache reductions or local counters.",
+    "Same work counters still exhibit hundreds-of-ms phase/process-exit variation. Exact cause is unproven; do not attribute it to fsync/purge from a fast diagnostic sample, or infer regression causality from cross-window clocks.",
+    "All conclusions limited to measured5105function102file directrestartfirstedit chain; original budgets/Verify/fullO2 remain.",
+    "Actualmain originalResourceLimit, industrial multicrate/procmacro/build.rs/minute-scale and comprehensive compile goal remain unproven."
+  ],
+  "schema": "zil.compiler-current-native-continuation.v8",
+  "branch": "research/full-push-native",
+  "production_source": "15f858c4ce183fedee9eb3a46082b4ee74ee404b",
+  "result_commit": "b51a365c8ee012ec066747fc9c8c622b01361273",
+  "goal_read_sha": "27c0980b0ab967466ea7763d8b085de88f64c778",
+  "status": "NoGo: first-edit target unmet; ordinaryCLI C1796.207/Rust1238.061ms; all6pairsfaster=False; comprehensive goal remains open.",
+  "gates": {
     "publication": {
-      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+      "exit_code": 0,
       "valid": true,
       "test_results": [
         [
@@ -151,67 +264,62 @@
       ]
     },
     "fmt": {
-      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+      "exit_code": 0,
       "valid": true,
       "test_results": []
+    },
+    "ir": {
+      "exit_code": 0,
+      "valid": true,
+      "test_results": [
+        [
+          "ok",
+          "95",
+          "0",
+          "0"
+        ]
+      ]
+    },
+    "backend": {
+      "exit_code": 0,
+      "valid": true,
+      "test_results": [
+        [
+          "ok",
+          "402",
+          "0",
+          "0"
+        ]
+      ]
     },
     "release": {
-      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+      "exit_code": 0,
       "valid": true,
       "test_results": []
-    }
-  },
-  "reporting_followup": {
-    "source": "adc3d54baa592aa534f401e2fee5eede0d2db9e5",
-    "scope": "Only missing aggregate counters and existing regression assertions",
-    "release_regression": {
-      "passed": 1,
-      "failed": 0,
-      "ignored": 0,
-      "filtered": 254,
-      "command": "cargo test --locked --offline --release -p zil-driver --features native-products --lib attempt_totals_add_execution_costs_and_keep_only_final_retained_gauges"
     },
-    "performance_measured": false,
     "strict": {
+      "exit_code": 0,
       "valid": true,
-      "command": "cargo clippy --locked --offline --release -p zil-driver --features native-products --lib -- -D warnings",
-      "log_sha256": "ef415ebff64e3a971e2ed07eeaaec22f8a7dd041ff69e4b1c97c1e196a328826"
+      "test_results": []
+    },
+    "driver": {
+      "exit_code": 0,
+      "valid": true,
+      "test_results": [
+        [
+          "ok",
+          "265",
+          "0",
+          "0"
+        ]
+      ]
     }
   },
-  "review": {
-    "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-    "model": "gpt-6-astra",
-    "verdict": "PASS, no blocking source findings; all33files match commit; source review, not measured speedup"
+  "source_review": {
+    "verdict": "PASS",
+    "source": "15f858c4ce183fedee9eb3a46082b4ee74ee404b"
   },
-  "changes": [
-    "Current exact Core/Limits raw inference observations reach actual Types key and name consumers, including a fresh process first edit. Current signature reads reconstruct dependencies. Original ledgers and error precedence remain.",
-    "Original ordered task/registration/byte-buffer/dynamic-store consumers record actual scoped charges. Context construction consumes complete reconciled observations instead of rerunning these passes. Equal output anchors still require complete input equality.",
-    "Raw class and partition work products are bounded, produced by cold builds, success-only published, loaded after restart, checked against full current inputs/ABI/callee classes/graph/roles/copy allowance, and consumed before CGU materialization. Decoded dependency and rendering relations are independently rederived; selector is rehashed; no checker authority persisted.",
-    "Semantic encoding preparation starts after current Verify, overlaps backend work, and always joins before return. Successful guarded publication alone advances cache epochs. Failure/cancellation and bounded raw OnceLock associations retain original semantics.",
-    "Fresh closure inference, current header context construction and absolute CFG span rebinding remain. This is not serialized Context authority or zero-copy span rebasing."
-  ],
-  "counter_reporting_limitation": "The new FunctionStats body_key_current_projections/names_current_replays fields were omitted by CompileReport add_function_work aggregation. Formal zeros for those two fields are not cache misses. Body_key_executions2 and existing backend/TypesPush counters remain actual. A report-only fix and targeted aggregation regression follow; no timings are attributed to that later source.",
-  "retained_disk_tradeoff": "Current candidate boundary peaks50.0MB versus prior source3c43.0MB; new auxiliary class/partition payloads add about6.9MB. Both source-bound results retained; no host cleanup counted.",
-  "phase_conclusion": "Logical class/key/unit work shrank, but raw restore/validation/reencoding and absolute CFG binding remain. Same-source paired diagnostics and147CPU samples retained locally, not treated as formal timing ratios.",
-  "unresolved": [
-    "Actualmain originaldefaultResourceLimit: no main-regression acceptance or merge.",
-    "Industrial multi-crate/proc-macro/build.rs, minute-scale/GB-scale workloads not established.",
-    "Two balanced blocks do not establish stable performance tails; profile stage times are not summed across asynchronous work.",
-    "Raw work product recovery still decodes, rederives dependencies/normalization, binds current inputs and serializes auxiliary class/partition products; logical hits alone did not remove enough CPU.",
-    "Current canonical CFGs still rebind5100 absolute span-bearing bodies; fresh closure inference and current header context remain.",
-    "OrdinaryCLI includes large compiler session destruction after compile_path, unlike the separate resident request clock; compilerjobs1/CGU16/O2 remain equal."
-  ],
-  "next_work_not_implemented": {
-    "function_payload_representation": {
-      "complete_fragments": 5101,
-      "complete_fragment_bytes": 7236617,
-      "distinct_scalar_header_bodies": 374,
-      "distinct_body_bytes": 1565629,
-      "own_id_and_name_descriptor_bytes_approx": 55000,
-      "status": "Read-only analysis of current cache, not implemented or a measured speedup"
-    },
-    "backend_bound_recovery": "Avoid separate old input-machine materialization, bind to actual current machine while retaining current read/normalized/callee checks; retain accepted raw bytes across delta publication. Not implemented."
-  },
-  "results_url": "https://github.com/zil-lang/zil/blob/909e11f20b84aed2ab413cd43d090c7bcc88121b/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
-  "negative_window27": "https://github.com/zil-lang/zil/blob/909e11f20b84aed2ab413cd43d090c7bcc88121b/tools/research/incremental-demand/native-direct-edit-chain-20261116/window27.json"
+  "result_path": "tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
+  "history": "Source branch window26–31.json retain failures and exact source bindings. No evidence archive or LLVM rebuild.",
+  "invariants": "Independent current Verify, complete bindings, original budgets and full O2; research switches default off; main/goal/archive remain separate."
 }
