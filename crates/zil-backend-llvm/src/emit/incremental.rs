@@ -19,6 +19,7 @@ pub(crate) use whole::with_initial_work;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Session {
+    pub(in crate::emit) body_inputs: Option<Arc<scalar_bodies::Inputs>>,
     context: Option<Arc<Context>>,
     entries: EntryTable,
     pub(crate) hits: usize,
@@ -496,8 +497,7 @@ impl Session {
         let mut admission_sources = BTreeMap::new();
         // Borrowed only for this prepare call. The full current LIR binding and
         // per-ID role/ABI checks precede this lookup; it is not a capability.
-        let mut bodies =
-            std::collections::HashMap::<scalar_bodies::Owners, AdmittedBody<'_>>::new();
+        let mut bodies = std::collections::HashMap::<scalar_bodies::Key, AdmittedBody<'_>>::new();
         self.admitted = Arc::new(
             lir.functions
                 .iter()
@@ -519,11 +519,10 @@ impl Session {
                     {
                         return None;
                     }
-                    let owner = scalar_bodies::Owners::of(function);
-                    let (callees, source) = if let Some(body) = bodies
-                        .get(&owner)
-                        .filter(|body| scalar_bodies::Owners::same(body.input, function))
-                    {
+                    let owner = scalar_bodies::key(self.body_inputs.as_deref(), function);
+                    let (callees, source) = if let Some(body) = bodies.get(&owner).filter(|body| {
+                        scalar_bodies::same(self.body_inputs.as_deref(), body.input, function)
+                    }) {
                         self.shared_admission_reuses += 1;
                         (
                             body.callees.clone(),

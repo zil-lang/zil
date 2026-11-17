@@ -30,13 +30,13 @@ impl Session {
         // input. No digest, diagnostic fingerprint or previous capability grants
         // the result; mutations and independently allocated inputs are rechecked.
         self.representation_reused = lir.functions.len() - changed.len();
-        let mut bodies = std::collections::HashMap::<scalar_bodies::Owners, &TypedFunction>::new();
+        let mut bodies = std::collections::HashMap::<scalar_bodies::Key, &TypedFunction>::new();
         for index in changed {
             let function = &lir.functions[index];
-            let owner = scalar_bodies::Owners::of(function);
+            let owner = scalar_bodies::key(self.body_inputs.as_deref(), function);
             if bodies
                 .get(&owner)
-                .is_some_and(|old| scalar_bodies::Owners::same(old, function))
+                .is_some_and(|old| scalar_bodies::same(self.body_inputs.as_deref(), old, function))
             {
                 // Successful pure predicates read no self ID/name/source span.
                 // Reuse only within this current nominal-free LIR view, after

@@ -159,10 +159,20 @@ fn signature<'a>(
         versioned,
     })
 }
+#[cfg(test)]
 pub(super) fn plan(
     lir: &LirView<'_>,
     limits: &Limits,
     remaining: &mut usize,
+) -> CompileResult<Plans> {
+    plan_with_inputs(lir, limits, remaining, None)
+}
+
+pub(super) fn plan_with_inputs(
+    lir: &LirView<'_>,
+    limits: &Limits,
+    remaining: &mut usize,
+    inputs: Option<&scalar_bodies::Inputs>,
 ) -> CompileResult<Plans> {
     let mut plans = Plans::default();
     // Special generated consumers retain their previous complete convention.
@@ -234,12 +244,12 @@ pub(super) fn plan(
     // immutable bodies read the same actual helper IDs and current ABI table;
     // no source-to-machine permission or previous request enters this cache.
     let mut helper_bodies =
-        std::collections::HashMap::<scalar_bodies::Owners, (&TypedFunction, usize)>::new();
+        std::collections::HashMap::<scalar_bodies::Key, (&TypedFunction, usize)>::new();
     for function in lir.functions {
-        let owner = scalar_bodies::Owners::of(function);
+        let owner = scalar_bodies::key(inputs, function);
         if let Some((_, cost)) = helper_bodies
             .get(&owner)
-            .filter(|(old, cost)| *remaining >= *cost && scalar_bodies::Owners::same(old, function))
+            .filter(|(old, cost)| *remaining >= *cost && scalar_bodies::same(inputs, old, function))
         {
             *remaining -= cost;
             continue;

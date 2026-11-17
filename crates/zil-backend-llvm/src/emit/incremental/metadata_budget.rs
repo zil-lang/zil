@@ -53,11 +53,21 @@ fn functions(module: &TypedModule) -> Option<&PersistentVec<TypedFunction>> {
     (closures.is_empty() && resources.is_empty()).then_some(functions)
 }
 impl Cache {
+    #[cfg(test)]
     fn reserve(
         &self,
         module: &TypedModule,
         limits: &Limits,
         work: &mut usize,
+    ) -> CompileResult<Option<Pending>> {
+        self.reserve_with_inputs(module, limits, work, None)
+    }
+    fn reserve_with_inputs(
+        &self,
+        module: &TypedModule,
+        limits: &Limits,
+        work: &mut usize,
+        inputs: Option<&scalar_bodies::Inputs>,
     ) -> CompileResult<Option<Pending>> {
         let Some(owner) = functions(module) else {
             stored_borrows::reserve_callable_metadata(module, limits, work)?;
@@ -94,7 +104,7 @@ impl Cache {
         }
         let mut per_function = Vec::with_capacity(owner.len());
         let mut bodies =
-            std::collections::HashMap::<scalar_bodies::Owners, (&TypedFunction, usize)>::new();
+            std::collections::HashMap::<scalar_bodies::Key, (&TypedFunction, usize)>::new();
         for (index, function) in owner.iter().enumerate() {
             let input = owner
                 .owner(index)
@@ -107,9 +117,9 @@ impl Cache {
                 per_function.push(Arc::clone(*product));
             } else {
                 let old = *work;
-                let body = scalar_bodies::Owners::of(function);
+                let body = scalar_bodies::key(inputs, function);
                 if let Some((_, cost)) = bodies.get(&body).filter(|(previous, cost)| {
-                    *work >= *cost && scalar_bodies::Owners::same(previous, function)
+                    *work >= *cost && scalar_bodies::same(inputs, previous, function)
                 }) {
                     // Current successful visitor result only, with fixed Limits.
                     // Tight budgets execute the original visitor so its partial
@@ -156,8 +166,12 @@ impl Session {
         verified: &VerifiedModule,
         work: &mut usize,
     ) -> CompileResult<Option<Pending>> {
-        self.metadata_budget
-            .reserve(verified.module(), verified.limits(), work)
+        self.metadata_budget.reserve_with_inputs(
+            verified.module(),
+            verified.limits(),
+            work,
+            self.body_inputs.as_deref(),
+        )
     }
     pub(in crate::emit) fn remember_callable_metadata(&mut self, pending: Option<Pending>) {
         self.metadata_budget.remember(pending);

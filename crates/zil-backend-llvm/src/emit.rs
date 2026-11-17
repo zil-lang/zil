@@ -205,6 +205,9 @@ pub(crate) fn lower_output_with_session(
     let mut session = session;
     if let Some(session) = session.as_deref_mut() {
         session.begin_machine_request();
+        session.body_inputs = Some(std::sync::Arc::new(scalar_bodies::Inputs::new(
+            &verified.module().functions,
+        )));
     }
     let whole_options = incremental::WholeOptions {
         emit: *options,
@@ -248,7 +251,12 @@ pub(crate) fn lower_output_with_session(
         session.discard_machine();
     }
     dyn_dispatch::reserve(verified.module(), verified.limits(), &mut remaining_work)?;
-    let mut copy_plans = copy_aggregates::plan(lir, verified.limits(), remaining_work)?;
+    let mut copy_plans = copy_aggregates::plan_with_inputs(
+        lir,
+        verified.limits(),
+        remaining_work,
+        session.as_ref().and_then(|s| s.body_inputs.as_deref()),
+    )?;
     if verified.uses_stored_borrows() {
         stored_borrows::reserve_emission(
             lir,
@@ -365,6 +373,7 @@ pub(crate) fn lower_output_with_session(
         // first request after process restart. This cache cannot outlive this
         // invocation or authorize any source, verification or native-cache hit.
         let mut scalar_bodies = scalar_bodies::Cache::default();
+        scalar_bodies.set_inputs(session.body_inputs.clone());
         let mut batches = Vec::with_capacity(lir.functions.len().max(1));
         for function in lir.functions {
             let share_body = session.admits(function.id)

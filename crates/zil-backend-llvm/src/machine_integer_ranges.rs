@@ -8,6 +8,7 @@ use zil_llvm_api::model::{Attr, Function, Item, Linkage, Module, Op, Ty, Val};
 const MAX_WORK: usize = 2_000_000;
 const MAX_ROUNDS: usize = 4;
 mod compact;
+mod plan;
 mod purity;
 pub(crate) use purity::mark as mark_purity;
 const MIN: i128 = i32::MIN as i128;
@@ -206,7 +207,7 @@ fn operation(op: &Op, pairs: &HashMap<&str, &Op>, world: &World<'_>, values: &Va
         _ => Range::TOP,
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Facts {
     returned: Range,
     flags: Vec<(usize, usize)>,
@@ -216,6 +217,8 @@ struct Facts {
 std::thread_local! {
     static FACT_EXECUTIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
+// Keep the original complete walker as an independent test oracle.
+#[cfg(test)]
 fn facts(f: &Function, world: &World<'_>, work: &mut usize, inputs: &[Range]) -> Option<Facts> {
     #[cfg(test)]
     FACT_EXECUTIONS.with(|n| n.set(n.get() + 1));
@@ -329,6 +332,11 @@ fn fold_with_work(
     if preflight.check(module).is_err() {
         return 0;
     }
+    let mut body_plans = plan::Plans::default();
+    #[cfg(test)]
+    {
+        body_plans.reference = !reuse_rounds;
+    }
     let mut excluded = protected.clone();
     let mut address_owners = HashMap::new();
     for item in &module.items {
@@ -399,7 +407,7 @@ fn fold_with_work(
             let r = if let Some(fs) = cached {
                 fs.returned
             } else {
-                let Some(fs) = facts(f, &world, &mut work, &[]) else {
+                let Some(fs) = body_plans.facts(f, &world, &mut work, &[]) else {
                     return 0;
                 };
                 let r = fs.returned;
@@ -447,6 +455,7 @@ fn fold_with_work(
         work: &mut usize,
         cache: &mut InputCache<'a>,
         round: usize,
+        body_plans: &mut plan::Plans<'a>,
     ) -> Option<Arc<Facts>> {
         let blocks = f.blocks.as_ref()?;
         let inputs = world
@@ -468,7 +477,7 @@ fn fold_with_work(
             return Some(entry.facts.clone());
         }
         let before = *work;
-        let fs = Arc::new(facts(f, world, work, inputs)?);
+        let fs = Arc::new(body_plans.facts(f, world, work, inputs)?);
         cache.entry(key).or_default().push(InputFacts {
             function: f,
             inputs: inputs.to_vec(),
@@ -491,7 +500,9 @@ fn fold_with_work(
             if let Item::Function(f) = item
                 && f.blocks.is_some()
             {
-                let Some(fs) = cached_facts(f, &world, &mut work, &mut cache, round) else {
+                let Some(fs) =
+                    cached_facts(f, &world, &mut work, &mut cache, round, &mut body_plans)
+                else {
                     return 0;
                 };
                 // Repeated identical call contributions have the same hull.
@@ -545,7 +556,14 @@ fn fold_with_work(
             && f.linkage != Linkage::AvailableExternally
             && !f.attrs.contains(&Attr::NoInline)
         {
-            let Some(fs) = cached_facts(f, &world, &mut work, &mut cache, MAX_ROUNDS) else {
+            let Some(fs) = cached_facts(
+                f,
+                &world,
+                &mut work,
+                &mut cache,
+                MAX_ROUNDS,
+                &mut body_plans,
+            ) else {
                 return 0;
             };
             if !fs.flags.is_empty() {

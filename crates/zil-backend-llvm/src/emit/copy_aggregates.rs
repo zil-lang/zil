@@ -50,10 +50,20 @@ fn task_port_pointee(ty: &Type) -> bool {
     }
 }
 
+#[cfg(test)]
 pub(super) fn plan(
     lir: &LirView<'_>,
     limits: &Limits,
     remaining_work: usize,
+) -> CompileResult<super::large_copy_abi::Plans> {
+    plan_with_inputs(lir, limits, remaining_work, None)
+}
+
+pub(super) fn plan_with_inputs(
+    lir: &LirView<'_>,
+    limits: &Limits,
+    remaining_work: usize,
+    inputs: Option<&scalar_bodies::Inputs>,
 ) -> CompileResult<super::large_copy_abi::Plans> {
     #[cfg(test)]
     if max_plan_reference::enabled() {
@@ -66,12 +76,12 @@ pub(super) fn plan(
     // including a negative (empty) plan. The nominal world and Limits are fixed
     // for this invocation. The original successful cost is still paid per ID.
     let mut bodies =
-        std::collections::HashMap::<scalar_bodies::Owners, (&TypedFunction, usize, Plan)>::new();
+        std::collections::HashMap::<scalar_bodies::Key, (&TypedFunction, usize, Plan)>::new();
     for function in lir.functions {
-        let owner = scalar_bodies::Owners::of(function);
+        let owner = scalar_bodies::key(inputs, function);
         if let Some((_, cost, values)) = bodies
             .get(&owner)
-            .filter(|(old, cost, _)| work >= *cost && scalar_bodies::Owners::same(old, function))
+            .filter(|(old, cost, _)| work >= *cost && scalar_bodies::same(inputs, old, function))
         {
             work -= cost;
             if !values.is_empty() {
@@ -222,7 +232,7 @@ pub(super) fn plan(
         // visitor, preserving the first failing operation and partial charges.
         bodies.insert(owner, (function, before_function - work, values));
     }
-    let abi = super::large_copy_abi::plan(lir, limits, &mut work)?;
+    let abi = super::large_copy_abi::plan_with_inputs(lir, limits, &mut work, inputs)?;
     if !plans.is_empty()
         || abi.functions.values().any(|s| s.large())
         || store_protocols

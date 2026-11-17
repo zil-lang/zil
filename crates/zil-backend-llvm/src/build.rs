@@ -72,6 +72,13 @@ pub struct BackendTimings {
     /// Nested detail inside machine_ns; never add these to the parent.
     pub machine_emit_ns: u64,
     pub machine_transform_ns: u64,
+    /// Transform detail, including any retry inside partition_ns. These include
+    /// their own preflight calls and overlap both parent/preflight measurements.
+    pub transform_ranges_ns: u64,
+    pub transform_checked_add_ns: u64,
+    pub transform_scalar_ns: u64,
+    pub transform_call_classes_ns: u64,
+    pub transform_purity_ns: u64,
     /// Full preflight work within machine_ns and partition_ns (fallback).
     /// This overlaps both parents and machine_transform_ns; never add it.
     pub machine_preflight_ns: u64,
@@ -97,10 +104,15 @@ impl BackendTimings {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"machine_ns\":{},\"machine_emit_ns\":{},\"machine_transform_ns\":{},\"machine_preflight_ns\":{},\"partition_ns\":{},\"diagnostic_ns\":{},\"object_ns\":{},\"link_key_ns\":{},\"link_execution_ns\":{},\"other_ns\":{},\"total_ns\":{}}}",
+            "{{\"machine_ns\":{},\"machine_emit_ns\":{},\"machine_transform_ns\":{},\"transform_ranges_ns\":{},\"transform_checked_add_ns\":{},\"transform_scalar_ns\":{},\"transform_call_classes_ns\":{},\"transform_purity_ns\":{},\"machine_preflight_ns\":{},\"partition_ns\":{},\"diagnostic_ns\":{},\"object_ns\":{},\"link_key_ns\":{},\"link_execution_ns\":{},\"other_ns\":{},\"total_ns\":{}}}",
             self.machine_ns,
             self.machine_emit_ns,
             self.machine_transform_ns,
+            self.transform_ranges_ns,
+            self.transform_checked_add_ns,
+            self.transform_scalar_ns,
+            self.transform_call_classes_ns,
+            self.transform_purity_ns,
             self.machine_preflight_ns,
             self.partition_ns,
             self.diagnostic_ns,
@@ -533,25 +545,32 @@ pub fn build_view_with_cancellation_and_session(
         if options.optimization == Optimization::O2 && options.incremental_o2 {
             let mut flat = machine.to_module();
             if options.bounded_class_imports {
+                let pass_started = std::time::Instant::now();
                 crate::machine_integer_ranges::fold(
                     &mut flat,
                     &transform_policy.protected,
                     &mut machine_preflight,
                 );
+                timings.transform_ranges_ns += crate::object_cache::elapsed_ns(pass_started);
             }
+            let pass_started = std::time::Instant::now();
             crate::machine_checked_add_chain::fold_checked_add_chains_cached_with_preflight(
                 &mut flat,
                 &mut checked_add_cache,
                 &mut machine_preflight,
             );
+            timings.transform_checked_add_ns += crate::object_cache::elapsed_ns(pass_started);
             checked_add_work.0 += checked_add_cache.checked_functions;
             checked_add_work.1 += checked_add_cache.reused_functions;
+            let pass_started = std::time::Instant::now();
             crate::machine_scalar::fold_known_leaf_calls_with_preflight(
                 &mut flat,
                 lir,
                 &mut machine_preflight,
             );
+            timings.transform_scalar_ns += crate::object_cache::elapsed_ns(pass_started);
             if call_classes_enabled {
+                let pass_started = std::time::Instant::now();
                 check_cancelled(cancelled)?;
                 // The class pass reads and stages a complete model. A source
                 // capability or a hash is not its machine admission proof.
@@ -589,13 +608,16 @@ pub fn build_view_with_cancellation_and_session(
                     );
                 }
                 check_cancelled(cancelled)?;
+                timings.transform_call_classes_ns += crate::object_cache::elapsed_ns(pass_started);
             }
             if options.bounded_class_imports {
+                let pass_started = std::time::Instant::now();
                 crate::machine_integer_ranges::mark_purity(
                     &mut flat,
                     &transform_policy.protected,
                     &mut machine_preflight,
                 );
+                timings.transform_purity_ns += crate::object_cache::elapsed_ns(pass_started);
             }
             machine = flat.into();
         }
@@ -777,24 +799,31 @@ pub fn build_view_with_cancellation_and_session(
             // helper plan; this attempt remains inside the request's timing.
             let mut flat = original_machine.to_module();
             if options.bounded_class_imports {
+                let pass_started = std::time::Instant::now();
                 crate::machine_integer_ranges::fold(
                     &mut flat,
                     &transform_policy.protected,
                     &mut machine_preflight,
                 );
+                timings.transform_ranges_ns += crate::object_cache::elapsed_ns(pass_started);
             }
+            let pass_started = std::time::Instant::now();
             crate::machine_checked_add_chain::fold_checked_add_chains_cached_with_preflight(
                 &mut flat,
                 &mut checked_add_cache,
                 &mut machine_preflight,
             );
+            timings.transform_checked_add_ns += crate::object_cache::elapsed_ns(pass_started);
             checked_add_work.0 += checked_add_cache.checked_functions;
             checked_add_work.1 += checked_add_cache.reused_functions;
+            let pass_started = std::time::Instant::now();
             crate::machine_scalar::fold_known_leaf_calls_with_preflight(
                 &mut flat,
                 lir,
                 &mut machine_preflight,
             );
+            timings.transform_scalar_ns += crate::object_cache::elapsed_ns(pass_started);
+            let pass_started = std::time::Instant::now();
             machine_preflight.check(&flat).map_err(api_error)?;
             call_classes = crate::machine_call_classes::canonicalize(
                 &mut flat,
@@ -802,12 +831,15 @@ pub fn build_view_with_cancellation_and_session(
                 cancelled,
             );
             check_cancelled(cancelled)?;
+            timings.transform_call_classes_ns += crate::object_cache::elapsed_ns(pass_started);
             if options.bounded_class_imports {
+                let pass_started = std::time::Instant::now();
                 crate::machine_integer_ranges::mark_purity(
                     &mut flat,
                     &transform_policy.protected,
                     &mut machine_preflight,
                 );
+                timings.transform_purity_ns += crate::object_cache::elapsed_ns(pass_started);
             }
             class_symbols.clear();
             class_cache = None;

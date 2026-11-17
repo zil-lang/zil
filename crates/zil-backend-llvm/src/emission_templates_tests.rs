@@ -90,6 +90,11 @@ fn restart_templates_match_fresh_multi_block_emission_and_changed_literals() {
             assert_eq!(actual, expected);
             assert_eq!(session.reused_body_templates, 1);
             assert_eq!(session.produced_body_templates, 2);
+            // The second function has independently rebased local/instruction
+            // storage. Current semantic equality, not array-owner identity,
+            // must carry the successful body through every emitter consumer.
+            assert_eq!(session.shared_body_template_reuses, 1);
+            assert_eq!(session.representation_reused, 1);
             if policy {
                 assert_eq!(session.source_projection_admission_reuses, 3);
                 assert_eq!(session.source_projection_traversals, 0);

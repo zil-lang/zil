@@ -12,7 +12,7 @@ struct Product<'a> {
 /// Allocation selectors live only while the current LIR is borrowed. Check all
 /// three immutable owners as well as the complete outer input on every hit.
 /// In particular, neither an ID nor an empty slice address proves body equality.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) struct Owners(
     *const Vec<zil_ir::LocalDecl>,
     *const Vec<Type>,
@@ -33,10 +33,78 @@ impl Owners {
             && incremental::same_body_input(left, right)
     }
 }
+// Current semantic equality is established ONCE before the pure consumers.
+// Absolute diagnostic placement can split COW arrays without changing machine
+// inputs. Pointer-only caches therefore cannot represent this equivalence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum Key {
+    Semantic(usize),
+    Owner(Owners),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Inputs {
+    _functions: zil_ir::PersistentVec<TypedFunction>,
+    identities: HashMap<usize, usize>,
+}
+impl Inputs {
+    pub(super) fn new(functions: &zil_ir::PersistentVec<TypedFunction>) -> Self {
+        let selector = RandomState::new();
+        let mut buckets = HashMap::<u64, Vec<(&TypedFunction, usize)>>::new();
+        let mut identities = HashMap::new();
+        let mut fuel = 1_000_000usize;
+        for function in functions {
+            let Some(cost) = cost(function).filter(|cost| *cost <= fuel) else {
+                continue;
+            };
+            fuel -= cost;
+            let hash = selector.hash_one(Selector(function));
+            let mut identity = None;
+            if let Some(rows) = buckets.get(&hash) {
+                for &(prior, id) in rows {
+                    let Some(left) = fuel.checked_sub(cost) else {
+                        break;
+                    };
+                    fuel = left;
+                    if incremental::same_body_input(prior, function) {
+                        identity = Some(id);
+                        break;
+                    }
+                }
+            }
+            let next = identities.len();
+            let id = identity.unwrap_or(next);
+            if identity.is_none() {
+                buckets.entry(hash).or_default().push((function, id));
+            }
+            identities.insert(std::ptr::from_ref(function) as usize, id);
+        }
+        Self {
+            _functions: functions.clone(),
+            identities,
+        }
+    }
+}
+pub(super) fn key(inputs: Option<&Inputs>, function: &TypedFunction) -> Key {
+    inputs
+        .and_then(|inputs| {
+            inputs
+                .identities
+                .get(&(std::ptr::from_ref(function) as usize))
+        })
+        .map_or_else(|| Key::Owner(Owners::of(function)), |id| Key::Semantic(*id))
+}
+pub(super) fn same(inputs: Option<&Inputs>, left: &TypedFunction, right: &TypedFunction) -> bool {
+    match (key(inputs, left), key(inputs, right)) {
+        (Key::Semantic(a), Key::Semantic(b)) => a == b,
+        _ => Owners::same(left, right),
+    }
+}
+
 pub(super) struct Cache<'a> {
     products: Vec<Product<'a>>,
     buckets: HashMap<u64, Vec<usize>>,
-    owners: HashMap<Owners, usize>,
+    owners: HashMap<Key, usize>,
+    inputs: Option<std::sync::Arc<Inputs>>,
     selector: RandomState,
     fuel: usize,
     pub(super) hits: usize,
@@ -49,6 +117,7 @@ impl Default for Cache<'_> {
             products: Vec::new(),
             buckets: HashMap::new(),
             owners: HashMap::new(),
+            inputs: None,
             selector: RandomState::new(),
             fuel: 1_000_000,
             hits: 0,
@@ -170,6 +239,9 @@ impl Hash for Selector<'_> {
     }
 }
 impl<'a> Cache<'a> {
+    pub(super) fn set_inputs(&mut self, inputs: Option<std::sync::Arc<Inputs>>) {
+        self.inputs = inputs;
+    }
     pub(super) fn lower<F, R>(
         &mut self,
         function: &'a TypedFunction,
@@ -186,9 +258,9 @@ impl<'a> Cache<'a> {
         if !admitted || self.fuel == 0 {
             return lower();
         }
-        let owner = Owners::of(function);
+        let owner = key(self.inputs.as_deref(), function);
         if let Some(&index) = self.owners.get(&owner)
-            && Owners::same(self.products[index].input, function)
+            && same(self.inputs.as_deref(), self.products[index].input, function)
         {
             // No body walk, hashing, CFG reconstruction, promotion or early
             // optimization. Pay only lookup work in this optional ledger; the

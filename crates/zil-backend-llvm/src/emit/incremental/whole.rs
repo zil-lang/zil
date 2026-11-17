@@ -194,6 +194,7 @@ impl Session {
     }
 
     pub(in crate::emit) fn begin_machine_request(&mut self) {
+        self.body_inputs = None;
         self.hits = 0;
         self.misses = 0;
         self.reused_body_templates = 0;

@@ -608,3 +608,130 @@ fn range_round_reuse_matches_fresh_rounds_at_exact_work_boundary() {
         assert_eq!(run(low, true).0, changed);
     }
 }
+
+#[test]
+fn indexed_facts_match_original_walker_for_each_world_input_and_budget() {
+    let module = generated_with_bounded_root(true);
+    zil_llvm_api::validate_module(&module).unwrap();
+    let mut world = World {
+        intrinsics: module
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                Item::Function(f) => intrinsic(f).map(|op| (f.name.as_str(), op)),
+                _ => None,
+            })
+            .collect(),
+        returns: BTreeMap::new(),
+        arguments: BTreeMap::new(),
+    };
+    plan::BODY_PLANS.with(|n| n.set(0));
+    let mut plans = plan::Plans::default();
+    let mut owners = BTreeSet::new();
+    for round in 0..3 {
+        // Reuse the same body index when both universal return facts and the
+        // argument domain change. Neither is captured by the static plan.
+        if round > 0 {
+            world
+                .returns
+                .insert("zil.fn.1", Range { lo: -250, hi: 250 });
+            world.arguments.insert("zil.fn.2", vec![Range::TOP]);
+        }
+        if round == 2 {
+            world.intrinsics.clear();
+            world.returns.insert("zil.fn.1", Range::TOP);
+            world.arguments.insert("zil.fn.1", vec![Range::TOP]);
+        }
+        for item in &module.items {
+            let Item::Function(f) = item else { continue };
+            let Some(blocks) = &f.blocks else { continue };
+            owners.insert(std::ptr::from_ref(&**blocks) as usize);
+            for inputs in [vec![], vec![Range::TOP], vec![constant(3)]] {
+                let mut remaining = MAX_WORK;
+                let expected = facts(f, &world, &mut remaining, &inputs);
+                assert!(expected.is_some());
+                let cost = MAX_WORK - remaining;
+                // Every refusal prefix as well as exact N and N+1. On failure
+                // no partial facts are published; successful fees match exactly.
+                for budget in 0..=cost + 1 {
+                    let (mut old_work, mut new_work) = (budget, budget);
+                    let old = facts(f, &world, &mut old_work, &inputs);
+                    let new = plans.facts(f, &world, &mut new_work, &inputs);
+                    assert_eq!(new, old, "{} round {round}, budget {budget}", f.name);
+                    if old.is_some() {
+                        assert_eq!(new_work, old_work);
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(plan::BODY_PLANS.with(std::cell::Cell::get), owners.len());
+}
+
+#[test]
+fn indexed_range_fold_keeps_original_shared_body_budget_and_malformed_preflight() {
+    let mut raw = generated_with_bounded_root(false);
+    let template = definition_mut(&mut raw, "zil.fn.1").clone();
+    for index in 10..18 {
+        let mut shared = template.clone();
+        shared.name = format!("zil.fn.{index}");
+        if index == 17 {
+            shared.attrs.push(Attr::NoInline);
+        }
+        raw.items.push(Item::Function(shared));
+    }
+    let protected = BTreeSet::from(["root".into(), "zil.fn.16".into()]);
+    zil_llvm_api::validate_module(&raw).unwrap();
+    let run = |raw: &Module, budget, indexed| {
+        let mut actual = raw.clone();
+        let mut preflight = crate::machine_preflight::CurrentPreflight::default();
+        let changed = fold_with_work(&mut actual, &protected, &mut preflight, budget, indexed);
+        (changed, actual, preflight.executions)
+    };
+    let expected = run(&raw, MAX_WORK, false);
+    assert!(expected.0 > 0);
+    assert_eq!(run(&raw, MAX_WORK, true), expected);
+    let (mut low, mut high) = (0, MAX_WORK);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if run(&raw, middle, false).0 == 0 {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    for budget in [0, low - 1, low, low + 1, MAX_WORK] {
+        assert_eq!(run(&raw, budget, true), run(&raw, budget, false));
+    }
+    for malformed in ["header", "intrinsic", "branch", "duplicate"] {
+        let mut invalid = raw.clone();
+        match malformed {
+            "header" => definition_mut(&mut invalid, "zil.fn.10").signature.result = Ty::Int(64),
+            "intrinsic" => {
+                definition_mut(&mut invalid, "llvm.sadd.with.overflow.i32")
+                    .signature
+                    .params
+                    .pop();
+            }
+            "branch" => {
+                definition_mut(&mut invalid, "zil.fn.10")
+                    .blocks
+                    .as_mut()
+                    .unwrap()[0]
+                    .instructions
+                    .last_mut()
+                    .unwrap()
+                    .op = Op::Branch("missing".into());
+            }
+            "duplicate" => invalid.items.push(Item::Function(template.clone())),
+            _ => unreachable!(),
+        }
+        assert!(
+            zil_llvm_api::validate_module(&invalid).is_err(),
+            "{malformed}"
+        );
+        for indexed in [false, true] {
+            assert_eq!(run(&invalid, MAX_WORK, indexed), (0, invalid.clone(), 1));
+        }
+    }
+}
