@@ -179,10 +179,10 @@ pub(super) fn receiver_result(
     let summary = &summaries[d.function.0 as usize];
     // Unknown callback facts never become an identity result or empty lease.
     if !summary.complete {
-        *pending=true;
+        *pending = true;
         return Ok(true);
     }
-    let before=call_results::Before::closure(module,f,i,values,state,b)?;
+    let before = call_results::Before::closure(module, f, i, values, state, b)?;
     for (path, sources) in &summary.result {
         if !path.is_empty() {
             let (_, shape) = addressed(&d.result)
@@ -198,7 +198,8 @@ pub(super) fn receiver_result(
             }
         }
         for source in sources {
-            let actual=before.source(source,b)?;
+            let actual = before.source(source, b)?;
+            *pending |= actual.sources.is_empty();
             if path.is_empty() {
                 join_permission(&mut out.address, &actual, b)?;
             } else {
@@ -206,13 +207,16 @@ pub(super) fn receiver_result(
             }
         }
     }
-    if b.raw_reference_cells||b.dyn_contexts||b.closure_receiver_borrows{
-        for source in &summary.dyn_result_parents{
-            let actual=before.source(source,b)?;
-            add_loans(&mut out.address.loans,&actual.loans,b)?;
+    if b.raw_reference_cells || b.dyn_contexts || b.closure_receiver_borrows {
+        for source in &summary.dyn_result_parents {
+            let actual = before.source(source, b)?;
+            *pending |= actual.sources.is_empty();
+            add_loans(&mut out.address.loans, &actual.loans, b)?;
         }
     }
-    if !before.field_results(summary,&d.result,i,sites,loans,out,b)?{*pending=true;}
+    if !before.field_results(summary, &d.result, i, sites, loans, out, b)? {
+        *pending = true;
+    }
     let life = d
         .storage_life
         .as_ref()
@@ -221,7 +225,15 @@ pub(super) fn receiver_result(
         && signature_life::outer(life, StorageBase::Result)
             == signature_life::outer(life, StorageBase::Receiver);
     if result_is_head || !summary.receiver_results.is_empty() {
-        let retained = retain_written_slot(before.receiver()?, i, HEAD_SITE, &Vec::new(), sites, loans, b)?;
+        let retained = retain_written_slot(
+            before.receiver()?,
+            i,
+            HEAD_SITE,
+            &Vec::new(),
+            sites,
+            loans,
+            b,
+        )?;
         // Preserve the head as a non-target parent, never add it to data roots.
         add_loans(&mut out.address.loans, &retained.loans, b)?;
     }

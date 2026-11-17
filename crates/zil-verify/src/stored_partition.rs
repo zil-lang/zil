@@ -11,13 +11,23 @@ fn stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bo
         match ty {
             Type::Closure(id) => {
                 budget.spend(closures_seen.len().saturating_add(1))?;
-                if !closures_seen.insert(*id) { continue; }
+                if !closures_seen.insert(*id) {
+                    continue;
+                }
                 let definition = closures::definition(module, *id, None)?;
-                if crate::ordinary_heads::resource_closure(module,*id,budget)?{continue;}
+                if crate::ordinary_heads::resource_closure(module, *id, budget)? {
+                    continue;
+                }
                 // Work selection only. The complete relation, every actual
                 // creator/entry and its memory sources are checked elsewhere.
                 found |= definition.storage_life.is_some();
-                budget.spend(definition.captures.len().saturating_add(definition.parameters.len()).saturating_add(1))?;
+                budget.spend(
+                    definition
+                        .captures
+                        .len()
+                        .saturating_add(definition.parameters.len())
+                        .saturating_add(1),
+                )?;
                 pending.extend(&definition.captures);
                 pending.extend(&definition.parameters);
                 pending.push(&definition.result);
@@ -26,8 +36,13 @@ fn stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bo
                 found = true;
                 pending.push(storage);
             }
-            Type::ByteBuffer=>{found=true;},
-            Type::OwnedStore{element}=>{found|=super::stored_owned::ordinary_store_value(module,ty,budget)?;pending.push(element);},
+            Type::ByteBuffer => {
+                found = true;
+            }
+            Type::OwnedStore { element } => {
+                found |= super::stored_owned::ordinary_store_value(module, ty, budget)?;
+                pending.push(element);
+            }
             Type::Registration {
                 environment: element,
             }
@@ -45,13 +60,19 @@ fn stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bo
                 pending.extend(parameters);
                 pending.push(result);
             }
-            Type::Address { inner, .. }
-            | Type::Managed(inner)
+            Type::Address { inner, .. } => {
+                found |= matches!(inner.as_ref(), Type::Desc(_) | Type::BorrowedStorage { .. });
+                pending.push(inner);
+            }
+            Type::Managed(inner)
             | Type::Desc(inner)
             | Type::Array { element: inner, .. }
             | Type::Slice { element: inner }
             | Type::Opaque { hidden: inner, .. } => pending.push(inner),
-            Type::Tuple(fields) => { found|=stored_flow::compound_targets(ty,budget)?;pending.extend(fields); },
+            Type::Tuple(fields) => {
+                found |= stored_flow::compound_targets(ty, budget)?;
+                pending.extend(fields);
+            }
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 pending.extend(fields.iter().map(|(_, ty)| ty));
             }
@@ -88,9 +109,11 @@ fn forbidden_stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -
                 // C call and stored permissions are independent consumers.
             }
             Type::Closure(id) => {
-                let definition=closures::definition(module,*id,None)?;
-                if !stored_callables::finite(module,*id) { return Ok(true); }
-                stored_callables::captured_profile(module,definition,budget)?;
+                let definition = closures::definition(module, *id, None)?;
+                if !stored_callables::finite(module, *id) {
+                    return Ok(true);
+                }
+                stored_callables::captured_profile(module, definition, budget)?;
                 // No payload or root is inferred here. The stored solver
                 // consumes this actual environment's full capture directory.
             }
@@ -157,21 +180,34 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
     }
     // None selects the complete stored ledger; an explicit empty partition
     // instead proves every actual body with the ordinary borrow/resource lane.
-    if !mask.iter().any(|v| *v){return Ok(Some(mask));}
-    if mask.iter().all(|v| *v) { return Ok(None); }
+    if !mask.iter().any(|v| *v) {
+        return Ok(Some(mask));
+    }
+    if mask.iter().all(|v| *v) {
+        return Ok(None);
+    }
     // The small mixed lane only transports ordinary scalar boundaries. Rich
     // owner/description/heap graphs instead require the existing complete
     // stored solver for every actual function, including the ordinary peers.
     // This is more verification work, not an exemption for a resource table,
     // a cross-domain call, a capture source or an owner cleanup obligation.
-    for resource in &module.resources{
+    for resource in &module.resources {
         budget.spend(1)?;
-        if stored_type(module,&resource.payload,budget)?{return Ok(None);}
+        if stored_type(module, &resource.payload, budget)? {
+            return Ok(None);
+        }
     }
-    for(index,function)in module.functions.iter().enumerate(){
-        if !mask[index]{continue;}
-        for ty in std::iter::once(&function.return_type).chain(function.locals.iter().map(|row|&row.ty)).chain(&function.values){
-            if forbidden_stored_type(module,ty,budget)?{return Ok(None);}
+    for (index, function) in module.functions.iter().enumerate() {
+        if !mask[index] {
+            continue;
+        }
+        for ty in std::iter::once(&function.return_type)
+            .chain(function.locals.iter().map(|row| &row.ty))
+            .chain(&function.values)
+        {
+            if forbidden_stored_type(module, ty, budget)? {
+                return Ok(None);
+            }
         }
     }
     for definition in &module.closures {
@@ -184,8 +220,13 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
             ));
         };
         if *stored {
-            if !stored_callables::finite(module,definition.id) {return Err(unsupported("mixed stored closure has no complete actual entry consumer",None));}
-            stored_callables::captured_profile(module,definition,budget)?;
+            if !stored_callables::finite(module, definition.id) {
+                return Err(unsupported(
+                    "mixed stored closure has no complete actual entry consumer",
+                    None,
+                ));
+            }
+            stored_callables::captured_profile(module, definition, budget)?;
         }
     }
     budget.spend(module.dyn_vtables.len())?;
@@ -322,57 +363,174 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
 /// A Known0 ordinary head still owes an executable effect/memory proof when
 /// its original method contract is pending. This only selects the existing
 /// full verifier and all exact executable dependencies; it grants no facts.
-pub(super) fn contracts(module:&TypedModule,mask:&mut [bool],b:&mut Budget)->Check<()>{
-    if mask.len()!=module.functions.len(){return Err(reject("E-VERIFY-STORED-PARTITION",None,"contract work mask omits actual functions"));}
+pub(super) fn contracts(module: &TypedModule, mask: &mut [bool], b: &mut Budget) -> Check<()> {
+    if mask.len() != module.functions.len() {
+        return Err(reject(
+            "E-VERIFY-STORED-PARTITION",
+            None,
+            "contract work mask omits actual functions",
+        ));
+    }
     b.spend(b.pending_dyn_contracts.methods.len())?;
-    let roots=b.pending_dyn_contracts.methods.iter().filter(|request|matches!(request.origin,crate::dynamic_witness::requests::Origin::Definition{..})).map(|request|request.function).collect::<Vec<_>>();
-    if roots.is_empty(){return Ok(());}
+    let roots = b
+        .pending_dyn_contracts
+        .methods
+        .iter()
+        .filter(|request| {
+            matches!(
+                request.origin,
+                crate::dynamic_witness::requests::Origin::Definition { .. }
+            )
+        })
+        .map(|request| request.function)
+        .collect::<Vec<_>>();
+    if roots.is_empty() {
+        return Ok(());
+    }
     b.spend(module.functions.len().saturating_add(roots.len()))?;
-    let mut seen=vec![false;module.functions.len()];let mut queue=roots;
-    while let Some(function)=queue.pop(){
-        b.spend(1)?;let index=function.0 as usize;
-        if module.functions.get(index).is_none_or(|row|row.id!=function){return Err(reject("E-VERIFY-STORED-PARTITION",None,"original contract selects an absent actual body"));}
-        if std::mem::replace(&mut seen[index],true){continue;}
-        mask[index]=true;
-        for target in crate::stored_flow::contract_dependencies(module,function,b)?{b.spend(queue.len().saturating_add(1))?;queue.push(target);}
-    }Ok(())
+    let mut seen = vec![false; module.functions.len()];
+    let mut queue = roots;
+    while let Some(function) = queue.pop() {
+        b.spend(1)?;
+        let index = function.0 as usize;
+        if module
+            .functions
+            .get(index)
+            .is_none_or(|row| row.id != function)
+        {
+            return Err(reject(
+                "E-VERIFY-STORED-PARTITION",
+                None,
+                "original contract selects an absent actual body",
+            ));
+        }
+        if std::mem::replace(&mut seen[index], true) {
+            continue;
+        }
+        mask[index] = true;
+        for target in crate::stored_flow::contract_dependencies(module, function, b)? {
+            b.spend(queue.len().saturating_add(1))?;
+            queue.push(target);
+        }
+    }
+    Ok(())
 }
 
 /// A caller without a raw cell in its own spelling can still consume a
 /// callee's copied inner pointer. Keep that caller and its actual executable
 /// dependencies in the same memory proof. This selects work only; no edge
 /// supplies a source, a class equality or a complete callee summary.
-pub(super) fn references(module:&TypedModule,mask:&mut [bool],b:&mut Budget)->Check<()>{
-    if !b.raw_reference_cells{return Ok(());}
-    let count=module.functions.len();if mask.len()!=count{return Err(reject("E-VERIFY-STORED-PARTITION",None,"raw reference work mask omits actual functions"));}
-    b.spend(count.saturating_mul(3))?;let mut edges=vec![Vec::new();count];let mut seen=vec![false;count];
-    let mut pending=mask.iter().enumerate().filter_map(|(index,yes)|yes.then_some(index)).collect::<Vec<_>>();
-    for(index,function)in module.functions.iter().enumerate(){
-        for target in crate::stored_flow::contract_dependencies(module,function.id,b)?{
-            let target_index=target.0 as usize;
-            if module.functions.get(target_index).is_none_or(|row|row.id!=target){return Err(reject("E-VERIFY-STORED-PARTITION",None,"raw reference dependency selects an absent actual function"));}
-            b.spend(edges[index].len().saturating_add(edges[target_index].len()).saturating_add(2))?;
-            edges[index].push(target_index);edges[target_index].push(index);
+pub(super) fn references(module: &TypedModule, mask: &mut [bool], b: &mut Budget) -> Check<()> {
+    if !b.raw_reference_cells {
+        return Ok(());
+    }
+    let count = module.functions.len();
+    if mask.len() != count {
+        return Err(reject(
+            "E-VERIFY-STORED-PARTITION",
+            None,
+            "raw reference work mask omits actual functions",
+        ));
+    }
+    b.spend(count.saturating_mul(3))?;
+    let mut edges = vec![Vec::new(); count];
+    let mut seen = vec![false; count];
+    let mut pending = mask
+        .iter()
+        .enumerate()
+        .filter_map(|(index, yes)| yes.then_some(index))
+        .collect::<Vec<_>>();
+    for (index, function) in module.functions.iter().enumerate() {
+        for target in crate::stored_flow::contract_dependencies(module, function.id, b)? {
+            let target_index = target.0 as usize;
+            if module
+                .functions
+                .get(target_index)
+                .is_none_or(|row| row.id != target)
+            {
+                return Err(reject(
+                    "E-VERIFY-STORED-PARTITION",
+                    None,
+                    "raw reference dependency selects an absent actual function",
+                ));
+            }
+            b.spend(
+                edges[index]
+                    .len()
+                    .saturating_add(edges[target_index].len())
+                    .saturating_add(2),
+            )?;
+            edges[index].push(target_index);
+            edges[target_index].push(index);
         }
     }
-    while let Some(index)=pending.pop(){b.spend(1)?;if std::mem::replace(&mut seen[index],true){continue;}mask[index]=true;
-        b.spend(edges[index].len())?;for target in &edges[index]{if !seen[*target]{if pending.len()==pending.capacity(){b.spend(pending.len().saturating_add(1))?;}b.spend(1)?;pending.push(*target);}}
-    }Ok(())
+    while let Some(index) = pending.pop() {
+        b.spend(1)?;
+        if std::mem::replace(&mut seen[index], true) {
+            continue;
+        }
+        mask[index] = true;
+        b.spend(edges[index].len())?;
+        for target in &edges[index] {
+            if !seen[*target] {
+                if pending.len() == pending.capacity() {
+                    b.spend(pending.len().saturating_add(1))?;
+                }
+                b.spend(1)?;
+                pending.push(*target);
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
-mod raw_call_work_tests{
+mod raw_call_work_tests {
     use super::*;
     #[test]
-    fn rich_return_callers_and_their_actual_dependencies_share_the_existing_solver(){
-        let(module,_)=crate::tests::baseline();let mut module=module;let mut raw=module.functions[0].clone();raw.id=FunctionId(0);let mut middle=raw.clone();middle.id=FunctionId(1);let mut caller=raw.clone();caller.id=FunctionId(2);let mut peer=raw.clone();peer.id=FunctionId(3);
-        for f in [&mut raw,&mut middle,&mut caller,&mut peer]{f.blocks[0].instructions.clear();}
-        let span=raw.span;
-        middle.blocks[0].instructions.push(Instruction{result:None,kind:InstructionKind::Call{function:FunctionId(0),arguments:vec![]},span});
-        caller.blocks[0].instructions.push(Instruction{result:None,kind:InstructionKind::Call{function:FunctionId(1),arguments:vec![]},span});
-        module.functions=vec![raw,middle,caller,peer];
-        let mut mask=vec![true,false,false,false];let mut b=Budget::new(&Limits::default());b.raw_reference_cells=true;
-        references(&module,&mut mask,&mut b).unwrap();assert_eq!(mask,vec![true,true,true,false]);
-        let mut ordinary=vec![true,false,false,false];references(&module,&mut ordinary,&mut Budget::new(&Limits::default())).unwrap();assert_eq!(ordinary,vec![true,false,false,false],"unrelated profiles keep their work selection");
+    fn rich_return_callers_and_their_actual_dependencies_share_the_existing_solver() {
+        let (module, _) = crate::tests::baseline();
+        let mut module = module;
+        let mut raw = module.functions[0].clone();
+        raw.id = FunctionId(0);
+        let mut middle = raw.clone();
+        middle.id = FunctionId(1);
+        let mut caller = raw.clone();
+        caller.id = FunctionId(2);
+        let mut peer = raw.clone();
+        peer.id = FunctionId(3);
+        for f in [&mut raw, &mut middle, &mut caller, &mut peer] {
+            f.blocks[0].instructions.clear();
+        }
+        let span = raw.span;
+        middle.blocks[0].instructions.push(Instruction {
+            result: None,
+            kind: InstructionKind::Call {
+                function: FunctionId(0),
+                arguments: vec![],
+            },
+            span,
+        });
+        caller.blocks[0].instructions.push(Instruction {
+            result: None,
+            kind: InstructionKind::Call {
+                function: FunctionId(1),
+                arguments: vec![],
+            },
+            span,
+        });
+        module.functions = vec![raw, middle, caller, peer];
+        let mut mask = vec![true, false, false, false];
+        let mut b = Budget::new(&Limits::default());
+        b.raw_reference_cells = true;
+        references(&module, &mut mask, &mut b).unwrap();
+        assert_eq!(mask, vec![true, true, true, false]);
+        let mut ordinary = vec![true, false, false, false];
+        references(&module, &mut ordinary, &mut Budget::new(&Limits::default())).unwrap();
+        assert_eq!(
+            ordinary,
+            vec![true, false, false, false],
+            "unrelated profiles keep their work selection"
+        );
     }
 }

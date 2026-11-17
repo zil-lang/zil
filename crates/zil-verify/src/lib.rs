@@ -79,9 +79,9 @@ mod cleanup;
 mod closure_tests;
 mod closures;
 mod ct_artifact;
-mod ct_program;
 mod ct_frozen_context;
 mod ct_original;
+mod ct_program;
 #[cfg(test)]
 mod defer_tests;
 mod defers;
@@ -93,7 +93,6 @@ mod dynamic_patterns;
 mod dynamic_ports;
 mod dynamic_store;
 mod dynamic_witness;
-mod semantic;
 #[cfg(test)]
 mod error_scope_tests;
 mod errors;
@@ -116,6 +115,7 @@ mod resource_closure_tests;
 #[cfg(test)]
 mod resource_tests;
 mod resources;
+mod semantic;
 #[cfg(test)]
 mod static_utf8_tests;
 pub use resources::task_frames::{
@@ -142,9 +142,11 @@ pub use ct_artifact::{
     VerifiedCTArtifactProgram, verify_ct_artifact, verify_ct_artifact_metered,
     verify_ct_type_graph_metered,
 };
-pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_bytes};
 pub use ct_frozen_context::verify_ct_program_in_context;
-pub use ct_original::{CtOriginalImport, CtOriginalImportTarget, CtOriginalModule, verify_ct_original_definitions};
+pub use ct_original::{
+    CtOriginalImport, CtOriginalImportTarget, CtOriginalModule, verify_ct_original_definitions,
+};
+pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_bytes};
 
 /// A checked, immutable scalar/readonly-closure CFG, including independently
 /// reconstructed local shared-address provenance and lifetime constraints.
@@ -367,37 +369,43 @@ fn limit(message: impl Into<String>) -> Diagnostic {
     Diagnostic::limit(Phase::Verify, message, None)
 }
 
-#[derive(Clone,Copy,Debug,Default)]
-struct DiagnosticProgress{
-    stage:&'static str,
-    original:Option<(usize,usize,SemanticDefinitionId)>,
-    world:Option<(usize,usize,SemanticInstanceId,FunctionId)>,
-    recipes_started:usize,
-    recipes_completed:usize,
-    frame_hits:usize,
-    frames_built:usize,
-    frame_cache_entries:usize,
-    resource_hits:usize,
-    resource_registered_cold:usize,
-    resource_unregistered_cold:usize,
-    actual_function:Option<FunctionId>,
-    summary_round:usize,
-    cfg_round:usize,
-    block_visits:usize,
-    stored_frame_clones:usize,
-    stored_frame_joins:usize,
-    loan_unions:usize,
-    empty_loan_unions:usize,
-    resource_state_clones:usize,
-    resource_state_joins:usize,
-    recipe:Option<(usize,std::mem::Discriminant<SemanticTypeRecipe>,Option<SemanticDefinitionId>,Option<semantic::ScopeKey>,Option<semantic::SitePoint>)>,
+#[derive(Clone, Copy, Debug, Default)]
+struct DiagnosticProgress {
+    stage: &'static str,
+    original: Option<(usize, usize, SemanticDefinitionId)>,
+    world: Option<(usize, usize, SemanticInstanceId, FunctionId)>,
+    recipes_started: usize,
+    recipes_completed: usize,
+    frame_hits: usize,
+    frames_built: usize,
+    frame_cache_entries: usize,
+    resource_hits: usize,
+    resource_registered_cold: usize,
+    resource_unregistered_cold: usize,
+    actual_function: Option<FunctionId>,
+    summary_round: usize,
+    cfg_round: usize,
+    block_visits: usize,
+    stored_frame_clones: usize,
+    stored_frame_joins: usize,
+    loan_unions: usize,
+    empty_loan_unions: usize,
+    resource_state_clones: usize,
+    resource_state_joins: usize,
+    recipe: Option<(
+        usize,
+        std::mem::Discriminant<SemanticTypeRecipe>,
+        Option<SemanticDefinitionId>,
+        Option<semantic::ScopeKey>,
+        Option<semantic::SitePoint>,
+    )>,
 }
 struct Budget {
     remaining: usize,
     structural: Option<dynamic_metadata::Structure>,
     diagnostic_costs: Option<BTreeMap<(&'static str, u32), (usize, usize)>>,
     diagnostic_metadata_caller: Option<&'static std::panic::Location<'static>>,
-    diagnostic_progress:Option<DiagnosticProgress>,
+    diagnostic_progress: Option<DiagnosticProgress>,
     callable_source_functions: Vec<FunctionId>,
     pending_callable_sources: Vec<FunctionId>,
     returned_environment_sources: bool,
@@ -443,12 +451,16 @@ struct Budget {
     stored_replacements: Vec<Option<std::rc::Rc<stored_flow::replacements::Context>>>,
     semantic_callables: Vec<semantic::callable_obligations::PendingCallable>,
     semantic_checked: Option<std::rc::Rc<dynamic_witness::semantic_patterns::Session>>,
-    proven_static_occurrences: BTreeSet<(ClosureId,StoragePosition)>,
-    semantic_static_occurrences: BTreeSet<(ClosureId,StoragePosition)>,
-    semantic_closed_task_captures:BTreeSet<registration::ClosedTaskOccurrence>,
-    semantic_constructor_classes: BTreeMap<semantic::constructor_classes::Key,semantic::constructor_classes::Source>,
-    task_frames: BTreeMap<semantic::task_domains::FrameKey,semantic::task_domains::FrameState>,
-    task_constructors: BTreeMap<semantic::task_domains::ConstructorKey,semantic::task_domains::ConstructorObligation>,
+    proven_static_occurrences: BTreeSet<(ClosureId, StoragePosition)>,
+    semantic_static_occurrences: BTreeSet<(ClosureId, StoragePosition)>,
+    semantic_closed_task_captures: BTreeSet<registration::ClosedTaskOccurrence>,
+    semantic_constructor_classes:
+        BTreeMap<semantic::constructor_classes::Key, semantic::constructor_classes::Source>,
+    task_frames: BTreeMap<semantic::task_domains::FrameKey, semantic::task_domains::FrameState>,
+    task_constructors: BTreeMap<
+        semantic::task_domains::ConstructorKey,
+        semantic::task_domains::ConstructorObligation,
+    >,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     pub(crate) sabi_non_suspending: BTreeSet<FunctionId>,
@@ -518,7 +530,8 @@ impl Budget {
         self.nested_store_windows || self.returned_environment_sources && self.actual_store_types
     }
     fn task_sources(&self) -> bool {
-        self.raw_reference_cells || self.task_borrowed_results
+        self.raw_reference_cells
+            || self.task_borrowed_results
             || self.task_failure_carriers
             || self.task_retained_environments
             || self.task_scope_composition
@@ -533,7 +546,8 @@ impl Budget {
             structural: None,
             diagnostic_costs: std::env::var_os("ZIL_VERIFY_PROFILE_COSTS").map(|_| BTreeMap::new()),
             diagnostic_metadata_caller: None,
-            diagnostic_progress:std::env::var_os("ZIL_VERIFY_PROFILE_COSTS").map(|_|DiagnosticProgress::default()),
+            diagnostic_progress: std::env::var_os("ZIL_VERIFY_PROFILE_COSTS")
+                .map(|_| DiagnosticProgress::default()),
             callable_source_functions: Vec::new(),
             pending_callable_sources: Vec::new(),
             returned_environment_sources: false,
@@ -574,7 +588,7 @@ impl Budget {
             semantic_checked: None,
             proven_static_occurrences: BTreeSet::new(),
             semantic_static_occurrences: BTreeSet::new(),
-            semantic_closed_task_captures:BTreeSet::new(),
+            semantic_closed_task_captures: BTreeSet::new(),
             semantic_constructor_classes: BTreeMap::new(),
             task_frames: BTreeMap::new(),
             task_constructors: BTreeMap::new(),
@@ -633,8 +647,10 @@ impl Budget {
     fn spend(&mut self, amount: usize) -> Check<()> {
         let location = std::panic::Location::caller();
         if let Some(costs) = &mut self.diagnostic_costs {
-            let attributed=self.diagnostic_metadata_caller.unwrap_or(location);
-            let row = costs.entry((attributed.file(), attributed.line())).or_default();
+            let attributed = self.diagnostic_metadata_caller.unwrap_or(location);
+            let row = costs
+                .entry((attributed.file(), attributed.line()))
+                .or_default();
             row.0 = row.0.saturating_add(amount);
             row.1 = row.1.saturating_add(1);
         }
@@ -645,20 +661,47 @@ impl Budget {
                     " [requested {amount}, remaining {}, function {:?}, callsite {location}]",
                     self.remaining, self.current_function
                 ));
-                if let Some(progress)=self.diagnostic_progress{message.push_str(&format!(" [progress {progress:?}]"));}
+                if let Some(progress) = self.diagnostic_progress {
+                    message.push_str(&format!(" [progress {progress:?}]"));
+                }
                 let mut rows: Vec<_> = costs.iter().collect();
                 rows.sort_by_key(|(_, (work, calls))| std::cmp::Reverse((*work, *calls)));
                 for ((file, line), (work, calls)) in rows.into_iter().take(20) {
-                    message.push_str(&format!(" [cost {file}:{line}: work {work}, calls {calls}]"));
+                    message.push_str(&format!(
+                        " [cost {file}:{line}: work {work}, calls {calls}]"
+                    ));
                 }
             }
             limit(message)
         })?;
         Ok(())
     }
-    fn diagnostic_stage(&mut self,stage:&'static str){if let Some(progress)=&mut self.diagnostic_progress{progress.stage=stage;progress.actual_function=None;progress.summary_round=0;progress.cfg_round=0;}}
-    fn diagnostic_actual(&mut self,stage:&'static str,function:FunctionId,summary_round:usize){if let Some(progress)=&mut self.diagnostic_progress{progress.stage=stage;progress.actual_function=Some(function);progress.summary_round=summary_round;progress.cfg_round=0;}}
-    fn diagnostic_label(&mut self,stage:&'static str){if let Some(progress)=&mut self.diagnostic_progress{progress.stage=stage;}}
+    fn diagnostic_stage(&mut self, stage: &'static str) {
+        if let Some(progress) = &mut self.diagnostic_progress {
+            progress.stage = stage;
+            progress.actual_function = None;
+            progress.summary_round = 0;
+            progress.cfg_round = 0;
+        }
+    }
+    fn diagnostic_actual(
+        &mut self,
+        stage: &'static str,
+        function: FunctionId,
+        summary_round: usize,
+    ) {
+        if let Some(progress) = &mut self.diagnostic_progress {
+            progress.stage = stage;
+            progress.actual_function = Some(function);
+            progress.summary_round = summary_round;
+            progress.cfg_round = 0;
+        }
+    }
+    fn diagnostic_label(&mut self, stage: &'static str) {
+        if let Some(progress) = &mut self.diagnostic_progress {
+            progress.stage = stage;
+        }
+    }
     // Callers pass immutable local Type trees from the checked module; their
     // nodes keep these addresses for this verification request. The first
     // query pays for the complete tree walk, and each lookup pays for the map.
@@ -723,9 +766,13 @@ impl Budget {
                 self.spend(self.function_count)?;
                 self.sum_functions = vec![false; self.function_count];
             }
-            let marked = self.sum_functions.get_mut(index).ok_or_else(|| reject(
-                "E-VERIFY-FUNCTION", None, "semantic sum work selects an absent actual function",
-            ))?;
+            let marked = self.sum_functions.get_mut(index).ok_or_else(|| {
+                reject(
+                    "E-VERIFY-FUNCTION",
+                    None,
+                    "semantic sum work selects an absent actual function",
+                )
+            })?;
             *marked = true;
         }
         Ok(())
@@ -789,7 +836,6 @@ fn verify_inputs(
     expected_target: &TargetProfile,
     limits: &Limits,
 ) -> CompileResult<VerifiedModule> {
-
     match check_module(
         inputs.module(),
         inputs.plan(),
@@ -878,14 +924,26 @@ fn check_module(
     limits: &Limits,
     program: Option<&TypedProgram>,
 ) -> Check<CheckedModule> {
-    let mut budget=Budget::new(limits);
-    check_module_budget(module,plan,expected_target,limits,program,&mut budget,None)
+    let mut budget = Budget::new(limits);
+    check_module_budget(
+        module,
+        plan,
+        expected_target,
+        limits,
+        program,
+        &mut budget,
+        None,
+    )
 }
 fn check_module_budget(
-    module:&TypedModule,plan:&CandidatePlan,expected_target:&TargetProfile,limits:&Limits,
-    program:Option<&TypedProgram>,mut budget:&mut Budget,
-    frozen:Option<&semantic::FrozenContext<'_>>,
-)->Check<CheckedModule> {
+    module: &TypedModule,
+    plan: &CandidatePlan,
+    expected_target: &TargetProfile,
+    limits: &Limits,
+    program: Option<&TypedProgram>,
+    mut budget: &mut Budget,
+    frozen: Option<&semantic::FrozenContext<'_>>,
+) -> Check<CheckedModule> {
     if module.schema_version != SCHEMA_VERSION || plan.schema_version != SCHEMA_VERSION {
         return Err(reject(
             "E-VERIFY-SCHEMA",
@@ -931,313 +989,362 @@ fn check_module_budget(
 
     budget.function_count = module.functions.len();
     let prior_structure = budget.structural.take();
-    let prior_progress=budget.diagnostic_progress;
+    let prior_progress = budget.diagnostic_progress;
     let result = (|| {
-    budget.diagnostic_stage("immutable registration");
-    budget.structural = Some(dynamic_metadata::Structure::register(module, budget)?);
-    if module.semantic.is_none(){semantic::task_domains::prepare_raw_task_contexts(module,&mut budget)?;}
-    budget.stored_context = true;
-    budget.diagnostic_stage("semantic program");
-    if let Some(frozen)=frozen {
-        frozen.check_executable(module,&mut budget)?;
-    }else if module.semantic.is_some() {
-        semantic::check_program(module, &mut budget)?;
-    }
-    budget.diagnostic_stage("dynamic inventory");
-    if has_dyn {
-        dynamic_dispatch::inventory(module, &mut budget)?;
-    }
-    budget.diagnostic_stage("stored inventory");
-    if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
-        stored_flow::inventory(module, limits, &mut budget)?;
-        budget.stored_borrows = true;
-    }
-    budget.diagnostic_stage("resource definitions");
-    resources::check_definitions(module, limits, &mut budget)?;
-    for text in [
-        &module.target.id,
-        &module.target.triple,
-        &module.target.backend,
-        &module.target.rule_version,
-    ] {
-        budget.spend(text.len())?;
-    }
-    // Bound every aggregate shape before definitions, equality, cloning or
-    // fingerprinting. Raw APIs receive no protection from a source producer.
-    budget.diagnostic_stage("typed shape preflight");
-    for (index, function) in module.functions.iter().enumerate() {
-        if function.resume_bound == zil_ir::TaskResumeBound::Transfer {
-            budget.spend(1)?;
-            if function.call_kind != CallKind::Suspend
-                || function.foreign.is_some()
-                || function.environment.is_some()
+        budget.diagnostic_stage("immutable registration");
+        budget.structural = Some(dynamic_metadata::Structure::register(module, budget)?);
+        if module.semantic.is_none() {
+            semantic::task_domains::prepare_raw_task_contexts(module, &mut budget)?;
+        }
+        budget.stored_context = true;
+        budget.diagnostic_stage("semantic program");
+        if let Some(frozen) = frozen {
+            frozen.check_executable(module, &mut budget)?;
+        } else if module.semantic.is_some() {
+            semantic::check_program(module, &mut budget)?;
+        }
+        budget.diagnostic_stage("dynamic inventory");
+        if has_dyn {
+            dynamic_dispatch::inventory(module, &mut budget)?;
+        }
+        budget.diagnostic_stage("stored inventory");
+        if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
+            stored_flow::inventory(module, limits, &mut budget)?;
+            budget.stored_borrows = true;
+        }
+        budget.diagnostic_stage("resource definitions");
+        resources::check_definitions(module, limits, &mut budget)?;
+        for text in [
+            &module.target.id,
+            &module.target.triple,
+            &module.target.backend,
+            &module.target.rule_version,
+        ] {
+            budget.spend(text.len())?;
+        }
+        // Bound every aggregate shape before definitions, equality, cloning or
+        // fingerprinting. Raw APIs receive no protection from a source producer.
+        budget.diagnostic_stage("typed shape preflight");
+        for (index, function) in module.functions.iter().enumerate() {
+            if function.resume_bound == zil_ir::TaskResumeBound::Transfer {
+                budget.spend(1)?;
+                if function.call_kind != CallKind::Suspend
+                    || function.foreign.is_some()
+                    || function.environment.is_some()
+                {
+                    return Err(reject(
+                        "E-VERIFY-TASK-TRANSFER",
+                        Some(function.span),
+                        "Transfer resume cannot mark a Direct, foreign or closure entry",
+                    ));
+                }
+            }
+            if let Some(foreign) = &function.foreign
+                && foreign.thread_driver_transfer
+                && !matches!(
+                    foreign.scoped_callback,
+                    Some(
+                        ScopedCallbackRole::ThreadAsyncRegister
+                            | ScopedCallbackRole::ThreadAsyncRequestClose
+                            | ScopedCallbackRole::ThreadAsyncPollDrain
+                    )
+                )
             {
                 return Err(reject(
                     "E-VERIFY-TASK-TRANSFER",
                     Some(function.span),
-                    "Transfer resume cannot mark a Direct, foreign or closure entry",
+                    "unsafe driver transfer promise lacks actual threaded provider role",
                 ));
             }
-        }
-        if let Some(foreign) = &function.foreign
-            && foreign.thread_driver_transfer
-            && !matches!(
-                foreign.scoped_callback,
-                Some(
-                    ScopedCallbackRole::ThreadAsyncRegister
-                        | ScopedCallbackRole::ThreadAsyncRequestClose
-                        | ScopedCallbackRole::ThreadAsyncPollDrain
-                )
-            )
-        {
-            return Err(reject(
-                "E-VERIFY-TASK-TRANSFER",
-                Some(function.span),
-                "unsafe driver transfer promise lacks actual threaded provider role",
-            ));
-        }
-        if function.protocol_contracts.len() > limits.max_locals {
-            return Err(limit("protocol role inventory exceeds the local bound"));
-        }
-        if !function.protocol_contracts.is_empty() {
-            budget.spend(function.protocol_contracts.len().saturating_mul(13))?;
-            for role in &function.protocol_contracts {
-                if role.entry.len() > limits.max_nodes || role.exits.len() > limits.max_nodes {
-                    return Err(limit("protocol relation exceeds selected bounds"));
-                }
-                budget.spend(
-                    role.entry
-                        .len()
-                        .saturating_add(role.exits.len().saturating_mul(6)),
-                )?;
-                for row in &role.exits {
-                    if row.output.len() > limits.max_nodes {
-                        return Err(limit("protocol output exceeds selected bounds"));
+            if function.protocol_contracts.len() > limits.max_locals {
+                return Err(limit("protocol role inventory exceeds the local bound"));
+            }
+            if !function.protocol_contracts.is_empty() {
+                budget.spend(function.protocol_contracts.len().saturating_mul(13))?;
+                for role in &function.protocol_contracts {
+                    if role.entry.len() > limits.max_nodes || role.exits.len() > limits.max_nodes {
+                        return Err(limit("protocol relation exceeds selected bounds"));
                     }
-                    budget.spend(row.output.len())?;
-                }
-            }
-        }
-        budget.protocol_contracts |= !function.protocol_contracts.is_empty();
-        if let Some(contract) = &function.storage_life {
-            if function.call_kind == CallKind::Suspend {
-                budget.spend(function.parameters.len())?;
-                let mut parameters = Vec::new();
-                for id in &function.parameters {
-                    let ty = &function
-                        .locals
-                        .get(id.0 as usize)
-                        .ok_or_else(|| {
-                            reject(
-                                "E-VERIFY-TASK",
-                                Some(function.span),
-                                "Suspend signature input absent",
-                            )
-                        })?
-                        .ty;
-                    tasks::charge_result_selection(ty, &mut budget)?;
-                    parameters.push(ty.clone());
-                }
-                for ty in &parameters {
-                    tasks::charge_result_selection(ty, &mut budget)?;
-                }
-                tasks::charge_result_selection(&function.return_type, &mut budget)?;
-                if !ordinary_heads::check(module, function, &mut budget)? {
-                    signature_life::charge(contract, &mut budget)?;
-                    signature_life::function_relation_resource_scopes(
-                        module,
-                        &parameters,
-                        &function.return_type,
-                        contract,
-                        Some(function.span),
-                        false,
-                        false,
-                        &mut budget,
+                    budget.spend(
+                        role.entry
+                            .len()
+                            .saturating_add(role.exits.len().saturating_mul(6)),
                     )?;
+                    for row in &role.exits {
+                        if row.output.len() > limits.max_nodes {
+                            return Err(limit("protocol output exceeds selected bounds"));
+                        }
+                        budget.spend(row.output.len())?;
+                    }
                 }
-            } else if !tasks::input_scope::empty_function(module, function, &mut budget)?
-                && !ordinary_heads::check(module, function, &mut budget)?
-                && !tasks::borrowed_signature(module, function, &mut budget)?
-            {
-                stored_flow::header(module, function, &mut budget)?;
-                budget.stored_borrows = true;
             }
+            budget.protocol_contracts |= !function.protocol_contracts.is_empty();
+            if let Some(contract) = &function.storage_life {
+                if function.call_kind == CallKind::Suspend {
+                    budget.spend(function.parameters.len())?;
+                    let mut parameters = Vec::new();
+                    for id in &function.parameters {
+                        let ty = &function
+                            .locals
+                            .get(id.0 as usize)
+                            .ok_or_else(|| {
+                                reject(
+                                    "E-VERIFY-TASK",
+                                    Some(function.span),
+                                    "Suspend signature input absent",
+                                )
+                            })?
+                            .ty;
+                        tasks::charge_result_selection(ty, &mut budget)?;
+                        parameters.push(ty.clone());
+                    }
+                    for ty in &parameters {
+                        tasks::charge_result_selection(ty, &mut budget)?;
+                    }
+                    tasks::charge_result_selection(&function.return_type, &mut budget)?;
+                    if !ordinary_heads::check(module, function, &mut budget)? {
+                        signature_life::charge(contract, &mut budget)?;
+                        signature_life::function_relation_resource_scopes(
+                            module,
+                            &parameters,
+                            &function.return_type,
+                            contract,
+                            Some(function.span),
+                            false,
+                            false,
+                            &mut budget,
+                        )?;
+                    }
+                } else if !tasks::input_scope::empty_function(module, function, &mut budget)?
+                    && !ordinary_heads::check(module, function, &mut budget)?
+                    && !tasks::borrowed_signature(module, function, &mut budget)?
+                {
+                    stored_flow::header(module, function, &mut budget)?;
+                    budget.stored_borrows = true;
+                }
+            }
+            budget.current_function = Some(index);
+            for ty in std::iter::once(&function.return_type)
+                .chain(function.locals.iter().map(|l| &l.ty))
+                .chain(&function.values)
+            {
+                check_type_shape(ty, &module.target, limits, &mut budget)?;
+                if budget.pod_stores {
+                    dynamic_store::register_actual_carrier_root(module, ty, &mut budget)?;
+                }
+            }
+            check_reference_return_bound(function, &mut budget)?;
         }
-        budget.current_function = Some(index);
-        for ty in std::iter::once(&function.return_type)
-            .chain(function.locals.iter().map(|l| &l.ty))
-            .chain(&function.values)
-        {
+        budget.current_function = None;
+        for ty in module.closures.iter().flat_map(|c| {
+            c.captures
+                .iter()
+                .chain(c.parameters.iter())
+                .chain(std::iter::once(&c.result))
+        }) {
             check_type_shape(ty, &module.target, limits, &mut budget)?;
             if budget.pod_stores {
                 dynamic_store::register_actual_carrier_root(module, ty, &mut budget)?;
             }
         }
-        check_reference_return_bound(function, &mut budget)?;
-    }
-    budget.current_function = None;
-    for ty in module.closures.iter().flat_map(|c| {
-        c.captures
-            .iter()
-            .chain(c.parameters.iter())
-            .chain(std::iter::once(&c.result))
-    }) {
-        check_type_shape(ty, &module.target, limits, &mut budget)?;
-        if budget.pod_stores {
-            dynamic_store::register_actual_carrier_root(module, ty, &mut budget)?;
+        registration::storage(module, &mut budget)?;
+        budget.diagnostic_stage("actual closure and executable definitions");
+        closures::check_definitions(module, limits, &mut budget)?;
+        if (budget.task_sources() || budget.task_origin_roots)
+            && budget.task_input_scopes.is_none()
+            && !module.closures.is_empty()
+        {
+            budget.task_input_scopes =
+                Some(tasks::input_scope::build(module, limits, &mut budget)?);
         }
-    }
-    registration::storage(module, &mut budget)?;
-    budget.diagnostic_stage("actual closure and executable definitions");
-    closures::check_definitions(module, limits, &mut budget)?;
-    if (budget.task_sources() || budget.task_origin_roots) && budget.task_input_scopes.is_none() && !module.closures.is_empty() {
-        budget.task_input_scopes = Some(tasks::input_scope::build(module, limits, &mut budget)?);
-    }
-    foreign::check_declarations(module, &mut budget)?;
-    let mut names = BTreeSet::new();
-    let (mut block_count, mut instruction_count, mut local_count, mut value_count) =
-        (0usize, 0usize, 0usize, 0usize);
-    for (index, function) in module.functions.iter().enumerate() {
-        if function.call_kind == CallKind::Suspend {
-            budget.tasks = true;
-        }
-        helpers::check_claim_shape(function, limits, &mut budget)?;
-        retained::check_claim(module, function, limits, &mut budget)?;
-        let mut private_slot = false;
-        budget.spend(function.name.len().saturating_add(1))?;
-        if function.id.0 as usize != index {
-            return Err(reject(
-                "E-VERIFY-ID",
-                Some(function.span),
-                "FunctionId must equal its vector index",
-            ));
-        }
-        if !names.insert(&function.name) {
-            return Err(reject(
-                "E-VERIFY-SYMBOL",
-                Some(function.span),
-                "duplicate function name",
-            ));
-        }
-        if function.name.is_empty() {
-            return Err(reject(
-                "E-VERIFY-SYMBOL",
-                Some(function.span),
-                "empty function name",
-            ));
-        }
-        if !matches!(function.return_type, Type::Closure(_)) {
-            check_function_signature_type(
-                module,
-                &function.return_type,
-                Some(function.span),
-                &mut budget,
-            )?;
-        }
-        budget.spend(function.parameters.len())?;
-        for local in &function.locals {
-            budget.spend(local.name.len().saturating_add(1))?;
-            private_slot |= check_local_type(&local.ty, Some(local.span), module, &mut budget)?;
-        }
-        for ty in &function.values {
-            budget.spend(1)?;
-            private_slot |= check_local_type(ty, Some(function.span), module, &mut budget)?;
-        }
-        if private_slot {
-            budget.mark_private_slot(index)?;
-        }
-        for parameter in &function.parameters {
-            let ty = local_type(function, *parameter, Some(function.span))?;
-            if let Some((id, _)) = helpers::parameter_type(ty) {
-                closures::definition(module, id, Some(function.span))?;
-            } else {
-                check_function_signature_type(module, ty, Some(function.span), &mut budget)?;
+        foreign::check_declarations(module, &mut budget)?;
+        let mut names = BTreeSet::new();
+        let (mut block_count, mut instruction_count, mut local_count, mut value_count) =
+            (0usize, 0usize, 0usize, 0usize);
+        for (index, function) in module.functions.iter().enumerate() {
+            if function.call_kind == CallKind::Suspend {
+                budget.tasks = true;
             }
-        }
-        block_count = add_count(
-            block_count,
-            function.blocks.len(),
-            limits.max_blocks,
-            "block",
-        )?;
-        local_count = add_count(
-            local_count,
-            function.locals.len(),
-            limits.max_locals,
-            "local",
-        )?;
-        value_count = add_count(
-            value_count,
-            function.values.len(),
-            limits.max_values,
-            "value",
-        )?;
-        for block in &function.blocks {
-            instruction_count = add_count(
-                instruction_count,
-                block.instructions.len(),
-                limits.max_instructions,
-                "instruction",
-            )?;
-            budget.spend(1)?;
-            for instruction in &block.instructions {
+            helpers::check_claim_shape(function, limits, &mut budget)?;
+            retained::check_claim(module, function, limits, &mut budget)?;
+            let mut private_slot = false;
+            budget.spend(function.name.len().saturating_add(1))?;
+            if function.id.0 as usize != index {
+                return Err(reject(
+                    "E-VERIFY-ID",
+                    Some(function.span),
+                    "FunctionId must equal its vector index",
+                ));
+            }
+            if !names.insert(&function.name) {
+                return Err(reject(
+                    "E-VERIFY-SYMBOL",
+                    Some(function.span),
+                    "duplicate function name",
+                ));
+            }
+            if function.name.is_empty() {
+                return Err(reject(
+                    "E-VERIFY-SYMBOL",
+                    Some(function.span),
+                    "empty function name",
+                ));
+            }
+            if !matches!(function.return_type, Type::Closure(_)) {
+                check_function_signature_type(
+                    module,
+                    &function.return_type,
+                    Some(function.span),
+                    &mut budget,
+                )?;
+            }
+            budget.spend(function.parameters.len())?;
+            for local in &function.locals {
+                budget.spend(local.name.len().saturating_add(1))?;
+                private_slot |= check_local_type(&local.ty, Some(local.span), module, &mut budget)?;
+            }
+            for ty in &function.values {
                 budget.spend(1)?;
-                budget.shared_byte_borrow |= matches!(
-                    instruction.kind,
-                    InstructionKind::ByteBufferBorrow { mutable: false, .. }
-                );
-                budget.stored_slot_updates |= matches!(
-                    instruction.kind,
-                    InstructionKind::StoreStoredBorrow { .. }
-                        | InstructionKind::LoadStoredBorrow {
-                            mode: StoredBorrowLoad::Take,
-                            ..
-                        }
-                );
-                if budget.stored_exclusive_shapes
-                    && matches!(
-                        instruction.kind,
-                        InstructionKind::MakeAggregate { .. }
-                            | InstructionKind::MakePackage { .. }
-                            | InstructionKind::MakeOwnedTuple { .. }
-                    )
-                    && let Some(result) = instruction.result
-                    && let Some(Type::BorrowedStorage { life, .. }) =
-                        function.values.get(result.0 as usize)
-                {
-                    budget.spend(life.slots.len())?;
-                    budget.stored_constructor_sites |= life
-                        .slots
-                        .iter()
-                        .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress);
+                private_slot |= check_local_type(ty, Some(function.span), module, &mut budget)?;
+            }
+            if private_slot {
+                budget.mark_private_slot(index)?;
+            }
+            for parameter in &function.parameters {
+                let ty = local_type(function, *parameter, Some(function.span))?;
+                if let Some((id, _)) = helpers::parameter_type(ty) {
+                    closures::definition(module, id, Some(function.span))?;
+                } else {
+                    check_function_signature_type(module, ty, Some(function.span), &mut budget)?;
                 }
-                match &instruction.kind {
-                    InstructionKind::ReservePlaceLocal { path, .. }
-                    | InstructionKind::ReservePlaceAddress { path, .. }
-                    | InstructionKind::TakeTupleField { path, .. }
-                    | InstructionKind::TakeVariantField { path, .. }
-                    | InstructionKind::BorrowPlaceLocal { path, .. }
-                    | InstructionKind::PlaceTagLocal { path, .. }
-                    | InstructionKind::BorrowPlaceAddress { path, .. }
-                    | InstructionKind::PlaceTagAddress { path, .. } => {
-                        if path.len() > limits.max_call_depth {
-                            return Err(limit(
-                                "mixed/replacement path exceeds depth limit before fingerprint",
-                            ));
-                        }
-                        budget.spend(
-                            path.len()
-                                .checked_mul(24)
-                                .and_then(|n| n.checked_add(1))
-                                .ok_or_else(|| {
-                                    limit("mixed/replacement preflight path work overflow")
-                                })?,
-                        )?;
-                        if matches!(
+            }
+            block_count = add_count(
+                block_count,
+                function.blocks.len(),
+                limits.max_blocks,
+                "block",
+            )?;
+            local_count = add_count(
+                local_count,
+                function.locals.len(),
+                limits.max_locals,
+                "local",
+            )?;
+            value_count = add_count(
+                value_count,
+                function.values.len(),
+                limits.max_values,
+                "value",
+            )?;
+            for block in &function.blocks {
+                instruction_count = add_count(
+                    instruction_count,
+                    block.instructions.len(),
+                    limits.max_instructions,
+                    "instruction",
+                )?;
+                budget.spend(1)?;
+                for instruction in &block.instructions {
+                    budget.spend(1)?;
+                    budget.shared_byte_borrow |= matches!(
+                        instruction.kind,
+                        InstructionKind::ByteBufferBorrow { mutable: false, .. }
+                    );
+                    budget.stored_slot_updates |= matches!(
+                        instruction.kind,
+                        InstructionKind::StoreStoredBorrow { .. }
+                            | InstructionKind::LoadStoredBorrow {
+                                mode: StoredBorrowLoad::Take,
+                                ..
+                            }
+                    );
+                    if budget.stored_exclusive_shapes
+                        && matches!(
                             instruction.kind,
-                            InstructionKind::ReservePlaceLocal { .. }
-                                | InstructionKind::ReservePlaceAddress { .. }
-                        ) {
+                            InstructionKind::MakeAggregate { .. }
+                                | InstructionKind::MakePackage { .. }
+                                | InstructionKind::MakeOwnedTuple { .. }
+                        )
+                        && let Some(result) = instruction.result
+                        && let Some(Type::BorrowedStorage { life, .. }) =
+                            function.values.get(result.0 as usize)
+                    {
+                        budget.spend(life.slots.len())?;
+                        budget.stored_constructor_sites |= life
+                            .slots
+                            .iter()
+                            .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress);
+                    }
+                    match &instruction.kind {
+                        InstructionKind::ReservePlaceLocal { path, .. }
+                        | InstructionKind::ReservePlaceAddress { path, .. }
+                        | InstructionKind::TakeTupleField { path, .. }
+                        | InstructionKind::TakeVariantField { path, .. }
+                        | InstructionKind::BorrowPlaceLocal { path, .. }
+                        | InstructionKind::PlaceTagLocal { path, .. }
+                        | InstructionKind::BorrowPlaceAddress { path, .. }
+                        | InstructionKind::PlaceTagAddress { path, .. } => {
+                            if path.len() > limits.max_call_depth {
+                                return Err(limit(
+                                    "mixed/replacement path exceeds depth limit before fingerprint",
+                                ));
+                            }
+                            budget.spend(
+                                path.len()
+                                    .checked_mul(24)
+                                    .and_then(|n| n.checked_add(1))
+                                    .ok_or_else(|| {
+                                        limit("mixed/replacement preflight path work overflow")
+                                    })?,
+                            )?;
+                            if matches!(
+                                instruction.kind,
+                                InstructionKind::ReservePlaceLocal { .. }
+                                    | InstructionKind::ReservePlaceAddress { .. }
+                            ) {
+                                budget.replacements = true;
+                                budget.spend(
+                                    module
+                                        .functions
+                                        .len()
+                                        .checked_ilog2()
+                                        .map_or(1, |n| n as usize + 1),
+                                )?;
+                                budget.stored_replacement_functions.insert(function.id);
+                            }
+                        }
+                        InstructionKind::BorrowVariantLocal { path, .. }
+                        | InstructionKind::BorrowVariantAddress { path, .. }
+                        | InstructionKind::VariantTagLocal { path, .. }
+                        | InstructionKind::VariantTagAddress { path, .. }
+                        | InstructionKind::ReadVariantLocal { path, .. } => {
+                            if path.len() > limits.max_call_depth {
+                                return Err(limit(
+                                    "variant path exceeds depth limit before fingerprint",
+                                ));
+                            }
+                            budget.spend(
+                                path.len()
+                                    .checked_mul(24)
+                                    .and_then(|n| n.checked_add(1))
+                                    .ok_or_else(|| limit("variant preflight path work overflow"))?,
+                            )?;
+                        }
+                        InstructionKind::BorrowFieldLocal { path, .. } => {
+                            if path.len() > limits.max_call_depth {
+                                return Err(limit(
+                                    "field path exceeds depth limit before fingerprint",
+                                ));
+                            }
+                            budget.spend(
+                                path.len()
+                                    .checked_mul(12)
+                                    .and_then(|n| n.checked_add(1))
+                                    .ok_or_else(|| limit("field preflight path work overflow"))?,
+                            )?;
+                        }
+                        InstructionKind::CommitPlaceReplace { .. }
+                        | InstructionKind::AbortPlaceReservation { .. } => {
                             budget.replacements = true;
                             budget.spend(
                                 module
@@ -1248,302 +1355,279 @@ fn check_module_budget(
                             )?;
                             budget.stored_replacement_functions.insert(function.id);
                         }
-                    }
-                    InstructionKind::BorrowVariantLocal { path, .. }
-                    | InstructionKind::BorrowVariantAddress { path, .. }
-                    | InstructionKind::VariantTagLocal { path, .. }
-                    | InstructionKind::VariantTagAddress { path, .. }
-                    | InstructionKind::ReadVariantLocal { path, .. } => {
-                        if path.len() > limits.max_call_depth {
-                            return Err(limit(
-                                "variant path exceeds depth limit before fingerprint",
-                            ));
+                        InstructionKind::StaticUtf8 { bytes } => {
+                            budget.static_utf8 = true;
+                            if bytes.len() > limits.max_nodes {
+                                return Err(limit("static UTF8 byte count exceeds the raw bound"));
+                            }
+                            // Reserve byte validation and module fingerprint traversal first.
+                            budget.spend(bytes.len().saturating_mul(2))?;
+                            if std::str::from_utf8(bytes).is_err() {
+                                return Err(reject(
+                                    "E-VERIFY-UTF8",
+                                    Some(instruction.span),
+                                    "program-static text contains invalid UTF8",
+                                ));
+                            }
                         }
-                        budget.spend(
-                            path.len()
-                                .checked_mul(24)
-                                .and_then(|n| n.checked_add(1))
-                                .ok_or_else(|| limit("variant preflight path work overflow"))?,
-                        )?;
-                    }
-                    InstructionKind::BorrowFieldLocal { path, .. } => {
-                        if path.len() > limits.max_call_depth {
-                            return Err(limit("field path exceeds depth limit before fingerprint"));
-                        }
-                        budget.spend(
-                            path.len()
-                                .checked_mul(12)
-                                .and_then(|n| n.checked_add(1))
-                                .ok_or_else(|| limit("field preflight path work overflow"))?,
-                        )?;
-                    }
-                    InstructionKind::CommitPlaceReplace { .. }
-                    | InstructionKind::AbortPlaceReservation { .. } => {
-                        budget.replacements = true;
-                        budget.spend(
-                            module
-                                .functions
-                                .len()
-                                .checked_ilog2()
-                                .map_or(1, |n| n as usize + 1),
-                        )?;
-                        budget.stored_replacement_functions.insert(function.id);
-                    }
-                    InstructionKind::StaticUtf8 { bytes } => {
-                        budget.static_utf8 = true;
-                        if bytes.len() > limits.max_nodes {
-                            return Err(limit("static UTF8 byte count exceeds the raw bound"));
-                        }
-                        // Reserve byte validation and module fingerprint traversal first.
-                        budget.spend(bytes.len().saturating_mul(2))?;
-                        if std::str::from_utf8(bytes).is_err() {
-                            return Err(reject(
-                                "E-VERIFY-UTF8",
-                                Some(instruction.span),
-                                "program-static text contains invalid UTF8",
-                            ));
-                        }
-                    }
-                    InstructionKind::Constant(constant) => native_values::constant(
-                        constant,
-                        &module.target,
-                        Some(instruction.span),
-                        limits,
-                        &mut budget,
-                    )?,
-                    InstructionKind::MakeManaged { fields }
-                    | InstructionKind::MakePackage { fields }
-                    | InstructionKind::MakeOwnedArray { elements: fields }
-                    | InstructionKind::MakeAggregate { fields }
-                    | InstructionKind::MakeOwnedTuple { fields }
-                    | InstructionKind::MakeVariant { fields, .. } => budget.spend(fields.len())?,
-                    InstructionKind::Call { arguments, .. }
-                    | InstructionKind::SuspendCall { arguments, .. }
-                    | InstructionKind::ForeignCall { arguments, .. } => {
-                        budget.spend(arguments.len())?
-                    }
-                    InstructionKind::CallClosure { arguments, .. }
-                    | InstructionKind::CallClosureMut { arguments, .. }
-                    | InstructionKind::CallClosureShared { arguments, .. }
-                    | InstructionKind::CallClosureOnce { arguments, .. }
-                    | InstructionKind::CallClosureBorrowed { arguments, .. }
-                    | InstructionKind::CallIndirect { arguments, .. } => {
-                        budget.spend(arguments.len().saturating_add(1))?
-                    }
-                    InstructionKind::WithForeignCallback { .. } => {
-                        budget.spend(3)?;
-                        if budget.scoped_functions.is_none() {
-                            budget.spend(budget.function_count)?;
-                            budget.scoped_functions = Some(vec![false; budget.function_count]);
-                        }
-                        budget.scoped_functions.as_mut().unwrap()[index] = true;
-                    }
-                    InstructionKind::MakeClosure { captures, .. } => {
-                        budget.spend(captures.len())?
-                    }
-                    InstructionKind::ConvertInteger { target, .. }
-                    | InstructionKind::ConvertNumber { target, .. } => {
-                        // This embedded raw type is not necessarily one of the
-                        // function value types. Bound it before fingerprinting.
-                        check_type_shape(target, &module.target, limits, &mut budget)?;
-                    }
-                    InstructionKind::OwnedStoreNew { element } => {
-                        check_type_shape(element, &module.target, limits, &mut budget)?;
-                    }
-                    InstructionKind::Unsupported(feature) => {
-                        return Err(unsupported(
-                            format!("unknown or unimplemented instruction: {feature}"),
+                        InstructionKind::Constant(constant) => native_values::constant(
+                            constant,
+                            &module.target,
                             Some(instruction.span),
-                        ));
+                            limits,
+                            &mut budget,
+                        )?,
+                        InstructionKind::MakeManaged { fields }
+                        | InstructionKind::MakePackage { fields }
+                        | InstructionKind::MakeOwnedArray { elements: fields }
+                        | InstructionKind::MakeAggregate { fields }
+                        | InstructionKind::MakeOwnedTuple { fields }
+                        | InstructionKind::MakeVariant { fields, .. } => {
+                            budget.spend(fields.len())?
+                        }
+                        InstructionKind::Call { arguments, .. }
+                        | InstructionKind::SuspendCall { arguments, .. }
+                        | InstructionKind::ForeignCall { arguments, .. } => {
+                            budget.spend(arguments.len())?
+                        }
+                        InstructionKind::CallClosure { arguments, .. }
+                        | InstructionKind::CallClosureMut { arguments, .. }
+                        | InstructionKind::CallClosureShared { arguments, .. }
+                        | InstructionKind::CallClosureOnce { arguments, .. }
+                        | InstructionKind::CallClosureBorrowed { arguments, .. }
+                        | InstructionKind::CallIndirect { arguments, .. } => {
+                            budget.spend(arguments.len().saturating_add(1))?
+                        }
+                        InstructionKind::WithForeignCallback { .. } => {
+                            budget.spend(3)?;
+                            if budget.scoped_functions.is_none() {
+                                budget.spend(budget.function_count)?;
+                                budget.scoped_functions = Some(vec![false; budget.function_count]);
+                            }
+                            budget.scoped_functions.as_mut().unwrap()[index] = true;
+                        }
+                        InstructionKind::MakeClosure { captures, .. } => {
+                            budget.spend(captures.len())?
+                        }
+                        InstructionKind::ConvertInteger { target, .. }
+                        | InstructionKind::ConvertNumber { target, .. } => {
+                            // This embedded raw type is not necessarily one of the
+                            // function value types. Bound it before fingerprinting.
+                            check_type_shape(target, &module.target, limits, &mut budget)?;
+                        }
+                        InstructionKind::OwnedStoreNew { element } => {
+                            check_type_shape(element, &module.target, limits, &mut budget)?;
+                        }
+                        InstructionKind::Unsupported(feature) => {
+                            return Err(unsupported(
+                                format!("unknown or unimplemented instruction: {feature}"),
+                                Some(instruction.span),
+                            ));
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
         }
-    }
-    // Deep unsupported type trees have already been rejected without recursing.
-    // A candidate's digest is an identity check, not evidence of correctness.
-    let mut stored_partition = if budget.stored_borrows
-        && !budget.task_sources()
-        && (budget.tasks || budget.registrations)
-    {
-        stored_partition::mixed(module, &mut budget)?
-    } else {
-        None
-    };
-    if budget.store_descriptions() {
-        budget.store_option_results = true;
-        budget.stored_borrows = true;
-    }
-    let mut store_option_mask = if budget.masked_stored_tasks() && !budget.static_borrow_occurrences {
-        budget.spend(module.functions.len())?;
-        Some(
-            module
-                .functions
-                .iter()
-                .map(|function| ordinary_heads::requires_stored(module, function, &mut budget))
-                .collect::<Check<Vec<_>>>()?,
-        )
-    } else {
-        None
-    };
-    if let Some(mask)=&mut stored_partition{stored_partition::contracts(module,mask,&mut budget)?;}
-    if let Some(mask)=&mut store_option_mask{stored_partition::contracts(module,mask,&mut budget)?;}
-    if let Some(mask)=&mut store_option_mask{stored_partition::references(module,mask,&mut budget)?;}
-    if budget.stored_borrows || budget.task_sources() {
-        stored_flow::qualifications(
-            module,
-            limits,
-            store_option_mask.as_deref().or(stored_partition.as_deref()),
-            &mut budget,
-        )?;
-    }
-    let fingerprint = module.fingerprint();
-    if plan.module_fingerprint != fingerprint
-        || plan.target_fingerprint != module.target.fingerprint()
-    {
-        return Err(reject(
-            "E-VERIFY-PLAN-IDENTITY",
-            None,
-            "candidate plan is bound to different module or target bytes",
-        ));
-    }
-    budget.diagnostic_stage("actual CFG structure and retained bodies");
-    let mut graphs = Vec::with_capacity(module.functions.len());
-    for (function, function_plan) in module.functions.iter().zip(&plan.functions) {
-        if function_plan.function != function.id {
+        // Deep unsupported type trees have already been rejected without recursing.
+        // A candidate's digest is an identity check, not evidence of correctness.
+        let mut stored_partition = if budget.stored_borrows
+            && !budget.task_sources()
+            && (budget.tasks || budget.registrations)
+        {
+            stored_partition::mixed(module, &mut budget)?
+        } else {
+            None
+        };
+        if budget.store_descriptions() {
+            budget.store_option_results = true;
+            budget.stored_borrows = true;
+        }
+        let mut store_option_mask = if budget.masked_stored_tasks()
+            && !budget.static_borrow_occurrences
+        {
+            budget.spend(module.functions.len())?;
+            Some(
+                module
+                    .functions
+                    .iter()
+                    .map(|function| ordinary_heads::requires_stored(module, function, &mut budget))
+                    .collect::<Check<Vec<_>>>()?,
+            )
+        } else {
+            None
+        };
+        if let Some(mask) = &mut stored_partition {
+            stored_partition::contracts(module, mask, &mut budget)?;
+        }
+        if let Some(mask) = &mut store_option_mask {
+            stored_partition::contracts(module, mask, &mut budget)?;
+        }
+        if let Some(mask) = &mut store_option_mask {
+            stored_partition::references(module, mask, &mut budget)?;
+        }
+        if budget.stored_borrows || budget.task_sources() {
+            stored_flow::qualifications(
+                module,
+                limits,
+                store_option_mask.as_deref().or(stored_partition.as_deref()),
+                &mut budget,
+            )?;
+        }
+        let fingerprint = module.fingerprint();
+        if plan.module_fingerprint != fingerprint
+            || plan.target_fingerprint != module.target.fingerprint()
+        {
             return Err(reject(
-                "E-VERIFY-PLAN",
-                Some(function.span),
-                "candidate function order or identity is incorrect",
+                "E-VERIFY-PLAN-IDENTITY",
+                None,
+                "candidate plan is bound to different module or target bytes",
             ));
         }
-        let graph = check_function(module, function, function_plan, &mut budget, limits)?;
-        if budget
-            .private_slot_functions
-            .as_ref()
-            .is_some_and(|rows| rows[function.id.0 as usize])
-        {
-            resources::arrays::check_internal_slot_uses(module, function, &graph, &mut budget)?;
+        budget.diagnostic_stage("actual CFG structure and retained bodies");
+        let mut graphs = Vec::with_capacity(module.functions.len());
+        for (function, function_plan) in module.functions.iter().zip(&plan.functions) {
+            if function_plan.function != function.id {
+                return Err(reject(
+                    "E-VERIFY-PLAN",
+                    Some(function.span),
+                    "candidate function order or identity is incorrect",
+                ));
+            }
+            let graph = check_function(module, function, function_plan, &mut budget, limits)?;
+            if budget
+                .private_slot_functions
+                .as_ref()
+                .is_some_and(|rows| rows[function.id.0 as usize])
+            {
+                resources::arrays::check_internal_slot_uses(module, function, &graph, &mut budget)?;
+            }
+            retained::check_body(module, function, &graph, &mut budget)?;
+            graphs.push(graph);
         }
-        retained::check_body(module, function, &graph, &mut budget)?;
-        graphs.push(graph);
-    }
-    budget.diagnostic_stage("actual retained sources and task interfaces");
-    retained::check_sources(module, &graphs, limits, &mut budget)?;
-    tasks::module(module, &mut budget)?;
-    let mut task_input_fingerprint = fingerprint;
-    if let Some(program) = program {
-        tasks::interfaces(program, &mut budget)?;
-        task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
-    }
-    helpers::check_module(module, &graphs, limits, &mut budget)?;
-    budget.diagnostic_stage("actual stored and borrow CFG");
-    let guard_sources = if budget.task_sources() || budget.store_option_results {
-        for (index, f) in module.functions.iter().enumerate() {
-            if store_option_mask.as_ref().is_none_or(|mask| mask[index]) {
+        budget.diagnostic_stage("actual retained sources and task interfaces");
+        retained::check_sources(module, &graphs, limits, &mut budget)?;
+        tasks::module(module, &mut budget)?;
+        let mut task_input_fingerprint = fingerprint;
+        if let Some(program) = program {
+            tasks::interfaces(program, &mut budget)?;
+            task_input_fingerprint =
+                tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
+        }
+        helpers::check_module(module, &graphs, limits, &mut budget)?;
+        budget.diagnostic_stage("actual stored and borrow CFG");
+        let guard_sources = if budget.task_sources() || budget.store_option_results {
+            for (index, f) in module.functions.iter().enumerate() {
+                if store_option_mask.as_ref().is_none_or(|mask| mask[index]) {
+                    stored_flow::header(module, f, &mut budget)?;
+                }
+            }
+            if let Some(mask) = store_option_mask.as_deref() {
+                stored_flow::check_mixed(module, &graphs, plan, mask, &mut budget)?;
+            } else {
+                stored_flow::check(module, &graphs, plan, &mut budget)?;
+            }
+            budget.diagnostic_stage("actual borrow CFG");
+            borrows::check_module(module, plan, &graphs, &mut budget)?
+        } else if budget.stored_borrows && stored_partition.is_none() {
+            for f in &module.functions {
                 stored_flow::header(module, f, &mut budget)?;
             }
-        }
-        if let Some(mask) = store_option_mask.as_deref() {
-            stored_flow::check_mixed(module, &graphs, plan, mask, &mut budget)?;
-        } else {
             stored_flow::check(module, &graphs, plan, &mut budget)?;
-        }
-        budget.diagnostic_stage("actual borrow CFG");
-        borrows::check_module(module, plan, &graphs, &mut budget)?
-    } else if budget.stored_borrows && stored_partition.is_none() {
-        for f in &module.functions {
-            stored_flow::header(module, f, &mut budget)?;
-        }
-        stored_flow::check(module, &graphs, plan, &mut budget)?;
-        Vec::new()
-    } else if let Some(mask) = stored_partition.as_deref() {
-        for (index, f) in module.functions.iter().enumerate() {
-            if mask[index] {
+            Vec::new()
+        } else if let Some(mask) = stored_partition.as_deref() {
+            for (index, f) in module.functions.iter().enumerate() {
+                if mask[index] {
+                    stored_flow::header(module, f, &mut budget)?;
+                }
+            }
+            stored_flow::check_mixed(module, &graphs, plan, mask, &mut budget)?;
+            budget.diagnostic_stage("actual mixed borrow CFG");
+            borrows::check_mixed(module, plan, &graphs, mask, &mut budget)?
+        } else if budget.nested_callable_sources {
+            // The actual stored-target ledger carries complete nested environment
+            // paths. Its proof is private and does not change the module ABI mode.
+            for f in &module.functions {
                 stored_flow::header(module, f, &mut budget)?;
             }
+            stored_flow::qualifications(module, limits, None, &mut budget)?;
+            stored_flow::check(module, &graphs, plan, &mut budget)?;
+            Vec::new()
+        } else {
+            budget.diagnostic_stage("actual borrow CFG");
+            borrows::check_module(module, plan, &graphs, &mut budget)?
+        };
+        budget.diagnostic_stage("actual deferred sources and head access");
+        if !budget.pending_callable_sources.is_empty() {
+            return Err(reject(
+                "E-VERIFY-CALLABLE-SOURCE",
+                None,
+                "returned environment has no completed independent memory source proof",
+            ));
         }
-        stored_flow::check_mixed(module, &graphs, plan, mask, &mut budget)?;
-        budget.diagnostic_stage("actual mixed borrow CFG");
-        borrows::check_mixed(module, plan, &graphs, mask, &mut budget)?
-    } else if budget.nested_callable_sources {
-        // The actual stored-target ledger carries complete nested environment
-        // paths. Its proof is private and does not change the module ABI mode.
-        for f in &module.functions {
-            stored_flow::header(module, f, &mut budget)?;
+        if !budget.pending_dyn_returns.is_empty() {
+            return Err(unsupported(
+                "retained result lacks an independent actual Return source proof",
+                None,
+            ));
         }
-        stored_flow::qualifications(module, limits, None, &mut budget)?;
-        stored_flow::check(module, &graphs, plan, &mut budget)?;
-        Vec::new()
-    } else {
-        budget.diagnostic_stage("actual borrow CFG");
-        borrows::check_module(module, plan, &graphs, &mut budget)?
-    };
-    budget.diagnostic_stage("actual deferred sources and head access");
-    if !budget.pending_callable_sources.is_empty() {
-        return Err(reject(
-            "E-VERIFY-CALLABLE-SOURCE",
-            None,
-            "returned environment has no completed independent memory source proof",
-        ));
-    }
-    if !budget.pending_dyn_returns.is_empty() {
-        return Err(unsupported(
-            "retained result lacks an independent actual Return source proof",
-            None,
-        ));
-    }
-    if !budget.pending_dyn_captures.is_empty() {
-        return Err(reject(
-            "E-VERIFY-DYN-SOURCE",
-            None,
-            "logical Context capture leaves lack their complete actual environment proof",
-        ));
-    }
-    if budget
-        .dyn_static_classes
-        .iter()
-        .any(|row| row.grounding == stored_flow::DynClassGrounding::Unknown)
-    {
-        return Err(reject(
-            "E-VERIFY-DYN-SOURCE",
-            None,
-            "output-only Dyn class lacks a completed actual static or no-target proof",
-        ));
-    }
-    if !budget.pending_dyn_contracts.methods.is_empty()||!budget.pending_dyn_contracts.callables.is_empty(){return Err(unsupported("dynamic original contract has no completed independent actual CFG proof",None));}
-    if !budget.pending_dyn_tables.is_empty() {
-        return Err(unsupported(
-            "Context provider lacks a completed independent access/effect proof",
-            None,
-        ));
-    }
-    budget.guard_return_sources = guard_sources;
-    head_access::check(module, &graphs, &mut budget)?;
-    budget.diagnostic_stage("actual resource effects and CFG");
-    resources::check_module(module, &graphs, &mut budget)?;
-    budget.diagnostic_stage("actual task transfer and exit protocols");
-    tasks::transfer::finish(module, &mut budget)?;
-    registration::check_phase(module, &mut budget)?;
-    semantic::task_domains::drain(module,&mut budget)?;
-    semantic::callable_obligations::drain(module,&mut budget)?;
-    Ok(CheckedModule {
-        fingerprint,
-        uses_owned_sum_extension: budget.sums,
-        uses_scalar_tasks: budget.tasks,
-        uses_retained_registration: budget.registrations,
-        uses_stored_borrows: budget.stored_borrows,
-        task_workers: std::mem::take(&mut budget.task_workers),
-        suspend_functions: std::mem::take(&mut budget.suspend_functions),
-        sabi_non_suspending: std::mem::take(&mut budget.sabi_non_suspending),
-        task_exports: std::mem::take(&mut budget.task_exports),
-        task_input_fingerprint,
-        task_ownership: std::mem::take(&mut budget.task_ownership),
-    })
+        if !budget.pending_dyn_captures.is_empty() {
+            return Err(reject(
+                "E-VERIFY-DYN-SOURCE",
+                None,
+                "logical Context capture leaves lack their complete actual environment proof",
+            ));
+        }
+        if budget
+            .dyn_static_classes
+            .iter()
+            .any(|row| row.grounding == stored_flow::DynClassGrounding::Unknown)
+        {
+            return Err(reject(
+                "E-VERIFY-DYN-SOURCE",
+                None,
+                "output-only Dyn class lacks a completed actual static or no-target proof",
+            ));
+        }
+        if !budget.pending_dyn_contracts.methods.is_empty()
+            || !budget.pending_dyn_contracts.callables.is_empty()
+        {
+            return Err(unsupported(
+                "dynamic original contract has no completed independent actual CFG proof",
+                None,
+            ));
+        }
+        if !budget.pending_dyn_tables.is_empty() {
+            return Err(unsupported(
+                "Context provider lacks a completed independent access/effect proof",
+                None,
+            ));
+        }
+        budget.guard_return_sources = guard_sources;
+        head_access::check(module, &graphs, &mut budget)?;
+        budget.diagnostic_stage("actual resource effects and CFG");
+        resources::check_module(module, &graphs, &mut budget)?;
+        budget.diagnostic_stage("actual task transfer and exit protocols");
+        tasks::transfer::finish(module, &mut budget)?;
+        registration::check_phase(module, &mut budget)?;
+        semantic::task_domains::drain(module, &mut budget)?;
+        semantic::callable_obligations::drain(module, &mut budget)?;
+        Ok(CheckedModule {
+            fingerprint,
+            uses_owned_sum_extension: budget.sums,
+            uses_scalar_tasks: budget.tasks,
+            uses_retained_registration: budget.registrations,
+            uses_stored_borrows: budget.stored_borrows,
+            task_workers: std::mem::take(&mut budget.task_workers),
+            suspend_functions: std::mem::take(&mut budget.suspend_functions),
+            sabi_non_suspending: std::mem::take(&mut budget.sabi_non_suspending),
+            task_exports: std::mem::take(&mut budget.task_exports),
+            task_input_fingerprint,
+            task_ownership: std::mem::take(&mut budget.task_ownership),
+        })
     })();
     budget.structural = prior_structure;
-    budget.diagnostic_progress=prior_progress;
+    budget.diagnostic_progress = prior_progress;
     result
 }
 
@@ -1675,7 +1759,15 @@ fn check_type_shape(
     let mut pod_stores = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
-        if matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Address{..})){budget.raw_reference_cells=true;budget.stored_borrows=true;}
+        if matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Address{..})) {
+            budget.raw_reference_cells = true;
+            budget.stored_borrows = true;
+        }
+        if matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{..}|Type::Desc(_)))
+        {
+            budget.stored_borrows = true;
+        }
+
         budget.actual_store_types |= matches!(ty, Type::OwnedStore { .. });
         budget.head_descriptions |= matches!(ty, Type::Mutex { .. } | Type::MutexGuard { .. });
         budget.task_origin_roots |= matches!(ty, Type::Task { .. });
@@ -2099,14 +2191,20 @@ fn check_function_signature_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
-    if stored_flow::shared_tuple_value(module,ty,span,budget)?
-        || matches!(ty,Type::Address{inner,..}if stored_flow::shared_tuple_value(module,inner,span,budget)?){return Ok(());}
-    if budget.raw_reference_cells&&let Type::Address{inner,..}=ty&&matches!(inner.as_ref(),Type::Address{..}){
+    if stored_flow::shared_tuple_value(module, ty, span, budget)?
+        || matches!(ty,Type::Address{inner,..}if stored_flow::shared_tuple_value(module,inner,span,budget)?)
+    {
+        return Ok(());
+    }
+    if budget.raw_reference_cells
+        && let Type::Address { inner, .. } = ty
+        && matches!(inner.as_ref(), Type::Address { .. })
+    {
         // Each actual pointee still goes through its existing complete checker.
         // The full raw referent class directory is checked by signature_life
         // and class_flow; this type admission does not provide a source.
-        stored_flow::type_work(inner,&budget.limits.clone(),budget)?;
-        return check_function_signature_type(module,inner,span,budget);
+        stored_flow::type_work(inner, &budget.limits.clone(), budget)?;
+        return check_function_signature_type(module, inner, span, budget);
     }
     if let Type::MutexGuard {
         payload,
@@ -2216,10 +2314,16 @@ fn check_local_type(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> Check<bool> {
-    if stored_flow::shared_tuple_value(module,ty,span,budget)?
-        || matches!(ty,Type::Address{inner,..}if stored_flow::shared_tuple_value(module,inner,span,budget)?){return Ok(false);}
-    if budget.raw_reference_cells&&matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Address{..})){
-        check_function_signature_type(module,ty,span,budget)?;return Ok(false);
+    if stored_flow::shared_tuple_value(module, ty, span, budget)?
+        || matches!(ty,Type::Address{inner,..}if stored_flow::shared_tuple_value(module,inner,span,budget)?)
+    {
+        return Ok(false);
+    }
+    if budget.raw_reference_cells
+        && matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Address{..}))
+    {
+        check_function_signature_type(module, ty, span, budget)?;
+        return Ok(false);
     }
     if matches!(ty, Type::BorrowedStorage { .. }) {
         return if budget.stored_borrows {
@@ -3130,8 +3234,8 @@ fn check_instruction(
         }
         InstructionKind::BorrowLocal { local } => {
             let inner = local_type(function, *local, span)?;
-            if budget.raw_reference_cells&&matches!(inner,Type::Address{..}){
-                check_function_signature_type(module,inner,span,budget)?;
+            if budget.raw_reference_cells && matches!(inner, Type::Address { .. }) {
+                check_function_signature_type(module, inner, span, budget)?;
             } else if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
             } else if let Type::OwnedDyn { interface } = inner {
@@ -3141,7 +3245,7 @@ fn check_instruction(
                 && dynamic_store::package_inline_store(inner, budget)?
             {
                 packages::check_ordinary_type(module, inner, span, budget)?;
-            } else if stored_flow::shared_tuple_value(module,inner,span,budget)? {
+            } else if stored_flow::shared_tuple_value(module, inner, span, budget)? {
                 // Real fields keep their complete stored permissions.
             } else if matches!(
                 inner,
@@ -3174,8 +3278,8 @@ fn check_instruction(
         }
         InstructionKind::BorrowLocalMut { local } => {
             let inner = local_type(function, *local, span)?;
-            if budget.raw_reference_cells&&matches!(inner,Type::Address{..}){
-                check_function_signature_type(module,inner,span,budget)?;
+            if budget.raw_reference_cells && matches!(inner, Type::Address { .. }) {
+                check_function_signature_type(module, inner, span, budget)?;
             } else if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
             } else if let Type::OwnedDyn { interface } = inner {
@@ -3185,7 +3289,7 @@ fn check_instruction(
                 && dynamic_store::package_inline_store(inner, budget)?
             {
                 packages::check_ordinary_type(module, inner, span, budget)?;
-            } else if stored_flow::shared_tuple_value(module,inner,span,budget)? {
+            } else if stored_flow::shared_tuple_value(module, inner, span, budget)? {
                 // Real fields keep their complete stored permissions.
             } else if matches!(
                 inner,
@@ -3261,9 +3365,13 @@ fn check_instruction(
                     "indirect write requires an exclusive address",
                 ));
             };
-            if budget.raw_reference_cells&&matches!(inner.as_ref(),Type::Address{mutable:false,..}){
-                check_function_signature_type(module,inner,span,budget)?;
-            }else{check_type(inner,span)?;}
+            if budget.raw_reference_cells
+                && matches!(inner.as_ref(), Type::Address { mutable: false, .. })
+            {
+                check_function_signature_type(module, inner, span, budget)?;
+            } else if !stored_flow::copyable_memory_value(module, inner, budget)? {
+                check_type(inner, span)?;
+            }
             if inner.as_ref() != value_type(function, *value, span)? {
                 return Err(reject(
                     "E-VERIFY-TYPE",
@@ -3339,10 +3447,12 @@ fn check_instruction(
                 && dynamic_store::package_inline_store(field, budget)?
             {
                 packages::check_ordinary_type(module, field, span, budget)?;
-            } else if stored_flow::shared_tuple_value(module,field,span,budget)? {
+            } else if stored_flow::shared_tuple_value(module, field, span, budget)? {
                 // The actual projection retains the complete child type.
-            } else if matches!(field,Type::Address{mutable:false,..}) && stored_flow::shared_tuple_value(module,projected,span,budget)? {
-                check_function_signature_type(module,field,span,budget)?;
+            } else if matches!(field, Type::Address { mutable: false, .. })
+                && stored_flow::shared_tuple_value(module, projected, span, budget)?
+            {
+                check_function_signature_type(module, field, span, budget)?;
             } else if budget.sums
                 && matches!(
                     field,
@@ -3365,7 +3475,11 @@ fn check_instruction(
             {
                 resources::check_type_for(module, field, span, budget)?;
             } else {
-                if budget.raw_reference_cells&&matches!(field,Type::Address{..}){check_function_signature_type(module,field,span,budget)?;}else{check_type(field,span)?;}
+                if budget.raw_reference_cells && matches!(field, Type::Address { .. }) {
+                    check_function_signature_type(module, field, span, budget)?;
+                } else {
+                    check_type(field, span)?;
+                }
             }
             budget.array_snapshot(field, value_type(function, *address, span)?)?;
             Some(Type::Address {
@@ -3395,7 +3509,11 @@ fn check_instruction(
                     "index projection requires an integer",
                 ));
             }
-            if budget.raw_reference_cells&&matches!(element.as_ref(),Type::Address{..}){check_function_signature_type(module,element,span,budget)?;}else{check_type(element,span)?;}
+            if budget.raw_reference_cells && matches!(element.as_ref(), Type::Address { .. }) {
+                check_function_signature_type(module, element, span, budget)?;
+            } else {
+                check_type(element, span)?;
+            }
             Some(Type::Address {
                 mutable: *mutable,
                 inner: element.clone(),
@@ -3449,18 +3567,23 @@ fn check_instruction(
             }
             Some(Type::I64)
         }
-        InstructionKind::ReadAddress{address}if budget.raw_reference_cells&&matches!(value_type(function,*address,span)?,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Address{mutable:false,..}))=>{
-            let Type::Address{inner,..}=value_type(function,*address,span)?else{unreachable!()};
-            check_function_signature_type(module,inner,span,budget)?;
+        InstructionKind::ReadAddress { address }
+            if budget.raw_reference_cells
+                && matches!(value_type(function,*address,span)?,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Address{mutable:false,..})) =>
+        {
+            let Type::Address { inner, .. } = value_type(function, *address, span)? else {
+                unreachable!()
+            };
+            check_function_signature_type(module, inner, span, budget)?;
             // Copying a shared pointer value is discharged by the actual cell
             // and loan consumers, not by Type::is_copy_value on all addresses.
-            stored_flow::type_work(inner,&budget.limits.clone(),budget)?;
+            stored_flow::type_work(inner, &budget.limits.clone(), budget)?;
             Some(inner.as_ref().clone())
         }
         InstructionKind::ReadAddress { address } => match value_type(function, *address, span)? {
             Type::Address { inner, .. }
-                if inner.is_copy_value()
-                    || stored_flow::shared_tuple_value(module,inner,span,budget)?
+                if stored_flow::copyable_memory_value(module, inner, budget)?
+                    || stored_flow::shared_tuple_value(module, inner, span, budget)?
                     || stored_flow::shared_array_shape(inner, budget)?
                     || stored_flow::pure_read(module, inner, budget)?
                     || stored_flow::pure_inline(module, inner, budget)? =>
@@ -3738,7 +3861,9 @@ fn check_instruction(
                     "Copy aggregate construction cannot create an owning array",
                 ));
             }
-            if !stored_flow::shared_array_shape(ty, budget)? && !stored_flow::shared_tuple_value(module,ty,span,budget)? {
+            if !stored_flow::shared_array_shape(ty, budget)?
+                && !stored_flow::shared_tuple_value(module, ty, span, budget)?
+            {
                 check_type(ty, span)?;
             }
             let physical = match ty {
@@ -4019,7 +4144,7 @@ fn check_instruction(
                 && dynamic_store::inline_sum_capture(field, budget)?;
             if !matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
                 || !(field.is_copy_value()
-                    || stored_callables::constant_capture_slot(module,definition, *index, budget)?
+                    || stored_callables::constant_capture_slot(module, definition, *index, budget)?
                     || (definition.kind == CallableKind::FnMut && owned_sum))
                 || value_type(function, *value, span)? != field
             {

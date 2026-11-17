@@ -64,8 +64,8 @@ mod tests {
                 &state.locals[id - solution.values.len()]
             };
             add_loans(&mut loans, &payload.address.loans, b)?;
-            if b.store_descriptions()||!payload.store_description.loans.is_empty(){
-                add_loans(&mut loans,&payload.store_description.loans,b)?;
+            if b.store_descriptions() || !payload.store_description.loans.is_empty() {
+                add_loans(&mut loans, &payload.store_description.loans, b)?;
             }
             if b.task_borrowed_results {
                 for (_, p) in &payload.task_ports {
@@ -75,9 +75,16 @@ mod tests {
             for (_, p) in &payload.leaves {
                 add_loans(&mut loans, &p.loans, b)?;
             }
-            value_transport::visit_fields(payload,b,|permission,b|add_loans(&mut loans,&permission.loans,b))?;
-            for view in &payload.dyn_views{add_loans(&mut loans,&view.head.loans,b)?;}
-            for(_,port)in &payload.dyn_ports.0{add_loans(&mut loans,&port.permission.loans,b)?;}
+            value_transport::visit_fields(payload, b, |permission, b| {
+                add_loans(&mut loans, &permission.loans, b)?;
+                Ok(())
+            })?;
+            for view in &payload.dyn_views {
+                add_loans(&mut loans, &view.head.loans, b)?;
+            }
+            for (_, port) in &payload.dyn_ports.0 {
+                add_loans(&mut loans, &port.permission.loans, b)?;
+            }
             Ok(())
         };
         if let Some(ids) = indexed {
@@ -91,6 +98,12 @@ mod tests {
             for id in 0..live.len() {
                 collect(id)?;
             }
+        }
+        for (_, payload) in &state.pointees {
+            value_transport::visit_permissions(payload, b, |permission, b| {
+                add_loans(&mut loans, &permission.loans, b)?;
+                Ok(())
+            })?;
         }
         if b.task_borrowed_results {
             // The actual frame retains its inputs until its owning carrier moves

@@ -15,9 +15,17 @@ pub(super) fn port_relation(
 }
 /// Complete existing Task carrier paths, shared by real Return snapshots.
 /// A path is an obligation to find a permission, never an initialized port.
-pub(super) fn input_ports(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<Vec<(Vec<ContractProjection>,StoredBorrowMode)>>{
-    let mut out=Vec::new();
-    for(mut path,port,mode)in carriers::paths(module,ty,b)?{b.spend(2)?;path.push(ContractProjection::RetainedPort(port));out.push((path,mode));}
+pub(super) fn input_ports(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> Check<Vec<(Vec<ContractProjection>, StoredBorrowMode)>> {
+    let mut out = Vec::new();
+    for (mut path, port, mode) in carriers::paths(module, ty, b)? {
+        b.spend(2)?;
+        path.push(ContractProjection::RetainedPort(port));
+        out.push((path, mode));
+    }
     Ok(out)
 }
 pub(super) fn has_carrier(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
@@ -333,20 +341,39 @@ pub(super) fn environment_task_leaf(
     complete.extend_from_slice(carrier);
     let root = Type::Closure(id);
     let endpoint = carriers::endpoint(module, &root, &complete, b)?;
-    let Type::Task { retained_life, .. } = endpoint else {return Ok(false);};
+    let Type::Task { retained_life, .. } = endpoint else {
+        return Ok(false);
+    };
     if !b.task_sources() {
-        return Err(err("opaque Task environment leaf has no actual Task consumer"));
+        return Err(err(
+            "opaque Task environment leaf has no actual Task consumer",
+        ));
     }
     crate::tasks::require_closed_context(endpoint, None)?;
-    let definition=crate::closures::definition(module,id,None)?;
-    let entry=module.functions.get(definition.function.0 as usize)
-        .filter(|entry|entry.id==definition.function&&entry.environment==Some(id))
-        .ok_or_else(||err("Task environment leaf has no exact actual closure entry"))?;
-    if entry.storage_life.is_none()||entry.storage_life!=definition.storage_life {
-        return Err(err("Task environment leaf changes its complete actual closure scope"));
+    let definition = crate::closures::definition(module, id, None)?;
+    let entry = module
+        .functions
+        .get(definition.function.0 as usize)
+        .filter(|entry| entry.id == definition.function && entry.environment == Some(id))
+        .ok_or_else(|| err("Task environment leaf has no exact actual closure entry"))?;
+    if entry.storage_life.is_none() || entry.storage_life != definition.storage_life {
+        return Err(err(
+            "Task environment leaf changes its complete actual closure scope",
+        ));
     }
-    if !matches!(carriers::relation(module,entry,StorageBase::Capture(index),&position.path,b)?,StorageBinder::Fixed(_)) {
-        return Err(err("Task environment port cannot retain an invocation-local class"));
+    if !matches!(
+        carriers::relation(
+            module,
+            entry,
+            StorageBase::Capture(index),
+            &position.path,
+            b
+        )?,
+        StorageBinder::Fixed(_)
+    ) {
+        return Err(err(
+            "Task environment port cannot retain an invocation-local class",
+        ));
     }
     let actual = &retained_life
         .ports
@@ -389,28 +416,51 @@ pub(super) fn select_carrier(
 }
 #[allow(clippy::too_many_arguments)]
 pub(super) fn select_actual(
-    module:&TypedModule,f:&TypedFunction,value:ValueId,payload:&Payload,state:&Frame,
-    carrier:&[ContractProjection],port:u32,b:&mut Budget,
-)->Check<Permission>{
-    let endpoint=carriers::endpoint(module,vt(f,value)?,carrier,b)?;
-    let Type::Task{retained_life,..}=endpoint else{return Err(err("Task source selector has another actual endpoint kind"));};
-    if retained_life.ports.get(port as usize).is_none(){return Err(err("Task source selector exceeds its complete actual port directory"));}
-    if !matches!(vt(f,value)?,Type::Address{..}){return select_carrier(payload,&[],carrier,port,b);}
+    module: &TypedModule,
+    f: &TypedFunction,
+    value: ValueId,
+    payload: &Payload,
+    state: &Frame,
+    carrier: &[ContractProjection],
+    port: u32,
+    b: &mut Budget,
+) -> Check<Permission> {
+    let endpoint = carriers::endpoint(module, vt(f, value)?, carrier, b)?;
+    let Type::Task { retained_life, .. } = endpoint else {
+        return Err(err("Task source selector has another actual endpoint kind"));
+    };
+    if retained_life.ports.get(port as usize).is_none() {
+        return Err(err(
+            "Task source selector exceeds its complete actual port directory",
+        ));
+    }
+    if !matches!(vt(f, value)?, Type::Address { .. }) {
+        return select_carrier(payload, &[], carrier, port, b);
+    }
     // A borrowed owner observes its current actual holder. A moved value keeps
     // its own SSA payload; neither route borrows another same-shaped carrier.
-    let mut out=Permission::default();
-    for source in &payload.address.sources{
-        if source.retained_port.is_some()||!source.leaf.is_empty()||source.heap_element.is_some()||!source.heap_parents.is_empty(){
-            return Err(err("Task owner address has no complete actual holder route"));
+    let mut out = Permission::default();
+    for source in &payload.address.sources {
+        if source.retained_port.is_some()
+            || !source.leaf.is_empty()
+            || source.heap_element.is_some()
+            || !source.heap_parents.is_empty()
+        {
+            return Err(err(
+                "Task owner address has no complete actual holder route",
+            ));
         }
-        let holder=match source.base{
-            HoldRoot::Local(local)=>state.locals.get(local.0 as usize),
-            HoldRoot::Parameter(index)=>state.external.get(index as usize),
-            HoldRoot::Capture(index)=>state.captures.get(index as usize),HoldRoot::Static=>None,
-        }.ok_or_else(||err("Task owner address selects an absent current holder"))?;
+        let holder = memory_holder(state, source.base, b)?
+            .ok_or_else(|| err("Task owner address selects an absent current holder"))?;
         b.spend(source.inline.len().saturating_add(carrier.len()))?;
-        let mut path=source.inline.iter().copied().map(ContractProjection::Place).collect::<Vec<_>>();path.extend_from_slice(carrier);
-        join_permission(&mut out,&select_carrier(holder,&[],&path,port,b)?,b)?;
+        let mut path = source
+            .inline
+            .iter()
+            .copied()
+            .map(ContractProjection::Place)
+            .collect::<Vec<_>>();
+        path.extend_from_slice(carrier);
+        join_permission(&mut out, &select_carrier(holder, &[], &path, port, b)?, b)?;
     }
     // Receiver/head loans are checked separately. They do not become data
     // targets or permanently pin the Task to a temporary invocation borrow.
@@ -418,41 +468,99 @@ pub(super) fn select_actual(
 }
 #[allow(clippy::too_many_arguments)]
 pub(super) fn substitute_capture(
-    module:&TypedModule,f:&TypedFunction,i:&Instruction,source:&Source,
-    definition:&ClosureDefinition,values:&[Payload],state:&Frame,b:&mut Budget,
-)->Check<Option<Permission>>{
-    let Some(PortOrigin::Task{carrier,port})=&source.retained_port else{return Ok(None);};
-    let HoldRoot::Capture(index)=source.base else{return Err(err("captured Task source has no actual capture root"));};
-    if source.heap_element.is_some()||!source.heap_parents.is_empty(){return Err(err("captured Task source mixes opaque and heap target namespaces"));}
-    let (actual,_) = stored_callables::called(module,f,&i.kind)
-        .ok_or_else(||err("captured Task source has no actual callable invocation"))?;
-    if actual.id!=definition.id||actual.function!=definition.function{return Err(err("captured Task source selects another actual closure entry"));}
-    let ty=definition.captures.get(index as usize).ok_or_else(||err("captured Task source selects an absent actual capture"))?;
-    b.spend(source.leaf.len().saturating_add(carrier.len()).saturating_add(1))?;
-    let mut local=source.leaf.iter().copied().map(ContractProjection::Place).collect::<Vec<_>>();local.extend_from_slice(carrier);
-    let endpoint=carriers::endpoint(module,ty,&local,b)?;
-    let Type::Task{retained_life,..}=endpoint else{return Err(err("captured Task port has a different actual endpoint kind"));};
-    crate::tasks::require_closed_context(endpoint,None)?;
-    if retained_life.ports.get(*port as usize).is_none(){return Err(err("captured Task port exceeds its complete actual directory"));}
-    let mut path=vec![ContractProjection::Capture(index)];path.extend(local);
-    let mut permission=match &i.kind{
-        InstructionKind::CallClosure{callee,..}|InstructionKind::CallClosureOnce{callee,..}=>{
-            let payload=values.get(callee.0 as usize).ok_or_else(||err("consumed Task environment has no actual SSA payload"))?;
-            select_carrier(payload,&[],&path,*port,b)?
-        },
-        InstructionKind::CallClosureShared{callee,..}|InstructionKind::CallClosureMut{callee,..}=>{
-            let payload=state.locals.get(callee.0 as usize).ok_or_else(||err("Task environment has no current actual local"))?;
-            select_carrier(payload,&[],&path,*port,b)?
-        },
-        InstructionKind::CallClosureBorrowed{callee,..}=>{
-            let payload=values.get(callee.0 as usize).ok_or_else(||err("borrowed Task environment has no actual SSA payload"))?;
-            select_actual(module,f,*callee,payload,state,&path,*port,b)?
-        },
-        _=>return Err(err("captured Task port has no actual closure call consumer")),
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    source: &Source,
+    definition: &ClosureDefinition,
+    values: &[Payload],
+    state: &Frame,
+    b: &mut Budget,
+) -> Check<Option<Permission>> {
+    let Some(PortOrigin::Task { carrier, port }) = &source.retained_port else {
+        return Ok(None);
     };
-    for actual in &mut permission.sources{
-        b.spend(source.inline.len())?;actual.inline.extend_from_slice(&source.inline);
-        if source.static_dependency==StaticProvenance::UpperOnly{actual.static_dependency=StaticProvenance::UpperOnly;}
+    let HoldRoot::Capture(index) = source.base else {
+        return Err(err("captured Task source has no actual capture root"));
+    };
+    if source.heap_element.is_some() || !source.heap_parents.is_empty() {
+        return Err(err(
+            "captured Task source mixes opaque and heap target namespaces",
+        ));
+    }
+    let (actual, _) = stored_callables::called(module, f, &i.kind)
+        .ok_or_else(|| err("captured Task source has no actual callable invocation"))?;
+    if actual.id != definition.id || actual.function != definition.function {
+        return Err(err(
+            "captured Task source selects another actual closure entry",
+        ));
+    }
+    let ty = definition
+        .captures
+        .get(index as usize)
+        .ok_or_else(|| err("captured Task source selects an absent actual capture"))?;
+    b.spend(
+        source
+            .leaf
+            .len()
+            .saturating_add(carrier.len())
+            .saturating_add(1),
+    )?;
+    let mut local = source
+        .leaf
+        .iter()
+        .copied()
+        .map(ContractProjection::Place)
+        .collect::<Vec<_>>();
+    local.extend_from_slice(carrier);
+    let endpoint = carriers::endpoint(module, ty, &local, b)?;
+    let Type::Task { retained_life, .. } = endpoint else {
+        return Err(err(
+            "captured Task port has a different actual endpoint kind",
+        ));
+    };
+    crate::tasks::require_closed_context(endpoint, None)?;
+    if retained_life.ports.get(*port as usize).is_none() {
+        return Err(err(
+            "captured Task port exceeds its complete actual directory",
+        ));
+    }
+    let mut path = vec![ContractProjection::Capture(index)];
+    path.extend(local);
+    let mut permission = match &i.kind {
+        InstructionKind::CallClosure { callee, .. }
+        | InstructionKind::CallClosureOnce { callee, .. } => {
+            let payload = values
+                .get(callee.0 as usize)
+                .ok_or_else(|| err("consumed Task environment has no actual SSA payload"))?;
+            select_carrier(payload, &[], &path, *port, b)?
+        }
+        InstructionKind::CallClosureShared { callee, .. }
+        | InstructionKind::CallClosureMut { callee, .. } => {
+            let payload = state
+                .locals
+                .get(callee.0 as usize)
+                .ok_or_else(|| err("Task environment has no current actual local"))?;
+            select_carrier(payload, &[], &path, *port, b)?
+        }
+        InstructionKind::CallClosureBorrowed { callee, .. } => {
+            let payload = values
+                .get(callee.0 as usize)
+                .ok_or_else(|| err("borrowed Task environment has no actual SSA payload"))?;
+            select_actual(module, f, *callee, payload, state, &path, *port, b)?
+        }
+        _ => {
+            return Err(err(
+                "captured Task port has no actual closure call consumer",
+            ));
+        }
+    };
+    for actual in &mut permission.sources {
+        b.spend(source.inline.len())?;
+        actual.inline.extend_from_slice(&source.inline);
+        if source.static_dependency == StaticProvenance::UpperOnly {
+            actual.static_dependency = StaticProvenance::UpperOnly;
+        }
     }
     Ok(Some(permission))
 }
@@ -538,13 +646,18 @@ pub(super) fn source_relation(
             path.splice(path.len() - 1..path.len() - 1, carrier.iter().cloned());
             carriers::relation(module, f, base, &path, b)
         }
-        Some(PortOrigin::Dyn { carrier,port }) => {
+        Some(PortOrigin::Dyn { carrier, port }) => {
             b.spend(source.leaf.len().saturating_add(carrier.len()))?;
-            let path=source.leaf.iter().copied().map(ContractProjection::Place)
-                .chain(carrier.iter().copied()).collect::<Vec<_>>();
-            dyn_returns::source_relation_at(module,f,base,&path,*port,b)
+            let path = source
+                .leaf
+                .iter()
+                .copied()
+                .map(ContractProjection::Place)
+                .chain(carrier.iter().copied())
+                .collect::<Vec<_>>();
+            dyn_returns::source_relation_at(module, f, base, &path, *port, b)
         }
-        Some(PortOrigin::Reference{..})=>reference_cells::relation(module,f,source,b),
+        Some(PortOrigin::Reference { .. }) => reference_cells::relation(module, f, source, b),
         None => relation(f, base, &source.leaf, b),
     }
 }
@@ -576,8 +689,11 @@ pub(super) fn invoke(
         let mut permission = Permission::default();
         for source in sources {
             let actual = match source.base {
-                HoldRoot::Capture(_) => substitute_capture(module,f,i,source,d,values,state,b)?
-                    .ok_or_else(||err("returned Task capture is outside its exact Task-port namespace"))?,
+                HoldRoot::Capture(_) => {
+                    substitute_capture(module, f, i, source, d, values, state, b)?.ok_or_else(
+                        || err("returned Task capture is outside its exact Task-port namespace"),
+                    )?
+                }
                 _ => instantiate(module, f, source, arguments, values, state, b)?,
             };
             join_permission(&mut permission, &actual, b)?;
@@ -668,7 +784,9 @@ pub(super) fn summarize(
     }
     for (mut path, port, _) in carriers::paths(module, &f.return_type, b)? {
         path.push(ContractProjection::RetainedPort(port));
-        if enum_address::inactive_path(&p.enum_variants,&f.return_type,&path,b)?{continue;}
+        if enum_address::inactive_path(&p.enum_variants, &f.return_type, &path, b)? {
+            continue;
+        }
         b.spend(p.task_ports.iter().fold(path.len(), |n, (actual, _)| {
             n.saturating_add(actual.len())
                 .saturating_add(path.len())
@@ -744,7 +862,7 @@ pub(super) fn transfer(
             let produced = i
                 .result
                 .ok_or_else(|| err("Task constructor result is absent"))?;
-            out.enum_variants=enum_address::Variants::runtime(vt(f,produced)?,0,b)?;
+            out.enum_variants = enum_address::Variants::runtime(vt(f, produced)?, 0, b)?;
             let (_, context) = task_type(vt(f, produced)?)
                 .ok_or_else(|| err("Task constructor has no actual retained context"))?;
             b.spend(context.ports.len().saturating_add(port_bindings.len()))?;
@@ -774,12 +892,33 @@ pub(super) fn transfer(
                 }
                 let mut permission =
                     inputs::permission(module, f, input, &row.source.path, values, state, b)?;
-                permission = dyn_leases::retain(sites,loans,i,
-                    dyn_leases::Destination::Result(port_path(&[PlaceProjection::ErrorArm(false)],ordinal as u32)),
-                    dyn_leases::Component::Slot(row.source.clone()),port.mode,&permission,b)?;
-                results::retain_dependencies(module, f, i, arguments, values, state,
-                    &summaries[target.id.0 as usize], ordinal as u32,
-                    &mut permission, sites, loans, b)?;
+                permission = dyn_leases::retain(
+                    sites,
+                    loans,
+                    i,
+                    dyn_leases::Destination::Result(port_path(
+                        &[PlaceProjection::ErrorArm(false)],
+                        ordinal as u32,
+                    )),
+                    dyn_leases::Component::Slot(row.source.clone()),
+                    port.mode,
+                    &permission,
+                    b,
+                )?;
+                results::retain_dependencies(
+                    module,
+                    f,
+                    i,
+                    arguments,
+                    values,
+                    state,
+                    &summaries[target.id.0 as usize],
+                    ordinal as u32,
+                    &mut permission,
+                    sites,
+                    loans,
+                    b,
+                )?;
                 all_inputs &= !permission.sources.is_empty()
                     || inputs::inactive(f, input, &row.source.path, values, b)?
                     || inputs::empty_opaque(module, f, input, &row.source.path, values, state, b)?;
@@ -835,12 +974,31 @@ pub(super) fn transfer(
             state.locals[local.0 as usize] = Payload::default();
         }
         InstructionKind::TaskPoll { task } if shape(vt(f, *task)?) => {
-            let outcome=i.result.map(|id|vt(f,id)).transpose()?.ok_or_else(||err("Task poll lacks its complete actual outcome"))?;
-            results::poll(module, f, i, vt(f, *task)?, outcome, get(*task)?, &mut out, sites, loans, b)?;
+            let outcome = i
+                .result
+                .map(|id| vt(f, id))
+                .transpose()?
+                .ok_or_else(|| err("Task poll lacks its complete actual outcome"))?;
+            results::poll(
+                module,
+                f,
+                i,
+                vt(f, *task)?,
+                outcome,
+                get(*task)?,
+                &mut out,
+                sites,
+                loans,
+                b,
+            )?;
         }
         InstructionKind::TaskPollClose { .. } => {
-            let outcome=i.result.map(|id|vt(f,id)).transpose()?.ok_or_else(||err("Task close poll lacks its complete actual outcome"))?;
-            out.enum_variants=enum_address::Variants::runtime(outcome,0,b)?;
+            let outcome = i
+                .result
+                .map(|id| vt(f, id))
+                .transpose()?
+                .ok_or_else(|| err("Task close poll lacks its complete actual outcome"))?;
+            out.enum_variants = enum_address::Variants::runtime(outcome, 0, b)?;
         }
         InstructionKind::MakeErrorUnion { value, is_error }
             if shape(vt(
@@ -881,7 +1039,7 @@ fn anchors(
     current: ValueId,
     p: &Permission,
     loans: &[Loan],
-    references: &[(Source,bool)],
+    references: &[(Source, bool)],
     b: &mut Budget,
 ) -> Check<Vec<TaskLoanAnchor>> {
     b.spend(p.loans.len())?;
@@ -912,12 +1070,17 @@ fn anchors(
             continue;
         }
         for source in &loan.sources {
-            if let Some(index)=reference_cells::input_index(references,source,b)?{out.push(TaskLoanAnchor::Reference(index));continue;}
+            if let Some(index) = reference_cells::input_index(references, source, b)? {
+                out.push(TaskLoanAnchor::Reference(index));
+                continue;
+            }
             let base = match source.base {
                 HoldRoot::Parameter(index) => StorageBase::Parameter(index),
                 HoldRoot::Capture(index) => StorageBase::Capture(index),
                 HoldRoot::Static => continue,
-                HoldRoot::Local(_) => return Err(err("Task source parent lacks actual external anchor")),
+                HoldRoot::Local(_) => {
+                    return Err(err("Task source parent lacks actual external anchor"));
+                }
             };
             let mut path = source
                 .leaf
@@ -925,7 +1088,9 @@ fn anchors(
                 .copied()
                 .map(ContractProjection::Place)
                 .collect::<Vec<_>>();
-            if let Some(PortOrigin::Task { carrier, port }|PortOrigin::Dyn{carrier,port}) = &source.retained_port {
+            if let Some(PortOrigin::Task { carrier, port } | PortOrigin::Dyn { carrier, port }) =
+                &source.retained_port
+            {
                 path.extend_from_slice(carrier);
                 path.push(ContractProjection::RetainedPort(*port));
             }
@@ -933,24 +1098,51 @@ fn anchors(
             if let StorageBase::Capture(index) = base {
                 // This is the exact seeded external port of this entry, not
                 // the environment head or a lifetime upper of its target.
-                let definition=f.environment.and_then(|id|module.closures.get(id.0 as usize))
-                    .filter(|d|Some(d.id)==f.environment&&d.function==f.id&&d.storage_life==f.storage_life)
-                    .ok_or_else(||err("Task source parent has no exact actual closure entry"))?;
-                let root=definition.captures.get(index as usize).ok_or_else(||err("Task source parent capture is absent"))?;
-                let Some(PortOrigin::Task{carrier,port})=&source.retained_port else{
+                let definition = f
+                    .environment
+                    .and_then(|id| module.closures.get(id.0 as usize))
+                    .filter(|d| {
+                        Some(d.id) == f.environment
+                            && d.function == f.id
+                            && d.storage_life == f.storage_life
+                    })
+                    .ok_or_else(|| err("Task source parent has no exact actual closure entry"))?;
+                let root = definition
+                    .captures
+                    .get(index as usize)
+                    .ok_or_else(|| err("Task source parent capture is absent"))?;
+                let Some(PortOrigin::Task { carrier, port }) = &source.retained_port else {
                     return Err(err("captured Task source parent lacks its exact Task port"));
                 };
-                if !source.leaf.is_empty()||source.heap_element.is_some()||!source.heap_parents.is_empty(){
+                if !source.leaf.is_empty()
+                    || source.heap_element.is_some()
+                    || !source.heap_parents.is_empty()
+                {
                     return Err(err("captured Task source parent mixes target namespaces"));
                 }
-                let Type::Task{retained_life,..}=carriers::endpoint(module,root,carrier,b)? else{
-                    return Err(err("captured Task source parent has another actual endpoint kind"));
+                let Type::Task { retained_life, .. } =
+                    carriers::endpoint(module, root, carrier, b)?
+                else {
+                    return Err(err(
+                        "captured Task source parent has another actual endpoint kind",
+                    ));
                 };
-                let mode=retained_life.ports.get(*port as usize).ok_or_else(||err("captured Task source parent port is absent"))?.mode;
-                if loan.exclusive!=(mode==StoredBorrowMode::ExclusiveAddress){return Err(err("captured Task source parent changes its actual port mode"));}
-                port_relation(module,f,base,&path,b)?;
+                let mode = retained_life
+                    .ports
+                    .get(*port as usize)
+                    .ok_or_else(|| err("captured Task source parent port is absent"))?
+                    .mode;
+                if loan.exclusive != (mode == StoredBorrowMode::ExclusiveAddress) {
+                    return Err(err(
+                        "captured Task source parent changes its actual port mode",
+                    ));
+                }
+                port_relation(module, f, base, &path, b)?;
             }
-            out.push(TaskLoanAnchor::Input(zil_ir::StoragePosition { base, path }));
+            out.push(TaskLoanAnchor::Input(zil_ir::StoragePosition {
+                base,
+                path,
+            }));
         }
     }
     b.spend(
@@ -971,7 +1163,7 @@ pub(super) fn checked_sources(
         covered: true,
         ..TaskFunctionSources::default()
     };
-    out.reference_inputs=reference_cells::inputs(s,b)?;
+    out.reference_inputs = reference_cells::inputs(s, b)?;
     b.spend(f.values.len())?;
     for (id, p) in s.values.iter().enumerate() {
         let mut row = TaskValueSources::default();
@@ -979,11 +1171,11 @@ pub(super) fn checked_sources(
         b.spend(p.leaves.len().saturating_add(p.task_ports.len()))?;
         for source in &p.address.sources {
             row.pointer.push(TaskPointerRoot {
-                reference:reference_cells::input_index(&out.reference_inputs,source,b)?,
+                reference: reference_cells::input_index(&out.reference_inputs, source, b)?,
                 base: source.base,
-                dynamic:matches!(source.retained_port,Some(PortOrigin::Dyn{..})),
+                dynamic: matches!(source.retained_port, Some(PortOrigin::Dyn { .. })),
                 carrier: match &source.retained_port {
-                    Some(PortOrigin::Task { carrier, .. }|PortOrigin::Dyn{carrier,..}) => {
+                    Some(PortOrigin::Task { carrier, .. } | PortOrigin::Dyn { carrier, .. }) => {
                         b.spend(carrier.len().saturating_add(source.leaf.len()))?;
                         source
                             .leaf
@@ -996,33 +1188,61 @@ pub(super) fn checked_sources(
                     _ => Vec::new(),
                 },
                 port: match &source.retained_port {
-                    Some(PortOrigin::Task { port, .. }|PortOrigin::Dyn{port,..}) => Some(*port),
-                    None | Some(PortOrigin::Reference{..}) => None,
+                    Some(PortOrigin::Task { port, .. } | PortOrigin::Dyn { port, .. }) => {
+                        Some(*port)
+                    }
+                    None | Some(PortOrigin::Reference { .. }) => None,
                 },
             });
             row.public.push(source.base);
         }
-        row.pointer_parents = anchors(module, f, ValueId(id as u32), &p.address, &s.loans, &out.reference_inputs, b)?;
+        row.pointer_parents = anchors(
+            module,
+            f,
+            ValueId(id as u32),
+            &p.address,
+            &s.loans,
+            &out.reference_inputs,
+            b,
+        )?;
         for (_, permission) in &p.leaves {
             permission_work(permission, b)?;
             for source in &permission.sources {
                 row.public.push(source.base);
             }
-            row.payload_parents
-                .extend(anchors(module, f, ValueId(id as u32), permission, &s.loans, &out.reference_inputs, b)?);
+            row.payload_parents.extend(anchors(
+                module,
+                f,
+                ValueId(id as u32),
+                permission,
+                &s.loans,
+                &out.reference_inputs,
+                b,
+            )?);
         }
-        for (path, permission) in p.task_ports.iter().map(|(path,permission)|(path,permission))
-            .chain(p.dyn_ports.0.iter().map(|(path,port)|(path,&port.permission))) {
+        for (path, permission) in p
+            .task_ports
+            .iter()
+            .map(|(path, permission)| (path, permission))
+            .chain(
+                p.dyn_ports
+                    .0
+                    .iter()
+                    .map(|(path, port)| (path, &port.permission)),
+            )
+        {
             b.spend(path.len().saturating_add(permission.sources.len()))?;
             let mut targets = Vec::new();
             for source in &permission.sources {
                 row.public.push(source.base);
                 targets.push(TaskPointerRoot {
-                    reference:reference_cells::input_index(&out.reference_inputs,source,b)?,
+                    reference: reference_cells::input_index(&out.reference_inputs, source, b)?,
                     base: source.base,
-                    dynamic:matches!(source.retained_port,Some(PortOrigin::Dyn{..})),
+                    dynamic: matches!(source.retained_port, Some(PortOrigin::Dyn { .. })),
                     carrier: match &source.retained_port {
-                        Some(PortOrigin::Task { carrier, .. }|PortOrigin::Dyn{carrier,..}) => {
+                        Some(
+                            PortOrigin::Task { carrier, .. } | PortOrigin::Dyn { carrier, .. },
+                        ) => {
                             b.spend(carrier.len().saturating_add(source.leaf.len()))?;
                             source
                                 .leaf
@@ -1035,8 +1255,10 @@ pub(super) fn checked_sources(
                         _ => Vec::new(),
                     },
                     port: match &source.retained_port {
-                        Some(PortOrigin::Task { port, .. }|PortOrigin::Dyn{port,..}) => Some(*port),
-                        None | Some(PortOrigin::Reference{..}) => None,
+                        Some(PortOrigin::Task { port, .. } | PortOrigin::Dyn { port, .. }) => {
+                            Some(*port)
+                        }
+                        None | Some(PortOrigin::Reference { .. }) => None,
                     },
                 });
             }
@@ -1048,18 +1270,35 @@ pub(super) fn checked_sources(
             targets.sort();
             targets.dedup();
             row.retained.push((path.clone(), targets));
-            row.payload_parents.extend(anchors(module, f,ValueId(id as u32),permission,&s.loans,&out.reference_inputs,b)?);
+            row.payload_parents.extend(anchors(
+                module,
+                f,
+                ValueId(id as u32),
+                permission,
+                &s.loans,
+                &out.reference_inputs,
+                b,
+            )?);
         }
-        value_transport::visit_fields(p,b,|permission,b|{
-            permission_work(permission,b)?;
+        value_transport::visit_fields(p, b, |permission, b| {
+            permission_work(permission, b)?;
             // Field views/descriptions retain ancestry; they do not create a
             // new Task retained data port or pointer namespace.
-            row.payload_parents.extend(anchors(module,f,ValueId(id as u32),permission,&s.loans,&out.reference_inputs,b)?);
+            row.payload_parents.extend(anchors(
+                module,
+                f,
+                ValueId(id as u32),
+                permission,
+                &s.loans,
+                &out.reference_inputs,
+                b,
+            )?);
             Ok(())
         })?;
-        for(path,facts)in &p.field_facts{
+        for (path, facts) in &p.field_facts {
             b.spend(path.len().saturating_add(facts.address.sources.len()))?;
-            row.public.extend(facts.address.sources.iter().map(|source|source.base));
+            row.public
+                .extend(facts.address.sources.iter().map(|source| source.base));
         }
         for count in [
             row.pointer.len(),
@@ -1155,88 +1394,331 @@ pub(super) fn wrapper_instruction(
 #[cfg(test)]
 mod captured_port_tests {
     use super::*;
-    fn fixture()->(TypedModule,TypedFunction){
-        let(mut module,_)=crate::tests::baseline();let mut caller=module.functions[0].clone();
-        let leaf=Type::Address{mutable:false,inner:Box::new(Type::I32)};
-        let task=Type::Task{result:Box::new(Type::I32),retained_life:RetainedLifeShape{binder_count:1,
-            ports:vec![RetainedBorrowPort{leaf,mode:StoredBorrowMode::SharedAddress,binder:0}],
-            retained:vec![StorageRetainedBinding{path:vec![LifeTypeProjection::Parameter(0)],class:0,binder:0}],nominal_arguments:vec![],
-        }};
-        let header=StorageLifeContract{fixed_binder_count:1,invocation_binder_count:0,
-            bindings:vec![StorageLifeBinding{position:StoragePosition{base:StorageBase::Capture(0),path:vec![ContractProjection::RetainedPort(0)]},binder:StorageBinder::Fixed(0)}],
-            classes:vec![SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Capture(0),path:vec![LifeTypeProjection::Pointee],class:0},binder:StorageBinder::Fixed(0)}],static_bindings:vec![],
+    fn fixture() -> (TypedModule, TypedFunction) {
+        let (mut module, _) = crate::tests::baseline();
+        let mut caller = module.functions[0].clone();
+        let leaf = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
         };
-        module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![Type::Managed(Box::new(task))],parameters:vec![],result:Type::I32,kind:CallableKind::FnOnce,storage_life:Some(header.clone()),lending_captures:vec![]});
-        module.functions[0].environment=Some(ClosureId(0));module.functions[0].storage_life=Some(header);
-        caller.id=FunctionId(1);caller.environment=None;caller.values=vec![Type::Closure(ClosureId(0)),Type::Closure(ClosureId(0)),Type::Address{mutable:false,inner:Box::new(Type::Closure(ClosureId(0)))}];
-        (module,caller)
+        let task = Type::Task {
+            result: Box::new(Type::I32),
+            retained_life: RetainedLifeShape {
+                binder_count: 1,
+                ports: vec![RetainedBorrowPort {
+                    leaf,
+                    mode: StoredBorrowMode::SharedAddress,
+                    binder: 0,
+                }],
+                retained: vec![StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::Parameter(0)],
+                    class: 0,
+                    binder: 0,
+                }],
+                nominal_arguments: vec![],
+            },
+        };
+        let header = StorageLifeContract {
+            fixed_binder_count: 1,
+            invocation_binder_count: 0,
+            bindings: vec![StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Capture(0),
+                    path: vec![ContractProjection::RetainedPort(0)],
+                },
+                binder: StorageBinder::Fixed(0),
+            }],
+            classes: vec![SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base: StorageBase::Capture(0),
+                    path: vec![LifeTypeProjection::Pointee],
+                    class: 0,
+                },
+                binder: StorageBinder::Fixed(0),
+            }],
+            static_bindings: vec![],
+        };
+        module.closures.push(ClosureDefinition {
+            id: ClosureId(0),
+            function: FunctionId(0),
+            captures: vec![Type::Managed(Box::new(task))],
+            parameters: vec![],
+            result: Type::I32,
+            kind: CallableKind::FnOnce,
+            storage_life: Some(header.clone()),
+            lending_captures: vec![],
+        });
+        module.functions[0].environment = Some(ClosureId(0));
+        module.functions[0].storage_life = Some(header);
+        caller.id = FunctionId(1);
+        caller.environment = None;
+        caller.values = vec![
+            Type::Closure(ClosureId(0)),
+            Type::Closure(ClosureId(0)),
+            Type::Address {
+                mutable: false,
+                inner: Box::new(Type::Closure(ClosureId(0))),
+            },
+        ];
+        (module, caller)
     }
-    fn source(local:u32)->Source{Source{base:HoldRoot::Local(LocalId(local)),retained_port:None,leaf:vec![],inline:vec![],heap_parents:vec![],heap_element:None,static_dependency:StaticProvenance::NotStatic}}
-    fn payload(local:u32,loans:Vec<usize>)->Payload{
-        let mut value=Payload::default();value.task_ports.push((vec![ContractProjection::Capture(0),ContractProjection::RetainedPort(0)],Permission{sources:vec![source(local)],loans}));value
+    fn source(local: u32) -> Source {
+        Source {
+            base: HoldRoot::Local(LocalId(local)),
+            retained_port: None,
+            leaf: vec![],
+            inline: vec![],
+            heap_parents: vec![],
+            heap_element: None,
+            static_dependency: StaticProvenance::NotStatic,
+        }
+    }
+    fn payload(local: u32, loans: Vec<usize>) -> Payload {
+        let mut value = Payload::default();
+        value.task_ports.push((
+            vec![
+                ContractProjection::Capture(0),
+                ContractProjection::RetainedPort(0),
+            ],
+            Permission {
+                sources: vec![source(local)],
+                loans,
+            },
+        ));
+        value
     }
     #[test]
-    fn captured_task_kind_selects_its_own_ledger_and_complete_actual_entry(){
-        let(module,_)=fixture();let mut b=Budget::new(&Limits::default());b.task_retained_environments=true;
-        let position=StoragePosition{base:StorageBase::Capture(0),path:vec![ContractProjection::RetainedPort(0)]};
-        let leaf=Type::Address{mutable:false,inner:Box::new(Type::I32)};
-        assert!(environment_task_leaf(&module,ClosureId(0),&position,&leaf,&mut b).unwrap());
-        assert!(returned_environment::leaves(&module,ClosureId(0),&mut b).unwrap().is_empty(),"logical Task data is never a physical capture-slot GEP");
-        assert!(b.pending_dyn_captures.is_empty(),"Task obligations cannot register an erased Dyn endpoint");
-        assert!(environment_task_leaf(&module,ClosureId(0),&position,&Type::Bool,&mut b).is_err());
-        let mut wrong=position.clone();wrong.path[0]=ContractProjection::RetainedPort(1);
-        assert!(environment_task_leaf(&module,ClosureId(0),&wrong,&leaf,&mut b).is_err());
-        let mut cold=Budget::new(&Limits::default());
-        assert!(environment_task_leaf(&module,ClosureId(0),&position,&leaf,&mut cold).is_err());
-        let mut other=module.clone();other.closures[0].captures[0]=Type::OwnedDyn{interface:DynInterfaceId{module:zil_base::ModuleId(0),index:99}};
-        assert!(!environment_task_leaf(&other,ClosureId(0),&position,&leaf,&mut cold).unwrap(),"actual endpoint kind is selected before any Task feature state");
+    fn captured_task_kind_selects_its_own_ledger_and_complete_actual_entry() {
+        let (module, _) = fixture();
+        let mut b = Budget::new(&Limits::default());
+        b.task_retained_environments = true;
+        let position = StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![ContractProjection::RetainedPort(0)],
+        };
+        let leaf = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        assert!(environment_task_leaf(&module, ClosureId(0), &position, &leaf, &mut b).unwrap());
+        assert!(
+            returned_environment::leaves(&module, ClosureId(0), &mut b)
+                .unwrap()
+                .is_empty(),
+            "logical Task data is never a physical capture-slot GEP"
+        );
+        assert!(
+            b.pending_dyn_captures.is_empty(),
+            "Task obligations cannot register an erased Dyn endpoint"
+        );
+        assert!(
+            environment_task_leaf(&module, ClosureId(0), &position, &Type::Bool, &mut b).is_err()
+        );
+        let mut wrong = position.clone();
+        wrong.path[0] = ContractProjection::RetainedPort(1);
+        assert!(environment_task_leaf(&module, ClosureId(0), &wrong, &leaf, &mut b).is_err());
+        let mut cold = Budget::new(&Limits::default());
+        assert!(environment_task_leaf(&module, ClosureId(0), &position, &leaf, &mut cold).is_err());
+        let mut other = module.clone();
+        other.closures[0].captures[0] = Type::OwnedDyn {
+            interface: DynInterfaceId {
+                module: zil_base::ModuleId(0),
+                index: 99,
+            },
+        };
+        assert!(
+            !environment_task_leaf(&other, ClosureId(0), &position, &leaf, &mut cold).unwrap(),
+            "actual endpoint kind is selected before any Task feature state"
+        );
     }
     #[test]
-    fn captured_parent_anchors_require_the_exact_actual_port_and_keep_all_parents(){
-        let(module,_)=fixture();let mut f=module.functions[0].clone();f.values=vec![Type::I32;3];
-        let mut b=Budget::new(&Limits::default());b.task_retained_environments=true;
+    fn captured_parent_anchors_require_the_exact_actual_port_and_keep_all_parents() {
+        let (module, _) = fixture();
+        let mut f = module.functions[0].clone();
+        f.values = vec![Type::I32; 3];
+        let mut b = Budget::new(&Limits::default());
+        b.task_retained_environments = true;
         // These are genuine external leaves seeded from this entry's actual
         // capture Type, not a candidate source list or a Scope upper.
-        let mut loans=vec![Loan::default();f.values.len()];let mut captured=Payload::default();
-        seed(&module,&module.closures[0].captures[0],HoldRoot::Capture(0),&mut captured,&mut loans,&mut b).unwrap();
-        let permission=captured.task_ports[0].1.clone();let external=permission.loans[0];
-        let expected=TaskLoanAnchor::Input(StoragePosition{base:StorageBase::Capture(0),path:vec![ContractProjection::RetainedPort(0)]});
-        assert_eq!(anchors(&module,&f,ValueId(0),&permission,&loans,&[],&mut b).unwrap(),vec![expected.clone()]);
-        let indirect=loans.len();loans.push(Loan{parents:vec![external,1],..Loan::default()});
-        let both=Permission{sources:vec![],loans:vec![indirect]};
-        assert_eq!(anchors(&module,&f,ValueId(0),&both,&loans,&[],&mut b).unwrap(),vec![TaskLoanAnchor::Value(ValueId(1)),expected]);
-        let mut wrong=loans.clone();wrong[external].sources[0].base=HoldRoot::Capture(1);
-        assert!(anchors(&module,&f,ValueId(0),&permission,&wrong,&[],&mut b).is_err());
-        wrong=loans.clone();wrong[external].sources[0].retained_port=Some(PortOrigin::Task{carrier:vec![],port:1});
-        assert!(anchors(&module,&f,ValueId(0),&permission,&wrong,&[],&mut b).is_err());
-        wrong=loans.clone();wrong[external].exclusive=true;
-        assert!(anchors(&module,&f,ValueId(0),&permission,&wrong,&[],&mut b).is_err());
-        wrong=loans.clone();wrong[external].sources[0].base=HoldRoot::Local(LocalId(0));
-        assert!(anchors(&module,&f,ValueId(0),&permission,&wrong,&[],&mut b).is_err());
-        let mut foreign=f.clone();foreign.id=FunctionId(9);
-        assert!(anchors(&module,&foreign,ValueId(0),&permission,&loans,&[],&mut b).is_err());
-        let mut no_row=module.clone();no_row.functions[0].values=f.values.clone();no_row.functions[0].storage_life.as_mut().unwrap().bindings.clear();
-        no_row.closures[0].storage_life=no_row.functions[0].storage_life.clone();
-        assert!(anchors(&no_row,&no_row.functions[0],ValueId(0),&permission,&loans,&[],&mut b).is_err());
+        let mut loans = vec![Loan::default(); f.values.len()];
+        let mut captured = Payload::default();
+        seed(
+            &module,
+            &module.closures[0].captures[0],
+            HoldRoot::Capture(0),
+            &mut captured,
+            &mut loans,
+            &mut b,
+        )
+        .unwrap();
+        let permission = captured.task_ports[0].1.clone();
+        let external = permission.loans[0];
+        let expected = TaskLoanAnchor::Input(StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![ContractProjection::RetainedPort(0)],
+        });
+        assert_eq!(
+            anchors(&module, &f, ValueId(0), &permission, &loans, &[], &mut b).unwrap(),
+            vec![expected.clone()]
+        );
+        let indirect = loans.len();
+        loans.push(Loan {
+            parents: vec![external, 1],
+            ..Loan::default()
+        });
+        let both = Permission {
+            sources: vec![],
+            loans: vec![indirect],
+        };
+        assert_eq!(
+            anchors(&module, &f, ValueId(0), &both, &loans, &[], &mut b).unwrap(),
+            vec![TaskLoanAnchor::Value(ValueId(1)), expected]
+        );
+        let mut wrong = loans.clone();
+        wrong[external].sources[0].base = HoldRoot::Capture(1);
+        assert!(anchors(&module, &f, ValueId(0), &permission, &wrong, &[], &mut b).is_err());
+        wrong = loans.clone();
+        wrong[external].sources[0].retained_port = Some(PortOrigin::Task {
+            carrier: vec![],
+            port: 1,
+        });
+        assert!(anchors(&module, &f, ValueId(0), &permission, &wrong, &[], &mut b).is_err());
+        wrong = loans.clone();
+        wrong[external].exclusive = true;
+        assert!(anchors(&module, &f, ValueId(0), &permission, &wrong, &[], &mut b).is_err());
+        wrong = loans.clone();
+        wrong[external].sources[0].base = HoldRoot::Local(LocalId(0));
+        assert!(anchors(&module, &f, ValueId(0), &permission, &wrong, &[], &mut b).is_err());
+        let mut foreign = f.clone();
+        foreign.id = FunctionId(9);
+        assert!(
+            anchors(
+                &module,
+                &foreign,
+                ValueId(0),
+                &permission,
+                &loans,
+                &[],
+                &mut b
+            )
+            .is_err()
+        );
+        let mut no_row = module.clone();
+        no_row.functions[0].values = f.values.clone();
+        no_row.functions[0]
+            .storage_life
+            .as_mut()
+            .unwrap()
+            .bindings
+            .clear();
+        no_row.closures[0].storage_life = no_row.functions[0].storage_life.clone();
+        assert!(
+            anchors(
+                &no_row,
+                &no_row.functions[0],
+                ValueId(0),
+                &permission,
+                &loans,
+                &[],
+                &mut b
+            )
+            .is_err()
+        );
     }
     #[test]
-    fn captured_port_substitution_keeps_exact_receiver_and_all_current_parent_loans(){
-        let(module,f)=fixture();let mut b=Budget::new(&Limits::default());b.task_retained_environments=true;
-        let mut source=source(0);source.base=HoldRoot::Capture(0);source.retained_port=Some(PortOrigin::Task{carrier:vec![],port:0});
-        let mut state=Frame::default();state.locals=vec![Payload::default();3];state.locals[2]=payload(1,vec![4,8]);
-        let mut borrowed=payload(0,vec![3,7]);borrowed.address=Permission{sources:vec![self::source(2)],loans:vec![99]};
-        let values=vec![payload(0,vec![3,7]),payload(1,vec![4,8]),borrowed];
-        let span=f.span;let call=Instruction{result:None,kind:InstructionKind::CallClosureOnce{callee:ValueId(1),arguments:vec![]},span};
-        let actual=substitute_capture(&module,&f,&call,&source,&module.closures[0],&values,&state,&mut b).unwrap().unwrap();
-        assert_eq!(actual.sources,vec![self::source(1)]);assert_eq!(actual.loans,vec![4,8]);
+    fn captured_port_substitution_keeps_exact_receiver_and_all_current_parent_loans() {
+        let (module, f) = fixture();
+        let mut b = Budget::new(&Limits::default());
+        b.task_retained_environments = true;
+        let mut source = source(0);
+        source.base = HoldRoot::Capture(0);
+        source.retained_port = Some(PortOrigin::Task {
+            carrier: vec![],
+            port: 0,
+        });
+        let mut state = Frame::default();
+        state.locals = vec![Payload::default(); 3];
+        state.locals[2] = payload(1, vec![4, 8]);
+        let mut borrowed = payload(0, vec![3, 7]);
+        borrowed.address = Permission {
+            sources: vec![self::source(2)],
+            loans: vec![99],
+        };
+        let values = vec![payload(0, vec![3, 7]), payload(1, vec![4, 8]), borrowed];
+        let span = f.span;
+        let call = Instruction {
+            result: None,
+            kind: InstructionKind::CallClosureOnce {
+                callee: ValueId(1),
+                arguments: vec![],
+            },
+            span,
+        };
+        let actual = substitute_capture(
+            &module,
+            &f,
+            &call,
+            &source,
+            &module.closures[0],
+            &values,
+            &state,
+            &mut b,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(actual.sources, vec![self::source(1)]);
+        assert_eq!(actual.loans, vec![4, 8]);
         // This isolates the current-holder selection; ordinary callable kind,
         // source, receiver-head and cleanup proofs remain separate obligations.
-        let actual=select_actual(&module,&f,ValueId(2),&values[2],&state,&[ContractProjection::Capture(0)],0,&mut b).unwrap();
-        assert_eq!(actual.sources,vec![self::source(1)]);assert_eq!(actual.loans,vec![4,8]);
-        let mut wrong=source.clone();wrong.retained_port=Some(PortOrigin::Task{carrier:vec![ContractProjection::Place(PlaceProjection::Field(0))],port:0});
-        assert!(substitute_capture(&module,&f,&call,&wrong,&module.closures[0],&values,&state,&mut b).is_err());
-        wrong.retained_port=Some(PortOrigin::Dyn{carrier:vec![],port:0});
-        assert!(dyn_captures::substitute(&module,&f,&call,&wrong,&module.closures[0],&[],&values,&state,&mut b).is_err());
+        let actual = select_actual(
+            &module,
+            &f,
+            ValueId(2),
+            &values[2],
+            &state,
+            &[ContractProjection::Capture(0)],
+            0,
+            &mut b,
+        )
+        .unwrap();
+        assert_eq!(actual.sources, vec![self::source(1)]);
+        assert_eq!(actual.loans, vec![4, 8]);
+        let mut wrong = source.clone();
+        wrong.retained_port = Some(PortOrigin::Task {
+            carrier: vec![ContractProjection::Place(PlaceProjection::Field(0))],
+            port: 0,
+        });
+        assert!(
+            substitute_capture(
+                &module,
+                &f,
+                &call,
+                &wrong,
+                &module.closures[0],
+                &values,
+                &state,
+                &mut b
+            )
+            .is_err()
+        );
+        wrong.retained_port = Some(PortOrigin::Dyn {
+            carrier: vec![],
+            port: 0,
+        });
+        assert!(
+            dyn_captures::substitute(
+                &module,
+                &f,
+                &call,
+                &wrong,
+                &module.closures[0],
+                &[],
+                &values,
+                &state,
+                &mut b
+            )
+            .is_err()
+        );
     }
     #[test]
     fn selecting_a_nested_task_does_not_exchange_equal_port_ordinals() {

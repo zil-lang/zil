@@ -198,7 +198,7 @@ fn publish(
     state: &mut Frame,
     destination: &Permission,
     rhs: &Payload,
-    rhs_type:&Type,
+    rhs_type: &Type,
     b: &mut Budget,
 ) -> Check<()> {
     let strong = destination.sources.len() == 1;
@@ -211,8 +211,11 @@ fn publish(
             if !rhs.leaves.is_empty()
                 || !rhs.address.sources.is_empty()
                 || !rhs.task_ports.is_empty()
-                || !rhs.field_facts.is_empty() || !rhs.dyn_ports.0.is_empty() || !rhs.dyn_views.is_empty()
-                || !rhs.store_description.sources.is_empty() || !rhs.store_description.loans.is_empty()
+                || !rhs.field_facts.is_empty()
+                || !rhs.dyn_ports.0.is_empty()
+                || !rhs.dyn_views.is_empty()
+                || !rhs.store_description.sources.is_empty()
+                || !rhs.store_description.loans.is_empty()
             {
                 return Err(unsupported(
                     "replacement of borrowed content through a heap/retained target needs its actual slot protocol",
@@ -223,13 +226,8 @@ fn publish(
             // complete responsibility and retirement still run in resources/Sums.
             continue;
         }
-        let holder = match source.base {
-            HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
-            HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
-            HoldRoot::Capture(index) => state.captures.get_mut(index as usize),
-            HoldRoot::Static => None,
-        }
-        .ok_or_else(|| err("replacement destination has no actual mutable holder"))?;
+        let holder = memory_holder_mut(state, source.base, b)?
+            .ok_or_else(|| err("replacement destination has no actual mutable holder"))?;
         if source.inline.is_empty() {
             if strong {
                 *holder = copy_payload(rhs, b)?;
@@ -238,8 +236,11 @@ fn publish(
             }
             continue;
         }
-        if strong{value_transport::replace(holder,&source.inline,rhs_type,rhs,b)?;}
-        else{value_transport::attach_weak(holder,&source.inline,rhs_type,rhs,b)?;}
+        if strong {
+            value_transport::replace(holder, &source.inline, rhs_type, rhs, b)?;
+        } else {
+            value_transport::attach_weak(holder, &source.inline, rhs_type, rhs, b)?;
+        }
     }
     if strong {
         for old in &state.vacant {
@@ -299,7 +300,7 @@ pub(super) fn step(
             } else {
                 permission(f, reservation, values, b)?
             }; // bottom during reverse batches only
-            publish(state, &target, &rhs, vt(f,value)?, b)?;
+            publish(state, &target, &rhs, vt(f, value)?, b)?;
             b.spend(state.prepared.len())?;
             state.prepared.retain(|p| p.id != reservation);
         }
@@ -343,10 +344,17 @@ pub(super) fn check(
         b.spend(active.len())?;
         let mut all = active.to_vec();
         let rhs = &values[value.0 as usize];
-        value_transport::visit_fields(rhs,b,|permission,b|{add_loans(&mut all,&permission.loans,b)?;Ok(())})?;
-        add_loans(&mut all,&rhs.store_description.loans,b)?;
-        for(_,port)in &rhs.dyn_ports.0{add_loans(&mut all,&port.permission.loans,b)?;}
-        for view in &rhs.dyn_views{add_loans(&mut all,&view.head.loans,b)?;}
+        value_transport::visit_fields(rhs, b, |permission, b| {
+            add_loans(&mut all, &permission.loans, b)?;
+            Ok(())
+        })?;
+        add_loans(&mut all, &rhs.store_description.loans, b)?;
+        for (_, port) in &rhs.dyn_ports.0 {
+            add_loans(&mut all, &port.permission.loans, b)?;
+        }
+        for view in &rhs.dyn_views {
+            add_loans(&mut all, &view.head.loans, b)?;
+        }
         add_loans(&mut all, &rhs.address.loans, b)?;
         for (_, p) in &rhs.leaves {
             add_loans(&mut all, &p.loans, b)?;

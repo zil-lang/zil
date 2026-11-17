@@ -218,10 +218,12 @@ pub(super) fn summarize(
             continue;
         };
         b.spend(shape.slots.len())?;
-        let payload = state
-            .captures
-            .get(index)
-            .ok_or_else(|| err("retained owning capture has no actual output state"))?;
+        let payload = if matches!(ty, Type::Address { .. }) {
+            memory_holder(state, HoldRoot::Capture(index as u32), b)?
+        } else {
+            state.captures.get(index)
+        }
+        .ok_or_else(|| err("retained owning capture has no actual output state"))?;
         for slot in &shape.slots {
             let Some(permission) = leaf(payload, &slot.path, b)? else {
                 summary.complete = false;
@@ -322,10 +324,15 @@ pub(super) fn substitute(
     state: &Frame,
     b: &mut Budget,
 ) -> Check<Permission> {
-    if matches!(source.retained_port,Some(PortOrigin::Reference{..})){
-        source_work(std::slice::from_ref(source),b)?;let mut head=source.clone();head.retained_port=None;head.inline.clear();
-        let actual=substitute(module,f,&head,captures,receiver,arguments,values,state,b)?;
-        return reference_cells::follow(source,actual,state,b);
+    if matches!(source.retained_port, Some(PortOrigin::Reference { .. })) {
+        source_work(std::slice::from_ref(source), b)?;
+        let mut head = source.clone();
+        head.retained_port = None;
+        head.inline.clear();
+        let actual = substitute(
+            module, f, &head, captures, receiver, arguments, values, state, b,
+        )?;
+        return reference_cells::follow(source, actual, state, b);
     }
     let HoldRoot::Capture(index) = source.base else {
         return instantiate(module, f, source, arguments, values, state, b);
@@ -393,11 +400,18 @@ pub(super) fn prepare_after(
     let summary = &summaries[definition.function.0 as usize];
     if summary.capture_after.is_empty() {
         b.spend(definition.captures.len())?;
-        return Ok(after_state::Prepared{rows:vec![],pending:!summary.complete&&definition.captures.iter().any(|ty|shape(ty).is_some_and(|shape|!shape.slots.is_empty()))});
+        return Ok(after_state::Prepared {
+            rows: vec![],
+            pending: !summary.complete
+                && definition
+                    .captures
+                    .iter()
+                    .any(|ty| shape(ty).is_some_and(|shape| !shape.slots.is_empty())),
+        });
     }
     let receiver = receiver(f, i, values, b)?;
     let mut updates = Vec::new();
-    let mut pending=false;
+    let mut pending = false;
     // Derive every replacement from one pre-call state (a swap must not read
     // its own preceding write). Old SSA pointers keep their original payload.
     for (index, tail, sources) in &summary.capture_after {
@@ -405,24 +419,26 @@ pub(super) fn prepare_after(
         let mut path = vec![PlaceProjection::Field(*index)];
         path.extend(tail);
         let mut permission = Permission::default();
+        let mut known = summary.complete;
         for source in sources {
-            join_permission(
-                &mut permission,
-                &substitute(
-                    module,
-                    f,
-                    source,
-                    &definition.captures,
-                    &receiver,
-                    arguments,
-                    values,
-                    state,
-                    b,
-                )?,
+            let actual = substitute(
+                module,
+                f,
+                source,
+                &definition.captures,
+                &receiver,
+                arguments,
+                values,
+                state,
                 b,
             )?;
+            known &= !actual.sources.is_empty();
+            join_permission(&mut permission, &actual, b)?;
         }
-        if !summary.complete||permission.sources.is_empty(){pending=true;continue;}
+        if !known || permission.sources.is_empty() {
+            pending = true;
+            continue;
+        }
         let retained = retain_written_slot(&permission, i, u32::MAX, &path, sites, loans, b)?;
         // Update both the retained environment row and the actual original
         // holder referenced by an exclusive capture, from one pre-call state.
@@ -432,13 +448,8 @@ pub(super) fn prepare_after(
         ) {
             let head = select(state, &receiver, &[PlaceProjection::Field(*index)], b)?;
             for root in &head.sources {
-                let holder = match root.base {
-                    HoldRoot::Local(local) => state.locals.get(local.0 as usize),
-                    HoldRoot::Parameter(index) => state.external.get(index as usize),
-                    HoldRoot::Capture(index) => state.captures.get(index as usize),
-                    HoldRoot::Static => None,
-                }
-                .ok_or_else(|| err("borrowed capture has no actual target memory"))?;
+                let holder = memory_holder(state, root.base, b)?
+                    .ok_or_else(|| err("borrowed capture has no actual target memory"))?;
                 let complete = symbolic_slot_path(holder, root, tail, b)?.ok_or_else(|| {
                     err("borrowed capture update lacks a complete actual target directory")
                 })?;
@@ -473,7 +484,10 @@ pub(super) fn prepare_after(
             ));
         }
     }
-    Ok(after_state::Prepared{rows:updates,pending})
+    Ok(after_state::Prepared {
+        rows: updates,
+        pending,
+    })
 }
 
 /// A physical pointee slot of a captured exclusive address. These private
@@ -544,10 +558,23 @@ pub(super) fn substitute_value(
     state: &Frame,
     b: &mut Budget,
 ) -> Check<Permission> {
-    if matches!(source.retained_port,Some(PortOrigin::Reference{..})){
-        source_work(std::slice::from_ref(source),b)?;let mut head=source.clone();head.retained_port=None;head.inline.clear();
-        let actual=substitute_value(module,f,&head,captures,environment,arguments,values,state,b)?;
-        return reference_cells::follow(source,actual,state,b);
+    if matches!(source.retained_port, Some(PortOrigin::Reference { .. })) {
+        source_work(std::slice::from_ref(source), b)?;
+        let mut head = source.clone();
+        head.retained_port = None;
+        head.inline.clear();
+        let actual = substitute_value(
+            module,
+            f,
+            &head,
+            captures,
+            environment,
+            arguments,
+            values,
+            state,
+            b,
+        )?;
+        return reference_cells::follow(source, actual, state, b);
     }
     let HoldRoot::Capture(index) = source.base else {
         return instantiate(module, f, source, arguments, values, state, b);
@@ -601,7 +628,11 @@ fn prepare_consumed(
     let summary = &summaries[definition.function.0 as usize];
     let mut updates = Vec::new();
     b.spend(definition.captures.len())?;
-    let mut pending=!summary.complete&&definition.captures.iter().any(|ty|matches!(ty,Type::Address{mutable:true,..})&&shape(ty).is_some_and(|shape|!shape.slots.is_empty()));
+    let mut pending = !summary.complete
+        && definition.captures.iter().any(|ty| {
+            matches!(ty, Type::Address { mutable: true, .. })
+                && shape(ty).is_some_and(|shape| !shape.slots.is_empty())
+        });
     for (capture, path, sources) in &summary.capture_after {
         if !matches!(
             definition.captures.get(*capture as usize),
@@ -610,24 +641,23 @@ fn prepare_consumed(
             continue;
         }
         let mut permission = Permission::default();
+        let mut known = summary.complete;
         for source in sources {
-            join_permission(
-                &mut permission,
-                &substitute_value(
-                    module,
-                    f,
-                    source,
-                    &definition.captures,
-                    environment,
-                    arguments,
-                    values,
-                    state,
-                    b,
-                )?,
+            let actual = substitute_value(
+                module,
+                f,
+                source,
+                &definition.captures,
+                environment,
+                arguments,
+                values,
+                state,
                 b,
             )?;
+            known &= !actual.sources.is_empty();
+            join_permission(&mut permission, &actual, b)?;
         }
-        if !summary.complete||permission.sources.is_empty() {
+        if !known || permission.sources.is_empty() {
             pending = true;
             continue;
         }
@@ -637,13 +667,8 @@ fn prepare_consumed(
         let head = leaf(environment, &[PlaceProjection::Field(*capture)], b)?
             .ok_or_else(|| err("consumed capture lacks its actual original pointee head"))?;
         for root in &head.sources {
-            let holder = match root.base {
-                HoldRoot::Local(local) => state.locals.get(local.0 as usize),
-                HoldRoot::Parameter(index) => state.external.get(index as usize),
-                HoldRoot::Capture(index) => state.captures.get(index as usize),
-                HoldRoot::Static => None,
-            }
-            .ok_or_else(|| err("consumed capture's actual pointee memory is absent"))?;
+            let holder = memory_holder(state, root.base, b)?
+                .ok_or_else(|| err("consumed capture's actual pointee memory is absent"))?;
             let complete = symbolic_slot_path(holder, root, path, b)?
                 .ok_or_else(|| err("consumed capture's pointee directory is incomplete"))?;
             permission_work(&retained, b)?;
@@ -655,7 +680,10 @@ fn prepare_consumed(
             ));
         }
     }
-    Ok(after_state::Prepared{rows:updates,pending})
+    Ok(after_state::Prepared {
+        rows: updates,
+        pending,
+    })
 }
 
 /// An internal owner is not an empty external pointer permission. Keep this
@@ -673,19 +701,56 @@ pub(super) enum Access {
 /// Borrowed captures, retained ports and all result-source substitutions keep
 /// their complete original pointer/parent mapping.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn substitute_access(module:&TypedModule,f:&TypedFunction,i:&Instruction,source:&Source,definition:&ClosureDefinition,arguments:&[ValueId],values:&[Payload],state:&Frame,b:&mut Budget)->Check<Access>{
-    if let(Some(value),HoldRoot::Capture(index))=(consuming_value(&i.kind),source.base){
-        source_work(std::slice::from_ref(source),b)?;
-        let(actual,_)=stored_callables::called(module,f,&i.kind).ok_or_else(||err("capture access lacks its exact actual invocation"))?;
-        if actual.id!=definition.id||actual.function!=definition.function||vt(f,value)?!=&Type::Closure(definition.id){return Err(err("capture access changes its actual owning environment"));}
-        let ty=definition.captures.get(index as usize).ok_or_else(||err("capture access selects an absent actual field"))?;
-        let scalar_field=match ty{Type::Managed(inner)if super::super::stored_owned::owner(ty)=>match inner.as_ref(){Type::Record{fields,..}=>source.inline.is_empty()||matches!(source.inline.as_slice(),[PlaceProjection::Field(index)]if fields.get(*index as usize).is_some()),_=>false},_=>false};
-        if scalar_field&&source.leaf.is_empty()&&source.retained_port.is_none()&&source.heap_element.is_none()&&source.heap_parents.is_empty()&&source.static_dependency==StaticProvenance::NotStatic{
+pub(super) fn substitute_access(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    source: &Source,
+    definition: &ClosureDefinition,
+    arguments: &[ValueId],
+    values: &[Payload],
+    state: &Frame,
+    b: &mut Budget,
+) -> Check<Access> {
+    if let (Some(value), HoldRoot::Capture(index)) = (consuming_value(&i.kind), source.base) {
+        source_work(std::slice::from_ref(source), b)?;
+        let (actual, _) = stored_callables::called(module, f, &i.kind)
+            .ok_or_else(|| err("capture access lacks its exact actual invocation"))?;
+        if actual.id != definition.id
+            || actual.function != definition.function
+            || vt(f, value)? != &Type::Closure(definition.id)
+        {
+            return Err(err("capture access changes its actual owning environment"));
+        }
+        let ty = definition
+            .captures
+            .get(index as usize)
+            .ok_or_else(|| err("capture access selects an absent actual field"))?;
+        let scalar_field = match ty {
+            Type::Managed(inner) if super::super::stored_owned::owner(ty) => match inner.as_ref() {
+                Type::Record { fields, .. } => {
+                    source.inline.is_empty()
+                        || matches!(source.inline.as_slice(),[PlaceProjection::Field(index)]if fields.get(*index as usize).is_some())
+                }
+                _ => false,
+            },
+            _ => false,
+        };
+        if scalar_field
+            && source.leaf.is_empty()
+            && source.retained_port.is_none()
+            && source.heap_element.is_none()
+            && source.heap_parents.is_empty()
+            && source.static_dependency == StaticProvenance::NotStatic
+        {
             // No pointer, target or loan is manufactured. There is no outside
             // memory requirement for a uniquely transferred private scalar
             // owner; its body accesses are still checked at the entry itself.
             return Ok(Access::OwnedEnvironment);
         }
     }
-    dyn_captures::substitute(module,f,i,source,definition,arguments,values,state,b).map(Access::External)
+    dyn_captures::substitute(
+        module, f, i, source, definition, arguments, values, state, b,
+    )
+    .map(Access::External)
 }

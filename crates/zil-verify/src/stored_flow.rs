@@ -1,27 +1,28 @@
 //! Independent stored-target reconstruction. Sorted vectors and batch CFG
 //! solving deliberately do not consume analyzer roots, summaries, or claims.
 use super::*;
-mod callable_cells;
 mod access_candidates;
+mod after_state;
 mod array_index;
 mod array_snapshot;
 #[cfg(test)]
 mod borrowed_owned_entry_tests;
 mod byte_queries;
+mod call_results;
+mod callable_cells;
 #[path = "stored_flow/captured_owner.rs"]
 mod captured_owner;
 mod compound;
-mod call_results;
-mod after_state;
-mod value_transport;
+mod descriptor_access;
 mod dyn_captures;
 mod dyn_closed;
+mod dyn_contracts;
 mod dyn_leases;
 mod dyn_ports;
 mod dyn_providers;
-mod dyn_contracts;
 mod dyn_returns;
 mod foreign_calls;
+mod value_transport;
 
 pub(crate) fn logical_dyn_capture_leaf(
     module: &TypedModule,
@@ -53,7 +54,9 @@ pub(crate) fn context_capture_type(module: &TypedModule, ty: &Type, b: &mut Budg
 }
 mod leaf_rows;
 mod reference_cells;
-pub(crate) fn reference_domain(module:Option<&TypedModule>,ty:&Type)->Option<u32>{reference_cells::domain(module,ty)}
+pub(crate) fn reference_domain(module: Option<&TypedModule>, ty: &Type) -> Option<u32> {
+    reference_cells::domain(module, ty)
+}
 mod live_words;
 pub(super) mod owned_byte_views;
 mod qualified_heads;
@@ -93,7 +96,7 @@ pub(super) fn ordinary_error_borrow(
     i: &Instruction,
     b: &mut Budget,
 ) -> Check<bool> {
-    pure_copy::ordinary_error_borrow(module,f, i, b)
+    pure_copy::ordinary_error_borrow(module, f, i, b)
 }
 
 pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<bool> {
@@ -128,11 +131,15 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
         .collect();
     while let Some(ty) = pending.pop() {
         b.spend(1)?;
-        if reference_cells::nested(ty){return Ok(true);}
+        if reference_cells::nested(ty) {
+            return Ok(true);
+        }
         if shared_array_value(ty) {
             return Ok(true);
         }
-        if compound::slots(ty,b)?.is_some(){return Ok(true);}
+        if compound::slots(ty, b)?.is_some() {
+            return Ok(true);
+        }
         match ty {
             // Their actual capture/retained declarations can carry targets
             // outside this type spelling. Keep their functions in the proof.
@@ -211,8 +218,17 @@ pub(super) fn compound_operation(
 ) -> Check<bool> {
     compound::operation(f, i, b)
 }
-pub(super) fn shared_tuple_value(module:&TypedModule,ty:&Type,span:Option<Span>,b:&mut Budget)->Check<bool>{compound::shared_value(module,ty,span,b)}
-pub(super) fn compound_targets(ty:&Type,b:&mut Budget)->Check<bool>{Ok(compound::slots(ty,b)?.is_some())}
+pub(super) fn shared_tuple_value(
+    module: &TypedModule,
+    ty: &Type,
+    span: Option<Span>,
+    b: &mut Budget,
+) -> Check<bool> {
+    compound::shared_value(module, ty, span, b)
+}
+pub(super) fn compound_targets(ty: &Type, b: &mut Budget) -> Check<bool> {
+    Ok(compound::slots(ty, b)?.is_some())
+}
 
 pub(super) fn failure_shape(ty: &Type, b: &mut Budget) -> Check<bool> {
     if !b.task_failure_carriers {
@@ -515,7 +531,9 @@ pub(super) enum PortOrigin {
     // An ordered sequence of real pointer-cell reads. Each path selects the
     // physical cell before the next dereference. This is never a public
     // RetainedPort/Class selector, an owning edge or a synthesized GEP.
-    Reference { steps: Vec<Path> },
+    Reference {
+        steps: Vec<Path>,
+    },
     Task {
         carrier: Vec<zil_ir::ContractProjection>,
         port: u32,
@@ -599,7 +617,7 @@ struct Payload {
     leaves: leaf_rows::Rows,
     // Root-only facts of actual embedded occupants, keyed by physical place.
     // Logical class paths and Frame epochs are deliberately absent here.
-    field_facts: Vec<(Path,value_transport::FieldFacts)>,
+    field_facts: Vec<(Path, value_transport::FieldFacts)>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Frame {
@@ -608,6 +626,8 @@ struct Frame {
     locals: Vec<Payload>,
     external: Vec<Payload>,
     captures: Vec<Payload>,
+    // Actual input pointee memory, distinct from the pointer value itself.
+    pointees: Vec<(HoldRoot, Payload)>,
     /// Union of paths left vacant by any incoming branch.
     vacant: Vec<Source>,
     prepared: Vec<replacements::Prepared>,
@@ -627,6 +647,7 @@ struct Summary {
     dyn_operations: bool,
     byte_reads: Vec<Source>,
     head_accesses: Vec<(Source, bool)>,
+    description_accesses: Vec<descriptor_access::DescriptionAccess>,
     byte_covered: bool,
     dyn_accesses: Vec<(Source, bool)>,
     dyn_effects: Vec<DynEffect>,
@@ -639,8 +660,8 @@ struct Summary {
     result: Vec<(Path, Vec<Source>)>,
     // Actual non-root physical result ancestors, kept separate from data.
     physical_result_parents: Vec<(Path, Vec<Source>)>,
-    field_result_facts: Vec<(Path,value_transport::ResultFacts)>,
-    value_after:value_transport::After,
+    field_result_facts: Vec<(Path, value_transport::ResultFacts)>,
+    value_after: value_transport::After,
     receiver_results: Vec<Path>,
     dyn_result_parents: Vec<Source>,
     task_ports: Vec<(Vec<ContractProjection>, Vec<Source>)>,
@@ -699,7 +720,7 @@ pub(super) struct TaskFunctionSources {
     pub(super) covered: bool,
     pub(super) values: Vec<TaskValueSources>,
     // Exact incoming pointer-content coordinates, separate from slot heads.
-    pub(super) reference_inputs: Vec<(Source,bool)>,
+    pub(super) reference_inputs: Vec<(Source, bool)>,
 }
 struct Solution {
     values: Vec<Payload>,
@@ -745,7 +766,9 @@ pub(crate) fn task_carrier(module: &TypedModule, ty: &Type, b: &mut Budget) -> C
 fn width(s: &Source) -> usize {
     let opaque = match &s.retained_port {
         Some(PortOrigin::Dyn { carrier, .. } | PortOrigin::Task { carrier, .. }) => carrier.len(),
-        Some(PortOrigin::Reference{steps})=>steps.iter().fold(steps.len(),|n,path|n.saturating_add(path.len())),
+        Some(PortOrigin::Reference { steps }) => steps
+            .iter()
+            .fold(steps.len(), |n, path| n.saturating_add(path.len())),
         _ => 0,
     };
     s.leaf
@@ -802,7 +825,7 @@ fn permission_work(p: &Permission, b: &mut Budget) -> Check<()> {
     b.spend(p.loans.len())
 }
 fn payload_work(p: &Payload, b: &mut Budget) -> Check<()> {
-    value_transport::work(p,b)?;
+    value_transport::work(p, b)?;
     p.enum_variants.work(b)?;
     p.option_variants.work(b)?;
     permission_work(&p.address, b)?;
@@ -820,10 +843,46 @@ fn payload_work(p: &Payload, b: &mut Budget) -> Check<()> {
     }
     Ok(())
 }
+pub(super) fn memory_holder<'a>(
+    state: &'a Frame,
+    base: HoldRoot,
+    b: &mut Budget,
+) -> Check<Option<&'a Payload>> {
+    b.spend(state.pointees.len().saturating_add(1))?;
+    if let Some((_, payload)) = state.pointees.iter().find(|(key, _)| *key == base) {
+        return Ok(Some(payload));
+    }
+    Ok(match base {
+        HoldRoot::Local(local) => state.locals.get(local.0 as usize),
+        HoldRoot::Parameter(index) => state.external.get(index as usize),
+        HoldRoot::Capture(index) => state.captures.get(index as usize),
+        HoldRoot::Static => None,
+    })
+}
+pub(super) fn memory_holder_mut<'a>(
+    state: &'a mut Frame,
+    base: HoldRoot,
+    b: &mut Budget,
+) -> Check<Option<&'a mut Payload>> {
+    b.spend(state.pointees.len().saturating_add(1))?;
+    if let Some(index) = state.pointees.iter().position(|(key, _)| *key == base) {
+        return Ok(Some(&mut state.pointees[index].1));
+    }
+    Ok(match base {
+        HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
+        HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
+        HoldRoot::Capture(index) => state.captures.get_mut(index as usize),
+        HoldRoot::Static => None,
+    })
+}
 fn frame_work(f: &Frame, b: &mut Budget) -> Check<()> {
+    b.spend(f.pointees.len())?;
+    for (_, payload) in &f.pointees {
+        payload_work(payload, b)?;
+    }
     source_work(&f.vacant, b)?;
     replacements::frame_work(&f.prepared, b)?;
-    reference_cells::work(&f.reference_cells,b)?;
+    reference_cells::work(&f.reference_cells, b)?;
     b.spend(
         f.locals
             .len()
@@ -841,7 +900,9 @@ fn copy_payload(p: &Payload, b: &mut Budget) -> Check<Payload> {
 }
 fn copy_frame(f: &Frame, b: &mut Budget) -> Check<Frame> {
     frame_work(f, b)?;
-    if let Some(progress)=&mut b.diagnostic_progress{progress.stored_frame_clones=progress.stored_frame_clones.saturating_add(1);}
+    if let Some(progress) = &mut b.diagnostic_progress {
+        progress.stored_frame_clones = progress.stored_frame_clones.saturating_add(1);
+    }
     Ok(f.clone())
 }
 
@@ -930,7 +991,12 @@ fn sort_loan_ids(to: &mut [usize], b: &mut Budget) -> Check<()> {
     Ok(())
 }
 fn add_loans(to: &mut Vec<usize>, from: &[usize], b: &mut Budget) -> Check<bool> {
-    if let Some(progress)=&mut b.diagnostic_progress{progress.loan_unions=progress.loan_unions.saturating_add(1);if from.is_empty(){progress.empty_loan_unions=progress.empty_loan_unions.saturating_add(1);}}
+    if let Some(progress) = &mut b.diagnostic_progress {
+        progress.loan_unions = progress.loan_unions.saturating_add(1);
+        if from.is_empty() {
+            progress.empty_loan_unions = progress.empty_loan_unions.saturating_add(1);
+        }
+    }
     b.spend(1)?;
     sort_loan_ids(to, b)?;
     let mut changed = false;
@@ -1015,7 +1081,7 @@ fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool>
         changed |= to.creation_complete != joined;
         to.creation_complete = joined;
     }
-    changed |= value_transport::join(to,from,b)?;
+    changed |= value_transport::join(to, from, b)?;
     changed |= to.enum_variants.join(&from.enum_variants, b)?;
     changed |= to.option_variants.join(&from.option_variants, b)?;
     for (path, p) in &from.leaves {
@@ -1024,7 +1090,9 @@ fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool>
     Ok(changed)
 }
 fn join_frame(to: &mut Frame, from: &Frame, b: &mut Budget) -> Check<()> {
-    if let Some(progress)=&mut b.diagnostic_progress{progress.stored_frame_joins=progress.stored_frame_joins.saturating_add(1);}
+    if let Some(progress) = &mut b.diagnostic_progress {
+        progress.stored_frame_joins = progress.stored_frame_joins.saturating_add(1);
+    }
     to.pending_external_update |= from.pending_external_update;
     if let Some(head) = from.receiver {
         b.spend(1)?;
@@ -1037,13 +1105,25 @@ fn join_frame(to: &mut Frame, from: &Frame, b: &mut Budget) -> Check<()> {
     }
     add_sources(&mut to.vacant, &from.vacant, b)?;
     replacements::join(&mut to.prepared, &from.prepared, b)?;
-    reference_cells::join(&mut to.reference_cells,&from.reference_cells,b)?;
+    reference_cells::join(&mut to.reference_cells, &from.reference_cells, b)?;
     b.spend(
         to.locals
             .len()
             .saturating_add(to.external.len())
             .saturating_add(to.captures.len()),
     )?;
+    b.spend(to.pointees.len().saturating_add(from.pointees.len()))?;
+    if to.pointees.len() != from.pointees.len() {
+        return Err(err(
+            "input pointee memory directories differ across actual CFG flow",
+        ));
+    }
+    for ((a, left), (z, right)) in to.pointees.iter_mut().zip(&from.pointees) {
+        if a != z {
+            return Err(err("input pointee memory selects another original holder"));
+        }
+        join_payload(left, right, b)?;
+    }
     for (a, z) in to
         .locals
         .iter_mut()
@@ -1208,16 +1288,18 @@ fn vt(f: &TypedFunction, v: ValueId) -> Check<&Type> {
 }
 
 pub(super) fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()> {
-    type_visit(ty,limits,true,b)
+    type_visit(ty, limits, true, b)
 }
 /// Bounds-only traversal does not copy or compare name bytes. Completed pure
 /// walks may be retained only for exact live immutable module/owned nodes.
-pub(super) fn type_bounds(ty:&Type,limits:&Limits,b:&mut Budget)->Check<()>{
-    if dynamic_metadata::stored_type_known(ty,limits,b)?{return Ok(());}
-    type_visit(ty,limits,false,b)?;
-    dynamic_metadata::stored_type_success(ty,limits,b)
+pub(super) fn type_bounds(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()> {
+    if dynamic_metadata::stored_type_known(ty, limits, b)? {
+        return Ok(());
+    }
+    type_visit(ty, limits, false, b)?;
+    dynamic_metadata::stored_type_success(ty, limits, b)
 }
-fn type_visit(ty:&Type,limits:&Limits,copy_or_compare:bool,b:&mut Budget)->Check<()>{
+fn type_visit(ty: &Type, limits: &Limits, copy_or_compare: bool, b: &mut Budget) -> Check<()> {
     b.spend(1)?;
     let mut stack = vec![(ty, 0usize)];
     while let Some((t, depth)) = stack.pop() {
@@ -1246,9 +1328,11 @@ fn type_visit(ty:&Type,limits:&Limits,copy_or_compare:bool,b:&mut Budget)->Check
                 stack.push((storage, depth + 1));
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
-                b.spend((if copy_or_compare{name.len()}else{1}).saturating_add(fields.len()))?;
+                b.spend(
+                    (if copy_or_compare { name.len() } else { 1 }).saturating_add(fields.len()),
+                )?;
                 for (n, t) in fields {
-                    b.spend(if copy_or_compare{n.len()}else{1})?;
+                    b.spend(if copy_or_compare { n.len() } else { 1 })?;
                     stack.push((t, depth + 1));
                 }
             }
@@ -1259,9 +1343,11 @@ fn type_visit(ty:&Type,limits:&Limits,copy_or_compare:bool,b:&mut Budget)->Check
                 }
             }
             Type::Enum { name, variants } => {
-                b.spend((if copy_or_compare{name.len()}else{1}).saturating_add(variants.len()))?;
+                b.spend(
+                    (if copy_or_compare { name.len() } else { 1 }).saturating_add(variants.len()),
+                )?;
                 for (n, fs) in variants {
-                    b.spend((if copy_or_compare{n.len()}else{1}).saturating_add(fs.len()))?;
+                    b.spend((if copy_or_compare { n.len() } else { 1 }).saturating_add(fs.len()))?;
                     for t in fs {
                         stack.push((t, depth + 1));
                     }
@@ -1343,8 +1429,9 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
             Type::Address { mutable, inner } => {
                 type_bounds(inner, limits, b)?;
                 if !inner.is_address_pointee()
-                    && !(b.raw_reference_cells&&reference_cells::nested(t))
-                    && !(qualified(inner).is_some()&&physical(inner,limits,b)?){
+                    && !(b.raw_reference_cells && reference_cells::nested(t))
+                    && !(qualified(inner).is_some() && physical(inner, limits, b)?)
+                {
                     return Err(err("stored shared leaf has invalid actual pointee"));
                 }
                 b.spend(path.len().saturating_add(1))?;
@@ -1591,6 +1678,76 @@ pub(super) fn qualification(
 
 /// This admits only a qualified pure value, retaining its complete semantic
 /// type. The ordinary read's actual pointer/loan proof remains mandatory.
+/// Copy qualification for a complete readonly, nonowning memory value. This
+/// never supplies data, tags, parent loans, or a cleanup theorem.
+pub(crate) fn copyable_memory_value(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> Check<bool> {
+    if shared_tuple_value(module, ty, None, b)? {
+        return Ok(true);
+    }
+    let mut pending = vec![(ty, 0usize)];
+    while let Some((current, depth)) = pending.pop() {
+        b.spend(1)?;
+        if depth > b.limits.max_call_depth.min(128) {
+            return Err(limit("readonly memory value depth exceeded"));
+        }
+        match current {
+            Type::BorrowedStorage { storage, life } => {
+                b.spend(life.slots.len())?;
+                if life
+                    .slots
+                    .iter()
+                    .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress)
+                {
+                    return Ok(false);
+                }
+                qualification(module, current, &b.limits.clone(), b)?;
+                pending.push((storage, depth + 1));
+            }
+            Type::Address {
+                mutable: false,
+                inner,
+            }
+            | Type::Desc(inner) => {
+                crate::dynamic_witness::intrinsic_domain(module, inner, b)?;
+                crate::dynamic_witness::structural_actual(
+                    module,
+                    inner,
+                    DynStructuralBound::Value,
+                    b,
+                )?;
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|ty| (ty, depth + 1)));
+            }
+            Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, ty)| (ty, depth + 1)));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields.iter().map(|ty| (ty, depth + 1)));
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.extend([(error.as_ref(), depth + 1), (result.as_ref(), depth + 1)]);
+            }
+            Type::Array { element, .. } => pending.push((element, depth + 1)),
+            current if current.is_copy_value() => {}
+            _ => return Ok(false),
+        }
+    }
+    crate::dynamic_witness::intrinsic_domain(module, ty, b)?;
+    Ok(true)
+}
+
 pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
     if !b.pure_nominal
         || !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }))
@@ -1662,7 +1819,11 @@ pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Ch
             | Type::U32
             | Type::F32
             | Type::F64 => {}
-            Type::FunctionPointer{..}|Type::ForeignCallback{..}=>if !pure_copy::code_atom(current,b)?{return Ok(false);},
+            Type::FunctionPointer { .. } | Type::ForeignCallback { .. } => {
+                if !pure_copy::code_atom(current, b)? {
+                    return Ok(false);
+                }
+            }
             _ => return Ok(false),
         }
     }
@@ -1677,7 +1838,7 @@ fn ordinary_owner_address(module: &TypedModule, ty: &Type, b: &mut Budget) -> Ch
         return Ok(false);
     };
     if !(matches!(inner.as_ref(), Type::Package { .. })
-        && pure_copy::complete_owned_value(module,inner, b)?
+        && pure_copy::complete_owned_value(module, inner, b)?
         || super::stored_owned::owner(inner))
     {
         return Ok(false);
@@ -1708,32 +1869,60 @@ pub(super) fn qualifications(
                 b.spend(1)?;
                 // Type/mode authentication is independent of dispatch flags.
                 anonymous_tuple::operation(f, i, b)?;
-                if let InstructionKind::SuspendCall{function,..}=i.kind{
-                    let target=module.functions.get(function.0 as usize).ok_or_else(||err("stored SuspendCall target is absent"))?;
-                    if f.call_kind!=CallKind::Suspend||target.call_kind!=CallKind::Suspend||target.foreign.is_some()||target.environment.is_some(){
-                        return Err(err("stored SuspendCall changes its actual suspending caller/callee ABI"));
+                if let InstructionKind::SuspendCall { function, .. } = i.kind {
+                    let target = module
+                        .functions
+                        .get(function.0 as usize)
+                        .ok_or_else(|| err("stored SuspendCall target is absent"))?;
+                    if f.call_kind != CallKind::Suspend
+                        || target.call_kind != CallKind::Suspend
+                        || target.foreign.is_some()
+                        || target.environment.is_some()
+                    {
+                        return Err(err(
+                            "stored SuspendCall changes its actual suspending caller/callee ABI",
+                        ));
                     }
                     // This checks the real operands and the complete finite
                     // child-frame graph, not just a public call-mode flag.
-                    crate::check_instruction(module,f,i,b)?;
+                    crate::check_instruction(module, f, i, b)?;
                 }
-                if matches!(i.kind, InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. }) {
+                if matches!(
+                    i.kind,
+                    InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. }
+                ) {
                     let (local, mutable) = match i.kind {
                         InstructionKind::BorrowLocal { local } => (local, false),
                         InstructionKind::BorrowLocalMut { local } => (local, true),
                         _ => unreachable!(),
                     };
-                    let source = f.locals.get(local.0 as usize).ok_or_else(||
-                        reject("E-VERIFY-TYPE", Some(i.span), "borrow source local is absent"))?;
-                    let actual = i.result.and_then(|id| f.values.get(id.0 as usize)).ok_or_else(||
-                        reject("E-VERIFY-TYPE", Some(i.span), "borrow result type is absent"))?;
+                    let source = f.locals.get(local.0 as usize).ok_or_else(|| {
+                        reject(
+                            "E-VERIFY-TYPE",
+                            Some(i.span),
+                            "borrow source local is absent",
+                        )
+                    })?;
+                    let actual = i
+                        .result
+                        .and_then(|id| f.values.get(id.0 as usize))
+                        .ok_or_else(|| {
+                            reject(
+                                "E-VERIFY-TYPE",
+                                Some(i.span),
+                                "borrow result type is absent",
+                            )
+                        })?;
                     type_work(&source.ty, limits, b)?;
                     type_work(actual, limits, b)?;
                     if !matches!(actual, Type::Address { mutable: mode, inner }
                         if *mode == mutable && inner.as_ref() == &source.ty)
                     {
-                        return Err(reject("E-VERIFY-TYPE", Some(i.span),
-                            "borrow result differs from its exact actual local type or mode"));
+                        return Err(reject(
+                            "E-VERIFY-TYPE",
+                            Some(i.span),
+                            "borrow result differs from its exact actual local type or mode",
+                        ));
                     }
                 }
                 if let InstructionKind::Load(local) = i.kind
@@ -1745,14 +1934,18 @@ pub(super) fn qualifications(
                         "actual exclusive stored carrier was copied without a transfer",
                     ));
                 }
-                let ordinary_store_operation=super::stored_owned::ordinary_store_instruction(module,f,i,b)?||super::stored_owned::ordinary_byte_instruction(module,f,i,b)?;
+                let ordinary_store_operation =
+                    super::stored_owned::ordinary_store_instruction(module, f, i, b)?
+                        || super::stored_owned::ordinary_byte_instruction(module, f, i, b)?;
                 let enum_operation = enum_address::instruction(module, f, i, b)?;
                 let task_capture_operation = task_address::capture_instruction(module, f, i, b)?;
-                let owned_operation = !ordinary_store_operation && !task_capture_operation
+                let owned_operation = !ordinary_store_operation
+                    && !task_capture_operation
                     && !owned_byte_views::owner_instruction(module, f, i, b)?
                     && !(b.task_sources() && task_address::owner_instruction(f, &i.kind))
-                    && super::stored_owned::operation(module,f,i,b)?;
-                if !ordinary_store_operation && !super::class_flow::pointer_instruction(f, i)
+                    && super::stored_owned::operation(module, f, i, b)?;
+                if !ordinary_store_operation
+                    && !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
                     && !foreign_calls::operation(module, f, i, b)?
                     && !returned_environment::borrowed_child(module, f, i, b)?
@@ -1792,14 +1985,14 @@ pub(super) fn qualifications(
                         && matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. }))
                     && !replacements::operation(&i.kind)
                     && !pure_copy::operation(&i.kind)
-                    && !pure_copy::ordinary_owned_union(module,f, i, b)?
-                    && !pure_copy::ordinary_owned_tuple(module,f, i, b)?
-                    && !callable_cells::operation(module,f,i,b)?
+                    && !pure_copy::ordinary_owned_union(module, f, i, b)?
+                    && !pure_copy::ordinary_owned_tuple(module, f, i, b)?
+                    && !callable_cells::operation(module, f, i, b)?
                     && !pure_copy::ordinary_copy_field_borrow(f, i, b)?
                     && !pure_copy::ordinary_package_borrow(f, i, b)?
                     && !pure_copy::ordinary_package_read(f, i, b)?
                     && !pure_copy::qualified_package_description(f, i, b)?
-                    && !ordinary_error_borrow(module,f, i, b)?
+                    && !ordinary_error_borrow(module, f, i, b)?
                     && !matches!(
                         &i.kind,
                         InstructionKind::StaticUtf8 { .. }
@@ -1899,8 +2092,8 @@ pub(super) fn qualifications(
                             "borrowed Enum operation has no authenticated complete nominal instance",
                         ));
                     }
-                    if !pure_copy::ordinary_owned_union(module,f, i, b)? {
-                        pure_copy::types(module,f, i, b)?;
+                    if !pure_copy::ordinary_owned_union(module, f, i, b)? {
+                        pure_copy::types(module, f, i, b)?;
                     }
                 }
                 if let InstructionKind::TakePackageField { local, .. }
@@ -2060,8 +2253,10 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
         }
         if !matches!(
             (d.kind, storage),
-            (LifeNominalKind::Record | LifeNominalKind::Resource, Type::Record { .. })
-                | (LifeNominalKind::Package, Type::Package { .. })
+            (
+                LifeNominalKind::Record | LifeNominalKind::Resource,
+                Type::Record { .. }
+            ) | (LifeNominalKind::Package, Type::Package { .. })
                 | (LifeNominalKind::Enum, Type::Enum { .. })
         ) {
             if enum_address::candidate(&instance.ty) {
@@ -2241,8 +2436,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
                 && (qualified(ty).is_some()
                     || addressed(ty).is_some()
                     || shared_array_value(ty)
-                    || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner))
-            || matches!(ty,Type::Address{..})&&!p.field_facts.is_empty())
+                    || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner)))
             {
                 return Err(err("stored signature requires complete class relation"));
             }
@@ -2349,10 +2543,10 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         for ty in &parameters {
             if !fixed_environment(module, ty, b)
                 && !super::stored_callables::borrowed_capture_input(ty)
-                && !super::stored_callables::complete_value_input(module,ty,b)?
+                && !super::stored_callables::complete_value_input(module, ty, b)?
                 && !super::stored_owned::owner(ty)
-                && !super::stored_owned::ordinary_byte_value(ty,b)?
-                && !super::stored_owned::ordinary_store_value(module,ty,b)?
+                && !super::stored_owned::ordinary_byte_value(ty, b)?
+                && !super::stored_owned::ordinary_store_value(module, ty, b)?
             {
                 return Err(unsupported(
                     "captured Fixed helper requires complete supported input domains",
@@ -2386,10 +2580,22 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         &f.return_type
     };
     let mut pending = dyn_returns::pending::register(module, f, b)?;
-    for transfer in crate::dynamic_witness::semantic_patterns::local_role_transfers(module,f,b)?{
-        for output in transfer.outputs{
-            b.spend(pending.iter().fold(output.position.path.len().saturating_add(1),|fee,row|fee.saturating_add(row.path.len().saturating_add(output.position.path.len()).saturating_add(1))))?;
-            if !pending.contains(&output.position){pending.push(output.position);}
+    for transfer in crate::dynamic_witness::semantic_patterns::local_role_transfers(module, f, b)? {
+        for output in transfer.outputs {
+            b.spend(pending.iter().fold(
+                output.position.path.len().saturating_add(1),
+                |fee, row| {
+                    fee.saturating_add(
+                        row.path
+                            .len()
+                            .saturating_add(output.position.path.len())
+                            .saturating_add(1),
+                    )
+                },
+            ))?;
+            if !pending.contains(&output.position) {
+                pending.push(output.position);
+            }
         }
     }
     if !pending.is_empty() {
@@ -2800,7 +3006,9 @@ fn seed_payload(
                 heap_element: None,
             });
         }
-        if (replacements::heads(b)||super::stored_owned::ordinary_store_value(module,ty,b)?||super::stored_owned::ordinary_byte_value(ty,b)?)
+        if (replacements::heads(b)
+            || super::stored_owned::ordinary_store_value(module, ty, b)?
+            || super::stored_owned::ordinary_byte_value(ty, b)?)
             && matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }))
         {
             b.spend(1)?;
@@ -2816,8 +3024,10 @@ fn seed_payload(
         }
     }
     compound::seed(ty, base, &mut p, loans, b)?;
-    if let Type::Address{inner,..}=ty && shared_tuple_value(module,inner,None,b)?{
-        compound::seed(inner,base,&mut p,loans,b)?;
+    if let Type::Address { inner, .. } = ty
+        && shared_tuple_value(module, inner, None, b)?
+    {
+        compound::seed(inner, base, &mut p, loans, b)?;
     }
     task_address::seed(module, ty, base, &mut p, loans, b)?;
     Ok(p)
@@ -2826,6 +3036,20 @@ fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check
     b.spend(f.locals.len().saturating_add(f.parameters.len()))?;
     let count = captured_definition(module, f, b).map_or(0, |d| d.captures.len());
     b.spend(count)?;
+    let mut pointees = Vec::new();
+    b.spend(f.parameters.len().saturating_add(count))?;
+    for (index, local) in f.parameters.iter().enumerate() {
+        if matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) {
+            pointees.push((HoldRoot::Parameter(index as u32), Payload::default()));
+        }
+    }
+    if let Some(definition) = captured_definition(module, f, b) {
+        for (index, ty) in definition.captures.iter().enumerate() {
+            if matches!(ty, Type::Address { .. }) {
+                pointees.push((HoldRoot::Capture(index as u32), Payload::default()));
+            }
+        }
+    }
     Ok(Frame {
         pending_external_update: false,
         receiver: None,
@@ -2835,7 +3059,93 @@ fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check
         vacant: Vec::new(),
         prepared: Vec::new(),
         reference_cells: reference_cells::Cells::default(),
+        pointees,
     })
+}
+fn seed_pointee(
+    module: &TypedModule,
+    inner: &Type,
+    base: HoldRoot,
+    outer: &Payload,
+    loans: &mut Vec<Loan>,
+    b: &mut Budget,
+) -> Check<Payload> {
+    let mut memory = seed_payload(module, inner, base, loans, b)?;
+    // A stored pointer cell has its own Reference namespace, never the
+    // outer input pointer's target. Its actual consumer owns that root.
+    if matches!(inner, Type::Address { .. }) {
+        memory.address = Permission::default();
+    }
+    match base {
+        HoldRoot::Parameter(index) => {
+            value_transport::seed_parameter(module, inner, index, &mut memory, b)?
+        }
+        HoldRoot::Capture(index) => {
+            value_transport::seed_capture(module, inner, index, &mut memory, b)?
+        }
+        _ => {
+            return Err(err(
+                "input pointee seed has no original parameter or capture",
+            ));
+        }
+    }
+    if b.task_sources() {
+        let input = match base {
+            HoldRoot::Parameter(index) => option_address::Input::Parameter(index),
+            HoldRoot::Capture(index) => option_address::Input::Capture(index),
+            _ => unreachable!(),
+        };
+        memory.enum_variants = enum_address::Variants::full_input(input, inner, b)?;
+    } else if enum_address::ordinary(module, inner, b)? {
+        if let HoldRoot::Parameter(index) = base {
+            memory.enum_variants = enum_address::Variants::parameter(index, inner, b)?;
+        }
+    }
+    dyn_ports::seed(module, inner, base, &mut memory, loans, b)?;
+    if fixed_environment(module, inner, b) {
+        seed_environment(module, inner, base, &mut memory, loans, b)?;
+    }
+    // An incoming pointer's existing child rows and its current pointee view
+    // describe the same initialized input loans, not independent aliases.
+    for index in 0..memory.leaves.len() {
+        let (path, permission) = &memory.leaves[index];
+        let replacement = if let Some(original) = leaf(outer, path, b)? {
+            permission_work(original, b)?;
+            permission_work(permission, b)?;
+            (original.sources == permission.sources).then(|| original.clone())
+        } else {
+            None
+        };
+        if let Some(permission) = replacement {
+            *memory.leaves.permission_mut(index) = permission;
+        }
+    }
+    for (path, permission) in &mut memory.task_ports {
+        b.spend(
+            outer
+                .task_ports
+                .len()
+                .saturating_mul(path.len().saturating_add(1)),
+        )?;
+        if let Some((_, old)) = outer.task_ports.iter().find(|(key, _)| key == path) {
+            permission_work(old, b)?;
+            permission_work(permission, b)?;
+            if old.sources == permission.sources {
+                *permission = old.clone();
+            }
+        }
+    }
+    for (path, port) in &mut memory.dyn_ports.0 {
+        if let Some(index) = dyn_ports::find(&outer.dyn_ports, path, b)? {
+            let old = &outer.dyn_ports.0[index].1;
+            permission_work(&old.permission, b)?;
+            permission_work(&port.permission, b)?;
+            if old.permission.sources == port.permission.sources {
+                port.permission = old.permission.clone();
+            }
+        }
+    }
+    Ok(memory)
 }
 fn seed(
     module: &TypedModule,
@@ -2853,7 +3163,7 @@ fn seed(
         b.spend(1)?;
         let ty = &f.locals[local.0 as usize].ty;
         let mut p = seed_payload(module, ty, HoldRoot::Parameter(position as u32), loans, b)?;
-        value_transport::seed_parameter(module,ty,position as u32,&mut p,b)?;
+        value_transport::seed_parameter(module, ty, position as u32, &mut p, b)?;
         if enum_address::ordinary(module, ty, b)? {
             p.enum_variants = enum_address::Variants::parameter(position as u32, ty, b)?;
         } else if option_address::candidate(ty) {
@@ -2863,7 +3173,7 @@ fn seed(
             }
         }
         if b.task_sources() {
-            p.enum_variants = enum_address::Variants::full_parameter(position as u32,ty,b)?;
+            p.enum_variants = enum_address::Variants::full_parameter(position as u32, ty, b)?;
         }
         dyn_ports::seed(
             module,
@@ -2887,9 +3197,21 @@ fn seed(
             || b.dyn_contexts && matches!(ty, Type::Address { .. }) && !p.dyn_ports.0.is_empty()
             || fixed_environment(module, ty, b)
             || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner))
-            || matches!(ty,Type::Address{..})&&!p.field_facts.is_empty()
+            || matches!(ty, Type::Address { .. }) && !p.field_facts.is_empty()
         {
             state.external[position] = copy_payload(&p, b)?;
+        }
+        if let Type::Address { inner, .. } = ty {
+            let memory = seed_pointee(
+                module,
+                inner,
+                HoldRoot::Parameter(position as u32),
+                &p,
+                loans,
+                b,
+            )?;
+            *memory_holder_mut(&mut state, HoldRoot::Parameter(position as u32), b)?
+                .ok_or_else(|| err("parameter pointee directory was not registered"))? = memory;
         }
         state.locals[local.0 as usize] = p;
     }
@@ -2898,17 +3220,28 @@ fn seed(
         for (index, ty) in d.captures.iter().enumerate() {
             let base = HoldRoot::Capture(index as u32);
             let mut payload = seed_payload(module, ty, base, loans, b)?;
-            value_transport::seed_capture(module,ty,index as u32,&mut payload,b)?;
-            if b.task_sources(){payload.enum_variants=enum_address::Variants::full_input(option_address::Input::Capture(index as u32),ty,b)?;}
+            value_transport::seed_capture(module, ty, index as u32, &mut payload, b)?;
+            if b.task_sources() {
+                payload.enum_variants = enum_address::Variants::full_input(
+                    option_address::Input::Capture(index as u32),
+                    ty,
+                    b,
+                )?;
+            }
             dyn_ports::seed(module, ty, base, &mut payload, loans, b)?;
             if fixed_environment(module, ty, b) {
                 seed_environment(module, ty, base, &mut payload, loans, b)?;
             }
             static_borrows::seed_capture(d, index as u32, &mut payload, loans, b)?;
+            if let Type::Address { inner, .. } = ty {
+                let memory = seed_pointee(module, inner, base, &payload, loans, b)?;
+                *memory_holder_mut(&mut state, base, b)?
+                    .ok_or_else(|| err("capture pointee directory was not registered"))? = memory;
+            }
             state.captures[index] = payload;
         }
     }
-    reference_cells::seed(module,f,&mut state,loans,b)?;
+    reference_cells::seed(module, f, &mut state, loans, b)?;
     Ok(state)
 }
 fn select(
@@ -2923,21 +3256,21 @@ fn select(
     let mut result = Permission::default();
     for source in &address.sources {
         b.spend(width(source))?;
-        let p = match source.base {
-            HoldRoot::Static => {
-                return Err(err("static text cannot supply nested carrier permissions"));
-            }
-            HoldRoot::Local(l) => state.locals.get(l.0 as usize),
-            HoldRoot::Parameter(p) => state.external.get(p as usize),
-            HoldRoot::Capture(p) => state.captures.get(p as usize),
+        if source.base == HoldRoot::Static {
+            return Err(err("static text cannot supply nested carrier permissions"));
         }
-        .ok_or_else(|| err("carrier location is absent"))?;
+        let p = memory_holder(state, source.base, b)?
+            .ok_or_else(|| err("carrier location is absent"))?;
         let Some(actual_path) = symbolic_slot_path(p, source, path, b)? else {
-            continue;
+            return Ok(Permission::default());
         };
-        if let Some(p) = leaf(p, &actual_path, b)? {
-            join_permission(&mut result, p, b)?;
+        let Some(p) = leaf(p, &actual_path, b)? else {
+            return Ok(Permission::default());
+        };
+        if p.sources.is_empty() {
+            return Ok(Permission::default());
         }
+        join_permission(&mut result, p, b)?;
     }
     Ok(result)
 }
@@ -3040,7 +3373,12 @@ fn clear_local_holes(state: &mut Frame, local: LocalId, b: &mut Budget) -> Check
 /// consumed head retains the ordinary whole reborrow, even if it also has a
 /// projection use. Unreachable uses participate in this classification too.
 fn projection_head_loads(f: &TypedFunction, b: &mut Budget) -> Check<Vec<bool>> {
-    b.spend(f.values.len().saturating_mul(2).saturating_add(f.blocks.len()))?;
+    b.spend(
+        f.values
+            .len()
+            .saturating_mul(2)
+            .saturating_add(f.blocks.len()),
+    )?;
     let mut marks = vec![0u8; f.values.len()];
     for block in &f.blocks {
         for i in &block.instructions {
@@ -3049,7 +3387,9 @@ fn projection_head_loads(f: &TypedFunction, b: &mut Budget) -> Check<Vec<bool>> 
                 && let Some(result) = i.result
                 && matches!(vt(f, result)?, Type::Address { mutable: true, .. })
             {
-                let actual = f.locals.get(local.0 as usize)
+                let actual = f
+                    .locals
+                    .get(local.0 as usize)
                     .ok_or_else(|| err("projected head load has no actual local"))?;
                 type_work(&actual.ty, &b.limits.clone(), b)?;
                 type_work(vt(f, result)?, &b.limits.clone(), b)?;
@@ -3071,7 +3411,8 @@ fn projection_head_loads(f: &TypedFunction, b: &mut Budget) -> Check<Vec<bool>> 
             };
             for operand in instruction_operands(&i.kind) {
                 b.spend(1)?;
-                let mark = marks.get_mut(operand.0 as usize)
+                let mark = marks
+                    .get_mut(operand.0 as usize)
                     .ok_or_else(|| err("projected head use has no actual SSA value"))?;
                 if *mark & 1 != 0 {
                     *mark |= if head == Some(operand) { 2 } else { 4 };
@@ -3085,16 +3426,22 @@ fn projection_head_loads(f: &TypedFunction, b: &mut Budget) -> Check<Vec<bool>> 
             _ => None,
         };
         if let Some(value) = value {
-            let mark = marks.get_mut(value.0 as usize)
+            let mark = marks
+                .get_mut(value.0 as usize)
                 .ok_or_else(|| err("projected head escapes through an absent actual value"))?;
-            if *mark & 1 != 0 { *mark |= 4; }
+            if *mark & 1 != 0 {
+                *mark |= 4;
+            }
         }
     }
     Ok(marks.into_iter().map(|mark| mark == 3).collect())
 }
 
 fn is_deferred_address(i: &Instruction, heads: &[bool]) -> bool {
-    i.result.and_then(|id| heads.get(id.0 as usize)).copied().unwrap_or(false)
+    i.result
+        .and_then(|id| heads.get(id.0 as usize))
+        .copied()
+        .unwrap_or(false)
 }
 
 /// Only a completely matched original assignment may reserve its lvalue
@@ -3102,77 +3449,144 @@ fn is_deferred_address(i: &Instruction, heads: &[bool]) -> bool {
 /// use in that same nonescaping projection chain; explicit borrows, calls,
 /// stores and returns are never reservations. The original parent loans and
 /// exact roots remain on every view and are checked at the actual write.
-fn assignment_reservations(f:&TypedFunction,writes:&[ValueId],b:&mut Budget)->Check<Vec<bool>> {
-    let count=f.values.len();
+fn assignment_reservations(
+    f: &TypedFunction,
+    writes: &[ValueId],
+    b: &mut Budget,
+) -> Check<Vec<bool>> {
+    let count = f.values.len();
     b.spend(count.saturating_mul(5).saturating_add(f.blocks.len()))?;
-    let mut candidate=vec![false;count];
-    let mut uses=vec![0u8;count];
-    let mut next=vec![usize::MAX;count];
-    let mut state=vec![0u8;count];
-    for block in &f.blocks {for instruction in &block.instructions {
-        b.spend(1)?;
-        if matches!(instruction.kind,InstructionKind::Load(_)|InstructionKind::AddressField{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..})
-            && let Some(result)=instruction.result
-            && matches!(vt(f,result)?,Type::Address{mutable:true,..})
-        {candidate[result.0 as usize]=true;}
-    }}
+    let mut candidate = vec![false; count];
+    let mut uses = vec![0u8; count];
+    let mut next = vec![usize::MAX; count];
+    let mut state = vec![0u8; count];
+    for block in &f.blocks {
+        for instruction in &block.instructions {
+            b.spend(1)?;
+            if matches!(
+                instruction.kind,
+                InstructionKind::Load(_)
+                    | InstructionKind::AddressField { .. }
+                    | InstructionKind::AddressIndex { .. }
+                    | InstructionKind::AddressSlice { .. }
+            ) && let Some(result) = instruction.result
+                && matches!(vt(f, result)?, Type::Address { mutable: true, .. })
+            {
+                candidate[result.0 as usize] = true;
+            }
+        }
+    }
     for block in &f.blocks {
         for instruction in &block.instructions {
             b.spend(1)?;
             for operand in instruction_operands(&instruction.kind) {
                 b.spend(1)?;
-                let index=operand.0 as usize;
-                if !candidate.get(index).copied().ok_or_else(||err("assignment reservation operand is absent"))?{continue;}
-                uses[index]=uses[index].saturating_add(1).min(2);
-                if uses[index]!=1 {next[index]=usize::MAX;continue;}
-                next[index]=match instruction.kind {
-                    InstructionKind::AddressField{address,..}|InstructionKind::AddressIndex{address,..}|InstructionKind::AddressSlice{address,..}if address==operand=>
-                        instruction.result.filter(|value|candidate[value.0 as usize]).map_or(usize::MAX,|value|value.0 as usize),
-                    InstructionKind::WriteAddress{address,..}if address==operand=>{
+                let index = operand.0 as usize;
+                if !candidate
+                    .get(index)
+                    .copied()
+                    .ok_or_else(|| err("assignment reservation operand is absent"))?
+                {
+                    continue;
+                }
+                uses[index] = uses[index].saturating_add(1).min(2);
+                if uses[index] != 1 {
+                    next[index] = usize::MAX;
+                    continue;
+                }
+                next[index] = match instruction.kind {
+                    InstructionKind::AddressField { address, .. }
+                    | InstructionKind::AddressIndex { address, .. }
+                    | InstructionKind::AddressSlice { address, .. }
+                        if address == operand =>
+                    {
+                        instruction
+                            .result
+                            .filter(|value| candidate[value.0 as usize])
+                            .map_or(usize::MAX, |value| value.0 as usize)
+                    }
+                    InstructionKind::WriteAddress { address, .. } if address == operand => {
                         b.spend(writes.len().saturating_add(1))?;
-                        if writes.contains(&address){count}else{usize::MAX}
-                    },
-                    _=>usize::MAX,
+                        if writes.contains(&address) {
+                            count
+                        } else {
+                            usize::MAX
+                        }
+                    }
+                    _ => usize::MAX,
                 };
             }
         }
         b.spend(1)?;
-        let value=match block.terminator{Terminator::Return(value)=>value,Terminator::Branch{condition,..}=>Some(condition),_=>None};
-        if let Some(value)=value {
-            let use_count=uses.get_mut(value.0 as usize).ok_or_else(||err("assignment reservation terminator operand is absent"))?;
-            *use_count=2;next[value.0 as usize]=usize::MAX;
+        let value = match block.terminator {
+            Terminator::Return(value) => value,
+            Terminator::Branch { condition, .. } => Some(condition),
+            _ => None,
+        };
+        if let Some(value) = value {
+            let use_count = uses
+                .get_mut(value.0 as usize)
+                .ok_or_else(|| err("assignment reservation terminator operand is absent"))?;
+            *use_count = 2;
+            next[value.0 as usize] = usize::MAX;
         }
     }
     for start in 0..count {
         b.spend(1)?;
-        if state[start]!=0{continue;}
-        let mut path=Vec::new();let mut current=start;
-        let valid=loop {
+        if state[start] != 0 {
+            continue;
+        }
+        let mut path = Vec::new();
+        let mut current = start;
+        let valid = loop {
             b.spend(1)?;
-            if state[current]!=0{break state[current]==3;}
-            if !candidate[current]||uses[current]!=1||next[current]==usize::MAX{state[current]=2;break false;}
-            state[current]=1;
-            if path.len()==path.capacity(){b.spend(path.len().saturating_add(1))?;}
+            if state[current] != 0 {
+                break state[current] == 3;
+            }
+            if !candidate[current] || uses[current] != 1 || next[current] == usize::MAX {
+                state[current] = 2;
+                break false;
+            }
+            state[current] = 1;
+            if path.len() == path.capacity() {
+                b.spend(path.len().saturating_add(1))?;
+            }
             path.push(current);
-            if next[current]==count{break true;}
-            current=next[current];
+            if next[current] == count {
+                break true;
+            }
+            current = next[current];
         };
-        for value in path {b.spend(1)?;state[value]=if valid{3}else{2};}
+        for value in path {
+            b.spend(1)?;
+            state[value] = if valid { 3 } else { 2 };
+        }
     }
-    Ok(state.into_iter().map(|state|state==3).collect())
+    Ok(state.into_iter().map(|state| state == 3).collect())
 }
 
-fn deferred_addresses(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->Check<Vec<bool>> {
-    let mut heads=projection_head_loads(f,b)?;
-    if module.semantic.is_none(){return Ok(heads);}
+fn deferred_addresses(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<Vec<bool>> {
+    let mut heads = projection_head_loads(f, b)?;
+    if module.semantic.is_none() {
+        return Ok(heads);
+    }
     b.spend(f.blocks.len())?;
-    let mut has_write=false;
-    for block in &f.blocks{b.spend(block.instructions.len())?;has_write|=block.instructions.iter().any(|instruction|matches!(instruction.kind,InstructionKind::WriteAddress{..}));}
+    let mut has_write = false;
+    for block in &f.blocks {
+        b.spend(block.instructions.len())?;
+        has_write |= block
+            .instructions
+            .iter()
+            .any(|instruction| matches!(instruction.kind, InstructionKind::WriteAddress { .. }));
+    }
     if has_write {
-        let writes=crate::dynamic_witness::semantic_patterns::assignment_writes(module,f,b)?;
-        if !writes.is_empty(){
-            let reservations=assignment_reservations(f,&writes,b)?;
-            b.spend(heads.len())?;for(head,reservation)in heads.iter_mut().zip(reservations){*head|=reservation;}
+        let writes = crate::dynamic_witness::semantic_patterns::assignment_writes(module, f, b)?;
+        if !writes.is_empty() {
+            let reservations = assignment_reservations(f, &writes, b)?;
+            b.spend(heads.len())?;
+            for (head, reservation) in heads.iter_mut().zip(reservations) {
+                *head |= reservation;
+            }
         }
     }
     Ok(heads)
@@ -3236,10 +3650,14 @@ fn instantiate(
         .get(position as usize)
         .and_then(|v| values.get(v.0 as usize))
         .ok_or_else(|| err("callee source has no actual argument"))?;
-    if matches!(source.retained_port,Some(PortOrigin::Reference{..})){return reference_cells::substitute(module,f,source,args,values,state,b);}
+    if matches!(source.retained_port, Some(PortOrigin::Reference { .. })) {
+        return reference_cells::substitute(module, f, source, args, values, state, b);
+    }
     let mut p = if let Some(port) = &source.retained_port {
         match port {
-            PortOrigin::Reference{..}=>unreachable!("raw reference handled before opaque selection"),
+            PortOrigin::Reference { .. } => {
+                unreachable!("raw reference handled before opaque selection")
+            }
             PortOrigin::Task { carrier, port } => {
                 task_address::select_carrier(v, &source.leaf, carrier, *port, b)?
             }
@@ -3261,9 +3679,7 @@ fn instantiate(
                 )?
             }
         }
-    } else if source.leaf.is_empty()
-        && !v.store_description.sources.is_empty()
-    {
+    } else if source.leaf.is_empty() && !v.store_description.sources.is_empty() {
         permission_work(&v.store_description, b)?;
         v.store_description.clone()
     } else if source.leaf.is_empty() {
@@ -3357,7 +3773,8 @@ fn write_sites(
                     matches!(vt(f, *value)?, Type::Address { mutable: true, .. }),
                     b,
                 )?,
-                InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. } => {
+                InstructionKind::Call { function, .. }
+                | InstructionKind::SuspendCall { function, .. } => {
                     let callee = module
                         .functions
                         .get(function.0 as usize)
@@ -3462,36 +3879,68 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
-    let value_updates=match &i.kind{
-        InstructionKind::Call{function,..}|InstructionKind::SuspendCall{function,..}=>{
-            let callee=module.functions.get(function.0 as usize).ok_or_else(||err("value after-state function is absent"))?;
-            let before=call_results::Before::function(module,f,i,values,state,b)?;
-            value_transport::prepare_after(&before,callee,&summaries[function.0 as usize],i,sites,loans,b)?
-        },
-        kind if stored_callables::called(module,f,kind).is_some()=>{
-            let(definition,_)=stored_callables::called(module,f,kind).ok_or_else(||err("value after-state callback is absent"))?;
-            let callee=module.functions.get(definition.function.0 as usize).ok_or_else(||err("value after-state callback entry is absent"))?;
-            let before=call_results::Before::closure(module,f,i,values,state,b)?;
-            value_transport::prepare_after(&before,callee,&summaries[definition.function.0 as usize],i,sites,loans,b)?
-        },
-        _=>value_transport::PreparedAfter::default(),
+    let value_updates = match &i.kind {
+        InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. } => {
+            let callee = module
+                .functions
+                .get(function.0 as usize)
+                .ok_or_else(|| err("value after-state function is absent"))?;
+            let before = call_results::Before::function(module, f, i, values, state, b)?;
+            value_transport::prepare_after(
+                &before,
+                callee,
+                &summaries[function.0 as usize],
+                i,
+                sites,
+                loans,
+                b,
+            )?
+        }
+        kind if stored_callables::called(module, f, kind).is_some() => {
+            let (definition, _) = stored_callables::called(module, f, kind)
+                .ok_or_else(|| err("value after-state callback is absent"))?;
+            let callee = module
+                .functions
+                .get(definition.function.0 as usize)
+                .ok_or_else(|| err("value after-state callback entry is absent"))?;
+            let before = call_results::Before::closure(module, f, i, values, state, b)?;
+            value_transport::prepare_after(
+                &before,
+                callee,
+                &summaries[definition.function.0 as usize],
+                i,
+                sites,
+                loans,
+                b,
+            )?
+        }
+        _ => value_transport::PreparedAfter::default(),
     };
-    let capture_updates=captured_owner::prepare_after(module,f,i,state,values,summaries,sites,loans,b)?;
-    let reference_updates=reference_cells::prepare_call(module,f,i,summaries,values,state,dyn_sites,loans,b)?;
+    let capture_updates =
+        captured_owner::prepare_after(module, f, i, state, values, summaries, sites, loans, b)?;
+    let reference_updates =
+        reference_cells::prepare_call(module, f, i, summaries, values, state, dyn_sites, loans, b)?;
     let dyn_capture_updates =
         dyn_captures::prepare_after(module, f, i, state, values, summaries, dyn_sites, loans, b)?;
-    let task_tags = enum_address::tags::transfer(f,i,state,values,b)?;
-    let mut unpacked_tags=Vec::new();
-    if b.task_sources() && let InstructionKind::UnpackTuple{local,fields}=&i.kind {
+    let task_tags = enum_address::tags::transfer(f, i, state, values, b)?;
+    let mut unpacked_tags = Vec::new();
+    if b.task_sources()
+        && let InstructionKind::UnpackTuple { local, fields } = &i.kind
+    {
         b.spend(fields.len())?;
-        for(index,field)in fields.iter().enumerate(){
-            unpacked_tags.push((*field,state.locals[local.0 as usize].enum_variants
-                .project(&[PlaceProjection::Field(index as u32)],b)?));
+        for (index, field) in fields.iter().enumerate() {
+            unpacked_tags.push((
+                *field,
+                state.locals[local.0 as usize]
+                    .enum_variants
+                    .project(&[PlaceProjection::Field(index as u32)], b)?,
+            ));
         }
     }
     let dyn_transfer = dyn_ports::transfer(module, f, i, state, values, dyn_sites, loans, b)?;
     let closed_dyn_transfer = dyn_closed::transfer(module, f, i, state, values, b)?;
-    let task_transfer = task_address::transfer(module, f, i, state, values, summaries, dyn_sites, loans, b)?;
+    let task_transfer =
+        task_address::transfer(module, f, i, state, values, summaries, dyn_sites, loans, b)?;
     let failure_view = failure_projection(f, i, b)?;
     let failure_wrapper = task_failure::wrapper(f, i, state, values, b)?;
     let unpack_failure = failure_unpack(f, i, b)?;
@@ -4212,12 +4661,7 @@ static_dependency: StaticProvenance::NotStatic,
             out.address = select(state, address, path, b)?;
             if !address.sources.is_empty() {
                 let position = slot_position(address, path, b)?;
-                let holder = match position.base {
-                    HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
-                    HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
-                    HoldRoot::Capture(index) => state.captures.get_mut(index as usize),
-                    HoldRoot::Static => None,
-                };
+                let holder = memory_holder_mut(state,position.base,b)?;
                 if let Some(holder) = holder {
                     b.spend(holder.leaves.len())?;
                     holder
@@ -4247,12 +4691,7 @@ static_dependency: StaticProvenance::NotStatic,
                 retain_written_slot(&val(*value)?.address, i, u32::MAX, path, sites, loans, b)?;
             // Reverse CFG batches can first see an unresolved predecessor.
             // Final access validation rejects a truly empty replacement.
-            let holder = match root.base {
-                HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
-                HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
-                HoldRoot::Capture(index) => state.captures.get_mut(index as usize),
-                HoldRoot::Static => None,
-            }
+            let holder = memory_holder_mut(state,root.base,b)?
             .ok_or_else(|| err("replacement carrier location is absent"))?;
             if let Some(row) = holder.leaves.position(&actual_path, b)? {
                 *holder.leaves.permission_mut(row) = new;
@@ -4320,11 +4759,9 @@ static_dependency: StaticProvenance::NotStatic,
                 call_results::destination(module,&callee.return_type,path,b)?;
                 let mut p = Permission::default();
                 for source in sources {
-                    join_permission(
-                        &mut p,
-                        &before.source(source,b)?,
-                        b,
-                    )?;
+                    let actual=before.source(source,b)?;
+                    result_pending|=actual.sources.is_empty();
+                    join_permission(&mut p,&actual,b)?;
                     if path.is_empty()
                         && matches!(callee.return_type, Type::Address { mutable: true, .. })
                         && !source.leaf.is_empty()
@@ -4457,54 +4894,18 @@ static_dependency: StaticProvenance::NotStatic,
             if !matches!(inner.as_ref(),Type::Address{mutable:false,..})||inner.as_ref()!=vt(f,*value)?{return Err(err("pointer-cell replacement changes its complete shared pointer type"));}
             reference_cells::write(module,f,i,state,&val(*address)?.address,&val(*value)?.address,inner,dyn_sites,loans,b)?;
         }
-        InstructionKind::ReadAddress { address } => {
-            let Type::Address { inner, .. } = vt(f, *address)? else {
-                return Err(err("array read lacks actual address"));
-            };
-            if shared_array_shape(inner, b)? {
-                let Type::Array { length, .. } = inner.as_ref() else {
-                    unreachable!()
-                };
-                b.spend((*length as usize).saturating_mul(2))?;
-                for index in 0..*length {
-                    let path = [PlaceProjection::Field(index)];
-                    let permission = select(state, &val(*address)?.address, &path, b)?;
-                    add_leaf(&mut out, &path, &permission, b)?;
-                }
-            }
-
-            if shared_tuple_value(module,inner,Some(i.span),b)?{
-                let snapshot=value_transport::read(state,&val(*address)?.address,inner,b)?;
-                value_transport::join(&mut out,&snapshot,b)?;
-                for(path,_)in compound::slots(inner,b)?.ok_or_else(||err("shared Tuple read omits its full physical directory"))?{
-                    let permission=select(state,&val(*address)?.address,&path,b)?;
-                    if permission.sources.is_empty(){state.pending_external_update=true;}
-                    add_leaf(&mut out,&path,&permission,b)?;
-                }
-            }
-            let Type::Address { inner, .. } = vt(f, *address)? else {
-                return Err(err("read transfer has no actual Address"));
-            };
-            if qualified(inner).is_some() && !pure_read(module, inner, b)? {
-                return Err(err(
-                    "read transfer would erase actual borrowed/owned leaves",
-                ));
-            }
-            // Access checks retain the actual pointer's permissions and loans.
-            // This proven pure payload has no runtime leaves to transfer;
-            // the complete result type preserves the semantic class mapping.
-            // Do not turn the containing storage root into a phantom target.
+        InstructionKind::ReadAddress{address}=>{
+            let Type::Address{inner,..}=vt(f,*address)?else{return Err(err("read transfer lacks its actual Address"));};
+            if !copyable_memory_value(module,inner,b)?{return Err(err("indirect read would duplicate owning or exclusive value state"));}
+            let(snapshot,known)=value_transport::read(state,&val(*address)?.address,inner,module,b)?;
+            out=snapshot;state.pending_external_update|=!known;
+            if val(*address)?.address.sources.is_empty(){state.pending_external_update=true;}
+            if !value_transport::required_channels_known(module,inner,&out,b)?{state.pending_external_update=true;}
         }
-        InstructionKind::WriteAddress { address, .. } => {
-            let Type::Address { inner, .. } = vt(f, *address)? else {
-                return Err(err("write base lacks an actual Address type"));
-            };
-            resources::charge_payload(inner, b)?;
-            if !inner.is_copy_value() {
-                return Err(err(
-                    "ordinary write cannot replace qualified carriers or borrowed leaves outside the actual slot protocol",
-                ));
-            }
+        InstructionKind::WriteAddress{address,value}=>{
+            let Type::Address{mutable:true,inner}=vt(f,*address)?else{return Err(err("indirect write lacks exclusive pointer permission"));};
+            if inner.as_ref()!=vt(f,*value)?||!copyable_memory_value(module,inner,b)?{return Err(err("indirect write changes its complete copyable memory value type"));}
+            value_transport::write(state,&val(*address)?.address,inner,val(*value)?,module,b)?;
         }
         InstructionKind::Constant(_)
         | InstructionKind::OwnedStoreNew { .. }
@@ -4533,14 +4934,16 @@ static_dependency: StaticProvenance::NotStatic,
     if let Some(tags) = task_tags {
         out.enum_variants = tags;
     }
-    for(local,tags)in unpacked_tags {state.locals[local.0 as usize].enum_variants=tags;}
+    for (local, tags) in unpacked_tags {
+        state.locals[local.0 as usize].enum_variants = tags;
+    }
     if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
         out.store_description = permission;
     }
-    after_state::publish(state,capture_updates,b)?;
-    value_transport::publish_after(state,value_updates,b)?;
+    after_state::publish(state, capture_updates, b)?;
+    value_transport::publish_after(state, value_updates, b)?;
     dyn_captures::publish_after(state, dyn_capture_updates, b)?;
-    reference_cells::publish(state,reference_updates,b)?;
+    reference_cells::publish(state, reference_updates, b)?;
     if b.qualified_head_returns
         && let Some(id) = i.result
         && let Some(current) = qualified_heads::rows(vt(f, id)?, &out, state, b)?
@@ -4550,7 +4953,10 @@ static_dependency: StaticProvenance::NotStatic,
     }
     if let Some(id) = i.result
         && b.store_descriptions()
-        && matches!(i.kind, InstructionKind::Call { .. }|InstructionKind::SuspendCall { .. })
+        && matches!(
+            i.kind,
+            InstructionKind::Call { .. } | InstructionKind::SuspendCall { .. }
+        )
         && option_address::shape(vt(f, id)?, &b.limits.clone(), b)?
     {
         // A returned Some is a new shared window at this actual call site,
@@ -4610,8 +5016,15 @@ static_dependency: StaticProvenance::NotStatic,
                     | InstructionKind::MakeDynBorrow { .. }
                     | InstructionKind::CallDynSlot { .. }
             )
-            || match &i.kind{InstructionKind::OwnedStoreBorrow{store,..}|InstructionKind::OwnedStoreBorrowMut{store,..}=>b.store_descriptions()||super::stored_owned::ordinary_store_value(module,vt(f,*store)?,b)?,_=>false}
-            || ordinary_error_borrow(module,f, i, b)?
+            || match &i.kind {
+                InstructionKind::OwnedStoreBorrow { store, .. }
+                | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
+                    b.store_descriptions()
+                        || super::stored_owned::ordinary_store_value(module, vt(f, *store)?, b)?
+                }
+                _ => false,
+            }
+            || ordinary_error_borrow(module, f, i, b)?
             || pure_copy::ordinary_copy_field_borrow(f, i, b)?
             || owned_byte_views::instruction(module, f, i, b)?)
         && matches!(vt(f, id)?, Type::Address { .. })
@@ -4639,7 +5052,10 @@ static_dependency: StaticProvenance::NotStatic,
         out.address.loans = vec![id.0 as usize];
     }
     if let Some(id) = i.result
-        && matches!(i.kind, InstructionKind::Call { .. }|InstructionKind::SuspendCall { .. })
+        && matches!(
+            i.kind,
+            InstructionKind::Call { .. } | InstructionKind::SuspendCall { .. }
+        )
         && qualified(vt(f, id)?).is_some()
     {
         let mut loan_id = f.values.len();
@@ -4674,7 +5090,9 @@ static_dependency: StaticProvenance::NotStatic,
         && let Some(value) = i.result
         && matches!(
             i.kind,
-            InstructionKind::MakeClosure { .. } | InstructionKind::Call { .. } | InstructionKind::SuspendCall { .. }
+            InstructionKind::MakeClosure { .. }
+                | InstructionKind::Call { .. }
+                | InstructionKind::SuspendCall { .. }
         )
     {
         returned_environment::retain(module, f, value, &mut out, loans, b)?;
@@ -4735,9 +5153,16 @@ fn solve(
     summaries: &[Summary],
     b: &mut Budget,
 ) -> Check<Solution> {
-    solve_mode(module,f,g,summaries,b,true)
+    solve_mode(module, f, g, summaries, b, true)
 }
-fn solve_mode(module:&TypedModule,f:&TypedFunction,g:&FunctionGraph,summaries:&[Summary],b:&mut Budget,use_dag:bool)->Check<Solution>{
+fn solve_mode(
+    module: &TypedModule,
+    f: &TypedFunction,
+    g: &FunctionGraph,
+    summaries: &[Summary],
+    b: &mut Budget,
+    use_dag: bool,
+) -> Check<Solution> {
     replacements::prepare(module, f, g, b)?;
     let projection_heads = deferred_addresses(module, f, b)?;
     // Each reverse-batch solve creates a new function-local loan arena.
@@ -4779,11 +5204,14 @@ fn solve_mode(module:&TypedModule,f:&TypedFunction,g:&FunctionGraph,summaries:&[
     // predecessor frame and dominating SSA definition is final before its user;
     // join_payload still records all sources and loan growth, including values
     // whose creation does not change a local frame.
-    if use_dag&&let Some(order) = acyclic_order(g, b)?
-    {
-        if let Some(progress)=&mut b.diagnostic_progress{progress.cfg_round=1;}
+    if use_dag && let Some(order) = acyclic_order(g, b)? {
+        if let Some(progress) = &mut b.diagnostic_progress {
+            progress.cfg_round = 1;
+        }
         for bi in order {
-            if let Some(progress)=&mut b.diagnostic_progress{progress.block_visits=progress.block_visits.saturating_add(1);}
+            if let Some(progress) = &mut b.diagnostic_progress {
+                progress.block_visits = progress.block_visits.saturating_add(1);
+            }
             b.spend(1)?;
             let mut state = if bi == f.entry.0 as usize {
                 copy_frame(&entry, b)?
@@ -4826,20 +5254,24 @@ fn solve_mode(module:&TypedModule,f:&TypedFunction,g:&FunctionGraph,summaries:&[
         });
     }
     loop {
-        if let Some(progress)=&mut b.diagnostic_progress{progress.cfg_round=progress.cfg_round.saturating_add(1);}
+        if let Some(progress) = &mut b.diagnostic_progress {
+            progress.cfg_round = progress.cfg_round.saturating_add(1);
+        }
         let mut changed = false;
         // Reverse batches differ from the candidate's forward in-place walk.
         // Old predecessor frames stay read-only for the complete reverse
         // batch. Every reachable block is reconstructed below; retaining a
         // second deep copy of its old frame adds no information.
         b.spend(outputs.len())?;
-        let mut replacement:Vec<Option<Frame>>=(0..outputs.len()).map(|_|None).collect();
+        let mut replacement: Vec<Option<Frame>> = (0..outputs.len()).map(|_| None).collect();
         for bi in (0..f.blocks.len()).rev() {
             b.spend(1)?;
             if !g.reachable[bi] {
                 continue;
             }
-            if let Some(progress)=&mut b.diagnostic_progress{progress.block_visits=progress.block_visits.saturating_add(1);}
+            if let Some(progress) = &mut b.diagnostic_progress {
+                progress.block_visits = progress.block_visits.saturating_add(1);
+            }
             let mut state = if bi == f.entry.0 as usize {
                 copy_frame(&entry, b)?
             } else {
@@ -4873,12 +5305,16 @@ fn solve_mode(module:&TypedModule,f:&TypedFunction,g:&FunctionGraph,summaries:&[
             if state != outputs[bi] {
                 changed = true;
             }
-            replacement[bi]=Some(state);
+            replacement[bi] = Some(state);
         }
         // Unreachable states are moved unchanged. The computed states move
         // into the same actual coordinates, including the stable final round.
         b.spend(outputs.len())?;
-        outputs=outputs.into_iter().zip(replacement).map(|(old,new)|new.unwrap_or(old)).collect();
+        outputs = outputs
+            .into_iter()
+            .zip(replacement)
+            .map(|(old, new)| new.unwrap_or(old))
+            .collect();
         if !changed {
             break;
         }
@@ -4933,14 +5369,25 @@ fn reverse(
         {
             live.assign(f.values.len() + local.0 as usize, true)?;
         }
-        _ if callable_cells::operation(module,f,i,b)? => {
-            if let Some((local,_,_))=callable_cells::local(&i.kind) {live.assign(f.values.len()+local.0 as usize,true)?;}
+        _ if callable_cells::operation(module, f, i, b)? => {
+            if let Some((local, _, _)) = callable_cells::local(&i.kind) {
+                live.assign(f.values.len() + local.0 as usize, true)?;
+            }
         }
-        InstructionKind::UnpackTuple{local,ref fields} if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{
-            for target in fields{b.spend(1)?;live.assign(f.values.len()+target.0 as usize,false)?;}
-            live.assign(f.values.len()+local.0 as usize,true)?;
+        InstructionKind::UnpackTuple { local, ref fields }
+            if pure_copy::ordinary_owned_tuple(module, f, i, b)? =>
+        {
+            for target in fields {
+                b.spend(1)?;
+                live.assign(f.values.len() + target.0 as usize, false)?;
+            }
+            live.assign(f.values.len() + local.0 as usize, true)?;
         }
-        InstructionKind::TakeTupleField{local,..}|InstructionKind::DropTuple{local}if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{live.assign(f.values.len()+local.0 as usize,true)?;}
+        InstructionKind::TakeTupleField { local, .. } | InstructionKind::DropTuple { local }
+            if pure_copy::ordinary_owned_tuple(module, f, i, b)? =>
+        {
+            live.assign(f.values.len() + local.0 as usize, true)?;
+        }
         InstructionKind::CallClosureShared { callee, .. }
         | InstructionKind::CallClosureMut { callee, .. }
             if fixed_environment(module, &f.locals[callee.0 as usize].ty, b) =>
@@ -4995,14 +5442,25 @@ fn reverse_bool(
         {
             live[f.values.len() + local.0 as usize] = true;
         }
-        _ if callable_cells::operation(module,f,i,b)? => {
-            if let Some((local,_,_))=callable_cells::local(&i.kind) {live[f.values.len()+local.0 as usize]=true;}
+        _ if callable_cells::operation(module, f, i, b)? => {
+            if let Some((local, _, _)) = callable_cells::local(&i.kind) {
+                live[f.values.len() + local.0 as usize] = true;
+            }
         }
-        InstructionKind::UnpackTuple{local,ref fields} if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{
-            for target in fields{b.spend(1)?;live[f.values.len()+target.0 as usize]=false;}
-            live[f.values.len()+local.0 as usize]=true;
+        InstructionKind::UnpackTuple { local, ref fields }
+            if pure_copy::ordinary_owned_tuple(module, f, i, b)? =>
+        {
+            for target in fields {
+                b.spend(1)?;
+                live[f.values.len() + target.0 as usize] = false;
+            }
+            live[f.values.len() + local.0 as usize] = true;
         }
-        InstructionKind::TakeTupleField{local,..}|InstructionKind::DropTuple{local}if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{live[f.values.len()+local.0 as usize]=true;}
+        InstructionKind::TakeTupleField { local, .. } | InstructionKind::DropTuple { local }
+            if pure_copy::ordinary_owned_tuple(module, f, i, b)? =>
+        {
+            live[f.values.len() + local.0 as usize] = true;
+        }
         InstructionKind::CallClosureShared { callee, .. }
         | InstructionKind::CallClosureMut { callee, .. }
             if fixed_environment(module, &f.locals[callee.0 as usize].ty, b) =>
@@ -5193,10 +5651,15 @@ fn live_loans(
         } else {
             &state.locals[id - solution.values.len()]
         };
-        value_transport::visit_fields(payload,b,|permission,b|{loans.add(&permission.loans,b)?;Ok(())})?;
+        value_transport::visit_fields(payload, b, |permission, b| {
+            loans.add(&permission.loans, b)?;
+            Ok(())
+        })?;
         loans.add(&payload.address.loans, b)?;
-        if b.raw_reference_cells{loans.add(&reference_cells::held(state,&payload.address,b)?,b)?;}
-        if b.store_descriptions()||!payload.store_description.loans.is_empty(){
+        if b.raw_reference_cells {
+            loans.add(&reference_cells::held(state, &payload.address, b)?, b)?;
+        }
+        if b.store_descriptions() || !payload.store_description.loans.is_empty() {
             loans.add(&payload.store_description.loans, b)?;
         }
         if b.task_sources() {
@@ -5228,7 +5691,19 @@ fn live_loans(
             collect(id, b)?;
         }
     }
-    for row in &state.reference_cells.0{if matches!(row.location.base,HoldRoot::Parameter(_)|HoldRoot::Capture(_)){loans.add(&row.permission.loans,b)?;}}
+    for row in &state.reference_cells.0 {
+        if matches!(
+            row.location.base,
+            HoldRoot::Parameter(_) | HoldRoot::Capture(_)
+        ) {
+            loans.add(&row.permission.loans, b)?;
+        }
+    }
+    for (_, payload) in &state.pointees {
+        value_transport::visit_permissions(payload, b, |permission, b| {
+            loans.add(&permission.loans, b)
+        })?;
+    }
     if b.task_sources() {
         // The actual frame retains its inputs until its owning carrier moves
         // or is discharged; dead SSA uses of a head do not discharge a frame.
@@ -5292,10 +5767,19 @@ fn live_loans_main_fullscan(
         } else {
             &state.locals[id - solution.values.len()]
         };
-        value_transport::visit_fields(payload,b,|permission,b|{add_loans_by_scan(&mut loans,&permission.loans,b)?;Ok(())})?;
+        value_transport::visit_fields(payload, b, |permission, b| {
+            add_loans_by_scan(&mut loans, &permission.loans, b)?;
+            Ok(())
+        })?;
         add_loans_by_scan(&mut loans, &payload.address.loans, b)?;
-        if b.raw_reference_cells{add_loans_by_scan(&mut loans,&reference_cells::held(state,&payload.address,b)?,b)?;}
-        if b.store_descriptions()||!payload.store_description.loans.is_empty(){
+        if b.raw_reference_cells {
+            add_loans_by_scan(
+                &mut loans,
+                &reference_cells::held(state, &payload.address, b)?,
+                b,
+            )?;
+        }
+        if b.store_descriptions() || !payload.store_description.loans.is_empty() {
             add_loans_by_scan(&mut loans, &payload.store_description.loans, b)?;
         }
         if b.task_sources() {
@@ -5313,7 +5797,20 @@ fn live_loans_main_fullscan(
             add_loans_by_scan(&mut loans, &p.loans, b)?;
         }
     }
-    for row in &state.reference_cells.0{if matches!(row.location.base,HoldRoot::Parameter(_)|HoldRoot::Capture(_)){add_loans_by_scan(&mut loans,&row.permission.loans,b)?;}}
+    for row in &state.reference_cells.0 {
+        if matches!(
+            row.location.base,
+            HoldRoot::Parameter(_) | HoldRoot::Capture(_)
+        ) {
+            add_loans_by_scan(&mut loans, &row.permission.loans, b)?;
+        }
+    }
+    for (_, payload) in &state.pointees {
+        value_transport::visit_permissions(payload, b, |permission, b| {
+            add_loans_by_scan(&mut loans, &permission.loans, b)?;
+            Ok(())
+        })?;
+    }
     if b.task_sources() {
         // The actual frame retains its inputs until its owning carrier moves
         // or is discharged; dead SSA uses of a head do not discharge a frame.
@@ -5360,6 +5857,7 @@ fn check_call(
     byte_flow: Option<&byte_queries::Flow>,
     byte_point: Option<&byte_queries::Point>,
     head_accesses: &mut Vec<(Source, bool)>,
+    description_accesses: &mut Vec<descriptor_access::DescriptionAccess>,
     b: &mut Budget,
 ) -> Check<()> {
     let callee = module
@@ -5379,13 +5877,43 @@ fn check_call(
             store_paths::record(head_accesses, &actual, *write, b)?;
         }
     }
+    if !summaries[function.0 as usize]
+        .description_accesses
+        .is_empty()
+    {
+        let before =
+            call_results::Before::direct(module, f, callee, arguments, &solution.values, state, b)?;
+        for row in &summaries[function.0 as usize].description_accesses {
+            let actual = descriptor_access::resolve(&before, row, b)?;
+            if actual.sources.is_empty() {
+                return Err(err(
+                    "descriptor helper access lacks every actual manager source",
+                ));
+            }
+            if row.write {
+                store_paths::writable(&actual, &solution.loans, b)?;
+            }
+            checks.check(&actual, row.write, requirements, b)?;
+            descriptor_access::record(
+                module,
+                f,
+                head_accesses,
+                description_accesses,
+                &actual,
+                row.write,
+                b,
+            )?;
+        }
+    }
     if b.dyn_contexts {
         // A helper's actual body effects retain the same caller obligations
         // as an inlined operation. The result-source upper cannot erase an
         // external data access or delegate an unrelated live child loan.
         for (source, write) in &summaries[function.0 as usize].dyn_accesses {
             let actual = instantiate(module, f, source, arguments, &solution.values, state, b)?;
-            if *write{store_paths::writable(&actual,&solution.loans,b)?;}
+            if *write {
+                store_paths::writable(&actual, &solution.loans, b)?;
+            }
             checks.check(&actual, *write, requirements, b)?;
         }
     }
@@ -5519,6 +6047,7 @@ fn windows(
     requirements: &mut Vec<(Source, Source)>,
     byte_reads: &mut Vec<Source>,
     head_accesses: &mut Vec<(Source, bool)>,
+    description_accesses: &mut Vec<descriptor_access::DescriptionAccess>,
     dyn_accesses: &mut Vec<(Source, bool)>,
     b: &mut Budget,
 ) -> Check<()> {
@@ -5530,7 +6059,7 @@ fn windows(
         for block in &f.blocks {
             b.spend(block.instructions.len())?;
             for instruction in &block.instructions {
-                ordinary_error_places |= ordinary_error_borrow(module,f, instruction, b)?;
+                ordinary_error_places |= ordinary_error_borrow(module, f, instruction, b)?;
             }
         }
     }
@@ -5661,7 +6190,7 @@ fn windows(
                             store_paths::writable(permission, &solution.loans, b)?;
                         }
                         checks.check(permission, write, requirements, b)?;
-                        store_paths::record(head_accesses, permission, write, b)?;
+                        descriptor_access::record(module,f,head_accesses,description_accesses,permission,write,b)?;
                     }
                 }
                 dyn_ports::access(
@@ -5810,12 +6339,12 @@ fn windows(
                         let(permission,_)=description_access(f,i,&solution.values,b)?.ok_or_else(||err("description write lacks its exact finite scalar access"))?;
                         store_paths::writable(&permission,&solution.loans,b)?;
                         checks.check(&permission,true,requirements,b)?;
-                        store_paths::record(head_accesses,&permission,true,b)?;
+                        descriptor_access::record(module,f,head_accesses,description_accesses,&permission,true,b)?;
                     }
                     InstructionKind::ReadDesc { desc, .. } => {
                         if let Some((permission,_))=description_access(f,i,&solution.values,b)?{
                             checks.check(&permission,false,requirements,b)?;
-                            store_paths::record(head_accesses,&permission,false,b)?;
+                            descriptor_access::record(module,f,head_accesses,description_accesses,&permission,false,b)?;
                         }else{
                             let actual=pointer(*desc)?;
                             if !actual.sources.is_empty(){checks.check(actual,false,requirements,b)?;}
@@ -6226,7 +6755,7 @@ fn windows(
                     }
                     InstructionKind::CallIndirect{callee,arguments}if b.raw_reference_cells&&arguments.iter().any(|argument|matches!(f.values.get(argument.0 as usize),Some(Type::Address{mutable:true,inner})if matches!(inner.as_ref(),Type::Address{..})))=>{
                         for target in reference_cells::code_targets(f,*callee,b)?{
-                            check_call(module,f,target,arguments,solution,&state,&mut checks,summaries,requirements,byte_flow.as_ref(),byte_point.as_ref(),head_accesses,b)?;
+                            check_call(module,f,target,arguments,solution,&state,&mut checks,summaries,requirements,byte_flow.as_ref(),byte_point.as_ref(),head_accesses,description_accesses,b)?;
                         }
                     }
                     InstructionKind::CallIndirect { arguments, .. }
@@ -6415,6 +6944,17 @@ fn windows(
                                 checks.check(&permission,*write,requirements,b)?;
                                 store_paths::record(head_accesses,&permission,*write,b)?;
                             }
+                            if !summaries[definition.function.0 as usize].description_accesses.is_empty(){
+                                let before=call_results::Before::closure(module,f,i,&solution.values,&state,b)?;
+                                for row in &summaries[definition.function.0 as usize].description_accesses{
+                                    let permission=descriptor_access::resolve(&before,row,b)?;
+                                    if permission.sources.is_empty(){return Err(err("descriptor callback access lacks every actual manager source"));}
+                                    if row.write{store_paths::writable(&permission,&solution.loans,b)?;}
+                                    checks.check(&permission,row.write,requirements,b)?;
+                                    descriptor_access::record(module,f,head_accesses,description_accesses,&permission,row.write,b)?;
+                                }
+                            }
+
                         }
                         if b.dyn_contexts
                             && let Some((definition, actuals)) =
@@ -6493,6 +7033,7 @@ fn windows(
                         byte_flow.as_ref(),
                         byte_point.as_ref(),
                         head_accesses,
+                        description_accesses,
                         b,
                     )?,
                     _ => {}
@@ -6508,6 +7049,7 @@ fn windows(
                 &solution.values,
                 summaries,
                 dyn_accesses,
+                description_accesses,
                 b,
             )?;
             step(
@@ -6539,19 +7081,28 @@ fn windows(
     Ok(())
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
-    value_transport::after_work(&s.value_after,b)?;
+    descriptor_access::work(&s.description_accesses, b)?;
+    value_transport::after_work(&s.value_after, b)?;
     b.spend(s.field_result_facts.len())?;
-    for(path,facts)in &s.field_result_facts{b.spend(path.len())?;value_transport::result_work(facts,b)?;}
+    for (path, facts) in &s.field_result_facts {
+        b.spend(path.len())?;
+        value_transport::result_work(facts, b)?;
+    }
     b.spend(s.physical_result_parents.len())?;
-    for(path,parents)in &s.physical_result_parents{b.spend(path.len())?;source_work(parents,b)?;}
-    reference_cells::after_work(&s.reference_after,b)?;
+    for (path, parents) in &s.physical_result_parents {
+        b.spend(path.len())?;
+        source_work(parents, b)?;
+    }
+    reference_cells::after_work(&s.reference_after, b)?;
     {
         b.spend(s.head_accesses.len())?;
         for (source, _) in &s.head_accesses {
             b.spend(width(source))?;
         }
     }
-    if b.raw_reference_cells&&!b.dyn_contexts{source_work(&s.dyn_result_parents,b)?;}
+    if b.raw_reference_cells && !b.dyn_contexts {
+        source_work(&s.dyn_result_parents, b)?;
+    }
     if b.dyn_contexts {
         dyn_ports::work(&s.dyn_ports, b)?;
         dyn_providers::work(s, b)?;
@@ -6712,7 +7263,12 @@ fn summarize(
         if b.dyn_contexts && !dyn_returns::complete(module, ty, p, b)? {
             summary.complete = false;
         }
-        if p.field_facts.iter().any(|(_,facts)|facts.creation==Some(false)){summary.complete=false;}
+        if p.field_facts
+            .iter()
+            .any(|(_, facts)| facts.creation == Some(false))
+        {
+            summary.complete = false;
+        }
         if p.creation_complete == Some(false) {
             summary.complete = false;
         }
@@ -6822,6 +7378,8 @@ fn summarize(
     }
     if b.closure_receiver_borrows || b.dyn_contexts {
         for (parameter, payload) in solution.entry.external.iter().enumerate() {
+            let payload = memory_holder(&solution.entry, HoldRoot::Parameter(parameter as u32), b)?
+                .unwrap_or(payload);
             if !b.closure_receiver_borrows {
                 let local = f
                     .parameters
@@ -6840,7 +7398,13 @@ fn summarize(
                     b.spend(1)?;
                     if *live && matches!(block.terminator, Terminator::Return(_)) {
                         returned = true;
-                        let terminal = leaf(&solution.outputs[bi].external[parameter], path, b)?;
+                        let holder = memory_holder(
+                            &solution.outputs[bi],
+                            HoldRoot::Parameter(parameter as u32),
+                            b,
+                        )?
+                        .ok_or_else(|| err("terminal external memory holder is absent"))?;
+                        let terminal = leaf(holder, path, b)?;
                         permission_work(initial, b)?;
                         if let Some(terminal) = terminal {
                             permission_work(terminal, b)?;
@@ -6864,13 +7428,27 @@ fn summarize(
         }
         if *reachable && matches!(block.terminator, Terminator::Return(_)) {
             captured_owner::summarize(module, f, &solution.outputs[bi], &mut summary, b)?;
-            value_transport::summarize_after(module,f,&solution.entry,&solution.outputs[bi],solution,&mut summary,b)?;
+            value_transport::summarize_after(
+                module,
+                f,
+                &solution.entry,
+                &solution.outputs[bi],
+                solution,
+                &mut summary,
+                b,
+            )?;
         }
         if (b.stored_slot_updates || b.replacements || b.dyn_contexts || b.closure_receiver_borrows)
             && *reachable
             && matches!(block.terminator, Terminator::Return(_))
         {
             for (position, payload) in solution.outputs[bi].external.iter().enumerate() {
+                let payload = memory_holder(
+                    &solution.outputs[bi],
+                    HoldRoot::Parameter(position as u32),
+                    b,
+                )?
+                .unwrap_or(payload);
                 let local = *f
                     .parameters
                     .get(position)
@@ -6940,7 +7518,14 @@ fn summarize(
             }
         }
         if *reachable && matches!(block.terminator, Terminator::Return(_)) {
-            reference_cells::summarize(f,&solution.entry,&solution.outputs[bi],&solution.loans,&mut summary,b)?;
+            reference_cells::summarize(
+                f,
+                &solution.entry,
+                &solution.outputs[bi],
+                &solution.loans,
+                &mut summary,
+                b,
+            )?;
             dyn_returns::after(
                 module,
                 f,
@@ -6963,8 +7548,8 @@ fn summarize(
         }
         if *reachable && let Terminator::Return(Some(id)) = block.terminator {
             let payload = &solution.values[id.0 as usize];
-            call_results::return_parents(module,f,payload,solution,&mut summary,b)?;
-            value_transport::summarize(module,f,payload,solution,&mut summary,b)?;
+            call_results::return_parents(module, f, payload, solution, &mut summary, b)?;
+            value_transport::summarize(module, f, payload, solution, &mut summary, b)?;
             summary
                 .returned_enum_variants
                 .join(&payload.enum_variants, b)?;
@@ -7025,9 +7610,17 @@ pub(super) fn check(
 ) -> Check<()> {
     check_with_mask(module, graphs, plan, None, b)
 }
-pub(super) fn contract_dependencies(module:&TypedModule,function:FunctionId,b:&mut Budget)->Check<Vec<FunctionId>>{
-    let f=module.functions.get(function.0 as usize).filter(|row|row.id==function).ok_or_else(||err("original contract dependency has no exact actual function"))?;
-    dyn_providers::dependencies(module,f,b)
+pub(super) fn contract_dependencies(
+    module: &TypedModule,
+    function: FunctionId,
+    b: &mut Budget,
+) -> Check<Vec<FunctionId>> {
+    let f = module
+        .functions
+        .get(function.0 as usize)
+        .filter(|row| row.id == function)
+        .ok_or_else(|| err("original contract dependency has no exact actual function"))?;
+    dyn_providers::dependencies(module, f, b)
 }
 pub(super) fn check_mixed(
     module: &TypedModule,
@@ -7194,7 +7787,7 @@ fn check_with_mask(
         if mask.is_some_and(|mask| !mask[index]) {
             continue;
         }
-        b.diagnostic_actual("actual stored header and type qualification",f.id,0);
+        b.diagnostic_actual("actual stored header and type qualification", f.id, 0);
         check_exclusive_transfers(f, &graphs[f.id.0 as usize], b)?;
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].reachable, b)?;
         if !module.resources.is_empty() && matches!(f.return_type, Type::Desc(_)) {
@@ -7228,7 +7821,7 @@ fn check_with_mask(
                 super::stored_callables::owned_entry(module, d, b)?;
             }
         }
-        for (type_ordinal,ty) in f
+        for (type_ordinal, ty) in f
             .locals
             .iter()
             .map(|l| &l.ty)
@@ -7237,13 +7830,13 @@ fn check_with_mask(
             .enumerate()
         {
             type_work(ty, &b.limits.clone(), b)?;
-            let ordinary_value = super::stored_owned::ordinary_store_value(module,ty, b)?
+            let ordinary_value = super::stored_owned::ordinary_store_value(module, ty, b)?
                 || super::stored_owned::ordinary_byte_value(ty, b)?
-                || pure_copy::complete_owned_value(module,ty, b)?
-                || shared_tuple_value(module,ty,Some(f.span),b)?
+                || pure_copy::complete_owned_value(module, ty, b)?
+                || shared_tuple_value(module, ty, Some(f.span), b)?
                 || matches!(ty,Type::Address{inner,..}if shared_tuple_value(module,inner,Some(f.span),b)?)
-                || pure_copy::callable_tuple(module,ty,b)?
-                || callable_cells::admitted_value(module,ty,b)?
+                || pure_copy::callable_tuple(module, ty, b)?
+                || callable_cells::admitted_value(module, ty, b)?
                 || ordinary_owner_address(module, ty, b)?;
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let closed_dyn_value =
@@ -7280,7 +7873,7 @@ fn check_with_mask(
                 || neutral_owner
                 || qualified(ty).is_some()
                 || addressed(ty).is_some()
-                || b.raw_reference_cells&&reference_cells::nested(ty)
+                || b.raw_reference_cells && reference_cells::nested(ty)
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value()
                 || shared_array_shape(ty, b)?
@@ -7365,7 +7958,7 @@ fn solve_check(
                 continue;
             }
             let f = &module.functions[index];
-            b.diagnostic_actual("actual stored CFG",f.id,round);
+            b.diagnostic_actual("actual stored CFG", f.id, round);
             let mut solution =
                 solve(module, f, &graphs[index], &summaries, b).map_err(|mut failure| {
                     failure.notes.push(format!(
@@ -7401,7 +7994,8 @@ fn solve_check(
                     b.spend(block.instructions.len())?;
                     for instruction in &block.instructions {
                         let function = match &instruction.kind {
-                            InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. } => *function,
+                            InstructionKind::Call { function, .. }
+                            | InstructionKind::SuspendCall { function, .. } => *function,
                             kind => {
                                 let Some((definition, _)) =
                                     super::stored_callables::called(module, f, kind)
@@ -7473,6 +8067,7 @@ fn solve_check(
                     &mut summary.apart,
                     &mut summary.byte_reads,
                     &mut summary.head_accesses,
+                    &mut summary.description_accesses,
                     &mut summary.dyn_accesses,
                     b,
                 )
@@ -7522,7 +8117,7 @@ fn solve_check(
         static_borrows::validate(module, graphs, &solved, mask, b)?;
     }
     dyn_providers::validate(module, &summaries, b)?;
-    dyn_contracts::validate(module,&summaries,b)?;
+    dyn_contracts::validate(module, &summaries, b)?;
     let mut checked_task_sources = if b.task_sources() {
         Some(Vec::with_capacity(module.functions.len()))
     } else {
@@ -7602,7 +8197,7 @@ fn solve_check(
                 .as_ref()
                 .ok_or_else(|| err("returned invocation view lacks its complete relation"))?;
             if receiver_definition.is_none()
-                || value_transport::result_bound(module,f,path,&mut relations,b)?
+                || value_transport::result_bound(module, f, path, &mut relations, b)?
                     != signature_life::outer(c, StorageBase::Receiver)
                         .ok_or_else(|| err("returned invocation view omits Receiver"))?
             {
@@ -7746,7 +8341,9 @@ fn solve_check(
                                         module, f, position, carrier, *port, b,
                                     )?
                                 }
-                                Some(PortOrigin::Reference { .. }) => reference_cells::relation(module,f,source,b)?,
+                                Some(PortOrigin::Reference { .. }) => {
+                                    reference_cells::relation(module, f, source, b)?
+                                }
                                 None => unreachable!(),
                             }
                         } else {
@@ -7757,7 +8354,13 @@ fn solve_check(
                         && source.inline.is_empty()
                         && source.heap_parents.is_empty()
                         && source.heap_element.is_none()
-                        && crate::dynamic_witness::semantic_patterns::return_slot_borrow_view(module,f,position,&source.leaf,b)?)
+                        && crate::dynamic_witness::semantic_patterns::return_slot_borrow_view(
+                            module,
+                            f,
+                            position,
+                            &source.leaf,
+                            b,
+                        )?)
                 {
                     return Err(err(
                         "actual returned target exceeds the complete stored relation",
@@ -7768,7 +8371,15 @@ fn solve_check(
         let solution = solved[index]
             .as_ref()
             .ok_or_else(|| err("independent solver omitted a function"))?;
-        value_transport::validate_results(module,f,s,solution,&graphs[index],&mut relations,b)?;
+        value_transport::validate_results(
+            module,
+            f,
+            s,
+            solution,
+            &graphs[index],
+            &mut relations,
+            b,
+        )?;
         if let Some(calls) = &mut package_calls {
             let rows = package_return_candidates(
                 module,
@@ -7840,10 +8451,14 @@ fn solve_check(
             for (index, value) in solution.values.iter().enumerate() {
                 source_work(&value.address.sources, b)?;
                 let mut sources = value.address.sources.clone();
-                value_transport::visit_fields(value,b,|permission,b|{add_sources(&mut sources,&permission.sources,b)?;Ok(())})?;
+                value_transport::visit_fields(value, b, |permission, b| {
+                    add_sources(&mut sources, &permission.sources, b)?;
+                    Ok(())
+                })?;
                 if (b.shared_byte_borrow
                     && matches!(&f.values[index], Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer))
-                    || (b.store_descriptions()||!value.store_description.sources.is_empty()) && matches!(&f.values[index], Type::Desc(_))
+                    || (b.store_descriptions() || !value.store_description.sources.is_empty())
+                        && matches!(&f.values[index], Type::Desc(_))
                 {
                     add_sources(&mut sources, &value.store_description.sources, b)?;
                 }
@@ -7871,9 +8486,17 @@ fn solve_check(
             return Err(err("candidate must cover each actual value once"));
         }
         for (v, (p, claim)) in solution.values.iter().zip(claimed).enumerate() {
-            let mut field_heap=false;
-            value_transport::visit_fields(p,b,|permission,b|{b.spend(permission.sources.len())?;field_heap|=permission.sources.iter().any(|source|source.heap_element.is_some());Ok(())})?;
-            if b.masked_stored_tasks() && !field_heap
+            let mut field_heap = false;
+            value_transport::visit_fields(p, b, |permission, b| {
+                b.spend(permission.sources.len())?;
+                field_heap |= permission
+                    .sources
+                    .iter()
+                    .any(|source| source.heap_element.is_some());
+                Ok(())
+            })?;
+            if b.masked_stored_tasks()
+                && !field_heap
                 && !matches!(f.values[v], Type::BorrowedStorage { .. })
                 && !p
                     .address
@@ -7897,12 +8520,12 @@ fn solve_check(
                 Vec::new()
             };
             let mut actual = BTreeSet::new();
-            let mut field_sources=Vec::new();
-            for(path,facts)in &p.field_facts{
+            let mut field_sources = Vec::new();
+            for (path, facts) in &p.field_facts {
                 b.spend(path.len().saturating_add(1))?;
                 // Descriptions and extra view heads retain private ancestry;
                 // they are not strong public address targets.
-                add_sources(&mut field_sources,&facts.address.sources,b)?;
+                add_sources(&mut field_sources, &facts.address.sources, b)?;
             }
             let weak_description = matches!(&f.values[v], Type::Desc(payload)
                 if !matches!(payload.as_ref(), Type::ByteBuffer | Type::Task { .. }
@@ -7985,50 +8608,248 @@ mod tests {
     }
 
     #[test]
-    fn scalar_description_helper_write_obligations_survive_without_store_profile_raw_wire(){
-        let limits=Limits::default();let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
-        let desc=Type::Desc(Box::new(Type::Record{name:"Scalar".into(),fields:vec![("value".into(),Type::I32)]}));
-        let caller=&mut module.functions[0];caller.parameters=vec![LocalId(0)];caller.locals=vec![LocalDecl{id:LocalId(0),name:"input".into(),ty:desc.clone(),mutable:false,span}];caller.values=vec![desc,Type::I32];caller.return_type=Type::Unit;
-        caller.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::Load(LocalId(0)),span},Instruction{result:Some(ValueId(1)),kind:InstructionKind::Constant(Constant::I32(1)),span}];caller.blocks[0].terminator=Terminator::Return(None);
-        let mut helper=caller.clone();helper.id=FunctionId(1);helper.name="scalar_write".into();
-        let write=Instruction{result:None,kind:InstructionKind::WriteDesc{desc:ValueId(0),index:0,value:ValueId(1)},span};helper.blocks[0].instructions.push(write.clone());module.functions.push(helper);let plan=CandidatePlan::empty_for(&module);
-        for wire in [false,true]{
-            let decoded;let current=if wire{let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;&decoded}else{&module};
-            for exclusive in [false,true]{
-                let root=Source{static_dependency:StaticProvenance::NotStatic,retained_port:None,base:HoldRoot::Parameter(0),leaf:vec![],inline:vec![],heap_parents:vec![],heap_element:None};
-                let permission=Permission{sources:vec![root.clone()],loans:vec![0]};
-                let mut values=vec![Payload::default();2];values[0].store_description=permission;
-                let solution=Solution{values,outputs:vec![],entry:Frame::default(),loans:vec![Loan{receiver_head:false,sources:vec![root.clone()],parents:vec![],exclusive}],sites:vec![],dyn_sites:dyn_leases::Sites::default()};
-                let mut summaries=vec![Summary::default();2];let mut field=root;field.inline.push(PlaceProjection::Field(0));summaries[1].head_accesses=vec![(field.clone(),true)];
-                let mut b=Budget::new(&limits);assert!(!replacements::heads(&b));let mut accesses=access_candidates::Access::new(&[0],&solution.loans,&mut b).unwrap();let mut rows=vec![];
-                let result=check_call(current,&current.functions[0],FunctionId(1),&[ValueId(0)],&solution,&Frame::default(),&mut accesses,&summaries,&mut vec![],None,None,&mut rows,&mut b);
-                if exclusive{result.unwrap();assert_eq!(rows,vec![(field.clone(),true)]);}else{assert!(result.is_err(),"a helper cannot hide a write through a shared actual parent, wire {wire}");}
+    fn scalar_description_helper_write_obligations_survive_without_store_profile_raw_wire() {
+        let limits = Limits::default();
+        let (mut module, _) = crate::tests::baseline();
+        let span = module.functions[0].span;
+        let desc = Type::Desc(Box::new(Type::Record {
+            name: "Scalar".into(),
+            fields: vec![("value".into(), Type::I32)],
+        }));
+        let caller = &mut module.functions[0];
+        caller.parameters = vec![LocalId(0)];
+        caller.locals = vec![LocalDecl {
+            id: LocalId(0),
+            name: "input".into(),
+            ty: desc.clone(),
+            mutable: false,
+            span,
+        }];
+        caller.values = vec![desc, Type::I32];
+        caller.return_type = Type::Unit;
+        caller.blocks[0].instructions = vec![
+            Instruction {
+                result: Some(ValueId(0)),
+                kind: InstructionKind::Load(LocalId(0)),
+                span,
+            },
+            Instruction {
+                result: Some(ValueId(1)),
+                kind: InstructionKind::Constant(Constant::I32(1)),
+                span,
+            },
+        ];
+        caller.blocks[0].terminator = Terminator::Return(None);
+        let mut helper = caller.clone();
+        helper.id = FunctionId(1);
+        helper.name = "scalar_write".into();
+        let write = Instruction {
+            result: None,
+            kind: InstructionKind::WriteDesc {
+                desc: ValueId(0),
+                index: 0,
+                value: ValueId(1),
+            },
+            span,
+        };
+        helper.blocks[0].instructions.push(write.clone());
+        module.functions.push(helper);
+        let plan = CandidatePlan::empty_for(&module);
+        for wire in [false, true] {
+            let decoded;
+            let current = if wire {
+                let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+                decoded = zil_ir::wire::decode_module_candidate(&bytes, &limits)
+                    .unwrap()
+                    .0;
+                &decoded
+            } else {
+                &module
+            };
+            for exclusive in [false, true] {
+                let root = Source {
+                    static_dependency: StaticProvenance::NotStatic,
+                    retained_port: None,
+                    base: HoldRoot::Parameter(0),
+                    leaf: vec![],
+                    inline: vec![],
+                    heap_parents: vec![],
+                    heap_element: None,
+                };
+                let permission = Permission {
+                    sources: vec![root.clone()],
+                    loans: vec![0],
+                };
+                let mut values = vec![Payload::default(); 2];
+                values[0].store_description = permission;
+                let solution = Solution {
+                    values,
+                    outputs: vec![],
+                    entry: Frame::default(),
+                    loans: vec![Loan {
+                        receiver_head: false,
+                        sources: vec![root.clone()],
+                        parents: vec![],
+                        exclusive,
+                    }],
+                    sites: vec![],
+                    dyn_sites: dyn_leases::Sites::default(),
+                };
+                let mut summaries = vec![Summary::default(); 2];
+                let mut field = root;
+                field.inline.push(PlaceProjection::Field(0));
+                let mut seed_budget = Budget::new(&limits);
+                {
+                    let summary = &mut summaries[1];
+                    descriptor_access::record(
+                        current,
+                        &current.functions[1],
+                        &mut summary.head_accesses,
+                        &mut summary.description_accesses,
+                        &Permission {
+                            sources: vec![field.clone()],
+                            loans: vec![],
+                        },
+                        true,
+                        &mut seed_budget,
+                    )
+                    .unwrap();
+                }
+                let mut b = Budget::new(&limits);
+                assert!(!replacements::heads(&b));
+                let mut accesses =
+                    access_candidates::Access::new(&[0], &solution.loans, &mut b).unwrap();
+                let mut rows = vec![];
+                let mut description_rows = vec![];
+                let result = check_call(
+                    current,
+                    &current.functions[0],
+                    FunctionId(1),
+                    &[ValueId(0)],
+                    &solution,
+                    &Frame::default(),
+                    &mut accesses,
+                    &summaries,
+                    &mut vec![],
+                    None,
+                    None,
+                    &mut rows,
+                    &mut description_rows,
+                    &mut b,
+                );
+                if exclusive {
+                    result.unwrap();
+                    assert!(rows.is_empty());
+                    assert_eq!(description_rows.len(), 1);
+                    assert!(description_rows[0].write);
+                    assert_eq!(
+                        descriptor_access::symbolic(&description_rows[0], &mut b).unwrap(),
+                        field
+                    );
+                } else {
+                    assert!(
+                        result.is_err(),
+                        "a helper cannot hide a write through a shared actual parent, wire {wire}"
+                    );
+                }
                 // Memory upper checks consume actual accesses even though a
                 // scalar description operation has no Dyn callback/effect.
-                b.dyn_contexts=true;let mut dyn_rows=vec![];
-                dyn_providers::observe(current,&current.functions[1],&write,&Frame::default(),&solution.values,&summaries,&mut dyn_rows,&mut b).unwrap();
-                assert_eq!(dyn_rows,vec![(field,true)]);assert!(!summaries[1].dyn_operations);
+                b.dyn_contexts = true;
+                let mut dyn_rows = vec![];
+                let mut desc_rows = vec![];
+                dyn_providers::observe(
+                    current,
+                    &current.functions[1],
+                    &write,
+                    &Frame::default(),
+                    &solution.values,
+                    &summaries,
+                    &mut dyn_rows,
+                    &mut desc_rows,
+                    &mut b,
+                )
+                .unwrap();
+                assert!(dyn_rows.is_empty());
+                assert_eq!(desc_rows.len(), 1);
+                assert!(desc_rows[0].write);
+                assert_eq!(
+                    descriptor_access::symbolic(&desc_rows[0], &mut b).unwrap(),
+                    field
+                );
+                assert!(!summaries[1].dyn_operations);
             }
         }
     }
 
     #[test]
-    fn suspending_stored_call_keeps_its_actual_abi_operands_and_finite_frame_obligations(){
-        let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
-        let target=&mut module.functions[0];target.call_kind=CallKind::Suspend;target.parameters=vec![LocalId(0)];target.values=vec![Type::I32];
-        target.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::Load(LocalId(0)),span}];
-        target.blocks[0].terminator=Terminator::Return(Some(ValueId(0)));
-        let mut caller=target.clone();caller.id=FunctionId(1);caller.parameters.clear();caller.values=vec![Type::I32;2];
-        caller.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::Constant(Constant::I32(4)),span},Instruction{result:Some(ValueId(1)),kind:InstructionKind::SuspendCall{function:FunctionId(0),arguments:vec![ValueId(0)]},span}];
-        caller.blocks[0].terminator=Terminator::Return(Some(ValueId(1)));module.functions.push(caller);
-        let check=|module:&TypedModule|qualifications(module,&Limits::default(),None,&mut Budget::new(&Limits::default()));
+    fn suspending_stored_call_keeps_its_actual_abi_operands_and_finite_frame_obligations() {
+        let (mut module, _) = crate::tests::baseline();
+        let span = module.functions[0].span;
+        let target = &mut module.functions[0];
+        target.call_kind = CallKind::Suspend;
+        target.parameters = vec![LocalId(0)];
+        target.values = vec![Type::I32];
+        target.blocks[0].instructions = vec![Instruction {
+            result: Some(ValueId(0)),
+            kind: InstructionKind::Load(LocalId(0)),
+            span,
+        }];
+        target.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
+        let mut caller = target.clone();
+        caller.id = FunctionId(1);
+        caller.parameters.clear();
+        caller.values = vec![Type::I32; 2];
+        caller.blocks[0].instructions = vec![
+            Instruction {
+                result: Some(ValueId(0)),
+                kind: InstructionKind::Constant(Constant::I32(4)),
+                span,
+            },
+            Instruction {
+                result: Some(ValueId(1)),
+                kind: InstructionKind::SuspendCall {
+                    function: FunctionId(0),
+                    arguments: vec![ValueId(0)],
+                },
+                span,
+            },
+        ];
+        caller.blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
+        module.functions.push(caller);
+        let check = |module: &TypedModule| {
+            qualifications(
+                module,
+                &Limits::default(),
+                None,
+                &mut Budget::new(&Limits::default()),
+            )
+        };
         assert!(check(&module).is_ok());
-        let mut forged=module.clone();forged.functions[1].call_kind=CallKind::Direct;assert!(check(&forged).is_err());
-        forged=module.clone();forged.functions[0].call_kind=CallKind::Direct;assert!(check(&forged).is_err());
-        forged=module.clone();forged.functions[1].values[0]=Type::Bool;assert!(check(&forged).is_err());
-        forged=module.clone();forged.functions[0].values.push(Type::I32);
-        forged.functions[0].blocks[0].instructions.push(Instruction{result:Some(ValueId(1)),kind:InstructionKind::SuspendCall{function:FunctionId(0),arguments:vec![ValueId(0)]},span});
-        assert!(check(&forged).is_err(),"a recursive child frame is not closed finite storage");
+        let mut forged = module.clone();
+        forged.functions[1].call_kind = CallKind::Direct;
+        assert!(check(&forged).is_err());
+        forged = module.clone();
+        forged.functions[0].call_kind = CallKind::Direct;
+        assert!(check(&forged).is_err());
+        forged = module.clone();
+        forged.functions[1].values[0] = Type::Bool;
+        assert!(check(&forged).is_err());
+        forged = module.clone();
+        forged.functions[0].values.push(Type::I32);
+        forged.functions[0].blocks[0]
+            .instructions
+            .push(Instruction {
+                result: Some(ValueId(1)),
+                kind: InstructionKind::SuspendCall {
+                    function: FunctionId(0),
+                    arguments: vec![ValueId(0)],
+                },
+                span,
+            });
+        assert!(
+            check(&forged).is_err(),
+            "a recursive child frame is not closed finite storage"
+        );
     }
 
     #[test]
@@ -8045,13 +8866,17 @@ mod tests {
         f.storage_life = Some(StorageLifeContract {
             fixed_binder_count: 0,
             invocation_binder_count: 1,
-            bindings: [StorageBase::Parameter(0), StorageBase::Parameter(1), StorageBase::Result]
-                .into_iter()
-                .map(|base| StorageLifeBinding {
-                    position: StoragePosition { base, path: vec![] },
-                    binder: StorageBinder::Invocation(0),
-                })
-                .collect(),
+            bindings: [
+                StorageBase::Parameter(0),
+                StorageBase::Parameter(1),
+                StorageBase::Result,
+            ]
+            .into_iter()
+            .map(|base| StorageLifeBinding {
+                position: StoragePosition { base, path: vec![] },
+                binder: StorageBinder::Invocation(0),
+            })
+            .collect(),
             static_bindings: vec![],
             classes: vec![],
         });
@@ -8088,90 +8913,277 @@ mod tests {
                 }
                 let errors = result.unwrap_err();
                 let (code, message) = match attack {
-                    1 => ("E-VERIFY-STORED", "actual returned target exceeds the existing direct reference upper"),
-                    2 => ("E-VERIFY-CLASS-EQUATION", "actual retained class equality is not universally valid"),
-                    _ => ("E-VERIFY-LIFE", "invalid address direct return-life upper bound"),
+                    1 => (
+                        "E-VERIFY-STORED",
+                        "actual returned target exceeds the existing direct reference upper",
+                    ),
+                    2 => (
+                        "E-VERIFY-CLASS-EQUATION",
+                        "actual retained class equality is not universally valid",
+                    ),
+                    _ => (
+                        "E-VERIFY-LIFE",
+                        "invalid address direct return-life upper bound",
+                    ),
                 };
-                assert!(errors.iter().any(|d| d.category == zil_base::ResultCategory::SafeReject
-                    && d.code == code && d.message.ends_with(message)), "attack {attack}: {errors:?}");
+                assert!(
+                    errors
+                        .iter()
+                        .any(|d| d.category == zil_base::ResultCategory::SafeReject
+                            && d.code == code
+                            && d.message.ends_with(message)),
+                    "attack {attack}: {errors:?}"
+                );
             }
         }
     }
 
     #[test]
-    fn complete_dag_transfer_matches_reverse_fixed_point_and_cycles_keep_the_fallback(){
-        let module=fixture::module();
-        for cyclic in [false,true]{
-            let mut f=module.functions[0].clone();
-            let code=std::mem::take(&mut f.blocks[0].instructions);
-            let terminal=f.blocks[0].terminator.clone();let count=code.len();
-            f.blocks=code.into_iter().enumerate().map(|(index,instruction)|BasicBlock{id:BlockId(index as u32),instructions:vec![instruction],terminator:if index+1<count{Terminator::Jump(BlockId(index as u32+1))}else if cyclic{Terminator::Jump(BlockId(0))}else{terminal.clone()}}).collect();
-            let mut successors=vec![vec![];count];let mut predecessors=vec![vec![];count];
-            for index in 0..count{if index+1<count||cyclic{let target=(index+1)%count;successors[index].push(target);predecessors[target].push(index);}}
-            let graph=FunctionGraph{successors,predecessors,reachable:vec![true;count],package_views:packages::CaptureViews::default(),role_data_uses:vec![]};
-            let source=Source{static_dependency:StaticProvenance::NotStatic,retained_port:None,base:HoldRoot::Parameter(0),leaf:vec![],inline:vec![],heap_parents:vec![],heap_element:None};
-            let mut summaries=vec![Summary::default();module.functions.len()];summaries[4].complete=true;summaries[4].result=vec![(vec![],vec![source])];
-            let limits=Limits::default();let mut fast_budget=Budget::new(&limits);let mut reverse_budget=Budget::new(&limits);
-            let fast=solve_mode(&module,&f,&graph,&summaries,&mut fast_budget,true).unwrap();
-            let reverse=solve_mode(&module,&f,&graph,&summaries,&mut reverse_budget,false).unwrap();
-            assert_eq!(fast.entry,reverse.entry);assert_eq!(fast.outputs,reverse.outputs);assert_eq!(fast.values,reverse.values);assert_eq!(fast.sites,reverse.sites);
-            assert_eq!(fast.loans.len(),reverse.loans.len());
-            for(actual,expected)in fast.loans.iter().zip(&reverse.loans){assert_eq!((&actual.sources,&actual.parents,actual.exclusive,actual.receiver_head),(&expected.sources,&expected.parents,expected.exclusive,expected.receiver_head));}
-            if !cyclic{assert!(fast_budget.remaining>reverse_budget.remaining,"a true multi-block DAG executes fewer real transfers and frame copies");}
+    fn complete_dag_transfer_matches_reverse_fixed_point_and_cycles_keep_the_fallback() {
+        let module = fixture::module();
+        for cyclic in [false, true] {
+            let mut f = module.functions[0].clone();
+            let code = std::mem::take(&mut f.blocks[0].instructions);
+            let terminal = f.blocks[0].terminator.clone();
+            let count = code.len();
+            f.blocks = code
+                .into_iter()
+                .enumerate()
+                .map(|(index, instruction)| BasicBlock {
+                    id: BlockId(index as u32),
+                    instructions: vec![instruction],
+                    terminator: if index + 1 < count {
+                        Terminator::Jump(BlockId(index as u32 + 1))
+                    } else if cyclic {
+                        Terminator::Jump(BlockId(0))
+                    } else {
+                        terminal.clone()
+                    },
+                })
+                .collect();
+            let mut successors = vec![vec![]; count];
+            let mut predecessors = vec![vec![]; count];
+            for index in 0..count {
+                if index + 1 < count || cyclic {
+                    let target = (index + 1) % count;
+                    successors[index].push(target);
+                    predecessors[target].push(index);
+                }
+            }
+            let graph = FunctionGraph {
+                successors,
+                predecessors,
+                reachable: vec![true; count],
+                package_views: packages::CaptureViews::default(),
+                role_data_uses: vec![],
+            };
+            let source = Source {
+                static_dependency: StaticProvenance::NotStatic,
+                retained_port: None,
+                base: HoldRoot::Parameter(0),
+                leaf: vec![],
+                inline: vec![],
+                heap_parents: vec![],
+                heap_element: None,
+            };
+            let mut summaries = vec![Summary::default(); module.functions.len()];
+            summaries[4].complete = true;
+            summaries[4].result = vec![(vec![], vec![source])];
+            let limits = Limits::default();
+            let mut fast_budget = Budget::new(&limits);
+            let mut reverse_budget = Budget::new(&limits);
+            let fast = solve_mode(&module, &f, &graph, &summaries, &mut fast_budget, true).unwrap();
+            let reverse =
+                solve_mode(&module, &f, &graph, &summaries, &mut reverse_budget, false).unwrap();
+            assert_eq!(fast.entry, reverse.entry);
+            assert_eq!(fast.outputs, reverse.outputs);
+            assert_eq!(fast.values, reverse.values);
+            assert_eq!(fast.sites, reverse.sites);
+            assert_eq!(fast.loans.len(), reverse.loans.len());
+            for (actual, expected) in fast.loans.iter().zip(&reverse.loans) {
+                assert_eq!(
+                    (
+                        &actual.sources,
+                        &actual.parents,
+                        actual.exclusive,
+                        actual.receiver_head
+                    ),
+                    (
+                        &expected.sources,
+                        &expected.parents,
+                        expected.exclusive,
+                        expected.receiver_head
+                    )
+                );
+            }
+            if !cyclic {
+                assert!(
+                    fast_budget.remaining > reverse_budget.remaining,
+                    "a true multi-block DAG executes fewer real transfers and frame copies"
+                );
+            }
         }
     }
 
     #[test]
     fn assignment_reservations_require_source_and_nonescaping_unique_write_chains() {
-        let module=fixture::module();
+        let module = fixture::module();
         assert!(module.semantic.is_none());
-        let mut function=module.functions[0].clone();
-        let array=Type::Array{element:Box::new(Type::I64),length:4};
-        let pair=Type::Package{name:"Buffer".into(),fields:vec![("bytes".into(),array.clone())]};
-        function.environment=None;
-        function.parameters=vec![LocalId(0)];function.locals.truncate(1);
-        function.locals[0].ty=fixture::address(pair,true);
-        function.values=vec![function.locals[0].ty.clone(),fixture::address(array.clone(),true),Type::I64,fixture::address(Type::I64,true),Type::I64];
-        function.blocks.truncate(1);
-        function.blocks[0].instructions=vec![
-            fixture::instruction(Some(0),InstructionKind::Load(LocalId(0))),
-            fixture::instruction(Some(1),InstructionKind::AddressField{address:ValueId(0),index:0}),
-            fixture::instruction(Some(2),InstructionKind::Constant(Constant::I64(0))),
-            fixture::instruction(Some(3),InstructionKind::AddressIndex{address:ValueId(1),index:ValueId(2)}),
-            fixture::instruction(Some(4),InstructionKind::Constant(Constant::I64(1))),
-            fixture::instruction(None,InstructionKind::WriteAddress{address:ValueId(3),value:ValueId(4)}),
+        let mut function = module.functions[0].clone();
+        let array = Type::Array {
+            element: Box::new(Type::I64),
+            length: 4,
+        };
+        let pair = Type::Package {
+            name: "Buffer".into(),
+            fields: vec![("bytes".into(), array.clone())],
+        };
+        function.environment = None;
+        function.parameters = vec![LocalId(0)];
+        function.locals.truncate(1);
+        function.locals[0].ty = fixture::address(pair, true);
+        function.values = vec![
+            function.locals[0].ty.clone(),
+            fixture::address(array.clone(), true),
+            Type::I64,
+            fixture::address(Type::I64, true),
+            Type::I64,
         ];
-        function.blocks[0].terminator=Terminator::Return(None);
-        let limits=Limits::default();
-        let raw=deferred_addresses(&module,&function,&mut Budget::new(&limits)).unwrap();
-        assert!(raw[0]);assert!(!raw[1]&&!raw[3],"raw heads are not source assignment receipts");
-        assert!(assignment_reservations(&function,&[],&mut Budget::new(&limits)).unwrap().iter().all(|reserved|!*reserved));
+        function.blocks.truncate(1);
+        function.blocks[0].instructions = vec![
+            fixture::instruction(Some(0), InstructionKind::Load(LocalId(0))),
+            fixture::instruction(
+                Some(1),
+                InstructionKind::AddressField {
+                    address: ValueId(0),
+                    index: 0,
+                },
+            ),
+            fixture::instruction(Some(2), InstructionKind::Constant(Constant::I64(0))),
+            fixture::instruction(
+                Some(3),
+                InstructionKind::AddressIndex {
+                    address: ValueId(1),
+                    index: ValueId(2),
+                },
+            ),
+            fixture::instruction(Some(4), InstructionKind::Constant(Constant::I64(1))),
+            fixture::instruction(
+                None,
+                InstructionKind::WriteAddress {
+                    address: ValueId(3),
+                    value: ValueId(4),
+                },
+            ),
+        ];
+        function.blocks[0].terminator = Terminator::Return(None);
+        let limits = Limits::default();
+        let raw = deferred_addresses(&module, &function, &mut Budget::new(&limits)).unwrap();
+        assert!(raw[0]);
+        assert!(
+            !raw[1] && !raw[3],
+            "raw heads are not source assignment receipts"
+        );
+        assert!(
+            assignment_reservations(&function, &[], &mut Budget::new(&limits))
+                .unwrap()
+                .iter()
+                .all(|reserved| !*reserved)
+        );
         // Here the private kernel receives the source match already proved by
         // the separate original assignment consumer, never a raw claim.
-        let marked=assignment_reservations(&function,&[ValueId(3)],&mut Budget::new(&limits)).unwrap();
-        assert!(marked[0]&&marked[1]&&marked[3]);
+        let marked =
+            assignment_reservations(&function, &[ValueId(3)], &mut Budget::new(&limits)).unwrap();
+        assert!(marked[0] && marked[1] && marked[3]);
         for escape in 0..5 {
-            let mut forged=function.clone();
+            let mut forged = function.clone();
             match escape {
-                0=>forged.blocks[0].instructions.push(fixture::instruction(None,InstructionKind::Store{local:LocalId(0),value:ValueId(3)})),
-                1=>forged.blocks[0].instructions.push(fixture::instruction(None,InstructionKind::Call{function:FunctionId(1),arguments:vec![ValueId(3)]})),
-                2=>forged.blocks[0].terminator=Terminator::Return(Some(ValueId(3))),
-                3=>forged.blocks[0].instructions.push(fixture::instruction(None,InstructionKind::WriteAddress{address:ValueId(3),value:ValueId(4)})),
-                _=>{
-                    let mut block=forged.blocks[0].clone();block.id=BlockId(1);
-                    block.instructions=vec![fixture::instruction(None,InstructionKind::Store{local:LocalId(0),value:ValueId(3)})];
+                0 => forged.blocks[0].instructions.push(fixture::instruction(
+                    None,
+                    InstructionKind::Store {
+                        local: LocalId(0),
+                        value: ValueId(3),
+                    },
+                )),
+                1 => forged.blocks[0].instructions.push(fixture::instruction(
+                    None,
+                    InstructionKind::Call {
+                        function: FunctionId(1),
+                        arguments: vec![ValueId(3)],
+                    },
+                )),
+                2 => forged.blocks[0].terminator = Terminator::Return(Some(ValueId(3))),
+                3 => forged.blocks[0].instructions.push(fixture::instruction(
+                    None,
+                    InstructionKind::WriteAddress {
+                        address: ValueId(3),
+                        value: ValueId(4),
+                    },
+                )),
+                _ => {
+                    let mut block = forged.blocks[0].clone();
+                    block.id = BlockId(1);
+                    block.instructions = vec![fixture::instruction(
+                        None,
+                        InstructionKind::Store {
+                            local: LocalId(0),
+                            value: ValueId(3),
+                        },
+                    )];
                     forged.blocks.push(block);
-                },
+                }
             }
-            let marked=assignment_reservations(&forged,&[ValueId(3)],&mut Budget::new(&limits)).unwrap();
-            assert!(!marked[0]&&!marked[1]&&!marked[3],"escape {escape}");
+            let marked =
+                assignment_reservations(&forged, &[ValueId(3)], &mut Budget::new(&limits)).unwrap();
+            assert!(!marked[0] && !marked[1] && !marked[3], "escape {escape}");
         }
-        let source=Source{static_dependency:StaticProvenance::NotStatic,retained_port:None,base:HoldRoot::Parameter(0),leaf:vec![],inline:vec![PlaceProjection::Field(0)],heap_parents:vec![],heap_element:None};
-        let parent=Loan{receiver_head:false,sources:vec![source.clone()],parents:vec![],exclusive:true};
-        let child=Loan{receiver_head:false,sources:vec![source.clone()],parents:vec![0],exclusive:true};
-        let permission=Permission{sources:vec![source],loans:vec![0]};
-        assert!(access(&permission,true,&[0,1],&[parent.clone(),child],&mut vec![],&mut Budget::new(&limits)).unwrap_err().message.contains("loan"));
-        access(&permission,true,&[0],&[parent],&mut vec![],&mut Budget::new(&limits)).unwrap();
+        let source = Source {
+            static_dependency: StaticProvenance::NotStatic,
+            retained_port: None,
+            base: HoldRoot::Parameter(0),
+            leaf: vec![],
+            inline: vec![PlaceProjection::Field(0)],
+            heap_parents: vec![],
+            heap_element: None,
+        };
+        let parent = Loan {
+            receiver_head: false,
+            sources: vec![source.clone()],
+            parents: vec![],
+            exclusive: true,
+        };
+        let child = Loan {
+            receiver_head: false,
+            sources: vec![source.clone()],
+            parents: vec![0],
+            exclusive: true,
+        };
+        let permission = Permission {
+            sources: vec![source],
+            loans: vec![0],
+        };
+        assert!(
+            access(
+                &permission,
+                true,
+                &[0, 1],
+                &[parent.clone(), child],
+                &mut vec![],
+                &mut Budget::new(&limits)
+            )
+            .unwrap_err()
+            .message
+            .contains("loan")
+        );
+        access(
+            &permission,
+            true,
+            &[0],
+            &[parent],
+            &mut vec![],
+            &mut Budget::new(&limits),
+        )
+        .unwrap();
     }
 
     #[test]
@@ -8199,21 +9211,50 @@ mod tests {
             alias.mutable = true;
             function.locals.push(alias);
             function.return_type = Type::I64;
-            function.values = vec![whole.clone(), field.clone(), whole.clone(), field, Type::I64];
+            function.values = vec![
+                whole.clone(),
+                field.clone(),
+                whole.clone(),
+                field,
+                Type::I64,
+            ];
             let mut instructions = vec![
                 fixture::instruction(Some(0), InstructionKind::Load(LocalId(0))),
-                fixture::instruction(Some(1), InstructionKind::AddressField { address: ValueId(0), index: 0 }),
+                fixture::instruction(
+                    Some(1),
+                    InstructionKind::AddressField {
+                        address: ValueId(0),
+                        index: 0,
+                    },
+                ),
             ];
             match case {
                 0 | 1 => instructions.extend([
                     fixture::instruction(Some(2), InstructionKind::Load(LocalId(0))),
-                    fixture::instruction(Some(3), InstructionKind::AddressField { address: ValueId(2), index: if case == 0 { 1 } else { 0 } }),
+                    fixture::instruction(
+                        Some(3),
+                        InstructionKind::AddressField {
+                            address: ValueId(2),
+                            index: if case == 0 { 1 } else { 0 },
+                        },
+                    ),
                 ]),
                 2 => {
                     function.values[2] = pair;
-                    instructions.push(fixture::instruction(Some(2), InstructionKind::ReadAddress { address: ValueId(0) }));
+                    instructions.push(fixture::instruction(
+                        Some(2),
+                        InstructionKind::ReadAddress {
+                            address: ValueId(0),
+                        },
+                    ));
                 }
-                3 => instructions.push(fixture::instruction(Some(2), InstructionKind::ReborrowAddress { address: ValueId(0), mutable: true })),
+                3 => instructions.push(fixture::instruction(
+                    Some(2),
+                    InstructionKind::ReborrowAddress {
+                        address: ValueId(0),
+                        mutable: true,
+                    },
+                )),
                 4 => {
                     let mut callee = function.clone();
                     callee.id = FunctionId(1);
@@ -8224,41 +9265,99 @@ mod tests {
                     callee.blocks[0].instructions.clear();
                     callee.blocks[0].terminator = Terminator::Return(None);
                     module.functions[1] = callee;
-                    instructions.push(fixture::instruction(None, InstructionKind::Call { function: FunctionId(1), arguments: vec![ValueId(0)] }));
+                    instructions.push(fixture::instruction(
+                        None,
+                        InstructionKind::Call {
+                            function: FunctionId(1),
+                            arguments: vec![ValueId(0)],
+                        },
+                    ));
                 }
                 5 => instructions.extend([
                     fixture::instruction(Some(2), InstructionKind::Load(LocalId(0))),
-                    fixture::instruction(None, InstructionKind::Store { local: LocalId(1), value: ValueId(2) }),
+                    fixture::instruction(
+                        None,
+                        InstructionKind::Store {
+                            local: LocalId(1),
+                            value: ValueId(2),
+                        },
+                    ),
                 ]),
                 _ => {
                     function.values[2] = pair;
-                    instructions.insert(1, fixture::instruction(Some(2), InstructionKind::ReadAddress { address: ValueId(0) }));
-                    instructions.push(fixture::instruction(None, InstructionKind::WriteAddress { address: ValueId(0), value: ValueId(2) }));
+                    instructions.insert(
+                        1,
+                        fixture::instruction(
+                            Some(2),
+                            InstructionKind::ReadAddress {
+                                address: ValueId(0),
+                            },
+                        ),
+                    );
+                    instructions.push(fixture::instruction(
+                        None,
+                        InstructionKind::WriteAddress {
+                            address: ValueId(0),
+                            value: ValueId(2),
+                        },
+                    ));
                 }
             }
-            instructions.push(fixture::instruction(Some(4), InstructionKind::ReadAddress { address: ValueId(1) }));
+            instructions.push(fixture::instruction(
+                Some(4),
+                InstructionKind::ReadAddress {
+                    address: ValueId(1),
+                },
+            ));
             if case <= 1 {
-                instructions.push(fixture::instruction(None, InstructionKind::WriteAddress { address: ValueId(3), value: ValueId(4) }));
+                instructions.push(fixture::instruction(
+                    None,
+                    InstructionKind::WriteAddress {
+                        address: ValueId(3),
+                        value: ValueId(4),
+                    },
+                ));
             }
             function.blocks.truncate(1);
             function.blocks[0].instructions = instructions;
             function.blocks[0].terminator = Terminator::Return(Some(ValueId(4)));
             let graph = FunctionGraph {
-                successors: vec![vec![]], predecessors: vec![vec![]], reachable: vec![true],
-                package_views: packages::CaptureViews::default(), role_data_uses: vec![],
+                successors: vec![vec![]],
+                predecessors: vec![vec![]],
+                reachable: vec![true],
+                package_views: packages::CaptureViews::default(),
+                role_data_uses: vec![],
             };
             let limits = Limits::default();
             let mut budget = Budget::new(&limits);
             let heads = projection_head_loads(&function, &mut budget).unwrap();
             assert_eq!(heads[0], case <= 1 || case == 5);
-            if case <= 1 { assert!(heads[2]); }
-            if case == 5 { assert!(!heads[2]); }
+            if case <= 1 {
+                assert!(heads[2]);
+            }
+            if case == 5 {
+                assert!(!heads[2]);
+            }
             let summaries = vec![Summary::default(); module.functions.len()];
             let mut solution = solve(&module, &function, &graph, &summaries, &mut budget).unwrap();
-            let result = windows(&module, &function, &graph, &mut solution, &summaries,
-                &mut vec![], &mut vec![], &mut vec![], &mut vec![], &mut budget);
-            if case == 0 { result.unwrap(); }
-            else { assert!(result.unwrap_err().message.contains("loan"), "case {case}"); }
+            let result = windows(
+                &module,
+                &function,
+                &graph,
+                &mut solution,
+                &summaries,
+                &mut vec![],
+                &mut vec![],
+                &mut vec![],
+                &mut vec![],
+                &mut vec![],
+                &mut budget,
+            );
+            if case == 0 {
+                result.unwrap();
+            } else {
+                assert!(result.unwrap_err().message.contains("loan"), "case {case}");
+            }
         }
     }
 
@@ -8268,13 +9367,25 @@ mod tests {
         let mut function = module.functions[0].clone();
         function.parameters = vec![LocalId(0)];
         function.locals.truncate(1);
-        let pair = Type::Record { name: "Pair".into(), fields: vec![("id".into(), Type::I64)] };
+        let pair = Type::Record {
+            name: "Pair".into(),
+            fields: vec![("id".into(), Type::I64)],
+        };
         function.locals[0].ty = fixture::address(pair, true);
-        function.values = vec![function.locals[0].ty.clone(), fixture::address(Type::I64, true)];
+        function.values = vec![
+            function.locals[0].ty.clone(),
+            fixture::address(Type::I64, true),
+        ];
         function.blocks.truncate(1);
         function.blocks[0].instructions = vec![
             fixture::instruction(Some(0), InstructionKind::Load(LocalId(0))),
-            fixture::instruction(Some(1), InstructionKind::AddressField { address: ValueId(0), index: 0 }),
+            fixture::instruction(
+                Some(1),
+                InstructionKind::AddressField {
+                    address: ValueId(0),
+                    index: 0,
+                },
+            ),
         ];
         function.blocks[0].terminator = Terminator::Return(None);
         let limits = Limits::default();
@@ -8284,7 +9395,13 @@ mod tests {
         assert!(!projection_head_loads(&escaped, &mut Budget::new(&limits)).unwrap()[0]);
         let mut unreachable = function.blocks[0].clone();
         unreachable.id = BlockId(1);
-        unreachable.instructions = vec![fixture::instruction(None, InstructionKind::Store { local: LocalId(0), value: ValueId(0) })];
+        unreachable.instructions = vec![fixture::instruction(
+            None,
+            InstructionKind::Store {
+                local: LocalId(0),
+                value: ValueId(0),
+            },
+        )];
         function.blocks.push(unreachable);
         assert!(!projection_head_loads(&function, &mut Budget::new(&limits)).unwrap()[0]);
     }
@@ -8302,25 +9419,38 @@ mod tests {
         assert!(!owner.is_copy_value());
         assert!(ordinary_owner_address(&module, &address, &mut budget).unwrap());
         let mut hidden = owner;
-        let Type::Package { fields, .. } = &mut hidden else { unreachable!() };
+        let Type::Package { fields, .. } = &mut hidden else {
+            unreachable!()
+        };
         fields.push(("borrow".into(), fixture::address(Type::I64, false)));
-        assert!(!ordinary_owner_address(&module, &fixture::address(hidden, false), &mut budget).unwrap());
+        assert!(
+            !ordinary_owner_address(&module, &fixture::address(hidden, false), &mut budget)
+                .unwrap()
+        );
         let mut instance = LifeNominalInstance {
             declaration: zil_ir::builtin_life::OPTION,
             ty: Type::BorrowedStorage {
                 storage: Box::new(Type::Enum {
                     name: "OptionItem".into(),
-                    variants: vec![("None".into(), vec![]), ("Some".into(), vec![address.clone()])],
+                    variants: vec![
+                        ("None".into(), vec![]),
+                        ("Some".into(), vec![address.clone()]),
+                    ],
                 }),
                 life: StorageLifeShape {
                     binder_count: 1,
                     slots: vec![zil_ir::StorageLifeSlot {
-                        path: vec![PlaceProjection::Variant(zil_ir::VariantProjection { variant: 1, index: 0 })],
+                        path: vec![PlaceProjection::Variant(zil_ir::VariantProjection {
+                            variant: 1,
+                            index: 0,
+                        })],
                         binder: 0,
                         mode: StoredBorrowMode::SharedAddress,
                     }],
                     retained: vec![zil_ir::StorageRetainedBinding {
-                        path: vec![LifeTypeProjection::TypeArgument(0)], class: 0, binder: 0,
+                        path: vec![LifeTypeProjection::TypeArgument(0)],
+                        class: 0,
+                        binder: 0,
                     }],
                     nominal_arguments: vec![],
                 },
@@ -8330,18 +9460,26 @@ mod tests {
                 life: StorageLifeShape {
                     binder_count: 1,
                     slots: vec![zil_ir::StorageLifeSlot {
-                        path: vec![], binder: 0, mode: StoredBorrowMode::SharedAddress,
+                        path: vec![],
+                        binder: 0,
+                        mode: StoredBorrowMode::SharedAddress,
                     }],
-                    retained: vec![], nominal_arguments: vec![],
+                    retained: vec![],
+                    nominal_arguments: vec![],
                 },
             }],
         };
         option_address::instance(&module, &instance, &limits, &mut budget).unwrap();
         for wrong in 0..5 {
             let mut forged = instance.clone();
-            let LifeNominalActual::QualifiedType { ty, life } = &mut forged.arguments[0] else { unreachable!() };
+            let LifeNominalActual::QualifiedType { ty, life } = &mut forged.arguments[0] else {
+                unreachable!()
+            };
             match wrong {
-                0 => { life.binder_count = 0; life.slots.clear(); }
+                0 => {
+                    life.binder_count = 0;
+                    life.slots.clear();
+                }
                 1 => life.slots[0].binder = 1,
                 2 => life.slots[0].mode = StoredBorrowMode::ExclusiveAddress,
                 3 => life.slots[0].path.push(PlaceProjection::Field(0)),
@@ -8349,7 +9487,9 @@ mod tests {
             }
             assert!(option_address::instance(&module, &forged, &limits, &mut budget).is_err());
         }
-        let Type::BorrowedStorage { life, .. } = &mut instance.ty else { unreachable!() };
+        let Type::BorrowedStorage { life, .. } = &mut instance.ty else {
+            unreachable!()
+        };
         life.retained[0].path = vec![LifeTypeProjection::TypeArgument(1)];
         assert!(option_address::instance(&module, &instance, &limits, &mut budget).is_err());
     }
@@ -8363,32 +9503,61 @@ mod tests {
             function.parameters.clear();
             function.locals.truncate(1);
             function.locals[0].ty = Type::Package {
-                name: "Item".into(), fields: vec![("id".into(), Type::I64)],
+                name: "Item".into(),
+                fields: vec![("id".into(), Type::I64)],
             };
             function.return_type = Type::I64;
             function.values = vec![
                 fixture::address(function.locals[0].ty.clone(), false),
-                fixture::address(Type::I64, false), Type::I64,
+                fixture::address(Type::I64, false),
+                Type::I64,
             ];
             let mut instructions = vec![
                 fixture::instruction(Some(0), InstructionKind::BorrowLocal { local: LocalId(0) }),
-                fixture::instruction(Some(1), InstructionKind::AddressField { address: ValueId(0), index: 0 }),
-                fixture::instruction(Some(2), InstructionKind::ReadAddress { address: ValueId(1) }),
+                fixture::instruction(
+                    Some(1),
+                    InstructionKind::AddressField {
+                        address: ValueId(0),
+                        index: 0,
+                    },
+                ),
+                fixture::instruction(
+                    Some(2),
+                    InstructionKind::ReadAddress {
+                        address: ValueId(1),
+                    },
+                ),
             ];
-            instructions.insert(if premature { 2 } else { 3 },
-                fixture::instruction(None, InstructionKind::DropPackage { local: LocalId(0) }));
+            instructions.insert(
+                if premature { 2 } else { 3 },
+                fixture::instruction(None, InstructionKind::DropPackage { local: LocalId(0) }),
+            );
             function.blocks.truncate(1);
             function.blocks[0].instructions = instructions;
             function.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
             let graph = FunctionGraph {
-                successors: vec![vec![]], predecessors: vec![vec![]], reachable: vec![true],
-                package_views: packages::CaptureViews::default(), role_data_uses: vec![],
+                successors: vec![vec![]],
+                predecessors: vec![vec![]],
+                reachable: vec![true],
+                package_views: packages::CaptureViews::default(),
+                role_data_uses: vec![],
             };
             let limits = Limits::default();
             let mut budget = Budget::new(&limits);
             let mut solution = solve(&module, &function, &graph, &[], &mut budget).unwrap();
-            let result = windows(&module, &function, &graph, &mut solution, &[],
-                &mut vec![], &mut vec![], &mut vec![], &mut vec![], &mut budget);
+            let result = windows(
+                &module,
+                &function,
+                &graph,
+                &mut solution,
+                &[],
+                &mut vec![],
+                &mut vec![],
+                &mut vec![],
+                &mut vec![],
+                &mut vec![],
+                &mut budget,
+            );
             if premature {
                 assert!(result.unwrap_err().message.contains("loan"));
             } else {
@@ -8795,8 +9964,13 @@ mod tests {
                     "variant{variant}: {error:?}"
                 );
                 if variant == 2 {
-                    assert!(error.iter().any(|d| d.category == zil_base::ResultCategory::SafeReject
-                        && d.code == "E-VERIFY-SIGNATURE-CLASS"), "variant{variant}: {error:?}");
+                    assert!(
+                        error
+                            .iter()
+                            .any(|d| d.category == zil_base::ResultCategory::SafeReject
+                                && d.code == "E-VERIFY-SIGNATURE-CLASS"),
+                        "variant{variant}: {error:?}"
+                    );
                 }
                 if matches!(variant, 4 | 5) {
                     assert!(
@@ -9163,9 +10337,13 @@ mod tests {
                 // The actual owner has been taken and stored by these two
                 // instructions. This unused head has no pointee access and no
                 // escape; the later owner cleanup is independently checked.
-                f.blocks[0].instructions.insert(2, fixture::instruction(
-                    Some(id), InstructionKind::BorrowLocal { local: LocalId(1) },
-                ));
+                f.blocks[0].instructions.insert(
+                    2,
+                    fixture::instruction(
+                        Some(id),
+                        InstructionKind::BorrowLocal { local: LocalId(1) },
+                    ),
+                );
             } else {
                 // A complete class-free resource definition need not be used
                 // by this closure. It supplies no cleanup or capture authority.
@@ -9769,14 +10947,49 @@ mod tests {
 /// Exact scalar field access of a real description. The opaque ownership head
 /// and its borrowed pointee permissions stay distinct; only the accessed field
 /// is appended to the actual current physical target (including heap segments).
-pub(super) fn description_access(f:&TypedFunction,i:&Instruction,values:&[Payload],b:&mut Budget)->Check<Option<(Permission,bool)>>{
-    let(desc,index,write)=match i.kind{InstructionKind::ReadDesc{desc,index}=>(desc,index,false),InstructionKind::WriteDesc{desc,index,..}=>(desc,index,true),_=>return Ok(None)};
-    let ty=vt(f,desc)?;if !super::stored_owned::description(ty){return Ok(None);}
-    let Type::Desc(inner)=ty else{unreachable!()};let Type::Record{fields,..}=inner.as_ref()else{unreachable!()};
-    if fields.get(index as usize).is_none(){return Err(err("description access field is outside its complete actual record"));}
-    let payload=values.get(desc.0 as usize).ok_or_else(||err("description access has no actual SSA permission"))?;
-    let permission=if payload.store_description.sources.is_empty(){&payload.address}else{&payload.store_description};
-    permission_work(permission,b)?;let mut projected=permission.clone();
-    for source in &mut projected.sources{b.spend(1)?;if let Some(path)=&mut source.heap_element{path.push(PlaceProjection::Field(index));}else{source.inline.push(PlaceProjection::Field(index));}}
-    Ok(Some((projected,write)))
+pub(super) fn description_access(
+    f: &TypedFunction,
+    i: &Instruction,
+    values: &[Payload],
+    b: &mut Budget,
+) -> Check<Option<(Permission, bool)>> {
+    let (desc, index, write) = match i.kind {
+        InstructionKind::ReadDesc { desc, index } => (desc, index, false),
+        InstructionKind::WriteDesc { desc, index, .. } => (desc, index, true),
+        _ => return Ok(None),
+    };
+    let ty = vt(f, desc)?;
+    if !super::stored_owned::description(ty) {
+        return Ok(None);
+    }
+    let Type::Desc(inner) = ty else {
+        unreachable!()
+    };
+    let Type::Record { fields, .. } = inner.as_ref() else {
+        unreachable!()
+    };
+    if fields.get(index as usize).is_none() {
+        return Err(err(
+            "description access field is outside its complete actual record",
+        ));
+    }
+    let payload = values
+        .get(desc.0 as usize)
+        .ok_or_else(|| err("description access has no actual SSA permission"))?;
+    let permission = if payload.store_description.sources.is_empty() {
+        &payload.address
+    } else {
+        &payload.store_description
+    };
+    permission_work(permission, b)?;
+    let mut projected = permission.clone();
+    for source in &mut projected.sources {
+        b.spend(1)?;
+        if let Some(path) = &mut source.heap_element {
+            path.push(PlaceProjection::Field(index));
+        } else {
+            source.inline.push(PlaceProjection::Field(index));
+        }
+    }
+    Ok(Some((projected, write)))
 }

@@ -16,13 +16,11 @@ pub(super) fn check(state: &Frame, address: &Permission, length: u32, b: &mut Bu
             ));
         }
         b.spend(1)?;
-        let payload = match root.base {
-            HoldRoot::Static => return Err(err("static text cannot supply an Array snapshot")),
-            HoldRoot::Local(local) => state.locals.get(local.0 as usize),
-            HoldRoot::Parameter(parameter) => state.external.get(parameter as usize),
-            HoldRoot::Capture(capture) => state.captures.get(capture as usize),
+        if root.base == HoldRoot::Static {
+            return Err(err("static text cannot supply an Array snapshot"));
         }
-        .ok_or_else(|| err("Array snapshot actual carrier is absent"))?;
+        let payload = memory_holder(state, root.base, b)?
+            .ok_or_else(|| err("Array snapshot actual carrier is absent"))?;
         b.spend(length as usize)?;
         for index in 0..length {
             b.spend(width(root).saturating_add(2))?;

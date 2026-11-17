@@ -196,11 +196,13 @@ pub(super) fn shape(
             | Type::AsyncRegistration { environment: child }
             | Type::Opaque { hidden: child, .. } => {
                 if crate::dynamic_ports::has_context(module, child, b)? {
-                    if matches!(ty,Type::Managed(_)|Type::Desc(_))
-                        && b.task_sources() && crate::tasks::task_payload(child).is_some() {
+                    if matches!(ty, Type::Managed(_) | Type::Desc(_))
+                        && b.task_sources()
+                        && crate::tasks::task_payload(child).is_some()
+                    {
                         // The owning/description wrapper exposes the same
                         // frame protocol. It does not initialize its R value.
-                        pending.push((child,path));
+                        pending.push((child, path));
                         continue;
                     }
                     return Err(unsupported(
@@ -284,7 +286,7 @@ fn empty_at_head(
         return Ok(false);
     }
     for source in &head.sources {
-        let actual = holder(state, source)?;
+        let actual = holder(state, source, b)?;
         b.spend(source.inline.len().saturating_add(carrier.len()))?;
         let mut path = source
             .inline
@@ -360,8 +362,13 @@ pub(super) fn empty_actual(
     port: u32,
     b: &mut Budget,
 ) -> Check<bool> {
-    let current_address=matches!(vt(f,argument)?,Type::Address{inner,..}if !matches!(inner.as_ref(),Type::Dyn{..}));
-    let views=if current_address{&[][..]}else{value_transport::views_at(payload,carrier,b)?};
+    let current_address =
+        matches!(vt(f,argument)?,Type::Address{inner,..}if !matches!(inner.as_ref(),Type::Dyn{..}));
+    let views = if current_address {
+        &[][..]
+    } else {
+        value_transport::views_at(payload, carrier, b)?
+    };
     if !views.is_empty() {
         b.spend(views.len())?;
         for view in views {
@@ -477,8 +484,18 @@ pub(super) fn call(
     loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<()> {
-    call_with(module, callee, instruction, summary, state, out, sites, loans, b,
-        |source, b| instantiate(module, f, source, args, values, state, b))
+    call_with(
+        module,
+        callee,
+        instruction,
+        summary,
+        state,
+        out,
+        sites,
+        loans,
+        b,
+        |source, b| instantiate(module, f, source, args, values, state, b),
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -749,8 +766,13 @@ pub(super) fn select_actual(
     if item.retained_life.ports.get(port as usize).is_none() {
         return Err(bad("actual Dyn endpoint port is absent"));
     }
-    let current_address=matches!(vt(f,argument)?,Type::Address{inner,..}if !matches!(inner.as_ref(),Type::Dyn{..}));
-    let views=if current_address{&[][..]}else{value_transport::views_at(payload,places,b)?};
+    let current_address =
+        matches!(vt(f,argument)?,Type::Address{inner,..}if !matches!(inner.as_ref(),Type::Dyn{..}));
+    let views = if current_address {
+        &[][..]
+    } else {
+        value_transport::views_at(payload, places, b)?
+    };
     if !views.is_empty() {
         let mut out = Permission::default();
         for view in views {
@@ -774,13 +796,8 @@ pub(super) fn select_actual(
                 "owner storage address has no complete actual Dyn carrier route",
             ));
         }
-        let holder = match origin.base {
-            HoldRoot::Local(local) => state.locals.get(local.0 as usize),
-            HoldRoot::Parameter(index) => state.external.get(index as usize),
-            HoldRoot::Capture(index) => state.captures.get(index as usize),
-            HoldRoot::Static => None,
-        }
-        .ok_or_else(|| bad("actual Dyn owner storage is absent"))?;
+        let holder = memory_holder(state, origin.base, b)?
+            .ok_or_else(|| bad("actual Dyn owner storage is absent"))?;
         b.spend(origin.inline.len().saturating_add(places.len()))?;
         let mut path = origin
             .inline
@@ -961,45 +978,72 @@ pub(super) fn transfer(
                 Some(DynResultSource::Value) => {}
                 Some(DynResultSource::Borrow { sources, .. }) => {
                     for atom in sources {
-                        dynamic_metadata::source(atom,b)?;
-                        match atom{
-                            StorageSource::Exact(source)=>join_permission(&mut out.address,&slot_source(module,f,source,&args,values,state,b)?,b)?,
-                            StorageSource::Static{..}=>{
+                        dynamic_metadata::source(atom, b)?;
+                        match atom {
+                            StorageSource::Exact(source) => join_permission(
+                                &mut out.address,
+                                &slot_source(module, f, source, &args, values, state, b)?,
+                                b,
+                            )?,
+                            StorageSource::Static { .. } => {
                                 // A possible target category is no literal/conditional proof.
-                                add_sources(&mut out.address.sources,&[Source{base:HoldRoot::Static,leaf:vec![],inline:vec![],retained_port:None,heap_parents:vec![],heap_element:None,static_dependency:StaticProvenance::UpperOnly}],b)?
-                            },
-                            StorageSource::ReborrowedLeaf{source,head}=>{
-                                let data=slot_source(module,f,source,&args,values,state,b)?;
-                                if !data.sources.is_empty(){
-                                    let actual_head=slot_source(module,f,head,&args,values,state,b)?;
-                                    if actual_head.sources.is_empty(){return Err(bad("dynamic child result has no real call-before receiver head"));}
-                                    access_head(&actual_head,false,b)?;
-                                    dyn_returns::initialized(state,&actual_head,b)?;
-                                    dyn_returns::initialized(state,&data,b)?;
-                                    join_permission(&mut out.address,&data,b)?;
+                                add_sources(
+                                    &mut out.address.sources,
+                                    &[Source {
+                                        base: HoldRoot::Static,
+                                        leaf: vec![],
+                                        inline: vec![],
+                                        retained_port: None,
+                                        heap_parents: vec![],
+                                        heap_element: None,
+                                        static_dependency: StaticProvenance::UpperOnly,
+                                    }],
+                                    b,
+                                )?
+                            }
+                            StorageSource::ReborrowedLeaf { source, head } => {
+                                let data = slot_source(module, f, source, &args, values, state, b)?;
+                                if !data.sources.is_empty() {
+                                    let actual_head =
+                                        slot_source(module, f, head, &args, values, state, b)?;
+                                    if actual_head.sources.is_empty() {
+                                        return Err(bad(
+                                            "dynamic child result has no real call-before receiver head",
+                                        ));
+                                    }
+                                    access_head(&actual_head, false, b)?;
+                                    dyn_returns::initialized(state, &actual_head, b)?;
+                                    dyn_returns::initialized(state, &data, b)?;
+                                    join_permission(&mut out.address, &data, b)?;
                                     // step() creates the actual CallDynSlot result child
                                     // after collecting original parents and this head.
-                                    add_loans(&mut out.address.loans,&actual_head.loans,b)?;
+                                    add_loans(&mut out.address.loans, &actual_head.loans, b)?;
                                 }
                                 false
-                            },
-                            StorageSource::OwnedView{head,..}=>{
+                            }
+                            StorageSource::OwnedView { head, .. } => {
                                 // Each concrete entry independently proves its real
                                 // inline owning projection. As in the closed Dyn
                                 // route, retain the actual complete receiver region;
                                 // no erased field layout is turned into a GEP.
-                                let actual=slot_source(module,f,head,&args,values,state,b)?;
-                                access_head(&actual,false,b)?;
-                                dyn_returns::initialized(state,&actual,b)?;
-                                join_permission(&mut out.address,&actual,b)?
-                            },
-                            StorageSource::PlaceAddress{..}=>return Err(unsupported("erased place source requires its actual initialized-place consumer",None)),
+                                let actual = slot_source(module, f, head, &args, values, state, b)?;
+                                access_head(&actual, false, b)?;
+                                dyn_returns::initialized(state, &actual, b)?;
+                                join_permission(&mut out.address, &actual, b)?
+                            }
+                            StorageSource::PlaceAddress { .. } => {
+                                return Err(unsupported(
+                                    "erased place source requires its actual initialized-place consumer",
+                                    None,
+                                ));
+                            }
                         };
                     }
                 }
                 _ => return Err(bad("dynamic method result source is Unknown")),
             }
-            if !out.address.sources.is_empty()&&matches!(slot.result, Type::Address { .. })
+            if !out.address.sources.is_empty()
+                && matches!(slot.result, Type::Address { .. })
                 && slot
                     .storage_life
                     .as_ref()
@@ -1232,17 +1276,11 @@ pub(super) fn operation(
         .transpose()?
         .unwrap_or(false))
 }
-fn holder<'a>(state: &'a Frame, origin: &Source) -> Check<&'a Payload> {
+fn holder<'a>(state: &'a Frame, origin: &Source, b: &mut Budget) -> Check<&'a Payload> {
     if origin.retained_port.is_some() || !origin.leaf.is_empty() || origin.heap_element.is_some() {
         return Err(bad("Dyn head lacks an actual storage position"));
     }
-    match origin.base {
-        HoldRoot::Local(id) => state.locals.get(id.0 as usize),
-        HoldRoot::Parameter(p) => state.external.get(p as usize),
-        HoldRoot::Capture(p) => state.captures.get(p as usize),
-        HoldRoot::Static => None,
-    }
-    .ok_or_else(|| bad("Dyn actual head storage is absent"))
+    memory_holder(state, origin.base, b)?.ok_or_else(|| bad("Dyn actual head storage is absent"))
 }
 fn view_port(
     module: &TypedModule,
@@ -1272,7 +1310,7 @@ fn view_port(
     }
     let mut out = Permission::default();
     for origin in &view.head.sources {
-        let actual = holder(state, origin)?;
+        let actual = holder(state, origin, b)?;
         b.spend(origin.inline.len())?;
         let path = origin
             .inline
@@ -1334,13 +1372,9 @@ pub(super) fn publish_owner(
 ) -> Check<()> {
     let unique = head.sources.len() == 1;
     for origin in &head.sources {
-        holder(state, origin)?;
-        let actual = match origin.base {
-            HoldRoot::Local(id) => &mut state.locals[id.0 as usize],
-            HoldRoot::Parameter(p) => &mut state.external[p as usize],
-            HoldRoot::Capture(p) => &mut state.captures[p as usize],
-            HoldRoot::Static => return Err(bad("helper after receiver targets static storage")),
-        };
+        holder(state, origin, b)?;
+        let actual = memory_holder_mut(state, origin.base, b)?
+            .ok_or_else(|| bad("dynamic actual mutable target holder is absent"))?;
         for (path, row) in &rows.0 {
             b.spend(origin.inline.len().saturating_add(path.len()))?;
             let mut complete = origin
@@ -1373,15 +1407,10 @@ fn publish(
     let unique = receiver.dyn_views.len() == 1 && receiver.dyn_views[0].head.sources.len() == 1;
     for view in &receiver.dyn_views {
         for origin in &view.head.sources {
-            holder(state, origin)?;
-            let actual = match origin.base {
-                HoldRoot::Local(id) => &mut state.locals[id.0 as usize],
-                HoldRoot::Parameter(p) => &mut state.external[p as usize],
-                HoldRoot::Capture(p) => &mut state.captures[p as usize],
-                HoldRoot::Static => {
-                    return Err(bad("dynamic owner mutation targets static storage"));
-                }
-            };
+            holder(state, origin, b)?;
+            let actual = memory_holder_mut(state, origin.base, b)?
+                .ok_or_else(|| bad("dynamic actual mutable owner storage is absent"))?;
+
             for (port, permission) in prepared {
                 if let Some(id) = view.table {
                     b.spend(module.dyn_vtables.len())?;
@@ -1467,7 +1496,7 @@ pub(super) fn carrier_type<'a>(
             }
         };
     }
-    while let Type::BorrowedStorage { storage, .. } | Type::Address{inner:storage,..} = ty {
+    while let Type::BorrowedStorage { storage, .. } | Type::Address { inner: storage, .. } = ty {
         b.spend(1)?;
         ty = storage;
     }

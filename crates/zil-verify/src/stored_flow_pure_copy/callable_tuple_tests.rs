@@ -150,9 +150,11 @@ fn opaque_callable_tuple_moves_actual_static_fields_and_all_parents_raw_wire() {
         unknown
             .task_ports
             .push((vec![ContractProjection::RetainedPort(0)], p.clone()));
-        assert!(
-            physical_tuple_payload(&unknown, &mut b).is_err(),
-            "logical facts are never silently discarded"
+        physical_tuple_payload(&unknown, &mut b).unwrap();
+        let copied = copy_payload(&unknown, &mut b).unwrap();
+        assert_eq!(
+            copied.task_ports, unknown.task_ports,
+            "complete transport preserves logical facts; their actual typed port/source authorization remains independent"
         );
     }
 }
@@ -230,7 +232,13 @@ fn plain_failed_creation_returns_the_actual_callback_capture_permissions() {
         .unwrap()
         .unwrap();
     assert!(state.locals[0].leaves.is_empty());
-    let inputs = take_package_field_leaves(&mut failed, 1, &mut b).unwrap();
+    let Type::ErrorUnion { error, .. } = &f.values[2] else {
+        unreachable!()
+    };
+    let inputs_ty = value_transport::field_type(error, 1).unwrap();
+    let inputs =
+        value_transport::take(&mut failed, &[PlaceProjection::Field(1)], inputs_ty, &mut b)
+            .unwrap();
     state.locals[0] = inputs;
     let unpack = instruction(
         f,

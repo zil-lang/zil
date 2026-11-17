@@ -50,6 +50,7 @@ pub(super) fn observe(
     values: &[Payload],
     summaries: &[Summary],
     rows: &mut Vec<(Source, bool)>,
+    descriptions: &mut Vec<descriptor_access::DescriptionAccess>,
     b: &mut Budget,
 ) -> Check<()> {
     if !b.dyn_contexts {
@@ -187,34 +188,112 @@ pub(super) fn observe(
         InstructionKind::ReadPackageField { local, .. } => {
             record(rows, &dyn_closed::head(f, *local, state, b)?, false, b)?
         }
-        InstructionKind::BorrowPlaceLocal{local,path,..}if ordinary_error_borrow(module,f,i,b)?=>{
-            let mut permission=dyn_closed::head(f,*local,state,b)?;
-            for source in &mut permission.sources {b.spend(path.len())?;source.inline.extend_from_slice(path);}
-            record(rows,&permission,false,b)?;
+        InstructionKind::BorrowPlaceLocal { local, path, .. }
+            if ordinary_error_borrow(module, f, i, b)? =>
+        {
+            let mut permission = dyn_closed::head(f, *local, state, b)?;
+            for source in &mut permission.sources {
+                b.spend(path.len())?;
+                source.inline.extend_from_slice(path);
+            }
+            record(rows, &permission, false, b)?;
         }
-        InstructionKind::UnpackTuple{local,..}if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{
-            record(rows,&dyn_closed::head(f,*local,state,b)?,true,b)?;
+        InstructionKind::UnpackTuple { local, .. }
+            if pure_copy::ordinary_owned_tuple(module, f, i, b)? =>
+        {
+            record(rows, &dyn_closed::head(f, *local, state, b)?, true, b)?;
         }
         InstructionKind::TakePackageField { local, .. }
         | InstructionKind::StorePackageField { local, .. }
         | InstructionKind::TakeTupleField { local, .. } => {
             record(rows, &dyn_closed::head(f, *local, state, b)?, true, b)?
         }
-        InstructionKind::ReadDesc{desc,..}|InstructionKind::WriteDesc{desc,..}=>{
-            if let Some((permission,write))=description_access(f,i,values,b)?{record(rows,&permission,write,b)?;}
-            else{let value=values.get(desc.0 as usize).ok_or_else(||bad("actual description access has no exact SSA permission"))?;
-                let permission=if value.store_description.sources.is_empty(){&value.address}else{&value.store_description};
-                record(rows,permission,matches!(i.kind,InstructionKind::WriteDesc{..}),b)?;}
-        },
-        InstructionKind::OwnedStoreLen{store}|InstructionKind::OwnedStoreCapacity{store}|InstructionKind::OwnedStoreBorrow{store,..}|InstructionKind::OwnedStoreBorrowMut{store,..}|InstructionKind::OwnedStoreReserve{store,..}|InstructionKind::OwnedStorePush{store,..}|InstructionKind::OwnedStorePop{store}=>{
-            let permission=&values.get(store.0 as usize).ok_or_else(||bad("actual Store access description is absent"))?.store_description;
-            record(rows,permission,matches!(i.kind,InstructionKind::OwnedStoreReserve{..}|InstructionKind::OwnedStorePush{..}|InstructionKind::OwnedStorePop{..}|InstructionKind::OwnedStoreBorrowMut{..}),b)?;
-        },
-        InstructionKind::Call { function, arguments }
-        | InstructionKind::SuspendCall { function, arguments } => {
+        InstructionKind::ReadDesc { desc, .. } | InstructionKind::WriteDesc { desc, .. } => {
+            if let Some((permission, write)) = description_access(f, i, values, b)? {
+                descriptor_access::record(module, f, rows, descriptions, &permission, write, b)?;
+            } else {
+                let value = values
+                    .get(desc.0 as usize)
+                    .ok_or_else(|| bad("actual description access has no exact SSA permission"))?;
+                let permission = if value.store_description.sources.is_empty() {
+                    &value.address
+                } else {
+                    &value.store_description
+                };
+                descriptor_access::record(
+                    module,
+                    f,
+                    rows,
+                    descriptions,
+                    permission,
+                    matches!(i.kind, InstructionKind::WriteDesc { .. }),
+                    b,
+                )?;
+            }
+        }
+        InstructionKind::OwnedStoreLen { store }
+        | InstructionKind::OwnedStoreCapacity { store }
+        | InstructionKind::OwnedStoreBorrow { store, .. }
+        | InstructionKind::OwnedStoreBorrowMut { store, .. }
+        | InstructionKind::OwnedStoreReserve { store, .. }
+        | InstructionKind::OwnedStorePush { store, .. }
+        | InstructionKind::OwnedStorePop { store } => {
+            let permission = &values
+                .get(store.0 as usize)
+                .ok_or_else(|| bad("actual Store access description is absent"))?
+                .store_description;
+            descriptor_access::record(
+                module,
+                f,
+                rows,
+                descriptions,
+                permission,
+                matches!(
+                    i.kind,
+                    InstructionKind::OwnedStoreReserve { .. }
+                        | InstructionKind::OwnedStorePush { .. }
+                        | InstructionKind::OwnedStorePop { .. }
+                        | InstructionKind::OwnedStoreBorrowMut { .. }
+                ),
+                b,
+            )?;
+        }
+        InstructionKind::Call {
+            function,
+            arguments,
+        }
+        | InstructionKind::SuspendCall {
+            function,
+            arguments,
+        } => {
             let actual = summaries
                 .get(function.0 as usize)
                 .ok_or_else(|| bad("provider helper summary is absent"))?;
+            if !actual.description_accesses.is_empty() {
+                let callee = module
+                    .functions
+                    .get(function.0 as usize)
+                    .ok_or_else(|| bad("descriptor helper actual target is absent"))?;
+                let before =
+                    call_results::Before::direct(module, f, callee, arguments, values, state, b)?;
+                for access in &actual.description_accesses {
+                    let permission = descriptor_access::resolve(&before, access, b)?;
+                    if permission.sources.is_empty() {
+                        return Err(bad(
+                            "descriptor helper observation lacks an actual manager source",
+                        ));
+                    }
+                    descriptor_access::record(
+                        module,
+                        f,
+                        rows,
+                        descriptions,
+                        &permission,
+                        access.write,
+                        b,
+                    )?;
+                }
+            }
             for (source, write) in &actual.dyn_accesses {
                 record(
                     rows,
@@ -278,26 +357,91 @@ pub(super) fn observe(
     }
     Ok(())
 }
-fn cleanup_root<'a>(f:&'a TypedFunction,kind:&InstructionKind,b:&mut Budget)->Check<Option<&'a Type>>{
-    let(local,path)=match kind{
-        InstructionKind::DropManaged{local}|InstructionKind::DropPackage{local}|InstructionKind::DropTuple{local}|InstructionKind::DropEnum{local}|InstructionKind::DropErrorUnion{local}|InstructionKind::DropClosure{local}|InstructionKind::DropOwnedArray{local}=>(*local,None),
-        InstructionKind::DropPackageField{local,index}|InstructionKind::DropOwnedArrayElement{local,index}=>(*local,Some(PlaceProjection::Field(*index))),
-        _=>return Ok(None),
+fn cleanup_root<'a>(
+    f: &'a TypedFunction,
+    kind: &InstructionKind,
+    b: &mut Budget,
+) -> Check<Option<&'a Type>> {
+    let (local, path) = match kind {
+        InstructionKind::DropManaged { local }
+        | InstructionKind::DropPackage { local }
+        | InstructionKind::DropTuple { local }
+        | InstructionKind::DropEnum { local }
+        | InstructionKind::DropErrorUnion { local }
+        | InstructionKind::DropClosure { local }
+        | InstructionKind::DropOwnedArray { local } => (*local, None),
+        InstructionKind::DropPackageField { local, index }
+        | InstructionKind::DropOwnedArrayElement { local, index } => {
+            (*local, Some(PlaceProjection::Field(*index)))
+        }
+        _ => return Ok(None),
     };
-    let root=&f.locals.get(local.0 as usize).ok_or_else(||bad("actual cleanup effect local is absent"))?.ty;
-    Ok(Some(match path{Some(path)=>crate::dynamic_ports::physical_path(root,&[path],b)?,None=>root}))
+    let root = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| bad("actual cleanup effect local is absent"))?
+        .ty;
+    Ok(Some(match path {
+        Some(path) => crate::dynamic_ports::physical_path(root, &[path], b)?,
+        None => root,
+    }))
 }
-fn cleanup_bound()->DynCleanupContract{DynCleanupContract{environment:true,positions:vec![],access:DynCallAccess{reads:vec![],writes:vec![]},effects:vec![DynEffect::Alloc,DynEffect::Io,DynEffect::Block,DynEffect::Ffi,DynEffect::Reenter,DynEffect::Panic]}}
+fn cleanup_bound() -> DynCleanupContract {
+    DynCleanupContract {
+        environment: true,
+        positions: vec![],
+        access: DynCallAccess {
+            reads: vec![],
+            writes: vec![],
+        },
+        effects: vec![
+            DynEffect::Alloc,
+            DynEffect::Io,
+            DynEffect::Block,
+            DynEffect::Ffi,
+            DynEffect::Reenter,
+            DynEffect::Panic,
+        ],
+    }
+}
 /// Selection follows exact actual calls/closures and independently checked
 /// concrete teardown roots. Unknown pointer calls retain their existing
 /// failure/contract route; same ABI never manufactures a target.
-pub(in crate::stored_flow) fn dependencies(module:&TypedModule,f:&TypedFunction,b:&mut Budget)->Check<Vec<FunctionId>>{
-    let mut targets=Vec::new();
-    for block in &f.blocks{b.spend(block.instructions.len().saturating_add(1))?;for i in &block.instructions{
-        let direct=match i.kind{InstructionKind::Call{function,..}|InstructionKind::SuspendCall{function,..}|InstructionKind::ForeignCall{function,..}|InstructionKind::FunctionRef{function}|InstructionKind::ForeignFunctionRef{function}=>Some(function),_=>stored_callables::called(module,f,&i.kind).map(|(definition,_)|definition.function)};
-        if let Some(id)=direct{b.spend(targets.len().saturating_add(1))?;if !targets.contains(&id){targets.push(id);}}
-        if let Some(root)=cleanup_root(f,&i.kind,b)?{for id in cleanup(module,root,&cleanup_bound(),b)?.targets{b.spend(targets.len().saturating_add(1))?;if !targets.contains(&id){targets.push(id);}}}
-    }}Ok(targets)
+pub(in crate::stored_flow) fn dependencies(
+    module: &TypedModule,
+    f: &TypedFunction,
+    b: &mut Budget,
+) -> Check<Vec<FunctionId>> {
+    let mut targets = Vec::new();
+    for block in &f.blocks {
+        b.spend(block.instructions.len().saturating_add(1))?;
+        for i in &block.instructions {
+            let direct = match i.kind {
+                InstructionKind::Call { function, .. }
+                | InstructionKind::SuspendCall { function, .. }
+                | InstructionKind::ForeignCall { function, .. }
+                | InstructionKind::FunctionRef { function }
+                | InstructionKind::ForeignFunctionRef { function } => Some(function),
+                _ => stored_callables::called(module, f, &i.kind)
+                    .map(|(definition, _)| definition.function),
+            };
+            if let Some(id) = direct {
+                b.spend(targets.len().saturating_add(1))?;
+                if !targets.contains(&id) {
+                    targets.push(id);
+                }
+            }
+            if let Some(root) = cleanup_root(f, &i.kind, b)? {
+                for id in cleanup(module, root, &cleanup_bound(), b)?.targets {
+                    b.spend(targets.len().saturating_add(1))?;
+                    if !targets.contains(&id) {
+                        targets.push(id);
+                    }
+                }
+            }
+        }
+    }
+    Ok(targets)
 }
 fn effect_rank(effect: &DynEffect) -> Check<u8> {
     Ok(match effect {
@@ -415,14 +559,35 @@ pub(super) fn effects(
                         summary.dyn_effects_known = false;
                     }
                 }
-                kind if cleanup_root(f,kind,b)?.is_some()=>{
-                    let root=cleanup_root(f,kind,b)?.ok_or_else(||bad("actual cleanup effect root disappeared"))?;
-                    let actual=match cleanup(module,root,&cleanup_bound(),b){Ok(actual)=>actual,Err(error)if error.category!=zil_base::ResultCategory::ResourceLimit=>{summary.dyn_effects_known=false;continue;},Err(error)=>return Err(error)};
-                    for e in &actual.effects{effect(summary,e,b)?;}
-                    for id in actual.targets{let target=summaries.get(id.0 as usize).ok_or_else(||bad("actual cleanup effect target summary is absent"))?;summary.dyn_effects_known&=target.dyn_effects_known;for e in &target.dyn_effects{effect(summary,e,b)?;}}
-                },
-                InstructionKind::OwnedStoreReserve{..}=>effect(summary,&DynEffect::Alloc,b)?,
-                InstructionKind::OwnedStoreBorrow{..}|InstructionKind::OwnedStoreBorrowMut{..}=>effect(summary,&DynEffect::Panic,b)?,
+                kind if cleanup_root(f, kind, b)?.is_some() => {
+                    let root = cleanup_root(f, kind, b)?
+                        .ok_or_else(|| bad("actual cleanup effect root disappeared"))?;
+                    let actual = match cleanup(module, root, &cleanup_bound(), b) {
+                        Ok(actual) => actual,
+                        Err(error) if error.category != zil_base::ResultCategory::ResourceLimit => {
+                            summary.dyn_effects_known = false;
+                            continue;
+                        }
+                        Err(error) => return Err(error),
+                    };
+                    for e in &actual.effects {
+                        effect(summary, e, b)?;
+                    }
+                    for id in actual.targets {
+                        let target = summaries
+                            .get(id.0 as usize)
+                            .ok_or_else(|| bad("actual cleanup effect target summary is absent"))?;
+                        summary.dyn_effects_known &= target.dyn_effects_known;
+                        for e in &target.dyn_effects {
+                            effect(summary, e, b)?;
+                        }
+                    }
+                }
+                InstructionKind::OwnedStoreReserve { .. } => effect(summary, &DynEffect::Alloc, b)?,
+                InstructionKind::OwnedStoreBorrow { .. }
+                | InstructionKind::OwnedStoreBorrowMut { .. } => {
+                    effect(summary, &DynEffect::Panic, b)?
+                }
                 InstructionKind::MakeDynOwned { .. } => {
                     summary.dyn_operations = true;
                     effect(summary, &DynEffect::Alloc, b)?;
@@ -449,26 +614,26 @@ pub(super) fn effects(
                 // allocation or suspension; their complete type, live prefix,
                 // ownership and address permissions are checked by the existing
                 // actual instruction/resource kernels before this effect join.
-                InstructionKind::DescribeAddress{..}
-                |InstructionKind::DescribeLocal{..}
-                |InstructionKind::DescribePackageField{..}
-                |InstructionKind::ReadDesc{..}
-                |InstructionKind::WriteDesc{..}
-                |InstructionKind::OwnedStoreNew{..}
-                |InstructionKind::OwnedStorePush{..}
-                |InstructionKind::OwnedStorePop{..}
-                |InstructionKind::OwnedStoreLen{..}
-                |InstructionKind::OwnedStoreCapacity{..}
-                |InstructionKind::ErrorTag{..}
-                |InstructionKind::MakeErrorUnion{..}
-                |InstructionKind::TakeErrorUnion{..}
-                |InstructionKind::ReadErrorUnion{..}
-                |InstructionKind::MakeVariant{..}
-                |InstructionKind::TakeVariantField{..}
-                |InstructionKind::ReadVariant{..}
-                |InstructionKind::VariantTag{..}
-                |InstructionKind::PlaceTagLocal{..}
-                |InstructionKind::StaticUtf8 { .. }
+                InstructionKind::DescribeAddress { .. }
+                | InstructionKind::DescribeLocal { .. }
+                | InstructionKind::DescribePackageField { .. }
+                | InstructionKind::ReadDesc { .. }
+                | InstructionKind::WriteDesc { .. }
+                | InstructionKind::OwnedStoreNew { .. }
+                | InstructionKind::OwnedStorePush { .. }
+                | InstructionKind::OwnedStorePop { .. }
+                | InstructionKind::OwnedStoreLen { .. }
+                | InstructionKind::OwnedStoreCapacity { .. }
+                | InstructionKind::ErrorTag { .. }
+                | InstructionKind::MakeErrorUnion { .. }
+                | InstructionKind::TakeErrorUnion { .. }
+                | InstructionKind::ReadErrorUnion { .. }
+                | InstructionKind::MakeVariant { .. }
+                | InstructionKind::TakeVariantField { .. }
+                | InstructionKind::ReadVariant { .. }
+                | InstructionKind::VariantTag { .. }
+                | InstructionKind::PlaceTagLocal { .. }
+                | InstructionKind::StaticUtf8 { .. }
                 | InstructionKind::SliceLength { .. }
                 | InstructionKind::Constant(_)
                 | InstructionKind::Load(_)
@@ -497,11 +662,12 @@ pub(super) fn effects(
                 | InstructionKind::TakeTupleField { .. }
                 | InstructionKind::MakeDynBorrow { .. }
                 | InstructionKind::BorrowDynOwned { .. } => {}
-                InstructionKind::UpdateField{..}if compound::operation(f,i,b)?=>{},
-                _ if callable_cells::operation(module,f,i,b)? => {},
-                InstructionKind::MakeOwnedTuple{..}|InstructionKind::UnpackTuple{..}
-                    if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{},
-                InstructionKind::BorrowPlaceLocal{..}if ordinary_error_borrow(module,f,i,b)?=>{},
+                InstructionKind::UpdateField { .. } if compound::operation(f, i, b)? => {}
+                _ if callable_cells::operation(module, f, i, b)? => {}
+                InstructionKind::MakeOwnedTuple { .. } | InstructionKind::UnpackTuple { .. }
+                    if pure_copy::ordinary_owned_tuple(module, f, i, b)? => {}
+                InstructionKind::BorrowPlaceLocal { .. }
+                    if ordinary_error_borrow(module, f, i, b)? => {}
                 InstructionKind::MakeClosure { .. }
                 | InstructionKind::ReadCapture { .. }
                 | InstructionKind::TakeCapture { .. }
@@ -509,15 +675,19 @@ pub(super) fn effects(
                 _ => summary.dyn_effects_known = false,
             }
         }
-        match block.terminator{
-            Terminator::Return(_)|Terminator::Jump(_)|Terminator::Branch{..}=>{},
-            Terminator::Trap=>effect(summary,&DynEffect::Panic,b)?,
-            Terminator::Unreachable=>summary.dyn_effects_known=false,
+        match block.terminator {
+            Terminator::Return(_) | Terminator::Jump(_) | Terminator::Branch { .. } => {}
+            Terminator::Trap => effect(summary, &DynEffect::Panic, b)?,
+            Terminator::Unreachable => summary.dyn_effects_known = false,
         }
     }
     Ok(())
 }
-pub(in crate::stored_flow) fn selected(table: &DynVtable, source: &Source, b: &mut Budget) -> Check<Option<StoragePosition>> {
+pub(in crate::stored_flow) fn selected(
+    table: &DynVtable,
+    source: &Source,
+    b: &mut Budget,
+) -> Check<Option<StoragePosition>> {
     b.spend(table.ports.len().saturating_add(width(source)))?;
     let HoldRoot::Parameter(parameter) = source.base else {
         return Ok(None);
@@ -559,13 +729,87 @@ pub(in crate::stored_flow) fn selected(table: &DynVtable, source: &Source, b: &m
         "actual provider accesses a saved leaf absent from its port map",
     ))
 }
+pub(in crate::stored_flow) fn description_position(
+    table: &DynVtable,
+    row: &descriptor_access::DescriptionAccess,
+    b: &mut Budget,
+) -> Check<Option<StoragePosition>> {
+    if row.source.heap_element.is_some()
+        || !row.source.heap_parents.is_empty()
+        || row.suffix.heap_element.is_some()
+        || !row.suffix.heap_parents.is_empty()
+    {
+        return Err(bad(
+            "descriptor manager access requires an explicit owned-allocation contract selector",
+        ));
+    }
+    let mut position = if row.source.base == HoldRoot::Parameter(0) {
+        b.spend(
+            row.source
+                .leaf
+                .len()
+                .saturating_add(row.source.inline.len()),
+        )?;
+        let mut selector = row.source.leaf.clone();
+        selector.extend(&row.source.inline);
+        let mut selected = None;
+        for port in &table.ports {
+            b.spend(port.sources.len())?;
+            for source in &port.sources {
+                let actual = crate::dynamic_ports::source_places(source, b)?;
+                b.spend(selector.len().saturating_add(actual.len()))?;
+                if actual == selector {
+                    if selected.is_some_and(|old| old != port.port) {
+                        return Err(bad(
+                            "descriptor manager selects multiple distinct actual retained ports",
+                        ));
+                    }
+                    selected = Some(port.port);
+                }
+            }
+        }
+        let port = selected.ok_or_else(|| {
+            bad("descriptor manager target has no exact complete actual Self port")
+        })?;
+        Some(StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![ContractProjection::RetainedPort(port)],
+        })
+    } else {
+        let mut position = selected(table, &row.source, b)?;
+        if let Some(position) = &mut position {
+            b.spend(row.source.inline.len())?;
+            position.path.extend(
+                row.source
+                    .inline
+                    .iter()
+                    .copied()
+                    .map(ContractProjection::Place),
+            );
+        }
+        position
+    };
+    if let Some(position) = &mut position {
+        b.spend(row.suffix.inline.len())?;
+        position.path.extend(
+            row.suffix
+                .inline
+                .iter()
+                .copied()
+                .map(ContractProjection::Place),
+        );
+    }
+    Ok(position)
+}
 pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budget) -> Check<()> {
     if !b.dyn_contexts {
         return Ok(());
     }
     for table in &module.dyn_vtables {
         let iface = crate::dynamic_ports::interface(module, table.interface, b)?;
-        if iface.context.is_none()&&!b.pending_dyn_tables.contains(&table.id){continue;}
+        if iface.context.is_none() && !b.pending_dyn_tables.contains(&table.id) {
+            continue;
+        }
         for entry in &table.entries {
             let summary = summaries
                 .get(entry.function.0 as usize)
@@ -594,6 +838,34 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
                 .call
                 .as_ref()
                 .ok_or_else(|| bad("provider access upper is Unknown"))?;
+            for row in &summary.description_accesses {
+                let Some(position) = description_position(table, row, b)? else {
+                    continue;
+                };
+                let upper = if row.write {
+                    &access.writes
+                } else {
+                    &access.reads
+                };
+                let mut allowed = false;
+                for declared in upper {
+                    b.spend(declared.path.len().saturating_add(position.path.len()))?;
+                    if declared.base == position.base
+                        && position.path.starts_with(&declared.path)
+                        && position.path[declared.path.len()..]
+                            .iter()
+                            .all(|step| matches!(step, ContractProjection::Place(_)))
+                    {
+                        allowed = true;
+                        break;
+                    }
+                }
+                if !allowed {
+                    return Err(bad(
+                        "actual descriptor manager access exceeds its complete provider head/port upper",
+                    ));
+                }
+            }
             for (source, writing) in &summary.dyn_accesses {
                 let Some(position) = selected(table, source, b)? else {
                     continue;
@@ -622,18 +894,47 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
                         ));
                     }
                     for source in actuals {
-                        let actual=&module.functions[entry.function.0 as usize];
-                        let output=StoragePosition{base:StorageBase::Result,path:vec![]};
-                        b.spend(slot.storage_life.as_ref().map_or(0,|life|life.bindings.len().saturating_add(life.static_bindings.len())).saturating_add(actual.storage_life.as_ref().map_or(0,|life|life.bindings.len().saturating_add(life.static_bindings.len()))))?;
-                        let variable=slot.storage_life.as_ref().is_some_and(|life|life.bindings.iter().any(|row|row.position==output)&&!life.static_bindings.contains(&output))&&actual.storage_life.as_ref().is_some_and(|life|life.bindings.iter().any(|row|row.position==output)&&!life.static_bindings.contains(&output));
-                        super::dyn_contracts::table_source_upper(table,source,sources,&actual.return_type,variable,b)?;
+                        let actual = &module.functions[entry.function.0 as usize];
+                        let output = StoragePosition {
+                            base: StorageBase::Result,
+                            path: vec![],
+                        };
+                        b.spend(
+                            slot.storage_life
+                                .as_ref()
+                                .map_or(0, |life| {
+                                    life.bindings
+                                        .len()
+                                        .saturating_add(life.static_bindings.len())
+                                })
+                                .saturating_add(actual.storage_life.as_ref().map_or(0, |life| {
+                                    life.bindings
+                                        .len()
+                                        .saturating_add(life.static_bindings.len())
+                                })),
+                        )?;
+                        let variable = slot.storage_life.as_ref().is_some_and(|life| {
+                            life.bindings.iter().any(|row| row.position == output)
+                                && !life.static_bindings.contains(&output)
+                        }) && actual.storage_life.as_ref().is_some_and(|life| {
+                            life.bindings.iter().any(|row| row.position == output)
+                                && !life.static_bindings.contains(&output)
+                        });
+                        super::dyn_contracts::table_source_upper(
+                            table,
+                            source,
+                            sources,
+                            &actual.return_type,
+                            variable,
+                            b,
+                        )?;
                     }
                 }
             }
             // Every actual non-target parent must already be carried by the
             // public data/head selectors that dispatch really transports.
             // Matching only the returned data target is insufficient.
-            super::dyn_contracts::table_parent_upper(table,summary,slot,b)?;
+            super::dyn_contracts::table_parent_upper(table, summary, slot, b)?;
             let guarantees = slot
                 .contract
                 .guarantees
@@ -703,18 +1004,26 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
 
 /// Saved external values are dependencies, not owned teardown payloads. Actual
 /// owned descendants still require their exact independently proved cleanup.
-pub(in crate::stored_flow) fn cleanup_proof(module:&TypedModule,root:&Type,claim:&DynCleanupContract,b:&mut Budget)->Check<()>{
-    cleanup(module,root,claim,b).map(|_|())
+pub(in crate::stored_flow) fn cleanup_proof(
+    module: &TypedModule,
+    root: &Type,
+    claim: &DynCleanupContract,
+    b: &mut Budget,
+) -> Check<()> {
+    cleanup(module, root, claim, b).map(|_| ())
 }
 #[derive(Default)]
-struct Cleanup{targets:Vec<FunctionId>,effects:Vec<DynEffect>}
+struct Cleanup {
+    targets: Vec<FunctionId>,
+    effects: Vec<DynEffect>,
+}
 fn cleanup(
     module: &TypedModule,
     root: &Type,
     claim: &DynCleanupContract,
     b: &mut Budget,
 ) -> Check<Cleanup> {
-    let mut result=Cleanup::default();
+    let mut result = Cleanup::default();
     let mut pending = vec![(root, 0usize)];
     while let Some((ty, depth)) = pending.pop() {
         b.spend(1)?;
@@ -731,7 +1040,12 @@ fn cleanup(
                         None,
                     ));
                 }
-                for id in crate::dynamic_cleanup::prove_targets(module, ty, claim, b)?{b.spend(result.targets.len().saturating_add(1))?;if !result.targets.contains(&id){result.targets.push(id);}}
+                for id in crate::dynamic_cleanup::prove_targets(module, ty, claim, b)? {
+                    b.spend(result.targets.len().saturating_add(1))?;
+                    if !result.targets.contains(&id) {
+                        result.targets.push(id);
+                    }
+                }
             }
             Type::OwnedDyn { interface } => {
                 let item = crate::dynamic_ports::interface(module, *interface, b)?;
@@ -743,8 +1057,16 @@ fn cleanup(
                 }
                 let inner = crate::dynamic_cleanup::bound(item.owning_cleanup.as_ref(), b)?;
                 for effect in &inner.effects {
-                    b.spend(claim.effects.len().saturating_add(result.effects.len()).saturating_add(1))?;
-                    if !result.effects.contains(effect){result.effects.push(effect.clone());}
+                    b.spend(
+                        claim
+                            .effects
+                            .len()
+                            .saturating_add(result.effects.len())
+                            .saturating_add(1),
+                    )?;
+                    if !result.effects.contains(effect) {
+                        result.effects.push(effect.clone());
+                    }
                     if !claim.effects.contains(effect) {
                         return Err(bad(
                             "nested erased-owner cleanup effect exceeds its outer bound",
@@ -753,12 +1075,12 @@ fn cleanup(
                 }
             }
             Type::Closure(id) => {
-                let closure=crate::closures::definition(module,*id,None)?;
+                let closure = crate::closures::definition(module, *id, None)?;
                 // Dropping the environment recursively drops every retained
                 // capture. Invoking FnOnce is a separate actual CFG action;
                 // it cannot turn a type-wide Task capture into SyncDrop.
                 b.spend(closure.captures.len())?;
-                pending.extend(closure.captures.iter().map(|ty|(ty,depth+1)));
+                pending.extend(closure.captures.iter().map(|ty| (ty, depth + 1)));
             }
             Type::Tuple(fields) => {
                 b.spend(fields.len())?;
@@ -799,24 +1121,106 @@ mod access_tests {
     use super::*;
     #[test]
     fn whole_provider_cleanup_consumes_owners_but_not_external_port_targets() {
-        let (mut module,_)=crate::tests::baseline();
-        let claim=DynCleanupContract{environment:true,positions:vec![],access:DynCallAccess{reads:vec![],writes:vec![]},effects:vec![]};
-        let shared=|inner|Type::Address{mutable:false,inner:Box::new(inner)};
+        let (mut module, _) = crate::tests::baseline();
+        let claim = DynCleanupContract {
+            environment: true,
+            positions: vec![],
+            access: DynCallAccess {
+                reads: vec![],
+                writes: vec![],
+            },
+            effects: vec![],
+        };
+        let shared = |inner| Type::Address {
+            mutable: false,
+            inner: Box::new(inner),
+        };
         // Even a borrowed head to an asynchronous owner is only a dependency.
         // Destruction of the provider never destroys the borrowed target.
-        let borrowed=Type::Record{name:"cleanup.Provider".into(),fields:vec![("pointer".into(),shared(Type::Managed(Box::new(Type::TaskI32))))]};
-        assert!(cleanup_proof(&module,&borrowed,&claim,&mut Budget::new(&Limits::default())).is_ok());
-        let leaf=shared(Type::I32);
-        let product=Type::Record{name:"cleanup.Product".into(),fields:vec![("pointer".into(),leaf.clone()),("text".into(),shared(Type::Slice{element:Box::new(Type::U8)}))]};
-        let sum=Type::ErrorUnion{error:Box::new(Type::I32),result:Box::new(Type::Array{element:Box::new(product),length:2})};
-        assert!(cleanup_proof(&module,&sum,&claim,&mut Budget::new(&Limits::default())).is_ok());
-        let owned=Type::Managed(Box::new(Type::TaskI32));
-        assert!(cleanup_proof(&module,&owned,&claim,&mut Budget::new(&Limits::default())).is_err());
-        for kind in [CallableKind::Fn,CallableKind::FnMut,CallableKind::FnOnce]{
-            module.closures=vec![ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![owned.clone()],parameters:vec![],result:Type::I32,kind,storage_life:Some(StorageLifeContract{static_bindings:vec![],fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],classes:vec![]}),lending_captures:vec![]}];
-            assert!(cleanup_proof(&module,&Type::Closure(ClosureId(0)),&claim,&mut Budget::new(&Limits::default())).is_err(),"a callable bound cannot turn a captured asynchronous owner into SyncDrop");
-            module.closures[0].captures=vec![leaf.clone()];
-            assert!(cleanup_proof(&module,&Type::Closure(ClosureId(0)),&claim,&mut Budget::new(&Limits::default())).is_ok());
+        let borrowed = Type::Record {
+            name: "cleanup.Provider".into(),
+            fields: vec![(
+                "pointer".into(),
+                shared(Type::Managed(Box::new(Type::TaskI32))),
+            )],
+        };
+        assert!(
+            cleanup_proof(
+                &module,
+                &borrowed,
+                &claim,
+                &mut Budget::new(&Limits::default())
+            )
+            .is_ok()
+        );
+        let leaf = shared(Type::I32);
+        let product = Type::Record {
+            name: "cleanup.Product".into(),
+            fields: vec![
+                ("pointer".into(), leaf.clone()),
+                (
+                    "text".into(),
+                    shared(Type::Slice {
+                        element: Box::new(Type::U8),
+                    }),
+                ),
+            ],
+        };
+        let sum = Type::ErrorUnion {
+            error: Box::new(Type::I32),
+            result: Box::new(Type::Array {
+                element: Box::new(product),
+                length: 2,
+            }),
+        };
+        assert!(cleanup_proof(&module, &sum, &claim, &mut Budget::new(&Limits::default())).is_ok());
+        let owned = Type::Managed(Box::new(Type::TaskI32));
+        assert!(
+            cleanup_proof(
+                &module,
+                &owned,
+                &claim,
+                &mut Budget::new(&Limits::default())
+            )
+            .is_err()
+        );
+        for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+            module.closures = vec![ClosureDefinition {
+                id: ClosureId(0),
+                function: FunctionId(0),
+                captures: vec![owned.clone()],
+                parameters: vec![],
+                result: Type::I32,
+                kind,
+                storage_life: Some(StorageLifeContract {
+                    static_bindings: vec![],
+                    fixed_binder_count: 0,
+                    invocation_binder_count: 0,
+                    bindings: vec![],
+                    classes: vec![],
+                }),
+                lending_captures: vec![],
+            }];
+            assert!(
+                cleanup_proof(
+                    &module,
+                    &Type::Closure(ClosureId(0)),
+                    &claim,
+                    &mut Budget::new(&Limits::default())
+                )
+                .is_err(),
+                "a callable bound cannot turn a captured asynchronous owner into SyncDrop"
+            );
+            module.closures[0].captures = vec![leaf.clone()];
+            assert!(
+                cleanup_proof(
+                    &module,
+                    &Type::Closure(ClosureId(0)),
+                    &claim,
+                    &mut Budget::new(&Limits::default())
+                )
+                .is_ok()
+            );
         }
     }
     #[test]
