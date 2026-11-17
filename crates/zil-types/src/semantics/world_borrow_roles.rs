@@ -517,6 +517,28 @@ fn input_nominal(
     }
     Ok(())
 }
+#[allow(clippy::too_many_arguments)]
+fn checked_call_source(
+    world: &mut World<'_, '_>, instance: &SemanticInstance, original: &SemanticDefinition,
+    node: NodeId, site: SemanticSiteId, block: BlockId, index: usize,
+) -> R<()> {
+    let recipe = world.original_recipe(original, site)?;
+    if !matches!(recipe.kind, SemanticSiteRecipeKind::OriginalCall) {
+        return Err(bad("returned source is not its original Call occurrence"));
+    }
+    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
+        return Err(bad("returned source has no complete original node directory"));
+    };
+    world.pay(site_nodes.len().saturating_add(world.program.sites.len()))?;
+    if !site_nodes.iter().any(|row| row.site == site && row.node == SemanticOriginalNode::Expression(node))
+        || !world.program.sites.iter().any(|row| row.instance == instance.id && row.recipe == site
+            && matches!(row.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After }
+                if actual == block && instruction as usize == index)
+            && matches!(row.action, SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. }
+                | SemanticSiteAction::CallableCall { .. }))
+    { return Err(bad("returned source changes its exact actual original call boundary")); }
+    Ok(())
+}
 fn trace(
     world: &mut World<'_, '_>,
     instance: &SemanticInstance,
@@ -529,20 +551,32 @@ fn trace(
     implicit: &BTreeMap<u32, SemanticClassExpr>,
     return_boundary: bool,
 ) -> R<()> {
+    trace_steps(world, instance, original, function, role.root, &role.steps,
+        Cursor::Value(operand), values, locals, implicit, return_boundary, 0)
+}
+#[allow(clippy::too_many_arguments)]
+fn trace_steps(
+    world: &mut World<'_, '_>, instance: &SemanticInstance,
+    original: &SemanticDefinition, function: &TypedFunction,
+    root: ViewBorrowRoot, steps: &[crate::semantics::original::ViewBorrowStep],
+    mut cursor: Cursor, values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>, return_boundary: bool, depth: usize,
+) -> R<()> {
+    if depth > world.limits.max_call_depth {
+        return Err(Diagnostic::limit(Phase::Types, "actual returned source depth exceeded", None));
+    }
+    world.pay(1)?;
     if return_boundary {
-        world.pay(role.steps.len())?;
+        world.pay(steps.len())?;
     }
     let input_referent = return_boundary
-        && matches!(role.root, ViewBorrowRoot::Parameter(_))
-        && role
-            .steps
-            .iter()
+        && matches!(root, ViewBorrowRoot::Parameter(_))
+        && steps.iter()
             .any(|step| matches!(step.kind, ViewBorrowStepKind::Parameter));
-    let mut cursor = Cursor::Value(operand);
-    world.pay(role.steps.len())?;
+    world.pay(steps.len())?;
     let mut reached_input = false;
     let mut through_store = false;
-    for step in role.steps.iter().rev() {
+    for step in steps.iter().rev() {
         cursor = transparent(world, function, values, cursor)?;
         match &step.kind {
             ViewBorrowStepKind::Dereference => {
@@ -554,11 +588,91 @@ fn trace(
                     }
                 }
             }
+            ViewBorrowStepKind::CallInputs { site, inputs } => {
+                let Cursor::Value(value) = cursor else { return Err(bad("returned inputs have no actual Call result SSA")); };
+                if root != ViewBorrowRoot::Result(step.node) { return Err(bad("returned inputs change their original call root")); }
+                let (operation, block, index) = producer(world, function, value)?;
+                checked_call_source(world, instance, original, step.node, *site, block, index)?;
+                let (callee, arguments) = match operation {
+                    InstructionKind::Call { function, arguments }
+                    | InstructionKind::SuspendCall { function, arguments } => (*function, arguments),
+                    _ => return Err(bad("returned input theorem is not its actual ordinary call")),
+                };
+                let ledger = world.ledger;
+                let proof = ledger.original.borrow();
+                let proof = proof.as_ref().ok_or_else(|| bad("returned input lacks complete original Gamma"))?;
+                world.pay(index::search(proof.call_targets.len()).saturating_add(world.program.instances.len()))?;
+                let target = proof.call_targets.get(&(original.id, *site))
+                    .ok_or_else(|| bad("returned input call has no original target"))?;
+                if !world.program.instances.iter().any(|row| row.definition == *target
+                    && row.target == SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(callee)))
+                { return Err(bad("returned input call changes its original actual callee")); }
+                if inputs.is_empty() { return Err(bad("returned input theorem has an empty source domain")); }
+                world.pay(inputs.len().saturating_mul(2))?;
+                let mut selected = std::collections::BTreeSet::new();
+                for (parameter, node) in inputs {
+                    world.pay(index::search(selected.len()).saturating_add(1))?;
+                    if !selected.insert(*parameter) { return Err(bad("returned input theorem repeats a parameter occurrence")); }
+                    let value = *arguments.get(*parameter as usize)
+                        .ok_or_else(|| bad("returned input leaves its actual complete argument vector"))?;
+                    world.get(values, value)?;
+                    let (source, steps) = proof.view_source_steps(original.id, *node, world.limits, world.left)?
+                        .ok_or_else(|| bad("returned argument omits its original source chain"))?;
+                    trace_steps(world, instance, original, function, source, &steps, Cursor::Value(value),
+                        values, locals, implicit, return_boundary, depth + 1)?;
+                }
+                reached_input = true;
+            }
+            ViewBorrowStepKind::CallableReceiver { site, source } => {
+                let Cursor::Value(value) = cursor else { return Err(bad("receiver result has no actual Call SSA")); };
+                if root != ViewBorrowRoot::Result(step.node) { return Err(bad("receiver result changes its original call root")); }
+                let (operation, block, index) = producer(world, function, value)?;
+                checked_call_source(world, instance, original, step.node, *site, block, index)?;
+                let receiver = match operation {
+                    InstructionKind::CallClosureShared { callee, .. }
+                    | InstructionKind::CallClosureMut { callee, .. } => Cursor::Local(*callee),
+                    InstructionKind::CallClosureBorrowed { callee, kind, .. }
+                        if matches!(kind, CallableKind::Fn | CallableKind::FnMut) => Cursor::Value(*callee),
+                    _ => return Err(bad("receiver return theorem changes its actual non-consuming operation")),
+                };
+                let ledger = world.ledger;
+                let proof = ledger.original.borrow();
+                let proof = proof.as_ref().ok_or_else(|| bad("returned receiver lacks complete original Gamma"))?;
+                world.pay(index::search(proof.callable_calls.len()))?;
+                let call = proof.callable_calls.get(&(original.id, *site))
+                    .ok_or_else(|| bad("returned receiver has no original callable operation"))?;
+                if call.callee_node != *source || !matches!(call.kind, CallableKind::Fn | CallableKind::FnMut)
+                    || call.signature.call_kind != CallKind::Direct
+                { return Err(bad("returned receiver changes its exact original operand or mode")); }
+                let (root, steps) = proof.view_source_steps(original.id, *source, world.limits, world.left)?
+                    .ok_or_else(|| bad("returned receiver omits its complete original operand source"))?;
+                trace_steps(world, instance, original, function, root, &steps, receiver,
+                    values, locals, implicit, return_boundary, depth + 1)?;
+                reached_input = true;
+            }
+            ViewBorrowStepKind::BytesBorrow { site, mutable } => {
+                let Cursor::Value(value) = cursor else { return Err(bad("byte view has no actual produced SSA")); };
+                let (operation, block, index) = producer(world, function, value)?;
+                checked_call_source(world, instance, original, step.node, *site, block, index)?;
+                let InstructionKind::ByteBufferBorrow { buffer, mutable: actual } = operation else {
+                    return Err(bad("byte view changes its actual buffer-borrow operation"));
+                };
+                if actual != mutable { return Err(bad("byte view changes its actual access permission")); }
+                let ledger = world.ledger;
+                let proof = ledger.original.borrow();
+                let proof = proof.as_ref().ok_or_else(|| bad("byte view lacks complete original Gamma"))?;
+                world.pay(index::search(proof.intrinsics.len()))?;
+                if !matches!(proof.intrinsics.get(&(original.id, *site)), Some(call)
+                    if matches!(call.kind, super::super::original::IntrinsicKind::BytesBorrow { mutable: requested } if requested == *mutable))
+                { return Err(bad("byte view is not its exact checked original intrinsic")); }
+                world.get(values, *buffer)?;
+                cursor = Cursor::Value(*buffer);
+            }
             ViewBorrowStepKind::CallResult { site } => {
                 let Cursor::Value(value) = cursor else {
                     return Err(bad("call result loan has no real produced SSA"));
                 };
-                if role.root != ViewBorrowRoot::Result(step.node) {
+                if root != ViewBorrowRoot::Result(step.node) {
                     return Err(bad("call result loan changes its original root expression"));
                 }
                 let (_, block, index) = producer(world, function, value)?;
@@ -583,7 +697,7 @@ fn trace(
                 reached_input = true;
             }
             ViewBorrowStepKind::Capture { name } => {
-                if !matches!(role.root, ViewBorrowRoot::Capture(_)) {
+                if !matches!(root, ViewBorrowRoot::Capture(_)) {
                     return Err(bad("capture loan changes its original source kind"));
                 }
                 let environment = instance
@@ -704,7 +818,7 @@ fn trace(
                 pattern,
                 read,
             } => {
-                if role.root != ViewBorrowRoot::Local(*statement) {
+                if root != ViewBorrowRoot::Local(*statement) {
                     return Err(bad("pattern loan changes its original binding root"));
                 }
                 world.pay(pattern.len().saturating_add(1))?;
@@ -925,7 +1039,7 @@ fn trace(
                 );
             }
             ViewBorrowStepKind::ReadLocal { binding } => {
-                if role.root != ViewBorrowRoot::Local(*binding) {
+                if root != ViewBorrowRoot::Local(*binding) {
                     return Err(bad(
                         "call loan read changes its original mutable local root",
                     ));
@@ -953,7 +1067,7 @@ fn trace(
                 reached_input = true;
             }
             ViewBorrowStepKind::Parameter | ViewBorrowStepKind::ParameterStorage => {
-                let ViewBorrowRoot::Parameter(parameter) = role.root else {
+                let ViewBorrowRoot::Parameter(parameter) = root else {
                     return Err(bad("projected loan changes its original root kind"));
                 };
                 let local = *function
@@ -995,7 +1109,7 @@ fn trace(
                 reached_input = true;
             }
             ViewBorrowStepKind::Local { binding } => {
-                if role.root != ViewBorrowRoot::Local(*binding) {
+                if root != ViewBorrowRoot::Local(*binding) {
                     return Err(bad("projected loan changes its original local root"));
                 }
                 let local = binding_local(world, instance, original, *binding, step.node)?;
@@ -1223,6 +1337,12 @@ pub(super) fn apply(
         crate::dyn_metadata::semantic_operand_snapshot(&role.inner, world.limits, world.left, 1)?;
         world.pay(role.steps.len().saturating_add(1))?;
         for step in &role.steps {
+            if let ViewBorrowStepKind::CallInputs { inputs, .. } = &step.kind {
+                if inputs.len() > world.limits.max_nodes {
+                    return Err(Diagnostic::limit(Phase::Types, "actual source input count exceeded", None));
+                }
+                world.pay(inputs.len().saturating_mul(2))?;
+            }
             if let ViewBorrowStepKind::Capture { name } = &step.kind {
                 world.pay(name.len())?;
             }
@@ -1317,6 +1437,11 @@ fn apply_role(
     )?;
     let source = roles::outer(world, actual)?;
     let roots = arguments::roots(world, operand, actual)?;
+    let input_referents = if return_boundary {
+        let proof = world.ledger.original.borrow();
+        let proof = proof.as_ref().ok_or_else(|| bad("returned loan has no complete original Gamma"))?;
+        proof.view_input_referents(original.id, role.root, &role.steps, world.limits, world.left)?
+    } else { Vec::new() };
     for root in &roots {
         world.pay(1)?;
         if return_boundary {
@@ -1325,13 +1450,9 @@ fn apply_role(
         // A loaded input pointer's slot can end before Return; its referent
         // loan belongs to the caller and is still the function's declared
         // input. Borrowing the pointer slot (ParameterStorage) never qualifies.
-        let input_referent = return_boundary
-            && role
-                .steps
-                .iter()
-                .any(|step| matches!(step.kind, ViewBorrowStepKind::Parameter))
-            && matches!(role.root, ViewBorrowRoot::Parameter(parameter)
-                if function.parameters.get(parameter as usize) == Some(&root.local));
+        world.pay(input_referents.len())?;
+        let input_referent = return_boundary && input_referents.iter().any(|parameter|
+            function.parameters.get(*parameter as usize) == Some(&root.local));
         if world.stale_locals.contains(&root.local)
             || !input_referent
                 && locals
@@ -1493,6 +1614,7 @@ pub(super) fn return_view(
         for step in &role.steps {
             match &step.kind {
                 ViewBorrowStepKind::Capture { name } => world.pay(name.len())?,
+                ViewBorrowStepKind::CallInputs { inputs, .. } => world.pay(inputs.len().saturating_mul(2))?,
                 ViewBorrowStepKind::ProjectedLocal { pattern, .. } => {
                     if pattern.len() > world.limits.max_call_depth {
                         return Err(Diagnostic::limit(
@@ -2141,6 +2263,12 @@ pub(super) fn call_region_argument(
                     world.pay(pattern.len())?;
                 }
                 ViewBorrowStepKind::Capture { name } => world.pay(name.len())?,
+                ViewBorrowStepKind::CallInputs { inputs, .. } => {
+                    if inputs.len() > world.limits.max_nodes {
+                        return Err(Diagnostic::limit(Phase::Types, "call source input count exceeded", None));
+                    }
+                    world.pay(inputs.len().saturating_mul(2))?;
+                }
                 _ => {}
             }
         }

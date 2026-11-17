@@ -14,6 +14,11 @@ pub(crate) enum ViewBorrowStepKind {
     CallResult {
         site: SemanticSiteId,
     },
+    /// Complete declaration-proved returned input occurrences, never inputs
+    /// selected by equality of their caller lifetime images.
+    CallInputs { site: SemanticSiteId, inputs: Vec<(u32, NodeId)> },
+    CallableReceiver { site: SemanticSiteId, source: NodeId },
+    BytesBorrow { site: SemanticSiteId, mutable: bool },
     Capture {
         name: String,
     },
@@ -104,6 +109,13 @@ pub(super) fn snapshot_bound(
                 Diagnostic::limit(Phase::Types, "capture loan source work exceeded", None)
             })?;
         }
+        if let ViewBorrowStepKind::CallInputs { inputs, .. } = &step.kind {
+            if inputs.len() > limits.max_nodes {
+                return Err(Diagnostic::limit(Phase::Types, "returned call input count exceeded", None));
+            }
+            *left = left.checked_sub(inputs.len().saturating_mul(2)).ok_or_else(||
+                Diagnostic::limit(Phase::Types, "returned call input snapshot exceeded", None))?;
+        }
         if let ViewBorrowStepKind::ProjectedLocal { pattern, .. } = &step.kind {
             if pattern.len() > limits.max_call_depth {
                 return Err(Diagnostic::limit(
@@ -136,6 +148,13 @@ fn snapshot_role(value: &BorrowRole, limits: &Limits, left: &mut usize) -> R<Bor
             ViewBorrowStepKind::Capture { name } => {
                 *left = left.checked_sub(name.len()).ok_or_else(||
                     Diagnostic::limit(Phase::Types, "receiver source name snapshot exceeded", None))?;
+            }
+            ViewBorrowStepKind::CallInputs { inputs, .. } => {
+                if inputs.len() > limits.max_nodes {
+                    return Err(Diagnostic::limit(Phase::Types, "receiver return input count exceeded", None));
+                }
+                *left = left.checked_sub(inputs.len().saturating_mul(2)).ok_or_else(||
+                    Diagnostic::limit(Phase::Types, "receiver return input snapshot exceeded", None))?;
             }
             ViewBorrowStepKind::ProjectedLocal { pattern, .. } => {
                 if pattern.len() > limits.max_call_depth {
@@ -192,7 +211,9 @@ impl super::super::original_walk::Context for ReceiverReturns<'_, '_> {
             self.valid = false; return Ok(());
         };
         let role = snapshot_role(role, self.limits, self.left)?;
-        if !matches!(role.root, ViewBorrowRoot::Capture(_))
+        let sources = self.proof.view_sources(self.owner, role.root, &role.steps, self.limits, self.left,
+            &mut BTreeSet::new(), depth + 1)?;
+        if !sources.is_some_and(|roots| !roots.is_empty() && roots.iter().all(|root| matches!(root, ViewBorrowRoot::Capture(_))))
             || !is_receiver_upper(&role.target_lifetime)
             || &role.occurrence_lifetime != lifetime || role.inner != **inner
         { self.valid = false; }
@@ -200,7 +221,172 @@ impl super::super::original_walk::Context for ReceiverReturns<'_, '_> {
         Ok(())
     }
 }
+struct ReturnedInputs<'a, 'b> {
+    proof: &'a Proof, owner: SemanticDefinitionId,
+    limits: &'b Limits, left: &'b mut usize,
+    inputs: BTreeSet<u32>, count: usize, valid: bool,
+}
+impl super::super::original_walk::Context for ReturnedInputs<'_, '_> {
+    fn descend_closure(&self) -> bool { false }
+    fn node(&mut self, depth: usize) -> R<()> {
+        if depth > self.limits.max_call_depth {
+            return Err(Diagnostic::limit(Phase::Types, "returned input source depth exceeded", None));
+        }
+        *self.left = self.left.checked_sub(1).ok_or_else(||
+            Diagnostic::limit(Phase::Types, "returned input source work exceeded", None))?;
+        Ok(())
+    }
+    fn ty(&mut self, _: &mut SemanticTypeRecipe, depth: usize) -> R<()> { self.node(depth) }
+    fn statement(&mut self, _: NodeId, kind: &SemanticOriginalStatementKind, depth: usize) -> R<()> {
+        self.node(depth)?;
+        let CoreStatementKind::Return(value) = kind else { return Ok(()); };
+        self.count = self.count.checked_add(1).ok_or_else(|| bad("returned source count overflows"))?;
+        if self.count > self.limits.max_nodes {
+            return Err(Diagnostic::limit(Phase::Types, "returned source count exceeded", None));
+        }
+        let Some(value) = value else { self.valid = false; return Ok(()); };
+        *self.left = self.left.checked_sub(self.proof.types.len().saturating_add(1).ilog2() as usize + 1)
+            .ok_or_else(|| Diagnostic::limit(Phase::Types, "returned source type lookup exceeded", None))?;
+        let Some(SemanticTypeRecipe::Address { mutable: false, lifetime, .. }) =
+            self.proof.types.get(&(self.owner, Query::Expression(value.id)))
+        else { self.valid = false; return Ok(()); };
+        if matches!(lifetime, SemanticOuterLifeRecipe::Static) { return Ok(()); }
+        *self.left = self.left.checked_sub(self.proof.view_bounds.len().saturating_add(1).ilog2() as usize + 1)
+            .ok_or_else(|| Diagnostic::limit(Phase::Types, "returned source bound lookup exceeded", None))?;
+        let Some(bound) = self.proof.view_bounds.get(&(self.owner, Query::Expression(value.id))) else {
+            self.valid = false; return Ok(());
+        };
+        let Some(roots) = self.proof.view_sources(self.owner, bound.root, &bound.steps, self.limits, self.left,
+            &mut BTreeSet::new(), depth + 1)? else { self.valid = false; return Ok(()); };
+        for root in roots {
+            let ViewBorrowRoot::Parameter(parameter) = root else { self.valid = false; continue; };
+            *self.left = self.left.checked_sub(self.inputs.len().saturating_add(1).ilog2() as usize + 2)
+                .ok_or_else(|| Diagnostic::limit(Phase::Types, "returned input directory work exceeded", None))?;
+            if self.inputs.len() >= self.limits.max_nodes {
+                return Err(Diagnostic::limit(Phase::Types, "returned input directory limit exceeded", None));
+            }
+            self.inputs.insert(parameter);
+        }
+        Ok(())
+    }
+}
+
 impl Proof {
+    /// Resolve only already checked operation-source edges. A call result is
+    /// not an input alias unless its complete original returns say so.
+    fn view_sources(
+        &self, owner: SemanticDefinitionId, root: ViewBorrowRoot, steps: &[ViewBorrowStep],
+        limits: &Limits, left: &mut usize, active: &mut BTreeSet<NodeId>, depth: usize,
+    ) -> R<Option<Vec<ViewBorrowRoot>>> {
+        if depth > limits.max_call_depth {
+            return Err(Diagnostic::limit(Phase::Types, "original return-source depth exceeded", None));
+        }
+        *left = left.checked_sub(steps.len()).ok_or_else(|| Diagnostic::limit(
+            Phase::Types, "original return-source path work exceeded", None))?;
+        let ViewBorrowRoot::Result(node) = root else {
+            if matches!(root, ViewBorrowRoot::Parameter(_))
+                && !steps.iter().any(|step| matches!(step.kind, ViewBorrowStepKind::Parameter))
+            { return Ok(None); }
+            *left = left.checked_sub(1).ok_or_else(|| Diagnostic::limit(
+                Phase::Types, "original return-source leaf work exceeded", None))?;
+            return Ok(Some(vec![root]));
+        };
+        *left = left.checked_sub(active.len().saturating_add(1).ilog2() as usize + steps.len() + 1)
+            .ok_or_else(|| Diagnostic::limit(Phase::Types, "original return-source work exceeded", None))?;
+        if !active.insert(node) { return Err(bad("original return-source operation cycle")); }
+        let mut sources = None;
+        for step in steps {
+            if step.node != node { continue; }
+            let selected = match &step.kind {
+                ViewBorrowStepKind::CallInputs { inputs, .. } => {
+                    if inputs.len() > limits.max_nodes {
+                        return Err(Diagnostic::limit(Phase::Types, "original returned argument count exceeded", None));
+                    }
+                    *left = left.checked_sub(inputs.len()).ok_or_else(|| Diagnostic::limit(
+                        Phase::Types, "original returned arguments work exceeded", None))?;
+                    inputs.iter().map(|(_, node)| *node).collect::<Vec<_>>()
+                }
+                ViewBorrowStepKind::CallableReceiver { source, .. } => {
+                    *left = left.checked_sub(1).ok_or_else(|| Diagnostic::limit(
+                        Phase::Types, "original returned receiver work exceeded", None))?;
+                    vec![*source]
+                }
+                _ => continue,
+            };
+            if sources.replace(selected).is_some() {
+                return Err(bad("call result repeats its original source selection"));
+            }
+        }
+        let result = if let Some(sources) = sources {
+            if sources.is_empty() { None } else {
+                let mut roots = Vec::new();
+                for source in sources {
+                    *left = left.checked_sub(self.view_bounds.len().saturating_add(1).ilog2() as usize + 1)
+                        .ok_or_else(|| Diagnostic::limit(Phase::Types, "original return-source lookup exceeded", None))?;
+                    let Some(bound) = self.view_bounds.get(&(owner, Query::Expression(source))) else {
+                        active.remove(&node); return Ok(None);
+                    };
+                    let Some(children) = self.view_sources(owner, bound.root, &bound.steps, limits, left, active, depth + 1)? else {
+                        active.remove(&node); return Ok(None);
+                    };
+                    if roots.len().saturating_add(children.len()) > limits.max_nodes {
+                        return Err(Diagnostic::limit(Phase::Types, "original return-source domain limit exceeded", None));
+                    }
+                    *left = left.checked_sub(roots.len().saturating_add(children.len()))
+                        .ok_or_else(|| Diagnostic::limit(Phase::Types, "original return-source union work exceeded", None))?;
+                    roots.extend(children);
+                }
+                Some(roots)
+            }
+        } else { None };
+        active.remove(&node);
+        Ok(result)
+    }
+    fn returned_input_parameters(
+        &self, program: &SemanticModule, owner: SemanticDefinitionId,
+        limits: &Limits, left: &mut usize,
+    ) -> R<Option<Vec<u32>>> {
+        *left = left.checked_sub(program.definitions.len()
+            .saturating_add(self.complete.len().saturating_add(1).ilog2() as usize + 1))
+            .ok_or_else(|| Diagnostic::limit(Phase::Types, "returned input declaration lookup exceeded", None))?;
+        if !self.complete.contains(&owner) { return Ok(None); }
+        let definition = program.definitions.iter().find(|row| row.id == owner)
+            .ok_or_else(|| bad("returned inputs have no original definition"))?;
+        let SemanticDefinitionBody::FunctionWithBody {
+            body: SemanticOriginalFunctionBody::Defined(body), .. } = &definition.body
+        else { return Ok(None); };
+        if definition.kind != SemanticDefinitionKind::Function { return Ok(None); }
+        crate::dyn_metadata::semantic_operand_snapshot(body, limits, left, 1)?;
+        let mut body = body.clone();
+        let mut returned = ReturnedInputs { proof: self, owner, limits, left,
+            inputs: BTreeSet::new(), count: 0, valid: true };
+        super::super::original_walk::block(&mut body, &mut returned, 0)?;
+        if !returned.valid || returned.count == 0 || returned.inputs.is_empty() { return Ok(None); }
+        *returned.left = returned.left.checked_sub(returned.inputs.len()).ok_or_else(||
+            Diagnostic::limit(Phase::Types, "returned input ordinal snapshot exceeded", None))?;
+        Ok(Some(returned.inputs.into_iter().collect()))
+    }
+    pub(in crate::semantics) fn view_input_referents(
+        &self, owner: SemanticDefinitionId, root: ViewBorrowRoot, steps: &[ViewBorrowStep],
+        limits: &Limits, left: &mut usize,
+    ) -> R<Vec<u32>> {
+        let Some(roots) = self.view_sources(owner, root, steps, limits, left, &mut BTreeSet::new(), 0)?
+        else { return Ok(Vec::new()); };
+        *left = left.checked_sub(roots.len()).ok_or_else(|| Diagnostic::limit(
+            Phase::Types, "returned input referent directory exceeded", None))?;
+        Ok(roots.into_iter().filter_map(|root| match root {
+            ViewBorrowRoot::Parameter(parameter) => Some(parameter), _ => None,
+        }).collect())
+    }
+    pub(in crate::semantics) fn view_source_steps(
+        &self, owner: SemanticDefinitionId, node: NodeId, limits: &Limits, left: &mut usize,
+    ) -> R<Option<(ViewBorrowRoot, Vec<ViewBorrowStep>)>> {
+        *left = left.checked_sub(self.view_bounds.len().saturating_add(1).ilog2() as usize + 1)
+            .ok_or_else(|| Diagnostic::limit(Phase::Types, "actual returned source lookup exceeded", None))?;
+        let Some(bound) = self.view_bounds.get(&(owner, Query::Expression(node))) else { return Ok(None); };
+        let bound = snapshot_bound(bound, limits, left, 0)?;
+        Ok(Some((bound.root, bound.steps)))
+    }
     /// A declaration-domain theorem, not a type equality or a runtime source.
     /// Its actual caller must still check every returned capture derivation.
     pub(in crate::semantics) fn receiver_result_upper(
@@ -321,7 +507,9 @@ impl Check<'_, '_> {
         let Some(bound) = self.proof.view_bounds.get(&(owner, Query::Expression(expression.id))) else {
             return Ok(None);
         };
-        if !matches!(bound.root, ViewBorrowRoot::Capture(_)) {
+        let sources = self.proof.view_sources(owner, bound.root, &bound.steps, self.limits, self.left,
+            &mut BTreeSet::new(), depth + 1)?;
+        if !sources.is_some_and(|roots| !roots.is_empty() && roots.iter().all(|root| matches!(root, ViewBorrowRoot::Capture(_)))) {
             return Ok(None);
         }
         let bound = snapshot_bound(bound, self.limits, self.left, depth + 1)?;
@@ -468,15 +656,12 @@ impl Check<'_, '_> {
                 .saturating_add(1),
             depth,
         )?;
-        if self
-            .proof
-            .view_bounds
-            .get(&(owner, target.clone()))
-            .is_some_and(|old| old != &value)
-        {
-            return Err(pending(
-                "original projected loan has several unmerged operation sources",
-            ));
+        if let Some(old) = self.proof.view_bounds.get(&(owner, target.clone())) {
+            let old = snapshot_bound(old, self.limits, self.left, depth + 1)?;
+            let current = snapshot_bound(&value, self.limits, self.left, depth + 1)?;
+            if old != current {
+                return Err(pending("original projected loan has several unmerged operation sources"));
+            }
         }
         self.proof
             .proof_mut()?
@@ -552,6 +737,74 @@ impl Check<'_, '_> {
                 kind,
             }],
         }))
+    }
+    fn call_view_bound(
+        &mut self, owner: SemanticDefinitionId, expression: &SemanticOriginalExpr,
+        variables: &BTreeMap<String, Binding>, depth: usize,
+    ) -> R<Option<ViewBorrowBound>> {
+        let CoreExprKind::Call { callee, arguments } = &expression.kind else { return Ok(None); };
+        let Some(site) = self.site(owner, SemanticOriginalNode::Expression(expression.id))? else { return Ok(None); };
+        let site = site.id;
+        let Some(ty) = self.proof.types.get(&(owner, Query::Expression(expression.id))) else { return Ok(None); };
+        let lifetime = match ty {
+            SemanticTypeRecipe::Address { lifetime, .. } | SemanticTypeRecipe::Desc { lifetime, .. } => {
+                crate::dyn_metadata::semantic_operand_snapshot(lifetime, self.limits, self.left, 1)?;
+                lifetime.clone()
+            }
+            _ => return Ok(None),
+        };
+        self.pay(self.proof.intrinsics.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+        if let Some(IntrinsicCall { kind: IntrinsicKind::BytesBorrow { mutable }, .. }) =
+            self.proof.intrinsics.get(&(owner, site))
+        {
+            let mutable = *mutable;
+            let [argument] = arguments.as_slice() else { return Err(bad("byte view changes its exact original input arity")); };
+            self.place_borrow_bound(owner, argument, variables, depth + 1)?;
+            let Some(bound) = self.proof.view_bounds.get(&(owner, Query::Expression(argument.id))) else { return Ok(None); };
+            let mut bound = snapshot_bound(bound, self.limits, self.left, depth + 1)?;
+            self.pay(1, depth)?;
+            bound.steps.push(ViewBorrowStep { node: expression.id,
+                kind: ViewBorrowStepKind::BytesBorrow { site, mutable } });
+            return Ok(Some(bound));
+        }
+        self.pay(self.proof.callable_calls.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+        if let Some(call) = self.proof.callable_calls.get(&(owner, site))
+            && matches!(&call.signature.result, SemanticTypeRecipe::Address { lifetime, .. } if is_receiver_upper(lifetime))
+        {
+            let source = call.callee_node;
+            self.pay(self.proof.local_roles.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+            let access_lifetime = if let Some(role) = self.proof.local_roles.get(&(owner, expression.id)) {
+                let [source] = role.sources.as_slice() else { return Err(bad("receiver call has no unique original access bound")); };
+                crate::dyn_metadata::semantic_operand_snapshot(&source.lifetime, self.limits, self.left, 1)?;
+                source.lifetime.clone()
+            } else { return Err(bad("receiver call has no original access bound")); };
+            let mut base = callee.as_ref();
+            while let CoreExprKind::Group(inner) | CoreExprKind::TypeApply { callee: inner, .. }
+                | CoreExprKind::GenericApply { callee: inner, .. } = &base.kind
+            { self.pay(1, depth)?; base = inner; }
+            if base.id != source { return Err(bad("receiver call changes its original callee source node")); }
+            self.place_borrow_bound(owner, base, variables, depth + 1)?;
+            self.pay(1, depth)?;
+            return Ok(Some(ViewBorrowBound { root: ViewBorrowRoot::Result(expression.id),
+                lifetime: Some(access_lifetime), steps: vec![ViewBorrowStep { node: expression.id,
+                    kind: ViewBorrowStepKind::CallableReceiver { site, source } }] }));
+        }
+        self.pay(self.proof.call_targets.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+        let Some(target) = self.proof.call_targets.get(&(owner, site)).copied() else { return Ok(None); };
+        let Some(parameters) = self.proof.returned_input_parameters(self.program, target, self.limits, self.left)? else { return Ok(None); };
+        let mut inputs = Vec::new();
+        for parameter in parameters {
+            let argument = arguments.get(parameter as usize)
+                .ok_or_else(|| bad("returned input leaves its exact original Call arguments"))?;
+            self.place_borrow_bound(owner, argument, variables, depth + 1)?;
+            self.pay(self.proof.view_bounds.len().saturating_add(1).ilog2() as usize + 3, depth)?;
+            if !self.proof.view_bounds.contains_key(&(owner, Query::Expression(argument.id))) { return Ok(None); }
+            inputs.push((parameter, argument.id));
+        }
+        self.pay(1, depth)?;
+        Ok(Some(ViewBorrowBound { root: ViewBorrowRoot::Result(expression.id),
+            lifetime: Some(lifetime), steps: vec![ViewBorrowStep { node: expression.id,
+                kind: ViewBorrowStepKind::CallInputs { site, inputs } }] }))
     }
     pub(super) fn view_bound(
         &mut self,
@@ -787,6 +1040,9 @@ impl Check<'_, '_> {
                 Query::Expression(object.id)
             }
             CoreExprKind::Call { arguments, .. } => {
+                if let Some(bound) = self.call_view_bound(owner, expression, variables, depth + 1)? {
+                    return self.insert_view_bound(owner, Query::Expression(expression.id), bound, depth + 1);
+                }
                 let Some(site) =
                     self.site(owner, SemanticOriginalNode::Expression(expression.id))?
                 else {
@@ -984,7 +1240,9 @@ impl Check<'_, '_> {
                 let role = snapshot_role(role, self.limits, self.left)?;
                 crate::dyn_metadata::semantic_operand_snapshot(source, self.limits, self.left, 1)?;
                 crate::dyn_metadata::semantic_operand_snapshot(inner.as_ref(), self.limits, self.left, 1)?;
-                if matches!(role.root, ViewBorrowRoot::Capture(_))
+                let sources = self.proof.view_sources(owner, role.root, &role.steps, self.limits, self.left,
+                    &mut BTreeSet::new(), depth + 1)?;
+                if sources.is_some_and(|roots| !roots.is_empty() && roots.iter().all(|root| matches!(root, ViewBorrowRoot::Capture(_))))
                     && is_receiver_upper(&role.target_lifetime)
                     && &role.occurrence_lifetime == source && role.inner == **inner
                 { return Ok(true); }
@@ -1010,12 +1268,13 @@ impl Check<'_, '_> {
         )?;
         let rows = &mut self.proof.proof_mut()?.return_borrows;
         match rows.entry((owner, expression.id)) {
-            std::collections::btree_map::Entry::Occupied(old) if old.get() != &role => {
-                return Err(bad(
-                    "one original result view changes its complete source loan",
-                ));
+            std::collections::btree_map::Entry::Occupied(old) => {
+                let previous = snapshot_role(old.get(), self.limits, self.left)?;
+                let current = snapshot_role(&role, self.limits, self.left)?;
+                if previous != current {
+                    return Err(bad("one original result view changes its complete source loan"));
+                }
             }
-            std::collections::btree_map::Entry::Occupied(_) => {}
             std::collections::btree_map::Entry::Vacant(row) => {
                 row.insert(role);
             }

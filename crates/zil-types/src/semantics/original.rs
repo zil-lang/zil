@@ -929,6 +929,64 @@ impl<'a> Check<'a, '_> {
                 }
                 all
             }
+            SemanticTypeRecipe::Closure { definition, environment, .. } => {
+                // Capability follows every actual captured value, never the
+                // entry's Fn/FnMut kind or its result's receiver upper.
+                self.pay(self.proof.complete.len().saturating_add(1).ilog2() as usize
+                    + self.proof.borrowed_capture_heads.len().saturating_add(1).ilog2() as usize + 2, depth)?;
+                if !self.proof.complete.contains(definition)
+                    || self.proof.borrowed_capture_heads.contains(definition)
+                { false } else {
+                    self.pay(environment.len(), depth)?;
+                    let mut all = true;
+                    for actual in environment {
+                        match actual {
+                            SemanticActualRecipe::Type(ty) => all &= self.copy_type(owner, ty, depth + 1)?,
+                            SemanticActualRecipe::Life(life) => {
+                                crate::dyn_metadata::semantic_operand_snapshot(life, self.limits, self.left, 1)?;
+                            }
+                            SemanticActualRecipe::Const { carrier, value } => {
+                                crate::dyn_metadata::semantic_operand_snapshot(value, self.limits, self.left, 1)?;
+                                all &= self.copy_type(owner, carrier, depth + 1)?;
+                            }
+                            SemanticActualRecipe::Infer => all = false,
+                        }
+                    }
+                    all
+                }
+            }
+            SemanticTypeRecipe::Opaque { definition, arguments, hidden } => {
+                let declaration = self.definition(*definition)?;
+                if declaration.parent.is_some() || !declaration.environment.is_empty()
+                    || !self.proof.complete.contains(definition)
+                    || !matches!(&declaration.body, SemanticDefinitionBody::FunctionWithBody {
+                        signature: SemanticSignatureRecipe { result: SemanticTypeRecipe::Opaque { definition: declared, .. }, .. },
+                        foreign: None, body: SemanticOriginalFunctionBody::Defined(_), ..
+                    } if declared == definition)
+                { false } else {
+                    self.call_requirements(owner, declaration, arguments, depth + 1)?;
+                    self.pay(self.proof.types.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                    let result = self.proof.types.get(&(*definition, Query::Result))
+                        .ok_or_else(|| bad("opaque Copy lacks its complete original all-return equation"))?;
+                    let result = copy_recipe(result, self.limits, self.left)?;
+                    self.contexts.push(*definition);
+                    let defining: R<()> = (|| {
+                        if !matches!(hidden.as_ref(), SemanticTypeRecipe::OriginalType {
+                            scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
+                        }) {
+                            let hidden = self.resolve(*definition, hidden, depth + 1)?;
+                            self.same(&hidden, &result)?;
+                        }
+                        Ok(())
+                    })();
+                    self.contexts.pop();
+                    defining?;
+                    let result = super::instantiate::ty(self.program, &self.proof, &result,
+                        super::instantiate::DomainMapping { source: *definition, use_definition: owner,
+                            arguments, parent_call: None }, self.limits, self.left)?;
+                    self.copy_type(owner, &result, depth + 1)?
+                }
+            }
             SemanticTypeRecipe::Environment {
                 scope: SemanticScopeRef::Ancestor(0),
                 ordinal,
@@ -3826,6 +3884,7 @@ impl<'a> Check<'a, '_> {
                     };
                     captured.insert(name.clone(), value);
                 }
+                self.contextual_closure_inputs(owner, child, wanted, depth + 1)?;
                 self.function(child, Some(captured))?;
                 if !*move_capture {
                     let cost = self

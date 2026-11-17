@@ -399,6 +399,24 @@ fn clone_proof(
         if let Some(lifetime) = &bound.lifetime {
             crate::dyn_metadata::semantic_operand_snapshot(lifetime, limits, left, 1)?;
         }
+        for step in &bound.steps {
+            match &step.kind {
+                ViewBorrowStepKind::Capture { name } => spend(left, name.len(), 0, limits)?,
+                ViewBorrowStepKind::CallInputs { inputs, .. } => {
+                    if inputs.len() > limits.max_nodes {
+                        return Err(Diagnostic::limit(Phase::Types, "frozen source input domain exceeded", None));
+                    }
+                    spend(left, inputs.len().saturating_mul(2), 0, limits)?;
+                }
+                ViewBorrowStepKind::ProjectedLocal { pattern, .. } => {
+                    if pattern.len() > limits.max_call_depth {
+                        return Err(Diagnostic::limit(Phase::Types, "frozen source projection depth exceeded", None));
+                    }
+                    spend(left, pattern.len(), 0, limits)?;
+                }
+                _ => {}
+            }
+        }
     }
     for role in source
         .borrow_roles
@@ -409,6 +427,12 @@ fn clone_proof(
         for step in &role.steps {
             match &step.kind {
                 ViewBorrowStepKind::Capture { name } => spend(left, name.len(), 0, limits)?,
+                ViewBorrowStepKind::CallInputs { inputs, .. } => {
+                    if inputs.len() > limits.max_nodes {
+                        return Err(Diagnostic::limit(Phase::Types, "frozen returned input count exceeded", None));
+                    }
+                    spend(left, inputs.len().saturating_mul(2), 0, limits)?;
+                }
                 ViewBorrowStepKind::ProjectedLocal { pattern, .. } => {
                     if pattern.len() > limits.max_call_depth {
                         return Err(Diagnostic::limit(

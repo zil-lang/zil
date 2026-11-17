@@ -1740,6 +1740,60 @@ impl Check<'_, '_> {
         }
         Ok(candidates)
     }
+    /// Contextual inputs are typing goals from this exact factory declaration,
+    /// not a conclusion about the returned closure or its invocation effect.
+    pub(super) fn contextual_closure_inputs(
+        &mut self, owner: SemanticDefinitionId, child: &SemanticDefinition,
+        wanted: Option<&SemanticTypeRecipe>, depth: usize,
+    ) -> R<()> {
+        let Some(SemanticTypeRecipe::Opaque { definition, .. }) = wanted else { return Ok(()); };
+        if *definition != owner || child.parent != Some(owner) { return Ok(()); }
+        let SemanticDefinitionBody::FunctionWithBody { signature: child_signature, .. } = &child.body
+        else { return Err(bad("contextual closure inputs have no immutable child signature")); };
+        let declaration = self.definition(owner)?;
+        self.pay(1, depth)?;
+        let mut pending = vec![declaration.requirements.as_slice()];
+        while let Some(requirements) = pending.pop() {
+            for requirement in requirements {
+                self.pay(1, depth)?;
+                match requirement {
+                    SemanticRequirementRecipe::ForAll { lifetimes: 0, requirements } => {
+                        self.pay(1, depth)?;
+                        pending.push(requirements);
+                    }
+                    SemanticRequirementRecipe::Callable { ty: SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result,
+                    }, signature, .. } if signature.bound_lifetimes == 0 && signature.invocation_lifetimes == 0 => {
+                        if signature.parameters.len() != child_signature.parameters.len() {
+                            return Err(bad("contextual closure changes its declared input arity"));
+                        }
+                        for (ordinal, (input, parameter)) in signature.parameters.iter()
+                            .zip(&child_signature.parameters).enumerate()
+                        {
+                            self.pay(1, depth)?;
+                            if !matches!(&parameter.ty, SemanticTypeRecipe::OriginalType {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                source: SemanticOriginalTypeSource::Parameter(index),
+                            } if *index as usize == ordinal) { continue; }
+                            let expected = self.rehome(owner, child, &input.ty, depth + 1)?;
+                            self.pay(self.proof.types.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                            if let Some(old) = self.proof.types.get(&(child.id, Query::Parameter(ordinal as u32))) {
+                                let old = copy_recipe(old, self.limits, self.left)?;
+                                self.contexts.push(child.id);
+                                let equal = self.same(&old, &expected);
+                                self.contexts.pop();
+                                equal?;
+                            } else {
+                                self.proof.proof_mut()?.types.insert((child.id, Query::Parameter(ordinal as u32)), expected);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Ok(())
+    }
     pub(super) fn callable_call(
         &mut self,
         owner: SemanticDefinitionId,
@@ -1849,6 +1903,21 @@ impl Check<'_, '_> {
             || signature.call_kind != CallKind::Direct) {
             return Err(bad("consuming or thin code cannot borrow a callable receiver"));
         }
+        // Solve complete inner types against the requested result, but leave
+        // its outer receiver view to the directed return/call boundary. The
+        // original call occurrence must not be equated with an input anchor.
+        let receiver_wanted = if receiver_result {
+            match wanted {
+                Some(SemanticTypeRecipe::Address { mutable: false, inner, .. }) => {
+                    let SemanticTypeRecipe::Address { lifetime, .. } = &signature.result else { unreachable!() };
+                    crate::dyn_metadata::semantic_operand_snapshot(lifetime, self.limits, self.left, 1)?;
+                    Some(SemanticTypeRecipe::Address { mutable: false, lifetime: lifetime.clone(),
+                        inner: Box::new(copy_recipe(inner, self.limits, self.left)?) })
+                }
+                _ => None,
+            }
+        } else { None };
+        let solver_wanted = if receiver_result { receiver_wanted.as_ref() } else { wanted };
         let (actuals, signature) = self.solve_signature_roles(
             owner,
             expression,
@@ -1858,7 +1927,7 @@ impl Check<'_, '_> {
             &[],
             &[],
             variables,
-            wanted,
+            solver_wanted,
             true,
             &invocation_origins,
             &[],
