@@ -19,6 +19,23 @@ struct Ports {
     array_elements: Vec<usize>,
     raw_whole: Vec<usize>,
 }
+impl Ports {
+    fn clone_paid(&self, b: &mut Budget) -> CompileResult<Self> {
+        // Charge the fee inventory itself, then every copied vector element
+        // and row payload (including empty-path rows) before allocating.
+        b.spend(self.keys.len().saturating_add(self.task_ports.len())
+            .saturating_add(self.physical_slots.len()), "complete port clone fee inventory")?;
+        let work = 3usize.saturating_add(self.classes.len())
+            .saturating_add(self.array_elements.len()).saturating_add(self.raw_whole.len());
+        let work = self.keys.iter().fold(work, |work, (path, _)|
+            work.saturating_add(path.len()).saturating_add(1));
+        let work = self.task_ports.iter().chain(&self.physical_slots)
+            .fold(work, |work, (path, _)| work.saturating_add(path.len()).saturating_add(1));
+        b.spend(work, "complete invariant port clone")?;
+        Ok(self.clone())
+    }
+}
+
 /// Read-only whole reference geometry at a genuine function coordinate.
 /// No classes, initialized occupant or loan are exported by this query.
 pub(crate) fn raw_reference_shape(module: &TypedModule, function: &TypedFunction,
@@ -1201,11 +1218,7 @@ fn call_with_receiver_view(
             } else if let Some((_, Some(head))) = fixed { head }
             else { e.fresh(false, b)? };
             array_outer::binding(e, actual_head, access, flow, b)?;
-            b.spend(source.classes.len().saturating_add(source.keys.iter().map(|row| row.0.len()).sum::<usize>())
-                .saturating_add(source.physical_slots.iter().map(|row| row.0.len()).sum::<usize>())
-                .saturating_add(source.array_elements.len()).saturating_add(source.raw_whole.len())
-                .saturating_add(source.task_ports.len()).saturating_add(1), "receiver view complete invariant port projection")?;
-            let mut projected = source.clone();
+            let mut projected = source.clone_paid(b)?;
             // Preserve the actual strong source equation on this private
             // projection. Only the exposed head uses the independently proved
             // call window; retained/nominal children retain every equation.
@@ -3030,11 +3043,7 @@ fn check_with(
                 let port = if let Some(binder) = receiving {
                     let source = &values[v.0 as usize];
                     if source.outer.is_none() { return Err(bad("receiving Return has no actual Address head")); }
-                    b.spend(source.classes.len().saturating_add(source.keys.iter().map(|row| row.0.len()).sum::<usize>())
-                        .saturating_add(source.physical_slots.iter().map(|row| row.0.len()).sum::<usize>())
-                        .saturating_add(source.array_elements.len()).saturating_add(source.raw_whole.len())
-                        .saturating_add(source.task_ports.len()).saturating_add(1), "receiving Return complete port projection")?;
-                    let mut selected = source.clone();
+                    let mut selected = source.clone_paid(b)?;
                     // The completed original/actual field proof authorizes one
                     // directed receiving head, not equality with its saved
                     // source. All child/nominal coordinates stay unchanged.
