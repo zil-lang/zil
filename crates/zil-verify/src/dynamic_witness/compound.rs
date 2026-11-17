@@ -286,10 +286,10 @@ pub(super) fn external<'m>(
     life: &StorageLifeShape,
     b: &mut Budget,
 ) -> Check<values::Domain> {
-    if !matches!(ty, Type::Address { .. } | Type::Desc(_) | Type::Managed(_))
+    if !matches!(ty, Type::Address { .. } | Type::Desc(_) | Type::Managed(_) | Type::Tuple(_))
         &&!matches!(ty,Type::Array{element,length:1}if matches!(element.as_ref(),Type::Closure(_))) {
         return Err(bad(
-            "external compound has no actual Address, Desc or Managed root",
+            "external compound has no actual Address, Desc, Managed or Tuple root",
         ));
     }
     external_inner(inventory, ty, life, false, b)

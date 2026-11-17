@@ -864,7 +864,19 @@ pub(super) fn profile(
                         else{driver_call(module,target,budget,Some(i.span))?;}
                     }
                 }
-                InstructionKind::PlaceTagLocal { .. } => {
+                InstructionKind::PlaceTagLocal { .. }
+                | InstructionKind::DescribeLocal { .. }
+                | InstructionKind::DescribeAddress { .. }
+                | InstructionKind::DescribeCapture { .. }
+                | InstructionKind::DescribePackageField { .. }
+                | InstructionKind::ReadDesc { .. }
+                | InstructionKind::WriteDesc { .. }
+                | InstructionKind::BorrowFieldLocal { .. }
+                | InstructionKind::BorrowPackageField { .. }
+                | InstructionKind::ReadPackageField { .. } => {
+                    // Saved-owner observations execute no user cleanup. Check
+                    // complete layout, fields, descriptor/mode and operands;
+                    // normal sources, loans, debts and exits remain separate.
                     // Validate the complete actual nested tag path. Resource
                     // initialization and active-arm debts remain independent.
                     crate::check_instruction(module,f,i,budget)?;
@@ -986,14 +998,10 @@ pub(super) fn profile(
                 | InstructionKind::TaskYield
                 | InstructionKind::MakeManaged { .. }
                 | InstructionKind::TakeLocal { .. }
-                | InstructionKind::DescribeLocal { .. }
-                | InstructionKind::ReadDesc { .. }
-                | InstructionKind::WriteDesc { .. }
                 | InstructionKind::DropManaged { .. }
                 | InstructionKind::MakeOwnedTuple { .. }
                 | InstructionKind::DropTuple { .. }
                 | InstructionKind::ExtractField { .. }
-                | InstructionKind::BorrowFieldLocal { .. }
                 | InstructionKind::BorrowPlaceLocal { .. }
                 | InstructionKind::ReadAddress { .. }
                 | InstructionKind::WriteAddress { .. }
@@ -1055,3 +1063,6 @@ pub(crate) fn once_cleanup_resumable(
     }
     pollable_storage(module, ty, budget)
 }
+
+#[cfg(test)]
+mod frame_observation_tests;

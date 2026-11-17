@@ -9,6 +9,48 @@ pub(in crate::semantic::flow) mod scalar_preparations;
 #[path = "range_bindings.rs"]
 mod range_bindings;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PatternStart { Value(ValueId), Unpack { local: LocalId, at: (BlockId, usize) } }
+
+// The activation is one exact Store or atomic unpack immediately following
+// its ordered declaration bundle, never another local with an equal class.
+fn pattern_initial_transfer(module: &TypedModule, f: &TypedFunction, local: LocalId, span: Span, b: &mut Budget) -> Check<PatternStart> {
+    let mut initial = None;
+    for block in &f.blocks {
+        b.spend(block.instructions.len())?;
+        for (index, instruction) in block.instructions.iter().enumerate() {
+            if instruction.kind != InstructionKind::StorageLive(local) { continue; }
+            if instruction.span != span || initial.is_some() { return Err(bad("pattern local changes or repeats its original declaration point")); }
+            let mut end = index + 1;
+            while matches!(block.instructions.get(end).map(|i| &i.kind), Some(InstructionKind::StorageLive(_))) { b.spend(1)?; end += 1; }
+            let transfer = block.instructions.get(end).ok_or_else(||bad("pattern local lacks its actual initial storage transfer"))?;
+            initial = Some(match &transfer.kind {
+                InstructionKind::Store { local: target, value } if end == index + 1 => {
+                    if *target != local || transfer.span != span { return Err(bad("pattern local initial transfer changes its original binding point")); }
+                    crate::check_instruction(module, f, transfer, b)?;
+                    PatternStart::Value(*value)
+                }
+                InstructionKind::UnpackTuple { local: source, fields }
+                | InstructionKind::UnpackVariant { local: source, fields, .. } => {
+                    let mut begin = index;
+                    while begin > 0 && matches!(block.instructions[begin - 1].kind, InstructionKind::StorageLive(_)) { b.spend(1)?; begin -= 1; }
+                    b.spend(fields.len().saturating_mul(2))?;
+                    if end - begin != fields.len() || fields.contains(source) || fields.iter().filter(|field| **field == local).count() != 1 {
+                        return Err(bad("pattern unpack does not initialize its exact declaration bundle"));
+                    }
+                    for (instruction, field) in block.instructions[begin..end].iter().zip(fields) {
+                        if instruction.kind != InstructionKind::StorageLive(*field) { return Err(bad("pattern unpack changes its ordered actual declaration bundle")); }
+                    }
+                    crate::check_instruction(module, f, transfer, b)?;
+                    PatternStart::Unpack { local, at: (block.id, end) }
+                }
+                _ => return Err(bad("pattern local declaration is not followed by its actual initial storage transfer")),
+            });
+        }
+    }
+    initial.ok_or_else(||bad("pattern address has no complete actual binding activation"))
+}
+
 impl CheckedContext{
     pub(super) fn address_place_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<()>{
         // A borrowed product field may be observed as a descriptor either by
@@ -335,25 +377,27 @@ impl CheckedContext {
                 }
             }
         }
-        let mut live=None;let mut initial=None;
-        for block in &f.blocks{b.spend(block.instructions.len())?;for(index,instruction)in block.instructions.iter().enumerate(){
-            if instruction.kind==InstructionKind::StorageLive(local){
-                if instruction.span!=span||live.replace((block.id,index)).is_some(){return Err(bad("pattern local changes or repeats its original declaration point"));}
-                let store=block.instructions.get(index+1).ok_or_else(||bad("pattern local lacks its actual initial storage transfer"))?;
-                let InstructionKind::Store{local:target,value}=store.kind else{return Err(bad("pattern local declaration is not followed by its actual initial storage transfer"));};
-                if target!=local||store.span!=span{return Err(bad("pattern local initial transfer changes its original binding point"));}
-                initial=Some(value);
+        let initial = pattern_initial_transfer(module, f, local, span, b)?;
+        if !mutable && (declaration.ty.is_integer() || declaration.ty.is_float() || matches!(declaration.ty, Type::Unit | Type::Bool)) {
+            match initial {
+                PatternStart::Value(value) => {
+                    let slot = scalar_preparations::slot(f, local, true, b)?.ok_or_else(||bad("scalar pattern source storage is mutable, aliased or has no unique activation"))?;
+                    if slot.stores.len() != 1 || slot.stores[0].2 != value { return Err(bad("scalar pattern binding has another actual write or initial source")); }
+                }
+                PatternStart::Unpack { at, .. } => {
+                    let slot = scalar_preparations::unpacked_slot(f, local, at, b)?.ok_or_else(||bad("scalar pattern unpack is aliased or has another initialization"))?;
+                    if !slot.stores.is_empty() { return Err(bad("scalar unpack pattern has another actual write")); }
+                }
             }
-        }}
-        let value=initial.ok_or_else(||bad("pattern address has no complete actual binding activation"))?;
-        if !mutable&&(declaration.ty.is_integer()||declaration.ty.is_float()||matches!(declaration.ty,Type::Unit|Type::Bool)){
-            let slot=scalar_preparations::slot(f,local,true,b)?.ok_or_else(||bad("scalar pattern source storage is mutable, aliased or has no unique activation"))?;
-            if slot.stores.len()!=1||slot.stores[0].2!=value{return Err(bad("scalar pattern binding has another actual write or initial source"));}
         }
-        self.pattern_projection_source(module,caller,f,value,subject,&path,&subjects,b)
+        self.pattern_projection_start(module, caller, f, initial, subject, &path, &subjects, b)
     }
     fn pattern_projection_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,subject:NodeId,path:&[LifeTypeProjection],subjects:&BTreeSet<ValueId>,b:&mut Budget)->Check<()>{
-        let mut pending=vec![(false,value.0,path.to_vec(),false)];let mut active=BTreeSet::new();let mut proven=BTreeSet::new();let mut rooted=false;
+        self.pattern_projection_start(module, caller, f, PatternStart::Value(value), subject, path, subjects, b)
+    }
+    fn pattern_projection_start(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,start:PatternStart,subject:NodeId,path:&[LifeTypeProjection],subjects:&BTreeSet<ValueId>,b:&mut Budget)->Check<()>{
+        let (local, index) = match start { PatternStart::Value(value) => (false, value.0), PatternStart::Unpack { local, .. } => (true, local.0) };
+        let mut pending=vec![(local,index,path.to_vec(),false)];let mut active=BTreeSet::new();let mut proven=BTreeSet::new();let mut rooted=false;
         while let Some((local,index,mut path,exit))=pending.pop(){
             b.spend(path.len().saturating_add(1))?;let key=(local,index,path.clone());
             if exit{active.remove(&key);proven.insert(key);continue;}
@@ -571,3 +615,7 @@ mod pattern_source_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "pattern_initialization_tests.rs"]
+mod pattern_initialization_tests;

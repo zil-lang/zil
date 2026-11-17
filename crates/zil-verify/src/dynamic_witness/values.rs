@@ -536,8 +536,11 @@ impl<'a> Inventory<'a> {
             return super::compound::external(self,ty,life,b);
         } else if matches!(
             *ty,
-            Type::Managed(_) | Type::Address { .. } | Type::Desc(_)
+            Type::Managed(_) | Type::Address { .. } | Type::Desc(_) | Type::Tuple(_)
         ) {
+            // An explicit complete value directory distinguishes persistent
+            // variable rows from pending constant physical occurrences. A bare
+            // Type-only Tuple query remains strict in domain()/zero().
             return super::compound::external(self, ty, life, b);
         } else if let Some(context)=self.dyn_context(ty,b)?{
             // These are the exact interface-owned logical Context rows, not
@@ -1180,4 +1183,33 @@ mod tests {
             assert!(run(&module, &flattened).is_err());
         }
     }
+    #[test]
+    fn explicit_tuple_directory_keeps_static_pending_and_complete_inner_classes_raw_wire() {
+        let limits = Limits::default();
+        let mut module = closure(1);
+        let pointer = Type::Address { mutable: false, inner: Box::new(Type::Slice { element: Box::new(Type::U8) }) };
+        module.functions[0].locals[0].ty = Type::Tuple(vec![pointer, Type::I32]);
+        let bytes = zil_ir::wire::encode_module_candidate(&module, &CandidatePlan::empty_for(&module), &limits).unwrap();
+        let (wire, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        for module in [&module, &wire] {
+            let value = DynTypeValue { ty: module.functions[0].locals[0].ty.clone(), life: StorageLifeShape { binder_count: 0, slots: vec![], retained: vec![], nominal_arguments: vec![] }, classes: vec![] };
+            let scope = DynInstantiationScope { fixed_binder_count: 1, invocation_binder_count: 0 };
+            let checked = check(module, &value, scope, &mut Budget::new(&limits)).unwrap();
+            assert_eq!(checked.count, 0);
+            assert!(checked.pending_sources, "metadata supplies no Static literal proof");
+            assert!(intrinsic(module, &value.ty, &mut Budget::new(&limits)).is_err(), "a bare Type-only query has no enclosing occurrence directory");
+            for attack in 0..4 {
+                let mut wrong = value.clone();
+                let Type::Tuple(fields) = &mut wrong.ty else { unreachable!() };
+                match attack {
+                    0 => { let Type::Address { mutable, .. } = &mut fields[0] else { unreachable!() }; *mutable = true; },
+                    1 => { wrong.life.binder_count = 1; wrong.classes.push(StorageBinder::Fixed(0)); },
+                    2 => { let Type::Address { inner, .. } = &mut fields[0] else { unreachable!() }; *inner = Box::new(Type::Closure(ClosureId(0))); },
+                    _ => wrong.life.retained.push(StorageRetainedBinding { path: vec![LifeTypeProjection::Place(PlaceProjection::Field(0))], class: 0, binder: 0 }),
+                }
+                assert!(check(module, &wrong, scope, &mut Budget::new(&limits)).is_err(), "attack {attack}");
+            }
+        }
+    }
+
 }

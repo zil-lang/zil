@@ -11,9 +11,12 @@ pub(super) struct Slot {
 }
 
 pub(super) fn slot(f:&TypedFunction,local:LocalId,readonly:bool,b:&mut Budget)->Check<Option<Slot>> {
-    slot_kind(f,local,readonly,false,b)
+    slot_kind(f,local,readonly,false,None,b)
 }
-fn slot_kind(f:&TypedFunction,local:LocalId,readonly:bool,owned:bool,b:&mut Budget)->Check<Option<Slot>> {
+pub(super) fn unpacked_slot(f:&TypedFunction,local:LocalId,at:(BlockId,usize),b:&mut Budget)->Check<Option<Slot>> {
+    slot_kind(f,local,true,false,Some(at),b)
+}
+fn slot_kind(f:&TypedFunction,local:LocalId,readonly:bool,owned:bool,unpack:Option<(BlockId,usize)>,b:&mut Budget)->Check<Option<Slot>> {
     let declaration=f.locals.get(local.0 as usize).ok_or_else(||bad("scalar source local is absent"))?;
     b.spend(f.parameters.len().saturating_add(1))?;
     if readonly&&declaration.mutable||f.parameters.contains(&local){return Ok(None);}
@@ -53,7 +56,7 @@ fn slot_kind(f:&TypedFunction,local:LocalId,readonly:bool,owned:bool,b:&mut Budg
                 |InstructionKind::CallClosureMut{callee:actual,..}if *actual==local=>return Ok(None),
                 InstructionKind::UnpackTuple{local:source,fields}|InstructionKind::UnpackVariant{local:source,fields,..}=>{
                     b.spend(fields.len())?;
-                    if *source==local||fields.contains(&local){return Ok(None);}
+                    if *source==local || fields.contains(&local) && (unpack != Some((body.id,index)) || fields.iter().filter(|field| **field == local).count() != 1) {return Ok(None);}
                 },
                 InstructionKind::DropClosure{local:actual}if *actual==local=>{if !owned{return Ok(None);}},
                 InstructionKind::Load(actual)if *actual==local=>{if owned{return Ok(None);}if loads.len()==loads.capacity(){b.spend(loads.len().saturating_add(1))?;}b.spend(1)?;loads.push((body.id,index,instruction.result));},
@@ -70,7 +73,7 @@ fn slot_kind(f:&TypedFunction,local:LocalId,readonly:bool,owned:bool,b:&mut Budg
 /// one nonaliased Store/Take in the same epoch. No declaration or name chooses
 /// its source, and the normal affine kernel still proves the actual move.
 pub(in crate::semantic::flow) fn owning_source(module:&TypedModule,f:&TypedFunction,block:BlockId,at:u32,local:LocalId,b:&mut Budget)->Check<Option<ValueId>>{
-    let Some(slot)=slot_kind(f,local,false,true,b)?else{return Ok(None);};
+    let Some(slot)=slot_kind(f,local,false,true,None,b)?else{return Ok(None);};
     let[(store_block,store_at,value)]=slot.stores.as_slice()else{return Ok(None);};
     let[(take_block,take_at,_)]=slot.loads.as_slice()else{return Ok(None);};
     let(live_block,live_at)=slot.live;
