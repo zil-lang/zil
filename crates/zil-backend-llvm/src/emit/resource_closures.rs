@@ -3,13 +3,7 @@
 use super::*;
 
 pub(super) fn owns(definition: &ClosureDefinition) -> bool {
-    definition.captures.iter().any(|ty| {
-        matches!(
-            ty,
-            Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. }
-        ) || packages::physical_package(ty).is_some()
-            || drop_plan::owned_sum(ty)
-    })
+    definition.captures.iter().any(|ty| layout::capture_flag_count(ty)!=0)
 }
 
 pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
@@ -18,34 +12,10 @@ pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
         || matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
 }
 
-/// Flags are appended after all data fields, grouped by capture order.
-/// Package groups are shell followed by the same owned direct fields used by
-/// local storage, Take/refill, capture binding and destruction.
-pub(super) fn flag_count(ty: &Type) -> usize {
-    match packages::physical_package(ty).unwrap_or(ty) {
-        Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. } => 1,
-        ty if drop_plan::owned_sum(ty) => 1,
-        Type::Package { fields, .. } => {
-            1 + fields
-                .iter()
-                .filter(|(_, ty)| packages::owned_field(ty))
-                .count()
-        }
-        _ => 0,
-    }
-}
-
-fn flag_index(definition: &ClosureDefinition, capture: u32) -> usize {
-    definition.captures.len()
-        + definition.captures[..capture as usize]
-            .iter()
-            .map(flag_count)
-            .sum::<usize>()
-}
-
 /// Field cleanup follows the fixed source capture order. The local containing
 /// this environment has already surrendered its responsibility before entry.
 pub(super) fn drop_functions(
+    layouts: &LayoutContext<'_>,
     closures: &[ClosureDefinition],
     resources: &[ResourceDefinition],
 ) -> CompileResult<m::Code> {
@@ -54,6 +24,7 @@ pub(super) fn drop_functions(
     // Resource-free callbacks simply return; this preserves unique field slots
     // without inventing a capture cleanup obligation.
     for definition in closures {
+        layouts.reserve_environment_emission(definition.id,256)?;
         let env = environment_type(definition.id);
         text.append(m::Code::from(vec![
             m::Event::Begin(m::Function {
@@ -75,10 +46,10 @@ pub(super) fn drop_functions(
             m::Event::Label("entry".into()),
         ]));
         for (index, ty) in definition.captures.iter().enumerate() {
-            if flag_count(ty) == 0 {
+            if layout::capture_flag_count(ty) == 0 {
                 continue;
             }
-            let flag = flag_index(definition, index as u32);
+            let flag = layouts.flag_start(definition.id, index as u32)?;
             text.append(m::Code::from(vec![
                 m::Event::Instruction(m::Inst::new(
                     Some(format!("flag.ptr.{}", index)),
@@ -145,7 +116,9 @@ pub(super) fn drop_functions(
                     )));
                 }
                 Type::Managed(payload) => {
-                    let teardown = if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+                    let teardown = if matches!(payload.as_ref(),Type::Mutex{..}|Type::AsyncRegistration{..}) {
+                        Some(drop_plan::manager_symbol(ty))
+                    } else if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
                         Some(dynamic_store::helper(payload, resources, "drop")?)
                     } else {
                         let resource = resources
@@ -366,7 +339,7 @@ impl FunctionEmitter<'_> {
         index: u32,
     ) -> CompileResult<()> {
         let definition = self.closure_definition(environment)?;
-        let flag = flag_index(definition, index);
+        let flag = self.layouts.flag_start(definition.id, index)?;
         let pointer = self.temp();
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name(pointer.clone())),
@@ -424,7 +397,7 @@ impl FunctionEmitter<'_> {
             .environment
             .expect("verified Package environment");
         let definition = self.closure_definition(environment)?;
-        let flag = flag_index(definition, index);
+        let flag = self.layouts.flag_start(definition.id, index)?;
         let Some(Type::Package { fields, .. }) =
             packages::physical_package(&definition.captures[index as usize])
         else {
@@ -542,8 +515,8 @@ impl FunctionEmitter<'_> {
         let ty = definition.captures[index as usize].clone();
         // An affine borrowed pointer has no destructor flag. Its unique Take
         // is proved before code generation; only owning payloads carry flags.
-        if flag_count(&ty) > 0 {
-            let flag = flag_index(definition, index);
+        if layout::capture_flag_count(&ty) > 0 {
+            let flag = self.layouts.flag_start(definition.id, index)?;
             let flag_ptr = self.temp();
             self.event(m::Event::Instruction(m::Inst::new(
                 Some(m::name((flag_ptr).clone())),
@@ -580,9 +553,9 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((value(result(instruction)?)).clone())),
             m::Op::Load {
-                ty: (llvm_type(&ty)?).clone(),
+                ty: (self.layouts.value_type(&ty)?).clone(),
                 ptr: m::val((address).clone()),
-                align: (alignment(&ty, self.closures)?) as u32,
+                align: (self.layouts.alignment(&ty)?) as u32,
             },
         )));
         Ok(())
@@ -696,7 +669,7 @@ impl FunctionEmitter<'_> {
                 m::Op::Load {
                     ty: (environment_type(environment)).clone(),
                     ptr: m::local(format!("local.{}", local.0)),
-                    align: (alignment(&Type::Closure(environment), self.closures)?) as u32,
+                    align: (self.layouts.alignment(&Type::Closure(environment))?) as u32,
                 },
             )));
             m::Arg::new(environment_type(environment), m::val(loaded))
@@ -739,7 +712,7 @@ impl FunctionEmitter<'_> {
                 m::Op::Load {
                     ty: (environment_type(environment)).clone(),
                     ptr: m::val((value(callee)).clone()),
-                    align: (alignment(&Type::Closure(environment), self.closures)?) as u32,
+                    align: (self.layouts.alignment(&Type::Closure(environment))?) as u32,
                 },
             )));
             m::Arg::new(environment_type(environment), m::val(loaded))
@@ -782,7 +755,7 @@ impl FunctionEmitter<'_> {
                     m::val((value(callee)).clone()),
                 ),
                 ptr: m::local(format!("closure.once.{}", callee.0)),
-                align: (alignment(&Type::Closure(environment), self.closures)?) as u32,
+                align: (self.layouts.alignment(&Type::Closure(environment))?) as u32,
             },
         )));
         if let Some(owner) = cleanup.and_then(|actions| actions.invocation_owner()) {
@@ -860,13 +833,13 @@ impl FunctionEmitter<'_> {
         for argument in arguments {
             let ty = self.value_type(*argument)?;
             if *ty != Type::Unit {
-                emitted_arguments.push(m::Arg::new(llvm_type(ty)?, m::val(value(*argument))));
+                emitted_arguments.push(m::Arg::new(self.layouts.value_type(ty)?, m::val(value(*argument))));
             }
         }
         self.event(m::Event::Instruction(m::Inst::new(
             (assignment).clone(),
             m::Op::Call {
-                result: (llvm_type(result_ty)?).clone(),
+                result: (self.layouts.value_type(result_ty)?).clone(),
                 result_attrs: vec![],
                 callee: m::global(self.abi_symbol(function)),
                 args: {
@@ -899,13 +872,18 @@ mod capture_cleanup_tests {
         let limits = zil_base::Limits::default();
         let mut work = limits.max_analysis_steps;
         assert!(packages::capture_admission(&package, &[], &limits, &mut work).unwrap().0);
-        assert_eq!(flag_count(&package), 3, "shell and both independently movable children");
+        assert_eq!(layout::capture_flag_count(&package), 3, "shell and both independently movable children");
         let definition = ClosureDefinition {
             storage_life: None, id: ClosureId(0), function: FunctionId(0),
             captures: vec![package.clone()], parameters: vec![], result: Type::Unit,
             kind: CallableKind::FnOnce, lending_captures: vec![],
         };
-        let code = drop_functions(&[definition], &[]).unwrap();
+        let mut captures=vec![vec![];8];captures[0]=definition.captures.clone();
+        captures[7]=vec![Type::Managed(Box::new(Type::ByteBuffer))];
+        let mut directory=layout::test_environments(captures);
+        directory.resources=vec![ResourceDefinition{name:zil_ir::BYTE_BUFFER_RESOURCE_NAME.into(),payload:Type::ByteBuffer,teardown:None}];
+        let layouts=&LayoutContext::for_test_module(&directory,&limits).unwrap();
+        let code = drop_functions(layouts,&directory.closures,&directory.resources).unwrap();
         // Inspect the actual shared machine stream, not just the helper plan:
         // each owning child must have its own live branch and exactly one call.
         for (field, symbol) in [(0, "zil.closure.drop.7".to_string()),
@@ -933,6 +911,6 @@ mod capture_cleanup_tests {
         assert!(!packages::capture_admission(&record, &[], &limits, &mut work).unwrap().0);
         assert!(!drop_plan::value_type(&record, &[]));
         let array = Type::Array { element: Box::new(package), length: 2 };
-        assert!(!drop_plan::value_type(&array, &[]));
+        assert!(drop_plan::value_type(&array, &[]),"complete callable arrays retain their opaque owner cleanup recipe");
     }
 }

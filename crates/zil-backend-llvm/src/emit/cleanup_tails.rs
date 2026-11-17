@@ -137,8 +137,8 @@ impl FunctionEmitter<'_> {
             self.event(m::Event::Instruction(m::Inst::new(
                 Some("cleanup.return.slot".into()),
                 m::Op::Alloca {
-                    ty: llvm_type(&self.function.return_type)?,
-                    align: alignment(&self.function.return_type, self.closures)? as u32,
+                    ty: self.layouts.value_type(&self.function.return_type)?,
+                    align: self.layouts.alignment(&self.function.return_type)? as u32,
                 },
             )));
         }
@@ -155,11 +155,11 @@ impl FunctionEmitter<'_> {
                 None,
                 m::Op::Store {
                     arg: m::Arg::new(
-                        llvm_type(&self.function.return_type)?,
+                        self.layouts.value_type(&self.function.return_type)?,
                         m::local(format!("v.{}", returned.0)),
                     ),
                     ptr: m::local("cleanup.return.slot".into()),
-                    align: alignment(&self.function.return_type, self.closures)? as u32,
+                    align: self.layouts.alignment(&self.function.return_type)? as u32,
                 },
             )));
         }
@@ -184,13 +184,13 @@ impl FunctionEmitter<'_> {
         let returned = if self.function.return_type == Type::Unit {
             None
         } else {
-            let ty = llvm_type(&self.function.return_type)?;
+            let ty = self.layouts.value_type(&self.function.return_type)?;
             self.event(m::Event::Instruction(m::Inst::new(
                 Some("cleanup.return.value".into()),
                 m::Op::Load {
                     ty: ty.clone(),
                     ptr: m::local("cleanup.return.slot".into()),
-                    align: alignment(&self.function.return_type, self.closures)? as u32,
+                    align: self.layouts.alignment(&self.function.return_type)? as u32,
                 },
             )));
             Some(m::Arg::new(ty, m::local("cleanup.return.value".into())))

@@ -315,7 +315,7 @@ impl FunctionEmitter<'_> {
         let by_pointer = resource_closures::by_pointer(definition);
         let entry = definition.function;
         let env = environment_type(environment);
-        let align = alignment(&Type::Closure(environment), self.closures)?;
+        let align = self.layouts.alignment(&Type::Closure(environment))?;
         let ty = frame(environment);
         let register = self
             .functions
@@ -592,7 +592,7 @@ impl FunctionEmitter<'_> {
     }
 }
 
-pub(super) fn runtime(
+pub(super) fn runtime(layouts: &LayoutContext<'_>,
     lir: &LirView<'_>,
     existing: &m::Code,
     limits: &zil_base::Limits,
@@ -646,9 +646,9 @@ pub(super) fn runtime(
             let signature = f
                 .parameters
                 .iter()
-                .map(|id| llvm_type(&f.locals[id.0 as usize].ty))
+                .map(|id| layouts.value_type(&f.locals[id.0 as usize].ty))
                 .collect::<CompileResult<Vec<_>>>()?;
-            if signature != params || llvm_type(&f.return_type)? != ret {
+            if signature != params || layouts.value_type(&f.return_type)? != ret {
                 return invalid(
                     "E-CODEGEN-FOREIGN",
                     "allocator signature conflicts with registration runtime",

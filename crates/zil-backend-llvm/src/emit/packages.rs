@@ -197,7 +197,9 @@ pub(super) fn teardown_paths(
                             "owned field lacks its resource definition",
                         )]
                     })?;
-                let teardown = if matches!(definition.payload, Type::Registration { .. }) {
+                let teardown = if matches!(definition.payload,Type::Mutex{..}|Type::AsyncRegistration{..}) {
+                    Some(drop_plan::manager_symbol(ty))
+                } else if matches!(definition.payload, Type::Registration { .. }) {
                     Some("zil.registration.drop".into())
                 } else if matches!(definition.payload, Type::TaskI32 | Type::Task { .. }) {
                     Some("zil.task.drop".into())
@@ -306,7 +308,7 @@ impl FunctionEmitter<'_> {
                 Some(self.function.span),
             );
         };
-        Ok((llvm_type(ty)?, field.clone()))
+        Ok((self.layouts.value_type(ty)?, field.clone()))
     }
 
     pub(super) fn borrow_package_field(
@@ -603,7 +605,7 @@ impl FunctionEmitter<'_> {
                 Some(instruction.span),
             );
         };
-        let package = llvm_type(ty)?;
+        let package = self.layouts.value_type(ty)?;
         // Resolve before emission so malformed LIR cannot create a partial body.
         let mut teardowns = Vec::new();
         for (index, (_, ty)) in fields.iter().enumerate() {

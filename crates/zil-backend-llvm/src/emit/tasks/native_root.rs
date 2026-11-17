@@ -4,7 +4,7 @@
 //! operation; only Ready transfers the result to the native caller.
 use super::*;
 
-pub(in super::super) fn adapter(
+pub(in super::super) fn adapter(layouts: &LayoutContext<'_>,
     source: &TypedFunction,
     abi: Option<&large_copy_abi::Signature>,
     verified: &VerifiedModule,
@@ -28,7 +28,7 @@ pub(in super::super) fn adapter(
     let returned = if indirect_result {
         m::Ty::Void
     } else {
-        llvm_type(&source.return_type)?
+        layouts.value_type(&source.return_type)?
     };
     let payload = internal_result_type(&returned);
     let poll = m::Ty::Struct(vec![m::Ty::Int(32), payload]);

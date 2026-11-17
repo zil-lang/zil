@@ -80,7 +80,7 @@ pub(super) fn present(lir: &LirView<'_>) -> bool {
             )
         })
 }
-pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
+pub(super) fn runtime(layouts: &LayoutContext<'_>, lir: &LirView<'_>) -> CompileResult<m::Code> {
     let mut code = m::Code::new();
     if !present(lir) {
         return Ok(code);
@@ -141,9 +141,9 @@ pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
             let actual = existing
                 .parameters
                 .iter()
-                .map(|id| llvm_type(&existing.locals[id.0 as usize].ty))
+                .map(|id| layouts.value_type(&existing.locals[id.0 as usize].ty))
                 .collect::<CompileResult<Vec<_>>>()?;
-            if actual != parameters || llvm_type(&existing.return_type)? != result {
+            if actual != parameters || layouts.value_type(&existing.return_type)? != result {
                 return invalid(
                     "E-CODEGEN-FOREIGN",
                     format!("{name} conflicts with the scoped pthread ABI"),
@@ -281,10 +281,10 @@ impl FunctionEmitter<'_> {
             );
         };
         let body_id = *body_id;
-        let payload = llvm_type(self.value_type(argument)?)?;
+        let payload = self.layouts.value_type(self.value_type(argument)?)?;
         self.event(call(
             Some(&format!("v.{}", id.0)),
-            llvm_type(self.value_type(id)?)?,
+            self.layouts.value_type(self.value_type(id)?)?,
             helper(self.function.id, id),
             vec![
                 m::Arg::new(payload, m::val(value(argument))),
@@ -323,8 +323,8 @@ impl FunctionEmitter<'_> {
             unreachable!()
         };
         let task_outcome = matches!(self.value_type(argument)?,Type::Managed(p) if matches!(p.as_ref(),Type::Task{..}));
-        let outcome = llvm_type(self.value_type(id)?)?;
-        let payload = llvm_type(self.value_type(argument)?)?;
+        let outcome = self.layouts.value_type(self.value_type(id)?)?;
+        let payload = self.layouts.value_type(self.value_type(argument)?)?;
         let payload_align = if payload == m::Ty::Ptr { 8 } else { 4 };
         let Type::Closure(body_id) = self.value_type(body)? else {
             return invalid(
@@ -342,7 +342,7 @@ impl FunctionEmitter<'_> {
                 Some(instruction.span),
             );
         }
-        let body_align = alignment(&Type::Closure(body_id), self.closures)?;
+        let body_align = self.layouts.alignment(&Type::Closure(body_id))?;
         self.event(m::Event::Begin(m::Function {
             name: helper(self.function.id, id),
             linkage: m::Linkage::Private,
@@ -694,7 +694,7 @@ impl FunctionEmitter<'_> {
                 Some(instruction.span),
             );
         };
-        let integer = llvm_type(self.value_type(initial)?)?;
+        let integer = self.layouts.value_type(self.value_type(initial)?)?;
         self.event(call(
             Some(&format!("v.{}", id.0)),
             sync_result_type(),
@@ -951,7 +951,7 @@ impl FunctionEmitter<'_> {
             8
         };
         let definition = self.closure_definition(body_id)?.clone();
-        let body_align = alignment(&Type::Closure(body_id), self.closures)?;
+        let body_align = self.layouts.alignment(&Type::Closure(body_id))?;
         self.event(m::Event::Begin(m::Function {
             name: sync_helper(self.function.id, id),
             linkage: m::Linkage::Private,

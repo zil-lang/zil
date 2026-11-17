@@ -54,7 +54,7 @@ impl FunctionEmitter<'_> {
                 Some(self.function.span),
             );
         };
-        Ok((llvm_type(payload)?, field.clone()))
+        Ok((self.layouts.value_type(payload)?, field.clone()))
     }
 
     pub(super) fn read_desc(
@@ -82,9 +82,9 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((value(result(instruction)?)).clone())),
             m::Op::Load {
-                ty: (llvm_type(&field)?).clone(),
+                ty: (self.layouts.value_type(&field)?).clone(),
                 ptr: m::val((pointer).clone()),
-                align: (alignment(&field, self.closures)?) as u32,
+                align: (self.layouts.alignment(&field)?) as u32,
             },
         )));
         Ok(())
@@ -116,9 +116,9 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             None,
             m::Op::Store {
-                arg: m::Arg::new((llvm_type(&field)?).clone(), m::val((value(input)).clone())),
+                arg: m::Arg::new((self.layouts.value_type(&field)?).clone(), m::val((value(input)).clone())),
                 ptr: m::val((pointer).clone()),
-                align: (alignment(&field, self.closures)?) as u32,
+                align: (self.layouts.alignment(&field)?) as u32,
             },
         )));
         Ok(())

@@ -78,67 +78,13 @@ fn align(n: u64, a: u32) -> CompileResult<u64> {
 // Named structures resolve only through actual machine definitions to the same
 // closed unpacked scalar profile; missing/recursive definitions never grant layout.
 type Definitions<'a> = std::collections::BTreeMap<&'a str, &'a Vec<m::Ty>>;
-fn layout<'a>(
-    t: &'a m::Ty,
-    types: &Definitions<'a>,
-    active: &mut std::collections::BTreeSet<&'a str>,
-    left: &mut usize,
-    depth: usize,
-) -> CompileResult<(u64, u32)> {
-    spend(left, 16)?;
-    if depth > 64 {
-        return Err(bad(
-            "task frame machine type depth exceeds supported profile",
-        ));
-    }
-    Ok(match t {
-        m::Ty::Ptr => (8, 8),
-        m::Ty::Int(1 | 8) => (1, 1),
-        m::Ty::Int(16) => (2, 2),
-        m::Ty::Int(32) => (4, 4),
-        m::Ty::Int(64) => (8, 8),
-        m::Ty::Named(name) => {
-            spend(
-                left,
-                name.len().saturating_add(types.len()).saturating_add(1),
-            )?;
-            spend(left, active.len().saturating_add(1))?;
-            if !active.insert(name.as_str()) {
-                return Err(bad("task frame named machine type is recursively inline"));
-            }
-            let fields = types
-                .get(name.as_str())
-                .ok_or_else(|| bad("task frame named machine type has no actual definition"))?;
-            spend(left, fields.len())?;
-            let (mut size, mut alignment) = (0, 1);
-            for field in *fields {
-                let (s, a) = layout(field, types, active, left, depth + 1)?;
-                size = align(size, a)?
-                    .checked_add(s)
-                    .ok_or_else(|| bad("task frame size overflow"))?;
-                alignment = alignment.max(a);
-            }
-            active.remove(name.as_str());
-            (align(size, alignment)?, alignment)
-        }
-        m::Ty::Struct(fields) => {
-            spend(left, fields.len())?;
-            let (mut size, mut alignment) = (0, 1);
-            for field in fields {
-                let (s, a) = layout(field, types, active, left, depth + 1)?;
-                size = align(size, a)?
-                    .checked_add(s)
-                    .ok_or_else(|| bad("task frame size overflow"))?;
-                alignment = alignment.max(a);
-            }
-            (align(size, alignment)?, alignment)
-        }
-        _ => {
-            return Err(bad(
-                "task frame contains an unsupported target machine type",
-            ));
-        }
-    })
+fn layout<'a>(t:&'a m::Ty,types:&Definitions<'a>,_active:&mut std::collections::BTreeSet<&'a str>,left:&mut usize,depth:usize)->CompileResult<(u64,u32)> {
+    if depth>64{return Err(bad("task frame machine type depth exceeds supported profile"));}
+    let left=std::cell::RefCell::new(left);
+    crate::emit::layout::machine_layout_with(t,&mut |name| {
+        spend(&mut left.borrow_mut(),name.len().saturating_add(types.len()).saturating_add(1))?;
+        types.get(name).map(|fields|crate::emit::layout::NamedLayout::Fields(fields.as_slice())).ok_or_else(||bad("task frame named machine type has no actual definition"))
+    },&mut |amount|spend(&mut left.borrow_mut(),amount),64-depth)
 }
 // Embedded child structures make one outer field recursively large. Reserve
 // every actual hash node and rendered byte before Hash/Display visits it.
@@ -155,6 +101,8 @@ fn reserve_field_identity<'a>(
     }
     match t {
         m::Ty::Ptr => spend(left, 3),
+        m::Ty::F32|m::Ty::F64=>spend(left,6),
+        m::Ty::Array(_,element)=>{spend(left,32)?;reserve_field_identity(element,types,named,left,depth+1)},
         m::Ty::Int(1 | 8) => spend(left, 2),
         m::Ty::Int(16 | 32 | 64) => spend(left, 3),
         m::Ty::Named(name) => {

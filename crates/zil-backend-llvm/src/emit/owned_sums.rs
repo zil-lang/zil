@@ -21,7 +21,7 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name(tag_pointer.clone())),
             m::Op::Gep {
-                ty: llvm_type(ty)?,
+                ty: self.layouts.value_type(ty)?,
                 ptr: m::val(pointer),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), 0),
@@ -96,7 +96,7 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name(payload.clone())),
             m::Op::Gep {
-                ty: llvm_type(ty)?,
+                ty: self.layouts.value_type(ty)?,
                 ptr: m::val(pointer),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), 0),
@@ -107,7 +107,7 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name(address.clone())),
             m::Op::Gep {
-                ty: llvm_type(&Type::Tuple(fields.clone()))?,
+                ty: self.layouts.value_type(&Type::Tuple(fields.clone()))?,
                 ptr: m::val(payload),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), 0),
@@ -157,7 +157,7 @@ impl FunctionEmitter<'_> {
             self.event(m::Event::Instruction(m::Inst::new(
                 Some(m::name(output.clone())),
                 m::Op::Gep {
-                    ty: llvm_type(&ty)?,
+                    ty: self.layouts.value_type(&ty)?,
                     ptr: m::val(pointer),
                     indices: vec![
                         m::Arg::new(m::Ty::Int(32), 0),
@@ -271,9 +271,9 @@ impl FunctionEmitter<'_> {
             self.event(m::Event::Instruction(m::Inst::new(
                 Some(m::name(value(result(instruction)?))),
                 m::Op::Load {
-                    ty: llvm_type(&ty)?,
+                    ty: self.layouts.value_type(&ty)?,
                     ptr: m::val(pointer),
-                    align: alignment(&ty, self.closures)?,
+                    align: self.layouts.alignment(&ty)?,
                 },
             )));
         }
@@ -335,9 +335,9 @@ impl FunctionEmitter<'_> {
             self.event(m::Event::Instruction(m::Inst::new(
                 Some(m::name(loaded.clone())),
                 m::Op::Load {
-                    ty: llvm_type(field)?,
+                    ty: self.layouts.value_type(field)?,
                     ptr: m::val(pointer),
-                    align: alignment(field, self.closures)?,
+                    align: self.layouts.alignment(field)?,
                 },
             )));
             values.push(Some(loaded));
@@ -357,9 +357,9 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Instruction(m::Inst::new(
                     None,
                     m::Op::Store {
-                        arg: m::Arg::new(llvm_type(field)?, m::val(loaded.clone())),
+                        arg: m::Arg::new(self.layouts.value_type(field)?, m::val(loaded.clone())),
                         ptr: m::local(format!("local.{}", target.0)),
-                        align: alignment(field, self.closures)?,
+                        align: self.layouts.alignment(field)?,
                     },
                 )));
             }
@@ -424,7 +424,7 @@ impl FunctionEmitter<'_> {
             self.event(m::Event::Instruction(m::Inst::new(
                 Some(m::name(pointer.clone())),
                 m::Op::Gep {
-                    ty: llvm_type(&ty)?,
+                    ty: self.layouts.value_type(&ty)?,
                     ptr: m::local(format!("local.{}", local.0)),
                     indices: vec![
                         m::Arg::new(m::Ty::Int(32), 0),
@@ -436,9 +436,9 @@ impl FunctionEmitter<'_> {
             self.event(m::Event::Instruction(m::Inst::new(
                 Some(m::name(value.clone())),
                 m::Op::Load {
-                    ty: llvm_type(field)?,
+                    ty: self.layouts.value_type(field)?,
                     ptr: m::val(pointer),
-                    align: alignment(field, self.closures)?,
+                    align: self.layouts.alignment(field)?,
                 },
             )));
             loaded.push(Some(value));
@@ -460,9 +460,9 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Instruction(m::Inst::new(
                     None,
                     m::Op::Store {
-                        arg: m::Arg::new(llvm_type(field)?, m::val(value.clone())),
+                        arg: m::Arg::new(self.layouts.value_type(field)?, m::val(value.clone())),
                         ptr: m::local(format!("local.{}", target.0)),
-                        align: alignment(field, self.closures)?,
+                        align: self.layouts.alignment(field)?,
                     },
                 )));
             }

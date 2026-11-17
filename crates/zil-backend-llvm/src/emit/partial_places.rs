@@ -233,7 +233,7 @@ impl FunctionEmitter<'_> {
         self.place_inst(
             Some(p.clone()),
             m::Op::Gep {
-                ty: llvm_type(ty)?,
+                ty: self.layouts.value_type(ty)?,
                 ptr: m::val(ptr),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), 0),
@@ -255,7 +255,7 @@ impl FunctionEmitter<'_> {
         self.place_inst(
             Some(p.clone()),
             m::Op::Gep {
-                ty: llvm_type(ty)?,
+                ty: self.layouts.value_type(ty)?,
                 ptr: m::val(ptr),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), 0),
@@ -293,7 +293,7 @@ impl FunctionEmitter<'_> {
         self.place_inst(
             Some(p.clone()),
             m::Op::Gep {
-                ty: llvm_type(ty)?,
+                ty: self.layouts.value_type(ty)?,
                 ptr: m::val(ptr),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), 0),
@@ -490,9 +490,9 @@ impl FunctionEmitter<'_> {
             self.place_inst(
                 Some(value(result(i)?)),
                 m::Op::Load {
-                    ty: llvm_type(&ty)?,
+                    ty: self.layouts.value_type(&ty)?,
                     ptr: m::val(p),
-                    align: alignment(&ty, self.closures)?,
+                    align: self.layouts.alignment(&ty)?,
                 },
             );
         }

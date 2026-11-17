@@ -430,7 +430,7 @@ pub(super) fn request(v: &mut Vec<m::Inst>, frame: &m::Ty, owners: Option<&Owner
         );
     }
 }
-pub(super) fn allocation_failure(
+pub(super) fn allocation_failure(layouts: &LayoutContext<'_>,
     v: &mut Vec<m::Inst>,
     owners: Option<&OwnerFrame>,
     ownership: Option<&TaskOwnership>,
@@ -455,7 +455,7 @@ pub(super) fn allocation_failure(
             .iter()
             .position(|p| *p == local)
             .expect("checked input obligation");
-        let ty = llvm_type(&function.locals[local.0 as usize].ty)?;
+        let ty = layouts.value_type(&function.locals[local.0 as usize].ty)?;
         let pointer = format!("failed.input.{index}");
         push(
             v,

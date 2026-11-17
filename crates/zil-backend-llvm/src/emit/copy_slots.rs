@@ -426,13 +426,13 @@ mod tests {
             length: bytes,
         }
     }
-    fn snapshots(values: &[Type]) -> copy_aggregates::Plan {
+    fn snapshots(layouts: &LayoutContext<'_>, values: &[Type]) -> copy_aggregates::Plan {
         let mut work = usize::MAX;
         values
             .iter()
             .enumerate()
             .filter_map(|(i, t)| {
-                copy_aggregates::classify(t, &mut work, &Limits::default())
+                copy_aggregates::classify(layouts, t, &mut work, &Limits::default())
                     .unwrap()
                     .map(|s| (ValueId(i as u32), s))
             })
@@ -448,6 +448,9 @@ mod tests {
 
     #[test]
     fn pool_keeps_final_use_inputs_distinct_from_output() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let f = function(
             vec![block(
                 0,
@@ -467,7 +470,7 @@ mod tests {
             )],
             vec![big(32768), big(8192), big(32768)],
         );
-        let mut p = snapshots(&f.values);
+        let mut p = snapshots(layouts, &f.values);
         let mut work = usize::MAX;
         coalesce(&f, &mut p, &mut work).unwrap();
         let owners = p
@@ -483,6 +486,9 @@ mod tests {
 
     #[test]
     fn pool_sorts_actual_definitions_and_retains_maximum_size_alignment() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let aligned = Type::Array {
             element: Box::new(Type::U64),
             length: 1024,
@@ -505,7 +511,7 @@ mod tests {
             )],
             vec![big(32768), aligned],
         );
-        let mut p = snapshots(&f.values);
+        let mut p = snapshots(layouts, &f.values);
         let mut work = usize::MAX;
         coalesce(&f, &mut p, &mut work).unwrap();
         for s in p.values() {
@@ -518,6 +524,9 @@ mod tests {
 
     #[test]
     fn pool_live_across_diamond_cannot_alias_branch_snapshot() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let f = function(
             vec![
                 block(
@@ -548,7 +557,7 @@ mod tests {
             ],
             vec![big(8192), big(8192), Type::Bool],
         );
-        let mut p = snapshots(&f.values);
+        let mut p = snapshots(layouts, &f.values);
         let mut work = usize::MAX;
         coalesce(&f, &mut p, &mut work).unwrap();
         assert_ne!(
@@ -559,6 +568,9 @@ mod tests {
 
     #[test]
     fn pool_falls_back_for_cycles_unknown_operations_and_missing_definitions() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let cases = [
             function(
                 vec![block(
@@ -585,7 +597,7 @@ mod tests {
             ),
         ];
         for f in cases {
-            let mut p = snapshots(&f.values);
+            let mut p = snapshots(layouts, &f.values);
             let mut work = usize::MAX;
             coalesce(&f, &mut p, &mut work).unwrap();
             assert!(p.values().all(|s| s.storage.is_none()));
@@ -594,6 +606,9 @@ mod tests {
 
     #[test]
     fn pool_prepays_each_repeated_operand_lookup() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let mut costs = Vec::new();
         for repeats in [1, 8192] {
             let f = function(
@@ -613,7 +628,7 @@ mod tests {
                 )],
                 vec![big(8192), big(8192)],
             );
-            let original = snapshots(&f.values);
+            let original = snapshots(layouts, &f.values);
             let mut planned = original.clone();
             let mut remaining = usize::MAX;
             coalesce(&f, &mut planned, &mut remaining).unwrap();
@@ -642,6 +657,9 @@ mod tests {
 
     #[test]
     fn pool_prepays_exact_work_and_preserves_uncommitted_plans_on_failure() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let f = function(
             vec![block(
                 0,
@@ -666,7 +684,7 @@ mod tests {
             )],
             vec![big(8192), big(8192)],
         );
-        let original = snapshots(&f.values);
+        let original = snapshots(layouts, &f.values);
         let mut p = original.clone();
         let mut work = usize::MAX;
         coalesce(&f, &mut p, &mut work).unwrap();

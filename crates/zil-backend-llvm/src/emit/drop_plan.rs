@@ -10,6 +10,7 @@ fn scoped_debt(ty: &Type) -> bool {
         }
         Type::BorrowedStorage { storage, .. } => scoped_debt(storage),
         Type::Tuple(fields) => fields.iter().any(scoped_debt),
+        Type::Array{element,..}=>scoped_debt(element),
         Type::Package { fields, .. } => fields.iter().any(|(_, ty)| scoped_debt(ty)),
         Type::Enum { variants, .. } => variants.iter().any(|(_, ts)| ts.iter().any(scoped_debt)),
         Type::ErrorUnion { error, result } => scoped_debt(error) || scoped_debt(result),
@@ -51,7 +52,7 @@ pub(super) fn owned_sum(ty: &Type) -> bool {
     }
     matches!(
         ty,
-        Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+        Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Array{..}
     ) && !ty.is_copy_value()
 }
 pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
@@ -67,11 +68,7 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
         Type::Closure(_) | Type::OwnedDyn { .. } => true,
         Type::Address { inner, .. } if inner.is_address_pointee() => true,
         Type::Managed(_) => resources::supported_type(ty, resources),
-        Type::Array { element, length }
-            if *length > 0 && matches!(element.as_ref(), Type::Package { .. }) =>
-        {
-            arrays::supported_type(ty, resources) && value_type(element, resources)
-        }
+        Type::Array { element, .. } => value_type(element, resources),
         Type::Tuple(fields) => fields.iter().all(|t| value_type(t, resources)),
         Type::Package { fields, .. } =>
             fields.iter().all(|(_, t)| value_type(t, resources)),
@@ -156,9 +153,7 @@ fn legacy_flat(ty: &Type) -> bool {
 pub(super) fn new_shape(ty: &Type) -> bool {
     match ty {
         Type::BorrowedStorage { storage, .. } => scoped_debt(storage) && new_shape(storage),
-        Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }) => {
-            new_shape(element)
-        }
+        Type::Array { element, .. } => !element.is_copy_value(),
         Type::Enum { .. } | Type::Tuple(_) => !ty.is_copy_value(),
         Type::Package { fields, .. } => fields.iter().any(|(_, t)| owned_sum(t) || new_shape(t)),
         Type::ErrorUnion { error, result } => [error.as_ref(), result.as_ref()].iter().any(|t| {
@@ -169,6 +164,7 @@ pub(super) fn new_shape(ty: &Type) -> bool {
         _ => false,
     }
 }
+pub(super) fn manager_symbol(ty:&Type)->String {format!("zil.manager.drop.{}",key(ty))}
 pub(super) fn symbol(ty: &Type) -> String {
     format!("zil.sum.drop.{}", key(ty))
 }
@@ -181,6 +177,7 @@ pub(super) struct Budget<'a> {
     limits: &'a zil_base::Limits,
     nodes: usize,
     work: usize,
+    meter:Option<&'a tasks::Meter>,
 }
 impl<'a> Budget<'a> {
     pub(super) fn new(limits: &'a zil_base::Limits) -> Self {
@@ -188,12 +185,15 @@ impl<'a> Budget<'a> {
             limits,
             nodes: 0,
             work: 0,
+            meter:None,
         }
     }
+    fn metered(limits:&'a zil_base::Limits,meter:&'a tasks::Meter)->Self {let mut budget=Self::new(limits);budget.meter=Some(meter);budget}
     pub(super) fn spent(&self) -> usize {
         self.work
     }
     pub(super) fn pay(&mut self, depth: usize, work: usize) -> CompileResult<()> {
+        if let Some(meter)=self.meter{meter.spend(work)?;}
         self.nodes = self.nodes.checked_add(1).ok_or_else(limit)?;
         self.work = self.work.checked_add(work).ok_or_else(limit)?;
         if depth > self.limits.max_call_depth
@@ -396,6 +396,9 @@ enum DropPlan {
     Empty,
     Leaf(String),
     Product(m::Ty, Vec<(u32, DropPlan)>),
+    Array(m::Ty, u32, Box<DropPlan>),
+    Mutex(m::Ty,Box<DropPlan>),
+    AsyncRegistration,
     Enum(m::Ty, Vec<DropPlan>),
     Error(m::Ty, Box<DropPlan>, Box<DropPlan>),
 }
@@ -423,11 +426,14 @@ fn link(
     }
     if matches!(
         ty,
-        Type::Tuple(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+        Type::Tuple(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Array{..}
     ) {
         return Ok(DropPlan::Leaf(symbol(ty)));
     }
     if let Type::Managed(payload) = ty {
+        if matches!(payload.as_ref(),Type::Mutex{..}|Type::AsyncRegistration{..}) {
+            return Ok(DropPlan::Leaf(manager_symbol(ty)));
+        }
         for _ in resources {
             budget.tree(ty, depth)?;
         }
@@ -485,7 +491,7 @@ pub(super) fn task_leaf(
         ),
     }
 }
-fn product_plan(
+fn product_plan(layouts: &LayoutContext<'_>,
     ty: &Type,
     fields: &[&Type],
     resources: &[ResourceDefinition],
@@ -499,9 +505,9 @@ fn product_plan(
         budget.tree(ty, depth)?;
         children.push((index as u32, link(t, resources, budget, depth + 1)?));
     }
-    Ok(DropPlan::Product(llvm_type(ty)?, children))
+    Ok(DropPlan::Product(layouts.value_type(ty)?, children))
 }
-fn plan(
+fn plan(layouts: &LayoutContext<'_>,
     ty: &Type,
     resources: &[ResourceDefinition],
     budget: &mut Budget<'_>,
@@ -510,15 +516,20 @@ fn plan(
     budget.tree(ty, depth)?;
     Ok(match ty {
         Type::BorrowedStorage { storage, .. } => {
-            return plan(storage, resources, budget, depth + 1);
+            return plan(layouts, storage, resources, budget, depth + 1);
         }
         Type::Address { .. } | Type::Desc(_) => DropPlan::Empty,
         t if t.is_copy_value() => DropPlan::Empty,
+        Type::Managed(payload) if matches!(payload.as_ref(),Type::AsyncRegistration{..})=>DropPlan::AsyncRegistration,
+        Type::Managed(inner) if matches!(inner.as_ref(),Type::Mutex{..})=>{
+            let Type::Mutex{payload}=inner.as_ref()else{unreachable!()};
+            DropPlan::Mutex(generic_mutex::layout(layouts,payload)?,Box::new(plan(layouts,payload,resources,budget,depth+1)?))
+        }
         Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. } => {
             return link(ty, resources, budget, depth);
         }
         Type::Package { fields, .. } | Type::Record { fields, .. } => {
-            return product_plan(
+            return product_plan(layouts,
                 ty,
                 &fields.iter().map(|(_, t)| t).collect::<Vec<_>>(),
                 resources,
@@ -526,8 +537,12 @@ fn plan(
                 depth,
             );
         }
+        Type::Array{element,length}=>{
+            budget.pay(depth,64)?;
+            DropPlan::Array(layouts.value_type(ty)?,*length,Box::new(link(element,resources,budget,depth+1)?))
+        }
         Type::Tuple(fields) => {
-            return product_plan(
+            return product_plan(layouts,
                 ty,
                 &fields.iter().collect::<Vec<_>>(),
                 resources,
@@ -544,7 +559,7 @@ fn plan(
                     continue;
                 }
                 let tuple = Type::Tuple(fields.clone());
-                children.push(product_plan(
+                children.push(product_plan(layouts,
                     &tuple,
                     &fields.iter().collect::<Vec<_>>(),
                     resources,
@@ -552,10 +567,10 @@ fn plan(
                     depth + 1,
                 )?);
             }
-            DropPlan::Enum(llvm_type(ty)?, children)
+            DropPlan::Enum(layouts.value_type(ty)?, children)
         }
         Type::ErrorUnion { error, result } => DropPlan::Error(
-            llvm_type(ty)?,
+            layouts.value_type(ty)?,
             Box::new(link(error, resources, budget, depth + 1)?),
             Box::new(link(result, resources, budget, depth + 1)?),
         ),
@@ -566,8 +581,10 @@ fn plan(
 struct Emitter {
     code: m::Code,
     next: usize,
+    current: String,
 }
 impl Emitter {
+    fn label(&mut self,name:String) {self.current=name.clone();self.code.push(m::Event::Label(name));}
     fn fresh(&mut self) -> String {
         let n = self.next;
         self.next += 1;
@@ -613,6 +630,35 @@ impl Emitter {
                     }
                 }
             }
+            DropPlan::AsyncRegistration=>{
+                let ready=self.fresh();let done=self.fresh();let invalid=self.fresh();
+                self.inst(Some(ready.clone()),m::Op::Call{result:m::Ty::Int(1),result_attrs:vec![],callee:m::global("zil.async_registration.drop".into()),args:vec![m::Arg::new(m::Ty::Ptr,m::local(ptr.into()))],vararg:None});
+                self.inst(None,m::Op::CondBranch{condition:m::local(ready),yes:done.clone(),no:invalid.clone()});self.label(invalid);
+                self.inst(None,m::Op::Call{result:m::Ty::Void,result_attrs:vec![],callee:m::global("llvm.trap".into()),args:vec![],vararg:None});self.inst(None,m::Op::Unreachable);self.label(done);
+            }
+            DropPlan::Mutex(ty,child)=>{
+                let head=self.fresh();let status=self.fresh();let good=self.fresh();let ready=self.fresh();let invalid=self.fresh();
+                self.inst(Some(head.clone()),m::Op::Load{ty:m::Ty::Ptr,ptr:m::local(ptr.into()),align:8});
+                self.inst(Some(status.clone()),m::Op::Call{result:m::Ty::Int(32),result_attrs:vec![],callee:m::global("pthread_mutex_destroy".into()),args:vec![m::Arg::new(m::Ty::Ptr,m::local(head.clone()))],vararg:None});
+                self.inst(Some(good.clone()),m::Op::Compare{predicate:"eq".into(),ty:m::Ty::Int(32),left:m::local(status),right:m::Val::Int(0)});
+                self.inst(None,m::Op::CondBranch{condition:m::local(good),yes:ready.clone(),no:invalid.clone()});self.label(invalid);
+                self.inst(None,m::Op::Call{result:m::Ty::Void,result_attrs:vec![],callee:m::global("llvm.trap".into()),args:vec![],vararg:None});self.inst(None,m::Op::Unreachable);self.label(ready);
+                let payload=self.gep(ty,&head,1);self.emit(child,&payload);
+                self.inst(None,m::Op::Call{result:m::Ty::Void,result_attrs:vec![],callee:m::global("free".into()),args:vec![m::Arg::new(m::Ty::Ptr,m::local(head))],vararg:None});
+            }
+            DropPlan::Array(ty,length,child)=>{
+                if *length==0||matches!(child.as_ref(),DropPlan::Empty){return;}
+                let preheader=self.current.clone();let head=self.fresh();let body=self.fresh();let done=self.fresh();let index=self.fresh();
+                self.inst(None,m::Op::Branch(head.clone()));self.label(head.clone());
+                let phi=self.code.0.len();self.inst(Some(index.clone()),m::Op::Phi{ty:m::Ty::Int(64),incoming:vec![(m::Val::Int(0),preheader)]});
+                let end=self.fresh();self.inst(Some(end.clone()),m::Op::Compare{predicate:"eq".into(),ty:m::Ty::Int(64),left:m::local(index.clone()),right:m::val(*length)});
+                self.inst(None,m::Op::CondBranch{condition:m::local(end),yes:done.clone(),no:body.clone()});self.label(body);
+                let element=self.fresh();self.inst(Some(element.clone()),m::Op::Gep{ty:ty.clone(),ptr:m::local(ptr.into()),indices:vec![m::Arg::new(m::Ty::Int(32),0),m::Arg::new(m::Ty::Int(64),m::local(index.clone()))]});
+                self.emit(child,&element);let next=self.fresh();self.inst(Some(next.clone()),m::Op::Binary{opcode:"add".into(),ty:m::Ty::Int(64),left:m::local(index),right:m::Val::Int(1)});
+                let tail=self.current.clone();self.inst(None,m::Op::Branch(head));
+                if let m::Event::Instruction(m::Inst{op:m::Op::Phi{incoming,..},..})=&mut self.code.0[phi] {incoming.push((m::local(next),tail));}else{unreachable!("retained array phi event");}
+                self.label(done);
+            }
             DropPlan::Error(ty, error, result) => {
                 let tagp = self.gep(ty, ptr, 0);
                 let tag = self.fresh();
@@ -635,15 +681,15 @@ impl Emitter {
                         no: no.clone(),
                     },
                 );
-                self.code.push(m::Event::Label(yes));
+                self.label(yes);
                 let child = self.gep(ty, ptr, 1);
                 self.emit(error, &child);
                 self.inst(None, m::Op::Branch(done.clone()));
-                self.code.push(m::Event::Label(no));
+                self.label(no);
                 let child = self.gep(ty, ptr, 2);
                 self.emit(result, &child);
                 self.inst(None, m::Op::Branch(done.clone()));
-                self.code.push(m::Event::Label(done));
+                self.label(done);
             }
             DropPlan::Enum(ty, variants) => {
                 let tagp = self.gep(ty, ptr, 0);
@@ -678,11 +724,11 @@ impl Emitter {
                             no: no.clone(),
                         },
                     );
-                    self.code.push(m::Event::Label(yes));
+                    self.label(yes);
                     let child = self.gep(ty, ptr, 1);
                     self.emit(p, &child);
                     self.inst(None, m::Op::Branch(done.clone()));
-                    self.code.push(m::Event::Label(no));
+                    self.label(no);
                 }
                 self.inst(
                     None,
@@ -695,7 +741,7 @@ impl Emitter {
                     },
                 );
                 self.inst(None, m::Op::Unreachable);
-                self.code.push(m::Event::Label(done));
+                self.label(done);
             }
         }
     }
@@ -732,23 +778,19 @@ fn collect<'a>(
     if !expand {
         return Ok(());
     }
-    if !ty.is_copy_value()
-        && matches!(
-            ty,
-            Type::Tuple(_)
-                | Type::Package { .. }
-                | Type::Enum { .. }
-                | Type::ErrorUnion { .. }
-                | Type::BorrowedStorage { .. }
-        )
-    {
-        found.insert(hash, ty);
+    let manager=matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Mutex{..}|Type::AsyncRegistration{..}));
+    if manager || (!ty.is_copy_value() && matches!(ty,Type::Tuple(_)|Type::Package{..}|Type::Enum{..}|Type::ErrorUnion{..}|Type::BorrowedStorage{..}|Type::Array{..})) {
+        found.insert(hash,ty);
     }
     match ty {
+        Type::Managed(inner) if matches!(inner.as_ref(),Type::Mutex{..})=>{
+            let Type::Mutex{payload}=inner.as_ref()else{unreachable!()};collect(payload,found,seen,budget,true,depth+1)?;
+        }
+
         Type::BorrowedStorage { storage, .. } => {
             collect(storage, found, seen, budget, true, depth + 1)?
         }
-        Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }) => {
+        Type::Array { element, .. } => {
             collect(element, found, seen, budget, true, depth + 1)?;
         }
         Type::Tuple(fields) => {
@@ -781,7 +823,7 @@ pub(super) struct Helpers<'a> {
     pub code: m::Code,
     pub types: BTreeMap<zil_base::Fingerprint, &'a Type>,
 }
-pub(super) fn functions<'a>(
+pub(super) fn functions<'a>(layouts: &LayoutContext<'_>,
     lir: &LirView<'a>,
     limits: &zil_base::Limits,
     enabled: bool,
@@ -794,7 +836,7 @@ pub(super) fn functions<'a>(
             types: BTreeMap::new(),
         });
     }
-    let mut budget = Budget::new(limits);
+    let mut budget = Budget::metered(limits,layouts.meter());
     let mut found = BTreeMap::new();
     let mut seen = BTreeMap::new();
     for f in lir.functions {
@@ -802,7 +844,7 @@ pub(super) fn functions<'a>(
             .chain(f.locals.iter().map(|l| &l.ty))
             .chain(f.values.iter())
         {
-            collect(ty, &mut found, &mut seen, &mut budget, false, 0)?;
+            collect(ty, &mut found, &mut seen, &mut budget, true, 0)?;
         }
     }
     // Callback data ABI creates typed aggregate parameters and results even
@@ -976,13 +1018,14 @@ pub(super) fn functions<'a>(
     }
     let mut code = m::Code::new();
     for ty in found.values() {
-        let p = plan(ty, lir.resources, &mut budget, 0)?;
+        let p = plan(layouts, ty, lir.resources, &mut budget, 0)?;
         let mut emitter = Emitter {
             code: m::Code::new(),
             next: 0,
+            current: String::new(),
         };
         emitter.code.push(m::Event::Begin(m::Function {
-            name: symbol(ty),
+            name: if matches!(ty,Type::Managed(payload)if matches!(payload.as_ref(),Type::Mutex{..}|Type::AsyncRegistration{..})){manager_symbol(ty)}else{symbol(ty)},
             linkage: m::Linkage::Internal,
             signature: m::Signature {
                 result: m::Ty::Void,
@@ -993,7 +1036,7 @@ pub(super) fn functions<'a>(
             attrs: vec![],
             blocks: None,
         }));
-        emitter.code.push(m::Event::Label("entry".into()));
+        emitter.label("entry".into());
         emitter.emit(&p, "payload");
         emitter.inst(None, m::Op::Return(None));
         emitter.code.push(m::Event::End);
@@ -1005,7 +1048,7 @@ pub(super) fn functions<'a>(
 /// Whole SSA owners and results introduced by verified continuation transfers
 /// use the same complete ordinary cleanup recipe. Local partial fields have their own
 /// canonical debt slots, so this never drops an aggregate and its leaves twice.
-pub(super) fn task_helpers(
+pub(super) fn task_helpers(layouts: &LayoutContext<'_>,
     verified: &VerifiedModule,
     meter: &tasks::Meter,
     ordinary: &BTreeMap<zil_base::Fingerprint, &Type>,
@@ -1015,7 +1058,7 @@ pub(super) fn task_helpers(
     }
     let mut limits = verified.limits().clone();
     limits.max_analysis_steps = meter.remaining();
-    let mut budget = Budget::new(&limits);
+    let mut budget = Budget::metered(&limits,meter);
     let result = (|| {
         let mut found = BTreeMap::new();
         let mut seen = BTreeMap::new();
@@ -1060,13 +1103,14 @@ pub(super) fn task_helpers(
         }
         let mut code = m::Code::new();
         for ty in missing {
-            let p = plan(ty, &verified.module().resources, &mut budget, 0)?;
+            let p = plan(layouts, ty, &verified.module().resources, &mut budget, 0)?;
             let mut emitter = Emitter {
                 code: m::Code::new(),
                 next: 0,
+            current: String::new(),
             };
             emitter.code.push(m::Event::Begin(m::Function {
-                name: symbol(ty),
+                name: if matches!(ty,Type::Managed(payload)if matches!(payload.as_ref(),Type::Mutex{..}|Type::AsyncRegistration{..})){manager_symbol(ty)}else{symbol(ty)},
                 linkage: m::Linkage::Internal,
                 signature: m::Signature::new(
                     m::Ty::Void,
@@ -1075,7 +1119,7 @@ pub(super) fn task_helpers(
                 attrs: vec![],
                 blocks: None,
             }));
-            emitter.code.push(m::Event::Label("entry".into()));
+            emitter.label("entry".into());
             emitter.emit(&p, "payload");
             emitter.inst(None, m::Op::Return(None));
             emitter.code.push(m::Event::End);
@@ -1083,7 +1127,6 @@ pub(super) fn task_helpers(
         }
         Ok(code)
     })();
-    meter.spend(budget.spent())?;
     result
 }
 
@@ -1092,6 +1135,12 @@ mod owned_sum_drop_plan_tests {
     use super::*;
     #[test]
     fn continuation_roots_collect_legacy_and_qualified_cleanup_dependencies_completely() {
+        let mut captures=vec![vec![];8];
+        captures[7]=vec![Type::Managed(Box::new(Type::ByteBuffer))];
+        let actual_directory=layout::test_environments(captures);
+        let fixture_limits=zil_base::Limits{max_analysis_steps:usize::MAX,..zil_base::Limits::default()};
+        let layouts=&LayoutContext::for_test_module(&actual_directory,&fixture_limits).unwrap();
+
         // Private recipe inputs, never a VerifiedModule. Continuation slots
         // select these exact roots only after the independent owner proof.
         let package = Type::Package {
@@ -1121,6 +1170,8 @@ mod owned_sum_drop_plan_tests {
                 DropPlan::Leaf(name) => { out.insert(name.clone()); },
                 DropPlan::Product(_, fields) => for (_, child) in fields { references(child, out); },
                 DropPlan::Enum(_, fields) => for child in fields { references(child, out); },
+                DropPlan::Array(_,_,child)|DropPlan::Mutex(_,child)=>references(child,out),
+                DropPlan::AsyncRegistration=>{},
                 DropPlan::Error(_, error, result) => { references(error, out); references(result, out); },
             }
         }
@@ -1136,7 +1187,7 @@ mod owned_sum_drop_plan_tests {
             for root in roots.iter().chain(std::iter::once(&package)) { assert!(found.contains_key(&key(root))); }
             let definitions: std::collections::BTreeSet<_> = found.values().map(|ty| symbol(ty)).collect();
             let mut calls = std::collections::BTreeSet::new();
-            for ty in found.values() { references(&plan(ty, &resources(), &mut budget, 0)?, &mut calls); }
+            for ty in found.values() { references(&plan(layouts, ty, &resources(), &mut budget, 0)?, &mut calls); }
             for call in &calls {
                 if call.starts_with("zil.sum.drop.") { assert!(definitions.contains(call), "undefined dependency {call}"); }
             }
@@ -1258,8 +1309,11 @@ mod owned_sum_drop_plan_tests {
     }
     #[test]
     fn drop_plan_keeps_variant_choice_above_owned_fields() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let limits = zil_base::Limits::default();
-        let p = plan(&packet(), &resources(), &mut Budget::new(&limits), 0).unwrap();
+        let p = plan(layouts, &packet(), &resources(), &mut Budget::new(&limits), 0).unwrap();
         let DropPlan::Enum(_, variants) = p else {
             panic!("expected structural Sum")
         };
@@ -1275,7 +1329,7 @@ mod owned_sum_drop_plan_tests {
             assert!(matches!(child,DropPlan::Leaf(name) if name.starts_with("zil.sum.drop.")));
         }
         let recipe = recipe_input();
-        let code = functions(&recipe.as_view(), &limits, true, &[], EntryPoint::None).unwrap();
+        let code = functions(layouts, &recipe.as_view(), &limits, true, &[], EntryPoint::None).unwrap();
         let text = m::Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: String::new(),
@@ -1288,6 +1342,9 @@ mod owned_sum_drop_plan_tests {
     }
     #[test]
     fn captured_inline_store_sum_has_its_actual_drop_helper() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let mut lir = recipe_input();
         let captured = Type::Enum {
             name: "Captured".into(),
@@ -1319,7 +1376,7 @@ mod owned_sum_drop_plan_tests {
             lending_captures: vec![],
         });
         let actual_root = &lir.closures[0].captures[0];
-        let code = functions(
+        let code = functions(layouts,
             &lir.as_view(),
             &zil_base::Limits::default(),
             true,
@@ -1337,14 +1394,17 @@ mod owned_sum_drop_plan_tests {
     }
     #[test]
     fn drop_plan_honors_current_shared_limit_and_fresh_boundary() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let lir = recipe_input();
         let mut limits = zil_base::Limits {
             max_analysis_steps: 0,
             ..zil_base::Limits::default()
         };
-        assert!(functions(&lir.as_view(), &limits, false, &[], EntryPoint::None).is_ok());
+        assert!(functions(layouts, &lir.as_view(), &limits, false, &[], EntryPoint::None).is_ok());
         assert_eq!(
-            functions(&lir.as_view(), &limits, true, &[], EntryPoint::None)
+            functions(layouts, &lir.as_view(), &limits, true, &[], EntryPoint::None)
                 .err()
                 .unwrap()[0]
                 .category,
@@ -1354,36 +1414,39 @@ mod owned_sum_drop_plan_tests {
         while low + 1 < high {
             let mid = (low + high) / 2;
             limits.max_analysis_steps = mid;
-            if functions(&lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok() {
+            if functions(layouts, &lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok() {
                 high = mid
             } else {
                 low = mid
             }
         }
         limits.max_analysis_steps = high;
-        assert!(functions(&lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
+        assert!(functions(layouts, &lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
         limits.max_analysis_steps = high - 1;
         assert_eq!(
-            functions(&lir.as_view(), &limits, true, &[], EntryPoint::None)
+            functions(layouts, &lir.as_view(), &limits, true, &[], EntryPoint::None)
                 .err()
                 .unwrap()[0]
                 .category,
             zil_base::ResultCategory::ResourceLimit
         );
         limits.max_analysis_steps = high;
-        assert!(functions(&lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
+        assert!(functions(layouts, &lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
     }
 
     #[test]
     fn callback_signature_prepays_the_shared_machine_budget() {
-        fn threshold(lir: &LirModule) -> usize {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
+        fn threshold(layouts: &LayoutContext<'_>, lir: &LirModule) -> usize {
             let mut limits = zil_base::Limits::default();
             let (mut low, mut high) = (0, limits.max_analysis_steps);
-            assert!(functions(&lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
+            assert!(functions(layouts, &lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
             while low + 1 < high {
                 let mid = (low + high) / 2;
                 limits.max_analysis_steps = mid;
-                if functions(&lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok() {
+                if functions(layouts, &lir.as_view(), &limits, true, &[], EntryPoint::None).is_ok() {
                     high = mid;
                 } else {
                     low = mid;
@@ -1392,7 +1455,7 @@ mod owned_sum_drop_plan_tests {
             high
         }
         let original = recipe_input();
-        let old_n = threshold(&original);
+        let old_n = threshold(layouts, &original);
         let mut copy = original.clone();
         copy.closures.push(ClosureDefinition {
             storage_life: None,
@@ -1404,27 +1467,27 @@ mod owned_sum_drop_plan_tests {
             kind: CallableKind::FnOnce,
             lending_captures: vec![],
         });
-        assert_eq!(threshold(&copy), old_n, "old Copy callback cost changed");
+        assert_eq!(threshold(layouts, &copy), old_n, "old Copy callback cost changed");
         let mut owning = copy;
         owning.closures[0].parameters = vec![packet()];
         owning.closures[0].result = packet();
-        let new_n = threshold(&owning);
+        let new_n = threshold(layouts, &owning);
         eprintln!("machine budget: old Copy N={old_n}, owning N={new_n}");
         assert!(new_n > old_n);
         let mut limits = zil_base::Limits {
             max_analysis_steps: new_n,
             ..zil_base::Limits::default()
         };
-        assert!(functions(&owning.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
+        assert!(functions(layouts, &owning.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
         limits.max_analysis_steps = new_n - 1;
         assert_eq!(
-            functions(&owning.as_view(), &limits, true, &[], EntryPoint::None)
+            functions(layouts, &owning.as_view(), &limits, true, &[], EntryPoint::None)
                 .err()
                 .expect("below-bound drop plan must reject")[0]
                 .category,
             zil_base::ResultCategory::ResourceLimit
         );
         limits.max_analysis_steps = new_n;
-        assert!(functions(&owning.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
+        assert!(functions(layouts, &owning.as_view(), &limits, true, &[], EntryPoint::None).is_ok());
     }
 }

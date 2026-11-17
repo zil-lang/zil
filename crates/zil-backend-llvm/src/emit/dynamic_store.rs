@@ -40,7 +40,7 @@ impl Protocols {
     }
 }
 
-pub(super) fn plan(
+pub(super) fn plan(layouts: &LayoutContext<'_>,
     resources: &[ResourceDefinition],
     limits: &Limits,
     work: &mut usize,
@@ -75,9 +75,9 @@ pub(super) fn plan(
             error: Box::new(Type::Unit),
             result: element.clone(),
         };
-        let push = copy_aggregates::classify(&push, work, limits)?;
-        let pop = copy_aggregates::classify(&pop, work, limits)?;
-        let (stride, _) = copy_aggregates::layout(&llvm_type(element)?)?;
+        let push = copy_aggregates::classify(layouts, &push, work, limits)?;
+        let pop = copy_aggregates::classify(layouts, &pop, work, limits)?;
+        let (stride, _) = layouts.machine_layout(&layouts.value_type(element)?)?;
         if stride == 0 || stride > i64::MAX as u64 {
             return invalid(
                 "E-CODEGEN-CFG",
@@ -197,7 +197,7 @@ pub(super) fn helper(
     Ok(format!("zil.store.{index}.{operation}"))
 }
 
-pub(super) fn runtime(
+pub(super) fn runtime(layouts: &LayoutContext<'_>,
     lir: &LirView<'_>,
     closures: &BTreeMap<ClosureId, &ClosureDefinition>,
     protocols: &BTreeMap<usize, Protocols>,
@@ -236,13 +236,13 @@ pub(super) fn runtime(
                 None,
             );
         };
-        let item = llvm_type(element)?;
-        let align = alignment(element, closures)?;
-        let push = llvm_type(&Type::ErrorUnion {
+        let item = layouts.value_type(element)?;
+        let align = layouts.alignment(element)?;
+        let push = layouts.value_type(&Type::ErrorUnion {
             error: element.clone(),
             result: Box::new(Type::Unit),
         })?;
-        let pop = llvm_type(&Type::ErrorUnion {
+        let pop = layouts.value_type(&Type::ErrorUnion {
             error: Box::new(Type::Unit),
             result: element.clone(),
         })?;
@@ -1271,7 +1271,7 @@ impl FunctionEmitter<'_> {
                 let Type::OwnedStore { element } = payload.as_ref() else {
                     unreachable!("verified Store payload");
                 };
-                let element_type = llvm_type(element)?;
+                let element_type = self.layouts.value_type(element)?;
                 let length_ptr = self.temp();
                 let length = self.temp();
                 let valid = self.temp();
@@ -1357,8 +1357,8 @@ impl FunctionEmitter<'_> {
                     return Ok(());
                 }
                 let callee = helper(payload, self.resources, "push")?;
-                let ty = llvm_type(self.value_type(item)?)?;
-                let result = llvm_type(self.value_type(output)?)?;
+                let ty = self.layouts.value_type(self.value_type(item)?)?;
+                let result = self.layouts.value_type(self.value_type(output)?)?;
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(m::name((value(output)).clone())),
                     m::Op::Call {
@@ -1379,7 +1379,7 @@ impl FunctionEmitter<'_> {
                     return Ok(());
                 }
                 let callee = helper(payload, self.resources, "pop")?;
-                let result = llvm_type(self.value_type(output)?)?;
+                let result = self.layouts.value_type(self.value_type(output)?)?;
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(m::name((value(output)).clone())),
                     m::Op::Call {
@@ -1464,6 +1464,9 @@ mod pod_tests {
 
     #[test]
     fn full_protocols_cross_snapshot_threshold_independently() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         // Private physical planner probe. The real Source/raw/Wire admission
         // and native consumers belong to the root's independent machine matrix.
         for (words, expected_push, expected_pop) in [
@@ -1475,7 +1478,7 @@ mod pod_tests {
         ] {
             let resources = [resource(words)];
             let mut remaining = usize::MAX;
-            let plans = plan(&resources, &Limits::default(), &mut remaining).unwrap();
+            let plans = plan(layouts, &resources, &Limits::default(), &mut remaining).unwrap();
             let p = &plans[&0];
             assert_eq!(p.stride, u64::from(words) * 8);
             assert_eq!(p.push.as_ref().map(|s| s.bytes), expected_push, "{words}");
@@ -1485,6 +1488,9 @@ mod pod_tests {
 
     #[test]
     fn scalar_protocols_have_exact_nonzero_stride() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         for (element, stride) in [
             (Type::Bool, 1),
             (Type::U8, 1),
@@ -1504,7 +1510,7 @@ mod pod_tests {
                 teardown: None,
             }];
             let mut remaining = usize::MAX;
-            let plans = plan(&resources, &Limits::default(), &mut remaining).unwrap();
+            let plans = plan(layouts, &resources, &Limits::default(), &mut remaining).unwrap();
             assert_eq!(plans[&0].stride, stride);
             assert!(plans[&0].push.is_none());
             assert!(plans[&0].pop.is_none());
@@ -1513,6 +1519,9 @@ mod pod_tests {
 
     #[test]
     fn composite_protocols_use_actual_recursive_stride_and_exact_budget() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         for (element, stride) in [
             (Type::Tuple(vec![Type::U8, Type::I64]), 16),
             (
@@ -1532,12 +1541,12 @@ mod pod_tests {
             }];
             let limits = Limits::default();
             let mut remaining = limits.max_analysis_steps;
-            let planned = plan(&resources, &limits, &mut remaining).unwrap();
+            let planned = plan(layouts, &resources, &limits, &mut remaining).unwrap();
             assert_eq!(planned[&0].stride, stride);
             let cost = limits.max_analysis_steps - remaining;
             for allowance in [cost, cost - 1, cost] {
                 let mut left = allowance;
-                let result = plan(&resources, &limits, &mut left);
+                let result = plan(layouts, &resources, &limits, &mut left);
                 assert_eq!(result.is_ok(), allowance == cost);
                 if let Err(errors) = result {
                     assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
@@ -1548,14 +1557,17 @@ mod pod_tests {
 
     #[test]
     fn protocol_plan_has_exact_budget_and_retains_package_cost() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let resources = [resource(510), resource(32768)];
         let limits = Limits::default();
         let mut remaining = usize::MAX;
-        let planned = plan(&resources, &limits, &mut remaining).unwrap();
+        let planned = plan(layouts, &resources, &limits, &mut remaining).unwrap();
         let cost = usize::MAX - remaining;
         for _ in 0..2 {
             let mut exact = cost;
-            let fresh = plan(&resources, &limits, &mut exact).unwrap();
+            let fresh = plan(layouts, &resources, &limits, &mut exact).unwrap();
             assert_eq!(exact, 0);
             for i in 0..2 {
                 assert_eq!(fresh[&i].stride, planned[&i].stride);
@@ -1565,7 +1577,7 @@ mod pod_tests {
                 );
             }
         }
-        let errors = plan(&resources, &limits, &mut (cost - 1)).err().unwrap();
+        let errors = plan(layouts, &resources, &limits, &mut (cost - 1)).err().unwrap();
         assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
         let old = ResourceDefinition {
             name: "old".into(),
@@ -1578,12 +1590,15 @@ mod pod_tests {
             teardown: None,
         };
         let mut zero = 0;
-        assert!(plan(&[old], &limits, &mut zero).unwrap().is_empty());
+        assert!(plan(layouts, &[old], &limits, &mut zero).unwrap().is_empty());
         assert_eq!(zero, 0);
     }
 
     #[test]
     fn unused_pod_still_prepays_long_scalar_scans() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         use zil_ir::{BasicBlock, BlockId, CallKind, PassingMode};
         let span = Span::new(zil_base::FileId(0), 0, 1);
         let scalar = |count: usize| TypedFunction {
@@ -1620,7 +1635,7 @@ mod pod_tests {
             }],
         };
         let mut available = usize::MAX;
-        let plans = plan(&[resource(1)], &Limits::default(), &mut available).unwrap();
+        let plans = plan(layouts, &[resource(1)], &Limits::default(), &mut available).unwrap();
         let mut previous = 0;
         for count in [0, 1, 10000] {
             let function = scalar(count);
@@ -1653,6 +1668,9 @@ mod pod_tests {
 
     #[test]
     fn nested_unit_preserves_existing_zero_size_aggregate_layout() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         for (field, stride) in [
             (Type::Unit, 8),
             (
@@ -1676,7 +1694,7 @@ mod pod_tests {
             };
             let mut work = usize::MAX;
             assert_eq!(
-                plan(&[r], &Limits::default(), &mut work).unwrap()[&0].stride,
+                plan(layouts, &[r], &Limits::default(), &mut work).unwrap()[&0].stride,
                 stride
             );
         }
@@ -1699,20 +1717,23 @@ mod pod_tests {
         ));
         let mut work = usize::MAX;
         assert_eq!(
-            plan(&[many_units], &Limits::default(), &mut work).unwrap()[&0].stride,
+            plan(layouts, &[many_units], &Limits::default(), &mut work).unwrap()[&0].stride,
             8
         );
     }
 
     #[test]
     fn runtime_uses_pointer_helpers_and_constant_time_pod_drop() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let resources = [resource(509), resource(510), resource(511), resource(32768)];
         let target = TargetProfile::default();
         let view = view(&resources, &target);
         // Even an unused large resource needs the transfer helpers declared.
-        let planned = copy_aggregates::plan(&view, &Limits::default(), usize::MAX).unwrap();
+        let planned = copy_aggregates::plan(layouts, &view, &Limits::default(), usize::MAX).unwrap();
         assert!(planned.needs_helpers());
-        let code = runtime(&view, &BTreeMap::new(), &planned.store_protocols).unwrap();
+        let code = runtime(layouts, &view, &BTreeMap::new(), &planned.store_protocols).unwrap();
         let items = code.into_items().unwrap();
         for index in 0..resources.len() {
             let prefix = format!("zil.store.{index}.");

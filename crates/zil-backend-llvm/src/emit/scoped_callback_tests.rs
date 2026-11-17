@@ -214,6 +214,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
     let target = TargetProfile::host_llvm();
     let closure_definitions = closures.values().map(|c| (*c).clone()).collect::<Vec<_>>();
     let dyn_module = no_dyn_test_module(target.clone(), &definitions, &closure_definitions, &[]);
+    let layouts=&LayoutContext::for_test_module(&dyn_module,&zil_base::Limits::default()).unwrap();
     let mut intrinsics = BTreeSet::new();
     let mut code = m::Code::from(vec![
         m::Event::NamedType("zil_env_0".into(), vec![]),
@@ -265,6 +266,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
     ]);
     code.append(
         FunctionEmitter {
+            layouts,
             dyn_module: &dyn_module,
             task_ownership: None,
                 current_instruction: None,

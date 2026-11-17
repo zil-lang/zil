@@ -206,31 +206,34 @@ fn checked(module: zil_ir::TypedModule) -> VerifiedModule {
 
 #[test]
 fn complete_frozen_max_plan_and_machine_module_agree() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
     let limits = Limits::default();
     for mode in 0..=2 {
         let module = fixture(mode);
         let lir = raw_lir(&module);
         // This is private accounting inspection, not a raised Source/native
         // limit: record both full ledgers without accepting an oversized input.
-        let mut actual = plan(&lir.as_view(), &limits, usize::MAX).unwrap();
-        let mut old = max_plan_reference::plan(&lir.as_view(), &limits, usize::MAX).unwrap();
+        let mut actual = plan(layouts, &lir.as_view(), &limits, usize::MAX).unwrap();
+        let mut old = max_plan_reference::plan(layouts, &lir.as_view(), &limits, usize::MAX).unwrap();
         let current_cost = usize::MAX - actual.remaining_work;
         let old_cost = usize::MAX - old.remaining_work;
         actual.remaining_work = 0;
         old.remaining_work = 0;
         assert_eq!(actual, old, "complete logical plan mode={mode}");
-        let exact = plan(&lir.as_view(), &limits, current_cost).unwrap();
+        let exact = plan(layouts, &lir.as_view(), &limits, current_cost).unwrap();
         assert_eq!(exact.remaining_work, 0);
-        let errors = plan(&lir.as_view(), &limits, current_cost - 1)
+        let errors = plan(layouts, &lir.as_view(), &limits, current_cost - 1)
             .err()
             .unwrap();
         assert_eq!(errors[0].phase, Phase::Codegen);
         assert_eq!(errors[0].category, zil_base::ResultCategory::ResourceLimit);
-        assert_eq!(plan(&lir.as_view(), &limits, current_cost).unwrap(), exact);
-        let old_exact = max_plan_reference::plan(&lir.as_view(), &limits, old_cost).unwrap();
+        assert_eq!(plan(layouts, &lir.as_view(), &limits, current_cost).unwrap(), exact);
+        let old_exact = max_plan_reference::plan(layouts, &lir.as_view(), &limits, old_cost).unwrap();
         assert_eq!(old_exact.remaining_work, 0);
         assert_eq!(
-            max_plan_reference::plan(&lir.as_view(), &limits, old_cost - 1)
+            max_plan_reference::plan(layouts, &lir.as_view(), &limits, old_cost - 1)
                 .err()
                 .unwrap()[0]
                 .category,
@@ -254,11 +257,14 @@ fn complete_frozen_max_plan_and_machine_module_agree() {
 
 #[test]
 fn wide_struct_clones_are_not_flattened_to_array_cardinality() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
     let limits = Limits::default();
     let array = fixture(0);
     let record = fixture(1);
-    let array = plan(&raw_lir(&array).as_view(), &limits, usize::MAX).unwrap();
-    let record = plan(&raw_lir(&record).as_view(), &limits, usize::MAX).unwrap();
+    let array = plan(layouts, &raw_lir(&array).as_view(), &limits, usize::MAX).unwrap();
+    let record = plan(layouts, &raw_lir(&record).as_view(), &limits, usize::MAX).unwrap();
     let a = usize::MAX - array.remaining_work;
     let r = usize::MAX - record.remaining_work;
     assert!(
@@ -269,6 +275,9 @@ fn wide_struct_clones_are_not_flattened_to_array_cardinality() {
 
 #[test]
 fn non_snapshot_load_prepays_its_actual_complex_pointee() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
     let limits = Limits::default();
     let mut charges = vec![];
     for width in [1, 32, 256] {
@@ -286,7 +295,7 @@ fn non_snapshot_load_prepays_its_actual_complex_pointee() {
         f.values.push(ty);
         let id = ValueId((f.values.len() - 1) as u32);
         let lir = raw_lir(&module);
-        let plans = plan(&lir.as_view(), &limits, usize::MAX).unwrap();
+        let plans = plan(layouts, &lir.as_view(), &limits, usize::MAX).unwrap();
         let values = &plans.values[&FunctionId(0)];
         let mut left = usize::MAX;
         let machines = emission_work::allocations(values, &mut left, &limits).unwrap();
@@ -310,10 +319,13 @@ fn non_snapshot_load_prepays_its_actual_complex_pointee() {
 
 #[test]
 fn enum_source_and_canonical_payload_keep_the_complete_legacy_fee() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
     let module = fixture(2);
     let lir = raw_lir(&module);
     let limits = Limits::default();
-    let planned = plan(&lir.as_view(), &limits, usize::MAX).unwrap();
+    let planned = plan(layouts, &lir.as_view(), &limits, usize::MAX).unwrap();
     let values = &planned.values[&FunctionId(0)];
     let mut left = usize::MAX;
     let machines = emission_work::allocations(values, &mut left, &limits).unwrap();
@@ -345,6 +357,9 @@ fn enum_source_and_canonical_payload_keep_the_complete_legacy_fee() {
 
 #[test]
 fn complete_reference_covers_protocols_indirect_signatures_and_rejections() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
     let limits = Limits::default();
     let mut module = fixture(0);
     module.resources.push(ResourceDefinition {
@@ -360,8 +375,8 @@ fn complete_reference_covers_protocols_indirect_signatures_and_rejections() {
         result: Box::new(big.clone()),
     });
     let lir = raw_lir(&module);
-    let mut actual = plan(&lir.as_view(), &limits, usize::MAX).unwrap();
-    let mut old = max_plan_reference::plan(&lir.as_view(), &limits, usize::MAX).unwrap();
+    let mut actual = plan(layouts, &lir.as_view(), &limits, usize::MAX).unwrap();
+    let mut old = max_plan_reference::plan(layouts, &lir.as_view(), &limits, usize::MAX).unwrap();
     assert!(!actual.store_protocols.is_empty());
     assert!(!actual.indirect.is_empty());
     actual.remaining_work = 0;
@@ -375,8 +390,8 @@ fn complete_reference_covers_protocols_indirect_signatures_and_rejections() {
         result: Box::new(Type::I64),
     });
     let lir = raw_lir(&module);
-    let actual = plan(&lir.as_view(), &limits, usize::MAX).err().unwrap();
-    let old = max_plan_reference::plan(&lir.as_view(), &limits, usize::MAX)
+    let actual = plan(layouts, &lir.as_view(), &limits, usize::MAX).err().unwrap();
+    let old = max_plan_reference::plan(layouts, &lir.as_view(), &limits, usize::MAX)
         .err()
         .unwrap();
     assert_eq!(format!("{actual:#?}"), format!("{old:#?}"));

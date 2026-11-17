@@ -765,7 +765,7 @@ fn reserve_frame_type(ty: &m::Ty, meter: &Meter, depth: usize) -> CompileResult<
         // copy of its fields. Pay its cloned name here; physical layout and
         // identity resolve the unique actual definition in task_abi.
         m::Ty::Named(name) => meter.spend(name.len())?,
-        m::Ty::Int(_) | m::Ty::Ptr => {}
+        m::Ty::Int(_) | m::Ty::Ptr | m::Ty::F32 | m::Ty::F64 => {}
         _ => {
             return invalid(
                 "E-CODEGEN-TASK",
@@ -859,7 +859,7 @@ fn plan_frame(
     plans.insert(id, plan);
     Ok(())
 }
-pub(super) fn lower_workers(
+pub(super) fn lower_workers(layouts: &LayoutContext<'_>,
     machines: Vec<(FunctionId, m::Function)>,
     functions: &BTreeMap<FunctionId, &TypedFunction>,
     verified: &VerifiedModule,
@@ -892,12 +892,12 @@ pub(super) fn lower_workers(
         .any(|id| verified.task_ownership(*id).is_some())
     {
         items.extend(owners::helpers(meter, plans.values().any(|plan| owners::uses_retarget(plan.owners.as_ref())))?);
-        items.extend(owner_groups::helpers(verified, meter)?);
+        items.extend(owner_groups::helpers(layouts,verified, meter)?);
     }
     let mut direct_registration_drop = false;
     for (id, mut machine) in machines {
         let plan = plans.remove(&id).expect("actual frame was planned");
-        items.extend(lower_worker(id, &machine, plan, meter, verified)?);
+        items.extend(lower_worker(layouts, id, &machine, plan, meter, verified)?);
         if verified.is_task_export(id) {
             items.extend(exports(id, meter)?);
         }
@@ -948,7 +948,7 @@ fn direct_registration_drop_function() -> m::Item {
         vec![block("entry", entry), block("done", vec![inst(None, m::Op::Return(None))]), trap_block()])
 }
 
-fn lower_worker(
+fn lower_worker(layouts: &LayoutContext<'_>,
     id: FunctionId,
     machine: &m::Function,
     plan: FramePlan,
@@ -1438,7 +1438,7 @@ fn lower_worker(
     let mut init_blocks = vec![block("entry", init), block("init", commit)];
     if owners.is_some() {
         let mut failed = vec![];
-        owners::allocation_failure(
+        owners::allocation_failure(layouts,
             &mut failed,
             owners.as_ref(),
             verified.task_ownership(id),
@@ -1677,7 +1677,7 @@ fn lower_worker(
     Ok(items)
 }
 
-pub(super) fn runtime(
+pub(super) fn runtime(layouts: &LayoutContext<'_>,
     lir: &LirView<'_>,
     enabled: bool,
     limits: &zil_base::Limits,
@@ -1744,9 +1744,9 @@ pub(super) fn runtime(
             let actual = f
                 .parameters
                 .iter()
-                .map(|id| llvm_type(&f.locals[id.0 as usize].ty))
+                .map(|id| layouts.value_type(&f.locals[id.0 as usize].ty))
                 .collect::<CompileResult<Vec<_>>>()?;
-            if actual != params || llvm_type(&f.return_type)? != result {
+            if actual != params || layouts.value_type(&f.return_type)? != result {
                 return invalid(
                     "E-CODEGEN-FOREIGN",
                     format!("{n} conflicts with task allocation ABI"),
@@ -1941,7 +1941,7 @@ pub(super) fn runtime(
         meter.spend(before - left)?;
         reservation?;
         meter.spend(2048)?;
-        let payload = aggregate_field_type(result)?;
+        let payload = layouts.field_type(result)?;
         let response = m::Ty::Struct(vec![m::Ty::Int(32), payload.clone()]);
         let mut entry = vec![];
         load(&mut entry, "frame", m::Ty::Ptr, loc("owner"));
@@ -2003,7 +2003,7 @@ impl FunctionEmitter<'_> {
     fn general_task_poll(&mut self, i: &Instruction, task: ValueId) -> CompileResult<()> {
         let output = result(i)?;
         let actual = &self.function.values[output.0 as usize];
-        let llvm = llvm_type(actual)?;
+        let llvm = self.layouts.value_type(actual)?;
         let slot = self.temp();
         let answer = self.temp();
         let tag = self.temp();
@@ -2055,8 +2055,8 @@ impl FunctionEmitter<'_> {
             else {
                 unreachable!()
             };
-            let poll_llvm = llvm_type(poll)?;
-            let error_llvm = llvm_type(error)?;
+            let poll_llvm = self.layouts.value_type(poll)?;
+            let error_llvm = self.layouts.value_type(error)?;
             let Type::Address { inner, .. } = &self.function.values[task.0 as usize] else {
                 unreachable!()
             };
@@ -2069,7 +2069,7 @@ impl FunctionEmitter<'_> {
             else {
                 unreachable!()
             };
-            let payload_llvm = aggregate_field_type(payload)?;
+            let payload_llvm = self.layouts.field_type(payload)?;
             let raw_llvm = m::Ty::Struct(vec![m::Ty::Int(32), payload_llvm.clone()]);
             let poll_symbol = if **payload == Type::I32 {
                 "zil.task.poll".into()
@@ -2255,7 +2255,7 @@ impl FunctionEmitter<'_> {
                 .filter(|id| self.function.values[id.0 as usize] != Type::Unit)
                 .map(|id| {
                     Ok(m::Arg::new(
-                        llvm_type(&self.function.values[id.0 as usize])?,
+                        self.layouts.value_type(&self.function.values[id.0 as usize])?,
                         m::val(value(*id)),
                     ))
                 })
@@ -2265,7 +2265,7 @@ impl FunctionEmitter<'_> {
                     .then(|| m::name(value(output)))
                     .as_deref(),
                 m::Op::Call {
-                    result: llvm_type(&self.function.values[output.0 as usize])?,
+                    result: self.layouts.value_type(&self.function.values[output.0 as usize])?,
                     result_attrs: vec![],
                     callee: m::global(format!("{AWAIT_MARKER}{}", function.0)),
                     args,
@@ -2334,9 +2334,9 @@ impl FunctionEmitter<'_> {
                 );
             };
             let inputs = &fields[1].1;
-            let ty = llvm_type(actual)?;
-            let failure_ty = llvm_type(error)?;
-            let inputs_ty = llvm_type(inputs)?;
+            let ty = self.layouts.value_type(actual)?;
+            let failure_ty = self.layouts.value_type(error)?;
+            let inputs_ty = self.layouts.value_type(inputs)?;
             let frame = self.temp();
             let failed = self.temp();
             let slot = self.temp();
@@ -2360,7 +2360,7 @@ impl FunctionEmitter<'_> {
                 .filter(|v| self.function.values[v.0 as usize] != Type::Unit)
                 .map(|v| {
                     Ok(m::Arg::new(
-                        llvm_type(&self.function.values[v.0 as usize])?,
+                        self.layouts.value_type(&self.function.values[v.0 as usize])?,
                         m::val(value(*v)),
                     ))
                 })
@@ -2424,7 +2424,7 @@ impl FunctionEmitter<'_> {
                         arg: m::Arg::new(inputs_ty.clone(), tuple),
                         index: index as u32,
                         field: m::Arg::new(
-                            aggregate_field_type(argument)?,
+                            self.layouts.field_type(argument)?,
                             if *argument == Type::Unit {
                                 m::Val::Zero
                             } else {
@@ -2473,7 +2473,7 @@ impl FunctionEmitter<'_> {
         } = &i.kind
         {
             let output = result(i)?;
-            let ty = llvm_type(&self.function.values[output.0 as usize])?;
+            let ty = self.layouts.value_type(&self.function.values[output.0 as usize])?;
             let frame = self.temp();
             let failed = self.temp();
             let tagged = self.temp();
@@ -2483,7 +2483,7 @@ impl FunctionEmitter<'_> {
                 .filter(|v| self.function.values[v.0 as usize] != Type::Unit)
                 .map(|v| {
                     Ok(m::Arg::new(
-                        llvm_type(&self.function.values[v.0 as usize])?,
+                        self.layouts.value_type(&self.function.values[v.0 as usize])?,
                         m::val(value(*v)),
                     ))
                 })

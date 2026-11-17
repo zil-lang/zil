@@ -144,7 +144,7 @@ impl FunctionEmitter<'_> {
             Some(body_name(id)),
             m::Op::Alloca {
                 ty: environment_type(body_id),
-                align: alignment(&Type::Closure(body_id), self.closures)?,
+                align: self.layouts.alignment(&Type::Closure(body_id))?,
             },
         )));
         Ok(())
@@ -263,7 +263,7 @@ impl FunctionEmitter<'_> {
             m::Op::Store {
                 arg: m::Arg::new(environment_type(body_id), m::val(value(body))),
                 ptr: m::local(slot.clone()),
-                align: alignment(&Type::Closure(body_id), self.closures)?,
+                align: self.layouts.alignment(&Type::Closure(body_id))?,
             },
         )));
         self.event(m::Event::Instruction(m::Inst::new(
@@ -336,7 +336,7 @@ impl FunctionEmitter<'_> {
                 m::Op::Load {
                     ty: environment_type(body_id),
                     ptr: m::local(slot.clone()),
-                    align: alignment(&Type::Closure(body_id), self.closures)?,
+                    align: self.layouts.alignment(&Type::Closure(body_id))?,
                 },
             )));
             m::Arg::new(environment_type(body_id), m::local(loaded))
@@ -529,7 +529,7 @@ impl FunctionEmitter<'_> {
                 m::Op::Load {
                     ty: environment_type(callback_id),
                     ptr: m::local("f".into()),
-                    align: alignment(&Type::Closure(callback_id), self.closures)?,
+                    align: self.layouts.alignment(&Type::Closure(callback_id))?,
                 },
             )));
             m::Arg::new(environment_type(callback_id), m::local("f.value".into()))

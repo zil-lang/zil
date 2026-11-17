@@ -91,7 +91,7 @@ impl FunctionEmitter<'_> {
         let by_pointer = resource_closures::by_pointer(c);
         let entry = c.function;
         let env = environment_type(id);
-        let align = alignment(&Type::Closure(id), self.closures)?;
+        let align = self.layouts.alignment(&Type::Closure(id))?;
         let ty = frame(id);
         let provider = |f: FunctionId| {
             self.functions

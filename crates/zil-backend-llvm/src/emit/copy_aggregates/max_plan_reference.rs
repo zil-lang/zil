@@ -16,14 +16,14 @@ pub(super) fn with_reference<T>(f: impl FnOnce() -> T) -> T {
     let _reset = Reset(ENABLED.replace(true));
     f()
 }
-pub(super) fn plan(
+pub(super) fn plan(layouts: &LayoutContext<'_>,
     lir: &LirView<'_>,
     limits: &Limits,
     remaining_work: usize,
 ) -> CompileResult<super::large_copy_abi::Plans> {
     let mut work = remaining_work;
     let mut plans = BTreeMap::new();
-    let store_protocols = dynamic_store::plan(lir.resources, limits, &mut work)?;
+    let store_protocols = dynamic_store::plan(layouts, lir.resources, limits, &mut work)?;
     for function in lir.functions {
         dynamic_store::reserve_operations(
             function,
@@ -55,11 +55,11 @@ pub(super) fn plan(
             {
                 continue;
             }
-            let machine = llvm_type(ty)?;
+            let machine = layouts.value_type(ty)?;
             if unresolved_layout(&machine) {
                 continue;
             }
-            let (bytes, align) = layout(&machine)?;
+            let (bytes, align) = layouts.machine_layout(&machine)?;
             if bytes >= MIN_BYTES {
                 if matches!(enums::storage_shape(ty), Type::Enum { .. }) {
                     // make_variant/read_variant clone the source enum as well
@@ -149,7 +149,7 @@ pub(super) fn plan(
             plans.insert(function.id, values);
         }
     }
-    let abi = super::large_copy_abi::plan(lir, limits, &mut work)?;
+    let abi = super::large_copy_abi::plan(layouts, lir, limits, &mut work)?;
     if !plans.is_empty()
         || abi.functions.values().any(|s| s.large())
         || store_protocols

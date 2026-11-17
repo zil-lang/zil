@@ -47,15 +47,15 @@ fn teardowns(
 
 /// The native boundary consumes the returned error Value. Source main's own
 /// cleanup has already run; only this selected returned payload remains owed.
-pub(super) fn entry_cleanup(ty: &Type, resources: &[ResourceDefinition]) -> CompileResult<m::Code> {
+pub(super) fn entry_cleanup(layouts: &LayoutContext<'_>, ty: &Type, resources: &[ResourceDefinition]) -> CompileResult<m::Code> {
     let Type::ErrorUnion { error, .. } = ty else {
         return Ok(m::Code::new());
     };
     if error.is_copy_value() {
         return Ok(m::Code::new());
     }
-    let union = llvm_type(ty)?;
-    let payload = llvm_type(error)?;
+    let union = layouts.value_type(ty)?;
+    let payload = layouts.value_type(error)?;
     let mut text = m::Code::from(vec![
         m::Event::Instruction(m::Inst::new(
             Some("entry.error.value".into()),
@@ -133,7 +133,7 @@ impl FunctionEmitter<'_> {
                 Some(instruction.span),
             );
         };
-        let union = llvm_type(&ty)?;
+        let union = self.layouts.value_type(&ty)?;
         let error_drops = teardowns(error, self.resources)?;
         let success_drops = teardowns(result, self.resources)?;
         let flag = self.temp();
@@ -202,7 +202,7 @@ impl FunctionEmitter<'_> {
             self.event(m::Event::Label(format!("{}.payload.{}", name, label)));
             if !drops.is_empty() {
                 let pointer = self.temp();
-                let payload_llvm = llvm_type(payload)?;
+                let payload_llvm = self.layouts.value_type(payload)?;
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(m::name((pointer).clone())),
                     m::Op::Gep {
@@ -296,8 +296,8 @@ impl FunctionEmitter<'_> {
             self.copy_write(address, source)?;
             return Ok(());
         }
-        let llvm = llvm_type(ty)?;
-        let payload_llvm = aggregate_field_type(payload)?;
+        let llvm = self.layouts.value_type(ty)?;
+        let payload_llvm = self.layouts.field_type(payload)?;
         let source = if *payload == Type::Unit {
             "zeroinitializer".into()
         } else {
@@ -344,7 +344,7 @@ impl FunctionEmitter<'_> {
             Some(m::name((value(result(instruction)?)).clone())),
             m::Op::Extract {
                 arg: m::Arg::new(
-                    (llvm_type(self.value_type(source)?)?).clone(),
+                    (self.layouts.value_type(self.value_type(source)?)?).clone(),
                     m::val((value(source)).clone()),
                 ),
                 index: 0,
@@ -360,7 +360,7 @@ impl FunctionEmitter<'_> {
         is_error: bool,
     ) -> CompileResult<()> {
         let result = result(instruction)?;
-        let llvm = llvm_type(self.value_type(source)?)?;
+        let llvm = self.layouts.value_type(self.value_type(source)?)?;
         let tag = self.temp();
         let mismatch = self.temp();
         if self.copy_values.contains_key(&source) {

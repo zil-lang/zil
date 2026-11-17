@@ -10,6 +10,8 @@ mod dynamic_store;
 mod enums;
 mod floating;
 mod large_copy_abi;
+pub(crate) mod layout;
+use layout::LayoutContext;
 pub use enums::ct_layout_of_checked_type;
 pub(crate) use tasks::export_name as task_export_name;
 mod errors;
@@ -160,19 +162,25 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     if verified.uses_stored_borrows() {
         stored_borrows::reserve_binding(verified.module(), verified.limits(), &mut remaining_work)?;
     }
-    let sum_helpers = bind_lir(verified, lir, options.entry, &mut remaining_work)?;
-    dyn_dispatch::reserve(verified.module(), verified.limits(), &mut remaining_work)?;
-    let mut copy_plans = copy_aggregates::plan(lir, verified.limits(), remaining_work)?;
-    if verified.uses_stored_borrows() {
-        stored_borrows::reserve_emission(
-            lir,
-            verified.limits(),
-            &copy_plans.values,
-            &mut copy_plans.remaining_work,
-        )?;
-    }
-    let task_meter = tasks::Meter::with_limits(copy_plans.remaining_work, verified.limits());
-    let task_cleanup_helpers = drop_plan::task_helpers(verified, &task_meter, &sum_helpers.types)?;
+    let bound=bind_exact(verified,lir,&mut remaining_work)?;
+    let layouts=LayoutContext::build(&bound,remaining_work,verified.limits())?;
+    emit_prepared(prepare_emission(verified,bound,layouts,options,incremental_scalar_policy,closed_scalar_collection,jobs)?)
+}
+
+/// High-level operation/ABI/drop/helper lowering ends here. Only a completely
+/// assembled existing Machine IR can cross this private publication boundary.
+struct PreparedEmission<'a>{_bound:BoundModule<'a>,layouts:LayoutContext<'a>,_abi:large_copy_abi::Plans,machine:m::Module,collected:bool}
+fn emit_prepared(prepared:PreparedEmission<'_>)->CompileResult<(m::Module,bool,usize)>{let remaining=prepared.layouts.meter().remaining();Ok((prepared.machine,prepared.collected,remaining))}
+fn prepare_emission<'a>(verified:&VerifiedModule,bound:BoundModule<'a>,layout_context:LayoutContext<'a>,options:&EmitOptions,incremental_scalar_policy:bool,closed_scalar_collection:bool,jobs:usize)->CompileResult<PreparedEmission<'a>>{
+    let lir=&bound.lir;let layouts=&layout_context;
+    let sum_helpers=layouts.with_work(|work|prepare_bound_helpers(&bound,verified,options.entry,layouts,work))?;
+    layouts.with_work(|work|dyn_dispatch::reserve(verified.module(),verified.limits(),work))?;
+    let plan_before=layouts.meter().remaining();
+    let mut copy_plans=copy_aggregates::plan(layouts, lir,verified.limits(),plan_before)?;
+    let plan_work=plan_before.checked_sub(copy_plans.remaining_work).ok_or_else(||vec![Diagnostic::limit(Phase::Codegen,"machine planning renewed its budget",None)])?;layouts.meter().spend(plan_work)?;
+    layouts.with_work(|work|stored_borrows::reserve_emission(lir,verified.limits(),&copy_plans.values,work))?;
+    let task_meter=layouts.meter();
+    let task_cleanup_helpers=drop_plan::task_helpers(layouts, verified,task_meter,&sum_helpers.types)?;
     let functions = lir
         .functions
         .iter()
@@ -183,7 +191,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         .iter()
         .map(|closure| (closure.id, closure))
         .collect::<BTreeMap<_, _>>();
-    let wrapper = entry_wrapper(
+    let wrapper = entry_wrapper(layouts,
         &functions,
         options.entry,
         lir.resources,
@@ -267,6 +275,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
             incremental_scalar_policy,
             &functions,
             &closures,
+            layouts,
             summaries.as_ref(),
             collected.as_ref(),
             prepared_leaves
@@ -297,7 +306,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         foreign_adapters.extend(batch.foreign_adapters);
     }
     // Child plans require actual machines from every ordered lowering batch.
-    body.extend(tasks::lower_workers(
+    body.extend(tasks::lower_workers(layouts,
         task_machines,
         &functions,
         verified,
@@ -307,18 +316,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     // LLVM must know complete environment layouts before any aggregate helper
     // uses them in a sized GEP. Both backends consume this declaration order.
     for closure in lir.closures {
-        let mut fields = closure
-            .captures
-            .iter()
-            .map(capture_type)
-            .collect::<CompileResult<Vec<_>>>()?;
-        fields.extend(
-            closure
-                .captures
-                .iter()
-                .flat_map(|ty| std::iter::repeat_n("i1".into(), resource_closures::flag_count(ty))),
-        );
-
+        let fields=layouts.environment_fields(closure.id)?;
         text.push(m::Event::NamedType(
             m::type_name(&(environment_type(closure.id)).clone()),
             (fields).clone(),
@@ -326,13 +324,13 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     }
     text.append(sum_helpers.code);
     for id in foreign_adapters {
-        text.append(foreign::callback_adapter(
+        text.append(foreign::callback_adapter(layouts,
             functions[&id],
             lir.target,
             &task_meter,
         )?);
     }
-    text.append(dyn_dispatch::tables(
+    text.append(dyn_dispatch::tables(layouts,
         verified.module(),
         &copy_plans,
         lir.resources,
@@ -340,8 +338,11 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     text.append(task_cleanup_helpers);
     if copy_plans.needs_helpers() {
         text.append(copy_aggregates::declarations());
+    } else {
+        layouts.meter().spend(32)?;text.push(enums::zero_declaration());
     }
     text.append(resource_closures::drop_functions(
+        layouts,
         lir.closures,
         lir.resources,
     )?);
@@ -390,25 +391,25 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         attrs: vec![],
         blocks: None,
     }));
-    text.append(byte_buffer::runtime(lir)?);
+    text.append(byte_buffer::runtime(layouts, lir)?);
     text.append(glibc_errno::runtime(lir)?);
-    text.append(dynamic_store::runtime(
+    text.append(dynamic_store::runtime(layouts,
         lir,
         &closures,
         &copy_plans.store_protocols,
     )?);
-    text.append(scoped_thread::runtime(lir)?);
-    text.append(generic_mutex::runtime(lir)?);
-    text.append(dyn_dispatch::runtime(lir)?);
-    text.append(tasks::runtime(
+    text.append(scoped_thread::runtime(layouts, lir)?);
+    text.append(generic_mutex::runtime(layouts, lir)?);
+    text.append(dyn_dispatch::runtime(layouts, lir)?);
+    text.append(tasks::runtime(layouts,
         lir,
         verified.uses_scalar_tasks(),
         verified.limits(),
         &task_meter,
         verified,
     )?);
-    if verified.uses_retained_registration() {
-        let runtime = registration::runtime(lir, &text, verified.limits(), &task_meter)?;
+    if verified.uses_retained_registration() || lir.resources.iter().any(|resource|matches!(resource.payload,Type::AsyncRegistration{..})) {
+        let runtime = registration::runtime(layouts, lir, &text, verified.limits(), &task_meter)?;
         text.append(runtime);
     }
     for (operation, bits) in intrinsics {
@@ -541,15 +542,9 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         ]));
     }
     items.extend(text.into_items().map_err(machine_error)?);
-    Ok((
-        m::Module {
-            triple: lir.target.triple.clone(),
-            fingerprint: verified.fingerprint().to_hex(),
-            items,
-        },
-        collected.is_some(),
-        task_meter.remaining(),
-    ))
+    let machine=m::Module{triple:lir.target.triple.clone(),fingerprint:verified.fingerprint().to_hex(),items};
+    seal_machine(&machine,layouts)?;
+    Ok(PreparedEmission{_bound:bound,layouts:layout_context,_abi:copy_plans,machine,collected:collected.is_some()})
 }
 
 struct FunctionBatch {
@@ -559,9 +554,7 @@ struct FunctionBatch {
     foreign_adapters: BTreeSet<FunctionId>,
 }
 
-fn resource_head_address(ty: &Type) -> bool {
-    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}|Type::AsyncRegistration{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
-}
+
 
 #[allow(clippy::too_many_arguments)]
 fn lower_function_batch(
@@ -571,6 +564,7 @@ fn lower_function_batch(
     incremental_scalar_policy: bool,
     functions: &BTreeMap<FunctionId, &TypedFunction>,
     closures: &BTreeMap<ClosureId, &ClosureDefinition>,
+    layouts: &LayoutContext<'_>,
     summaries: Option<&BTreeMap<FunctionId, Constant>>,
     collected: Option<&BTreeSet<FunctionId>>,
     prepared_leaves: Option<&[Option<scalar_leaf::Prepared>]>,
@@ -600,7 +594,7 @@ fn lower_function_batch(
                 );
             }
             body.extend(
-                foreign::declaration(function, lir.target)?
+                foreign::declaration(layouts, function, lir.target)?
                     .into_items()
                     .map_err(machine_error)?,
             );
@@ -640,7 +634,7 @@ fn lower_function_batch(
         if verified.uses_scalar_tasks() {
             tasks::reserve_bridges(function, task_meter)?;
         }
-        if verified.uses_retained_registration() {
+        if verified.uses_retained_registration() || lir.resources.iter().any(|resource|matches!(resource.payload,Type::AsyncRegistration{..})) {
             registration::reserve_function(function, closures, functions, task_meter)?;
         }
         if verified.uses_scalar_tasks() {
@@ -672,6 +666,7 @@ fn lower_function_batch(
             intrinsics: &mut intrinsics,
             foreign_adapters: &mut foreign_adapters,
             machine_meter: task_meter,
+            layouts,
             text: m::Code::new(),
             temporary: 0,
             continuation: 0,
@@ -734,12 +729,15 @@ fn same_slice<T: PartialEq>(a: &[T], b: &[T]) -> bool {
     std::ptr::eq(a, b) || a == b
 }
 
-fn bind_lir<'a>(
+/// The sole production capability for physical preparation. Public LIR has
+/// no constructor for this exact-bound, immutable request view.
+struct BoundModule<'a>{lir:LirView<'a>}
+
+fn bind_exact<'a>(
     verified: &VerifiedModule,
     lir: &LirView<'a>,
-    entry: EntryPoint,
     remaining_work: &mut usize,
-) -> CompileResult<drop_plan::Helpers<'a>> {
+) -> CompileResult<BoundModule<'a>> {
     let module = verified.module();
     let layouts = vec![
         ScalarLayout {
@@ -843,348 +841,82 @@ fn bind_lir<'a>(
             None,
         );
     }
-    // The public LIR has now been exactly rebound. The sealed bit only
-    // enables payment; qualification and actual layouts are still rebuilt.
-    let callback_owned_data = lir.closures.iter().any(|closure| {
-        std::iter::once(&closure.result)
-            .chain(closure.parameters.iter())
-            .any(|ty| {
-                matches!(
-                    ty,
-                    Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
-                ) && !ty.is_copy_value()
-            })
-    });
-    let mut capture_sum_roots = Vec::new();
-    for closure in lir.closures {
-        // Complete ordinary owning data travels through the same aggregate
-        // argument/result ABI as a direct call. Keep capture qualification and
-        // the older Copy/address callable profile independent of this path.
-        let owning_result = matches!(
-            closure.result,
-            Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
-        ) && !closure.result.is_copy_value()
-            && callback_data_shape(&closure.result)
-            && drop_plan::value_type(&closure.result, lir.resources);
-        let owning_parameters = closure
-            .parameters
-            .iter()
-            .any(|ty| callback_data_shape(ty) && !ty.is_copy_value());
-        let mut complete_parameters = false;
-        if (owning_result || owning_parameters) && (closure.result.is_copy_value() || owning_result)
-        {
-            complete_parameters = true;
-            for ty in &closure.parameters {
-                if ty.is_copy_value()
-                    || (callback_data_shape(ty) && drop_plan::value_type(ty, lir.resources))
-                {
-                    continue;
-                }
-                if owning_result && let Type::Address { inner, .. } = ty {
-                    // This is still an input pointer, including its original
-                    // mutability. Rebuild the complete pointee representation
-                    // after exact binding to the current verifier capability.
-                    let before = *remaining_work;
-                    copy_aggregates::reserve_enum_metadata(
-                        inner,
-                        remaining_work,
-                        0,
-                        verified.limits(),
-                    )?;
-                    let shape_work = before - *remaining_work;
-                    let mut resource_work = 0usize;
-                    for resource in lir.resources {
-                        let before = *remaining_work;
-                        copy_aggregates::reserve_enum_metadata(
-                            &resource.payload,
-                            remaining_work,
-                            0,
-                            verified.limits(),
-                        )?;
-                        resource_work = resource_work.saturating_add(before - *remaining_work);
-                    }
-                    let scans = shape_work.saturating_mul(resource_work.saturating_add(3));
-                    *remaining_work = remaining_work.checked_sub(scans).ok_or_else(|| {
-                        vec![Diagnostic::limit(
-                            Phase::Codegen,
-                            "borrowed callback pointee representation work exceeded",
-                            None,
-                        )]
-                    })?;
-                    let supported = match inner.as_ref() {
-                        Type::Slice { element } => element.is_copy_value(),
-                        pointee => {
-                            pointee.is_copy_value()
-                                || (callback_data_shape(pointee)
-                                    && drop_plan::value_type(pointee, lir.resources))
-                        }
-                    };
-                    if supported {
-                        continue;
-                    }
-                }
-                complete_parameters = false;
-                break;
-            }
-        }
-        let owning_signature = (owning_result || owning_parameters)
-            && (closure.result.is_copy_value() || owning_result)
-            && complete_parameters;
-        // Actual retained Fixed metadata is already independently proved. This
-        // only admits the existing shared pointer ABI after capability binding.
-        let verified_address_result = verified.uses_stored_borrows()
-            && closure.storage_life.as_ref().is_some_and(|life| {
-                life.bindings
-                    .iter()
-                    .any(|row| row.position.base == zil_ir::StorageBase::Result)
-                    // Static results carry an occurrence, rather than a free
-                    // class. Verify proved every actual return and its complete
-                    // dependency graph before issuing this capability.
-                    || (life.fixed_binder_count == 0
-                        && life.invocation_binder_count == 0
-                        && closure.captures.is_empty()
-                        && life.static_bindings.iter().any(|position| {
-                            position.base == zil_ir::StorageBase::Result
-                                && position.path.is_empty()
-                        })
-                        && matches!(&closure.result, Type::Address { mutable: false, inner }
-                            if matches!(inner.as_ref(), Type::Slice { element } if **element == Type::U8)))
-            })
-            && (matches!(&closure.result, Type::Address { inner, .. } if inner.is_address_pointee())
-                || qualified_capture_address(&closure.result));
-        let captured_fixed_signature = verified_address_result
-            || verified.uses_stored_borrows()
-                && closure
-                    .storage_life
-                    .as_ref()
-                    .is_some_and(|life| life.fixed_binder_count > 0)
-                && ((closure.lending_captures.is_empty() && closure.result.is_b0_scalar())
-                    || (!closure.lending_captures.is_empty()
-                        && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
-                        && matches!(&closure.result, Type::Address { mutable:false, inner } if inner.is_b0_scalar())));
-        let qualified_signature = verified.uses_stored_borrows()
-            && closure.captures.iter().all(|t| {
-                matches!(
-                    t,
-                    Type::Unit
-                        | Type::Bool
-                        | Type::I32
-                        | Type::I8
-                        | Type::I16
-                        | Type::Isize
-                        | Type::I64
-                        | Type::U64
-                        | Type::Usize
-                        | Type::U8
-                        | Type::U16
-                        | Type::U32
-                        | Type::F32
-                        | Type::F64
-                )
-            })
-            && closure.lending_captures.is_empty()
-            && closure.storage_life.is_none()
-            && matches!(
-                closure.result,
-                Type::Unit
-                    | Type::Bool
-                    | Type::I32
-                    | Type::I8
-                    | Type::I16
-                    | Type::Isize
-                    | Type::I64
-                    | Type::U64
-                    | Type::Usize
-                    | Type::U8
-                    | Type::U16
-                    | Type::U32
-                    | Type::F32
-                    | Type::F64
-            );
-        let invocation_signature = closure.lending_captures.is_empty()
-            && matches!(&closure.result,Type::Address{inner,..} if inner.is_address_pointee())
-            && closure
-                .parameters
-                .iter()
-                .any(|p| matches!(p, Type::Address { .. }));
-        let task_result = closure.kind == CallableKind::FnOnce
-            && closure.parameters.is_empty()
-            && matches!(&closure.result,Type::Managed(task) if matches!(task.as_ref(),Type::Task{..}));
-        // Full callable type/metadata visits were paid before exact LIR
-        // binding. A qualified plain aggregate keeps its verified semantic
-        // domain while using its existing physical inline layout; no target
-        // or owning leaf is admitted by this representation-only predicate.
-        let plain_result =
-            verified.uses_stored_borrows() && stored_borrows::pure_composite(&closure.result);
-        let plain_parameters = verified.uses_stored_borrows()
-            && closure
-                .parameters
-                .iter()
-                .all(stored_borrows::pure_composite);
-        let mut captures_supported = true;
-        for ty in &closure.captures {
-            if !captures_supported {
-                break;
-            }
-            let legacy = ty.is_copy_value()
-                || matches!(ty, Type::OwnedDyn { .. })
-                || matches!(ty, Type::Closure(_))
-                || ty.is_shared_sync_cell_address()
-                || (captured_fixed_signature && qualified_capture_address(ty))
-                || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value()
-                    || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())
-                    || matches!(inner.as_ref(), Type::Closure(_)))
-                || sum_capture_address(ty)
-                || ty.is_package_address()
-                || (resources::supported_type(ty, lir.resources)
-                    && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })));
-            if legacy || (verified.uses_stored_borrows() && stored_borrows::pure_composite(ty)) {
-                continue;
-            }
-            let (package, package_sum) =
-                packages::capture_admission(ty, lir.resources, verified.limits(), remaining_work)?;
-            if package {
-                if package_sum {
-                    capture_sum_roots.push(ty);
-                }
-                continue;
-            }
-            if inline_store_sum_capture(ty, lir.resources, verified.limits(), remaining_work)? {
-                capture_sum_roots.push(ty);
-            } else {
-                captures_supported = false;
-            }
-        }
-        if !matches!(
-            closure.kind,
-            CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(owning_signature || invocation_signature || verified_address_result || task_result || plain_result || closure.result.is_copy_value()
-            || (!closure.lending_captures.is_empty()
-                && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
-                && matches!(&closure.result, Type::Address { inner, mutable: false }
-                    if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
-            || !captures_supported
-            || !plain_parameters && !closure.parameters.iter().all(|ty| {
-                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || ty.is_shared_package_address()
-                    || (captured_fixed_signature && qualified_capture_address(ty)) || (qualified_signature
-                        && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
-                    || ((closure.result.is_copy_value() || invocation_signature)
-                        && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
-            })
-        {
-            return unsupported("LLVM finite resource closure representation", None);
-        }
-    }
-    let compound_cleanup = lir.functions.iter().any(|function| {
-        function
-            .locals
-            .iter()
-            .map(|local| &local.ty)
-            .chain(function.values.iter())
-            .any(|ty| matches!(ty, Type::Tuple(_)) && !ty.is_copy_value())
-    });
-    let sum_helpers = drop_plan::functions(
-        lir,
-        verified.limits(),
-        verified.uses_owned_sum_extension()
-            || callback_owned_data
-            || compound_cleanup
-            || !capture_sum_roots.is_empty(),
-        &capture_sum_roots,
-        entry,
-    )?;
-    for function in lir.functions {
-        if !forwarded_callable_signature(function) {
-            return unsupported(
-                "forwarded callable result requires the same actual by-value parameter and Returned role",
-                Some(function.span),
-            );
-        }
-        let mut compound_parameters = std::collections::BTreeSet::new();
-        for id in &function.parameters {
-            if drop_plan::compound_type(
-                &function.locals[id.0 as usize].ty,
-                lir.resources,
-                verified.limits(),
-                remaining_work,
-            )? {
-                compound_parameters.insert(*id);
-            }
-        }
-        if !(function.return_type.is_copy_value()
-            || stored_borrows::representation_type(&function.return_type)
-            || function.return_type.is_scalar_or_address()
-            || matches!(function.return_type, Type::MutexGuard { .. })
-            || matches!(function.return_type, Type::OwnedDyn { .. })
-            || drop_plan::compound_type(
-                &function.return_type,
-                lir.resources,
-                verified.limits(),
-                remaining_work,
-            )?
-            || drop_plan::sum_address(&function.return_type, lir.resources)
-            || resources::supported_type(&function.return_type, lir.resources)
-            || packages::supported_value_type(&function.return_type, lir.resources)
-            || errors::supported_type(&function.return_type, lir.resources)
-            || arrays::supported_type(&function.return_type, lir.resources)
-            || (matches!(function.return_type, Type::Closure(_))
-                && function.callable_return_contract.is_some()))
-            || function.parameters.iter().any(|id| {
-                let ty = &function.locals[id.0 as usize].ty;
-                !(ty.is_copy_value()
-                    || compound_parameters.contains(id)
-                    || stored_borrows::representation_type(ty)
-                    || ty.is_scalar_or_address()
-                    || matches!(ty, Type::MutexGuard { .. })
-                    || matches!(ty, Type::OwnedDyn { .. })
-                    || resource_head_address(ty)
-                    || drop_plan::sum_address(ty, lir.resources)
-                    || resources::supported_type(ty, lir.resources)
-                    || packages::supported_value_type(ty, lir.resources)
-                    || errors::supported_type(ty, lir.resources)
-                    || arrays::supported_type(ty, lir.resources)
-                    || callable_parameter_type(ty, lir.closures))
-            })
-        {
-            return unsupported("LLVM scalar function signature", Some(function.span));
-        }
-        for ty in function
-            .locals
-            .iter()
-            .map(|local| &local.ty)
-            .chain(function.values.iter())
-        {
-            let concrete_closure = callable_parameter_type(ty, lir.closures);
-            if !ty.is_copy_value()
-                && !stored_borrows::representation_type(ty)
-                && !concrete_closure
-                && !drop_plan::compound_type(ty, lir.resources, verified.limits(), remaining_work)?
-                && !ty.is_shared_sync_cell_address()
-                && !drop_plan::sum_address(ty, lir.resources)
-                && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
-                && !matches!(ty, Type::MutexGuard { .. })
-                && !matches!(ty, Type::OwnedDyn { .. })
-                && !matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. }))
-                && !resource_head_address(ty)
-                && !ty.is_exclusive_task_head_address()
-                && !ty.is_package_address()
-                && !resources::supported_type(ty, lir.resources)
-                && !packages::supported_value_type(ty, lir.resources)
-                && !errors::supported_type(ty, lir.resources)
-                && !arrays::supported_type(ty, lir.resources)
-                && !stored_borrows::pure_storage_address(ty)
-            {
-                return unsupported(
-                    format!("LLVM representation for {}", ty.name()),
-                    Some(function.span),
-                );
-            }
-        }
-    }
-    Ok(sum_helpers)
+    Ok(BoundModule{lir:lir.clone()})
 }
 
-fn entry_wrapper(
+/// Preparation consumes actual recipes, not a second predictive language
+/// subset. Layout does not discharge ownership or select an ABI: canonical
+/// resources and forwarding conventions are checked separately, and every
+/// opcode/helper must still finish lowering before the prepared value exists.
+fn prepare_bound_helpers<'a>(bound:&BoundModule<'a>,verified:&VerifiedModule,entry:EntryPoint,layouts:&LayoutContext<'a>,remaining_work:&mut usize)->CompileResult<drop_plan::Helpers<'a>> {
+    fn resource_leaves(ty:&Type,resources:&[ResourceDefinition],work:&mut usize,limits:&zil_base::Limits,depth:usize)->CompileResult<()> {
+        if depth>limits.max_call_depth.min(zil_base::Limits::default().max_call_depth) {
+            return Err(vec![Diagnostic::limit(Phase::Codegen,"machine resource preparation depth exhausted",None)]);
+        }
+        *work=work.checked_sub(1).ok_or_else(||vec![Diagnostic::limit(Phase::Codegen,"machine resource preparation work exhausted",None)])?;
+        match ty {
+            Type::Managed(payload)=> {
+                // Equality against canonical definitions is paid in full,
+                // including misses. A physical pointer is not a manager ABI.
+                for resource in resources {
+                    copy_aggregates::reserve_enum_metadata(payload,work,depth+1,limits)?;
+                    copy_aggregates::reserve_enum_metadata(&resource.payload,work,depth+1,limits)?;
+                }
+                if !resources::supported_type(ty,resources) {
+                    return invalid("E-CODEGEN-RESOURCE","machine owner has no exact canonical resource binding",None);
+                }
+                if let Type::Mutex{payload:inner}=payload.as_ref() {
+                    // The head is a pointer; the actual allocation still
+                    // owns its complete payload and all canonical managers.
+                    resource_leaves(inner,resources,work,limits,depth+1)?;
+                }
+            }
+            Type::BorrowedStorage{storage,..}=>resource_leaves(storage,resources,work,limits,depth+1)?,
+            Type::Tuple(fields)=>for field in fields {resource_leaves(field,resources,work,limits,depth+1)?;},
+            Type::Record{fields,..}|Type::Package{fields,..}=>for(_,field)in fields {resource_leaves(field,resources,work,limits,depth+1)?;},
+            Type::Array{element,..}=>resource_leaves(element,resources,work,limits,depth+1)?,
+            Type::Enum{variants,..}=>for(_,fields)in variants {for field in fields {resource_leaves(field,resources,work,limits,depth+1)?;}},
+            Type::ErrorUnion{error,result}=>{resource_leaves(error,resources,work,limits,depth+1)?;resource_leaves(result,resources,work,limits,depth+1)?;},
+            // Actual environment recipes were built from their complete
+            // directory. Pointer boundaries do not own the pointee.
+            _=>{}
+        }
+        Ok(())
+    }
+    let lir=&bound.lir;
+    let mut capture_roots=Vec::new();
+    for closure in lir.closures {
+        if !matches!(closure.kind,CallableKind::Fn|CallableKind::FnMut|CallableKind::FnOnce) {
+            return invalid("E-CODEGEN-CLOSURE","actual environment has a non-closure callable kind",None);
+        }
+        for ty in closure.captures.iter().chain(closure.parameters.iter()).chain(std::iter::once(&closure.result)) {
+            layouts.recipe(ty,layout::Position::Field)?;
+            resource_leaves(ty,lir.resources,remaining_work,verified.limits(),0)?;
+        }
+        capture_roots.extend(closure.captures.iter());
+    }
+    for function in lir.functions {
+        if !forwarded_callable_signature(function) {
+            return unsupported("forwarded callable result requires the same actual by-value parameter and Returned role",Some(function.span));
+        }
+        for ty in std::iter::once(&function.return_type).chain(function.locals.iter().map(|local|&local.ty)).chain(function.values.iter()) {
+            layouts.recipe(ty,layout::Position::Value)?;
+            resource_leaves(ty,lir.resources,remaining_work,verified.limits(),0)?;
+        }
+    }
+    drop_plan::functions(layouts,lir,verified.limits(),true,&capture_roots,entry)
+}
+
+fn seal_machine(machine:&m::Module,layouts:&LayoutContext<'_>)->CompileResult<()> {
+    let mut limit=None;
+    let result=machine.validate_complete(|amount|match layouts.meter().spend(amount) {
+        Ok(())=>Ok(()),Err(diagnostics)=>{limit=Some(diagnostics);Err("machine preparation budget exhausted".into())}
+    });
+    if let Some(diagnostics)=limit {return Err(diagnostics);}
+    result.map_err(machine_error)
+}
+
+fn entry_wrapper(layouts: &LayoutContext<'_>,
     functions: &BTreeMap<FunctionId, &TypedFunction>,
     entry: EntryPoint,
     resources: &[ResourceDefinition],
@@ -1281,7 +1013,7 @@ fn entry_wrapper(
     };
     let mut text = m::Code::new();
     if verified.is_suspend(function.id) {
-        let (adapter, code) = tasks::native_entry_adapter(function, abi, verified, task_meter)?;
+        let (adapter, code) = tasks::native_entry_adapter(layouts,function, abi, verified, task_meter)?;
         symbol = adapter;
         text.append(code);
     }
@@ -1381,7 +1113,7 @@ fn entry_wrapper(
                         text, &symbol, slot, result,
                     ));
                 }
-                let llvm = llvm_type(&function.return_type)?;
+                let llvm = layouts.value_type(&function.return_type)?;
                 text.append(m::Code::from(vec![
                     m::Event::Instruction(m::Inst::new(
                         Some("entry.result".into()),
@@ -1410,7 +1142,7 @@ fn entry_wrapper(
                     )),
                     m::Event::Label("error".into()),
                 ]));
-                text.append(errors::entry_cleanup(&function.return_type, resources)?);
+                text.append(errors::entry_cleanup(layouts, &function.return_type, resources)?);
                 text.append(m::Code::from(vec![
                     m::Event::Instruction(m::Inst::new(
                         None,
@@ -1650,6 +1382,7 @@ struct FunctionEmitter<'a> {
     intrinsics: &'a mut BTreeSet<(&'static str, u32)>,
     foreign_adapters: &'a mut BTreeSet<FunctionId>,
     machine_meter: &'a tasks::Meter,
+    layouts: &'a LayoutContext<'a>,
     text: m::Code,
     temporary: u64,
     continuation: u64,
@@ -1692,7 +1425,7 @@ impl FunctionEmitter<'_> {
                         {
                             m::Ty::Ptr
                         } else {
-                            llvm_type(ty)?
+                            self.layouts.value_type(ty)?
                         },
                         format!("arg.{index}"),
                     )))
@@ -1721,7 +1454,7 @@ impl FunctionEmitter<'_> {
                 result: if self.abi().result.is_some() {
                     m::Ty::Void
                 } else {
-                    llvm_type(&self.function.return_type)?
+                    self.layouts.value_type(&self.function.return_type)?
                 },
                 result_attrs: vec![],
                 params: parameters,
@@ -1819,8 +1552,8 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(format!("local.{}", local.id.0)),
                     m::Op::Alloca {
-                        ty: (llvm_type(&local.ty)?).clone(),
-                        align: (alignment(&local.ty, self.closures)?) as u32,
+                        ty: (self.layouts.value_type(&local.ty)?).clone(),
+                        align: (self.layouts.alignment(&local.ty)?) as u32,
                     },
                 )));
             }
@@ -1840,8 +1573,8 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(format!("closure.once.{}", callee.0)),
                     m::Op::Alloca {
-                        ty: (llvm_type(ty)?).clone(),
-                        align: (alignment(ty, self.closures)?) as u32,
+                        ty: (self.layouts.value_type(ty)?).clone(),
+                        align: (self.layouts.alignment(ty)?) as u32,
                     },
                 )));
             }
@@ -1856,8 +1589,8 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(format!("index.slot.{}", result.0)),
                     m::Op::Alloca {
-                        ty: (llvm_type(ty)?).clone(),
-                        align: (alignment(ty, self.closures)?) as u32,
+                        ty: (self.layouts.value_type(ty)?).clone(),
+                        align: (self.layouts.alignment(ty)?) as u32,
                     },
                 )));
             }
@@ -1877,11 +1610,11 @@ impl FunctionEmitter<'_> {
                     None,
                     m::Op::Store {
                         arg: m::Arg::new(
-                            (llvm_type(ty)?).clone(),
+                            (self.layouts.value_type(ty)?).clone(),
                             m::local(format!("arg.{}", index)),
                         ),
                         ptr: m::local(format!("local.{}", local.0)),
-                        align: (alignment(ty, self.closures)?) as u32,
+                        align: (self.layouts.alignment(ty)?) as u32,
                     },
                 )));
             }
@@ -2451,7 +2184,7 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(format!("v.{}", result(instruction)?.0)),
                     m::Op::Gep {
-                        ty: (llvm_type(inner)?).clone(),
+                        ty: (self.layouts.value_type(inner)?).clone(),
                         ptr: m::local(format!("v.{}", address.0)),
                         indices: vec![
                             m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
@@ -2479,7 +2212,7 @@ impl FunctionEmitter<'_> {
                     );
                 };
                 let length = *length;
-                let array_type = llvm_type(inner)?;
+                let array_type = self.layouts.value_type(inner)?;
                 let index_value = self.widened_index(*index)?;
                 let valid = self.temp();
                 self.event(m::Event::Instruction(m::Inst::new(
@@ -2562,11 +2295,11 @@ impl FunctionEmitter<'_> {
                         None,
                         m::Op::Store {
                             arg: m::Arg::new(
-                                (llvm_type(inner)?).clone(),
+                                (self.layouts.value_type(inner)?).clone(),
                                 m::local(format!("v.{}", value.0)),
                             ),
                             ptr: m::local(format!("v.{}", address.0)),
-                            align: (alignment(inner, self.closures)?) as u32,
+                            align: (self.layouts.alignment(inner)?) as u32,
                         },
                     )));
                 }
@@ -2583,9 +2316,9 @@ impl FunctionEmitter<'_> {
                     self.event(m::Event::Instruction(m::Inst::new(
                         Some(format!("v.{}", result(instruction)?.0)),
                         m::Op::Load {
-                            ty: (llvm_type(inner)?).clone(),
+                            ty: (self.layouts.value_type(inner)?).clone(),
                             ptr: m::local(format!("v.{}", address.0)),
-                            align: (alignment(inner, self.closures)?) as u32,
+                            align: (self.layouts.alignment(inner)?) as u32,
                         },
                     )));
                 }
@@ -2622,7 +2355,7 @@ impl FunctionEmitter<'_> {
                             Some(format!("v.{}", result.0)),
                             m::Op::Binary {
                                 opcode: "fsub".into(),
-                                ty: llvm_type(&ty)?,
+                                ty: self.layouts.value_type(&ty)?,
                                 left: if ty == Type::F32 {
                                     m::Val::F32(0x80000000)
                                 } else {
@@ -2648,7 +2381,7 @@ impl FunctionEmitter<'_> {
                         Some(format!("v.{}", result.0)),
                         m::Op::Binary {
                             opcode: "xor".into(),
-                            ty: (llvm_type(&ty)?).clone(),
+                            ty: (self.layouts.value_type(&ty)?).clone(),
                             left: m::local(format!("v.{}", operand.0)),
                             right: m::Val::Int(-1),
                         },
@@ -2715,7 +2448,7 @@ impl FunctionEmitter<'_> {
                     let ty = self.value_type(*argument)?;
                     if *ty != Type::Unit {
                         emitted_arguments.push(m::Arg::new(
-                            llvm_type(ty)?,
+                            self.layouts.value_type(ty)?,
                             m::local(format!("v.{}", argument.0)),
                         ));
                     }
@@ -2728,7 +2461,7 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Instruction(m::Inst::new(
                     assignment,
                     m::Op::Call {
-                        result: llvm_type(&callee.return_type)?,
+                        result: self.layouts.value_type(&callee.return_type)?,
                         result_attrs: vec![],
                         callee: m::global(self.abi_symbol(*function)),
                         args: emitted_arguments,
@@ -2824,7 +2557,7 @@ impl FunctionEmitter<'_> {
                     let ty = self.value_type(*argument)?;
                     if *ty != Type::Unit {
                         emitted_arguments.push(m::Arg::new(
-                            llvm_type(ty)?,
+                            self.layouts.value_type(ty)?,
                             m::local(format!("v.{}", argument.0)),
                         ));
                     }
@@ -2837,7 +2570,7 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Instruction(m::Inst::new(
                     assignment,
                     m::Op::Call {
-                        result: llvm_type(return_type)?,
+                        result: self.layouts.value_type(return_type)?,
                         result_attrs: vec![],
                         callee: m::local(format!("v.{}", callee.0)),
                         args: emitted_arguments,
@@ -2860,7 +2593,7 @@ impl FunctionEmitter<'_> {
             | InstructionKind::MakePackage { fields } => {
                 let result = instruction.result.expect("verified aggregate result");
                 let ty = &self.function.values[result.0 as usize];
-                let llvm = llvm_type(ty)?;
+                let llvm = self.layouts.value_type(ty)?;
                 let mut previous = "zeroinitializer".to_owned();
                 if fields.is_empty() {
                     self.event(m::Event::Instruction(m::Inst::new(
@@ -2886,7 +2619,7 @@ impl FunctionEmitter<'_> {
                             arg: m::Arg::new((llvm).clone(), m::val((previous).clone())),
                             index: (index) as u32,
                             field: m::Arg::new(
-                                (aggregate_field_type(ft)?).clone(),
+                                (self.layouts.field_type(ft)?).clone(),
                                 m::val((fv).clone()),
                             ),
                         },
@@ -2901,7 +2634,7 @@ impl FunctionEmitter<'_> {
                         Some(m::name((value(result)).clone())),
                         m::Op::Extract {
                             arg: m::Arg::new(
-                                (llvm_type(&self.function.values[aggregate.0 as usize])?).clone(),
+                                (self.layouts.value_type(&self.function.values[aggregate.0 as usize])?).clone(),
                                 m::val((value(*aggregate)).clone()),
                             ),
                             index: *index,
@@ -2925,12 +2658,12 @@ impl FunctionEmitter<'_> {
                     Some(m::name((value(result)).clone())),
                     m::Op::Insert {
                         arg: m::Arg::new(
-                            (llvm_type(&self.function.values[aggregate.0 as usize])?).clone(),
+                            (self.layouts.value_type(&self.function.values[aggregate.0 as usize])?).clone(),
                             m::val((value(*aggregate)).clone()),
                         ),
                         index: *index,
                         field: m::Arg::new(
-                            (aggregate_field_type(ft)?).clone(),
+                            (self.layouts.field_type(ft)?).clone(),
                             m::val((fv).clone()),
                         ),
                     },
@@ -2945,7 +2678,7 @@ impl FunctionEmitter<'_> {
                     let ty = self.value_type(*capture)?;
                     fields.push((
                         index,
-                        capture_type(ty)?,
+                        self.layouts.capture_type(ty)?,
                         if *ty == Type::Unit {
                             "0".into()
                         } else {
@@ -2953,13 +2686,11 @@ impl FunctionEmitter<'_> {
                         },
                     ));
                 }
-                let owned_count = definition
-                    .captures
-                    .iter()
-                    .map(resource_closures::flag_count)
-                    .sum::<usize>();
-                for offset in 0..owned_count {
-                    fields.push((captures.len() + offset, "i1".into(), "true".into()));
+                let recipe=self.layouts.environment(definition.id)?;
+                for field in &recipe.fields {
+                    if matches!(field.role,layout::FieldRole::CaptureFlag{..}) {
+                        fields.push((field.index as usize,field.recipe.machine.clone(),"true".into()));
+                    }
                 }
                 if fields.is_empty() {
                     self.event(m::Event::Instruction(m::Inst::new(
@@ -3015,9 +2746,9 @@ impl FunctionEmitter<'_> {
                         self.event(m::Event::Instruction(m::Inst::new(
                             Some(format!("v.{}", result(instruction)?.0)),
                             m::Op::Load {
-                                ty: (llvm_type(&ty)?).clone(),
+                                ty: (self.layouts.value_type(&ty)?).clone(),
                                 ptr: m::val((address).clone()),
-                                align: (alignment(&ty, self.closures)?) as u32,
+                                align: (self.layouts.alignment(&ty)?) as u32,
                             },
                         )));
                     } else {
@@ -3060,11 +2791,11 @@ impl FunctionEmitter<'_> {
                         None,
                         m::Op::Store {
                             arg: m::Arg::new(
-                                (llvm_type(&ty)?).clone(),
+                                (self.layouts.value_type(&ty)?).clone(),
                                 m::val((value(*written)).clone()),
                             ),
                             ptr: m::val((address).clone()),
-                            align: (alignment(&ty, self.closures)?) as u32,
+                            align: (self.layouts.alignment(&ty)?) as u32,
                         },
                     )));
                     if drop_plan::owned_sum(&ty) {
@@ -3147,7 +2878,7 @@ impl FunctionEmitter<'_> {
         if ty.is_float() {
             return self.floating_binary(operation, left, right, result);
         }
-        let operand_type = llvm_type(&ty)?;
+        let operand_type = self.layouts.value_type(&ty)?;
         let (left_text, right_text) = (value(left), value(right));
         match operation {
             BinaryOp::Add => self.checked_binary("sadd", &ty, &left_text, &right_text, result)?,
@@ -3420,7 +3151,7 @@ impl FunctionEmitter<'_> {
     fn widened_index(&mut self, index: ValueId) -> CompileResult<String> {
         match self.value_type(index)? {
             Type::U8 | Type::U16 | Type::U32 => {
-                let from = llvm_type(self.value_type(index)?)?;
+                let from = self.layouts.value_type(self.value_type(index)?)?;
                 let extended = self.temp();
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(m::name((extended).clone())),
@@ -3483,8 +3214,8 @@ impl FunctionEmitter<'_> {
         result: ValueId,
     ) -> CompileResult<()> {
         let source = self.value_type(input)?.clone();
-        let from = llvm_type(&source)?;
-        let to = llvm_type(target)?;
+        let from = self.layouts.value_type(&source)?;
+        let to = self.layouts.value_type(target)?;
         let input = value(input);
         if source.is_integer() && target.is_integer() {
             let shape = |ty: &Type| match ty {
@@ -3721,7 +3452,7 @@ impl FunctionEmitter<'_> {
                     self.event(m::Event::Instruction(m::Inst::new(
                         None,
                         m::Op::Return(Some(m::Arg::new(
-                            (llvm_type(&self.function.return_type)?).clone(),
+                            (self.layouts.value_type(&self.function.return_type)?).clone(),
                             m::local(format!("v.{}", returned.0)),
                         ))),
                     )));
@@ -3799,8 +3530,8 @@ impl FunctionEmitter<'_> {
         };
         let element = (**element).clone();
         let length = *length;
-        let llvm = llvm_type(ty)?;
-        let align = alignment(ty, self.closures)?;
+        let llvm = self.layouts.value_type(ty)?;
+        let align = self.layouts.alignment(ty)?;
         let index_value = self.widened_index(index)?;
         let valid = self.temp();
         self.event(m::Event::Instruction(m::Inst::new(
@@ -3853,11 +3584,11 @@ impl FunctionEmitter<'_> {
                 None,
                 m::Op::Store {
                     arg: m::Arg::new(
-                        (aggregate_field_type(&element)?).clone(),
+                        (self.layouts.field_type(&element)?).clone(),
                         m::val((v).clone()),
                     ),
                     ptr: m::val((address).clone()),
-                    align: (alignment(&element, self.closures)?) as u32,
+                    align: (self.layouts.alignment(&element)?) as u32,
                 },
             )));
             self.event(m::Event::Instruction(m::Inst::new(
@@ -3872,9 +3603,9 @@ impl FunctionEmitter<'_> {
             self.event(m::Event::Instruction(m::Inst::new(
                 Some(m::name((value(result)).clone())),
                 m::Op::Load {
-                    ty: (llvm_type(&element)?).clone(),
+                    ty: (self.layouts.value_type(&element)?).clone(),
                     ptr: m::val((address).clone()),
-                    align: (alignment(&element, self.closures)?) as u32,
+                    align: (self.layouts.alignment(&element)?) as u32,
                 },
             )));
         }
@@ -3914,398 +3645,6 @@ fn environment_type(id: ClosureId) -> m::Ty {
     m::Ty::Named(format!("zil_env_{}", id.0))
 }
 
-// Representation only: the caller has an immutable verified capability and
-// has already paid the complete captured/parameter type metadata inventory.
-fn qualified_capture_address(ty: &Type) -> bool {
-    matches!(ty, Type::Address { inner, .. }
-        if matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. }
-            if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))))
-}
-
-fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
-    match ty {
-        Type::BorrowedStorage { storage, .. } => llvm_type(storage),
-        Type::Registration { .. }
-        | Type::Mutex { .. }
-        | Type::MutexGuard { .. }
-        | Type::AsyncRegistration { .. }
-        | Type::Task { .. }
-        | Type::TaskI32 => Ok(m::Ty::Ptr),
-        Type::Unit => Ok("void".into()),
-        Type::Bool => Ok("i1".into()),
-        Type::I32 => Ok("i32".into()),
-        Type::I8 => Ok("i8".into()),
-        Type::I16 => Ok("i16".into()),
-        Type::Isize => Ok("i64".into()),
-        Type::I64 | Type::U64 | Type::Usize => Ok("i64".into()),
-        Type::F32 => Ok(m::Ty::F32),
-        Type::F64 => Ok(m::Ty::F64),
-        Type::U8 => Ok("i8".into()),
-        Type::U16 => Ok("i16".into()),
-        Type::U32 => Ok("i32".into()),
-        Type::ByteBuffer | Type::OwnedStore { .. } => Ok(m::Ty::Struct(vec![
-            m::Ty::Ptr,
-            m::Ty::Int(64),
-            m::Ty::Int(64),
-        ])),
-        Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok("ptr".into()),
-        Type::Array { element, length } => Ok(m::Ty::array(
-            u64::from(*length),
-            aggregate_field_type(element)?,
-        )),
-        Type::Tuple(fields) => Ok(m::Ty::Struct(
-            fields
-                .iter()
-                .map(aggregate_field_type)
-                .collect::<CompileResult<Vec<_>>>()?,
-        )),
-        Type::Record { fields, .. } | Type::Package { fields, .. } => Ok(m::Ty::Struct(
-            fields
-                .iter()
-                .map(|(_, t)| aggregate_field_type(t))
-                .collect::<CompileResult<Vec<_>>>()?,
-        )),
-        Type::Enum { .. } => enums::llvm_enum_type(ty),
-        Type::ErrorUnion { error, result } => Ok(m::Ty::Struct(vec![
-            m::Ty::Int(1),
-            aggregate_field_type(error)?,
-            aggregate_field_type(result)?,
-        ])),
-        Type::Closure(id) => Ok(environment_type(*id)),
-        Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. } => Ok("ptr".into()),
-        ty if dyn_dispatch::address(ty) || matches!(ty, Type::OwnedDyn { .. }) => {
-            Ok(dyn_dispatch::pair())
-        }
-        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Slice { .. }) => {
-            Ok(m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64)]))
-        }
-        Type::Address { inner, .. }
-            if inner.is_copy_value()
-                || ty.is_shared_sync_cell_address()
-                || matches!(inner.as_ref(), Type::Closure(_))
-                || matches!(
-                    inner.as_ref(),
-                    Type::MutexGuard { .. } | Type::OwnedDyn { .. }
-                )
-                || resource_head_address(ty)
-                || ty.is_exclusive_task_head_address()
-                || ty.is_package_address()
-                || matches!(inner.as_ref(), Type::BorrowedStorage { .. })
-                || matches!(
-                    inner.as_ref(),
-                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-                )
-                || stored_borrows::pure_storage_address(ty)
-                || stored_borrows::shared_address_array_address(ty) =>
-        {
-            Ok("ptr".into())
-        }
-        Type::Desc(payload)
-            if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer
-                || matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
-                || matches!(
-                    payload.as_ref(),
-                    Type::Registration { .. } | Type::AsyncRegistration { .. }
-                )
-                || matches!(
-                    payload.as_ref(),
-                    Type::OwnedStore { .. } | Type::Mutex { .. }
-                ) =>
-        {
-            Ok("ptr".into())
-        }
-        Type::Managed(payload)
-            if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer
-                || matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
-                || matches!(
-                    payload.as_ref(),
-                    Type::Registration { .. } | Type::AsyncRegistration { .. }
-                )
-                || matches!(
-                    payload.as_ref(),
-                    Type::OwnedStore { .. } | Type::Mutex { .. }
-                ) =>
-        {
-            llvm_type(payload)
-        }
-        _ => unsupported(format!("LLVM type {}", ty.name()), None),
-    }
-}
-fn aggregate_field_type(ty: &Type) -> CompileResult<m::Ty> {
-    if *ty == Type::Unit {
-        Ok("{}".into())
-    } else {
-        llvm_type(ty)
-    }
-}
-fn sum_capture_address(ty: &Type) -> bool {
-    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
-}
-
-/// Admit a complete direct owning Sum only when its actual finite tree contains
-/// an inline Store owner bound to the sealed resource definition. This is a
-/// machine representation check after exact VerifiedModule/LIR binding; the
-/// independent capture and debt checks remain with Verify.
-fn inline_store_sum_capture(
-    ty: &Type,
-    resources: &[ResourceDefinition],
-    limits: &zil_base::Limits,
-    work: &mut usize,
-) -> CompileResult<bool> {
-    if !drop_plan::owned_sum(ty) {
-        return Ok(false);
-    }
-    // This branch is reached only after all older capture profiles failed.
-    // Reserve the full source tree, repeated resource comparisons, name work,
-    // and machine layout before either recursive predicate runs.
-    let before = *work;
-    copy_aggregates::reserve_enum_metadata(ty, work, 0, limits)?;
-    let shape = before - *work;
-    let mut definitions = 0usize;
-    for resource in resources {
-        let before = *work;
-        copy_aggregates::reserve_enum_metadata(&resource.payload, work, 0, limits)?;
-        definitions = definitions.saturating_add(before - *work);
-        definitions = definitions.saturating_add(resource.name.len().saturating_add(1));
-    }
-    let fee = shape
-        .saturating_add(definitions)
-        .saturating_mul(shape.saturating_add(4))
-        .saturating_add(64);
-    *work = work.checked_sub(fee).ok_or_else(|| {
-        vec![Diagnostic::limit(
-            Phase::Codegen,
-            "inline Store Sum capture representation budget exceeded",
-            None,
-        )]
-    })?;
-
-    fn copy_companion(ty: &Type) -> bool {
-        match ty {
-            Type::Tuple(fields) => fields.iter().all(copy_companion),
-            Type::Record { fields, .. } => fields.iter().all(|(_, field)| copy_companion(field)),
-            Type::Array { element, .. } => copy_companion(element),
-            Type::Enum { variants, .. } => variants
-                .iter()
-                .all(|(_, fields)| fields.iter().all(copy_companion)),
-            Type::ErrorUnion { error, result } => copy_companion(error) && copy_companion(result),
-            // A retained callable relation is not a plain Copy companion.
-            Type::BorrowedFunctionPointer { .. } => false,
-            _ => ty.is_copy_value(),
-        }
-    }
-
-    fn complete(ty: &Type, resources: &[ResourceDefinition]) -> (bool, bool) {
-        match ty {
-            Type::Managed(payload) => {
-                if let Type::OwnedStore { element } = payload.as_ref() {
-                    let element_name = match element.as_ref() {
-                        Type::Record { name, .. } => name.as_str(),
-                        Type::Bool => "bool",
-                        Type::U8 => "u8",
-                        Type::U16 => "u16",
-                        Type::U32 => "u32",
-                        Type::I32 => "i32",
-                        Type::I8 => "i8",
-                        Type::I16 => "i16",
-                        Type::Isize => "isize",
-                        Type::I64 => "i64",
-                        Type::U64 => "u64",
-                        Type::Usize => "usize",
-                        Type::F32 => "f32",
-                        Type::F64 => "f64",
-                        _ => return (false, true),
-                    };
-                    let canonical = format!("@builtin:OwnedStore<{element_name}>");
-                    return (
-                        dynamic_store::inline_protocol_element(element)
-                            && resources.iter().any(|r| {
-                                r.name == canonical
-                                    && r.payload == **payload
-                                    && r.teardown.is_none()
-                            }),
-                        true,
-                    );
-                }
-                (
-                    !matches!(
-                        payload.as_ref(),
-                        Type::Registration { .. } | Type::AsyncRegistration { .. }
-                    ) && resources::supported_type(ty, resources),
-                    false,
-                )
-            }
-            Type::Package { fields, .. } => fields.iter().fold((true, false), |acc, (_, field)| {
-                let child = complete(field, resources);
-                (acc.0 && child.0, acc.1 || child.1)
-            }),
-            Type::Tuple(fields) => fields.iter().fold((true, false), |acc, field| {
-                let child = complete(field, resources);
-                (acc.0 && child.0, acc.1 || child.1)
-            }),
-            Type::Enum { variants, .. } => {
-                variants
-                    .iter()
-                    .flat_map(|(_, fields)| fields)
-                    .fold((true, false), |acc, field| {
-                        let child = complete(field, resources);
-                        (acc.0 && child.0, acc.1 || child.1)
-                    })
-            }
-            Type::ErrorUnion { error, result } => {
-                let left = complete(error, resources);
-                let right = complete(result, resources);
-                (left.0 && right.0, left.1 || right.1)
-            }
-            // Existing finite Copy fields (including Record, Array and plain
-            // function pointers) are companions, never new owning children.
-            // Address, Desc, dyn and callback containers have no such route.
-            _ => (copy_companion(ty), false),
-        }
-    }
-    let (valid, owns_store) = complete(ty, resources);
-    if valid && owns_store {
-        // The concrete closure field uses this same LLVM type. Rebuild and
-        // bound its physical layout here, including Enum active-payload space.
-        let machine = llvm_type(ty)?;
-        let _ = copy_aggregates::layout(&machine)?;
-    }
-    Ok(valid && owns_store)
-}
-fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
-    match ty {
-        Type::Unit => Ok("i8".into()),
-        _ if ty.is_copy_value()
-            || stored_borrows::pure_composite(ty)
-            || matches!(ty, Type::Closure(_) | Type::OwnedDyn { .. })
-            || ty.is_shared_sync_cell_address()
-            || qualified_capture_address(ty)
-            || sum_capture_address(ty)
-            || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value()
-                || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())
-                || matches!(inner.as_ref(), Type::Closure(_)))
-            || ty.is_package_address()
-            || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
-            || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
-            || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if matches!(payload.as_ref(),Type::Task { .. } | Type::TaskI32))
-            || matches!(ty, Type::Desc(payload) if matches!(payload.as_ref(), Type::Mutex { .. }))
-            || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
-            || packages::physical_package(ty).is_some()
-            || drop_plan::owned_sum(ty) =>
-        {
-            llvm_type(ty)
-        }
-        _ => unsupported(format!("LLVM capture field {}", ty.name()), None),
-    }
-}
-fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> CompileResult<u32> {
-    match ty {
-        Type::BorrowedStorage { storage, .. } => alignment(storage, closures),
-        Type::Unit | Type::Bool => Ok(1),
-        Type::U8 => Ok(1),
-        Type::U16 => Ok(2),
-        Type::U32 => Ok(4),
-        Type::OwnedDyn { .. }
-        | Type::ByteBuffer
-        | Type::Mutex { .. }
-        | Type::MutexGuard { .. }
-        | Type::Task { .. }
-        | Type::TaskI32
-        | Type::Registration { .. }
-        | Type::AsyncRegistration { .. }
-        | Type::OwnedStore { .. } => Ok(8),
-        Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok(8),
-        Type::I8 => Ok(1),
-        Type::I16 => Ok(2),
-        Type::Isize => Ok(8),
-        Type::I32 | Type::F32 => Ok(4),
-        Type::I64 | Type::U64 | Type::Usize | Type::F64 => Ok(8),
-        Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. } => Ok(8),
-        Type::Address { inner, .. }
-            if inner.is_address_pointee()
-                || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())
-                || ty.is_shared_sync_cell_address()
-                || matches!(inner.as_ref(), Type::Closure(_))
-                || matches!(inner.as_ref(), Type::MutexGuard { .. })
-                || resource_head_address(ty)
-                || ty.is_exclusive_task_head_address()
-                || ty.is_package_address()
-                || matches!(inner.as_ref(), Type::BorrowedStorage { .. })
-                || matches!(
-                    inner.as_ref(),
-                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-                )
-                || stored_borrows::pure_storage_address(ty)
-                || stored_borrows::shared_address_array_address(ty) =>
-        {
-            Ok(8)
-        }
-        Type::Desc(payload)
-            if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer
-                || matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
-                || matches!(
-                    payload.as_ref(),
-                    Type::Registration { .. } | Type::AsyncRegistration { .. }
-                )
-                || matches!(
-                    payload.as_ref(),
-                    Type::OwnedStore { .. } | Type::Mutex { .. }
-                ) =>
-        {
-            Ok(8)
-        }
-        Type::Managed(payload)
-            if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer
-                || matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
-                || matches!(
-                    payload.as_ref(),
-                    Type::Registration { .. } | Type::AsyncRegistration { .. }
-                )
-                || matches!(
-                    payload.as_ref(),
-                    Type::OwnedStore { .. } | Type::Mutex { .. }
-                ) =>
-        {
-            alignment(payload, closures)
-        }
-        Type::Array { element, .. } => alignment(element, closures),
-        Type::Tuple(fields) => fields
-            .iter()
-            .try_fold(1, |a, t| Ok(a.max(alignment(t, closures)?))),
-        Type::Record { fields, .. } | Type::Package { fields, .. } => fields
-            .iter()
-            .try_fold(1, |a, (_, t)| Ok(a.max(alignment(t, closures)?))),
-        Type::Enum { .. } => Ok(enums::union_layout(ty)?.align),
-        Type::ErrorUnion { error, result } => {
-            Ok(alignment(error, closures)?.max(alignment(result, closures)?))
-        }
-        Type::Closure(id) => {
-            let definition = closures.get(id).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    Phase::Codegen,
-                    "E-CODEGEN-CFG",
-                    None,
-                    "closure layout has no definition",
-                )]
-            })?;
-            definition.captures.iter().try_fold(1, |maximum, field| {
-                // Verify checked the complete inline environment DAG and depth
-                // before this recursive machine-alignment calculation.
-                // Use the same complete physical admission as environment
-                // field emission. Lifetime metadata does not change layout,
-                // and this never derives a language Copy/ownership premise.
-                capture_type(field)?;
-                let field_alignment = alignment(field, closures)?;
-                Ok(maximum.max(field_alignment))
-            })
-        }
-        _ => unsupported(format!("LLVM alignment for {}", ty.name()), None),
-    }
-}
 fn invalid<T>(code: &str, message: impl Into<String>, span: Option<Span>) -> CompileResult<T> {
     Err(vec![Diagnostic::error(Phase::Codegen, code, span, message)])
 }
@@ -4313,19 +3652,7 @@ fn unsupported<T>(message: impl Into<String>, span: Option<Span>) -> CompileResu
     Err(vec![Diagnostic::unsupported(Phase::Codegen, message, span)])
 }
 
-fn callable_parameter_type(ty: &Type, closures: &[ClosureDefinition]) -> bool {
-    let id = match ty {
-        Type::Closure(id) => id,
-        Type::Address { inner, .. } => match inner.as_ref() {
-            Type::Closure(id) => id,
-            _ => return false,
-        },
-        _ => return false,
-    };
-    closures
-        .get(id.0 as usize)
-        .is_some_and(|definition| definition.id == *id)
-}
+
 
 fn forwarded_callable_signature(function: &TypedFunction) -> bool {
     let Some(contract) = &function.callable_return_contract else {
@@ -4359,25 +3686,4 @@ fn forwarded_callable_signature(function: &TypedFunction) -> bool {
         && role.closure == contract.closure
         && role.kind == contract.kind
         && role.cleanup == CallableCleanup::Returned
-}
-
-fn callback_data_shape(ty: &Type) -> bool {
-    match ty {
-        Type::Package { fields, .. } => fields.iter().all(|(_, field)| {
-            field.is_copy_value() || matches!(field, Type::Managed(_)) || callback_data_shape(field)
-        }),
-        Type::Enum { variants, .. } => variants.iter().all(|(_, fields)| {
-            fields.iter().all(|field| {
-                field.is_copy_value()
-                    || matches!(field, Type::Managed(_))
-                    || callback_data_shape(field)
-            })
-        }),
-        Type::ErrorUnion { error, result } => [error.as_ref(), result.as_ref()].iter().all(|arm| {
-            arm.is_copy_value()
-                || matches!(arm, Type::Package { .. } | Type::Enum { .. })
-                    && callback_data_shape(arm)
-        }),
-        _ => false,
-    }
 }

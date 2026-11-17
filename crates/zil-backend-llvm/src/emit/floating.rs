@@ -16,7 +16,7 @@ impl FunctionEmitter<'_> {
         right: ValueId,
         output: ValueId,
     ) -> CompileResult<()> {
-        let ty = llvm_type(self.value_type(left)?)?;
+        let ty = self.layouts.value_type(self.value_type(left)?)?;
         let left = m::val(value(left));
         let right = m::val(value(right));
         let operation = match op {
@@ -126,8 +126,8 @@ impl FunctionEmitter<'_> {
                 Some(self.function.span),
             );
         }
-        let from = llvm_type(&source)?;
-        let to = llvm_type(target)?;
+        let from = self.layouts.value_type(&source)?;
+        let to = self.layouts.value_type(target)?;
         let input = m::val(value(input));
         let converted = if target.is_float() {
             if source.is_integer() {

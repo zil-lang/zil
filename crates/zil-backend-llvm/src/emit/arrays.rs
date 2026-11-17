@@ -3,8 +3,8 @@
 use super::*;
 
 pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
-    matches!(ty, Type::Array { element, length }
-        if *length > 0 && (packages::supported_type(element, resources) || matches!(element.as_ref(), Type::Closure(_))))
+    matches!(ty, Type::Array { element, .. }
+        if !element.is_copy_value() && drop_plan::value_type(element, resources))
 }
 
 impl FunctionEmitter<'_> {
@@ -64,7 +64,7 @@ impl FunctionEmitter<'_> {
                 Some(self.function.span),
             );
         }
-        Ok((llvm_type(ty)?, element.as_ref().clone(), *length))
+        Ok((self.layouts.value_type(ty)?, element.as_ref().clone(), *length))
     }
 
     pub(super) fn owned_array_instruction(
@@ -134,9 +134,9 @@ impl FunctionEmitter<'_> {
                     self.event(m::Event::Instruction(m::Inst::new(
                         Some(m::name((value(result(instruction)?)).clone())),
                         m::Op::Load {
-                            ty: (llvm_type(ty)?).clone(),
+                            ty: (self.layouts.value_type(ty)?).clone(),
                             ptr: m::val((pointer).clone()),
-                            align: (alignment(ty, self.closures)?) as u32,
+                            align: (self.layouts.alignment(ty)?) as u32,
                         },
                     )));
                 }
@@ -157,9 +157,9 @@ impl FunctionEmitter<'_> {
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(m::name((value(result(instruction)?)).clone())),
                     m::Op::Load {
-                        ty: (llvm_type(&element)?).clone(),
+                        ty: (self.layouts.value_type(&element)?).clone(),
                         ptr: m::val((pointer).clone()),
-                        align: (alignment(&element, self.closures)?) as u32,
+                        align: (self.layouts.alignment(&element)?) as u32,
                     },
                 )));
                 self.event(m::Event::Instruction(m::Inst::new(
@@ -199,11 +199,11 @@ impl FunctionEmitter<'_> {
                     None,
                     m::Op::Store {
                         arg: m::Arg::new(
-                            (llvm_type(&element)?).clone(),
+                            (self.layouts.value_type(&element)?).clone(),
                             m::val((value(input)).clone()),
                         ),
                         ptr: m::val((pointer).clone()),
-                        align: (alignment(&element, self.closures)?) as u32,
+                        align: (self.layouts.alignment(&element)?) as u32,
                     },
                 )));
                 self.event(m::Event::Instruction(m::Inst::new(
@@ -299,7 +299,11 @@ impl FunctionEmitter<'_> {
                 vec![]
             });
         }
-        packages::teardown_paths(element, self.resources)
+        if drop_plan::owned_sum(element)||matches!(element,Type::Package{..}|Type::BorrowedStorage{..}) {
+            return Ok(vec![(vec![],drop_plan::symbol(element))]);
+        }
+        let symbol=drop_plan::task_leaf(element,self.resources,self.machine_meter.limits()?,self.machine_meter)?;
+        Ok(symbol.into_iter().map(|symbol|(vec![],symbol)).collect())
     }
 
     fn drop_owned_array_element(

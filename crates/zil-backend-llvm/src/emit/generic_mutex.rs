@@ -2,10 +2,10 @@
 //! aligned to eight; the payload follows in the same malloc allocation.
 use super::*;
 
-fn layout(payload: &Type) -> CompileResult<m::Ty> {
+pub(super) fn layout(layouts: &LayoutContext<'_>, payload: &Type) -> CompileResult<m::Ty> {
     Ok(m::Ty::Struct(vec![
         m::Ty::array(5, m::Ty::Int(64)),
-        aggregate_field_type(payload)?,
+        layouts.field_type(payload)?,
     ]))
 }
 fn supported_payload(payload: &Type, resources: &[ResourceDefinition]) -> bool {
@@ -42,9 +42,9 @@ fn present(lir: &LirView<'_>) -> bool {
             )
         })
 }
-pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
+pub(super) fn runtime(layouts: &LayoutContext<'_>, lir: &LirView<'_>) -> CompileResult<m::Code> {
     let mut code = m::Code::new();
-    if !present(lir) {
+    if !present(lir) && !lir.resources.iter().any(|resource|matches!(resource.payload,Type::Mutex{..})) {
         return Ok(code);
     }
     if lir.target.triple != "x86_64-unknown-linux-gnu" {
@@ -84,9 +84,9 @@ pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
             let actual = existing
                 .parameters
                 .iter()
-                .map(|id| llvm_type(&existing.locals[id.0 as usize].ty))
+                .map(|id| layouts.value_type(&existing.locals[id.0 as usize].ty))
                 .collect::<CompileResult<Vec<_>>>()?;
-            if actual != parameters || llvm_type(&existing.return_type)? != result {
+            if actual != parameters || layouts.value_type(&existing.return_type)? != result {
                 return invalid(
                     "E-CODEGEN-FOREIGN",
                     format!("{name} conflicts with generic pthread ABI"),
@@ -111,7 +111,7 @@ pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
 
 impl FunctionEmitter<'_> {
     fn mutex_drop_payload(&mut self, payload: &Type, pointer: m::Val) -> CompileResult<()> {
-        let root = llvm_type(payload)?;
+        let root = self.layouts.value_type(payload)?;
         for (path, symbol) in packages::teardown_paths(payload, self.resources)? {
             let actual = if path.is_empty() {
                 pointer.clone()
@@ -151,8 +151,8 @@ impl FunctionEmitter<'_> {
             );
         }
         let result = result(instruction)?;
-        let machine = layout(&ty)?;
-        let union = llvm_type(self.value_type(result)?)?;
+        let machine = layout(self.layouts, &ty)?;
+        let union = self.layouts.value_type(self.value_type(result)?)?;
         let label = self.continuation;
         self.continuation += 1;
         let name = |part: &str| format!("mutex.{label}.{part}");
@@ -244,9 +244,9 @@ impl FunctionEmitter<'_> {
         self.event(event(
             None,
             m::Op::Store {
-                arg: m::Arg::new(llvm_type(&ty)?, m::val(value(input))),
+                arg: m::Arg::new(self.layouts.value_type(&ty)?, m::val(value(input))),
                 ptr: m::local(name("payload")),
-                align: alignment(&ty, self.closures)?,
+                align: self.layouts.alignment(&ty)?,
             },
         ));
         self.event(event(
@@ -263,16 +263,16 @@ impl FunctionEmitter<'_> {
             self.event(event(
                 Some(name("failed_payload")),
                 m::Op::Alloca {
-                    ty: llvm_type(&ty)?,
-                    align: alignment(&ty, self.closures)?,
+                    ty: self.layouts.value_type(&ty)?,
+                    align: self.layouts.alignment(&ty)?,
                 },
             ));
             self.event(event(
                 None,
                 m::Op::Store {
-                    arg: m::Arg::new(llvm_type(&ty)?, m::val(value(input))),
+                    arg: m::Arg::new(self.layouts.value_type(&ty)?, m::val(value(input))),
                     ptr: m::local(name("failed_payload")),
-                    align: alignment(&ty, self.closures)?,
+                    align: self.layouts.alignment(&ty)?,
                 },
             ));
             self.mutex_drop_payload(&ty, m::local(name("failed_payload")))?;
@@ -361,7 +361,7 @@ impl FunctionEmitter<'_> {
         self.event(event(
             Some(format!("v.{}", result(instruction)?.0)),
             m::Op::Gep {
-                ty: layout(&payload)?,
+                ty: layout(self.layouts, &payload)?,
                 ptr: m::val(head),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), 0),
@@ -529,7 +529,7 @@ impl FunctionEmitter<'_> {
             self.event(event(
                 Some(payload_ptr.clone()),
                 m::Op::Gep {
-                    ty: layout(payload)?,
+                    ty: layout(self.layouts, payload)?,
                     ptr: m::val(head.clone()),
                     indices: vec![
                         m::Arg::new(m::Ty::Int(32), 0),

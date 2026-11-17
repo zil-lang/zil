@@ -1109,9 +1109,9 @@ impl FunctionEmitter<'_> {
                 Some(i.span),
             );
         }
-        let root_type = llvm_type(physical)?;
-        let leaf_type = llvm_type(current)?;
-        let align = alignment(current, self.closures)?;
+        let root_type = self.layouts.value_type(physical)?;
+        let leaf_type = self.layouts.value_type(current)?;
+        let align = self.layouts.alignment(current)?;
         let slot = self.temp();
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name(slot.clone())),
@@ -1232,9 +1232,9 @@ impl FunctionEmitter<'_> {
                 Some(i.span),
             );
         }
-        let root_type = llvm_type(physical)?;
-        let leaf_type = llvm_type(current)?;
-        let align = alignment(current, self.closures)?;
+        let root_type = self.layouts.value_type(physical)?;
+        let leaf_type = self.layouts.value_type(current)?;
+        let align = self.layouts.alignment(current)?;
         let slot = self.temp();
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name(slot.clone())),
@@ -1300,6 +1300,9 @@ mod tests {
 
     #[test]
     fn borrowed_enum_representation_is_a_thin_pointer_slice_only() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         // Synthetic machine-layout probe only. Source/native acceptance still
         // requires a genuine immutable Verify capability and full LIR binding.
         let qualify = |payload| Type::BorrowedStorage {
@@ -1321,11 +1324,11 @@ mod tests {
         assert!(shared_pointer_enum(&thin));
         assert!(representation_type(&thin));
         assert_eq!(
-            llvm_type(&thin).unwrap(),
+            layouts.value_type(&thin).unwrap(),
             m::Ty::Struct(vec![m::Ty::Int(32), m::Ty::array(1, m::Ty::Int(64))])
         );
-        assert_eq!(alignment(&thin, &BTreeMap::new()).unwrap(), 8);
-        assert_eq!(enums::union_layout(&thin).unwrap().words, 1);
+        assert_eq!(layouts.alignment(&thin).unwrap(), 8);
+        assert_eq!(layouts.union(&thin).unwrap().words, 1);
         assert!(!representation_type(&qualify(Type::Address {
             mutable: true,
             inner: Box::new(Type::I64)
@@ -1407,6 +1410,9 @@ mod tests {
     }
     #[test]
     fn index_root_address_is_pointer_not_snapshot_or_embedded_value() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         // Synthetic representation probe only; not source/loan authority.
         let qualify = |storage| Type::BorrowedStorage {
             storage: Box::new(storage),
@@ -1431,17 +1437,17 @@ mod tests {
         };
         assert!(pure_storage_address(&root));
         assert!(!pure_composite(&root));
-        assert_eq!(llvm_type(&root).unwrap(), m::Ty::Ptr);
-        assert_eq!(alignment(&root, &BTreeMap::new()).unwrap(), 8);
+        assert_eq!(layouts.value_type(&root).unwrap(), m::Ty::Ptr);
+        assert_eq!(layouts.alignment(&root).unwrap(), 8);
         let mut work = usize::MAX;
         assert!(
-            copy_aggregates::classify(&root, &mut work, &Limits::default())
+            copy_aggregates::classify(layouts, &root, &mut work, &Limits::default())
                 .unwrap()
                 .is_none(),
             "pointer itself must not become a pointee-sized snapshot"
         );
         assert!(
-            copy_aggregates::classify(&pointee, &mut work, &Limits::default())
+            copy_aggregates::classify(layouts, &pointee, &mut work, &Limits::default())
                 .unwrap()
                 .is_some(),
             "ReadAddress result retains the existing large snapshot"
@@ -1457,10 +1463,10 @@ mod tests {
         // representation; it still is not pure storage or a value snapshot.
         assert!(!pure_storage_address(&shared_array_root));
         assert!(shared_address_array_address(&shared_array_root));
-        assert_eq!(llvm_type(&shared_array_root).unwrap(), m::Ty::Ptr);
-        assert_eq!(alignment(&shared_array_root, &BTreeMap::new()).unwrap(), 8);
+        assert_eq!(layouts.value_type(&shared_array_root).unwrap(), m::Ty::Ptr);
+        assert_eq!(layouts.alignment(&shared_array_root).unwrap(), 8);
         assert!(
-            copy_aggregates::classify(&shared_array_root, &mut work, &Limits::default())
+            copy_aggregates::classify(layouts, &shared_array_root, &mut work, &Limits::default())
                 .unwrap()
                 .is_none()
         );
@@ -1498,13 +1504,18 @@ mod tests {
         ] {
             assert!(!shared_address_array_address(&bad));
             assert!(!pure_storage_address(&bad));
-            assert!(llvm_type(&bad).is_err());
-            assert!(alignment(&bad, &BTreeMap::new()).is_err());
+            // Physical pointer layout grants none of the rejected snapshot
+            // or borrow capabilities checked above.
+            assert_eq!(layouts.value_type(&bad).unwrap(),m::Ty::Ptr);
+            assert_eq!(layouts.alignment(&bad).unwrap(),8);
         }
     }
 
     #[test]
     fn callable_relation_rows_paths_and_pointer_layout_are_metered() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         use zil_ir::{
             LifeTypeProjection, SignatureLifeClass, SignatureLifeClassBinding, StorageBase,
             StorageBinder,
@@ -1543,7 +1554,7 @@ mod tests {
             assert_eq!(exact, 0);
             let copied = ty.clone();
             assert_eq!(copied, ty);
-            assert_eq!(llvm_type(&ty).unwrap(), m::Ty::Ptr);
+            assert_eq!(layouts.value_type(&ty).unwrap(), m::Ty::Ptr);
             let mut short = needed - 1;
             assert_eq!(
                 type_work(&ty, &mut short, &limits, 0).unwrap_err()[0].category,
@@ -1559,7 +1570,7 @@ mod tests {
                 };
                 life.classes[0].binder = StorageBinder::Fixed(0);
                 assert_ne!(changed.fingerprint(), ty.fingerprint());
-                assert_eq!(llvm_type(&changed).unwrap(), m::Ty::Ptr);
+                assert_eq!(layouts.value_type(&changed).unwrap(), m::Ty::Ptr);
             }
             growth.push(needed);
             eprintln!("callable40 metadata rows={rows} path={path} Codegen N={needed}");
@@ -1787,6 +1798,9 @@ mod tests {
 
     #[test]
     fn snapshot_enum_canonical_store_is_reserved_once() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         // Synthetic physical budgeting probe, not a verified source program.
         let mut module = fixture::module();
         module.functions.truncate(1);
@@ -1841,7 +1855,7 @@ mod tests {
             layouts: std::borrow::Cow::Borrowed(&[]),
         };
         let limits = Limits::default();
-        let planned = copy_aggregates::plan(&view, &limits, usize::MAX).unwrap();
+        let planned = copy_aggregates::plan(layouts, &view, &limits, usize::MAX).unwrap();
         let snapshot = &planned.values[&module.functions[0].id];
         assert!(snapshot.contains_key(&ValueId(1)));
         assert!(!snapshot.contains_key(&ValueId(0)));
@@ -2003,7 +2017,7 @@ mod tests {
         let run = |n, raw: &LirModule| -> CompileResult<usize> {
             let mut left = n;
             reserve_binding(verified.module(), verified.limits(), &mut left)?;
-            bind_lir(&verified, &raw.as_view(), EntryPoint::None, &mut left)?;
+            bind_exact(&verified, &raw.as_view(), &mut left)?;
             Ok(left)
         };
         assert_eq!(run(needed, &lir).unwrap(), 0);

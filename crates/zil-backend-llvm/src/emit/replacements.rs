@@ -214,9 +214,9 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             None,
             m::Op::Store {
-                arg: m::Arg::new(llvm_type(&ty)?, m::val(value(input))),
+                arg: m::Arg::new(self.layouts.value_type(&ty)?, m::val(value(input))),
                 ptr: m::val(pointer),
-                align: alignment(&ty, self.closures)?,
+                align: self.layouts.alignment(&ty)?,
             },
         )));
         Ok(())

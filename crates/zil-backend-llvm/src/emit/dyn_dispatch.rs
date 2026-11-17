@@ -53,7 +53,7 @@ fn call(name: Option<String>, result: m::Ty, callee: m::Val, args: Vec<m::Arg>) 
     )
 }
 
-pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
+pub(super) fn runtime(layouts: &LayoutContext<'_>, lir: &LirView<'_>) -> CompileResult<m::Code> {
     let owning_capture = lir.closures.iter().any(|c| {
         c.captures
             .iter()
@@ -109,9 +109,9 @@ pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
             let actual = existing
                 .parameters
                 .iter()
-                .map(|id| llvm_type(&existing.locals[id.0 as usize].ty))
+                .map(|id| layouts.value_type(&existing.locals[id.0 as usize].ty))
                 .collect::<CompileResult<Vec<_>>>()?;
-            if actual != vec![input.clone()] || llvm_type(&existing.return_type)? != output {
+            if actual != vec![input.clone()] || layouts.value_type(&existing.return_type)? != output {
                 return invalid(
                     "E-CODEGEN-FOREIGN",
                     format!("{name} conflicts with owned dyn Heap ABI"),
@@ -359,7 +359,7 @@ pub(super) fn reserve(
     Ok(())
 }
 
-pub(super) fn tables(
+pub(super) fn tables(layouts: &LayoutContext<'_>,
     module: &TypedModule,
     plans: &large_copy_abi::Plans,
     resources: &[ResourceDefinition],
@@ -412,7 +412,7 @@ pub(super) fn tables(
                     code.push(inst(
                         Some(name.clone()),
                         m::Op::Gep {
-                            ty: llvm_type(&table.self_type)?,
+                            ty: layouts.value_type(&table.self_type)?,
                             ptr: m::local("payload".into()),
                             indices,
                         },
@@ -526,8 +526,8 @@ impl FunctionEmitter<'_> {
                 self.text.push(inst(
                     Some(format!("dyn.owner.scratch.{}", result.0)),
                     m::Op::Alloca {
-                        ty: llvm_type(ty)?,
-                        align: alignment(ty, self.closures)?,
+                        ty: self.layouts.value_type(ty)?,
+                        align: self.layouts.alignment(ty)?,
                     },
                 ));
             }
@@ -562,8 +562,8 @@ impl FunctionEmitter<'_> {
             );
         }
         let result = result(instruction)?;
-        let union = llvm_type(self.value_type(result)?)?;
-        let concrete = llvm_type(&actual)?;
+        let union = self.layouts.value_type(self.value_type(result)?)?;
+        let concrete = self.layouts.value_type(&actual)?;
         let label = self.continuation;
         self.continuation += 1;
         let name = |part: &str| format!("dyn.owner.{label}.{part}");
@@ -611,7 +611,7 @@ impl FunctionEmitter<'_> {
             m::Op::Store {
                 arg: m::Arg::new(concrete.clone(), m::val(value(source))),
                 ptr: m::local(name("payload")),
-                align: alignment(&actual, self.closures)?,
+                align: self.layouts.alignment(&actual)?,
             },
         ));
         self.event(inst(
@@ -645,7 +645,7 @@ impl FunctionEmitter<'_> {
             m::Op::Store {
                 arg: m::Arg::new(concrete, m::val(value(source))),
                 ptr: m::local(format!("dyn.owner.scratch.{}", result.0)),
-                align: alignment(&actual, self.closures)?,
+                align: self.layouts.alignment(&actual)?,
             },
         ));
         self.event(call(
@@ -865,7 +865,7 @@ impl FunctionEmitter<'_> {
         let return_type = if memory_result {
             m::Ty::Void
         } else {
-            llvm_type(&signature.result)?
+            self.layouts.value_type(&signature.result)?
         };
         let environment = self.temp();
         let table = self.temp();
@@ -910,7 +910,7 @@ impl FunctionEmitter<'_> {
                 args.push(m::Arg::new(m::Ty::Ptr, copy_aggregates::pointer(*argument)));
             } else if *ty != Type::Unit {
                 args.push(m::Arg::new(
-                    llvm_type(ty)?,
+                    self.layouts.value_type(ty)?,
                     m::local(format!("v.{}", argument.0)),
                 ));
             }

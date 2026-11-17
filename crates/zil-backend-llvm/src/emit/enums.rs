@@ -2,63 +2,6 @@
 //! zero; recursive scalar stores preserve padding and bool's spare bits.
 use super::*;
 
-#[derive(Clone, Copy)]
-struct Layout {
-    size: u64,
-    align: u32,
-}
-#[derive(Clone, Copy)]
-pub(super) struct UnionLayout {
-    pub words: u64,
-    pub word_align: u32,
-    pub align: u32,
-}
-fn overflow<T>() -> CompileResult<T> {
-    Err(vec![Diagnostic::limit(
-        Phase::Codegen,
-        "enum physical layout exceeds target address range",
-        None,
-    )])
-}
-fn rounded(size: u64, align: u32) -> CompileResult<u64> {
-    size.checked_add(u64::from(align) - 1)
-        .map(|n| n / u64::from(align) * u64::from(align))
-        .filter(|n| *n <= i64::MAX as u64)
-        .ok_or_else(|| {
-            vec![Diagnostic::limit(
-                Phase::Codegen,
-                "enum layout size overflow",
-                None,
-            )]
-        })
-}
-fn fields_layout<'a>(fields: impl IntoIterator<Item = &'a Type>) -> CompileResult<Layout> {
-    fields_layout_with_offsets(fields, |_| {})
-}
-fn fields_layout_with_offsets<'a>(
-    fields: impl IntoIterator<Item = &'a Type>,
-    mut record_offset: impl FnMut(u64),
-) -> CompileResult<Layout> {
-    let mut result = Layout { size: 0, align: 1 };
-    for field in fields {
-        let layout = physical_layout(field)?;
-        result.align = result.align.max(layout.align);
-        let offset = rounded(result.size, layout.align)?;
-        record_offset(offset);
-        result.size = offset
-            .checked_add(layout.size)
-            .filter(|n| *n <= i64::MAX as u64)
-            .ok_or_else(|| {
-                vec![Diagnostic::limit(
-                    Phase::Codegen,
-                    "enum payload size overflow",
-                    None,
-                )]
-            })?;
-    }
-    result.size = rounded(result.size, result.align)?;
-    Ok(result)
-}
 /// Borrow only the machine storage view. The verified function/value types
 /// retain their complete qualified metadata throughout lowering.
 pub(super) fn storage_shape(ty: &Type) -> &Type {
@@ -67,105 +10,7 @@ pub(super) fn storage_shape(ty: &Type) -> &Type {
         _ => ty,
     }
 }
-fn physical_layout(ty: &Type) -> CompileResult<Layout> {
-    Ok(match ty {
-        Type::BorrowedStorage { storage, .. } => physical_layout(storage)?,
-        Type::Unit => Layout { size: 0, align: 1 },
-        Type::Bool | Type::U8 => Layout { size: 1, align: 1 },
-        Type::U16 => Layout { size: 2, align: 2 },
-        Type::U32 => Layout { size: 4, align: 4 },
-        Type::I8 => Layout { size: 1, align: 1 },
-        Type::I16 => Layout { size: 2, align: 2 },
-        Type::Isize => Layout { size: 8, align: 8 },
-        Type::I32 | Type::F32 => Layout { size: 4, align: 4 },
-        Type::I64
-        | Type::U64
-        | Type::Usize
-        | Type::F64
-        | Type::FunctionPointer { .. }
-        | Type::BorrowedFunctionPointer { .. }
-        | Type::ForeignHandle
-        | Type::CWideString
-        | Type::ForeignCallback { .. } => Layout { size: 8, align: 8 },
-        ty if dyn_dispatch::address(ty) || matches!(ty, Type::OwnedDyn { .. }) => {
-            Layout { size: 16, align: 8 }
-        }
-        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Slice { .. }) => {
-            Layout { size: 16, align: 8 }
-        }
-        Type::Address { inner, .. }
-            if inner.is_copy_value()
-                || matches!(inner.as_ref(), Type::Closure(_))
-                || resource_head_address(ty)
-                || ty.is_exclusive_task_head_address()
-                || ty.is_package_address()
-                || stored_borrows::pure_storage_address(ty)
-                || stored_borrows::shared_address_array_address(ty) =>
-        {
-            Layout { size: 8, align: 8 }
-        }
-        Type::Desc(payload)
-            if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
-                || payload.as_ref() == &Type::ByteBuffer
-                || matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
-                || matches!(
-                    payload.as_ref(),
-                    Type::Registration { .. } | Type::AsyncRegistration { .. }
-                )
-                || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
-        {
-            Layout { size: 8, align: 8 }
-        }
-        Type::Tuple(fields) => fields_layout(fields)?,
-        Type::Record { fields, .. } | Type::Package { fields, .. } => {
-            fields_layout(fields.iter().map(|(_, ty)| ty))?
-        }
-        Type::Managed(payload) => physical_layout(payload)?,
-        Type::Registration { .. }
-        | Type::AsyncRegistration { .. }
-        | Type::Task { .. }
-        | Type::TaskI32 => Layout { size: 8, align: 8 },
-        Type::ByteBuffer | Type::OwnedStore { .. } => Layout { size: 24, align: 8 },
-        Type::ErrorUnion { error, result } => {
-            fields_layout([&Type::Bool, error.as_ref(), result.as_ref()])?
-        }
-        Type::Array { element, length } => {
-            let element = physical_layout(element)?;
-            let Some(size) = element
-                .size
-                .checked_mul(u64::from(*length))
-                .filter(|n| *n <= i64::MAX as u64)
-            else {
-                return overflow();
-            };
-            Layout {
-                size,
-                align: element.align,
-            }
-        }
-        Type::Enum { .. } => {
-            let layout = union_layout(ty)?;
-            let payload = layout
-                .words
-                .checked_mul(u64::from(layout.word_align))
-                .ok_or_else(|| {
-                    vec![Diagnostic::limit(
-                        Phase::Codegen,
-                        "enum payload size overflow",
-                        None,
-                    )]
-                })?;
-            let Some(size) = rounded(4, layout.word_align)?.checked_add(payload) else {
-                return overflow();
-            };
-            Layout {
-                size: rounded(size, layout.align)?,
-                align: layout.align,
-            }
-        }
-        _ => return unsupported("non-Copy enum payload physical layout", None),
-    })
-}
+
 /// Read the existing x64 LLVM value layout of a complete, driver-checked shape.
 /// This grants no nominal, visibility, ownership or address permission. Closures
 /// need an environment table and unresolved/opaque types must be resolved first.
@@ -209,14 +54,9 @@ pub fn ct_layout_of_checked_type(
     offsets
         .try_reserve_exact(fields)
         .map_err(|_| ct_layout_limit())?;
-    let layout = match ty {
-        Type::Tuple(fields) => fields_layout_with_offsets(fields, |n| offsets.push(n))?,
-        Type::Record { fields, .. } | Type::Package { fields, .. } => {
-            fields_layout_with_offsets(fields.iter().map(|(_, ty)| ty), |n| offsets.push(n))?
-        }
-        _ => physical_layout(ty)?,
-    };
-    Ok((layout.size, u64::from(layout.align), offsets))
+    let recipe=layout::checked_structural(ty,target,limits,&mut *walk.charge)?;
+    if fields!=0{offsets.extend(recipe.fields.iter().map(|field|field.offset));}
+    Ok((recipe.size, u64::from(recipe.align), offsets))
 }
 
 fn ct_layout_limit() -> Vec<Diagnostic> {
@@ -398,29 +238,12 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
     }
 }
 
-pub(super) fn union_layout(ty: &Type) -> CompileResult<UnionLayout> {
-    let Type::Enum { variants, .. } = storage_shape(ty) else {
-        return unsupported("union layout needs enum type", None);
-    };
-    let mut bytes = 0;
-    let mut align = 1;
-    for (_, fields) in variants {
-        let layout = fields_layout(fields)?;
-        bytes = bytes.max(layout.size);
-        align = align.max(layout.align);
-    }
-    Ok(UnionLayout {
-        words: rounded(bytes, align)? / u64::from(align),
-        word_align: align,
-        align: align.max(4),
-    })
-}
-pub(super) fn llvm_enum_type(ty: &Type) -> CompileResult<m::Ty> {
-    let layout = union_layout(ty)?;
-    Ok(m::Ty::Struct(vec![
-        m::Ty::Int(32),
-        m::Ty::array(layout.words, m::Ty::Int(layout.word_align * 8)),
-    ]))
+
+
+
+pub(super) fn zero_declaration()->m::Event {
+    m::Event::Declare(m::Function{name:"llvm.memset.p0.i64".into(),linkage:m::Linkage::External,
+        signature:m::Signature::new(m::Ty::Void,vec![m::Param::unnamed(m::Ty::Ptr),m::Param::unnamed(m::Ty::Int(8)),m::Param::unnamed(m::Ty::Int(64)),m::Param::unnamed(m::Ty::Int(1))]),attrs:vec![],blocks:None})
 }
 
 impl FunctionEmitter<'_> {
@@ -448,8 +271,8 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             Some(format!("enum.slot.{}", result.0)),
             m::Op::Alloca {
-                ty: (llvm_type(ty)?).clone(),
-                align: (union_layout(ty)?.align) as u32,
+                ty: (self.layouts.value_type(ty)?).clone(),
+                align: (self.layouts.union(ty)?.align) as u32,
             },
         )));
         Ok(())
@@ -466,24 +289,17 @@ impl FunctionEmitter<'_> {
             return unsupported("verified variant lost enum type", Some(instruction.span));
         };
         let payload = Type::Tuple(variants[variant as usize].1.clone());
-        let llvm = llvm_type(&ty)?;
-        let layout = union_layout(&ty)?;
+        let llvm = self.layouts.value_type(&ty)?;
+        let layout = self.layouts.union(&ty)?;
         let memory = self.copy_values.contains_key(&result);
         let slot = if memory {
-            self.copy_zero(result);
             format!("%copy.value.{}", result.0)
         } else {
             let slot = format!("%enum.slot.{}", result.0);
-            self.event(m::Event::Instruction(m::Inst::new(
-                None,
-                m::Op::Store {
-                    arg: m::Arg::new((llvm).clone(), m::Val::Zero),
-                    ptr: m::val((slot).clone()),
-                    align: (layout.align) as u32,
-                },
-            )));
             slot
         };
+        let recipe=self.layouts.recipe(&ty,layout::Position::Field)?;
+        self.zero_payload(&recipe,&slot)?;
         let tag = self.temp();
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((tag).clone())),
@@ -525,7 +341,7 @@ impl FunctionEmitter<'_> {
             self.event(m::Event::Instruction(m::Inst::new(
                 Some(m::name((address).clone())),
                 m::Op::Gep {
-                    ty: (llvm_type(&payload)?).clone(),
+                    ty: (self.layouts.value_type(&payload)?).clone(),
                     ptr: m::val((base).clone()),
                     indices: vec![
                         m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
@@ -573,7 +389,7 @@ impl FunctionEmitter<'_> {
             Some(m::name((value(result(instruction)?)).clone())),
             m::Op::Extract {
                 arg: m::Arg::new(
-                    (llvm_type(&self.function.values[source.0 as usize])?).clone(),
+                    (self.layouts.value_type(&self.function.values[source.0 as usize])?).clone(),
                     m::val((value(source)).clone()),
                 ),
                 index: 0,
@@ -594,7 +410,7 @@ impl FunctionEmitter<'_> {
             return unsupported("verified projection lost enum type", Some(instruction.span));
         };
         let fields = &variants[variant as usize].1;
-        let llvm = llvm_type(&ty)?;
+        let llvm = self.layouts.value_type(&ty)?;
         let tag = self.temp();
         let memory = self.copy_values.contains_key(&source);
         let tag_read = if memory {
@@ -637,7 +453,7 @@ impl FunctionEmitter<'_> {
                 m::Op::Store {
                     arg: m::Arg::new((llvm).clone(), m::val((value(source)).clone())),
                     ptr: m::val((slot).clone()),
-                    align: (union_layout(&ty)?.align) as u32,
+                    align: (self.layouts.union(&ty)?.align) as u32,
                 },
             )));
             slot
@@ -658,7 +474,7 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((address).clone())),
             m::Op::Gep {
-                ty: (llvm_type(&Type::Tuple(fields.clone()))?).clone(),
+                ty: (self.layouts.value_type(&Type::Tuple(fields.clone()))?).clone(),
                 ptr: m::val((base).clone()),
                 indices: vec![
                     m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
@@ -669,251 +485,92 @@ impl FunctionEmitter<'_> {
         self.copy_read(result, m::val(address))?;
         Ok(())
     }
-    fn store_payload(&mut self, ty: &Type, source: &str, address: &str) -> CompileResult<()> {
-        match ty {
-            Type::BorrowedStorage { storage, .. } => {
-                self.store_payload(storage, source, address)?
-            }
-            Type::Unit => {}
-            Type::Bool => {
-                let widened = self.temp();
-                self.event(m::Event::Instruction(m::Inst::new(
-                    Some(m::name((widened).clone())),
-                    m::Op::Cast {
-                        opcode: "zext".into(),
-                        arg: m::Arg::new(m::Ty::Int(1), m::val(source)),
-                        to: m::Ty::Int(8),
-                    },
-                )));
-                self.event(m::Event::Instruction(m::Inst::new(
-                    None,
-                    m::Op::Store {
-                        arg: m::Arg::new(m::Ty::Int(8), m::val((widened).clone())),
-                        ptr: m::val(address),
-                        align: 1,
-                    },
-                )));
-            }
-            Type::Registration { .. }
-            | Type::Task { .. }
-            | Type::TaskI32
-            | Type::U8
-            | Type::U16
-            | Type::U32
-            | Type::I32
-            | Type::I8
-            | Type::I16
-            | Type::Isize
-            | Type::I64
-            | Type::F32
-            | Type::F64
-            | Type::U64
-            | Type::Usize
-            | Type::FunctionPointer { .. }
-            | Type::BorrowedFunctionPointer { .. }
-            | Type::ForeignHandle
-            | Type::CWideString
-            | Type::ForeignCallback { .. } => self.event(m::Event::Instruction(m::Inst::new(
-                None,
-                m::Op::Store {
-                    arg: m::Arg::new((llvm_type(ty)?).clone(), m::val(source)),
-                    ptr: m::val(address),
-                    align: (physical_layout(ty)?.align) as u32,
-                },
-            ))),
-            Type::Address {
-                mutable: false,
-                inner,
-            } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Package { .. }) => {
-                self.event(m::Event::Instruction(m::Inst::new(
-                    None,
-                    m::Op::Store {
-                        arg: m::Arg::new(llvm_type(ty)?, m::val(source)),
-                        ptr: m::val(address),
-                        align: physical_layout(ty)?.align,
-                    },
-                )));
-            }
-            Type::Managed(payload) => self.store_payload(payload, source, address)?,
-            Type::ByteBuffer | Type::OwnedStore { .. } => {
-                let llvm = llvm_type(ty)?;
-                for (index, field_ty) in [m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]
-                    .into_iter()
-                    .enumerate()
-                {
-                    let projected = self.temp();
-                    let target = self.temp();
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name(projected.clone())),
-                        m::Op::Extract {
-                            arg: m::Arg::new(llvm.clone(), m::val(source)),
-                            index: index as u32,
-                        },
-                    )));
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name(target.clone())),
-                        m::Op::Gep {
-                            ty: llvm.clone(),
-                            ptr: m::val(address),
-                            indices: vec![
-                                m::Arg::new(m::Ty::Int(32), 0),
-                                m::Arg::new(m::Ty::Int(32), index as u32),
-                            ],
-                        },
-                    )));
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        None,
-                        m::Op::Store {
-                            arg: m::Arg::new(field_ty, m::val(projected)),
-                            ptr: m::val(target),
-                            align: 8,
-                        },
-                    )));
+    /// A source value may contain undefined inactive fields or struct padding.
+    /// Only active fields are copied into the already-zeroed payload words.
+    /// The recipe is shared with sizing, capture flags, GEP and drop planning.
+    fn store_payload(&mut self,ty:&Type,source:&str,address:&str)->CompileResult<()> {
+        let recipe=self.layouts.recipe(ty,layout::Position::Field)?;
+        self.store_recipe(&recipe,source,address)
+    }
+    fn payload_field(&mut self,machine:&m::Ty,address:&str,index:u32)->String {
+        let out=self.temp();
+        self.event(m::Event::Instruction(m::Inst::new(Some(m::name(out.clone())),m::Op::Gep{
+            ty:machine.clone(),ptr:m::val(address),indices:vec![m::Arg::new(m::Ty::Int(32),0),m::Arg::new(m::Ty::Int(32),index)]
+        })));out
+    }
+    fn payload_extract(&mut self,machine:&m::Ty,source:&str,index:u32)->String {
+        let out=self.temp();self.event(m::Event::Instruction(m::Inst::new(Some(m::name(out.clone())),m::Op::Extract{arg:m::Arg::new(machine.clone(),m::val(source)),index})));out
+    }
+    fn payload_scratch(&mut self,recipe:&layout::Recipe)->CompileResult<String> {
+        // Place scratch in the real entry block, even when the triggering
+        // operation lives in a loop. No iteration grows the native stack.
+        self.layouts.meter().spend(self.text.0.len().saturating_add(1))?;
+        let out=self.temp();let at=self.text.0.iter().position(|event|matches!(event,m::Event::Label(name)if name=="entry")).ok_or_else(||vec![Diagnostic::error(Phase::Codegen,"E-CODEGEN-CFG",None,"payload scratch has no actual entry block")])?+1;
+        self.text.0.insert(at,m::Event::Instruction(m::Inst::new(Some(m::name(out.clone())),m::Op::Alloca{ty:recipe.machine.clone(),align:recipe.align})));Ok(out)
+    }
+    fn zero_payload(&mut self,recipe:&layout::Recipe,address:&str)->CompileResult<()> {
+        self.layouts.meter().spend(8)?;
+        self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Call{result:m::Ty::Void,result_attrs:vec![],callee:m::global("llvm.memset.p0.i64".into()),args:vec![m::Arg::new(m::Ty::Ptr,m::val(address)),m::Arg::new(m::Ty::Int(8),0),m::Arg::new(m::Ty::Int(64),recipe.size),m::Arg::new(m::Ty::Int(1),false)],vararg:None})));Ok(())
+    }
+    fn store_recipe(&mut self,recipe:&layout::Recipe,source:&str,address:&str)->CompileResult<()> {
+        self.layouts.meter().spend(4)?;
+        if recipe.size==0{return Ok(());}
+        let machine=&recipe.machine;
+        if let Some(enumeration)=&recipe.enumeration {
+            let scratch=self.payload_scratch(recipe)?;
+            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Store{arg:m::Arg::new(machine.clone(),m::val(source)),ptr:m::val(&scratch),align:recipe.align})));
+            self.zero_payload(recipe,address)?;
+            let tag=self.payload_extract(machine,source,0);let tag_address=self.payload_field(machine,address,0);
+            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Store{arg:m::Arg::new(m::Ty::Int(32),m::val(&tag)),ptr:m::val(tag_address),align:4})));
+            let from=self.payload_field(machine,&scratch,1);let to=self.payload_field(machine,address,1);
+            let id=self.continuation;self.continuation+=1;let done=format!("payload.done.{id}");
+            for(index,variant)in enumeration.variants.iter().enumerate() {
+                self.layouts.meter().spend(variant.fields.len().saturating_add(8))?;
+                let matched=self.temp();let yes=format!("payload.case.{id}.{index}");let no=format!("payload.next.{id}.{index}");
+                self.event(m::Event::Instruction(m::Inst::new(Some(m::name(matched.clone())),m::Op::Compare{predicate:"eq".into(),ty:m::Ty::Int(32),left:m::val(&tag),right:m::val(index as u32)})));
+                self.event(m::Event::Instruction(m::Inst::new(None,m::Op::CondBranch{condition:m::val(matched),yes:yes.clone(),no:no.clone()})));
+                self.event(m::Event::Label(yes));
+                let payload=m::Ty::Struct(variant.fields.iter().map(|field|field.recipe.machine.clone()).collect());
+                for field in &variant.fields {
+                    if field.recipe.size==0{continue;}
+                    let source_address=self.payload_field(&payload,&from,field.index);let target_address=self.payload_field(&payload,&to,field.index);let loaded=self.temp();
+                    self.event(m::Event::Instruction(m::Inst::new(Some(m::name(loaded.clone())),m::Op::Load{ty:field.recipe.machine.clone(),ptr:m::val(source_address),align:field.recipe.align})));
+                    self.store_recipe(&field.recipe,&loaded,&target_address)?;
                 }
+                self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Branch(done.clone()))));self.event(m::Event::Label(no));
             }
-            Type::Enum { .. } => {
-                let llvm = llvm_type(ty)?;
-                let layout = union_layout(ty)?;
-                let tag = self.temp();
-                let tag_address = self.temp();
-                self.event(m::Event::Instruction(m::Inst::new(
-                    Some(m::name((tag).clone())),
-                    m::Op::Extract {
-                        arg: m::Arg::new((llvm).clone(), m::val(source)),
-                        index: 0,
-                    },
-                )));
-                self.event(m::Event::Instruction(m::Inst::new(
-                    Some(m::name((tag_address).clone())),
-                    m::Op::Gep {
-                        ty: (llvm).clone(),
-                        ptr: m::val(address),
-                        indices: vec![
-                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
-                            m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
-                        ],
-                    },
-                )));
-                self.event(m::Event::Instruction(m::Inst::new(
-                    None,
-                    m::Op::Store {
-                        arg: m::Arg::new(m::Ty::Int(32), m::val((tag).clone())),
-                        ptr: m::val((tag_address).clone()),
-                        align: 4,
-                    },
-                )));
-                if layout.words != 0 {
-                    let payload = self.temp();
-                    let payload_address = self.temp();
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name((payload).clone())),
-                        m::Op::Extract {
-                            arg: m::Arg::new((llvm).clone(), m::val(source)),
-                            index: 1,
-                        },
-                    )));
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name((payload_address).clone())),
-                        m::Op::Gep {
-                            ty: (llvm).clone(),
-                            ptr: m::val(address),
-                            indices: vec![
-                                m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
-                                m::Arg::new(m::Ty::Int(32), m::Val::Int(1)),
-                            ],
-                        },
-                    )));
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        None,
-                        m::Op::Store {
-                            arg: m::Arg::new(
-                                m::Ty::array(
-                                    (layout.words) as u64,
-                                    m::Ty::Int((layout.word_align * 8) as u32),
-                                ),
-                                m::val((payload).clone()),
-                            ),
-                            ptr: m::val((payload_address).clone()),
-                            align: (layout.word_align) as u32,
-                        },
-                    )));
-                }
+            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Call{result:m::Ty::Void,result_attrs:vec![],callee:m::global("llvm.trap".into()),args:vec![],vararg:None})));
+            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Unreachable)));self.event(m::Event::Label(done));return Ok(());
+        }
+        if recipe.error_union {
+            self.zero_payload(recipe,address)?;
+            let tag=self.payload_extract(machine,source,0);let target=self.payload_field(machine,address,0);self.store_recipe(&recipe.fields[0].recipe,&tag,&target)?;
+            let id=self.continuation;self.continuation+=1;let yes=format!("payload.error.{id}");let no=format!("payload.ok.{id}");let done=format!("payload.join.{id}");
+            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::CondBranch{condition:m::val(tag),yes:yes.clone(),no:no.clone()})));
+            for(index,label)in [(1,yes),(2,no)] {
+                self.event(m::Event::Label(label));let field=&recipe.fields[index];if field.recipe.size!=0 {let value=self.payload_extract(machine,source,index as u32);let target=self.payload_field(machine,address,index as u32);self.store_recipe(&field.recipe,&value,&target)?;}
+                self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Branch(done.clone()))));
             }
-            Type::ErrorUnion { error, result } => {
-                let llvm = llvm_type(ty)?;
-                for (index, field) in [&Type::Bool, error.as_ref(), result.as_ref()]
-                    .into_iter()
-                    .enumerate()
-                {
-                    if *field == Type::Unit {
-                        continue;
-                    }
-                    let projected = self.temp();
-                    let field_address = self.temp();
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name((projected).clone())),
-                        m::Op::Extract {
-                            arg: m::Arg::new((llvm).clone(), m::val(source)),
-                            index: (index) as u32,
-                        },
-                    )));
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name((field_address).clone())),
-                        m::Op::Gep {
-                            ty: (llvm).clone(),
-                            ptr: m::val(address),
-                            indices: vec![
-                                m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
-                                m::Arg::new(m::Ty::Int(32), m::val(index)),
-                            ],
-                        },
-                    )));
-                    self.store_payload(field, &projected, &field_address)?;
-                }
+            self.event(m::Event::Label(done));return Ok(());
+        }
+        if let m::Ty::Array(length,_)=machine {
+            self.layouts.meter().spend(usize::try_from(*length).unwrap_or(usize::MAX).saturating_mul(8))?;
+            let child=&recipe.fields[0].recipe;
+            for index in 0..*length {
+                let index=u32::try_from(index).map_err(|_|vec![Diagnostic::limit(Phase::Codegen,"array payload index exceeds machine extract range",None)])?;
+                let value=self.payload_extract(machine,source,index);let target=self.payload_field(machine,address,index);self.store_recipe(child,&value,&target)?;
             }
-            _ => {
-                let fields = match ty {
-                    Type::Package { fields, .. } => Some(fields.iter().map(|(_, t)| t).collect()),
-                    _ => ty.aggregate_fields(),
-                }
-                .ok_or_else(|| {
-                    vec![Diagnostic::unsupported(
-                        Phase::Codegen,
-                        "non-Copy enum field store",
-                        None,
-                    )]
-                })?;
-                let llvm = llvm_type(ty)?;
-                for (index, field) in fields.iter().enumerate() {
-                    if **field == Type::Unit {
-                        continue;
-                    }
-                    let projected = self.temp();
-                    let field_address = self.temp();
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name((projected).clone())),
-                        m::Op::Extract {
-                            arg: m::Arg::new((llvm).clone(), m::val(source)),
-                            index: (index) as u32,
-                        },
-                    )));
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name((field_address).clone())),
-                        m::Op::Gep {
-                            ty: (llvm).clone(),
-                            ptr: m::val(address),
-                            indices: vec![
-                                m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
-                                m::Arg::new(m::Ty::Int(32), m::val(index)),
-                            ],
-                        },
-                    )));
-                    self.store_payload(field, &projected, &field_address)?;
-                }
-            }
+        } else if !recipe.fields.is_empty() {
+            for field in &recipe.fields {if field.recipe.size==0{continue;}let value=self.payload_extract(machine,source,field.index);let target=self.payload_field(machine,address,field.index);self.store_recipe(&field.recipe,&value,&target)?;}
+        } else {
+            let (ty,value)=if *machine==m::Ty::Int(1) {
+                let wide=self.temp();self.event(m::Event::Instruction(m::Inst::new(Some(m::name(wide.clone())),m::Op::Cast{opcode:"zext".into(),arg:m::Arg::new(m::Ty::Int(1),m::val(source)),to:m::Ty::Int(8)})));(m::Ty::Int(8),m::val(wide))
+            } else {(machine.clone(),m::val(source))};
+            self.event(m::Event::Instruction(m::Inst::new(None,m::Op::Store{arg:m::Arg::new(ty,value),ptr:m::val(address),align:recipe.align})));
         }
         Ok(())
     }
+
 }
 
 #[cfg(test)]
@@ -932,6 +589,9 @@ mod owned_sum_layout_tests {
     }
     #[test]
     fn enum_managed_headers_keep_aligned_max_payload_abi() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let ty = Type::Enum {
             name: "Headers".into(),
             variants: vec![
@@ -939,16 +599,16 @@ mod owned_sum_layout_tests {
                 ("Pair".into(), vec![buffer(), store()]),
             ],
         };
-        let layout = union_layout(&ty).unwrap();
+        let layout = layouts.union(&ty).unwrap();
         assert_eq!((layout.words, layout.word_align, layout.align), (6, 8, 8));
         assert_eq!(
-            llvm_enum_type(&ty).unwrap().to_string(),
+            layouts.value_type(&ty).unwrap().to_string(),
             "{ i32, [6 x i64] }"
         );
         assert_eq!(
             (
-                physical_layout(&ty).unwrap().size,
-                physical_layout(&ty).unwrap().align
+                layouts.recipe(&ty, layout::Position::Field).unwrap().size,
+                layouts.recipe(&ty, layout::Position::Field).unwrap().align
             ),
             (56, 8)
         );
@@ -958,13 +618,16 @@ mod owned_sum_layout_tests {
             result: Box::new(ty),
         };
         assert_eq!(
-            llvm_type(&error).unwrap().to_string(),
+            layouts.value_type(&error).unwrap().to_string(),
             "{ i1, i32, { i32, [6 x i64] } }"
         );
-        assert_eq!(physical_layout(&error).unwrap().size, 64);
+        assert_eq!(layouts.recipe(&error, layout::Position::Field).unwrap().size, 64);
     }
     #[test]
     fn product_sum_nested_layout_preserves_field_offsets_and_bool_storage() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let inner = Type::Enum {
             name: "Inner".into(),
             variants: vec![("None".into(), vec![]), ("Some".into(), vec![buffer()])],
@@ -979,8 +642,8 @@ mod owned_sum_layout_tests {
         };
         assert_eq!(
             (
-                union_layout(&outer).unwrap().words,
-                physical_layout(&outer).unwrap().size
+                layouts.union(&outer).unwrap().words,
+                layouts.recipe(&outer, layout::Position::Field).unwrap().size
             ),
             (5, 48)
         );
@@ -1004,6 +667,9 @@ mod ct_layout_tests {
 
     #[test]
     fn ct_layout_uses_actual_pointer_slice_and_resource_representations() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let address = Type::Address {
             mutable: false,
             inner: Box::new(Type::I32),
@@ -1015,9 +681,9 @@ mod ct_layout_tests {
             }),
         };
         let desc = Type::Desc(Box::new(Type::ByteBuffer));
-        assert_eq!(llvm_type(&address).unwrap().to_string(), "ptr");
-        assert_eq!(llvm_type(&slice).unwrap().to_string(), "{ ptr, i64 }");
-        assert_eq!(llvm_type(&desc).unwrap().to_string(), "ptr");
+        assert_eq!(layouts.value_type(&address).unwrap().to_string(), "ptr");
+        assert_eq!(layouts.value_type(&slice).unwrap().to_string(), "{ ptr, i64 }");
+        assert_eq!(layouts.value_type(&desc).unwrap().to_string(), "ptr");
         let package = Type::Package {
             name: "Headers".into(),
             fields: vec![
@@ -1039,6 +705,9 @@ mod ct_layout_tests {
 
     #[test]
     fn ct_layout_offsets_include_unit_but_do_not_flatten_sum_alternatives() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         assert_eq!(
             inspect(&Type::Tuple(vec![
                 Type::Unit,
@@ -1055,7 +724,7 @@ mod ct_layout_tests {
                 ("Pair".into(), vec![Type::I32, Type::I32]),
             ],
         };
-        assert_eq!(llvm_type(&sum).unwrap().to_string(), "{ i32, [1 x i64] }");
+        assert_eq!(layouts.value_type(&sum).unwrap().to_string(), "{ i32, [1 x i64] }");
         assert_eq!(inspect(&sum), (16, 8, vec![]));
         assert_eq!(
             inspect(&Type::ErrorUnion {
@@ -1203,6 +872,9 @@ mod qualified_pure_layout_tests {
 
     #[test]
     fn qualified_enum_payload_keeps_nested_array_layout_and_ct_boundary() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         // Synthetic layout probe only; this does not establish nominal/source
         // authority. The Source/native test must traverse the independent kernels.
         let leaf = qualified(Type::Record {
@@ -1227,10 +899,10 @@ mod qualified_pure_layout_tests {
             ],
         };
         let ty = qualified(storage.clone());
-        let layout = physical_layout(&ty).unwrap();
+        let layout = layouts.recipe(&ty, layout::Position::Field).unwrap();
         assert_eq!((layout.size, layout.align), (64, 8));
-        assert_eq!(llvm_type(&ty).unwrap(), llvm_type(&storage).unwrap());
-        let union = union_layout(&ty).unwrap();
+        assert_eq!(layouts.value_type(&ty).unwrap(), layouts.value_type(&storage).unwrap());
+        let union = layouts.union(&ty).unwrap();
         assert_eq!((union.words, union.word_align, union.align), (7, 8, 8));
         assert!(matches!(ty, Type::BorrowedStorage { .. }));
         // Runtime representation support does not widen the separate CT query.
@@ -1242,5 +914,52 @@ mod qualified_pure_layout_tests {
         )
         .unwrap_err();
         assert_eq!(errors[0].category, zil_base::ResultCategory::Unsupported);
+    }
+}
+
+#[cfg(test)]
+mod actual_payload_tests {
+    use super::*;
+    #[test]
+    fn enum_environment_and_dynamic_payload_store_read_and_drop_share_actual_fields() {
+        // A private operation/model control, not a substitute for Verify or
+        // Source/native admission. Closure7 has a complete actual definition.
+        let mut captures=vec![vec![];8];
+        captures[7]=vec![Type::Managed(Box::new(Type::ByteBuffer)),Type::Unit];
+        let mut module=layout::test_environments(captures);
+        module.resources=vec![ResourceDefinition{name:zil_ir::BYTE_BUFFER_RESOURCE_NAME.into(),payload:Type::ByteBuffer,teardown:None}];
+        let interface=zil_ir::DynInterfaceId{module:zil_base::ModuleId(0),index:9};
+        let ty=Type::Enum{name:"ActualClosureAndDyn".into(),variants:vec![("Empty".into(),vec![]),("Owners".into(),vec![Type::Closure(ClosureId(7)),Type::OwnedDyn{interface}])]};
+        let limits=zil_base::Limits::default();
+        let layouts=&LayoutContext::for_test_module(&module,&limits).unwrap();
+        let machine_type=layouts.value_type(&ty).unwrap();let recipe=layouts.recipe(&ty,layout::Position::Field).unwrap();
+        let functions=module.functions.iter().map(|function|(function.id,function)).collect();
+        let closures=module.closures.iter().map(|closure|(closure.id,closure)).collect();
+        let mut intrinsics=BTreeSet::new();let mut adapters=BTreeSet::new();
+        let abi=large_copy_abi::Plans::default();let snapshots=BTreeMap::new();
+        let mut emitter=FunctionEmitter{dyn_module:&module,task_ownership:None,current_instruction:None,vacated_pollable_drops:BTreeSet::new(),
+            function:&module.functions[0],target:&module.target,functions:&functions,scalar_summaries:None,closures:&closures,resources:&module.resources,
+            intrinsics:&mut intrinsics,foreign_adapters:&mut adapters,machine_meter:layouts.meter(),layouts,text:m::Code::new(),temporary:0,continuation:0,
+            partial_packages:BTreeSet::new(),replacements:BTreeMap::new(),partial_sums:BTreeMap::new(),safe_divisors:None,copy_values:&snapshots,abi_plans:&abi,unsupported_large_copy:false};
+        emitter.event(m::Event::Begin(m::Function{name:"payload_roundtrip".into(),linkage:m::Linkage::Internal,signature:m::Signature::new(m::Ty::Void,vec![m::Param::new(machine_type.clone(),"actual")]),attrs:vec![],blocks:None}));
+        emitter.event(m::Event::Label("entry".into()));
+        emitter.event(m::Event::Instruction(m::Inst::new(Some("destination".into()),m::Op::Alloca{ty:machine_type.clone(),align:recipe.align})));
+        emitter.store_payload(&ty,"%actual","%destination").unwrap();
+        // Read uses the same prepared aggregate type; cleanup selects the
+        // active tag and then the true closure flags/dynamic owner helper.
+        emitter.event(m::Event::Instruction(m::Inst::new(Some("roundtrip".into()),m::Op::Load{ty:machine_type,ptr:m::local("destination".into()),align:recipe.align})));
+        emitter.event(m::Event::Instruction(m::Inst::new(None,m::Op::Call{result:m::Ty::Void,result_attrs:vec![],callee:m::global(drop_plan::symbol(&ty)),args:vec![m::Arg::new(m::Ty::Ptr,m::local("destination".into()))],vararg:None})));
+        emitter.event(m::Event::Instruction(m::Inst::new(None,m::Op::Return(None))));emitter.event(m::Event::End);
+        assert!(emitter.text.0.iter().any(|event|matches!(event,m::Event::Instruction(m::Inst{op:m::Op::Extract{arg,index:2},..})if arg.ty==environment_type(ClosureId(7)))),"the actual environment flag must be transported");
+        let view=zil_ir::LirView{schema_version:SCHEMA_VERSION,module_id:module.module_id,verified_fingerprint:zil_base::Fingerprint::ZERO,target:&module.target,functions:&module.functions,closures:&module.closures,resources:&module.resources,layouts:std::borrow::Cow::Borrowed(&[])};
+        let helpers=drop_plan::functions(layouts,&view,&limits,true,&[&ty],EntryPoint::None).unwrap();
+        let mut code=m::Code::new();for definition in &module.closures{code.push(m::Event::NamedType(m::type_name(&environment_type(definition.id)),layouts.environment_fields(definition.id).unwrap()));}
+        code.push(zero_declaration());
+        for name in ["llvm.trap".to_string(),"zil.bytes.drop".to_string(),dyn_dispatch::owner_drop_symbol(interface)] {
+            code.push(m::Event::Declare(m::Function{name:name.clone(),linkage:m::Linkage::External,signature:m::Signature::new(m::Ty::Void,if name=="llvm.trap"{vec![]}else{vec![m::Param::unnamed(m::Ty::Ptr)]}),attrs:vec![],blocks:None}));
+        }
+        code.append(resource_closures::drop_functions(layouts,&module.closures,&module.resources).unwrap());code.append(helpers.code);code.append(emitter.text);
+        let machine=m::Module::from_code(module.target.triple.clone(),"component".into(),code).unwrap();
+        machine.validate_complete(|_|Ok(())).unwrap();
     }
 }

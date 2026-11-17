@@ -213,6 +213,8 @@ fn model() -> (m::Module, LirModule) {
         resources: vec![],
         layouts: vec![],
     };
+    let context_limits=zil_base::Limits{max_analysis_steps:usize::MAX,..zil_base::Limits::default()};
+    let layouts=&LayoutContext::for_test_view(&lir.as_view(),&context_limits).unwrap();
     let functions = lir
         .functions
         .iter()
@@ -223,7 +225,7 @@ fn model() -> (m::Module, LirModule) {
         .iter()
         .map(|c| (c.id, c))
         .collect::<BTreeMap<_, _>>();
-    let mut code = scoped_thread::runtime(&lir.as_view()).unwrap();
+    let mut code = scoped_thread::runtime(layouts, &lir.as_view()).unwrap();
     code.push(m::Event::NamedType("zil_env_0".into(), vec![]));
     for (name, result, parameters) in [
         ("llvm.trap", m::Ty::Void, vec![]),
@@ -247,6 +249,7 @@ fn model() -> (m::Module, LirModule) {
     for f in lir.functions.iter().filter(|f| f.foreign.is_none()) {
         code.append(
             FunctionEmitter {
+                layouts,
                 dyn_module: &dyn_module,
                 task_ownership: None,
                 current_instruction: None,
@@ -303,6 +306,9 @@ fn model() -> (m::Module, LirModule) {
 
 #[test]
 fn scoped_thread_partition_preserves_private_context_and_worker_dependency() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
     let (module, mut lir) = model();
     for function in &mut lir.functions {
         function.span.file = zil_base::FileId(function.id.0);
@@ -344,17 +350,20 @@ fn scoped_thread_partition_preserves_private_context_and_worker_dependency() {
 
 #[test]
 fn scoped_thread_runtime_binds_target_and_existing_foreign_abi() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
     let (_, mut lir) = model();
     lir.target.triple = "x86_64-pc-windows-msvc".into();
-    let errors = scoped_thread::runtime(&lir.as_view()).unwrap_err();
+    let errors = scoped_thread::runtime(layouts, &lir.as_view()).unwrap_err();
     assert_eq!(errors[0].category, zil_base::ResultCategory::Unsupported);
     let (_, mut lir) = model();
     let declaration = lir.functions.last_mut().unwrap();
     declaration.foreign.as_mut().unwrap().symbol = "abort".into();
-    let errors = scoped_thread::runtime(&lir.as_view()).unwrap_err();
+    let errors = scoped_thread::runtime(layouts, &lir.as_view()).unwrap_err();
     assert_eq!(errors[0].code, "E-CODEGEN-FOREIGN");
     lir.functions.last_mut().unwrap().return_type = Type::Unit;
-    let declarations = scoped_thread::runtime(&lir.as_view())
+    let declarations = scoped_thread::runtime(layouts, &lir.as_view())
         .unwrap()
         .into_items()
         .unwrap();
@@ -371,7 +380,7 @@ fn scoped_thread_runtime_binds_target_and_existing_foreign_abi() {
             .retain(|i| !matches!(i.kind, InstructionKind::WithScopedThread { .. }));
     }
     assert!(
-        scoped_thread::runtime(&lir.as_view())
+        scoped_thread::runtime(layouts, &lir.as_view())
             .unwrap()
             .into_items()
             .unwrap()
@@ -382,6 +391,9 @@ fn scoped_thread_runtime_binds_target_and_existing_foreign_abi() {
 #[test]
 #[cfg(target_os = "linux")]
 fn scoped_thread_model_runs_real_thread_and_create_join_failures() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
     let (module, lir) = model();
     let ir = module.to_text();
     assert!(ir.contains("pthread_create"));

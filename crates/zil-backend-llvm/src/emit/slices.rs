@@ -106,7 +106,7 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((offset).clone())),
             m::Op::Gep {
-                ty: (aggregate_field_type(&element)?).clone(),
+                ty: (self.layouts.field_type(&element)?).clone(),
                 ptr: m::val((data).clone()),
                 indices: vec![m::Arg::new(m::Ty::Int(64), m::val((start).clone()))],
             },
@@ -167,7 +167,7 @@ impl FunctionEmitter<'_> {
         self.event(m::Event::Instruction(m::Inst::new(
             Some(format!("v.{}", result(instruction)?.0)),
             m::Op::Gep {
-                ty: (aggregate_field_type(&element)?).clone(),
+                ty: (self.layouts.field_type(&element)?).clone(),
                 ptr: m::val((data).clone()),
                 indices: vec![m::Arg::new(m::Ty::Int(64), m::val((index).clone()))],
             },

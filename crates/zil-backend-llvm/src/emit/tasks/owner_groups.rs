@@ -87,17 +87,18 @@ pub(super) fn closure(module: &TypedModule, ty: &Type, meter: &Meter) -> Compile
     Ok(Some(*id))
 }
 
-fn flag(v: &mut Vec<m::Inst>, d: &ClosureDefinition, index: usize) {
-    let position = d.captures.len() + d.captures[..index].iter().map(resource_closures::flag_count).sum::<usize>();
+fn flag(layouts: &LayoutContext<'_>, v: &mut Vec<m::Inst>, d: &ClosureDefinition, index: usize) -> CompileResult<()> {
+    let position = layouts.flag_start(d.id,index as u32)?;
     gep(v, &format!("flag.{index}"), &environment_type(d.id), loc("env"), position as u32);
     load(v, &format!("live.{index}"), m::Ty::Int(1), loc(format!("flag.{index}")));
+    Ok(())
 }
 fn clear(v: &mut Vec<m::Inst>, index: usize) {
     store(v, m::Ty::Int(1), m::val(false), loc(format!("flag.{index}")));
 }
 fn next(index: usize) -> String { format!("check.{}", index + 1) }
 
-fn functions(module: &TypedModule, id: ClosureId, limits: &zil_base::Limits, meter: &Meter) -> CompileResult<Vec<m::Item>> {
+fn functions(layouts: &LayoutContext<'_>, module: &TypedModule, id: ClosureId, limits: &zil_base::Limits, meter: &Meter) -> CompileResult<Vec<m::Item>> {
     let d = definition(module, id)?;
     meter.spend(d.captures.len().saturating_mul(256).saturating_add(128))?;
     let mut poll = vec![block("entry", vec![inst(None, m::Op::Branch("check.0".into()))])];
@@ -106,13 +107,13 @@ fn functions(module: &TypedModule, id: ClosureId, limits: &zil_base::Limits, met
         let check = format!("check.{index}");
         let body = format!("leaf.{index}");
         let finish = format!("finish.{index}");
-        if resource_closures::flag_count(ty) == 0 {
+        if layout::capture_flag_count(ty) == 0 {
             poll.push(block(&check, vec![inst(None,m::Op::Branch(next(index)))]));
             request.push(block(&check, vec![inst(None,m::Op::Branch(next(index)))]));
             continue;
         }
         let mut guarded = vec![];
-        flag(&mut guarded, d, index);
+        flag(layouts, &mut guarded, d, index)?;
         cond(&mut guarded, &format!("live.{index}"), &body, &next(index));
         poll.push(block(&check, guarded.clone()));
         request.push(block(&check, guarded));
@@ -183,7 +184,7 @@ fn functions(module: &TypedModule, id: ClosureId, limits: &zil_base::Limits, met
     Ok(vec![function(symbol(id,"poll"),m::Ty::Int(1),vec![m::Param::new(m::Ty::Ptr,"env")],poll),function(symbol(id,"request"),m::Ty::Void,vec![m::Param::new(m::Ty::Ptr,"env")],request)])
 }
 
-pub(super) fn helpers(verified: &VerifiedModule, meter: &Meter) -> CompileResult<Vec<m::Item>> {
+pub(super) fn helpers(layouts: &LayoutContext<'_>, verified: &VerifiedModule, meter: &Meter) -> CompileResult<Vec<m::Item>> {
     let module=verified.module();
     let mut needed=BTreeSet::new();
     let mut pending=Vec::new();
@@ -204,7 +205,7 @@ pub(super) fn helpers(verified: &VerifiedModule, meter: &Meter) -> CompileResult
         for ty in &definition(module,id)?.captures {
             if let Some(child)=closure(module,ty,meter)? { pending.push(child); }
         }
-        result.extend(functions(module,id,verified.limits(),meter)?);
+        result.extend(functions(layouts,module,id,verified.limits(),meter)?);
     }
     Ok(result)
 }

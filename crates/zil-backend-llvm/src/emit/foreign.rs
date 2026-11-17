@@ -11,7 +11,7 @@ fn extension(ty: &Type, target: &TargetProfile) -> Vec<m::Attr> {
         vec![]
     }
 }
-pub(super) fn declaration(
+pub(super) fn declaration(layouts: &LayoutContext<'_>,
     function: &TypedFunction,
     target: &TargetProfile,
 ) -> CompileResult<m::Code> {
@@ -27,7 +27,7 @@ pub(super) fn declaration(
         .map(|id| {
             let ty = &function.locals[id.0 as usize].ty;
             Ok(m::Param {
-                ty: llvm_type(ty)?,
+                ty: layouts.value_type(ty)?,
                 name: None,
                 attrs: extension(ty, target),
             })
@@ -37,7 +37,7 @@ pub(super) fn declaration(
         name: foreign.symbol.clone(),
         linkage: m::Linkage::External,
         signature: m::Signature {
-            result: llvm_type(&function.return_type)?,
+            result: layouts.value_type(&function.return_type)?,
             result_attrs: extension(&function.return_type, target),
             params: parameters,
             variadic: false,
@@ -64,7 +64,7 @@ impl FunctionEmitter<'_> {
             .iter()
             .map(|argument| {
                 let ty = self.value_type(*argument)?;
-                Ok(m::Arg::new(llvm_type(ty)?, m::val(value(*argument)))
+                Ok(m::Arg::new(self.layouts.value_type(ty)?, m::val(value(*argument)))
                     .attributed(extension(ty, self.target)))
             })
             .collect::<CompileResult<Vec<_>>>()?;
@@ -77,7 +77,7 @@ impl FunctionEmitter<'_> {
             m::Event::Instruction(m::Inst::new(
                 output,
                 m::Op::Call {
-                    result: llvm_type(&callee.return_type)?,
+                    result: self.layouts.value_type(&callee.return_type)?,
                     result_attrs: extension(&callee.return_type, self.target),
                     callee: m::global(foreign.symbol.clone()),
                     args: arguments,
@@ -131,7 +131,7 @@ impl FunctionEmitter<'_> {
 }
 /// Bridge the ordinary ZIL scalar entry to the target's signed narrow C ABI.
 /// One adapter per actual function preserves callback pointer identity.
-pub(super) fn callback_adapter(
+pub(super) fn callback_adapter(layouts: &LayoutContext<'_>,
     function: &TypedFunction,
     target: &TargetProfile,
     meter: &tasks::Meter,
@@ -147,7 +147,7 @@ pub(super) fn callback_adapter(
     let mut arguments = Vec::with_capacity(function.parameters.len());
     for (index, local) in function.parameters.iter().enumerate() {
         let ty = &function.locals[local.0 as usize].ty;
-        let machine = llvm_type(ty)?;
+        let machine = layouts.value_type(ty)?;
         let name = format!("arg.{index}");
         parameters.push(m::Param {
             ty: machine.clone(),
@@ -156,7 +156,7 @@ pub(super) fn callback_adapter(
         });
         arguments.push(m::Arg::new(machine, m::local(name)));
     }
-    let result = llvm_type(&function.return_type)?;
+    let result = layouts.value_type(&function.return_type)?;
     let value = (function.return_type != Type::Unit).then(|| "result".to_owned());
     Ok(m::Code::from(vec![
         m::Event::Begin(m::Function {

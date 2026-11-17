@@ -67,7 +67,7 @@ impl FunctionEmitter<'_> {
             }
             InstructionKind::AsyncRegistrationPollClose { registration } => {
                 let out = result(i)?;
-                let ty = llvm_type(self.value_type(out)?)?;
+                let ty = self.layouts.value_type(self.value_type(out)?)?;
                 self.reg_call(
                     Some(&format!("async.closed.{}", out.0)),
                     m::Ty::Int(1),
@@ -135,7 +135,7 @@ impl FunctionEmitter<'_> {
         let by_pointer = resource_closures::by_pointer(c);
         let entry = c.function;
         let env = environment_type(id);
-        let align = alignment(&Type::Closure(id), self.closures)?;
+        let align = self.layouts.alignment(&Type::Closure(id))?;
         let ty = frame(id);
         let provider = |f: FunctionId| {
             self.functions

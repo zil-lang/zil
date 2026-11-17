@@ -23,7 +23,8 @@ pub(crate) fn planned_remaining(
     limits: &zil_base::Limits,
     remaining: usize,
 ) -> CompileResult<usize> {
-    copy_aggregates::plan(lir, limits, remaining).map(|plan| plan.remaining_work)
+    let layouts=LayoutContext::for_test_view(lir,limits)?;
+    copy_aggregates::plan(&layouts, lir, limits, remaining).map(|plan| plan.remaining_work)
 }
 
 fn symbol(function: FunctionId, value: ValueId) -> String {

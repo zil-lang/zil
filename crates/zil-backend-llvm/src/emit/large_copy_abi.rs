@@ -39,7 +39,7 @@ impl Plans {
 }
 // A data pointer to Big keeps its old ABI. A pointer (or any carrier) to
 // language code whose invocation ABI changed must isolate old consumers.
-fn dependency(
+fn dependency(layouts: &LayoutContext<'_>,
     ty: &Type,
     remaining: &mut usize,
     limits: &Limits,
@@ -63,26 +63,26 @@ fn dependency(
     match ty {
         Type::BorrowedStorage { storage, life } => {
             stored_borrows::shape(life, remaining)?;
-            changed |= dependency(storage, remaining, limits, depth + 1)?;
+            changed |= dependency(layouts, storage, remaining, limits, depth + 1)?;
         }
         Type::FunctionPointer { parameters, result }
         | Type::BorrowedFunctionPointer {
             parameters, result, ..
         } => {
             for parameter in parameters {
-                changed |= classify(parameter, remaining, limits)?.is_some();
-                changed |= dependency(parameter, remaining, limits, depth + 1)?;
+                changed |= classify(layouts, parameter, remaining, limits)?.is_some();
+                changed |= dependency(layouts, parameter, remaining, limits, depth + 1)?;
             }
-            changed |= classify(result, remaining, limits)?.is_some();
-            changed |= dependency(result, remaining, limits, depth + 1)?;
+            changed |= classify(layouts, result, remaining, limits)?.is_some();
+            changed |= dependency(layouts, result, remaining, limits, depth + 1)?;
         }
         Type::ForeignCallback { parameters, result } => {
             for parameter in parameters {
-                changed |= classify(parameter, remaining, limits)?.is_some();
-                changed |= dependency(parameter, remaining, limits, depth + 1)?;
+                changed |= classify(layouts, parameter, remaining, limits)?.is_some();
+                changed |= dependency(layouts, parameter, remaining, limits, depth + 1)?;
             }
-            changed |= classify(result, remaining, limits)?.is_some();
-            changed |= dependency(result, remaining, limits, depth + 1)?;
+            changed |= classify(layouts, result, remaining, limits)?.is_some();
+            changed |= dependency(layouts, result, remaining, limits, depth + 1)?;
             if changed {
                 return unsupported(
                     "foreign callback cannot carry the LargeCopy language ABI",
@@ -91,40 +91,40 @@ fn dependency(
             }
         }
         Type::Array { element, .. } | Type::Slice { element } | Type::OwnedStore { element } => {
-            changed |= dependency(element, remaining, limits, depth + 1)?
+            changed |= dependency(layouts, element, remaining, limits, depth + 1)?
         }
         Type::Address { inner, .. }
         | Type::Managed(inner)
         | Type::Desc(inner)
         | Type::Opaque { hidden: inner, .. } => {
-            changed |= dependency(inner, remaining, limits, depth + 1)?
+            changed |= dependency(layouts, inner, remaining, limits, depth + 1)?
         }
         Type::Tuple(fields) => {
             for field in fields {
-                changed |= dependency(field, remaining, limits, depth + 1)?;
+                changed |= dependency(layouts, field, remaining, limits, depth + 1)?;
             }
         }
         Type::Record { fields, .. } | Type::Package { fields, .. } => {
             for (_, field) in fields {
-                changed |= dependency(field, remaining, limits, depth + 1)?;
+                changed |= dependency(layouts, field, remaining, limits, depth + 1)?;
             }
         }
         Type::Enum { variants, .. } => {
             for (_, fields) in variants {
                 for field in fields {
-                    changed |= dependency(field, remaining, limits, depth + 1)?;
+                    changed |= dependency(layouts, field, remaining, limits, depth + 1)?;
                 }
             }
         }
         Type::ErrorUnion { error, result } => {
-            changed |= dependency(error, remaining, limits, depth + 1)?;
-            changed |= dependency(result, remaining, limits, depth + 1)?;
+            changed |= dependency(layouts, error, remaining, limits, depth + 1)?;
+            changed |= dependency(layouts, result, remaining, limits, depth + 1)?;
         }
         _ => {}
     }
     Ok(changed)
 }
-fn signature<'a>(
+fn signature<'a>(layouts: &LayoutContext<'_>,
     parameters: impl ExactSizeIterator<Item = &'a Type>,
     result: &Type,
     remaining: &mut usize,
@@ -144,22 +144,22 @@ fn signature<'a>(
     let mut versioned = false;
     let parameters = parameters
         .map(|ty| {
-            let slot = classify(ty, remaining, limits)?;
+            let slot = classify(layouts, ty, remaining, limits)?;
             versioned |= slot.is_some();
-            versioned |= dependency(ty, remaining, limits, 0)?;
+            versioned |= dependency(layouts, ty, remaining, limits, 0)?;
             Ok(slot)
         })
         .collect::<CompileResult<Vec<_>>>()?;
-    let result_slot = classify(result, remaining, limits)?;
+    let result_slot = classify(layouts, result, remaining, limits)?;
     versioned |= result_slot.is_some();
-    versioned |= dependency(result, remaining, limits, 0)?;
+    versioned |= dependency(layouts, result, remaining, limits, 0)?;
     Ok(Signature {
         parameters,
         result: result_slot,
         versioned,
     })
 }
-pub(super) fn plan(
+pub(super) fn plan(layouts: &LayoutContext<'_>,
     lir: &LirView<'_>,
     limits: &Limits,
     remaining: &mut usize,
@@ -170,13 +170,13 @@ pub(super) fn plan(
     // to a new-name definition (or silently exposing a changed code pointer).
     for closure in lir.closures {
         for capture in &closure.captures {
-            if dependency(capture, remaining, limits, 0)? {
+            if dependency(layouts, capture, remaining, limits, 0)? {
                 return unsupported("LargeCopy function pointer in closure environment", None);
             }
         }
     }
     for resource in lir.resources {
-        if dependency(&resource.payload, remaining, limits, 0)? {
+        if dependency(layouts, &resource.payload, remaining, limits, 0)? {
             return unsupported(
                 "LargeCopy function pointer in resource helper interface",
                 None,
@@ -184,7 +184,7 @@ pub(super) fn plan(
         }
     }
     for function in lir.functions {
-        let abi = signature(
+        let abi = signature(layouts,
             function
                 .parameters
                 .iter()
@@ -221,7 +221,7 @@ pub(super) fn plan(
                 parameters, result, ..
             } = ty
             {
-                let abi = signature(parameters.iter(), result, remaining, limits)?;
+                let abi = signature(layouts, parameters.iter(), result, remaining, limits)?;
                 if abi.large() {
                     plans
                         .indirect
@@ -468,7 +468,7 @@ impl FunctionEmitter<'_> {
                 args.push(m::Arg::new(m::Ty::Ptr, copy_aggregates::pointer(*argument)));
             } else if *ty != Type::Unit {
                 args.push(m::Arg::new(
-                    llvm_type(ty)?,
+                    self.layouts.value_type(ty)?,
                     m::local(format!("v.{}", argument.0)),
                 ));
             }
@@ -481,7 +481,7 @@ impl FunctionEmitter<'_> {
             m::Ty::Void
         } else {
             output_type
-                .map(llvm_type)
+                .map(|ty| self.layouts.value_type(ty))
                 .transpose()?
                 .unwrap_or(m::Ty::Void)
         };
@@ -506,6 +506,9 @@ mod tests {
     use super::*;
     #[test]
     fn sum_threshold_and_nested_function_pointer_carriers_share_the_lc1_plan() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let limits = Limits::default();
         for (sum, bytes) in [
             (
@@ -533,7 +536,7 @@ mod tests {
             ),
         ] {
             let mut remaining = limits.max_analysis_steps;
-            let direct = signature(std::iter::once(&sum), &sum, &mut remaining, &limits).unwrap();
+            let direct = signature(layouts, std::iter::once(&sum), &sum, &mut remaining, &limits).unwrap();
             assert!(direct.versioned && direct.large());
             assert_eq!(direct.parameters[0].as_ref().unwrap().bytes, bytes);
             assert_eq!(direct.result.unwrap().bytes, bytes);
@@ -551,14 +554,14 @@ mod tests {
                     result: Box::new(worker),
                 },
             ] {
-                let abi = signature(std::iter::empty(), &carrier, &mut remaining, &limits).unwrap();
+                let abi = signature(layouts, std::iter::empty(), &carrier, &mut remaining, &limits).unwrap();
                 assert!(abi.versioned && !abi.large());
             }
             let address = Type::Address {
                 mutable: false,
                 inner: Box::new(sum.clone()),
             };
-            let abi = signature(
+            let abi = signature(layouts,
                 std::iter::once(&address),
                 &Type::I32,
                 &mut remaining,
@@ -571,7 +574,7 @@ mod tests {
                 result: Box::new(Type::I32),
             };
             assert_eq!(
-                dependency(&foreign, &mut remaining, &limits, 0).unwrap_err()[0].category,
+                dependency(layouts, &foreign, &mut remaining, &limits, 0).unwrap_err()[0].category,
                 zil_base::ResultCategory::Unsupported
             );
         }
@@ -595,7 +598,7 @@ mod tests {
             },
         ] {
             let mut remaining = limits.max_analysis_steps;
-            let abi = signature(std::iter::once(&small), &small, &mut remaining, &limits).unwrap();
+            let abi = signature(layouts, std::iter::once(&small), &small, &mut remaining, &limits).unwrap();
             assert!(!abi.versioned && !abi.large());
         }
     }
@@ -610,6 +613,9 @@ mod tests {
     }
     #[test]
     fn version_dependency_covers_carriers_without_changing_pointer_physics() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let limits = Limits::default();
         let fp = worker();
         let carriers = vec![
@@ -652,7 +658,7 @@ mod tests {
         ];
         for carrier in carriers {
             let mut remaining = limits.max_analysis_steps;
-            let abi = signature(
+            let abi = signature(layouts,
                 std::iter::once(&carrier),
                 &Type::Unit,
                 &mut remaining,
@@ -673,14 +679,14 @@ mod tests {
             }),
         };
         let mut remaining = limits.max_analysis_steps;
-        let abi = signature(std::iter::once(&data), &Type::Unit, &mut remaining, &limits).unwrap();
+        let abi = signature(layouts, std::iter::once(&data), &Type::Unit, &mut remaining, &limits).unwrap();
         assert!(!abi.versioned && !abi.large());
         let c_pointer = Type::ForeignCallback {
             parameters: vec![Type::I32],
             result: Box::new(Type::I32),
         };
         assert!(
-            !signature(std::iter::empty(), &c_pointer, &mut remaining, &limits)
+            !signature(layouts, std::iter::empty(), &c_pointer, &mut remaining, &limits)
                 .unwrap()
                 .versioned
         );
@@ -689,12 +695,15 @@ mod tests {
             result: Box::new(Type::I32),
         };
         assert_eq!(
-            dependency(&foreign, &mut remaining, &limits, 0).unwrap_err()[0].category,
+            dependency(layouts, &foreign, &mut remaining, &limits, 0).unwrap_err()[0].category,
             zil_base::ResultCategory::Unsupported
         );
     }
     #[test]
     fn recursive_dependency_cost_shares_the_existing_remainder_exactly() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let limits = Limits::default();
         let carrier = Type::Tuple(vec![
             worker(),
@@ -704,7 +713,7 @@ mod tests {
             },
         ]);
         let mut remaining = limits.max_analysis_steps;
-        signature(
+        signature(layouts,
             std::iter::once(&carrier),
             &Type::Unit,
             &mut remaining,
@@ -715,7 +724,7 @@ mod tests {
         for available in [cost, cost] {
             let mut remaining = available;
             assert!(
-                signature(
+                signature(layouts,
                     std::iter::once(&carrier),
                     &Type::Unit,
                     &mut remaining,
@@ -728,7 +737,7 @@ mod tests {
         }
         let mut remaining = cost - 1;
         assert_eq!(
-            signature(
+            signature(layouts,
                 std::iter::once(&carrier),
                 &Type::Unit,
                 &mut remaining,

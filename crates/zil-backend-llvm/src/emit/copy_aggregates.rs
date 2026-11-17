@@ -22,18 +22,18 @@ pub(super) struct Slot {
 }
 pub(super) type Plan = BTreeMap<ValueId, Slot>;
 
-pub(super) fn plan(
+pub(super) fn plan(layouts: &LayoutContext<'_>,
     lir: &LirView<'_>,
     limits: &Limits,
     remaining_work: usize,
 ) -> CompileResult<super::large_copy_abi::Plans> {
     #[cfg(test)]
     if max_plan_reference::enabled() {
-        return max_plan_reference::plan(lir, limits, remaining_work);
+        return max_plan_reference::plan(layouts, lir, limits, remaining_work);
     }
     let mut work = remaining_work;
     let mut plans = BTreeMap::new();
-    let store_protocols = dynamic_store::plan(lir.resources, limits, &mut work)?;
+    let store_protocols = dynamic_store::plan(layouts, lir.resources, limits, &mut work)?;
     for function in lir.functions {
         dynamic_store::reserve_operations(
             function,
@@ -65,11 +65,11 @@ pub(super) fn plan(
             {
                 continue;
             }
-            let machine = llvm_type(ty)?;
-            if unresolved_layout(&machine) {
+            let machine = layouts.value_type(ty)?;
+            if preserves_environment_abi(&machine) {
                 continue;
             }
-            let (bytes, align) = layout(&machine)?;
+            let (bytes, align) = layouts.machine_layout(&machine)?;
             if bytes >= MIN_BYTES {
                 if matches!(enums::storage_shape(ty), Type::Enum { .. }) {
                     // make_variant/read_variant clone the source enum as well
@@ -174,7 +174,7 @@ pub(super) fn plan(
             plans.insert(function.id, values);
         }
     }
-    let abi = super::large_copy_abi::plan(lir, limits, &mut work)?;
+    let abi = super::large_copy_abi::plan(layouts, lir, limits, &mut work)?;
     if !plans.is_empty()
         || abi.functions.values().any(|s| s.large())
         || store_protocols
@@ -406,7 +406,7 @@ pub(super) fn reserve(
     Ok(())
 }
 
-pub(super) fn classify(
+pub(super) fn classify(layouts: &LayoutContext<'_>,
     ty: &Type,
     work: &mut usize,
     limits: &Limits,
@@ -431,11 +431,11 @@ pub(super) fn classify(
     {
         return Ok(None);
     }
-    let machine = llvm_type(ty)?;
-    if unresolved_layout(&machine) {
+    let machine = layouts.value_type(ty)?;
+    if preserves_environment_abi(&machine) {
         return Ok(None);
     }
-    let (bytes, align) = layout(&machine)?;
+    let (bytes, align) = layouts.machine_layout(&machine)?;
     Ok((bytes >= MIN_BYTES).then_some(Slot {
         ty: machine,
         bytes,
@@ -446,70 +446,18 @@ pub(super) fn classify(
 }
 
 // Named closure environments retain their existing helper convention. This
-// paid machine-shape walk cannot assign them a concrete layout or change their
-// ABI; unsupported large consumers still fail before publishing artifacts.
-fn unresolved_layout(ty: &m::Ty) -> bool {
+// paid machine-shape policy preserves that ABI even though the exact bound
+// layout context now knows their real size. Size never grants Copy/LC1.
+fn preserves_environment_abi(ty: &m::Ty) -> bool {
     match ty {
         m::Ty::Named(_) => true,
-        m::Ty::Array(_, element) => unresolved_layout(element),
-        m::Ty::Struct(fields) => fields.iter().any(unresolved_layout),
+        m::Ty::Array(_, element) => preserves_environment_abi(element),
+        m::Ty::Struct(fields) => fields.iter().any(preserves_environment_abi),
         _ => false,
     }
 }
 
-pub(super) fn layout(ty: &m::Ty) -> CompileResult<(u64, u32)> {
-    let overflow = || {
-        vec![Diagnostic::limit(
-            Phase::Codegen,
-            "Copy snapshot layout overflow",
-            None,
-        )]
-    };
-    let round = |bytes: u64, align: u32| {
-        bytes
-            .checked_add(u64::from(align) - 1)
-            .map(|n| n / u64::from(align) * u64::from(align))
-            .ok_or_else(overflow)
-    };
-    Ok(match ty {
-        m::Ty::Void => (0, 1),
-        m::Ty::Int(bits) => {
-            let bytes = u64::from(*bits).div_ceil(8);
-            (bytes, bytes.next_power_of_two().min(8) as u32)
-        }
-        m::Ty::F32 => (4, 4),
-        m::Ty::F64 => (8, 8),
-        m::Ty::Ptr => (8, 8),
-        m::Ty::Array(length, element) => {
-            let (bytes, align) = layout(element)?;
-            (
-                bytes
-                    .checked_mul(*length)
-                    .filter(|n| *n <= i64::MAX as u64)
-                    .ok_or_else(overflow)?,
-                align,
-            )
-        }
-        m::Ty::Struct(fields) => {
-            let (mut bytes, mut align) = (0u64, 1u32);
-            for field in fields {
-                let (size, field_align) = layout(field)?;
-                align = align.max(field_align);
-                bytes = round(bytes, field_align)?
-                    .checked_add(size)
-                    .ok_or_else(overflow)?;
-            }
-            (round(bytes, align)?, align)
-        }
-        m::Ty::Named(_) => {
-            return invalid(
-                "E-CODEGEN-CFG",
-                "ordinary Copy snapshot has an unresolved machine type",
-                None,
-            );
-        }
-    })
-}
+
 
 pub(super) fn declarations() -> m::Code {
     let mut code = m::Code::new();
@@ -690,9 +638,9 @@ impl FunctionEmitter<'_> {
             self.event(m::Event::Instruction(m::Inst::new(
                 Some(format!("v.{}", output.0)),
                 m::Op::Load {
-                    ty: llvm_type(self.value_type(output)?)?,
+                    ty: self.layouts.value_type(self.value_type(output)?)?,
                     ptr: source,
-                    align: alignment(self.value_type(output)?, self.closures)? as u32,
+                    align: self.layouts.alignment(self.value_type(output)?)? as u32,
                 },
             )));
         }
@@ -707,7 +655,7 @@ impl FunctionEmitter<'_> {
                 None,
                 m::Op::Store {
                     arg: m::Arg::new(
-                        aggregate_field_type(ty)?,
+                        self.layouts.field_type(ty)?,
                         if *ty == Type::Unit {
                             m::Val::Zero
                         } else {
@@ -715,7 +663,7 @@ impl FunctionEmitter<'_> {
                         },
                     ),
                     ptr: destination,
-                    align: alignment(ty, self.closures)? as u32,
+                    align: self.layouts.alignment(ty)? as u32,
                 },
             )));
         }
@@ -928,6 +876,9 @@ mod qualified_snapshot_tests {
 
     #[test]
     fn owned_package_snapshot_is_physical_and_charges_the_complete_layout() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let owned = Type::Package {
             name: "Large".into(),
             fields: vec![
@@ -944,7 +895,7 @@ mod qualified_snapshot_tests {
         assert!(!owned.is_copy_value());
         assert!(!stored_borrows::pure_composite(&owned));
         let mut work = usize::MAX;
-        let slot = classify(&owned, &mut work, &Limits::default())
+        let slot = classify(layouts, &owned, &mut work, &Limits::default())
             .unwrap()
             .unwrap();
         assert_eq!((slot.bytes, slot.align), (16408, 8));
@@ -952,12 +903,12 @@ mod qualified_snapshot_tests {
         let cost = usize::MAX - work;
         let mut exact = cost;
         assert!(
-            classify(&owned, &mut exact, &Limits::default())
+            classify(layouts, &owned, &mut exact, &Limits::default())
                 .unwrap()
                 .is_some()
         );
         assert_eq!(exact, 0);
-        let errors = classify(&owned, &mut (cost - 1), &Limits::default())
+        let errors = classify(layouts, &owned, &mut (cost - 1), &Limits::default())
             .err()
             .unwrap();
         assert_eq!(errors[0].category, zil_base::ResultCategory::ResourceLimit);
@@ -966,6 +917,9 @@ mod qualified_snapshot_tests {
 
     #[test]
     fn qualified_snapshot_classification_preserves_layout_and_full_metadata_fee() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         // Private physical planner probe only. Source nominal and borrowing
         // authentication is performed before this planner in real requests.
         let leaf = Type::BorrowedStorage {
@@ -986,19 +940,19 @@ mod qualified_snapshot_tests {
         };
         assert!(!qualified.is_copy_value());
         let mut remaining = usize::MAX;
-        let slot = classify(&qualified, &mut remaining, &Limits::default())
+        let slot = classify(layouts, &qualified, &mut remaining, &Limits::default())
             .unwrap()
             .unwrap();
         assert_eq!((slot.bytes, slot.align), (8192, 8));
         let cost = usize::MAX - remaining;
         let mut exact = cost;
         assert!(
-            classify(&qualified, &mut exact, &Limits::default())
+            classify(layouts, &qualified, &mut exact, &Limits::default())
                 .unwrap()
                 .is_some()
         );
         assert_eq!(exact, 0);
-        let errors = classify(&qualified, &mut (cost - 1), &Limits::default())
+        let errors = classify(layouts, &qualified, &mut (cost - 1), &Limits::default())
             .expect_err("N-1 must exhaust the snapshot planner");
         assert_eq!(errors[0].category, zil_base::ResultCategory::ResourceLimit);
         let mut borrowed = leaf;
@@ -1016,13 +970,16 @@ mod qualified_snapshot_tests {
         };
         let mut available = usize::MAX;
         assert!(
-            classify(&borrowed, &mut available, &Limits::default())
+            classify(layouts, &borrowed, &mut available, &Limits::default())
                 .unwrap()
                 .is_none()
         );
     }
     #[test]
     fn fixed_shared_address_array_snapshot_layout_and_budget_are_exact() {
+        let layout_fixture=layout::scalar_test_context();
+        let layouts=&layout_fixture;
+
         let array = Type::Array {
             element: Box::new(Type::Address {
                 mutable: false,
@@ -1055,19 +1012,19 @@ mod qualified_snapshot_tests {
             assert!(!actual.is_copy_value());
             assert!(!stored_borrows::pure_composite(&actual));
             let mut left = usize::MAX;
-            let slot = classify(&actual, &mut left, &Limits::default())
+            let slot = classify(layouts, &actual, &mut left, &Limits::default())
                 .unwrap()
                 .unwrap();
             assert_eq!((slot.bytes, slot.align), (4096, 8));
             let cost = usize::MAX - left;
             let mut exact = cost;
             assert!(
-                classify(&actual, &mut exact, &Limits::default())
+                classify(layouts, &actual, &mut exact, &Limits::default())
                     .unwrap()
                     .is_some()
             );
             assert_eq!(exact, 0);
-            let failure = classify(&actual, &mut (cost - 1), &Limits::default())
+            let failure = classify(layouts, &actual, &mut (cost - 1), &Limits::default())
                 .expect_err("N-1 must exhaust physical snapshot planning");
             assert_eq!(failure[0].category, zil_base::ResultCategory::ResourceLimit);
         }
