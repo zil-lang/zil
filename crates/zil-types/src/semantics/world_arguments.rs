@@ -143,7 +143,7 @@ pub(super) fn satisfy(
     if matches!(actual_ty, Type::Address { mutable: false, .. })
         && (matches!(source, roles::Source::Static)
             || matches!(
-                world.value_role_sources.get(&operand),
+                world.value_role_sources.get(&operand).map(|value| &value.source),
                 Some(roles::Source::Static)
             ))
     {

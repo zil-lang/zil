@@ -86,8 +86,8 @@ pub(super) struct World<'a, 'b> {
     stale_values: std::collections::BTreeSet<ValueId>,
     stale_locals: std::collections::BTreeSet<LocalId>,
     vacant: std::collections::BTreeSet<(LocalId, Vec<PlaceProjection>)>,
-    role_sources: BTreeMap<LocalId, roles::Source>,
-    value_role_sources: BTreeMap<ValueId, roles::Source>,
+    role_sources: BTreeMap<LocalId, roles::Incoming>,
+    value_role_sources: BTreeMap<ValueId, roles::Incoming>,
     reborrows: BTreeMap<ValueId, arguments::Edge>,
     reservations: BTreeMap<ReservationId, reservations::Reservation>,
     value_roots: BTreeMap<ValueId, std::collections::BTreeSet<arguments::Root>>,
@@ -1283,6 +1283,7 @@ impl World<'_, '_> {
                         *values.get_mut(operand.0 as usize).ok_or_else(|| {
                             bad("call loan result leaves its actual SSA directory")
                         })? = Some(value);
+                        let source = roles::incoming(self, operand, source)?;
                         self.value_role_sources.insert(operand, source);
                     }
                 }
@@ -1355,6 +1356,7 @@ impl World<'_, '_> {
                             .get_mut(operand.0 as usize)
                             .ok_or_else(|| bad("shared view has no actual SSA cell"))? =
                             Some(adapted.clone());
+                        let source = roles::incoming(self, *operand, source)?;
                         self.value_role_sources.insert(*operand, source);
                         value = adapted;
                     }
@@ -1377,6 +1379,7 @@ impl World<'_, '_> {
                             .get_mut(operand.0 as usize)
                             .ok_or_else(|| bad("projected borrow role has no actual SSA cell"))? =
                             Some(self.share(&adapted)?);
+                        let source = roles::incoming(self, *operand, source)?;
                         self.value_role_sources.insert(*operand, source);
                         value = adapted;
                     }
@@ -1446,6 +1449,8 @@ impl World<'_, '_> {
                 }
                 _ => {}
             }
+            borrow_roles::record_source(self, instance, original, function, site,
+                values, locals, implicit)?;
         }
         Ok(())
     }
@@ -2378,7 +2383,7 @@ impl World<'_, '_> {
                     _ => None,
                 };
                 let mut propagated_role = propagated_role
-                    .map(|source| roles::snapshot_source(source, self.limits, self.left))
+                    .map(|source| roles::snapshot_incoming(source, self.limits, self.left))
                     .transpose()?;
                 let mut propagated_roots = std::collections::BTreeSet::new();
                 match &instruction.kind {
@@ -2594,9 +2599,11 @@ impl World<'_, '_> {
                             };
                             let source = if let Some((adapted, source)) = adapted {
                                 value = adapted;
-                                Some(source)
+                                Some(roles::incoming(self, operand, source)?)
                             } else {
-                                None
+                                self.value_role_sources.get(&operand)
+                                    .map(|source| roles::snapshot_incoming(source, self.limits, self.left))
+                                    .transpose()?
                             };
                             if let Some(expected) = declared.get(local) {
                                 self.same(instance.id, &value, expected, &implicit)?;
@@ -2694,6 +2701,12 @@ impl World<'_, '_> {
                             None
                         }
                         InstructionKind::CommitPlaceReplace { reservation, value } => {
+                            self.pay(index::search(self.reservations.len()))?;
+                            let work = self.reservations.get(reservation).map_or(0, |row|
+                                row.roots.iter().fold(1usize, |work, root|
+                                    work.saturating_add(root.path.len().saturating_add(1))));
+                            self.pay(work.saturating_add(index::search(self.reservations.len())))?;
+                            let roots = self.reservations.get(reservation).map(|row| row.roots.clone());
                             reservations::commit(
                                 self,
                                 instance,
@@ -2704,6 +2717,7 @@ impl World<'_, '_> {
                                 &locals,
                                 &implicit,
                             )?;
+                            if let Some(roots) = roots { roles::invalidate_roots(self, &roots)?; }
                             None
                         }
                         InstructionKind::AbortPlaceReservation { reservation } => {
@@ -3940,6 +3954,8 @@ impl World<'_, '_> {
                                 }
                                 self.clear_vacant(*target)?;
                                 self.stale_locals.remove(target);
+                                self.role_sources.remove(target);
+                                self.local_roots.remove(target);
                                 locals[target.0 as usize] = Some(field);
                             }
                             self.clear_vacant(*local)?;
@@ -4174,6 +4190,9 @@ impl World<'_, '_> {
                             {
                                 return Err(bad("capture view changes its complete actual type"));
                             }
+                            self.role_sources.remove(local);
+                            self.local_roots.remove(local);
+                            self.stale_locals.remove(local);
                             locals[local.0 as usize] = Some(value);
                             None
                         }
@@ -4502,6 +4521,7 @@ impl World<'_, '_> {
                         }
                     }
                 };
+                roles::invalidate_operation(self, &instruction.kind, &values)?;
                 if let Some(result) = instruction.result {
                     let value = produced
                         .ok_or_else(|| bad("actual SSA producer has no complete class equation"))?;

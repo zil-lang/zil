@@ -17,6 +17,133 @@ pub(super) enum Source {
     Class(SemanticClassExpr),
 }
 
+/// A declaration-source trace checked at its real executed boundary. Identity
+/// is transported inside the same incoming-source fact as the raw outer image.
+/// Whole-state equality also retains roots, owners, vacancies and stale epochs;
+/// equal source-node/SSA spellings alone never establish a reaching world.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum OriginAnchor {
+    /// The original trace selected the referent of this input, not its local
+    /// pointer slot. Its lifetime belongs to the caller.
+    Input(u32),
+    /// This exact field in the current closure's environment.
+    Capture(u32),
+    /// No stable outside-frame root theorem was established by this trace.
+    Other,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(super) struct OriginalLoan {
+    pub node: zil_base::NodeId,
+    pub mint: ValueId,
+    pub anchors: Rc<Vec<OriginAnchor>>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Incoming {
+    pub source: Source,
+    pub origin: Option<OriginalLoan>,
+}
+pub(super) fn snapshot_incoming(
+    value: &Incoming, limits: &Limits, left: &mut usize,
+) -> R<Incoming> {
+    *left = left.checked_sub(1).ok_or_else(|| Diagnostic::limit(
+        Phase::Types, "incoming source receipt snapshot exceeded", None))?;
+    Ok(Incoming { source: snapshot_source(&value.source, limits, left)?, origin: value.origin.clone() })
+}
+pub(super) fn incoming(
+    world: &mut World<'_, '_>, operand: ValueId, source: Source,
+) -> R<Incoming> {
+    world.pay(index::search(world.value_role_sources.len()).saturating_add(1))?;
+    let origin = world.value_role_sources.get(&operand).and_then(|value| value.origin.clone());
+    Ok(Incoming { source, origin })
+}
+
+pub(super) fn stable_origin(
+    world: &mut World<'_, '_>, source: &Incoming, instance: SemanticInstanceId,
+    vacant: &std::collections::BTreeSet<(SemanticInstanceId, u32)>,
+) -> R<bool> {
+    let Some(origin) = &source.origin else { return Ok(false); };
+    world.pay(origin.anchors.len().saturating_add(1))?;
+    if origin.anchors.is_empty() { return Ok(false); }
+    for anchor in origin.anchors.iter() {
+        match anchor {
+            OriginAnchor::Input(_) => {}
+            OriginAnchor::Capture(capture) => {
+                world.pay(index::search(vacant.len()))?;
+                if vacant.contains(&(instance, *capture)) { return Ok(false); }
+            }
+            OriginAnchor::Other => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+
+/// Writable operations retire the entire incoming fact (image and source
+/// receipt together). Immutable SSA copies retain their own referent fact;
+/// replacing a pointer cell never rewrites an already loaded pointer value.
+pub(super) fn invalidate_roots(
+    world: &mut World<'_, '_>, roots: &std::collections::BTreeSet<arguments::Root>,
+) -> R<()> {
+    if roots.is_empty() {
+        world.pay(world.role_sources.len().saturating_add(1))?;
+        world.role_sources.clear();
+    } else {
+        for root in roots {
+            world.pay(root.path.len().saturating_add(index::search(world.role_sources.len())).saturating_add(1))?;
+            // This container describes the local's OUTER pointer/description
+            // occupant. A write to a proper pointee/aggregate subtree leaves
+            // that pointer cell intact; sibling field writes cannot erase it.
+            if root.path.is_empty() { world.role_sources.remove(&root.local); }
+        }
+    }
+    Ok(())
+}
+pub(super) fn invalidate_address(
+    world: &mut World<'_, '_>, address: ValueId, values: &[Option<SharedType>],
+) -> R<()> {
+    let value = world.get(values, address)?;
+    let roots = arguments::roots(world, address, &value)?;
+    invalidate_roots(world, &roots)
+}
+/// Actual argument shapes identify writable inputs; unknown environment/body
+/// execution retires local source facts instead of pretending it is pure.
+pub(super) fn invalidate_operation(
+    world: &mut World<'_, '_>, operation: &InstructionKind, values: &[Option<SharedType>],
+) -> R<()> {
+    match operation {
+        InstructionKind::WriteAddress { address, .. } => invalidate_address(world, *address, values),
+        InstructionKind::WriteDesc { desc, .. } => invalidate_address(world, *desc, values),
+        InstructionKind::StoreStoredBorrow { storage, .. } => invalidate_address(world, *storage, values),
+        InstructionKind::Call { arguments, .. } | InstructionKind::SuspendCall { arguments, .. }
+        | InstructionKind::ForeignCall { arguments, .. } | InstructionKind::CallIndirect { arguments, .. } => {
+            world.pay(arguments.len())?;
+            for argument in arguments {
+                let value = world.get(values, *argument)?;
+                if matches!(World::type_of(&value)?, Type::Address { mutable: true, .. } | Type::Desc(_)) {
+                    let roots = arguments::roots(world, *argument, &value)?;
+                    invalidate_roots(world, &roots)?;
+                }
+            }
+            Ok(())
+        }
+        InstructionKind::CallClosure { .. } | InstructionKind::CallClosureOnce { .. }
+        | InstructionKind::CallClosureShared { .. } | InstructionKind::CallClosureMut { .. }
+        | InstructionKind::CallClosureBorrowed { .. } | InstructionKind::CallDynSlot { .. }
+        | InstructionKind::WithForeignCallback { .. } | InstructionKind::WithScopedThread { .. }
+        | InstructionKind::WithSyncCell { .. } | InstructionKind::WriteCapture { .. }
+        | InstructionKind::TaskPoll { .. } | InstructionKind::TaskPollClose { .. }
+        | InstructionKind::RegistrationStart { .. } | InstructionKind::RegistrationClose { .. }
+        | InstructionKind::AsyncRegistrationStart { .. } | InstructionKind::AsyncRegistrationPollClose { .. } => {
+            world.pay(world.role_sources.len().saturating_add(1))?;
+            world.role_sources.clear();
+            Ok(())
+        }
+        // All other operations remain subject to the original whole-type and
+        // source trace checks. The all-writes local source traversal rejects
+        // untracked writable opcodes before it can consume a provenance receipt.
+        _ => Ok(()),
+    }
+}
+
 /// An outer occurrence inside a sealed whole-Type environment is a projection
 /// of that Type's own complete domain. Its binder is read from the exact port,
 /// never from the environment ordinal or equality of outside images.
@@ -280,7 +407,7 @@ pub(super) fn store(
         ));
     }
     let source = if let Some(source) = world.value_role_sources.get(&operand) {
-        snapshot_source(source, world.limits, world.left)?
+        snapshot_source(&source.source, world.limits, world.left)?
     } else {
         copy_source(world, &actual_outer)?
     };

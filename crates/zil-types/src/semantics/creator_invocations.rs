@@ -54,7 +54,13 @@ impl Eval<'_, '_, '_> {
             let size = self.module.invocation_active.borrow().len();
             let removal = self.fee(size.saturating_add(1).ilog2() as usize + 1);
             self.module.invocation_active.borrow_mut().remove(&scope);
-            removal?;
+            if let Err(diagnostic) = removal {
+                // The active marker is removed even when its paid cleanup
+                // exhausts the request. Resource/error priority is independent
+                // of an earlier exact missing-header dependency.
+                self.pending_header = None;
+                return Err(diagnostic);
+            }
             let inputs = Rc::new(result.map_err(|mut diagnostic| {
                 if let Some(left) = self.left.checked_sub(128) {
                     *self.left = left;
@@ -127,6 +133,7 @@ impl Eval<'_, '_, '_> {
                 left: self.left,
                 active: BTreeSet::new(),
                 invocation_probe: Some((scope, count)),
+                pending_header: None,
             };
             let draft = probe.ty(
                 scope,
@@ -136,7 +143,19 @@ impl Eval<'_, '_, '_> {
                 },
                 Some(actual),
                 0,
-            )?;
+            );
+            let pending = probe.pending_header;
+            drop(probe);
+            let draft = match draft {
+                Ok(value) => value,
+                Err(diagnostic) => {
+                    // Transport the exact originating child identity through
+                    // this nested query only while its tagged failure remains
+                    // the actual error. Failed/pending inputs are never cached.
+                    self.pending_header = if is_pending_header(&diagnostic) { pending } else { None };
+                    return Err(diagnostic);
+                }
+            };
             let SemanticTypeValue::Resolved { ty, life, classes } = draft else {
                 return Err(bad(
                     "invocation input has no complete original whole-type domain",

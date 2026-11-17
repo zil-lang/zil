@@ -1069,8 +1069,7 @@ fn trace_steps(
                 let actual = if return_boundary { world.get(values, value)? }
                     else { world.local(locals, local)? };
                 local_read_sources(world, instance, original, function, *binding,
-                    local, (block, instruction), values, locals, implicit,
-                    return_boundary, depth + 1)?;
+                    local, value, (block, instruction))?;
                 let expected = world.physical_type(
                     instance.id,
                     &SemanticTypeRecipe::OriginalType {
@@ -1920,15 +1919,88 @@ fn original_read_value(
 
 }
 
+/// Establish an original source receipt only at its real executed expression
+/// boundary, after the ordinary whole-type constraint has succeeded. The
+/// receipt travels with the existing incoming role fact; it never revives an
+/// old SSA cell or grants current root/epoch/permission.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn record_source(
+    world: &mut World<'_, '_>, instance: &SemanticInstance,
+    original: &SemanticDefinition, function: &TypedFunction, site: &SemanticSite,
+    values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<()> {
+    let Some(node) = occurrences::node(world, original, site)? else { return Ok(()); };
+    let ledger = world.ledger;
+    let proof = ledger.original.borrow();
+    let proof = proof.as_ref().ok_or_else(|| bad("incoming source has no original proof"))?;
+    let mut source = false;
+    world.pay(index::search(proof.local_roles.len()))?;
+    for ((_, _), role) in proof.local_roles.range((original.id, NodeId(0))..=(original.id, NodeId(u32::MAX))) {
+        world.pay(role.sources.len().saturating_add(1))?;
+        source |= role.sources.iter().any(|row| row.at == SemanticOriginalNode::Expression(node));
+    }
+    if !source { return Ok(()); }
+    let Some(operand) = occurrences::site_value(world, instance, original, site)? else { return Ok(()); };
+    let Some((root, steps)) = proof.view_source_steps(original.id, node, world.limits, world.left)? else {
+        return Err(bad("incoming source has no complete original projection trace"));
+    };
+    let actual = world.get(values, operand)?;
+    if !matches!(World::type_of(&actual)?, Type::Address { .. } | Type::Desc(_)) {
+        return Err(bad("incoming loan source changes its actual address carrier"));
+    }
+    trace_steps(world, instance, original, function, root, &steps, Cursor::Value(operand),
+        values, locals, implicit, false, 0)?;
+    // An actual copy of a mutable source role transports its prior receipt;
+    // it is not a new root merely because this read has a new source NodeId.
+    if matches!(root, ViewBorrowRoot::Local(_)) && steps.iter()
+        .any(|step| matches!(step.kind, ViewBorrowStepKind::ReadLocal { .. }))
+    { return Ok(()); }
+    let roots = proof.view_source_roots(original.id, root, &steps, world.limits, world.left)?;
+    // No complete root result is an unknown theorem, never an outside
+    // parameter/capture premise (notably ParameterStorage is activation local).
+    let roots = roots.unwrap_or_default();
+    world.pay(roots.len().saturating_add(1))?;
+    let mut anchors = Vec::with_capacity(roots.len().max(1));
+    if roots.is_empty() { anchors.push(roles::OriginAnchor::Other); }
+    for root in roots {
+        let anchor = match root {
+            ViewBorrowRoot::Parameter(parameter) => roles::OriginAnchor::Input(parameter),
+            ViewBorrowRoot::Capture(source) => {
+                let (_, capture_steps) = proof.view_source_steps(original.id, source, world.limits, world.left)?
+                    .ok_or_else(|| bad("source capture root lacks its complete original path"))?;
+                let capture = capture_steps.iter().find_map(|step| match &step.kind {
+                    ViewBorrowStepKind::Capture { name } => Some(name), _ => None,
+                }).ok_or_else(|| bad("source capture receipt has no original capture selection"))?;
+                let closure = function.environment.ok_or_else(|| bad("source capture receipt has no actual environment"))?;
+                let selections = ledger.closure_captures.get(&closure)
+                    .ok_or_else(|| bad("source capture receipt has no actual creator selections"))?;
+                world.pay(selections.len().saturating_mul(capture.len().saturating_add(1)))?;
+                let mut selected = selections.iter().enumerate().filter(|(_, (name, _))| name == capture);
+                let (index, _) = selected.next().ok_or_else(|| bad("source capture receipt lost its exact creator field"))?;
+                if selected.next().is_some() { return Err(bad("source capture receipt repeats its creator field")); }
+                roles::OriginAnchor::Capture(u32::try_from(index).map_err(|_| bad("source capture ordinal overflows"))?)
+            }
+            _ => roles::OriginAnchor::Other,
+        };
+        anchors.push(anchor);
+    }
+    let image = if let Some(incoming) = world.value_role_sources.get(&operand) {
+        roles::snapshot_source(&incoming.source, world.limits, world.left)?
+    } else { roles::outer(world, &actual)? };
+    world.pay(index::search(world.value_role_sources.len()).saturating_add(1))?;
+    world.value_role_sources.insert(operand, roles::Incoming { source: image,
+        origin: Some(roles::OriginalLoan { node, mint: operand, anchors: Rc::new(anchors) }) });
+    Ok(())
+}
+
 /// A mutable pointer's complete original source union is not the pointer
 /// cell itself. Authenticate every real reaching copy against the corresponding
 /// immutable source expression, including grounded self-copy loop backedges.
 #[allow(clippy::too_many_arguments)]
 fn local_read_sources(
     world: &mut World<'_, '_>, instance: &SemanticInstance, original: &SemanticDefinition,
-    function: &TypedFunction, binding: NodeId, local: LocalId, at: (BlockId, usize),
-    values: &[Option<SharedType>], locals: &[Option<SharedType>],
-    implicit: &BTreeMap<u32, SemanticClassExpr>, return_boundary: bool, depth: usize,
+    function: &TypedFunction, binding: NodeId, local: LocalId, read: ValueId, at: (BlockId, usize),
 ) -> R<()> {
     let ledger = world.ledger;
     let proof = ledger.original.borrow();
@@ -1941,9 +2013,24 @@ fn local_read_sources(
     for node in nodes {
         let value = original_read_value(world, instance, original, node)?
             .ok_or_else(|| bad("local loan source lacks its exact original actual read"))?;
-        let (root, steps) = proof.view_source_steps(original.id, node, world.limits, world.left)?
-            .ok_or_else(|| bad("local loan source lacks its complete original path"))?;
-        sources.push((value, root, steps));
+        sources.push((value, node));
+    }
+    world.pay(index::search(world.value_role_sources.len()).saturating_add(1))?;
+    let origin = world.value_role_sources.get(&read).and_then(|source| source.origin.clone())
+        .ok_or_else(|| bad("local loan has no actually reached original source receipt"))?;
+    if !sources.iter().any(|(mint, node)| *mint == origin.mint && *node == origin.node)
+    { return Err(bad("local loan incoming receipt selects another original source")); }
+    world.pay(origin.anchors.len())?;
+    for anchor in origin.anchors.iter() {
+        match anchor {
+            roles::OriginAnchor::Capture(index) => { world.capture(instance, *index)?; }
+            roles::OriginAnchor::Input(parameter) => {
+                if function.parameters.get(*parameter as usize).is_none() {
+                    return Err(bad("local loan incoming receipt loses its actual caller input"));
+                }
+            }
+            roles::OriginAnchor::Other => {}
+        }
     }
     let mut pending = Vec::new();
     for source in reaching_values_inner(world, function, local, at, true)? {
@@ -1955,6 +2042,7 @@ fn local_read_sources(
     }
     let mut seen = std::collections::BTreeSet::new();
     let mut grounded = false;
+    let mut reaches_current = false;
     while let Some(value) = pending.pop() {
         world.pay(index::search(seen.len()).saturating_add(sources.len()).saturating_add(1))?;
         if !seen.insert(value) { continue; }
@@ -1972,9 +2060,12 @@ fn local_read_sources(
         if !matches!(ty, Type::Address { .. } | Type::Desc(_)) {
             return Err(bad("local loan copy graph changes its actual address carrier"));
         }
-        if let Some((_, root, steps)) = sources.iter().find(|(source, _, _)| *source == value) {
-            trace_steps(world, instance, original, function, *root, steps, Cursor::Value(value),
-                values, locals, implicit, return_boundary, depth + 1)?;
+        if sources.iter().any(|(source, _)| *source == value) {
+            // Every such original mint is checked at its own real boundary
+            // by record_source in every reaching whole-state. At this use we
+            // require the CURRENT occupant's transported receipt, rather than
+            // reading a sibling/future mint as a currently available SSA.
+            reaches_current |= value == origin.mint;
             grounded = true;
             continue;
         }
@@ -2000,6 +2091,9 @@ fn local_read_sources(
         }
     }
     if !grounded { return Err(bad("local loan alias cycle has no original source")); }
+    if !reaches_current { return Err(bad("local loan copy graph loses its actually reached source receipt")); }
+    // Current root, stale-epoch and vacancy checks remain in the caller's
+    // normal directed-loan consumption; this receipt supplies only provenance.
     Ok(())
 }
 

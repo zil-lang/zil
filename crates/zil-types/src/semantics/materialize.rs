@@ -11,6 +11,13 @@ fn bad(message: &str) -> Diagnostic {
 fn unknown(message: &str) -> Diagnostic {
     Diagnostic::unsupported(Phase::Types, message, None)
 }
+// A private tagged failure from the exact header reader. The retained identity
+// alone is never enough to turn a later unrelated failure into readiness.
+const PENDING_HEADER: &str = "E-SEMANTIC-HEADER-DEPENDENCY";
+fn is_pending_header(diagnostic: &Diagnostic) -> bool {
+    diagnostic.category == zil_base::ResultCategory::Unsupported
+        && diagnostic.code == PENDING_HEADER
+}
 fn empty() -> StorageLifeShape {
     StorageLifeShape {
         binder_count: 0,
@@ -1719,7 +1726,8 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                     // declaration dependency as NotReady. Ordinary semantic
                     // readers still fail and cannot observe an empty domain.
                     self.pending_header = Some(*id);
-                    return Err(unknown(&format!("whole closure type requires a complete actual header: instance {scope:?}, definition {definition:?}, child {:?}, actual closure {id:?}, entry {:?}", child.id, closure.function)));
+                    return Err(Diagnostic::new(Phase::Types, zil_base::ResultCategory::Unsupported,
+                        PENDING_HEADER, format!("whole closure type requires a complete actual header: instance {scope:?}, definition {definition:?}, child {:?}, actual closure {id:?}, entry {:?}", child.id, closure.function), None));
                 };
                 self.fee(life.fixed_binder_count as usize + child.header_embedding.len())?;
                 let mut images = vec![None; life.fixed_binder_count as usize];
@@ -2463,11 +2471,11 @@ pub(super) fn form_type_in_view(
     let result = eval.ty(scope, recipe, hint, 0);
     match (result, eval.pending_header) {
         (Ok(value), None) => Ok(Formation::Complete(value)),
-        (Err(_), Some(id)) => {
+        (Err(diagnostic), Some(id)) if is_pending_header(&diagnostic) => {
             eval.fee(1)?;
             Ok(Formation::NotReady { dependencies: BTreeSet::from([id]) })
         }
-        (Err(diagnostic), None) => Err(diagnostic),
+        (Err(diagnostic), _) => Err(diagnostic),
         (Ok(_), Some(_)) => Err(bad("complete type formation retained a pending actual header")),
     }
 }

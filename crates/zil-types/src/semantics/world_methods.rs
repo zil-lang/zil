@@ -983,6 +983,7 @@ pub(super) fn callable(
         world.same(instance.id, &inner, &expected_inner, implicit)?;
         let source = roles::outer(world, &target)?;
         let source = roles::copy_source(world, &source)?;
+        let source = roles::incoming(world, output, source)?;
         world.value_role_sources.insert(output, source);
     } else {
         world.same(instance.id, &target, &expected, implicit)?;

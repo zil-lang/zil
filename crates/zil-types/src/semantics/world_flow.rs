@@ -21,8 +21,8 @@ pub(super) struct State {
     pub unsafe_regions: Vec<u32>,
     pub owners: BTreeMap<LocalId, ScopeId>,
     pub vacant: BTreeSet<(LocalId, Vec<PlaceProjection>)>,
-    pub role_sources: BTreeMap<LocalId, roles::Source>,
-    pub value_role_sources: BTreeMap<ValueId, roles::Source>,
+    pub role_sources: BTreeMap<LocalId, roles::Incoming>,
+    pub value_role_sources: BTreeMap<ValueId, roles::Incoming>,
     pub reborrows: BTreeMap<ValueId, arguments::Edge>,
     pub reservations: BTreeMap<ReservationId, reservations::Reservation>,
     pub value_roots: BTreeMap<ValueId, BTreeSet<arguments::Root>>,
@@ -72,11 +72,11 @@ impl State {
         }
         let mut role_sources = BTreeMap::new();
         for (local, source) in &self.role_sources {
-            role_sources.insert(*local, roles::copy_source(world, source)?);
+            role_sources.insert(*local, roles::snapshot_incoming(source, world.limits, world.left)?);
         }
         let mut value_role_sources = BTreeMap::new();
         for (value, source) in &self.value_role_sources {
-            value_role_sources.insert(*value, roles::copy_source(world, source)?);
+            value_role_sources.insert(*value, roles::snapshot_incoming(source, world.limits, world.left)?);
         }
         let mut reborrows = BTreeMap::new();
         for (value, edge) in &self.reborrows {
@@ -177,13 +177,13 @@ impl State {
                 world,
                 &self.role_sources,
                 &other.role_sources,
-                charge_source,
+                charge_incoming,
             )?
             || !same_map(
                 world,
                 &self.value_role_sources,
                 &other.value_role_sources,
-                charge_source,
+                charge_incoming,
             )?
             || !same_map(world, &self.reborrows, &other.reborrows, |world, edge| {
                 world.pay(1)?;
@@ -299,6 +299,11 @@ fn same_map<K: Ord, V: Eq>(
     }
     Ok(true)
 }
+fn charge_incoming(world: &mut World<'_, '_>, source: &roles::Incoming) -> R<()> {
+    world.pay(source.origin.as_ref().map_or(0, |origin| origin.anchors.len()).saturating_add(1))?;
+    charge_source(world, &source.source)
+}
+
 fn charge_source(world: &mut World<'_, '_>, source: &roles::Source) -> R<()> {
     world.pay(1)?;
     if let roles::Source::Class(image) = source {
@@ -477,7 +482,7 @@ impl State {
             .values()
             .chain(self.value_role_sources.values())
         {
-            live.source(world, source)?;
+            live.source(world, &source.source)?;
         }
         world.pay(self.reservations.len())?;
         for reservation in self.reservations.values() {
@@ -607,12 +612,14 @@ impl State {
         hash_binary(&mut digest, world.left, &self.role_sources.len())?;
         for (local, source) in &self.role_sources {
             hash_binary(&mut digest, world.left, local)?;
-            hash_source(&mut digest, world.left, source)?;
+            hash_source(&mut digest, world.left, &source.source)?;
+            hash_binary(&mut digest, world.left, &source.origin)?;
         }
         hash_binary(&mut digest, world.left, &self.value_role_sources.len())?;
         for (value, source) in &self.value_role_sources {
             hash_binary(&mut digest, world.left, value)?;
-            hash_source(&mut digest, world.left, source)?;
+            hash_source(&mut digest, world.left, &source.source)?;
+            hash_binary(&mut digest, world.left, &source.origin)?;
         }
         hash_binary(&mut digest, world.left, &self.reborrows.len())?;
         for (value, edge) in &self.reborrows {
@@ -1282,12 +1289,20 @@ impl Cfg {
         entry: usize,
         value: Option<&SharedType>,
         implicit: &BTreeMap<u32, SemanticClassExpr>,
+        stable_outer: bool,
     ) -> R<bool> {
-        let Some(SemanticTypeValue::Resolved { classes, .. }) = value.map(Rc::as_ref) else {
+        let Some(SemanticTypeValue::Resolved { ty, life, classes }) = value.map(Rc::as_ref) else {
             return Ok(false);
         };
-        world.pay(classes.len())?;
-        for image in classes {
+        world.pay(classes.len().saturating_add(life.slots.len()))?;
+        let outer = if stable_outer && matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+            life.slots.iter().find(|row| row.path.is_empty()).map(|row| row.binder as usize)
+        } else { None };
+        for (class, image) in classes.iter().enumerate() {
+            // Only a separately traced outer referent can cross this access
+            // mint's epoch. Every intrinsic/pointee class keeps its ordinary
+            // loop-epoch obligation; no whole-Type or permission is relaxed.
+            if outer == Some(class) { continue; }
             if self.loop_image(world, entry, image, implicit)? {
                 return Ok(true);
             }
@@ -1365,24 +1380,35 @@ impl Cfg {
                 && (self.dominators[source].contains(&index) || index <= source)
         }) {
             for (ordinal, value) in state.locals.iter().enumerate() {
-                if self.loop_occurrence(world, index, value.as_ref(), &state.implicit)? {
+                world.pay(index::search(state.role_sources.len()).saturating_add(1))?;
+                let stable = if let Some(source) = state.role_sources.get(&LocalId(ordinal as u32)) {
+                    roles::stable_origin(world, source, state.instance, &state.vacant_captures)?
+                } else { false };
+                if self.loop_occurrence(world, index, value.as_ref(), &state.implicit, stable)? {
                     state.stale_locals.insert(LocalId(ordinal as u32));
                 }
             }
             for (ordinal, value) in state.values.iter().enumerate() {
-                if self.loop_occurrence(world, index, value.as_ref(), &state.implicit)? {
+                if self.loop_occurrence(world, index, value.as_ref(), &state.implicit, false)? {
                     state.stale_values.insert(ValueId(ordinal as u32));
                 }
             }
             for (local, source) in &state.role_sources {
-                if let roles::Source::Class(image) = source {
+                // A checked directed source trace can transport a pointer to
+                // a stable caller/capture referent across a loop. The local's
+                // complete declared domain was checked above independently;
+                // do not confuse the historic access-mint spelling with that
+                // referent. SSA values retain their normal epoch retirement.
+                if roles::stable_origin(world, source, state.instance, &state.vacant_captures)?
+                { continue; }
+                if let roles::Source::Class(image) = &source.source {
                     if self.loop_image(world, index, image, &state.implicit)? {
                         state.stale_locals.insert(*local);
                     }
                 }
             }
             for (value, source) in &state.value_role_sources {
-                if let roles::Source::Class(image) = source {
+                if let roles::Source::Class(image) = &source.source {
                     if self.loop_image(world, index, image, &state.implicit)? {
                         state.stale_values.insert(*value);
                     }

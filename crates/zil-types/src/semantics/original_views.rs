@@ -397,6 +397,15 @@ impl Proof {
             Diagnostic::limit(Phase::Types, "returned input ordinal snapshot exceeded", None))?;
         Ok(Some(returned.inputs.into_iter().collect()))
     }
+    /// Complete declaration-proved source roots, including captures and
+    /// activation-local roots. Consumers must retain the entire result;
+    /// filtering it to parameter ordinals cannot establish an outside root.
+    pub(in crate::semantics) fn view_source_roots(
+        &self, owner: SemanticDefinitionId, root: ViewBorrowRoot, steps: &[ViewBorrowStep],
+        limits: &Limits, left: &mut usize,
+    ) -> R<Option<Vec<ViewBorrowRoot>>> {
+        self.view_sources(owner, root, steps, limits, left, &mut BTreeSet::new(), 0)
+    }
     pub(in crate::semantics) fn view_input_referents(
         &self, owner: SemanticDefinitionId, root: ViewBorrowRoot, steps: &[ViewBorrowStep],
         limits: &Limits, left: &mut usize,

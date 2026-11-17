@@ -746,7 +746,7 @@ impl World<'_, '_> {
             )
         {
             let constant = matches!(
-                self.value_role_sources.get(&operand),
+                self.value_role_sources.get(&operand).map(|value| &value.source),
                 Some(roles::Source::Static)
             ) || matches!(roles::outer(self, actual)?, roles::Source::Static);
             if constant {
