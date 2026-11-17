@@ -1,5 +1,10 @@
 use super::*;
 
+/// Only the original checked scrutinee's exact sum kind supplies coverage.
+/// ErrorUnion arm coverage never refines the unrelated Poll phase relation.
+#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+enum Discriminant{Other,Poll,ErrorUnion}
+
 #[derive(Default)]
 pub(super) struct Outcome {
     pub(super) fall: Option<State>,
@@ -184,7 +189,7 @@ impl<'a> Engine<'a> {
                 else_body,
             } => {
                 let observed = self.expression(value, &mut state, depth + 1, b)?;
-                let poll = self.node_poll(value, b)?;
+                let poll = self.node_discriminant(value, b)?;
                 let mut result = Outcome::default();
                 for selected in self.select(&state, &observed, pattern, poll, true, b)? {
                     let mut selected = selected;
@@ -209,7 +214,7 @@ impl<'a> Engine<'a> {
             }
             Match { value, arms } => {
                 let observed = self.expression(value, &mut state, depth + 1, b)?;
-                let poll = self.node_poll(value, b)?;
+                let poll = self.node_discriminant(value, b)?;
                 let mut covered = 0u8;
                 let mut result = Outcome::default();
                 for (ordinal, arm) in arms.iter().enumerate() {
@@ -228,7 +233,7 @@ impl<'a> Engine<'a> {
                             self.block(&arm.body, selected, deferred, loop_start, depth + 1, b)?;
                         self.collect(&mut result, next, b)?;
                     }
-                    covered |= pattern_mask(&arm.pattern, poll);
+                    covered |= pattern_mask(&arm.pattern, poll,b)?;
                 }
                 if covered != 3 {
                     for selected in self.unmatched(&state, &observed, poll, covered, b)? {
@@ -376,9 +381,9 @@ impl<'a> Engine<'a> {
                     .transpose()?
                     .unwrap_or(Value::Plain);
                 let poll = condition
-                    .map(|value| self.node_poll(value, b))
+                    .map(|value| self.node_discriminant(value, b))
                     .transpose()?
-                    .unwrap_or(false);
+                    .unwrap_or(Discriminant::Other);
                 let mut incoming = Vec::new();
                 if let Some((statement, pattern)) = pattern {
                     for mut branch in self.select(&state, &observed, pattern, poll, true, b)? {
@@ -426,24 +431,21 @@ impl<'a> Engine<'a> {
         self.task_loop_keys.pop();
         result
     }
-    fn node_poll(&self, node: &SemanticOriginalExpr, b: &mut Budget) -> Check<bool> {
-        self.original
-            .expressions
-            .get(&(self.current, node.id))
-            .map(|ty| self.poll_type(ty, b))
-            .transpose()
-            .map(|value| value.unwrap_or(false))
+    fn node_discriminant(&self,node:&SemanticOriginalExpr,b:&mut Budget)->Check<Discriminant>{
+        let Some(ty)=self.original.expressions.get(&(self.current,node.id))else{return Ok(Discriminant::Other);};
+        if matches!(self.original.resolved(ty,b)?,Ty::ErrorUnion(..)){return Ok(Discriminant::ErrorUnion);}
+        Ok(if self.poll_type(ty,b)?{Discriminant::Poll}else{Discriminant::Other})
     }
     fn select(
         &mut self,
         state: &State,
         value: &Value,
         pattern: &SemanticOriginalPattern,
-        poll: bool,
+        poll: Discriminant,
         yes: bool,
         b: &mut Budget,
     ) -> Check<Vec<State>> {
-        let selected = pattern_mask(pattern, poll);
+        let selected = pattern_mask(pattern, poll,b)?;
         if selected == 0 {
             return Ok(vec![state.copy(b)?]);
         }
@@ -460,11 +462,11 @@ impl<'a> Engine<'a> {
         state: &State,
         value: &Value,
         pattern: &SemanticOriginalPattern,
-        poll: bool,
+        poll: Discriminant,
         covered: u8,
         b: &mut Budget,
     ) -> Check<Vec<State>> {
-        let selected = pattern_mask(pattern, poll);
+        let selected = pattern_mask(pattern, poll,b)?;
         if selected == 0 {
             return if covered == 3 {
                 Ok(vec![])
@@ -478,7 +480,7 @@ impl<'a> Engine<'a> {
         &mut self,
         state: &State,
         value: &Value,
-        poll: bool,
+        poll: Discriminant,
         covered: u8,
         b: &mut Budget,
     ) -> Check<Vec<State>> {
@@ -488,14 +490,14 @@ impl<'a> Engine<'a> {
         &mut self,
         state: &State,
         value: &Value,
-        poll: bool,
+        poll: Discriminant,
         mask: u8,
         b: &mut Budget,
     ) -> Check<Vec<State>> {
         if mask == 0 {
             return Ok(vec![]);
         }
-        if !poll || mask == 3 {
+        if poll!=Discriminant::Poll || mask == 3 {
             return Ok(vec![state.copy(b)?]);
         }
         let exit = if mask == 1 {
@@ -630,20 +632,63 @@ impl<'a> Engine<'a> {
         }
     }
 }
-fn pattern_mask(pattern: &SemanticOriginalPattern, poll: bool) -> u8 {
-    match &pattern.kind {
-        CorePatternKind::Name(_) | CorePatternKind::Wildcard => 3,
-        CorePatternKind::Variant { variant, .. } | CorePatternKind::Constructor { variant, .. }
-            if poll =>
-        {
-            match variant.as_str() {
-                "Pending" => 1,
-                "Ready" => 2,
-                _ => 0,
-            }
+fn irrefutable_payload(pattern:&SemanticOriginalPattern,b:&mut Budget)->Check<bool>{
+    let mut pending=vec![(pattern,0usize)];
+    while let Some((pattern,depth))=pending.pop(){
+        b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original sum pattern depth exceeded"));}
+        match &pattern.kind{
+            CorePatternKind::Name(_)|CorePatternKind::Wildcard=>{},
+            CorePatternKind::Tuple(fields)=>{b.spend(fields.len())?;pending.extend(fields.iter().map(|field|(field,depth+1)));},
+            CorePatternKind::Record{fields,..}|CorePatternKind::RecordConstructor{fields,..}=>{b.spend(fields.len())?;pending.extend(fields.iter().map(|(_,field)|(field,depth+1)));},
+            CorePatternKind::Reference{pattern,..}=>pending.push((pattern,depth+1)),
+            // Literal, variant and nested ErrorUnion selectors can fail. Their
+            // unmatched route remains until a separate complete proof covers it.
+            _=>return Ok(false),
         }
-        // Other typed patterns have no protocol discriminant. Both the matching
-        // and nonmatching path must remain possible until their own control proof.
-        _ => 0,
+    }Ok(true)
+}
+fn pattern_mask(pattern:&SemanticOriginalPattern,discriminant:Discriminant,b:&mut Budget)->Check<u8>{
+    b.spend(1)?;
+    Ok(match &pattern.kind{
+        CorePatternKind::Name(_)|CorePatternKind::Wildcard=>3,
+        CorePatternKind::ErrorArm{is_error,pattern}if discriminant==Discriminant::ErrorUnion&&irrefutable_payload(pattern,b)?=>if *is_error{1}else{2},
+        CorePatternKind::Variant{variant,fields,..}|CorePatternKind::Constructor{variant,fields,..}if discriminant==Discriminant::Poll=>{
+            for field in fields{if !irrefutable_payload(field,b)?{return Ok(0);}}
+            match variant.as_str(){"Pending"=>1,"Ready"=>2,_=>0}
+        },
+        // This pattern has no proved full discriminant/payload coverage. Its
+        // matching and nonmatching routes both remain possible.
+        _=>0,
+    })
+}
+
+#[cfg(test)]
+mod error_arm_coverage_tests{
+    use super::*;
+    #[test]
+    fn actual_original_match_keeps_only_uncovered_error_paths_for_return_and_cleanup(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);
+        let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let index=index::build(&module,&mut b).unwrap();let definition=*index.definitions.keys().next().unwrap();let span=module.functions[0].span;
+        for(typed_sum,complete,refutable)in [(true,true,false),(true,false,false),(false,true,false),(true,true,true)]{
+            let mut original=CheckedOriginal::default();
+            if typed_sum{original.expressions.insert((definition,NodeId(900)),Ty::ErrorUnion(Box::new(Ty::Atom(Type::I32)),Box::new(Ty::Atom(Type::Unit))));}
+            let mut arms=Vec::new();
+            for is_error in [true,false]{
+                if !complete&&!is_error{continue;}
+                let payload=zil_ir::CorePattern{kind:if refutable&&is_error{CorePatternKind::Integer("7".into())}else{CorePatternKind::Wildcard},span};
+                arms.push(zil_ir::CoreMatchArm{pattern:zil_ir::CorePattern{kind:CorePatternKind::ErrorArm{is_error,pattern:Box::new(payload)},span},body:zil_ir::CoreBlock{statements:vec![zil_ir::CoreStatement{id:NodeId(if is_error{902}else{903}),kind:CoreStatementKind::Return(None),span}],span},span});
+            }
+            let body:SemanticOriginalBlock=zil_ir::CoreBlock{statements:vec![zil_ir::CoreStatement{id:NodeId(901),kind:CoreStatementKind::Match{value:zil_ir::CoreExpr{id:NodeId(900),kind:CoreExprKind::Name("sum".into()),span},arms},span}],span};
+            let mut births=tasks::SynchronousBirths::default();let summaries=BTreeMap::new();
+            let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),creation_shapes:BTreeMap::new()};
+            let outcome=engine.block(&body,State::default(),&[],None,0,&mut b).unwrap();
+            assert_eq!(outcome.fall.is_none(),typed_sum&&complete&&!refutable,"a real exhaustive two-arm return has no third cleanup/source route; missing type/arm or refutable payload must retain it");
+        }
+        let error=zil_ir::CorePattern{kind:CorePatternKind::ErrorArm{is_error:true,pattern:Box::new(zil_ir::CorePattern{kind:CorePatternKind::Wildcard,span})},span};
+        assert_eq!(pattern_mask(&error,Discriminant::Poll,&mut b).unwrap(),0,"ErrorUnion tags cannot refine the unrelated Poll generation relation");
+        let tuple=zil_ir::CorePattern{kind:CorePatternKind::Tuple(vec![zil_ir::CorePattern{kind:CorePatternKind::Wildcard,span},zil_ir::CorePattern{kind:CorePatternKind::Name("field".into()),span}]),span};
+        assert!(irrefutable_payload(&tuple,&mut b).unwrap());
+        let mut literal=tuple;let CorePatternKind::Tuple(fields)=&mut literal.kind else{unreachable!()};fields[1].kind=CorePatternKind::Integer("7".into());assert!(!irrefutable_payload(&literal,&mut b).unwrap());
     }
 }
