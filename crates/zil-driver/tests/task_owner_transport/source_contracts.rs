@@ -36,11 +36,13 @@ fn rejects_matching(text: &str, expected: impl Fn(&zil_base::Diagnostic) -> bool
 
 #[test]
 fn direct_generic_drop_requires_cleanup() {
-    rejects(
+    rejects_consuming_contract_and_unused_cleanup(
         include_str!(
             "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/direct-worker-owner-cleanup.zil"
         ),
-        "SyncDrop",
+        include_str!(
+            "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/unused-direct-generic-drop.zil"
+        ),
     );
 }
 
@@ -56,12 +58,38 @@ fn nonconsuming_recovery_requires_cleanup() {
 
 #[test]
 fn nonconsuming_wrapper_requires_cleanup() {
-    rejects(
+    rejects_consuming_contract_and_unused_cleanup(
         include_str!(
             "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/nested-once-callable-child-cleanup.zil"
         ),
-        "SyncDrop",
+        include_str!(
+            "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/unused-nonconsuming-wrapper.zil"
+        ),
     );
+}
+
+fn rejects_consuming_contract_and_unused_cleanup(original: &str, unused: &str) {
+    // The original caller also passes a Suspend consuming operation to a
+    // Direct bound. Either that real contract violation or the definition's
+    // unconsumed cleanup obligation may be reported first.
+    rejects_matching(original, |diagnostic| {
+        (diagnostic.code == "E-ORIGINAL-CLEANUP"
+            && diagnostic.message == "live original value has no independent SyncDrop proof")
+            || (diagnostic.code == "E-SEMANTIC-ORIGINAL"
+                && diagnostic.message
+                    == "original callable changes its complete scoped call scheme"
+                && diagnostic.notes.iter().any(|note| note ==
+                    "original callable scheme: actual P=0 Bound=0 Invocation=0 ABI=Suspend resultMode=Infer; wanted P=0 Bound=0 Invocation=0 ABI=Direct resultMode=Infer"))
+    });
+    // Preserve every original definition byte-for-byte, but remove the
+    // instantiating caller. Its mismatch must not mask missing universal
+    // cleanup checking; Unsupported or another signature error cannot pass.
+    let main = original.rfind("fn main()").expect("original final main");
+    assert_eq!(
+        unused,
+        format!("{}fn main()->i32 {{return 0;}}\n", &original[..main])
+    );
+    rejects(unused, "SyncDrop");
 }
 
 #[test]
