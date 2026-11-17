@@ -763,7 +763,9 @@ pub(super) fn check_bodies(
             .as_ref()
             .expect("selected source function");
         claim(module, f, &leaves, budget)?;
-        if budget.stored_borrows {
+        if budget.stored_borrows || budget.nested_callable_sources {
+            // Nested physical captures use the completed actual memory ledger;
+            // a position-only trace cannot discharge their retained parents.
             budget.spend(1)?;
             budget.pending_callable_sources.push(f.id);
             continue;
@@ -934,6 +936,14 @@ fn borrowed_envelope(
                 cleanup.push(index as u32);
             }
             Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. } => {}
+            ty if crate::stored_flow::shared_tuple_value(module, ty, Some(f.span), budget)? => {
+                // These are actual readonly pointer fields, not owning cleanup
+                // debt or Copy evidence. capture_leaves, the complete public
+                // envelope and the memory source/parent proof remain due.
+                if definition.storage_life.is_none() {
+                    return Err(invalid("shared Tuple capture omits its complete actual environment relation"));
+                }
+            }
             ty if ty.is_copy_value() => {}
             _ => {
                 return Err(unsupported(
@@ -949,4 +959,51 @@ fn borrowed_envelope(
         ));
     }
     claim(module, f, leaves, budget)
+}
+
+#[cfg(test)]
+mod shared_tuple_envelope_tests {
+    use super::*;
+    fn fixture() -> TypedModule {
+        let (mut module, _) = crate::tests::baseline();
+        let pointer=Type::Address{mutable:false,inner:Box::new(Type::Slice{element:Box::new(Type::U8)})};
+        let capture=Type::Tuple(vec![Type::Tuple(vec![pointer.clone(),Type::I32]),Type::U8]);
+        let position=StoragePosition{base:StorageBase::Capture(0),path:vec![ContractProjection::Place(PlaceProjection::Field(0)),ContractProjection::Place(PlaceProjection::Field(0))]};
+        let header=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],classes:vec![],static_bindings:vec![position.clone()]};
+        let mut entry=module.functions[0].clone();entry.id=FunctionId(1);entry.name="entry".into();entry.environment=Some(ClosureId(0));entry.storage_life=Some(header.clone());
+        module.functions.push(entry);
+        module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(1),captures:vec![capture],parameters:vec![],result:Type::I32,kind:CallableKind::Fn,storage_life:Some(header),lending_captures:vec![]});
+        let factory=&mut module.functions[0];factory.name="factory".into();factory.return_type=Type::Closure(ClosureId(0));factory.callable_return_contract=Some(CallableReturnContract{life:None,capture_sources:Some(vec![StorageSourceBinding{position,sources:vec![StorageSource::Static{leaf:pointer,mode:StoredBorrowMode::SharedAddress}]}]),source:CallableReturnSource::Fresh,closure:ClosureId(0),kind:CallableKind::FnOnce,hold:vec![0],call:vec![0],writes:vec![],cleanup:vec![],lending_captures:vec![]});
+        module
+    }
+    fn envelope(module:&TypedModule,parameter:bool)->Check<()> {
+        let limits=Limits::default();let mut budget=Budget::new(&limits);
+        let leaves=capture_leaves(module,ClosureId(0),&limits,&mut budget)?;
+        assert_eq!(leaves.len(),1,"zero logical classes do not erase the nested physical pointer");
+        borrowed_envelope(module,&module.functions[0],ClosureId(0),&leaves,parameter,&mut budget)?;
+        assert!(budget.nested_callable_sources,"the complete actual memory proof stays scheduled");
+        Ok(())
+    }
+    // Boundary-component controls, not a whole-module or native verdict.
+    // Actual constructor/return provenance remains the memory kernel's duty.
+    #[test]
+    fn nested_shared_tuple_return_envelope_preserves_sources_and_exact_cleanup_raw_wire(){
+        let raw=fixture();let limits=Limits::default();let bytes=zil_ir::wire::encode_module_candidate(&raw,&CandidatePlan::empty_for(&raw),&limits).unwrap();
+        let decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;
+        for module in [&raw,&decoded]{
+            for parameter in [false,true]{
+                envelope(module,parameter).unwrap();
+                let mut wrong_cleanup=module.clone();wrong_cleanup.functions[0].callable_return_contract.as_mut().unwrap().cleanup=vec![0];
+                let error=envelope(&wrong_cleanup,parameter).unwrap_err();assert_eq!(error.category,zil_base::ResultCategory::SafeReject);assert_eq!(error.code,"E-VERIFY-CALLABLE-SOURCE");assert_eq!(error.message,"callable cleanup differs from its actual owned capture fields");
+                let mut wrong_mode=module.clone();let binding=&mut wrong_mode.functions[0].callable_return_contract.as_mut().unwrap().capture_sources.as_mut().unwrap()[0];
+                let StorageSource::Static{mode,..}=&mut binding.sources[0]else{unreachable!()};*mode=StoredBorrowMode::ExclusiveAddress;
+                let error=envelope(&wrong_mode,parameter).unwrap_err();assert_eq!(error.category,zil_base::ResultCategory::SafeReject);assert_eq!(error.code,"E-VERIFY-CALLABLE-SOURCE");assert_eq!(error.message,"static capture upper differs from its complete immutable leaf");
+            }
+            let mut hidden=module.clone();let contract=hidden.functions[0].callable_return_contract.as_mut().unwrap();contract.capture_sources=Some(vec![]);contract.hold.clear();contract.call.clear();
+            let mut budget=Budget::new(&limits);let error=crate::retained::check_self_contained_sources(&hidden,&limits,&mut budget).unwrap_err();assert_eq!(error.category,zil_base::ResultCategory::SafeReject);assert_eq!(error.code,"E-VERIFY-CALLABLE-SOURCE");assert_eq!(error.message,"callable Hold/Call/write envelope omits actual external capture slots");
+            let graphs=module.functions.iter().map(|f|FunctionGraph{successors:vec![vec![];f.blocks.len()],predecessors:vec![vec![];f.blocks.len()],reachable:vec![true;f.blocks.len()],package_views:Default::default(),role_data_uses:vec![]}).collect::<Vec<_>>();
+            let mut budget=Budget::new(&limits);budget.callable_source_functions.push(FunctionId(0));budget.nested_callable_sources=true;
+            check_bodies(module,&graphs,&limits,&mut budget).unwrap();assert_eq!(budget.pending_callable_sources,vec![FunctionId(0)],"a declared Static upper must still receive an actual source and parent proof");
+        }
+    }
 }
