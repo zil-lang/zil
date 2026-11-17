@@ -6,6 +6,7 @@ use super::*;
 #[derive(Default)]
 struct Directory {
     bindings: Vec<(StoragePosition, terms::LifeTerm)>,
+    static_bindings: Vec<StoragePosition>,
     classes: Vec<(SignatureLifeClass, terms::LifeTerm)>,
 }
 impl Directory {
@@ -122,21 +123,22 @@ impl Directory {
                     .collect::<Check<Vec<_>>>()?;
                 b.spend(value.life.slots.len())?;
                 let mut rows = value.life.slots.iter().filter(|row| row.path == path);
-                let row = rows
-                    .next()
-                    .ok_or_else(|| bad("original signature outer borrow occurrence is absent"))?;
-                if rows.next().is_some() {
-                    return Err(bad(
-                        "original signature outer borrow occurrence is ambiguous",
-                    ));
+                if let Some(row) = rows.next() {
+                    if rows.next().is_some() {
+                        return Err(bad("original signature outer borrow occurrence is ambiguous"));
+                    }
+                    self.bindings.push((StoragePosition { base, path: physical.clone() }, value.term(row.binder, b)?));
+                } else {
+                    // The complete original value shape distinguishes a
+                    // constant immutable occurrence from a missing variable
+                    // row. It still supplies no actual literal/source proof.
+                    if !matches!(ty, Type::Address { mutable: false, .. }) {
+                        return Err(bad("original signature outer borrow occurrence is absent"));
+                    }
+                    b.spend(physical.len().saturating_add(1))?;
+                    if self.static_bindings.len() == self.static_bindings.capacity() { b.spend(self.static_bindings.len().saturating_add(1))?; }
+                    self.static_bindings.push(StoragePosition { base, path: physical.clone() });
                 }
-                self.bindings.push((
-                    StoragePosition {
-                        base,
-                        path: physical.clone(),
-                    },
-                    value.term(row.binder, b)?,
-                ));
                 semantic.push(LifeTypeProjection::Pointee);
                 self.node(module, value, inner, base, physical, semantic, b, depth + 1)?;
                 semantic.pop();
@@ -302,7 +304,7 @@ pub(super) fn expected(
                 binder: term.image,
             })
             .collect(),
-        static_bindings: vec![],
+        static_bindings: directory.static_bindings,
         classes: directory
             .classes
             .into_iter()
@@ -345,6 +347,10 @@ fn directory(
     b.spend(parameters.len().saturating_add(1))?;
     for (index, value) in parameters.iter().chain(std::iter::once(result)).enumerate() {
         dynamic_metadata::recipe(&value.raw, b)?;
+        if value.terms.len() != value.life.binder_count as usize || value.raw.classes.len() != value.terms.len() {
+            return Err(bad("original header value loses its complete intrinsic term domain"));
+        }
+        values::shape(module, &value.raw.ty, &value.raw.life, b)?;
         let base = if index == parameters.len() {
             StorageBase::Result
         } else {
@@ -484,12 +490,18 @@ fn checked_function(
     }
     let directory = directory(module, parameters, result, b)?;
     let Some(actual) = function.storage_life.as_ref() else {
-        if directory.bindings.is_empty() && directory.classes.is_empty() {
+        if directory.bindings.is_empty() && directory.classes.is_empty() && directory.static_bindings.is_empty() {
             return Ok(requests::Header::default());
         }
         return Err(bad("actual method header occurrence relation is Unknown"));
     };
     signature_life::charge(actual, b)?;
+    for position in &directory.static_bindings {
+        b.spend(actual.static_bindings.len().saturating_add(actual.bindings.len()).saturating_add(position.path.len()))?;
+        if actual.static_bindings.iter().filter(|row| *row == position).count() != 1
+            || actual.bindings.iter().any(|row| row.position == *position)
+        { return Err(bad("actual header loses or replaces an original constant borrow occurrence")); }
+    }
     let mut mapping: Vec<(StorageBinder, terms::LifeTerm)> = vec![];
     for (position, term) in &directory.classes {
         b.spend(actual.classes.len().saturating_add(mapping.len()))?;
@@ -582,36 +594,20 @@ fn checked_function(
             .ok_or_else(|| bad("actual result borrow occurrence is absent"))?;
         result_output(&mapping, row.binder, *term, sources, borrows, b).map_err(|error|error.with_note(format!("actual header result borrow: function {:?}, position {:?}, binder {:?}, required {:?}, input origins {:?}; own_domain {own_domain}; complete result {:?}",function.id,position,row.binder,term,mapping,result)))?;
     }
-    if actual
-        .classes
-        .iter()
-        .map(|row| &row.position)
-        .ne(directory.classes.iter().map(|(position, _)| position))
-        || actual.bindings.iter().map(|row| &row.position).ne(directory
-            .bindings
-            .iter()
-            .filter(|(position, _)| !actual.static_bindings.contains(position))
-            .map(|(position, _)| position))
-        || actual.static_bindings.iter().ne(directory
-            .bindings
-            .iter()
-            .filter(|(position, _)| actual.static_bindings.contains(position))
-            .map(|(position, _)| position))
+    b.spend(directory.bindings.len().saturating_add(directory.static_bindings.len()))?;
+    let mut expected_statics: Vec<_> = directory.static_bindings.iter().chain(directory.bindings.iter()
+        .filter(|(position, _)| actual.static_bindings.contains(position)).map(|(position, _)| position)).collect();
+    let width=expected_statics.iter().fold(0usize,|sum,position|sum.saturating_add(position.path.len().saturating_add(1)));
+    b.spend(width.saturating_mul(expected_statics.len().checked_ilog2().map_or(1,|n|n as usize+2)).saturating_mul(2))?;
+    expected_statics.sort();
+    if actual.classes.iter().map(|row| &row.position).ne(directory.classes.iter().map(|(position, _)| position))
+        || actual.bindings.iter().map(|row| &row.position).ne(directory.bindings.iter()
+            .filter(|(position, _)| !actual.static_bindings.contains(position)).map(|(position, _)| position))
+        || actual.static_bindings.iter().ne(expected_statics.into_iter())
         || actual.classes.len() != directory.classes.len()
-        || actual
-            .bindings
-            .len()
-            .saturating_add(actual.static_bindings.len())
-            != directory.bindings.len()
-        || actual
-            .static_bindings
-            .iter()
-            .any(|p| !directory.bindings.iter().any(|(position, _)| position == p))
-    {
-        return Err(bad(
-            "actual header has extra, missing or displaced original occurrences",
-        ));
-    }
+        || actual.bindings.len().saturating_add(actual.static_bindings.len())
+            != directory.bindings.len().saturating_add(directory.static_bindings.len())
+    { return Err(bad("actual header has extra, missing or displaced original occurrences")); }
     // The actual header (including its Static positions) is preserved in the
     // ContractRequest separately. The original variable upper stays variable;
     // a constant result may satisfy it only after the actual CFG proves Static.
@@ -1009,4 +1005,33 @@ mod tests {
         life.static_bindings.insert(0, input.position);
         assert!(raw_and_wire(&narrow, &parameter, &result).is_err());
     }
+    #[test]
+    fn original_constant_tuple_and_result_keep_exact_pending_occurrences_raw_wire() {
+        let (mut module,_)=crate::tests::baseline();
+        let pointer=Type::Address {mutable:false,inner:Box::new(Type::Slice {element:Box::new(Type::U8)})};
+        let empty=StorageLifeShape {binder_count:0,slots:vec![],retained:vec![],nominal_arguments:vec![]};
+        let parameter=terms::Value {raw:DynTypeValue {ty:Type::Tuple(vec![pointer.clone(),Type::I32]),life:empty.clone(),classes:vec![]},terms:vec![]};
+        let result=terms::Value {raw:DynTypeValue {ty:pointer.clone(),life:empty,classes:vec![]},terms:vec![]};
+        let positions=vec![StoragePosition {base:StorageBase::Parameter(0),path:vec![ContractProjection::Place(PlaceProjection::Field(0))]},StoragePosition {base:StorageBase::Result,path:vec![]}];
+        let f=&mut module.functions[0];f.parameters=vec![LocalId(0)];f.locals[0].ty=parameter.raw.ty.clone();f.return_type=pointer;
+        f.storage_life=Some(StorageLifeContract {fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],static_bindings:positions.clone(),classes:vec![]});
+        let limits=Limits::default();let bytes=zil_ir::wire::encode_module_candidate(&module,&CandidatePlan::empty_for(&module),&limits).unwrap();let(wire,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+        for module in [&module,&wire] {
+            let mut b=Budget::new(&limits);let header=function(module,&module.functions[0],std::slice::from_ref(&parameter),&result,&mut b).unwrap();
+            assert!(header.bindings.is_empty()&&header.origins.is_empty());assert_eq!(header.static_bindings,positions);assert!(b.proven_static_occurrences.is_empty());
+            let(_,images)=rebased_function(module,&module.functions[0],std::slice::from_ref(&parameter),&result,&mut b).unwrap();assert!(images.is_empty());
+            for attack in 0..5 {
+                let mut wrong=module.clone();let f=&mut wrong.functions[0];
+                match attack {
+                    0=>{f.storage_life.as_mut().unwrap().static_bindings.remove(0);},
+                    1=>{f.storage_life.as_mut().unwrap().static_bindings.remove(1);},
+                    2=>f.storage_life=None,
+                    3=>f.storage_life.as_mut().unwrap().static_bindings.swap(0,1),
+                    _=>f.storage_life.as_mut().unwrap().static_bindings.push(StoragePosition {base:StorageBase::Parameter(0),path:vec![ContractProjection::Place(PlaceProjection::Field(1))]}),
+                }
+                assert!(function(&wrong,&wrong.functions[0],std::slice::from_ref(&parameter),&result,&mut Budget::new(&limits)).is_err(),"attack {attack}");
+            }
+        }
+    }
+
 }

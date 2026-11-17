@@ -526,6 +526,9 @@ impl<'a> Inventory<'a> {
         for class in classes {
             scopes::class(scope, *class, b)?;
         }
+        self.shape(ty, life, b)
+    }
+    fn shape(&mut self, ty: &'a Type, life: &StorageLifeShape, b: &mut Budget) -> Check<Domain> {
         if let Type::BorrowedStorage { life: embedded, .. } = ty {
             dynamic_metadata::life_shape(embedded,b)?;
             dynamic_metadata::life_shape(life,b)?;
@@ -562,6 +565,14 @@ impl<'a> Inventory<'a> {
         }
         Ok(domain)
     }
+}
+/// Shape only: no outside image, lifetime term, source or Static proof is
+/// created here. Header consumers already carry separately checked terms.
+pub(super) fn shape(module: &TypedModule, ty: &Type, life: &StorageLifeShape, b: &mut Budget) -> Check<Domain> {
+    dynamic_metadata::bounds_type(ty, b)?;
+    dynamic_metadata::life_shape(life, b)?;
+    if life.binder_count as usize > b.limits.max_nodes { return Err(limit("header complete shape domain exceeded")); }
+    Inventory { module, active: vec![] }.shape(ty, life, b)
 }
 pub(super) fn check(
     module: &TypedModule,

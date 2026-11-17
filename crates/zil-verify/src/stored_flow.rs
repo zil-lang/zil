@@ -1,6 +1,7 @@
 //! Independent stored-target reconstruction. Sorted vectors and batch CFG
 //! solving deliberately do not consume analyzer roots, summaries, or claims.
 use super::*;
+mod callable_cells;
 mod access_candidates;
 mod array_index;
 mod array_snapshot;
@@ -1793,6 +1794,7 @@ pub(super) fn qualifications(
                     && !pure_copy::operation(&i.kind)
                     && !pure_copy::ordinary_owned_union(module,f, i, b)?
                     && !pure_copy::ordinary_owned_tuple(module,f, i, b)?
+                    && !callable_cells::operation(module,f,i,b)?
                     && !pure_copy::ordinary_copy_field_borrow(f, i, b)?
                     && !pure_copy::ordinary_package_borrow(f, i, b)?
                     && !pure_copy::ordinary_package_read(f, i, b)?
@@ -3477,6 +3479,7 @@ fn step(
         None
     };
     match &i.kind {
+        _ if callable_cells::operation(module,f,i,b)? => { callable_cells::transfer(f,i,state,values,&mut out,b)?; }
         InstructionKind::UnpackTuple { local, fields } if anonymous_tuple::operation(f, i, b)? => {
             anonymous_tuple::unpack(f, *local, fields, state, b)?;
         }
@@ -4650,6 +4653,7 @@ static_dependency: StaticProvenance::NotStatic,
                 i.kind,
                 InstructionKind::BorrowLocal { .. }
                     | InstructionKind::BorrowLocalMut { .. }
+                    | InstructionKind::BorrowOwnedArrayElement { .. }
                     | InstructionKind::ReborrowAddress { .. }
                     | InstructionKind::LoadStoredBorrow {
                         mode: StoredBorrowLoad::Reborrow { .. },
@@ -4991,6 +4995,9 @@ fn reverse(
         {
             live.assign(f.values.len() + local.0 as usize, true)?;
         }
+        _ if callable_cells::operation(module,f,i,b)? => {
+            if let Some((local,_,_))=callable_cells::local(&i.kind) {live.assign(f.values.len()+local.0 as usize,true)?;}
+        }
         InstructionKind::UnpackTuple{local,ref fields} if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{
             for target in fields{b.spend(1)?;live.assign(f.values.len()+target.0 as usize,false)?;}
             live.assign(f.values.len()+local.0 as usize,true)?;
@@ -5049,6 +5056,9 @@ fn reverse_bool(
                     && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
         {
             live[f.values.len() + local.0 as usize] = true;
+        }
+        _ if callable_cells::operation(module,f,i,b)? => {
+            if let Some((local,_,_))=callable_cells::local(&i.kind) {live[f.values.len()+local.0 as usize]=true;}
         }
         InstructionKind::UnpackTuple{local,ref fields} if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{
             for target in fields{b.spend(1)?;live[f.values.len()+target.0 as usize]=false;}
@@ -5825,6 +5835,13 @@ fn windows(
                             loans: Vec::new(),
                         };
                         checks.check(&actual, true, requirements, b)?;
+                    }
+                    _ if callable_cells::operation(module,f,i,b)? => {
+                        if let Some((local,index,write))=callable_cells::local(&i.kind) {
+                            b.spend(1)?;
+                            let actual=Permission {sources:vec![Source {base:HoldRoot::Local(local),leaf:vec![],inline:index.map(|i|vec![PlaceProjection::Field(i)]).unwrap_or_default(),heap_parents:vec![],heap_element:None,retained_port:None,static_dependency:StaticProvenance::NotStatic}],loans:vec![]};
+                            checks.check(&actual,write,requirements,b)?;
+                        }
                     }
                     InstructionKind::UnpackTuple{local,..}|InstructionKind::DropTuple{local}|InstructionKind::TakeTupleField{local,..}
                         if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{

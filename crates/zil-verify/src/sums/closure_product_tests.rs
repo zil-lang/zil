@@ -250,3 +250,15 @@ fn opaque_callback_cleanup_uses_actual_captures_and_never_task_result() {
         "R is not the hidden Task frame"
     );
 }
+
+#[test]
+fn callback_array_is_not_empty_cleanup_until_its_actual_element_is_moved() {
+    let mut b=budget();let ty=Type::Array {element:Box::new(Type::Closure(ClosureId(0))),length:1};
+    let mut cell=content(&ty,Some(3),&mut vec![],false,&mut b).unwrap();
+    assert!(!cell.no_cleanup_debt(&mut b).unwrap());assert!(cell.live_task(&ty,&mut b).unwrap());
+    let callback=cell.take_place(&[PlaceProjection::Field(0)],true,&mut b).unwrap();
+    assert_eq!(callback,Content::Leaf(BTreeSet::from([Source::Input(3,vec![0,0])])));
+    assert!(cell.no_cleanup_debt(&mut b).unwrap());assert!(!cell.live_task(&ty,&mut b).unwrap());
+    assert!(!callback.no_cleanup_debt(&mut b).unwrap());assert_eq!(callback.fresh(),2);
+    assert!(cell.take_place(&[PlaceProjection::Field(0)],true,&mut b).is_err());
+}

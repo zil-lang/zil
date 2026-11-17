@@ -778,6 +778,10 @@ impl Content {
                 Ok(matches!(t.as_ref(), Type::AsyncRegistration { .. }))
             }
             (Content::Leaf(_), Type::Closure(id)) => closure_live_async(module, *id, b),
+            (Content::Product(children), Type::Array { element, .. }) => {
+                for child in children { if child.live_async(module, element, b)? { return Ok(true); } }
+                Ok(false)
+            }
             (Content::Product(children), Type::Tuple(fields)) => {
                 for (index, child) in children.iter().enumerate() {
                     if child.live_async(module, &fields[index], b)? {
@@ -828,6 +832,10 @@ impl Content {
         match (self, ty) {
             (Content::Missing(_), _) => Ok(false),
             (Content::Leaf(_), Type::Managed(_) | Type::Closure(_)) => Ok(true),
+            (Content::Product(children), Type::Array { element, .. }) => {
+                for child in children { if child.live_task(element, b)? { return Ok(true); } }
+                Ok(false)
+            }
             (Content::Product(children), Type::Tuple(fields)) => {
                 for (index, child) in children.iter().enumerate() {
                     if child.live_task(&fields[index], b)? {
@@ -1604,6 +1612,16 @@ fn content(
         } else {
             BTreeSet::from([parameter.map_or(Source::Unknown, |p| Source::Input(p, path.clone()))])
         }),
+        Type::Array { element, length } if matches!(element.as_ref(), Type::Closure(_)) => {
+            budget.spend(*length as usize)?;
+            let mut children = Vec::with_capacity(*length as usize);
+            for index in 0..*length {
+                path.extend([0, index]);
+                children.push(content(element, parameter, path, bottom, budget)?);
+                path.truncate(path.len() - 2);
+            }
+            Content::Product(children)
+        }
         Type::Tuple(fields) => {
             budget.spend(fields.len())?;
             let mut children = Vec::with_capacity(fields.len());
@@ -2333,6 +2351,11 @@ impl Flow<'_> {
                             .collect::<Check<_>>()?,
                     ));
                 }
+                InstructionKind::MakeOwnedArray { elements }
+                    if instruction.result.is_some_and(|value|matches!(&self.f.values[value.0 as usize],Type::Array {element,..} if matches!(element.as_ref(),Type::Closure(_)))) => {
+                    budget.spend(elements.len())?;
+                    result=Some(Content::Product(elements.iter().map(|value|state.values.get(value.0 as usize,budget)?.duplicate(budget)).collect::<Check<_>>()?));
+                }
                 InstructionKind::TaskCreateOwned { arguments, .. } => {
                     budget.spend(arguments.len().saturating_add(12))?;
                     let inputs = Content::Product(
@@ -2501,6 +2524,31 @@ impl Flow<'_> {
                     if matches!(instruction.kind, InstructionKind::TakeLocal { .. }) {
                         self.kill(state, *local, budget)?;
                         state.initialized.set(local.0 as usize, 1, budget)?;
+                    }
+                }
+                InstructionKind::TakeOwnedArrayElement { local, index } if matches!(&self.f.locals[local.0 as usize].ty,Type::Array {element,..} if matches!(element.as_ref(),Type::Closure(_))) => {
+                    if validate && state.initialized.get(local.0 as usize, budget)? != 2 {
+                        return Err(bad(Some(instruction.span), "callback array source shell is not initialized"));
+                    }
+                    state.locals[local.0 as usize].cost(budget)?;
+                    result=Some(Arc::make_mut(&mut state.locals[local.0 as usize]).take_place(&[PlaceProjection::Field(*index)],validate,budget)?);
+                    self.kill(state,*local,budget)?;
+                }
+                InstructionKind::DropOwnedArrayElement { local, index } if matches!(&self.f.locals[local.0 as usize].ty,Type::Array {element,..} if matches!(element.as_ref(),Type::Closure(_))) => {
+                    self.kill(state,*local,budget)?;state.locals[local.0 as usize].cost(budget)?;
+                    if let Content::Product(fields)=Arc::make_mut(&mut state.locals[local.0 as usize]) {
+                        let field=&mut fields[*index as usize];
+                        if !matches!(field,Content::Missing(_)) {budget.spend(1)?;let old=std::mem::replace(field,Content::Copy);*field=Content::Missing(Box::new(old));}
+                    }
+                }
+                InstructionKind::StoreOwnedArrayElement { local, index, value } if matches!(&self.f.locals[local.0 as usize].ty,Type::Array {element,..} if matches!(element.as_ref(),Type::Closure(_))) => {
+                    self.kill(state,*local,budget)?;state.locals[local.0 as usize].cost(budget)?;
+                    let incoming=state.values.get(value.0 as usize,budget)?.duplicate(budget)?;
+                    if let Content::Product(fields)=Arc::make_mut(&mut state.locals[local.0 as usize]) {
+                        if validate && (!matches!(fields[*index as usize],Content::Missing(_)) || !incoming.complete(budget)?) {
+                            return Err(bad(Some(instruction.span), "callback array refill requires its actual vacant element and complete replacement"));
+                        }
+                        fields[*index as usize]=incoming;
                     }
                 }
                 InstructionKind::TakePackageField { local, index }
