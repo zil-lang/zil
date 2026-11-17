@@ -11,6 +11,10 @@ impl CheckedContext {
             for block in &f.blocks{b.spend(block.instructions.len())?;for instruction in &block.instructions{if instruction.result==Some(value)&&producer.replace(instruction).is_some(){return Err(bad("capture creator operand has several actual SSA definitions"));}}}
             match &producer.ok_or_else(||bad("capture creator actual operand is undefined"))?.kind{
                 InstructionKind::Load(actual)|InstructionKind::TakeLocal{local:actual}|InstructionKind::DescribeLocal{local:actual}|InstructionKind::BorrowLocal{local:actual}|InstructionKind::BorrowLocalMut{local:actual}=>return Ok(*actual==local),
+                InstructionKind::TakeOwnedArrayElement{local:actual,index:0}|InstructionKind::BorrowOwnedArrayElement{local:actual,index:0,..}=>{
+                    self.persistent_initialization(module,creator,f,*actual,b)?;
+                    return Ok(*actual==local);
+                },
                 InstructionKind::ReborrowAddress{address,..}|InstructionKind::DescribeAddress{address}=>value=*address,
                 _=>return Ok(false),
             }

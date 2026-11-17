@@ -25,6 +25,7 @@ mod type_uses;
 mod callable_sources;
 mod local_roles;
 mod replacements;
+mod persistent_slots;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
@@ -222,8 +223,8 @@ impl CheckedContext {
                 for site in &sites {
                     if let SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(local),expected}=&site.action {
                         let value=self.site_expected(module,instance,site,&environment,external,active,b)?;
-                        if f.locals[local.0 as usize].ty!=value.ty {return Err(bad("declared local whole type differs from its original semantic constraint"));}
                         self.claim(module,expected,&value,&environment,b)?;
+                        let value=if f.locals[local.0 as usize].ty==value.ty{value}else{self.persistent_constraint(module,instance,f,*local,&value,b)?};
                         if let Some(old)=&constraints[local.0 as usize] {if !self.same_type(&environment,old,&value,b)? {return Err(bad("local declarations impose different semantic constraints"));}}
                         constraints[local.0 as usize]=Some(value);
                     }
@@ -297,6 +298,7 @@ impl CheckedContext {
                     InstructionKind::LoadStoredBorrow{..}|InstructionKind::StoreStoredBorrow{..}|InstructionKind::MakeVariant{..}|InstructionKind::VariantTag{..}|InstructionKind::ReadVariant{..}|InstructionKind::ExtractIndex{..}|InstructionKind::UpdateIndex{..}|InstructionKind::AddressIndex{..}|InstructionKind::AddressSlice{..}|InstructionKind::SliceLength{..}=>self.product_instruction(module,instance,f,instruction,&sites,&values,&environment,external,active,b)?,
                     InstructionKind::MakeErrorUnion{..}|InstructionKind::ReadErrorUnion{..}|InstructionKind::TakeErrorUnion{..}|InstructionKind::ErrorTag{..}|InstructionKind::VariantTagLocal{..}|InstructionKind::ReadVariantLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeVariantField{..}|InstructionKind::TakeTupleField{..}|InstructionKind::BorrowPlaceLocal{..}|InstructionKind::UnpackTuple{..}|InstructionKind::UnpackVariant{..}|InstructionKind::DropErrorUnion{..}|InstructionKind::DropEnum{..}|InstructionKind::DropTuple{..}=>self.sum_instruction(module,instance,f,instruction,&sites,&mut state,&values,signature,&environment,external,active,b)?,
                     InstructionKind::ReservePlaceLocal{..}|InstructionKind::ReservePlaceAddress{..}|InstructionKind::CommitPlaceReplace{..}|InstructionKind::AbortPlaceReservation{..}=>self.replacement_instruction(module,instance,f,instruction,&mut state,&values,&environment,external,active,b)?,
+                    InstructionKind::TakeOwnedArrayElement{..}|InstructionKind::StoreOwnedArrayElement{..}|InstructionKind::DropOwnedArrayElement{..}|InstructionKind::BorrowOwnedArrayElement{..}|InstructionKind::DropOwnedArray{..}=>self.persistent_instruction(module,instance,f,instruction,&mut state,&values,&environment,active,b)?,
                     InstructionKind::ReadAddress{address}=>{
                         let address=value_at(&values,*address)?;
                         let Type::Address{..}=&address.ty else{return Err(bad("actual dereference operand is not an address"));};
@@ -330,7 +332,7 @@ impl CheckedContext {
                         let mut declarations=sites.iter().filter(|site|matches!(site.action,SemanticSiteAction::Construct{..}));
                         let site=declarations.next();
                         if declarations.next().is_some() {return Err(bad("actual aggregate construction has duplicate semantic claims"));}
-                        let value=if let Some(site)=site{self.site_expected(module,instance,site,&environment,external,active,b)?}else{self.internal_copy_aggregate(module,f,instruction,fields,&values,b)?};
+                        let value=if let Some(site)=site{self.site_expected(module,instance,site,&environment,external,active,b)?}else if matches!(instruction.kind,InstructionKind::MakeOwnedArray{..}){self.persistent_constructor(module,instance,f,instruction,&values,b)?}else{self.internal_copy_aggregate(module,f,instruction,fields,&values,b)?};
                         let mut storage=&value.ty;
                         while let Type::BorrowedStorage{storage:inner,..}|Type::Managed(inner)=storage {storage=inner;}
                         let expected_fields=match storage {
@@ -793,7 +795,7 @@ impl CheckedContext {
     fn check_type_use(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,site:&SemanticSite,state:&State,values:&[Option<CheckedType>],signature:&CheckedSignature,environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{
         let SemanticSiteAction::TypeUse{subject,expected}=&site.action else{return Err(bad("TypeUse consumer selects another semantic action"));};
         let required=self.site_expected(module,instance,site,environment,external,active,b)?;
-        let value=self.type_use_operand(module,instance,f,subject,state,values,signature,environment,b)?;
+        let value=self.type_use_operand(module,instance,f,subject,&required,state,values,signature,environment,b)?;
         self.bind_implicit_use(module,instance,site,subject,&value,&required,environment,b)?;
         self.claim_type_use(module,expected,&required,environment,b)?;
         if !self.compatible(environment,&value,&required,b)?{

@@ -6,7 +6,7 @@ use original::intrinsics::{BufferSource, Intrinsic};
 #[path = "owner_fields.rs"]
 mod owner_fields;
 #[path = "owner_sources.rs"]
-mod owner_sources;
+pub(super) mod owner_sources;
 #[path = "assignments.rs"]
 mod assignments;
 

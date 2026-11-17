@@ -212,6 +212,11 @@ impl CheckedContext{
                     if !fields.is_empty(){return Err(unsupported("nested package observation requires its actual local-to-parent projection ledger",Some(instruction.span)));}
                     return self.projected_local_root(module,caller,f,*local,root,node,b);
                 },
+                InstructionKind::TakeOwnedArrayElement{local,index:0}|InstructionKind::BorrowOwnedArrayElement{local,index:0,..}=>{
+                    if !fields.is_empty(){return Err(bad("private callback source omitted an original field projection"));}
+                    self.persistent_initialization(module,caller,f,*local,b)?;
+                    return self.projected_local_root(module,caller,f,*local,root,node,b);
+                },
                 InstructionKind::DescribeLocal{local}|InstructionKind::Load(local)|InstructionKind::TakeLocal{local}|InstructionKind::BorrowLocal{local}|InstructionKind::BorrowLocalMut{local}=>{
                     if !fields.is_empty(){return Err(bad("actual buffer descriptor omitted an original field projection"));}
                     return self.projected_local_root(module,caller,f,*local,root,node,b);
@@ -408,7 +413,7 @@ impl CheckedContext {
     }
 }
 
-pub(super) fn producer<'a>(f:&'a TypedFunction,value:ValueId,b:&mut Budget)->Check<(BlockId,u32,&'a Instruction)>{
+pub(in crate::semantic::flow) fn producer<'a>(f:&'a TypedFunction,value:ValueId,b:&mut Budget)->Check<(BlockId,u32,&'a Instruction)>{
     let mut result=None;
     for block in &f.blocks{b.spend(block.instructions.len())?;for(index,instruction)in block.instructions.iter().enumerate(){if instruction.result==Some(value)&&result.replace((block.id,index as u32,instruction)).is_some(){return Err(bad("buffer projection has several actual SSA producers"));}}}
     result.ok_or_else(||bad("buffer projection lacks its actual SSA definition"))

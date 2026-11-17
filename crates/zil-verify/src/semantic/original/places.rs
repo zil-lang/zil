@@ -10,6 +10,16 @@ pub(in crate::semantic) struct Assignment {
 }
 fn nonnegative_index(value:&Constant)->Option<u64>{match value{Constant::I8(value)=>u64::try_from(*value).ok(),Constant::I16(value)=>u64::try_from(*value).ok(),Constant::I32(value)=>u64::try_from(*value).ok(),Constant::I64(value)|Constant::Isize(value)=>u64::try_from(*value).ok(),Constant::U8(value)=>Some(u64::from(*value)),Constant::U16(value)=>Some(u64::from(*value)),Constant::U32(value)=>Some(u64::from(*value)),Constant::U64(value)|Constant::Usize(value)=>Some(*value),_=>None}}
 impl CheckedOriginal {
+    /// The private callback cell represents this actual mutable source binder,
+    /// not an arbitrary one-element array of a coincidentally equal type.
+    pub(in crate::semantic) fn persistent_binding(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<(NodeId,NodeId)>{
+        if !self.checked.contains(&definition){return Err(bad("persistent callback binder lacks its complete original proof"));}
+        let index=self.source_index(module,&[definition],b)?;
+        let function=index.definitions.get(&definition).ok_or_else(||bad("persistent callback binder has no original function"))?;
+        let Some(index::Node::Statement(statement))=function.nodes.get(&site)else{return Err(bad("persistent callback cell selects no original declaration"));};
+        let CoreStatementKind::Binding{mutable:true,initializer:Some(initializer),..}=&statement.kind else{return Err(bad("persistent callback cell does not represent an initialized mutable binder"));};
+        Ok((statement.id,initializer.id))
+    }
     /// These source wrappers emit no value operation. Their full types and
     /// ownership effects have already passed the complete original body check;
     /// actual transport must still prove the selected operand's real origin.

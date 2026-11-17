@@ -319,6 +319,7 @@ impl<'a> Inventory<'a> {
                 }
                 Ok(domain)
             }
+            Type::Array{element,length:1}if matches!(element.as_ref(),Type::Closure(_))=>self.domain(element,b),
             Type::Tuple(fields) => {
                 for child in fields {
                     closed.pending_sources |= self.zero(child, b)?.pending_sources;
@@ -530,6 +531,8 @@ impl<'a> Inventory<'a> {
             if embedded != life {
                 return Err(bad("dynamic external and embedded complete shapes differ"));
             }
+        } else if matches!(ty,Type::Array{element,length:1}if matches!(element.as_ref(),Type::Closure(_))){
+            return super::compound::external(self,ty,life,b);
         } else if matches!(
             *ty,
             Type::Managed(_) | Type::Address { .. } | Type::Desc(_)
@@ -681,6 +684,21 @@ mod tests {
                 .map_err(|e| (&e.code, &e.message))
         );
         raw
+    }
+    #[test]
+    fn private_callback_array_preserves_every_element_class_even_with_equal_images(){
+        let module=closure(2);
+        let mut cell=value(Type::Array{element:Box::new(Type::Closure(ClosureId(0))),length:1},2);
+        cell.classes=vec![StorageBinder::Fixed(0);2];
+        cell.life.retained=(0..2).map(|class|StorageRetainedBinding{path:vec![LifeTypeProjection::Element],class,binder:class}).collect();
+        assert_eq!(run(&module,&cell).unwrap().count,2);
+        let mut missing=cell.clone();missing.life.retained.pop();assert!(run(&module,&missing).is_err());
+        let mut merged=cell.clone();merged.life.retained[1].binder=0;assert!(run(&module,&merged).is_err());
+        let mut foreign=cell.clone();foreign.life.retained[1].class=2;assert!(run(&module,&foreign).is_err());
+        let mut multiple=cell.clone();if let Type::Array{length,..}=&mut multiple.ty{*length=2;}assert!(run(&module,&multiple).is_err());
+        let limits=Limits::default();let bytes=zil_ir::wire::encode_module_candidate(&module,&CandidatePlan::empty_for(&module),&limits).unwrap();
+        let(decoded,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+        assert_eq!(run(&decoded,&cell).unwrap().count,2);
     }
     #[test]
     fn opaque_domains_keep_intrinsic_occurrences_under_a_many_to_one_image() {

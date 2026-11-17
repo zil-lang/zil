@@ -358,6 +358,17 @@ impl Equations {
                     class,
                 ));
             }
+        } else if let Type::Array{element,length:1}=ty
+            && let Type::Closure(id)=element.as_ref(){
+            let definition=crate::closures::definition(module,*id,None)?;
+            let header=definition.storage_life.as_ref().ok_or_else(||bad("private callback element has no complete actual class domain"))?;
+            crate::signature_life::charge(header,b)?;
+            self.track_grounding(b)?;
+            b.spend(header.fixed_binder_count as usize)?;
+            for class in 0..header.fixed_binder_count{
+                let mut path=if outer.is_some(){vec![LifeTypeProjection::Pointee]}else{vec![]};
+                path.push(LifeTypeProjection::Element);keys.push((path,class));
+            }
         } else if let Type::BorrowedStorage { life, .. } = ty {
             b.spend(life.binder_count as usize)?;
             direct = true;
@@ -1711,6 +1722,27 @@ fn check_with(
                             )?;
                         }
                     }
+                    InstructionKind::MakeOwnedArray{elements}=>{
+                        if let(Some(output),Some(result))=(out,i.result)
+                            &&matches!(&f.values[result.0 as usize],Type::Array{element,length:1}if matches!(element.as_ref(),Type::Closure(_))){
+                            let [input]=elements.as_slice()else{return Err(bad("private callback constructor changes its element arity"));};
+                            link_projection(&f.values[result.0 as usize],output,&values[input.0 as usize],LifeTypeProjection::Element,&mut e,b)?;
+                        }
+                    },
+                    InstructionKind::TakeOwnedArrayElement{local,index}|InstructionKind::BorrowOwnedArrayElement{local,index,..}=>{
+                        if let Some(output)=out
+                            &&matches!(&f.locals[local.0 as usize].ty,Type::Array{element,length:1}if matches!(element.as_ref(),Type::Closure(_))){
+                            if *index!=0{return Err(bad("private callback class projection selects another element"));}
+                            if matches!(i.kind,InstructionKind::BorrowOwnedArrayElement{..}){e.ground_address(output.outer,b)?;}
+                            link_projection(&f.locals[local.0 as usize].ty,&locals[local.0 as usize],output,LifeTypeProjection::Element,&mut e,b)?;
+                        }
+                    },
+                    InstructionKind::StoreOwnedArrayElement{local,index,value}=>{
+                        if matches!(&f.locals[local.0 as usize].ty,Type::Array{element,length:1}if matches!(element.as_ref(),Type::Closure(_))){
+                            if *index!=0{return Err(bad("private callback class refill selects another element"));}
+                            link_projection(&f.locals[local.0 as usize].ty,&locals[local.0 as usize],&values[value.0 as usize],LifeTypeProjection::Element,&mut e,b)?;
+                        }
+                    },
                     InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                         if let Some(out) = out {
                             array_outer::copy(
@@ -2788,6 +2820,22 @@ mod raw_reference_equation_tests{
     use super::*;
     fn shared(inner:Type)->Type{Type::Address{mutable:false,inner:Box::new(inner)}}
     fn equations()->Equations{Equations{representative:vec![],members:None,rigid:vec![],grounded:None,next_rigid:0}}
+    #[test]
+    fn private_callback_element_transport_cannot_swap_or_coalesce_rigid_children(){
+        let mut b=Budget::new(&Limits::default());let mut e=equations();
+        let source=Ports{keys:vec![(vec![],0),(vec![],1)],classes:vec![e.fresh(true,&mut b).unwrap(),e.fresh(true,&mut b).unwrap()],..Ports::default()};
+        let cell=Ports{keys:vec![(vec![LifeTypeProjection::Element],0),(vec![LifeTypeProjection::Element],1)],classes:vec![e.fresh(false,&mut b).unwrap(),e.fresh(false,&mut b).unwrap()],..Ports::default()};
+        let ty=Type::Array{element:Box::new(Type::Closure(ClosureId(0))),length:1};
+        link_projection(&ty,&cell,&source,LifeTypeProjection::Element,&mut e,&mut b).unwrap();
+        let mut borrowed=source.clone();for(path,_)in &mut borrowed.keys{path.push(LifeTypeProjection::Pointee);}
+        link_projection(&ty,&cell,&borrowed,LifeTypeProjection::Element,&mut e,&mut b).unwrap();
+        let mut wrong=source.clone();wrong.classes.swap(0,1);
+        assert!(link_projection(&ty,&cell,&wrong,LifeTypeProjection::Element,&mut e,&mut b).is_err());
+        let mut missing=cell.clone();missing.keys.pop();missing.classes.pop();
+        assert!(link_projection(&ty,&missing,&source,LifeTypeProjection::Element,&mut e,&mut b).is_err());
+        let mut wrong=source;wrong.classes[1]=wrong.classes[0];
+        assert!(link_projection(&ty,&cell,&wrong,LifeTypeProjection::Element,&mut e,&mut b).is_err());
+    }
     #[test]
     fn borrowing_and_reading_raw_pointer_values_preserve_each_deeper_class(){
         let(module,_)=crate::tests::baseline();let mut b=Budget::new(&Limits::default());b.raw_reference_cells=true;

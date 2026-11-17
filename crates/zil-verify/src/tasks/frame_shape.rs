@@ -305,6 +305,13 @@ fn type_life(
                 nominal_arguments: interface.retained_life.nominal_arguments.clone(),
             }
         }
+        Type::Array{element,length:1}if matches!(element.as_ref(),Type::Closure(_))=>{
+            let child=type_life(module,element,false,span,b,depth+1)?;
+            let mut parent=StorageLifeShape{binder_count:child.binder_count,slots:vec![],retained:vec![],nominal_arguments:vec![]};
+            b.spend(child.binder_count as usize)?;
+            for class in 0..child.binder_count{parent.retained.push(StorageRetainedBinding{path:vec![LifeTypeProjection::Element],class,binder:class});}
+            parent
+        },
         Type::Address { inner, .. } | Type::Desc(inner) | Type::Managed(inner) => {
             let child = type_life(module, inner, false, span, b, depth + 1)?;
             let outer = matches!(ty, Type::Address { .. } | Type::Desc(_));

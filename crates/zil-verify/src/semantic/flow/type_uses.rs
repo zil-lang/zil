@@ -3,12 +3,18 @@
 use super::*;
 impl CheckedContext{
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn type_use_operand(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,subject:&SemanticOperand,state:&State,values:&[Option<CheckedType>],signature:&CheckedSignature,environment:&EvalEnv,b:&mut Budget)->Check<CheckedType>{
+    pub(super) fn type_use_operand(&self,module:&TypedModule,instance:&SemanticInstance,f:&TypedFunction,subject:&SemanticOperand,required:&CheckedType,state:&State,values:&[Option<CheckedType>],signature:&CheckedSignature,environment:&EvalEnv,b:&mut Budget)->Check<CheckedType>{
         let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;
         if frame.definition!=instance.definition||!matches!(frame.key,ScopeKey::Instance(id)if id==instance.id){return Err(bad("actual TypeUse selects another source world"));}
         let value=match subject{
             SemanticOperand::Value(value)=>value_at(values,*value)?,
-            SemanticOperand::Local(local)=>state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual type use reads an uninitialized local"))?,
+            SemanticOperand::Local(local)=>{
+                let value=state.locals.get(local.0 as usize).and_then(Option::as_ref).ok_or_else(||bad("actual type use reads an uninitialized local"))?;
+                if super::persistent_slots::element(&value.ty)==Some(&required.ty){
+                    self.persistent_initialization(module,instance,f,*local,b)?;
+                    return self.child_value(module,value,&[LifeTypeProjection::Element],b);
+                }value
+            },
             SemanticOperand::Parameter(index)=>{
                 let parameter=f.parameters.get(*index as usize).ok_or_else(||bad("actual TypeUse parameter is absent"))?;
                 let local=f.locals.get(parameter.0 as usize).ok_or_else(||bad("actual TypeUse parameter has no local declaration"))?;

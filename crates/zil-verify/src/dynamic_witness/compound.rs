@@ -214,6 +214,14 @@ impl<'a,'m> Walk<'a,'m> {
                 }
                 semantic.pop();
             }
+            Type::Array{element,length:1}if matches!(element.as_ref(),Type::Closure(_))=>{
+                // The private callback cell has one complete semantic child,
+                // not a flattened capture domain or an additional κ.
+                physical.push(PlaceProjection::Field(0));
+                semantic.push(LifeTypeProjection::Element);
+                self.node(element,physical,semantic,inline,depth+1,b)?;
+                physical.pop();semantic.pop();
+            },
             Type::Tuple(fields) => {
                 for (i, child) in fields.iter().enumerate() {
                     let field = PlaceProjection::Field(i as u32);
@@ -278,7 +286,8 @@ pub(super) fn external<'m>(
     life: &StorageLifeShape,
     b: &mut Budget,
 ) -> Check<values::Domain> {
-    if !matches!(ty, Type::Address { .. } | Type::Desc(_) | Type::Managed(_)) {
+    if !matches!(ty, Type::Address { .. } | Type::Desc(_) | Type::Managed(_))
+        &&!matches!(ty,Type::Array{element,length:1}if matches!(element.as_ref(),Type::Closure(_))) {
         return Err(bad(
             "external compound has no actual Address, Desc or Managed root",
         ));
