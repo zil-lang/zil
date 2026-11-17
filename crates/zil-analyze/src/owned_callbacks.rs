@@ -138,7 +138,7 @@ pub(super) fn signature(
     Ok(())
 }
 
-fn container_profile(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
+fn container_profile(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
     budget.type_work(ty, false, "owned callback container profile exclusion")?;
     fn contained(ty: &Type, nested: bool, owned: &BTreeSet<ClosureId>) -> bool {
         match ty {
@@ -167,6 +167,13 @@ fn container_profile(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
         }
     }
     if contained(ty, false, &budget.owned_callbacks) {
+        // A failed Task allocation returns the exact original callback input;
+        // it is not a general container permission. All three physical views
+        // select the same independently authenticated compiler instance and
+        // retain the Sum kernel's actual per-leaf responsibility transport.
+        if super::stored_flow::plain_failure_input_carrier(module, ty, budget)? {
+            return resources::sums::admit(module, ty, budget).map(|_| ());
+        }
         return Err(bad(
             "owned callback signature does not grant a State, array or container profile",
         ));
@@ -353,7 +360,7 @@ fn private_slots(f: &TypedFunction, budget: &mut Budget) -> CompileResult<()> {
     Ok(())
 }
 
-fn local_profiles(f: &TypedFunction, budget: &mut Budget) -> CompileResult<bool> {
+fn local_profiles(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> CompileResult<bool> {
     let mut private = false;
     for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
         let slot = private_slot_candidate(ty, budget)?;
@@ -362,10 +369,10 @@ fn local_profiles(f: &TypedFunction, budget: &mut Budget) -> CompileResult<bool>
             budget.type_work(ty, false, "private callable slot root type")?;
             private = true;
         } else {
-            container_profile(ty, budget)?;
+            container_profile(module, ty, budget)?;
         }
     }
-    container_profile(&f.return_type, budget)?;
+    container_profile(module, &f.return_type, budget)?;
     if private {
         private_slots(f, budget)?;
     }
@@ -386,7 +393,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             "owned callback capture container slots",
         )?;
         for ty in &definition.captures {
-            container_profile(ty, budget)?;
+            container_profile(module, ty, budget)?;
         }
     }
     budget.spend(
@@ -432,7 +439,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     for f in &module.functions {
         // Admission is structural even for ordinary bodies without a keep
         // edge. The flag only selects additional independent window checks.
-        if local_profiles(f, budget)? {
+        if local_profiles(module, f, budget)? {
             budget.spend(1, "private callable slot actual body root")?;
             windows[f.id.0 as usize] = true;
             if budget.forward_functions.is_empty() {
