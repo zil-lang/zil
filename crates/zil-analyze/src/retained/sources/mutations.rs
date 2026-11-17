@@ -631,11 +631,18 @@ pub(super) fn collect(
                 | InstructionKind::CommitPlaceReplace { value, .. } => Some(*value),
                 _ => None,
             };
-            if let Some(value) = written
-                && let Type::Address { inner, .. } = type_of(c, value)?
-                && byte_slot(inner, b, 0)?
-            {
-                writes.unknown(b)?;
+            if let Some(value) = written {
+                let ty = type_of(c, value)?;
+                let mut nested = Vec::new();
+                mutable_paths(c.module, ty, &mut Vec::new(), &mut nested, 0, b)?;
+                // A whole holder can reroute the same pointer through Tuple,
+                // Record or opaque children. Its old Store cannot witness the
+                // later pointee after that holder was indirectly replaced.
+                if !nested.is_empty()
+                    || matches!(ty, Type::Address { inner, .. } if byte_slot(inner, b, 0)?)
+                {
+                    writes.unknown(b)?;
+                }
             }
             match kind {
                 InstructionKind::StorePackageField {
