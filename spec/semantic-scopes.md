@@ -42,6 +42,8 @@ Rigid 使用原生命周期的新鲜身份及完整原声明允许的前提，�
 
 原定义必须分别证明每个实际返回的来源满足该接收者上界。实际签名用已有 `StorageBase::Receiver` 与 Result 的显式关系连接真实接收者访问域；调用须绑定真实 callee 的存储、借入和发生身份，并保留其父 loan 与代次。`make()()` 的接收者来自一次真实调用表达式，不得在原声明中伪造局部或重复求值；实际临时存储存活到完整表达式的最后使用。原要求和签名关系只建立待证义务，不能代替真实捕获、每条返回路径、替换失效或退出清理的证明；独立 Static 来源仍按自身规则证明。
 
+真实闭包入口若从共享捕获返回独立的 Fixed(a) 来源，实际 Result 绑定及捕获完整域仍保留 Fixed(a)。在原定义全部返回和实际捕获来源均已独立证明该来源可覆盖本次接收者窗口时，Direct、非消费入口可以另列空路径的 Receiver Invocation 访问头；这两个绑定不同，也不建立 LifeEqual。满足较短 Receiver 结果角色时，调用端须先完整验证原 Fixed 结果、真实 callee 及其父 loan，再形成本次调用窗口内的输出视图，同时保留原来源映射。只有 Receiver 行、相同 Type 或候选角色不能触发此适配；没有完整来源证明的 Fixed 返回仍按其原合同处理。
+
 Type 实参的完整内在域在 callee 自身实例域中封闭。`IntrinsicClass(TypeArgument(Ancestor(0),完整形参序号),[],k)` 是已核完整类型给出的原子内在锚，不能递归读取自己的 classes，也不是实际来源证明。每个真实 Call 在 caller 已成立的上下文求值实参，独立证明全部要求和实际 callee/entry/header/env/资源对应，再建立边界映射；不能使用目标正假设的 where 循环自证，不能把 caller 作用域或 SSA 偷放入 callee，也不能回写 rigid Life 实参。已有 whole T 的 N2 不因两个图像相等降成 N1；新求值的 Nominal recipe 只可使用当前合法前提证明的相等归一。
 
 精确类相等与 callable 角色满足是不同判断。Static、合法缩短、Outlives 和 Fixed 局部适配不能进入全局 LifeEqual，也不能成为 fresh Nominal 归一依据。同一 Static 输出 F 可以满足 `Fn()->&a` 与 `Fn()->&b` 两个允许的角色，但不能据此把 Marker<a> 变成 Marker<b>。只有原显式 LifeEqual 或独立成立的精确相等规则才能用于该归一；已有完整 T 的类数与序号仍不变。
