@@ -1,0 +1,162 @@
+Root execution handoff: Alpha native/C/CT/project acceptance
+
+Prepared 2026-11-14; this handoff is a plan, not executed native acceptance.
+Files:
+  /workspace/.zil-env/run-native-alpha.py
+  /workspace/.zil-env/run-native-alpha-plan.json
+
+No compiler/repository/test/fixture/assertion edits were made. The runner was
+checked with Python AST/py_compile, plan output, exact Rust source/mod/filter
+resolution, and existing Python scenario evaluation only. No cargo, git or
+heavy acceptance execution was performed by the preparing agent.
+
+ONE IMMUTABLE CANDIDATE, ONE BUILD LOCK, ONE CLI IDENTITY
+
+  cd /workspace/zil-alpha-candidate
+  source /workspace/.zil-env/language-env.sh
+
+Set ALPHA_SHA to the full 40-character root-verified immutable candidate HEAD.
+Use a fresh run directory each invocation (exist_ok=False intentionally).
+Do not let the next candidate build overwrite target-language-alpha/debug/zil
+until this candidate's consumer invocations have ended. The runner acquires
+/workspace/.zil-env/language-build.lock across execution. If root already holds
+that exact lock, add --lock-held to prevent a nested lock wait.
+
+A successful build receipt must contain:
+  status: "Pass"
+  exit_code: 0
+  git_status: ""
+  source_commit: exact full ALPHA_SHA
+  cli_sha256: actual frozen binary SHA-256
+The ownership original consumer also independently checks this receipt, binary
+hash, clean source checkout, and compiler production-input diff. The runner
+requires exact source_commit equality (stricter than the original consumer).
+The CLI path is an optional --cli parameter; default:
+  /workspace/.zil-env/target-language-alpha/debug/zil
+The actual Clang path is optional --clang (default ZIL_CLANG or clang).
+
+If root's successful build already has this receipt, pass it directly. Otherwise
+root can create a receipt from a cached/rebuilt CLI with the existing build:
+
+  python3 /workspace/.zil-env/run-native-alpha.py \
+    --repo /workspace/zil-alpha-candidate --candidate "$ALPHA_SHA" \
+    --mode build --out "$PWD/out/runs/native-alpha-$ALPHA_SHA-build"
+
+Then set ALPHA_BUILD_RECEIPT to that run's cli-build-receipt.json (or root's
+existing equivalent). This is a real cargo build receipt, never fabricated from
+an executable merely existing on disk.
+
+FIRST PASSED FAMILY: RUN IMMEDIATELY
+
+Only select a family after the same candidate's full original source/check gate
+has passed, including real nonzero independent Verify and original body closure.
+Failed source/check families remain failed and do not get native zero-execution
+receipts. No need to wait for all 13 source families.
+
+  python3 /workspace/.zil-env/run-native-alpha.py \
+    --repo /workspace/zil-alpha-candidate --candidate "$ALPHA_SHA" \
+    --compiler-build-receipt "$ALPHA_BUILD_RECEIPT" \
+    --family scalars --mode all \
+    --out "$PWD/out/runs/native-alpha-$ALPHA_SHA-scalars"
+
+--family is an alias for --families and accepts comma-separated exact names.
+With --mode all plus --compiler-build-receipt the CLI is NOT rebuilt; the runner
+uses that receipt and checks the current binary digest. Example later batch:
+
+  python3 /workspace/.zil-env/run-native-alpha.py \
+    --repo /workspace/zil-alpha-candidate --candidate "$ALPHA_SHA" \
+    --compiler-build-receipt "$ALPHA_BUILD_RECEIPT" \
+    --families patterns,generic-libraries,closures,ownership \
+    --mode all --out "$PWD/out/runs/native-alpha-$ALPHA_SHA-ready-batch"
+
+--mode tests executes only existing exact Cargo tests from the JSON plan.
+--mode matrix executes only the supplements for closures, ownership and stream.
+--mode all executes both selected groups; without a supplied build receipt it
+first builds the CLI and makes a receipt. Default --mode plan only prints JSON.
+Zero executed tests, ignored tests, wrong expected harness counts, wrong source
+hashes, wrong backend/fallback, timeout and compile failure are never Pass.
+
+Allowed profile family selections:
+  scalars, patterns, generic-libraries, closures, ownership,
+  dynamic-abstraction, async-ownership, threads, foreign-lifecycle,
+  owning-collections, buffered-io, iteration, project-workflow
+Additional selections: ct, project
+Use the JSON plan for every exact package/target/filter/feature argv.
+All execution is serial under the shared lock. Existing C observer/environment
+assertions remain in their original tests, not reproduced by a new framework.
+
+FOUR ACTUAL ZIL CONFIGURATIONS
+
+All primary Rust-native families already explicitly set both backend variants
+and O0/O2 and are run with --features llvm-api, retaining the existing tests.
+For scalars the plan also retains the original C scalar ABI/layout consumer.
+For dynamic abstraction the plan retains both original allocation consumers;
+the repeated 400000 allocation/frees companion is O0-only and is not counted
+as a four-configuration matrix. Its primary/failure consumer is four-config.
+
+The Python closures/ownership original consumer default backend + LLVM IR
+relink did not provide four ZIL configurations. The external adapter reuses
+the ORIGINAL consumer main(), scenarios(), observe(), command receipts, output,
+exit, allocation JSON and all failure environments unchanged. Only command
+routing changes:
+  ordinary: actual CLI build --backend clang|llvm-api --opt O0|O2
+  allocator: actual CLI build of the same complete original project and same
+             backend/opt with original allocator_probe.c linked by --clang.
+No API allocator execution is obtained from a Clang llvm.ll relink. Actual API
+link .o inputs are copied and hashed before the compiler's staging cleanup;
+API reports must say input_kind=builder and verify_before_after=true, no fallback.
+Per family: four ordinary builds + four instrumented builds. Existing oracles:
+  closures: 28 ordinary + 92 instrumented = 120 processes, 52 injected failures.
+  ownership: 40 ordinary + 240 instrumented = 280 processes, 176 failures.
+Existing invalid-input/EOF and after-last-allocation controls are retained.
+All original expected cleanup order and exact allocation counters stay active.
+
+The original stream Rust test remains selected as a regression. Its default
+Clang build + O2 IR relink is not counted as four configurations. The matrix
+supplement builds four actual ZIL backend/opt configurations and executes the
+exact original ten stdin/exit/stdout/stderr rows (binary bytes and 1000/1001
+boundary included), then independently builds Rust O0/O2 for the same ten rows.
+Counts: 40 actual ZIL processes + 20 Rust reference processes. Original five
+modules, getchar/putchar, no-malloc assertions remain required.
+
+CT AND PROJECT SCOPE IS EXPLICIT
+
+  --family ct --mode tests
+executes all existing type_syntax_consumer tests twice:
+  --features llvm-api: 9 tests, API O0/O2 including original C allocation checks.
+  --no-default-features: 8 tests, Clang O0/O2 ordinary consumers.
+It also executes all 14 comptime_programs tests including recursive CT programs,
+actual VM/CT rejection, budgets, source/raw/Wire and forged-claim checks. Its
+native helper remains default Clang plus O2 IR relink, and is NOT reported as a
+four-ZIL CT matrix. This extra CT suite is distinct from the 13-profile native
+family matrix. No CT assertions or budgets are changed.
+
+  --family project --mode tests
+executes ordinary_application (1 test, explicit four backend/opt builds plus
+manifest lock/check/test/run/mismatch) and project_manifest (5 tests including
+real declared path deps/tests, duplicate helper identities, invalid/timeouts,
+and byte/file resource limits). Tests require nonzero passes and zero ignores.
+
+EVIDENCE AND ACCEPTANCE BOUNDARIES
+
+Every invocation writes receipt.json under its fresh out/runs directory,
+including candidate, CLI/profile/runner/plan SHA-256, selected original source
+hashes and exact scope. test-receipt.json records exact command argv, expected
+and actual Rust harness counts. Per-command stdout/stderr and command.json are
+retained; original consumers retain all input/exit/output/allocation receipts.
+TMPDIR and ZIL_TEST_REPORT_DIR point inside the unique run. Original tests that
+explicitly delete successful scratch artifacts still do so; the runner does not
+claim those deleted internal outputs are retained. Existing Task's fixed
+out/runs/task-owner-native is moved into the unique run after execution; any
+older directory is first preserved as prior-task-owner-native, never overwritten.
+
+Negative original obligations must still run separately through the current
+check-foundation-profile.py and reach the intended SyncDrop SafeReject. Native
+matrix passing cannot stand in for that semantic reject. Two corrected positive
+projects retain separate identities; never claim original13/13 success.
+
+The runner reports only the selected consumers it actually executes. It does
+not close full-language, performance, Windows, all-workspace regression, release,
+strict/lint, independent review or Alpha product gates. All this preparation is
+UNEXECUTED against the current/future immutable Alpha candidate until root runs
+it and reviews the exact logs. No same-candidate check success was inferred.

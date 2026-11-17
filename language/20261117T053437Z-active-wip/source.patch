@@ -1,0 +1,1307 @@
+diff --git a/crates/zil-analyze/src/retained/sources.rs b/crates/zil-analyze/src/retained/sources.rs
+index 2ffb0cf88..e7b192b7b 100644
+--- a/crates/zil-analyze/src/retained/sources.rs
++++ b/crates/zil-analyze/src/retained/sources.rs
+@@ -325,6 +325,7 @@ fn resolve(
+     if depth > b.partial_depth {
+         return Err(err("actual source traversal exceeds depth bound"));
+     }
++    c.mutations.check_value(v, path, b)?;
+     let key = (c.f.id, v, path.to_vec());
+     if !active.insert(key.clone()) {
+         // Revisit the finite CFG equation at bottom, not as an established
+diff --git a/crates/zil-analyze/src/retained/sources/mutations.rs b/crates/zil-analyze/src/retained/sources/mutations.rs
+index 2b32050d5..83181fee9 100644
+--- a/crates/zil-analyze/src/retained/sources/mutations.rs
++++ b/crates/zil-analyze/src/retained/sources/mutations.rs
+@@ -6,6 +6,7 @@ use super::*;
+ pub(super) enum Root {
+     Local(LocalId),
+     Capture(u32),
++    Value(ValueId),
+ }
+ #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ struct Place {
+@@ -57,6 +58,30 @@ impl Writes {
+         }
+         Ok(())
+     }
++    pub(super) fn check_value(
++        &self,
++        value: ValueId,
++        path: &[ContractProjection],
++        b: &mut Budget,
++    ) -> CompileResult<()> {
++        // An unknown memory write cannot change an immutable SSA snapshot.
++        // A mutably invoked SSA environment is different: its exact receiver
++        // state must not be reread from the original constructor afterward.
++        for mutation in &self.0 {
++            pay(b, path.len().saturating_add(1))?;
++            if let Mutation::Place(place) = mutation {
++                pay(b, place.path.len())?;
++                if place.root == Root::Value(value)
++                    && (path.starts_with(&place.path) || place.path.starts_with(path))
++                {
++                    return Err(err(
++                        "literal source crosses a mutably invoked actual environment",
++                    ));
++                }
++            }
++        }
++        Ok(())
++    }
+     fn local(
+         &mut self,
+         c: &Context<'_>,
+@@ -554,6 +579,48 @@ pub(super) fn collect(
+         for instruction in &block.instructions {
+             pay(b, 1)?;
+             let kind = &instruction.kind;
++            match kind {
++                InstructionKind::CallClosureMut { callee, .. } => {
++                    writes.local(c, *callee, vec![], b)?
++                }
++                InstructionKind::CallClosureBorrowed {
++                    callee,
++                    kind: CallableKind::FnMut,
++                    ..
++                } => {
++                    // Preserve both the actual SSA receiver and any proved
++                    // address/local/capture storage identity. Unknown aliases
++                    // cannot recover an environment's initial literal state.
++                    writes.place(
++                        Place {
++                            root: Root::Value(*callee),
++                            path: vec![],
++                        },
++                        b,
++                    )?;
++                    match type_of(c, *callee)? {
++                        Type::Address { .. } => writes.address(c, *callee, vec![], b)?,
++                        _ => match c.defs.get(callee.0 as usize).copied().flatten() {
++                            Some(
++                                InstructionKind::Load(local) | InstructionKind::TakeLocal { local },
++                            ) => writes.local(c, *local, vec![], b)?,
++                            Some(
++                                InstructionKind::ReadCapture { index }
++                                | InstructionKind::TakeCapture { index },
++                            ) => writes.place(
++                                Place {
++                                    root: Root::Capture(*index),
++                                    path: vec![],
++                                },
++                                b,
++                            )?,
++                            Some(InstructionKind::MakeClosure { .. }) => {}
++                            _ => writes.unknown(b)?,
++                        },
++                    }
++                }
++                _ => {}
++            }
+             // An indirectly replaced pointer-to-storage cell could reroute a
+             // later alias Load. Its initial Store is not an address witness.
+             let written = match kind {
+diff --git a/crates/zil-types/src/closures.rs b/crates/zil-types/src/closures.rs
+index e6ef30eaf..fbc684fed 100644
+--- a/crates/zil-types/src/closures.rs
++++ b/crates/zil-types/src/closures.rs
+@@ -367,7 +367,8 @@ fn tuple_pattern_takes_owner(
+         // UnpackTuple creates an owned hidden target for a discarded field;
+         // its cleanup also consumes the captured environment's owner.
+         (CorePatternKind::Name(_) | CorePatternKind::Wildcard, ty) => {
+-            Ok(!ty.is_copy_value() && dynamic_store::contains_inline_carrier(ty))
++            Ok(!ty.is_copy_value() && (dynamic_store::contains_inline_carrier(ty)
++                || matches!(ty, Type::Closure(_))))
+         }
+         (CorePatternKind::Tuple(patterns), Type::Tuple(fields))
+             if patterns.len() == fields.len() =>
+@@ -742,14 +743,21 @@ impl State {
+         self.deferred_closed.insert(id, span);
+         Ok(())
+     }
++    pub(super) fn original_callable_kind(
++        &mut self, function: FunctionId, callee: NodeId, span: Span,
++    ) -> R<Option<CallableKind>> {
++        self.semantic_emission.original_callable_kind(
++            function, callee, &self.limits, &mut self.work_left, span,
++        )
++    }
+     pub(super) fn factory_self_contained(&mut self, id: ClosureId, span: Span) -> R<()> {
+-        if retained::closed_or_constant(&self.pending, id, &mut self.work_left, span)? {
++        if retained::closed_or_constant(&self.pending, id, &mut self.work_left, &self.limits, span)? {
+             self.record_static_closed(id, span)?;
+         }
+         Ok(())
+     }
+     pub(super) fn factory_transportable(&mut self, id: ClosureId, span: Span) -> R<()> {
+-        retained::transportable(&self.pending, id, &mut self.work_left, span)
++        retained::transportable(&self.pending, id, &mut self.work_left, &self.limits, span)
+     }
+     pub(super) fn transported_borrows(&mut self, id: ClosureId, span: Span) -> R<(bool, bool)> {
+         retained::transported_borrows(&self.pending, id, &mut self.work_left, span)
+@@ -1121,7 +1129,14 @@ impl State {
+         imports: Option<&program::Imports<'_>>,
+         catalog: Catalog<'_>,
+         declared: Option<&BTreeMap<LocalId, CallableKind>>,
++        source: Option<(FunctionId, NodeId)>,
+     ) -> R<ClosureId> {
++        let original_modes = match source {
++            Some((creator, expression)) => self.semantic_emission.original_closure_modes(
++                creator, expression, &self.limits, &mut self.work_left, input.span,
++            )?,
++            None => None,
++        };
+         let function = self.allocate_function(input.span)?;
+         let id = ClosureId(
+             u32::try_from(self.pending.len())
+@@ -1142,6 +1157,7 @@ impl State {
+                 resource_writes: &self.resource_writes,
+                 closures: &self.pending,
+                 declared,
++                original_modes,
+                 dyn_interfaces: catalog.dyn_interfaces,
+                 dyn_declarations: catalog.dyn_declarations,
+             },
+@@ -1261,9 +1277,9 @@ impl State {
+             }
+             if let Type::Closure(id) = capture.stored_type() {
+                 if capture.moved {
+-                    retained::transportable(&self.pending, id, checker.work_left, capture.span)?;
++                    retained::transportable(&self.pending, id, checker.work_left, &self.limits, capture.span)?;
+                 } else {
+-                    retained::self_contained(&self.pending, id, checker.work_left, capture.span)?;
++                    retained::self_contained(&self.pending, id, checker.work_left, &self.limits, capture.span)?;
+                 }
+                 if self.pending[id.0 as usize].owns_leaf_store {
+                     *checker.work_left = checker.work_left.checked_sub(1).ok_or_else(|| {
+@@ -3028,6 +3044,7 @@ struct Functions<'a> {
+     imports: Option<&'a program::Imports<'a>>,
+     resource_writes: &'a resource_effects::Writes,
+     declared: Option<&'a BTreeMap<LocalId, CallableKind>>,
++    original_modes: Option<semantics::emission::CallableBodyModes>,
+ }
+ struct InferBuilder<'a, 'b> {
+     dyn_interfaces: &'a [DynInterface],
+@@ -3042,6 +3059,7 @@ struct InferBuilder<'a, 'b> {
+     prepared: std::collections::BTreeSet<String>,
+     outer: &'a BTreeMap<String, (LocalId, Type)>,
+     declared: Option<&'a BTreeMap<LocalId, CallableKind>>,
++    original_modes: Option<semantics::emission::CallableBodyModes>,
+     captures: Vec<Capture>,
+     captured_variables: BTreeMap<LocalId, LocalType>,
+     package_descriptions: Vec<(Variable, LocalId)>,
+@@ -3119,6 +3137,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+             prepared: std::collections::BTreeSet::new(),
+             outer,
+             declared: functions.declared,
++            original_modes: functions.original_modes,
+             captures: vec![],
+             captured_variables: BTreeMap::new(),
+             package_descriptions: Vec::new(),
+@@ -3574,7 +3593,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+                         && self.lookup(name).is_none()
+                         && self.outer.get(name).is_some_and(|(_, ty)| {
+                             matches!(ty, Type::Tuple(_))
+-                                && dynamic_store::contains_inline_carrier(ty)
++                                && (dynamic_store::contains_inline_carrier(ty)
++                                    || owned_shapes::tuple(ty))
+                         })
+                     {
+                         *self.work_left = self
+@@ -3609,7 +3629,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+                             {
+                                 capture.moved = true;
+                                 capture.borrowed = false;
+-                                capture.consumed = true;
++                                let kind = self.original_modes.as_ref().map(|modes| modes.entry_kind());
++                                capture.consumed |= kind.is_none_or(|kind| kind == CallableKind::FnOnce);
++                                capture.written |= kind == Some(CallableKind::FnMut);
+                             }
+                         }
+                     }
+@@ -3640,7 +3662,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+                         return Err(unsupported(statement.span, "uninitialized closure binding"));
+                     };
+                     let variable = self.expr_expected(expression, ty.as_ref(), depth + 1)?;
+-                    self.transferred_closure(expression, variable);
++                    self.transferred_closure(expression, variable)?;
+                     if let Some(ty) = ty {
+                         variable.bind(&mut self.graph, ty, statement.span)?;
+                     }
+@@ -3665,7 +3687,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+                         _ => None,
+                     };
+                     let value_type = self.expr_expected(value, hint.as_ref(), depth + 1)?;
+-                    self.transferred_closure(value, value_type);
++                    self.transferred_closure(value, value_type)?;
+                     if let Some(expected @ Type::Address { .. }) = hint.as_ref() {
+                         value_type.bind(&mut self.graph, expected, value.span)?;
+                     } else {
+@@ -3858,17 +3880,49 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+             capture.written = true;
+         }
+     }
+-    fn transferred_closure(&mut self, expression: &CoreExpr, term: LocalType) {
+-        if matches!(term, LocalType::Closure(_, None, _))
+-            && let CoreExprKind::Name(name) = &expression.kind
+-            && self.lookup(name).is_none()
+-            && let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name)
+-        {
+-            capture.moved = true;
+-            capture.borrowed = false;
+-            capture.consumed = true;
++    // This only proposes capture ownership from an actual syntactic place and
++    // its already-checked original use. Borrow/dereference boundaries stop the
++    // walk; they cannot turn a view into ownership of its parent environment.
++    fn callable_capture_use(&mut self, expression: &CoreExpr, kind: CallableKind) -> R<()> {
++        let mut root = expression;
++        let mut depth = 0usize;
++        loop {
++            self.visit(depth, root.span)?;
++            match &root.kind {
++                CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => root = value,
++                CoreExprKind::Member { object, .. } | CoreExprKind::Index { object, .. } => root = object,
++                CoreExprKind::Name(name) => {
++                    *self.work_left = self.work_left.checked_sub(self.scopes.iter().map(|s| s.len()).sum::<usize>().saturating_add(self.captures.len()).saturating_mul(name.len().saturating_add(1)))
++                        .ok_or_else(|| limit("callable capture origin work exceeded", root.span))?;
++                    if self.lookup(name).is_none()
++                        && let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name)
++                    {
++                        if kind == CallableKind::FnOnce {
++                            capture.moved = true;
++                            capture.borrowed = false;
++                            // The complete original body's exit inventory, not
++                            // one intermediate take, decides repeatability.
++                            let entry = self.original_modes.as_ref().map(|modes| modes.entry_kind());
++                            capture.consumed |= entry.is_none_or(|kind| kind == CallableKind::FnOnce);
++                            capture.written |= entry == Some(CallableKind::FnMut);
++                        } else if kind == CallableKind::FnMut { capture.written = true; }
++                    }
++                    return Ok(());
++                }
++                _ => return Ok(()),
++            }
++            depth += 1;
+         }
+     }
++    fn transferred_closure(&mut self, expression: &CoreExpr, term: LocalType) -> R<()> {
++        let owned = match term {
++            LocalType::Closure(_, None, _) => true,
++            LocalType::Scalar(variable) => self.graph.ty(variable)?.as_ref().is_some_and(owned_shapes::tuple),
++            _ => false,
++        };
++        if owned { self.callable_capture_use(expression, CallableKind::FnOnce)?; }
++        Ok(())
++    }
+     fn transferred_factory_branch(&mut self, expression: &CoreExpr, term: LocalType) -> R<()> {
+         let (LocalType::Closure(_, None, Some(_)), CoreExprKind::Name(name)) =
+             (term, &expression.kind)
+@@ -3901,7 +3955,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+                     expression.span,
+                 )
+             })?;
+-        self.transferred_closure(expression, term);
++        self.transferred_closure(expression, term)?;
+         Ok(())
+     }
+     fn helper_argument(
+@@ -3988,7 +4042,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+                     return Err(mismatch());
+                 }
+                 if wanted.is_none() {
+-                    self.transferred_closure(expression, value);
++                    self.transferred_closure(expression, value)?;
+                 }
+             }
+             _ => return Err(mismatch()),
+@@ -4073,7 +4127,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+             return Ok(projected);
+         }
+         self.graph.project(base, projection, result, span)?;
+-        Ok(self.address_local(result, span)?.unwrap_or(LocalType::Scalar(result)))
++        self.pattern_local(result, span)
+     }
+     fn give(&mut self, operand: &CoreExpr, value: LocalType, span: Span) -> R<LocalType> {
+         if let CoreExprKind::Member { object, member, .. } = &operand.kind
+@@ -4106,7 +4160,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+             value,
+             LocalType::Closure(_, None, _) | LocalType::Nested(_, None)
+         ) {
+-            self.transferred_closure(operand, value);
++            self.transferred_closure(operand, value)?;
+             return Ok(value);
+         }
+         if matches!(value, LocalType::Address(_, true)) {
+@@ -5273,7 +5327,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+                     "wide atomic body has wrong sealed cell signature",
+                 ));
+             }
+-            self.transferred_closure(body, term);
++            self.transferred_closure(body, term)?;
+             return self.known(&Type::Tuple(vec![Type::Bool, Type::I32]), span);
+         }
+         if let CoreExprKind::Name(name) = &callee.kind
+@@ -5379,7 +5433,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+                     "cell body has wrong sealed cell signature",
+                 ));
+             }
+-            self.transferred_closure(body, term);
++            self.transferred_closure(body, term)?;
+             return self.known(&Type::Tuple(vec![Type::Bool, Type::I32]), span);
+         }
+         if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
+@@ -5784,7 +5838,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+                         "concrete captured closure is absent",
+                     )
+                 })?;
+-                let kind = declared.unwrap_or_else(|| pending.callable_kind());
++                let original_kind = match &self.original_modes {
++                    Some(modes) => modes.kind(expression.id, self.work_left, span)?,
++                    None => None,
++                };
++                if original_kind.zip(declared).is_some_and(|(a, b)| a != b) {
++                    return Err(error("E-CLOSURE-MODE", span, "closure constraint changes its original declared invocation mode"));
++                }
++                let kind = original_kind.or(declared).unwrap_or_else(|| pending.callable_kind());
+                 if permission.is_some()
+                     && (kind == CallableKind::FnOnce
+                         || (kind == CallableKind::FnMut && permission == Some(false)))
+@@ -5812,21 +5873,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+                         "captured closure result is unresolved",
+                     )
+                 })?;
+-                if let CoreExprKind::Name(name) = &callee.kind
+-                    && self.lookup(name).is_none()
+-                    && let Some(capture) = self
+-                        .captures
+-                        .iter_mut()
+-                        .find(|capture| capture.name == *name)
+-                {
+-                    if kind == CallableKind::FnOnce {
+-                        capture.moved = true;
+-                        capture.borrowed = false;
+-                        capture.consumed = true;
+-                    } else if kind == CallableKind::FnMut {
+-                        capture.written = true;
+-                    }
+-                }
++                self.callable_capture_use(callee, kind)?;
+                 for (argument, parameter) in arguments.iter().zip(parameters) {
+                     let parameter = parameter.ok_or_else(|| {
+                         error(
+@@ -6266,7 +6313,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
+         self.nested_depth += 1;
+         let outer_nested_root = self.nested_root;
+         self.nested_root = self.nested_root.or(Some(expression.id));
++        let outer_original_modes = self.original_modes.take();
++        self.original_modes = match &outer_original_modes {
++            Some(modes) => modes.nested(expression.id, self.work_left, span)?,
++            None => None,
++        };
+         self.block(body, depth + 1)?;
++        self.original_modes = outer_original_modes;
+         self.nested_root = outer_nested_root;
+         self.nested_depth -= 1;
+         self.nested_moves -= usize::from(*move_capture);
+diff --git a/crates/zil-types/src/lib.rs b/crates/zil-types/src/lib.rs
+index 640465146..710d9002e 100644
+--- a/crates/zil-types/src/lib.rs
++++ b/crates/zil-types/src/lib.rs
+@@ -909,6 +909,9 @@ struct Builder<'a, 'c> {
+     managed_captures: BTreeMap<LocalId, (u32, Type)>,
+     closure_captures: BTreeMap<LocalId, (u32, Type)>,
+     owned_sum_captures: BTreeMap<LocalId, u32>,
++    // Original generic-F factory admission is separate from lazy use-mode
++    // bookkeeping, which ordinary forwarding calls may also instantiate.
++    owning_factory_template: bool,
+     factory_modes: Option<owning_factory::Modes>,
+     forwarding_modes: bool,
+     closure_slots: BTreeMap<LocalId, ClosureId>,
+@@ -1119,6 +1122,7 @@ impl<'a, 'c> Builder<'a, 'c> {
+         closures: &'c mut closures::State,
+     ) -> Self {
+         let first_closure = closures.pending.len();
++        let owning_factory_template = factory_bound.is_some() && factory_modes.is_some();
+         Self {
+             task_return_inferred: false,
+             draft_result_owner: None,
+@@ -1160,6 +1164,7 @@ impl<'a, 'c> Builder<'a, 'c> {
+             managed_captures: BTreeMap::new(),
+             closure_captures: BTreeMap::new(),
+             owned_sum_captures: BTreeMap::new(),
++            owning_factory_template,
+             factory_modes,
+             forwarding_modes: false,
+             closure_slots: BTreeMap::new(),
+@@ -3600,6 +3605,7 @@ impl<'a, 'c> Builder<'a, 'c> {
+                 dyn_declarations: self.dyn_declarations,
+             },
+             self.factory_modes.as_ref().map(|modes| &modes.locals),
++            source_expression.map(|expression| (self.function.id, expression)),
+         )?;
+         if let Some(expression) = source_expression {
+             self.closures
+@@ -4185,6 +4191,14 @@ impl<'a, 'c> Builder<'a, 'c> {
+     ) -> R<(ValueId, Type)> {
+         // Evaluate the callee once, before any argument, even for a conditional
+         // or hygienic Sequence expression that produces a closure value.
++        let original_kind = self.factory_declared_kind(callee)?;
++        let apply_original_kind = |declared: Option<CallableKind>| -> R<Option<CallableKind>> {
++            if original_kind.zip(declared).is_some_and(|(original, declared)| original != declared) {
++                return Err(error("E-CLOSURE-MODE", span,
++                    "callable declaration changes its exact original use mode"));
++            }
++            Ok(original_kind.or(declared))
++        };
+         let mut local_expression = callee;
+         let mut groups = 0usize;
+         while let CoreExprKind::Group(inner) = &local_expression.kind {
+@@ -4207,11 +4221,11 @@ impl<'a, 'c> Builder<'a, 'c> {
+         let field_callee = self.package_callable_callee(callee)?;
+         // An owning environment is not a Copy callee value. Shared and
+         // Exclusive invocation borrow the actual local; Consume transfers it.
+-        let declared_capture = self.factory_declared_kind(local_expression)?;
++        let declared_capture = apply_original_kind(self.factory_declared_kind(local_expression)?)?;
+         let local_requires_place = if let Some(local) = existing_place
+             && let Type::Closure(id) = self.function.locals[local.0 as usize].ty
+         {
+-            let declared = self.declared_state_kind(local_expression, None, id)?;
++            let declared = apply_original_kind(self.declared_state_kind(local_expression, None, id)?)?;
+             self.closures.snapshot(
+                 self.helper_bounds
+                     .len()
+@@ -4255,8 +4269,7 @@ impl<'a, 'c> Builder<'a, 'c> {
+         {
+             self.semantic_local_callee(callee, local)?;
+             existing_place = None;
+-            let kind = self
+-                .declared_state_kind(local_expression, None, id)?
++            let kind = apply_original_kind(self.declared_state_kind(local_expression, None, id)?)?
+                 .unwrap_or_else(|| self.closures.pending[id.0 as usize].callable_kind());
+             if kind == CallableKind::FnOnce {
+                 let (value, ty) = self.take_closure_slot(local, span)?;
+@@ -4315,6 +4328,7 @@ impl<'a, 'c> Builder<'a, 'c> {
+         {
+             declared_kind = self.factory_value_kind(value, span)?;
+         }
++        let declared_kind = apply_original_kind(declared_kind)?;
+         let kind = declared_kind.unwrap_or_else(|| {
+             field_callee.map_or_else(
+                 || {
+diff --git a/crates/zil-types/src/owning_factory.rs b/crates/zil-types/src/owning_factory.rs
+index 16f0c881b..8c553f86f 100644
+--- a/crates/zil-types/src/owning_factory.rs
++++ b/crates/zil-types/src/owning_factory.rs
+@@ -193,21 +193,22 @@ impl Builder<'_, '_> {
+         &mut self,
+         expression: &CoreExpr,
+     ) -> R<Option<CallableKind>> {
+-        let Some(modes) = &self.factory_modes else {
+-            return Ok(None);
+-        };
+-        self.closures.snapshot(
+-            helpers::plan::tree_work(modes.locals.len()),
+-            expression.span,
++        let original = self.closures.original_callable_kind(
++            self.function.id, expression.id, expression.span,
+         )?;
+-        if let CoreExprKind::Name(name) = &expression.kind {
+-            Ok(self
+-                .lookup(name)
+-                .and_then(|local| modes.locals.get(&local))
+-                .copied())
+-        } else {
+-            Ok(None)
++        let declared = if let Some(modes) = &self.factory_modes {
++            self.closures.snapshot(
++                helpers::plan::tree_work(modes.locals.len()), expression.span,
++            )?;
++            if let CoreExprKind::Name(name) = &expression.kind {
++                self.lookup(name).and_then(|local| modes.locals.get(&local)).copied()
++            } else { None }
++        } else { None };
++        if original.zip(declared).is_some_and(|(original, declared)| original != declared) {
++            return Err(error("E-CLOSURE-MODE", expression.span,
++                "callable position changes its complete original declaration mode"));
+         }
++        Ok(original.or(declared))
+     }
+ 
+     pub(super) fn factory_value_kind(
+diff --git a/crates/zil-types/src/retained.rs b/crates/zil-types/src/retained.rs
+index c218631c0..44e47ae12 100644
+--- a/crates/zil-types/src/retained.rs
++++ b/crates/zil-types/src/retained.rs
+@@ -186,17 +186,19 @@ pub(super) fn self_contained(
+     closures: &[closures::Pending],
+     root: ClosureId,
+     work: &mut usize,
++    limits: &Limits,
+     span: Span,
+ ) -> R<()> {
+-    environment_shape(closures, root, work, span, false, false).map(|_| ())
++    environment_shape(closures, root, work, limits, span, false, false).map(|_| ())
+ }
+ pub(super) fn closed_or_constant(
+     closures: &[closures::Pending],
+     root: ClosureId,
+     work: &mut usize,
++    limits: &Limits,
+     span: Span,
+ ) -> R<bool> {
+-    environment_shape(closures, root, work, span, false, true)
++    environment_shape(closures, root, work, limits, span, false, true)
+ }
+ 
+ /// Source-side formation only. Escaping leaves still require actual CFG source
+@@ -205,14 +207,16 @@ pub(super) fn transportable(
+     closures: &[closures::Pending],
+     root: ClosureId,
+     work: &mut usize,
++    limits: &Limits,
+     span: Span,
+ ) -> R<()> {
+-    environment_shape(closures, root, work, span, true, false).map(|_| ())
++    environment_shape(closures, root, work, limits, span, true, false).map(|_| ())
+ }
+ fn environment_shape(
+     closures: &[closures::Pending],
+     root: ClosureId,
+     work: &mut usize,
++    limits: &Limits,
+     span: Span,
+     borrowed_leaves: bool,
+     constant_candidates: bool,
+@@ -260,6 +264,19 @@ fn environment_shape(
+                     if borrowed_leaves => {}
+                 ty if capture.moved && owned_shapes::sum(ty) => {}
+                 ty if ty.is_copy_value() => {}
++                ty if capture.moved && !capture.borrowed
++                    && stored::shared_compound(ty, work, limits, span)? =>
++                {
++                    if constant_candidates {
++                        // This is only a candidate. The existing deferred
++                        // original/actual Static-source proof must discharge
++                        // every compound leaf before CE can be published.
++                        deferred = true;
++                    } else if !borrowed_leaves {
++                        return Err(unsupported(span,
++                            "shared compound environment requires its complete original source proof"));
++                    }
++                }
+                 _ => {
+                     return Err(unsupported(
+                         span,
+@@ -722,7 +739,7 @@ impl Builder<'_, '_> {
+                 "opaque callable return requires a closure environment",
+             ));
+         };
+-        if self.factory_modes.is_some()
++        if self.owning_factory_template
+             && self
+                 .function
+                 .parameters
+@@ -735,19 +752,36 @@ impl Builder<'_, '_> {
+             ));
+         }
+         let bound = self.factory_bound.as_ref().expect("factory return").clone();
+-        let pending = &mut self.closures.pending[id.0 as usize];
+-        if pending.inference.arity() != bound.parameters.len() {
+-            return Err(error(
+-                "E-CALL-ARITY",
++        let (actual_kind, entry) = {
++            let pending = &mut self.closures.pending[id.0 as usize];
++            if pending.inference.arity() != bound.parameters.len() {
++                return Err(error(
++                    "E-CALL-ARITY",
++                    span,
++                    "returned closure differs from the public callable signature",
++                ));
++            }
++            for (index, ty) in bound.parameters.iter().enumerate() {
++                pending.inference.argument(index, ty, span)?;
++            }
++            pending.inference.expect_result(&bound.result, span)?;
++            (pending.callable_kind(), pending.function)
++        };
++        // An ordinary factory may explicitly expose a freshly constructed Fn
++        // environment through a consuming FnOnce interface. Its natural kind
++        // is not rewritten. Generic-F opaque factories and existing opaque
++        // values retain their exact declared mode; same ClosureId is no mint.
++        let contextual_once = if !self.owning_factory_template
++            && actual_kind == CallableKind::Fn && bound.kind == CallableKind::FnOnce
++        {
++            self.closures.snapshot(
++                self.closures.semantic_emission.frames.len().saturating_add(1).ilog2() as usize + 1,
+                 span,
+-                "returned closure differs from the public callable signature",
+-            ));
+-        }
+-        for (index, ty) in bound.parameters.iter().enumerate() {
+-            pending.inference.argument(index, ty, span)?;
+-        }
+-        pending.inference.expect_result(&bound.result, span)?;
+-        if pending.callable_kind() != bound.kind {
++            )?;
++            self.closures.semantic_emission.frames.get(&entry)
++                .is_some_and(|frame| frame.parent == Some((self.function.id, id)))
++        } else { false };
++        if actual_kind != bound.kind && !contextual_once {
+             return Err(error(
+                 "E-TYPE-MISMATCH",
+                 span,
+@@ -786,6 +820,11 @@ impl Builder<'_, '_> {
+                 if matches!(ty, Type::Address { mutable: true, .. } | Type::Desc(_)) {
+                     writes.push(index as u32);
+                 }
++            } else if stored::shared_compound(&ty, &mut self.match_work_left, self.limits, span)? {
++                // Preserve the complete captured carrier as a dependency.
++                // Static/variable source paths and result relations are still
++                // rebuilt from the original environment; this is not CE/N0.
++                hold.push(index as u32);
+             } else if !ty.is_copy_value() {
+                 return Err(unsupported(
+                     span,
+diff --git a/crates/zil-types/src/semantics/emission.rs b/crates/zil-types/src/semantics/emission.rs
+index 43db44b0e..3f88d8ab6 100644
+--- a/crates/zil-types/src/semantics/emission.rs
++++ b/crates/zil-types/src/semantics/emission.rs
+@@ -69,6 +69,10 @@ pub(crate) struct Frame {
+     stack: Vec<NodeId>,
+     live_locals: BTreeMap<LocalId, Point>,
+ }
++#[path = "emission_callable_modes.rs"]
++mod callable_modes;
++pub(crate) use callable_modes::CallableBodyModes;
++
+ #[derive(Default)]
+ pub(crate) struct Ledger {
+     pub(crate) ordinary_stats: std::rc::Rc<std::cell::RefCell<stored::OrdinaryStats>>,
+@@ -79,6 +83,8 @@ pub(crate) struct Ledger {
+     pub(super) frozen: Option<std::rc::Rc<super::frozen_context::FrozenSource>>,
+     pub(super) original: super::original_context::Slot,
+     pub frames: BTreeMap<FunctionId, Frame>,
++    /// Pure original use facts, bound to this request's immutable context.
++    original_callable_modes: std::cell::RefCell<Option<std::rc::Rc<callable_modes::Directory>>>,
+     /// Full nominal proposals attached only to genuine TaskPoll results.
+     pub(crate) formed_polls: BTreeMap<(FunctionId, ValueId), LifeNominalInstance>,
+     /// Bound only by relocation of the exact source request and emitted call.
+diff --git a/crates/zil-types/src/semantics/header_rows.rs b/crates/zil-types/src/semantics/header_rows.rs
+index 130c91445..47c5f8100 100644
+--- a/crates/zil-types/src/semantics/header_rows.rs
++++ b/crates/zil-types/src/semantics/header_rows.rs
+@@ -131,14 +131,7 @@ pub(in crate::semantics) fn append(
+             ));
+         }
+     }
+-    if matches!(ty, Type::Address { .. } | Type::Desc(_))
+-        && !life.slots.iter().any(|slot| slot.path.is_empty())
+-    {
+-        statics.push(StoragePosition {
+-            base,
+-            path: Vec::new(),
+-        });
+-    }
++    physical_statics(ty, life, base, statics, limits, left)?;
+     if covered.iter().any(|covered| !*covered) {
+         return Err(bad(
+             "header whole type has an unrepresented intrinsic class occurrence",
+@@ -146,3 +139,167 @@ pub(in crate::semantics) fn append(
+     }
+     Ok(())
+ }
++
++// Resolved here means evaluated in the complete original Gamma, not an
++// arbitrary physical hint. Static contributes no variable slot, but remains
++// a real physical borrow occurrence even inside an inline product or sum.
++fn physical_statics(
++    ty: &Type, life: &StorageLifeShape, base: StorageBase,
++    out: &mut Vec<StoragePosition>, limits: &Limits, left: &mut usize,
++) -> R<()> {
++    struct Walk<'a, 'b> {
++        life: &'a StorageLifeShape,
++        seen: Vec<bool>,
++        base: StorageBase,
++        out: &'b mut Vec<StoragePosition>,
++        limits: &'b Limits,
++        left: &'b mut usize,
++        nodes: usize,
++    }
++    impl Walk<'_, '_> {
++        fn leaf(&mut self, ty: &Type, prefix: &[PlaceProjection]) -> R<()> {
++            pay(self.left, self.life.slots.len().saturating_mul(prefix.len().saturating_add(1)))?;
++            let mut selected = None;
++            for (ordinal, slot) in self.life.slots.iter().enumerate() {
++                if slot.path.as_slice() != prefix { continue; }
++                if selected.replace(ordinal).is_some() {
++                    return Err(bad("physical header leaf has multiple variable slots"));
++                }
++                let valid = matches!((ty, slot.mode),
++                    (Type::Address { mutable: false, .. }, StoredBorrowMode::SharedAddress)
++                    | (Type::Address { mutable: true, .. }, StoredBorrowMode::ExclusiveAddress)
++                    | (Type::Desc(_), StoredBorrowMode::ReadOnlyDescription | StoredBorrowMode::WritableDescription));
++                if !valid { return Err(bad("physical header slot changes its actual borrow mode")); }
++            }
++            if let Some(ordinal) = selected {
++                self.seen[ordinal] = true;
++                return Ok(());
++            }
++            if !matches!(ty, Type::Address { mutable: false, .. }) {
++                return Err(bad("non-shared header leaf has no complete variable occurrence"));
++            }
++            path(self.left, self.limits, prefix.len())?;
++            self.out.push(StoragePosition {
++                base: self.base,
++                path: prefix.iter().copied().map(ContractProjection::Place).collect(),
++            });
++            Ok(())
++        }
++        fn visit(&mut self, ty: &Type, prefix: &mut Vec<PlaceProjection>, depth: usize) -> R<()> {
++            path(self.left, self.limits, depth)?;
++            if self.nodes >= self.limits.max_nodes {
++                return Err(Diagnostic::limit(Phase::Types, "physical header occurrence node limit exceeded", None));
++            }
++            self.nodes += 1;
++            match ty {
++                // This is one physical leaf. Its pointee is metadata, not a
++                // second inline borrow occurrence or permission to dereference.
++                Type::Address { .. } | Type::Desc(_) => self.leaf(ty, prefix),
++                Type::BorrowedStorage { storage, .. } => self.visit(storage, prefix, depth + 1),
++                Type::Tuple(fields) => {
++                    pay(self.left, fields.len())?;
++                    for (ordinal, field) in fields.iter().enumerate() {
++                        let ordinal = u32::try_from(ordinal).map_err(|_| bad("header Tuple field ordinal overflows"))?;
++                        prefix.push(PlaceProjection::Field(ordinal));
++                        self.visit(field, prefix, depth + 1)?;
++                        prefix.pop();
++                    }
++                    Ok(())
++                }
++                Type::Record { fields, .. } | Type::Package { fields, .. } => {
++                    pay(self.left, fields.len())?;
++                    for (ordinal, (_, field)) in fields.iter().enumerate() {
++                        let ordinal = u32::try_from(ordinal).map_err(|_| bad("header Product field ordinal overflows"))?;
++                        prefix.push(PlaceProjection::Field(ordinal));
++                        self.visit(field, prefix, depth + 1)?;
++                        prefix.pop();
++                    }
++                    Ok(())
++                }
++                Type::Array { element, length } => {
++                    if *length as usize > self.limits.max_nodes {
++                        return Err(Diagnostic::limit(Phase::Types, "physical header array length exceeded", None));
++                    }
++                    pay(self.left, *length as usize)?;
++                    for ordinal in 0..*length {
++                        prefix.push(PlaceProjection::Field(ordinal));
++                        self.visit(element, prefix, depth + 1)?;
++                        prefix.pop();
++                    }
++                    Ok(())
++                }
++                Type::Enum { variants, .. } => {
++                    pay(self.left, variants.len())?;
++                    for (variant, (_, fields)) in variants.iter().enumerate() {
++                        let variant = u32::try_from(variant).map_err(|_| bad("header Enum variant ordinal overflows"))?;
++                        pay(self.left, fields.len())?;
++                        for (ordinal, field) in fields.iter().enumerate() {
++                            let index = u32::try_from(ordinal).map_err(|_| bad("header Enum field ordinal overflows"))?;
++                            prefix.push(PlaceProjection::Variant(VariantProjection { variant, index }));
++                            self.visit(field, prefix, depth + 1)?;
++                            prefix.pop();
++                        }
++                    }
++                    Ok(())
++                }
++                Type::ErrorUnion { error, result } => {
++                    for (arm, ty) in [(true, error.as_ref()), (false, result.as_ref())] {
++                        prefix.push(PlaceProjection::ErrorArm(arm));
++                        self.visit(ty, prefix, depth + 1)?;
++                        prefix.pop();
++                    }
++                    Ok(())
++                }
++                // Managed/opaque storage and code signatures are not physical
++                // inline fields. Their complete child class/port/context and
++                // Static source obligations retain their separate consumers.
++                _ => Ok(()),
++            }
++        }
++    }
++    pay(left, life.slots.len().saturating_add(1))?;
++    let mut walk = Walk { life, seen: vec![false; life.slots.len()], base, out, limits, left, nodes: 0 };
++    walk.visit(ty, &mut Vec::new(), 0)?;
++    if walk.seen.iter().any(|seen| !seen) {
++        return Err(bad("header variable slot is not an actual physical borrow leaf"));
++    }
++    Ok(())
++}
++
++#[cfg(test)]
++mod static_physical_tests {
++    use super::*;
++    #[test]
++    fn compound_statics_remain_distinct_from_variable_and_exclusive_slots() {
++        let leaf = Type::Address { mutable: false,
++            inner: Box::new(Type::Slice { element: Box::new(Type::U8) }) };
++        let value = SemanticTypeValue::Resolved {
++            ty: Type::Tuple(vec![leaf.clone(), leaf]),
++            life: StorageLifeShape { binder_count: 1,
++                slots: vec![StorageLifeSlot { path: vec![PlaceProjection::Field(1)],
++                    binder: 0, mode: StoredBorrowMode::SharedAddress }],
++                retained: Vec::new(), nominal_arguments: Vec::new() },
++            classes: vec![SemanticClassExpr::Implicit { scope: SemanticScopeRef::Ancestor(0), ordinal: 0 }],
++        };
++        let limits = Limits::default(); let mut left = limits.max_analysis_steps;
++        let mut bindings = Vec::new(); let mut classes = Vec::new(); let mut statics = Vec::new();
++        append(&value, StorageBase::Capture(0), &mut bindings, &mut classes,
++            &mut statics, &limits, &mut left).unwrap();
++        assert_eq!(statics, vec![StoragePosition { base: StorageBase::Capture(0),
++            path: vec![ContractProjection::Place(PlaceProjection::Field(0))] }]);
++        assert_eq!(bindings.len(), 1);
++        assert_eq!(bindings[0].0.path, vec![ContractProjection::Place(PlaceProjection::Field(1))]);
++        let mut orphan = value.clone();
++        let SemanticTypeValue::Resolved { life, .. } = &mut orphan else { unreachable!() };
++        life.slots[0].path = vec![PlaceProjection::Field(2)];
++        assert!(append(&orphan, StorageBase::Capture(0), &mut Vec::new(), &mut Vec::new(),
++            &mut Vec::new(), &limits, &mut left).is_err());
++        let exclusive = SemanticTypeValue::Resolved {
++            ty: Type::Tuple(vec![Type::Address { mutable: true, inner: Box::new(Type::I32) }]),
++            life: StorageLifeShape { binder_count: 0, slots: Vec::new(), retained: Vec::new(), nominal_arguments: Vec::new() },
++            classes: Vec::new(),
++        };
++        assert!(append(&exclusive, StorageBase::Capture(0), &mut Vec::new(), &mut Vec::new(),
++            &mut Vec::new(), &limits, &mut left).is_err());
++    }
++}
+diff --git a/crates/zil-verify/src/semantic/original/protocol.rs b/crates/zil-verify/src/semantic/original/protocol.rs
+index e6a3cfd6d..a29509b50 100644
+--- a/crates/zil-verify/src/semantic/original/protocol.rs
++++ b/crates/zil-verify/src/semantic/original/protocol.rs
+@@ -20,8 +20,7 @@ struct Engine<'a> {
+     next: u64,
+     closed_tasks: BTreeSet<Place>,
+     async_tasks: BTreeSet<Place>,
+-    synchronous_tasks:BTreeSet<Place>,
+-    synchronous_births:&'a BTreeSet<(SemanticDefinitionId,NodeId)>,
++    synchronous_births:&'a mut tasks::SynchronousBirths,
+     result_sources_by_function:&'a BTreeMap<SemanticDefinitionId,ResultSources>,
+     returned_sources:Option<ResultSources>,
+     fallible_task_result:bool,
+@@ -29,6 +28,7 @@ struct Engine<'a> {
+     task_loop_keys: Vec<BTreeSet<Binder>>,
+     result_shapes:BTreeMap<NodeId,tasks::Shape>,
+     callable_roles:BTreeMap<NodeId,(CallableKind,Vec<PassingMode>)>,
++    creation_shapes:BTreeMap<NodeId,Vec<tasks::Shape>>,
+ }
+ 
+ impl CheckedOriginal {
+@@ -40,7 +40,7 @@ impl CheckedOriginal {
+         active: &mut ActiveQueries,
+         b: &mut Budget,
+     ) -> Check<()> {
+-        let synchronous_births=self.synchronous_task_births(module,context,index,active,b)?;
++        let mut synchronous_births=self.synchronous_task_births(module,context,index,active,b)?;
+         let mut result_sources_by_function=BTreeMap::new();
+         for id in protocol_order(self,index,b)? {
+             let function=&index.definitions[&id];
+@@ -132,6 +132,15 @@ impl CheckedOriginal {
+                 self.current=previous;
+                 continue;
+             }
++            let mut creation_shapes=BTreeMap::new();
++            for(&site,node)in &function.nodes{
++                b.spend(self.intrinsic_calls.len().checked_ilog2().map_or(1,|n|n as usize+1))?;
++                if !self.intrinsic_calls.get(&(id,site)).is_some_and(|use_|matches!(use_.kind,Intrinsic::TaskCreate|Intrinsic::TaskCreateOwned)){continue;}
++                let index::Node::Expression(expression)=node else{return Err(bad("Task dependency source has no original expression occurrence"));};
++                let CoreExprKind::Call{arguments,..}=&expression.kind else{return Err(bad("Task dependency source is not its original Call"));};
++                let shapes=self.creation_dependency_shapes(module,context,id,site,arguments,active,b)?;
++                if creation_shapes.insert(expression.id,shapes).is_some(){return Err(bad("Task dependency source has ambiguous original Call occurrences"));}
++            }
+             let mut callable_roles=BTreeMap::new();
+             for expression in function.expressions.values(){
+                 let CoreExprKind::Call{callee,..}=&expression.kind else{continue;};
+@@ -163,8 +172,7 @@ impl CheckedOriginal {
+                 next: 0,
+                 closed_tasks: BTreeSet::new(),
+                 async_tasks: BTreeSet::new(),
+-                synchronous_tasks:BTreeSet::new(),
+-                synchronous_births:&synchronous_births,
++                synchronous_births:&mut synchronous_births,
+                 result_sources_by_function:&result_sources_by_function,
+                 returned_sources:None,
+                 fallible_task_result,
+@@ -172,6 +180,7 @@ impl CheckedOriginal {
+                 task_loop_keys: Vec::new(),
+                 result_shapes,
+                 callable_roles,
++                creation_shapes,
+             };
+             engine.poll = engine.poll_type(&prototype.result, b)?;
+             engine.shape(b)?;
+@@ -278,11 +287,9 @@ impl CheckedOriginal {
+             }
+             let closed = std::mem::take(&mut engine.closed_tasks);
+             let asynchronous = std::mem::take(&mut engine.async_tasks);
+-            let synchronous=std::mem::take(&mut engine.synchronous_tasks);
+             let returned=engine.returned_sources.take();
+             drop(engine);
+             if let Some(returned)=returned{b.spend(returned.len())?;result_sources_by_function.insert(id,returned);}
+-            for root in synchronous{b.spend(1)?;self.task_synchronous_cleanups.insert((id,root));}
+             for root in closed {
+                 b.spend(1)?;
+                 self.task_closed_cleanups.insert((id, root));
+@@ -293,6 +300,7 @@ impl CheckedOriginal {
+             }
+             self.current=previous;
+         }
++        for(definition,root)in synchronous_births.finish(b)?{b.spend(1)?;self.task_synchronous_cleanups.insert((definition,root));}
+         Ok(())
+     }
+ }
+diff --git a/crates/zil-verify/src/semantic/original/protocol/state.rs b/crates/zil-verify/src/semantic/original/protocol/state.rs
+index c86b4ef90..d4c9fe97d 100644
+--- a/crates/zil-verify/src/semantic/original/protocol/state.rs
++++ b/crates/zil-verify/src/semantic/original/protocol/state.rs
+@@ -423,8 +423,8 @@ mod source_tests{
+         let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+         let original=CheckedOriginal::default();let index=index::build(&module,&mut b).unwrap();
+         let definition=index.definitions.keys().next().copied().unwrap();
+-        let births=BTreeSet::new();let summaries=BTreeMap::new();
+-        let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),synchronous_tasks:BTreeSet::new(),synchronous_births:&births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new()};
++        let mut births=tasks::SynchronousBirths::default();let summaries=BTreeMap::new();
++        let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),creation_shapes:BTreeMap::new()};
+         let binder=Binder::Parameter{definition,ordinal:0};
+         let pending=Value::FallibleTask(PendingTask{sources:BTreeSet::from([TaskSource::Birth{definition,node:NodeId(4)}]),states:OPEN});
+         let mut present=State::default();present.values.insert(binder.clone(),pending.clone());
+diff --git a/crates/zil-verify/src/semantic/original/protocol/tasks.rs b/crates/zil-verify/src/semantic/original/protocol/tasks.rs
+index f84c1a911..67d82d13a 100644
+--- a/crates/zil-verify/src/semantic/original/protocol/tasks.rs
++++ b/crates/zil-verify/src/semantic/original/protocol/tasks.rs
+@@ -29,7 +29,91 @@ impl Shape {
+         }
+     }
+ }
++type Birth=(SemanticDefinitionId,NodeId);
++#[derive(Default)]
++pub(super) struct SynchronousBirths{
++    known:BTreeSet<Birth>,
++    conditional:BTreeSet<Birth>,
++    observed:BTreeMap<Birth,Sources>,
++    pending:Vec<(SemanticDefinitionId,Place,u64,u8,Sources)>,
++}
++impl SynchronousBirths{
++    fn observe(&mut self,birth:Birth,shapes:&[Shape],values:&[Value],state:&State,b:&mut Budget)->Check<()>{
++        fn collect(shape:&Shape,value:&Value,state:&State,out:&mut Sources,b:&mut Budget)->Check<()>{
++            b.spend(1)?;
++            fn add(task:&PendingTask,out:&mut Sources,b:&mut Budget)->Check<()>{b.spend(task.width())?;if task.states&!(CLOSED|DEAD)!=0{if task.sources.is_empty(){out.insert(TaskSource::Unknown);}else{out.extend(task.sources.iter().cloned());}}Ok(())}
++            match(shape,value){
++                (Shape::Task{..},Value::Owner{root,..})=>{let owner=state.owner(root,b)?;if !owner.task{out.insert(TaskSource::Unknown);}else if owner.states&!(CLOSED|DEAD)!=0{b.spend(source_width(&owner.sources))?;out.extend(owner.sources.iter().cloned());}},
++                (Shape::Task{..},Value::FreshTask(task))|(Shape::FallibleTask,Value::FallibleTask(task))=>add(task,out,b)?,
++                (Shape::Product(expected),Value::Product(actual))=>{
++                    b.spend(expected.len().saturating_mul(actual.len().saturating_add(1)))?;
++                    if expected.len()!=actual.len(){out.insert(TaskSource::Unknown);return Ok(());}
++                    for(name,shape)in expected{let mut rows=actual.iter().filter(|(field,_)|field==name);let Some((_,value))=rows.next()else{out.insert(TaskSource::Unknown);continue;};if rows.next().is_some(){out.insert(TaskSource::Unknown);continue;}collect(shape,value,state,out,b)?;}
++                },
++                (Shape::Plain,_)if !owner_value(value)=>{},
++                _=>{out.insert(TaskSource::Unknown);},
++            }Ok(())
++        }
++        if !self.conditional.contains(&birth){return Ok(());}
++        let mut incoming=Sources::new();
++        if shapes.len()!=values.len(){incoming.insert(TaskSource::Unknown);}else{for(shape,value)in shapes.iter().zip(values){collect(shape,value,state,&mut incoming,b)?;}}
++        b.spend(source_width(&incoming).saturating_add(self.observed.len().checked_ilog2().map_or(1,|n|n as usize+1)))?;
++        if self.observed.len()>=b.limits.max_nodes&&!self.observed.contains_key(&birth){return Err(limit("original Task creation-source inventory exceeded"));}
++        let previous=self.observed.entry(birth).or_default();b.spend(source_width(previous))?;previous.extend(incoming);Ok(())
++    }
++    fn request(&mut self,definition:SemanticDefinitionId,root:&Place,owner:&Owner,b:&mut Budget)->Check<()>{
++        b.spend(source_width(&owner.sources))?;
++        if owner.sources.is_empty()||owner.sources.iter().any(|source|!matches!(source,TaskSource::Birth{definition,node}if self.known.contains(&(*definition,*node))||self.conditional.contains(&(*definition,*node)))){
++            return Err(bad("original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend").with_note(format!("original cleanup owner {definition:?}; root {root:?}; phase {}; universal sources {:?}",owner.states,owner.sources)));
++        }
++        if self.pending.len()>=b.limits.max_nodes{return Err(limit("original pending Task cleanup inventory exceeded"));}
++        root.binder.charge_clone(b)?;b.spend(root.fields.iter().map(String::len).sum::<usize>().saturating_add(source_width(&owner.sources)).saturating_add(2))?;
++        self.pending.push((definition,root.clone(),owner.generation,owner.states,owner.sources.clone()));Ok(())
++    }
++    pub(super) fn finish(mut self,b:&mut Budget)->Check<Vec<(SemanticDefinitionId,Place)>>{
++        // Least fixed point of all-source obligations. Original Input/Unknown,
++        // absent creation observations and source-only cycles are not anchors.
++        let mut changed=true;
++        while changed{changed=false;for(birth,sources)in &self.observed{
++            b.spend(source_width(sources).saturating_add(1))?;
++            if self.known.contains(birth){continue;}
++            if self.conditional.contains(birth)&&sources.iter().all(|source|matches!(source,TaskSource::Birth{definition,node}if self.known.contains(&(*definition,*node)))){self.known.insert(*birth);changed=true;}
++        }}
++        let mut ready=Vec::new();
++        for(definition,root,generation,phase,sources)in self.pending{
++            b.spend(source_width(&sources).saturating_add(1))?;
++            if !sources.iter().all(|source|matches!(source,TaskSource::Birth{definition,node}if self.known.contains(&(*definition,*node)))){
++                return Err(bad("original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend").with_note(format!("original cleanup {definition:?} {root:?} generation {generation}, phase {phase}; incomplete all-source creation dependencies {sources:?}")));
++            }
++            ready.push((definition,root));
++        }Ok(ready)
++    }
++}
++
+ impl CheckedOriginal {
++    pub(super) fn creation_dependency_shapes(&mut self,module:&TypedModule,context:&CheckedContext,owner:SemanticDefinitionId,site:SemanticSiteId,arguments:&[SemanticOriginalExpr],active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<Shape>>{
++        let worker=self.intrinsic_calls.get(&(owner,site)).and_then(|use_|use_.worker).ok_or_else(||bad("Task dependency shapes have no original worker"))?;
++        let caller=self.environment(module,context,owner,active,b)?;
++        let actuals=self.calls.get(&(owner,site)).ok_or_else(||bad("Task dependency shapes omit the original full mixed worker arguments"))?;
++        let actuals=self.apply_arguments(actuals,&caller,0,b)?;
++        let selected=self.synchronous_environment(module,context,worker,&actuals,&[caller],active,b)?;
++        let mut shapes=Vec::new();
++        for(ordinal,argument)in arguments.iter().enumerate(){
++            let actual=self.expressions.get(&(owner,argument.id)).ok_or_else(||bad("Task creation has no complete original worker/input expression type"))?.clone();
++            let mut shape=self.task_shape(module,context,&actual,false,active,b,0)?;
++            if ordinal!=0{
++                if let Some(selected)=&selected{
++                    let parameter=self.prototypes.get(&worker).and_then(|prototype|prototype.parameters.get(ordinal-1)).ok_or_else(||bad("Task dependency shape changes its original worker arity"))?;
++                    let parameter=self.apply_type(parameter,selected,b)?;
++                    let required=self.task_shape(module,context,&parameter,false,active,b,0)?;
++                    // A source Type variable/equality cannot erase a Task slot
++                    // required by the independently selected worker prototype.
++                    if required.has_task(){shape=required;}
++                }
++            }
++            shapes.push(shape);
++        }Ok(shapes)
++    }
+     pub(in crate::semantic::original) fn task_shape(
+         &mut self,
+         module: &TypedModule,
+@@ -355,13 +439,7 @@ impl<'a> Engine<'a> {
+                 .get(&self.current)
+                 .ok_or_else(|| bad("Task cleanup has no fixed original effect upper"))?;
+             if prototype.call_kind != CallKind::Suspend {
+-                b.spend(source_width(&owner.sources))?;
+-                if owner.sources.is_empty()||!owner.sources.iter().all(|source|matches!(source,TaskSource::Birth{definition,node}if self.synchronous_births.contains(&(*definition,*node)))){
+-                    let detail=format!("original cleanup owner {:?}; root {root:?}; phase {}; universal sources {:?}",self.current,owner.states,owner.sources);
+-                    b.spend(detail.len())?;
+-                    return Err(bad("original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend").with_note(detail));
+-                }
+-                self.synchronous_tasks.insert(root.clone());
++                self.synchronous_births.request(self.current,root,&owner,b)?;
+             }else{
+             // This is the sealed asynchronous cleanup edge under an explicit
+             // Suspend ABI. It supplies no Closed or global SyncDrop fact. The
+@@ -448,6 +526,8 @@ impl<'a> Engine<'a> {
+         b: &mut Budget,
+     ) -> Check<Option<Value>> {
+         if matches!(kind, Intrinsic::TaskCreate | Intrinsic::TaskCreateOwned) {
++            let shapes=self.creation_shapes.get(&node).ok_or_else(||bad("Task creation omits its complete original input/capture shape directory"))?;
++            self.synchronous_births.observe((self.current,node),shapes,values,state,b)?;
+             b.spend(values.len())?;
+             let inputs = values.iter().skip(1).cloned().collect::<Vec<_>>();
+             let sources=PendingTask{states:OPEN,sources:BTreeSet::from([TaskSource::Birth{definition:self.current,node}])};
+@@ -869,6 +949,48 @@ struct SynchronousWorld {world:Env,sources:Vec<Env>}
+ #[cfg(test)]
+ mod source_world_tests{
+     use super::*;
++    fn birth(index:u32)->Birth{(SemanticDefinitionId{module:zil_base::ModuleId(0),index:0},NodeId(index))}
++    fn source(value:Birth)->TaskSource{TaskSource::Birth{definition:value.0,node:value.1}}
++    fn pending(sources:Sources)->Value{Value::FreshTask(PendingTask{states:OPEN,sources})}
++    fn request(registry:&mut SynchronousBirths,value:Birth,generation:u64,b:&mut Budget){
++        let root=root_place(&Binder::Parameter{definition:value.0,ordinal:0});
++        registry.request(value.0,&root,&Owner{states:OPEN,generation,task:true,owned:true,sources:BTreeSet::from([source(value)])},b).unwrap();
++    }
++    #[test]
++    fn creation_dependencies_require_all_universal_sources_and_keep_each_cleanup_generation(){
++        let limits=Limits::default();let mut b=Budget::new(&limits);let state=State::default();let base=birth(1);let a=birth(2);let z=birth(3);
++        let mut safe=SynchronousBirths{known:BTreeSet::from([base]),conditional:BTreeSet::from([a]),..SynchronousBirths::default()};
++        safe.observe(a,&[Shape::Task{borrowed:false}],&[pending(BTreeSet::from([source(base)]))],&state,&mut b).unwrap();request(&mut safe,a,1,&mut b);assert_eq!(safe.finish(&mut b).unwrap().len(),1);
++        for hostile in 0..4{
++            let mut proof=SynchronousBirths{known:BTreeSet::from([base]),conditional:BTreeSet::from([a,z]),..SynchronousBirths::default()};
++            let unsafe_source=if hostile==0{TaskSource::Input{definition:a.0,ordinal:0,path:vec![]}}else{TaskSource::Unknown};
++            match hostile{
++                0=>proof.observe(a,&[Shape::Task{borrowed:false}],&[pending(BTreeSet::from([unsafe_source]))],&state,&mut b).unwrap(),
++                1=>{proof.observe(a,&[Shape::Task{borrowed:false}],&[pending(BTreeSet::from([source(base)]))],&state,&mut b).unwrap();proof.observe(a,&[Shape::Task{borrowed:false}],&[pending(BTreeSet::from([unsafe_source]))],&state,&mut b).unwrap();},
++                2=>{proof.observe(a,&[Shape::Task{borrowed:false}],&[pending(BTreeSet::from([source(z)]))],&state,&mut b).unwrap();proof.observe(z,&[Shape::Task{borrowed:false}],&[pending(BTreeSet::from([source(a)]))],&state,&mut b).unwrap();},
++                _=>{}, // A candidate with no original creation observation has no proof.
++            }
++            request(&mut proof,a,1,&mut b);
++            // A later safe occupant at the same Place cannot overwrite the
++            // earlier cleanup's exact source/phase/generation obligation.
++            request(&mut proof,base,2,&mut b);
++            assert!(proof.finish(&mut b).is_err(),"unsafe creation dependency {hostile}");
++        }
++    }
++    #[test]
++    fn creation_dependencies_include_worker_capture_zero_and_reject_missing_task_slots(){
++        let mut b=Budget::new(&Limits::default());let state=State::default();let base=birth(1);let target=birth(2);
++        let shape=Shape::Product(vec![("$capture:child".into(),Shape::Task{borrowed:false})]);
++        for hostile in 0..4{
++            let mut proof=SynchronousBirths{known:BTreeSet::from([base]),conditional:BTreeSet::from([target]),..SynchronousBirths::default()};
++            let value=match hostile{0=>Value::Product(vec![("$capture:child".into(),pending(BTreeSet::from([source(base)])))]),1=>Value::Product(vec![("$capture:child".into(),pending(unknown_sources()))]),2=>Value::Plain,_=>Value::FallibleTaskOwned(vec![pending(unknown_sources())],PendingTask{states:OPEN,sources:BTreeSet::from([source(base)])})};
++            proof.observe(target,std::slice::from_ref(&shape),&[value],&state,&mut b).unwrap();request(&mut proof,target,1,&mut b);
++            assert_eq!(proof.finish(&mut b).is_ok(),hostile==0,"worker selector/capture omission {hostile}");
++        }
++        let mut proof=SynchronousBirths{conditional:BTreeSet::from([target]),..SynchronousBirths::default()};
++        let root=root_place(&Binder::Parameter{definition:target.0,ordinal:0});let mut state=State::default();state.owners.insert(root.clone(),Owner{states:CLOSED,generation:5,task:true,owned:true,sources:unknown_sources()});
++        proof.observe(target,&[Shape::Task{borrowed:true}],&[Value::Owner{root,borrowed:true}],&state,&mut b).unwrap();request(&mut proof,target,1,&mut b);assert!(proof.finish(&mut b).is_ok(),"only this exact already Closed generation has no future Task-source dependency");
++    }
+     #[test]
+     fn synchronous_creator_never_selects_between_distinct_full_parent_domains(){
+         let original=CheckedOriginal::default();let mut b=Budget::new(&Limits::default());
+@@ -887,10 +1009,10 @@ mod source_world_tests{
+ impl CheckedOriginal{
+     /// A birth is proved in the original creation site's universal Gamma. A
+     /// concrete caller never specializes an incoming Task into a safe birth.
+-    pub(super) fn synchronous_task_births(&mut self,module:&TypedModule,context:&CheckedContext,index:&index::Index<'_>,active:&mut ActiveQueries,b:&mut Budget)->Check<BTreeSet<(SemanticDefinitionId,NodeId)>>{
++    pub(super) fn synchronous_task_births(&mut self,module:&TypedModule,context:&CheckedContext,index:&index::Index<'_>,active:&mut ActiveQueries,b:&mut Budget)->Check<SynchronousBirths>{
+         let previous=self.current;
+         let result=(||{
+-            let mut out=BTreeSet::new();
++            let mut out=SynchronousBirths::default();
+             let sites=self.intrinsic_calls.iter().filter(|(_,use_)|matches!(use_.kind,Intrinsic::TaskCreate|Intrinsic::TaskCreateOwned)).map(|(key,use_)|(*key,*use_)).collect::<Vec<_>>();b.spend(sites.len())?;
+             for((owner,site),use_)in sites{
+                 let Some(worker)=use_.worker else{return Err(bad("original Task birth loses its exact worker source"));};
+@@ -905,7 +1027,9 @@ impl CheckedOriginal{
+                 let actuals=self.apply_arguments(actuals,&caller,0,b)?;
+                 let sources=vec![self.copy_environment(&caller,b)?];
+                 let Some(world)=self.synchronous_environment(module,context,worker,&actuals,&sources,active,b)?else{continue;};
+-                if self.closed_source_worker(module,context,index,SynchronousWorld{world,sources},active,b)?{out.insert((owner,node.id));}
++                let conditional=SynchronousWorld{world:self.copy_environment(&world,b)?,sources:sources.iter().map(|source|self.copy_environment(source,b)).collect::<Check<Vec<_>>>()?};
++                if self.closed_source_worker(module,context,index,SynchronousWorld{world,sources},false,active,b)?{out.known.insert((owner,node.id));}
++                else if self.closed_source_worker(module,context,index,conditional,true,active,b)?{out.conditional.insert((owner,node.id));}
+             }
+             Ok(out)
+         })();
+@@ -955,7 +1079,7 @@ impl CheckedOriginal{
+     }
+ 
+     #[allow(clippy::too_many_arguments)]
+-    fn closed_source_type(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,item:&SynchronousWorld,pending:&mut Vec<SynchronousWorld>,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<bool>{
++    fn closed_source_type(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,item:&SynchronousWorld,pending:&mut Vec<SynchronousWorld>,allow_tasks:bool,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<bool>{
+         b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original synchronous worker type depth exceeded"));}
+         let ty=self.resolved(ty,b)?;
+         Ok(match ty{
+@@ -963,17 +1087,23 @@ impl CheckedOriginal{
+             // A reference to code is not execution. Every actual Call below
+             // still requires a complete target, including indirect callables.
+             Ty::Function(_)=>true,
+-            Ty::Tuple(fields)=>{for field in fields{if !self.closed_source_type(module,context,&field,item,pending,active,b,depth+1)?{return Ok(false);}}true},
+-            Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Array(inner,_)|Ty::Slice(inner)|Ty::Store(inner)=>self.closed_source_type(module,context,&inner,item,pending,active,b,depth+1)?,
+-            Ty::ErrorUnion(error,result)=>self.closed_source_type(module,context,&error,item,pending,active,b,depth+1)?&&self.closed_source_type(module,context,&result,item,pending,active,b,depth+1)?,
+-            Ty::Code{parameters,result,..}=>{for parameter in parameters{if !self.closed_source_type(module,context,&parameter,item,pending,active,b,depth+1)?{return Ok(false);}}self.closed_source_type(module,context,&result,item,pending,active,b,depth+1)?},
++            Ty::Tuple(fields)=>{for field in fields{if !self.closed_source_type(module,context,&field,item,pending,allow_tasks,active,b,depth+1)?{return Ok(false);}}true},
++            Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)=>self.closed_source_type(module,context,&inner,item,pending,allow_tasks,active,b,depth+1)?,
++            Ty::Array(inner,_)|Ty::Slice(inner)|Ty::Store(inner)=>self.closed_source_type(module,context,&inner,item,pending,false,active,b,depth+1)?,
++            Ty::Carrier{kind:CarrierKind::Task,child,..}if allow_tasks=>self.closed_source_type(module,context,&child,item,pending,false,active,b,depth+1)?,
++            Ty::ErrorUnion(error,result)=>{
++                let shape=self.task_shape(module,context,&Ty::ErrorUnion(error.clone(),result.clone()),false,active,b,depth+1)?;
++                let conditional=allow_tasks&&matches!(shape,Shape::FallibleTask);
++                self.closed_source_type(module,context,&error,item,pending,false,active,b,depth+1)?&&self.closed_source_type(module,context,&result,item,pending,conditional,active,b,depth+1)?
++            },
++            Ty::Code{parameters,result,..}=>{for parameter in parameters{if !self.closed_source_type(module,context,&parameter,item,pending,allow_tasks,active,b,depth+1)?{return Ok(false);}}self.closed_source_type(module,context,&result,item,pending,allow_tasks,active,b,depth+1)?},
+             Ty::Nominal(id,args)=>{
+                 let nominal=context.definition(module,id,b)?;
+                 let SemanticDefinitionBody::Nominal{body,..}=&nominal.body else{return Err(bad("synchronous source nominal has no original complete declaration"));};
+                 let mut selected=self.environment(module,context,id,active,b)?;selected.lexical[0].actuals=args;
+                 match body{
+-                    SemanticNominalBody::Product{fields}=>for field in fields{let ty=self.ty(module,context,&field.ty,&selected,active,b)?;if !self.closed_source_type(module,context,&ty,item,pending,active,b,depth+1)?{return Ok(false);}},
+-                    SemanticNominalBody::Enum{variants}=>for variant in variants{for field in &variant.fields{let ty=self.ty(module,context,field,&selected,active,b)?;if !self.closed_source_type(module,context,&ty,item,pending,active,b,depth+1)?{return Ok(false);}}},
++                    SemanticNominalBody::Product{fields}=>for field in fields{let ty=self.ty(module,context,&field.ty,&selected,active,b)?;if !self.closed_source_type(module,context,&ty,item,pending,allow_tasks,active,b,depth+1)?{return Ok(false);}},
++                    SemanticNominalBody::Enum{variants}=>for variant in variants{for field in &variant.fields{let ty=self.ty(module,context,field,&selected,active,b)?;if !self.closed_source_type(module,context,&ty,item,pending,false,active,b,depth+1)?{return Ok(false);}}},
+                 }
+                 let program=module.semantic.as_ref().ok_or_else(||bad("synchronous source Drop lacks its complete original directory"))?;
+                 for scope in &program.definitions{b.spend(1)?;let SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl{self_type,trait_kind:SemanticBuiltinTrait::Drop})=&scope.body else{continue;};let mut ty=self_type;while let SemanticTypeRecipe::Qualified{storage,..}=ty{b.spend(1)?;ty=storage;}
+@@ -990,7 +1120,7 @@ impl CheckedOriginal{
+                 let sources=self.synchronous_sources(item,b)?;
+                 let Some(world)=self.synchronous_environment(module,context,owner,&args,&sources,active,b)?else{return Ok(false);};
+                 let hidden=self.opaque_hidden(module,context,owner,&args,active,b)?;
+-                self.closed_source_type(module,context,&hidden,&SynchronousWorld{world,sources},pending,active,b,depth+1)?
++                self.closed_source_type(module,context,&hidden,&SynchronousWorld{world,sources},pending,allow_tasks,active,b,depth+1)?
+             },
+             Ty::Closure(owner,args,sealed)=>{
+                 let parent=context.definition(module,owner,b)?.parent.ok_or_else(||bad("synchronous Closure has no exact original creator"))?;
+@@ -998,7 +1128,7 @@ impl CheckedOriginal{
+                 let Some(creator)=self.synchronous_parent(parent,&sources,b)?else{return Ok(false);};
+                 let world=self.closure_creator_environment(module,context,owner,&args,&sealed,&creator,active,b)?;
+                 let closure=SynchronousWorld{world,sources};
+-                for(_,capture)in self.closure_capture_fields(module,context,owner,&args,&sealed,b)?{if !self.closed_source_type(module,context,&capture,&closure,pending,active,b,depth+1)?{return Ok(false);}}
++                for(_,capture)in self.closure_capture_fields(module,context,owner,&args,&sealed,b)?{if !self.closed_source_type(module,context,&capture,&closure,pending,allow_tasks,active,b,depth+1)?{return Ok(false);}}
+                 pending.push(closure);true
+             },
+             // Input Tasks/registrations, erased targets and abstract variables
+@@ -1008,21 +1138,21 @@ impl CheckedOriginal{
+     }
+ 
+     #[allow(clippy::too_many_arguments)]
+-    fn closed_source_callable(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,item:&SynchronousWorld,pending:&mut Vec<SynchronousWorld>,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<bool>{
++    fn closed_source_callable(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,item:&SynchronousWorld,pending:&mut Vec<SynchronousWorld>,allow_tasks:bool,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<bool>{
+         b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("synchronous callable source depth exceeded"));}
+         match self.resolved(ty,b)?{
+-            ref ty@Ty::Closure(..)=>self.closed_source_type(module,context,ty,item,pending,active,b,depth+1),
++            ref ty@Ty::Closure(..)=>self.closed_source_type(module,context,ty,item,pending,allow_tasks,active,b,depth+1),
+             Ty::Opaque(owner,args)=>{
+                 let sources=self.synchronous_sources(item,b)?;
+                 let Some(world)=self.synchronous_environment(module,context,owner,&args,&sources,active,b)?else{return Ok(false);};
+                 let hidden=self.opaque_hidden(module,context,owner,&args,active,b)?;
+-                self.closed_source_callable(module,context,&hidden,&SynchronousWorld{world,sources},pending,active,b,depth+1)
++                self.closed_source_callable(module,context,&hidden,&SynchronousWorld{world,sources},pending,allow_tasks,active,b,depth+1)
+             },
+-            Ty::Address{inner,..}=>self.closed_source_callable(module,context,&inner,item,pending,active,b,depth+1),
++            Ty::Address{inner,..}=>self.closed_source_callable(module,context,&inner,item,pending,allow_tasks,active,b,depth+1),
+             _=>Ok(false),
+         }
+     }
+-    fn closed_source_worker(&mut self,module:&TypedModule,context:&CheckedContext,index:&index::Index<'_>,root:SynchronousWorld,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
++    fn closed_source_worker(&mut self,module:&TypedModule,context:&CheckedContext,index:&index::Index<'_>,root:SynchronousWorld,allow_tasks:bool,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
+         fn scalar(ty:&Ty)->bool{matches!(ty,Ty::Atom(Type::Unit|Type::Bool|Type::I8|Type::I16|Type::I32|Type::I64|Type::Isize|Type::U8|Type::U16|Type::U32|Type::U64|Type::Usize|Type::F32|Type::F64))}
+         let mut pending=vec![root];let mut seen=Vec::<SynchronousWorld>::new();
+         while let Some(item)=pending.pop(){
+@@ -1042,15 +1172,15 @@ impl CheckedOriginal{
+                 if !matches!(function.body,SemanticOriginalFunctionBody::External)||function.definition.kind!=SemanticDefinitionKind::Function||function.definition.parent.is_some()||call_kind!=CallKind::Direct||!types.iter().all(scalar){return Ok(false);}
+                 continue;
+             }
+-            for ty in &types{if !self.closed_source_type(module,context,ty,&item,&mut pending,active,b,0)?{return Ok(false);}}
++            for ty in &types{if !self.closed_source_type(module,context,ty,&item,&mut pending,allow_tasks,active,b,0)?{return Ok(false);}}
+             let captures=self.free_values.get(&id).map(|values|values.values().map(|value|self.apply_type(&value.ty,&item.world,b)).collect::<Check<Vec<_>>>()).transpose()?.unwrap_or_default();
+-            for ty in captures{if !self.closed_source_type(module,context,&ty,&item,&mut pending,active,b,0)?{return Ok(false);}}
++            for ty in captures{if !self.closed_source_type(module,context,&ty,&item,&mut pending,allow_tasks,active,b,0)?{return Ok(false);}}
+             b.spend(self.bindings.len())?;
+             let bindings=self.bindings.iter().filter(|((owner,_),_)|*owner==id).map(|(_,ty)|self.apply_type(ty,&item.world,b)).collect::<Check<Vec<_>>>()?;
+-            for ty in bindings{if !self.closed_source_type(module,context,&ty,&item,&mut pending,active,b,0)?{return Ok(false);}}
++            for ty in bindings{if !self.closed_source_type(module,context,&ty,&item,&mut pending,allow_tasks,active,b,0)?{return Ok(false);}}
+             for node in function.expressions.values(){
+                 b.spend(1)?;
+-                if let Some(ty)=self.expressions.get(&(id,node.id)){let ty=self.apply_type(ty,&item.world,b)?;if !self.closed_source_type(module,context,&ty,&item,&mut pending,active,b,0)?{return Ok(false);}}
++                if let Some(ty)=self.expressions.get(&(id,node.id)){let ty=self.apply_type(ty,&item.world,b)?;if !self.closed_source_type(module,context,&ty,&item,&mut pending,allow_tasks,active,b,0)?{return Ok(false);}}
+                 if !matches!(node.kind,CoreExprKind::Call{..}){continue;}
+                 let(_,site)=self.original_call_site(id,node.id,b)?;
+                 let target=if let Some(use_)=self.intrinsic_calls.get(&(id,site)){
+@@ -1067,7 +1197,7 @@ impl CheckedOriginal{
+                     let Some(source)=self.callable_nodes.get(&(id,node.id))else{return Ok(false);};
+                     let Some(ty)=self.expressions.get(&(id,*source))else{return Ok(false);};
+                     let ty=self.apply_type(ty,&item.world,b)?;
+-                    if !self.closed_source_callable(module,context,&ty,&item,&mut pending,active,b,0)?{return Ok(false);}
++                    if !self.closed_source_callable(module,context,&ty,&item,&mut pending,allow_tasks,active,b,0)?{return Ok(false);}
+                 }
+             }
+         }Ok(true)
+diff --git a/crates/zil-verify/src/tasks/owned.rs b/crates/zil-verify/src/tasks/owned.rs
+index dc30475d5..06043f781 100644
+--- a/crates/zil-verify/src/tasks/owned.rs
++++ b/crates/zil-verify/src/tasks/owned.rs
+@@ -661,6 +661,19 @@ fn helper_graph(
+         for b in &f.blocks {
+             for i in &b.instructions {
+                 budget.spend(1)?;
++                // This is ordinary execution reached from a Task driver,
++                // not synchronous destruction of the captured environment.
++                // Registration providers/callbacks, actual heads and results
++                // still pass their complete opcode contract; lifecycle and
++                // retirement remain in the resource/protocol kernels.
++                if driving&&matches!(i.kind,
++                    InstructionKind::RegistrationStart{..}|InstructionKind::RegistrationValid{..}|InstructionKind::RegistrationClose{..}
++                    |InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}
++                    |InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}
++                    |InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}){
++                    crate::check_instruction(module,f,i,budget)?;
++                    continue;
++                }
+                 match &i.kind {
+                     InstructionKind::CallDynSlot{interface,slot,..}=>{
+                         let(kind,targets)=dyn_callees(module,*interface,*slot,budget)?;
