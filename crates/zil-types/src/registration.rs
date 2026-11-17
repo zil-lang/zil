@@ -164,6 +164,9 @@ pub(super) fn add_definitions_recording(
 ) -> R<()> {
     let before = *left;
     let mut found = BTreeMap::new();
+    // Every root drains this stack before the next root is admitted. Retain
+    // only its allocation; current types, checks and ordered charges stay fresh.
+    let mut pending = Vec::new();
     let spend = |left: &mut usize, n| -> R<()> {
         *left = left.checked_sub(n).ok_or_else(|| {
             Diagnostic::limit(
@@ -189,7 +192,7 @@ pub(super) fn add_definitions_recording(
             .chain(f.locals.iter().map(|l| &l.ty))
             .chain(std::iter::once(&f.return_type))
         {
-            let mut pending = vec![(root, false)];
+            pending.push((root, false));
             while let Some((t, blocked)) = pending.pop() {
                 spend(left, 1)?;
                 tasks::require_closed_context(t, f.span)?;

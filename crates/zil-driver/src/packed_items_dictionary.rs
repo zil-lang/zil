@@ -13,7 +13,7 @@ pub(super) struct Recipe {
 }
 
 pub(super) struct Prepared<'a> {
-    pub(super) parts: Vec<(Fingerprint, &'a [u8])>,
+    pub(super) parts: Vec<CheckedItem<'a>>,
     pub(super) recipes: BTreeMap<Fingerprint, Recipe>,
 }
 
@@ -30,19 +30,20 @@ fn prefix_length(bytes: &[u8]) -> Option<usize> {
 pub(super) fn prepare<'a>(
     items: &'a [(Fingerprint, Arc<[u8]>)],
     bounds: Bounds,
+    previous: &Epoch,
     cancellation: &CancellationToken,
 ) -> Option<Prepared<'a>> {
     if items.is_empty() || items.len() > bounds.max_items {
         return None;
     }
-    let mut originals = BTreeMap::<Fingerprint, &'a [u8]>::new();
+    let mut originals = BTreeMap::<Fingerprint, CheckedItem<'a>>::new();
     let mut total = 0usize;
     for (key, bytes) in items {
         if cancellation.is_cancelled() || bytes.is_empty() || bytes.len() > bounds.maximum {
             return None;
         }
-        if let Some(previous) = originals.get(key) {
-            if *previous != bytes.as_ref() {
+        if let Some(original) = originals.get(key) {
+            if original.bytes != bytes.as_ref() {
                 return None;
             }
         } else {
@@ -50,31 +51,29 @@ pub(super) fn prepare<'a>(
             total = total
                 .checked_add(bytes.len())
                 .filter(|sum| *sum <= bounds.maximum)?;
-            if Fingerprint::of(bytes) != *key {
-                return None;
-            }
-            originals.insert(*key, bytes.as_ref());
+            originals.insert(*key, CheckedItem::check(*key, bytes, previous)?);
         }
     }
     let mut parts = BTreeMap::new();
     let mut recipes = BTreeMap::new();
     let mut stored = 0usize;
     let mut prefixes = 0usize;
-    for (&key, &bytes) in &originals {
+    for (&key, &original) in &originals {
         if cancellation.is_cancelled() {
             return None;
         }
+        let bytes = original.bytes;
         let split = prefix_length(bytes)
             .filter(|end| *end < bytes.len())
             .unwrap_or(0);
         let (prefix, body) = bytes.split_at(split);
-        let body_key = if split == 0 {
-            key
+        let part = if split == 0 {
+            original
         } else {
-            Fingerprint::of(body)
+            CheckedItem::of(body)
         };
-        if let Some(previous) = parts.insert(body_key, body) {
-            if previous != body {
+        if let Some(previous) = parts.insert(part.key, part) {
+            if previous.bytes != body {
                 return None;
             }
         } else {
@@ -84,7 +83,7 @@ pub(super) fn prepare<'a>(
         recipes.insert(
             key,
             Recipe {
-                body: body_key,
+                body: part.key,
                 prefix: prefix.to_vec(),
             },
         );
@@ -95,12 +94,12 @@ pub(super) fn prepare<'a>(
     let overhead = HEADER.checked_add(recipes.len().checked_mul(ROW)?)?;
     if stored.checked_add(prefixes)?.checked_add(overhead)? >= total {
         return Some(Prepared {
-            parts: originals.into_iter().collect(),
+            parts: originals.into_values().collect(),
             recipes: BTreeMap::new(),
         });
     }
     Some(Prepared {
-        parts: parts.into_iter().collect(),
+        parts: parts.into_values().collect(),
         recipes,
     })
 }

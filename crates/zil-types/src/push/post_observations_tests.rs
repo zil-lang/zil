@@ -136,3 +136,89 @@ fn incomplete_duplicate_and_unattributed_post_work_cannot_create_a_current_conte
         assert!(observations.receipts(functions.iter()).is_none());
     }
 }
+
+#[test]
+fn reused_resource_scan_stacks_preserve_nested_roots_and_independent_fee_boundaries() {
+    let program = program();
+    let mut functions = program
+        .module
+        .functions
+        .iter()
+        .take(2)
+        .cloned()
+        .collect::<Vec<_>>();
+    for function in &mut functions {
+        function.locals = vec![function.locals[0].clone()].into();
+        function.return_type = Type::I32;
+    }
+    functions[0].values = vec![
+        Type::ErrorUnion {
+            error: Box::new(Type::I32),
+            result: Box::new(Type::Array {
+                element: Box::new(Type::I32),
+                length: 2,
+            }),
+        },
+        Type::I32,
+    ]
+    .into();
+    functions[1].values = vec![Type::Managed(Box::new(Type::ByteBuffer))].into();
+    // Registration: 7 roots plus 15 charged visits/edges, for 22 total.
+    // Byte scan consumes 12 and reserves its
+    // resource-name tail; Store's independent scan consumes 10 and no shared
+    // work. These obligations must not depend on allocator reuse.
+    let byte_bound = 12 + BYTE_BUFFER_RESOURCE_NAME.len() + 2;
+    for allowance in 0..=byte_bound + 1 {
+        let limits = Limits {
+            max_analysis_steps: allowance,
+            ..Limits::default()
+        };
+        let mut definitions = Vec::new();
+        let mut remaining = allowance;
+        let registration =
+            registration::add_definitions(&functions, &mut definitions, &mut remaining);
+        assert_eq!(
+            registration.is_ok(),
+            allowance >= 22,
+            "registration {allowance}"
+        );
+        assert!(definitions.is_empty());
+        if registration.is_ok() {
+            assert_eq!(remaining, allowance - 22);
+        } else {
+            assert_eq!(
+                registration.unwrap_err().category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+        }
+        let mut definitions = Vec::new();
+        let bytes = byte_buffer::add_definition(&functions, &mut definitions, &limits);
+        assert_eq!(bytes.is_ok(), allowance >= byte_bound, "bytes {allowance}");
+        if bytes.is_ok() {
+            assert_eq!(definitions.len(), 1);
+            assert_eq!(definitions[0].payload, Type::ByteBuffer);
+        } else {
+            assert!(definitions.is_empty());
+            assert_eq!(
+                bytes.unwrap_err().category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+        }
+        let mut definitions = Vec::new();
+        let mut shared = 123;
+        let stores = dynamic_store::add_definitions(
+            &functions,
+            &mut definitions,
+            &[],
+            &[],
+            &limits,
+            &mut shared,
+        );
+        assert_eq!(stores.is_ok(), allowance >= 10, "stores {allowance}");
+        assert_eq!(shared, 123);
+        assert!(definitions.is_empty());
+        if let Err(error) = stores {
+            assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
+        }
+    }
+}

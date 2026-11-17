@@ -581,6 +581,16 @@ pub(crate) fn lower_output_with_raw_products(
     } else {
         piece_output
     };
+    let runtime_functions = scalar_bodies::runtime_candidates(
+        session
+            .as_ref()
+            .and_then(|session| session.body_inputs.as_deref()),
+        lir.functions,
+    );
+    let mut runtime_lir = lir.clone();
+    if let Some(functions) = &runtime_functions {
+        runtime_lir.functions = functions;
+    }
     let mut text = m::Code::new();
     text.append(sum_helpers);
     for id in foreign_adapters {
@@ -621,7 +631,7 @@ pub(crate) fn lower_output_with_raw_products(
         lir.closures,
         lir.resources,
     )?);
-    for function in lir.functions {
+    for function in runtime_lir.functions {
         for block in &function.blocks {
             for instruction in &block.instructions {
                 if let InstructionKind::StaticUtf8 { bytes } = &instruction.kind {
@@ -667,15 +677,15 @@ pub(crate) fn lower_output_with_raw_products(
         blocks: None,
     }));
     text.append(byte_buffer::runtime(lir)?);
-    text.append(glibc_errno::runtime(lir)?);
+    text.append(glibc_errno::runtime(&runtime_lir)?);
     text.append(dynamic_store::runtime(
         lir,
         &closures,
         &copy_plans.store_protocols,
     )?);
-    text.append(scoped_thread::runtime(lir)?);
-    text.append(generic_mutex::runtime(lir)?);
-    text.append(dyn_dispatch::runtime(lir)?);
+    text.append(scoped_thread::runtime(&runtime_lir)?);
+    text.append(generic_mutex::runtime(&runtime_lir)?);
+    text.append(dyn_dispatch::runtime(&runtime_lir)?);
     text.append(tasks::runtime(
         lir,
         verified.uses_scalar_tasks(),

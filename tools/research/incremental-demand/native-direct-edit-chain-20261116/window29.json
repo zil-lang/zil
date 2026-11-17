@@ -1,0 +1,232 @@
+{
+  "schema": "zil.native-direct-firstedit-result.v10",
+  "source": "43e19dea543f845860802fbce70dc64f6ee68c7f",
+  "binary_sha256": "b04f8caf249768928238452e840d94214819f963c9b299a9c00f8f3a0378c7ad",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "result": "NoGo: all six ordinary CLI first-edit pairs lose Rust; disk reduced, speed target remains open.",
+  "scope": "5105functions/102files; actualmain/candidate/Rust; fullO2/CGU16/compilerjobs1; SDK18/native-link reused, noLLVMrebuild; explicit default-off research flags and host-jemalloc.",
+  "execution_complete": true,
+  "functional_quality_valid": true,
+  "runtime_candidate_rust_accepted": true,
+  "accepted": false,
+  "counts": {
+    "formal_requests": 30,
+    "functional_cells": 10,
+    "runtime_builds": 12,
+    "runtime_cases": 4,
+    "ordinary_cli_builds": 36,
+    "ordinary_cli_balanced_blocks": 6
+  },
+  "compile_median_ms": {
+    "cold": {
+      "candidate": 3383.11262,
+      "rust": 6513.557529
+    },
+    "unchanged": {
+      "candidate": 76.06852599999999,
+      "rust": 19.835379500000002
+    },
+    "private-001": {
+      "candidate": 1775.848053,
+      "rust": 1483.9807375
+    },
+    "recovery": {
+      "candidate": 1707.5702860000001,
+      "rust": 5686.138817
+    }
+  },
+  "ordinary_cli": {
+    "execution_complete": true,
+    "rows": 36,
+    "blocks": 6,
+    "first_edit_pairs_ms": [
+      {
+        "candidate": 2333.091765,
+        "rust": 1912.429566
+      },
+      {
+        "candidate": 1873.742653,
+        "rust": 1063.159334
+      },
+      {
+        "candidate": 1670.366583,
+        "rust": 1054.196398
+      },
+      {
+        "candidate": 1726.222574,
+        "rust": 1084.179359
+      },
+      {
+        "candidate": 1724.08036,
+        "rust": 969.521411
+      },
+      {
+        "candidate": 2519.240586,
+        "rust": 2187.874796
+      }
+    ],
+    "candidate_faster_in_every_first_edit_pair": false,
+    "median_ms": {
+      "cold": {
+        "baseline": 539.821544,
+        "candidate": 2940.2385625,
+        "rust": 7075.1197765
+      },
+      "private-001": {
+        "baseline": 569.4785805,
+        "candidate": 1799.9826134999998,
+        "rust": 1073.6693464999998
+      }
+    },
+    "clock": "ordinary CLI launch through process exit; default session capacity; no diagnostic flags",
+    "profile": "O2/CGU16/compiler jobs1; original budgets; explicit research options from parent",
+    "history": "empty per-block user caches -> cold -> process exit -> edit -> fresh process first build",
+    "full_runtime_gate": "parent matrix; three output controls per successful CLI build only"
+  },
+  "runtime_ms": {
+    "5105/cold": {
+      "candidate": 34.3367365,
+      "rust": 197.69584500000002
+    },
+    "5105/unchanged": {
+      "candidate": 32.929959999999994,
+      "rust": 201.863854
+    },
+    "5105/private-001": {
+      "candidate": 34.923563,
+      "rust": 197.3523775
+    },
+    "5105/recovery": {
+      "candidate": 31.7759475,
+      "rust": 191.561879
+    }
+  },
+  "disk_accounting": "Peak of simultaneous per-arm totals in original globally inode-deduplicated snapshots; physical=st_blocks*512; excludes SDK, host build and research evidence; boundary peaks not transient peak.",
+  "user_disk_boundaries": [
+    {
+      "block": 0,
+      "candidate": {
+        "logical_bytes": 29556414,
+        "physical_bytes": 30056448
+      },
+      "rust": {
+        "logical_bytes": 76553668,
+        "physical_bytes": 76734464
+      }
+    },
+    {
+      "block": 1,
+      "candidate": {
+        "logical_bytes": 29489448,
+        "physical_bytes": 29986816
+      },
+      "rust": {
+        "logical_bytes": 61371066,
+        "physical_bytes": 61546496
+      }
+    }
+  ],
+  "ordinary_cli_disk_boundaries": [
+    {
+      "block": 0,
+      "candidate": {
+        "logical_bytes": 28014863,
+        "physical_bytes": 28487680
+      },
+      "rust": {
+        "logical_bytes": 60994695,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 1,
+      "candidate": {
+        "logical_bytes": 27995798,
+        "physical_bytes": 28467200
+      },
+      "rust": {
+        "logical_bytes": 60994695,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 2,
+      "candidate": {
+        "logical_bytes": 27983092,
+        "physical_bytes": 28459008
+      },
+      "rust": {
+        "logical_bytes": 60994695,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 3,
+      "candidate": {
+        "logical_bytes": 27988823,
+        "physical_bytes": 28467200
+      },
+      "rust": {
+        "logical_bytes": 60994694,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 4,
+      "candidate": {
+        "logical_bytes": 28004173,
+        "physical_bytes": 28475392
+      },
+      "rust": {
+        "logical_bytes": 60994695,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 5,
+      "candidate": {
+        "logical_bytes": 28022506,
+        "physical_bytes": 28495872
+      },
+      "rust": {
+        "logical_bytes": 60994696,
+        "physical_bytes": 61153280
+      }
+    }
+  ],
+  "gates": {
+    "strict": "PASS",
+    "IR": 95,
+    "Types": 133,
+    "backend_native_include_ignored": 395,
+    "Driver_include_ignored": 262,
+    "native_publication_ignored": 4,
+    "fmt": "PASS",
+    "release": "PASS native-products,host-jemalloc CARGO_INCREMENTAL=0",
+    "raw": "out/runs/restart-dictionary-gates-32-43e19dea543f"
+  },
+  "source_review": {
+    "source": "43e19dea543f845860802fbce70dc64f6ee68c7f",
+    "reviewer": "gpt-6-astra",
+    "verdict": "PASS source review, no blocking findings; performance not yet measured",
+    "scope": "all36 batch files; current input binding, original logical fees and quotas, actual decoded body associations, merged raw cache16MiB bound, current Verify, success-only publication",
+    "notes": [
+      "Final semantic wire consumer still materializes each complete fragment once as needed; not zero materialization.",
+      "FunctionPublication written_functions now counts physical dictionary bodies, not logical functions."
+    ]
+  },
+  "raw": "out/runs/direct-firstedit-performance-direct-29",
+  "paired_phase_diagnostic": "out/runs/paired-firstedit-phases-29/current.json",
+  "changes": [
+    "Function dictionary stores normalized body once and retains original logical fees per identity; final wire materialization remains.",
+    "Common bounded16MiB raw machine dictionary, lazy class/partition decode, current full-machine relation retained.",
+    "Actual current Types shape observations consumed; span relocation copies once.",
+    "Lossless semantic prefix/suffix factoring reaches restore and republish; old packs reused."
+  ],
+  "remaining": [
+    "OrdinaryCLI median1799.983ms versusRust1073.669ms; each pair loses, no speed acceptance.",
+    "Current machine reconstruction/class relation and Source/Core restoration remain; publication still hashes/materializes repeated bodies in downstream consumers.",
+    "Actual main remains original ResourceLimit; no main regression success, industrial multicrate/proc-macro/build.rs/minute-scale completeness still unproven."
+  ],
+  "previous_result": "window28.json"
+}

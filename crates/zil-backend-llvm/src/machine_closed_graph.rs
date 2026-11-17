@@ -1,16 +1,31 @@
 //! Reduce the already classed CLOSED current machine graph before planning.
 //! This carries raw values only. All original bodies, including dead bodies,
 //! must pass current preflight before reachability can remove any of them.
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use zil_ir::{LirView, PersistentVec, TypedFunction};
 use zil_llvm_api::model::{Item, Module};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub(crate) struct Reduction {
     removed: BTreeSet<String>,
     pub(crate) copy_allowance: usize,
     pub(crate) witness: std::sync::Arc<String>,
+    projection: std::sync::OnceLock<Projection>,
 }
+#[derive(Clone, Debug)]
+struct Projection {
+    input: PersistentVec<TypedFunction>,
+    definitions: BTreeSet<String>,
+    output: PersistentVec<TypedFunction>,
+}
+impl PartialEq for Reduction {
+    fn eq(&self, other: &Self) -> bool {
+        self.removed == other.removed
+            && self.copy_allowance == other.copy_allowance
+            && self.witness == other.witness
+    }
+}
+impl Eq for Reduction {}
 
 #[cfg(test)]
 pub(crate) fn prune(
@@ -63,50 +78,36 @@ pub(crate) fn prune_with_preflight(
     let Some(witness) = witness(module, copy_allowance) else {
         return Ok(None);
     };
-    let linkage = module
-        .items
-        .iter()
-        .filter_map(|item| {
-            let Item::Function(f) = item else { return None };
-            (f.blocks.is_some() && candidates.contains(&f.name))
-                .then_some((f.name.clone(), f.linkage))
-        })
-        .collect::<BTreeMap<_, _>>();
-    // Stage internal linkage for reachability only. Restore every retained
-    // header before partitioning, so local edges do not collapse all CGUs.
-    let mut staged = module.clone();
-    crate::machine_cgu::internalize_closed_executable_names(
-        std::slice::from_mut(&mut staged),
-        &candidates,
-    );
-    let Some(stats) = crate::machine_closed_prune::prune_closed_unit_with_preflight(
-        &mut staged,
+    // The private closed domain affects reachability only. Validate the actual
+    // COMPLETE classed original before deletion; no temporary linkage model or
+    // restoration pass is needed, and malformed dead bodies remain visible.
+    let Some(stats) = crate::machine_closed_prune::prune_closed_graph_with_preflight(
+        module,
         classes,
+        &candidates,
         cancelled,
         preflight,
     )?
     else {
         return Ok(None);
     };
-    if cancelled() {
-        return Ok(None);
-    }
-    let mut live_classes = BTreeSet::new();
-    for item in &mut staged.items {
-        let Item::Function(f) = item else { continue };
-        if let Some(original) = linkage.get(&f.name) {
-            f.linkage = *original;
-        }
-        if classes.contains(&f.name) {
-            live_classes.insert(f.name.clone());
-        }
-    }
-    *module = staged;
+    // The pruning consumer performs the final cancellation check before commit.
+    let live_classes = module
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Function(function) if classes.contains(&function.name) => {
+                Some(function.name.clone())
+            }
+            _ => None,
+        })
+        .collect();
     *classes = live_classes;
     Ok(Some(Reduction {
         removed: stats.removed_names.into_iter().collect(),
         copy_allowance,
         witness: std::sync::Arc::new(witness),
+        projection: std::sync::OnceLock::new(),
     }))
 }
 
@@ -198,9 +199,15 @@ impl Reduction {
             .iter()
             .filter_map(|item| {
                 let Item::Function(f) = item else { return None };
-                f.blocks.is_some().then_some(f.name.as_str())
+                f.blocks.is_some().then_some(f.name.clone())
             })
             .collect::<BTreeSet<_>>();
+        if let Some(projection) = self.projection.get()
+            && projection.input.ptr_eq(lir.functions)
+            && projection.definitions == definitions
+        {
+            return Some(projection.output.clone());
+        }
         let mut functions = PersistentVec::default();
         for (index, function) in lir.functions.iter().enumerate() {
             if function.foreign.is_some()
@@ -222,6 +229,11 @@ impl Reduction {
                 return None;
             }
         }
+        let _ = self.projection.set(Projection {
+            input: lir.functions.clone(),
+            definitions,
+            output: functions.clone(),
+        });
         Some(functions)
     }
 }
@@ -370,6 +382,17 @@ mod tests {
         assert_eq!(
             functions.iter().map(|f| f.id).collect::<Vec<_>>(),
             vec![FunctionId(0)]
+        );
+        let again = reduction
+            .source_functions(&model, &source.as_view())
+            .unwrap();
+        assert!(functions.ptr_eq(&again));
+        let mut changed_input = source.clone();
+        changed_input.functions[0].id = FunctionId(9999);
+        assert!(
+            reduction
+                .source_functions(&model, &changed_input.as_view())
+                .is_none()
         );
         assert!(
             functions.owner(0).unwrap().as_ref() == source.functions.owner(0).unwrap().as_ref()

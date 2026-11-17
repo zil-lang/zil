@@ -532,3 +532,42 @@ fn old_normalized_caller_cannot_rewrite_newly_protected_callee_or_caller() {
     assert_ne!(calls[1], old_calls[1]);
     zil_llvm_api::validate_module(&actual).unwrap();
 }
+
+#[test]
+fn complete_equal_normalized_value_is_classified_once_for_many_current_aliases() {
+    let mut template = leaf("zil.fn.0", 7);
+    let instructions = &mut template.blocks.as_mut().unwrap()[0].instructions;
+    for index in 0..96 {
+        instructions.insert(
+            index,
+            Inst::new(
+                Some(format!("n{index}")),
+                Op::Binary {
+                    opcode: "add".into(),
+                    ty: Ty::Int(32),
+                    left: Val::Int(index as i128),
+                    right: Val::Int(1),
+                },
+            ),
+        );
+    }
+    let mut functions = (0..128)
+        .map(|id| renamed(&template, &format!("zil.fn.{id}")))
+        .collect::<Vec<_>>();
+    functions.push(call("main", "zil.fn.127"));
+    let source = module(functions);
+    let (actual, _, cache) = compare_unshared(&source, &BTreeSet::new(), None);
+    assert_eq!(cache.equivalence_reuses, 127);
+    assert_eq!(cache.equivalence_comparisons, 0);
+    let mut changed = source;
+    let function = function_mut(&mut changed, "zil.fn.127");
+    function.blocks.as_mut().unwrap()[0].instructions[0].op = Op::Binary {
+        opcode: "sub".into(),
+        ty: Ty::Int(32),
+        left: Val::Int(0),
+        right: Val::Int(1),
+    };
+    let (edited, stats, _) = compare_unshared(&changed, &BTreeSet::new(), Some(&cache));
+    assert_eq!(stats.equivalence_classes, 2);
+    assert_ne!(edited, actual);
+}

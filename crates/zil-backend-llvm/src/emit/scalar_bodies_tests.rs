@@ -243,3 +243,61 @@ fn scoped_linker_fold_checks_one_shared_owner_and_updates_each_current_slot() {
     assert!(!session.scoped_threads(&removed));
     assert!(!session.scoped_threads(&PersistentVec::new()));
 }
+
+#[test]
+fn runtime_projection_keeps_current_runtime_bodies_foreign_errors_and_cow_changes() {
+    use zil_ir::{AtomicOrdering, SyncCellKind, SyncI32Op};
+    let mut runtime = function(1);
+    runtime.id = FunctionId(1000);
+    runtime.values[0] = Type::Address {
+        mutable: false,
+        inner: Box::new(Type::SyncCell(SyncCellKind::MutexI32)),
+    };
+    runtime.blocks[0].instructions[0].kind = InstructionKind::SyncI32 {
+        op: SyncI32Op::Load,
+        address: ValueId(0),
+        value: None,
+        ordering: AtomicOrdering::SeqCst,
+    };
+    let mut functions: PersistentVec<_> = (0..256)
+        .map(|id| {
+            let mut f = function(7);
+            f.id = FunctionId(id);
+            f
+        })
+        .collect();
+    functions.push(runtime.clone());
+    let mut full = lir(functions);
+    let inputs = Inputs::new(&full.functions);
+    let selected = runtime_candidates(Some(&inputs), &full.functions).unwrap();
+    assert_eq!(selected.len(), 1);
+    assert_eq!(selected[0], runtime);
+    let mut projected = full.clone();
+    projected.functions = selected;
+    let emit = |model: &LirModule| {
+        scoped_thread::runtime(&model.as_view()).map(|code| code.into_items().unwrap())
+    };
+    assert_eq!(emit(&full), emit(&projected));
+    let mut conflict = function(0);
+    conflict.id = FunctionId(2000);
+    conflict.foreign = Some(zil_ir::ForeignDeclaration {
+        abi: "C".into(),
+        symbol: "pthread_mutex_lock".into(),
+        noescape_parameters: vec![],
+        static_callbacks: false,
+        scoped_callback: None,
+    });
+    full.functions.push(conflict);
+    let inputs = Inputs::new(&full.functions);
+    projected.functions = runtime_candidates(Some(&inputs), &full.functions).unwrap();
+    assert_eq!(projected.functions.len(), 2);
+    assert_eq!(emit(&full), emit(&projected));
+    assert!(emit(&projected).is_err());
+    let mut current = full.functions.clone();
+    current[0] = runtime;
+    current[0].id = FunctionId(0);
+    // A predicate from the old source inventory cannot hide a newly inserted
+    // runtime instruction, including when its outer ID and signature match.
+    let changed = runtime_candidates(Some(&inputs), &current).unwrap();
+    assert!(changed.iter().any(|f| f.id == FunctionId(0)));
+}

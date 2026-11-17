@@ -1274,3 +1274,183 @@ fn scalar_dictionary_namespace_race_cannot_advance_manifest_or_epoch() {
     );
     contents(&mut fixture.reader(1), &items);
 }
+
+fn reset_transport_work() {
+    ITEM_HASH_BYTES.with(|total| total.set(0));
+    PACK_READ_BYTES.with(|total| total.set(0));
+    SNAPSHOT_READ_BYTES.with(|total| total.set(0));
+}
+
+fn transport_work() -> (usize, usize, usize) {
+    (
+        ITEM_HASH_BYTES.with(|total| total.get()),
+        PACK_READ_BYTES.with(|total| total.get()),
+        SNAPSHOT_READ_BYTES.with(|total| total.get()),
+    )
+}
+
+#[test]
+fn publication_checks_items_once_and_compares_complete_snapshots_without_materializing_packs() {
+    let fixture = Fixture::new(24_000);
+    let items = vec![item([11; 4000]), item([22; 4000]), item([33; 4000])];
+    let mut epoch = Epoch::default();
+    reset_transport_work();
+    fixture.publish(0, b"logical", &items, &mut epoch);
+    // Cold: one original-item hash pass, and one complete post-write file
+    // comparison. No second item hash or newly materialized pack read.
+    assert_eq!(transport_work(), (12_000, 0, 12_000 + PACK_HEADER));
+    let pack = *epoch.packs.keys().next().unwrap();
+    let snapshot = epoch.packs[&pack].bytes.as_ref().unwrap().clone();
+    reset_transport_work();
+    assert_eq!(
+        fixture
+            .publish(1, b"logical", &items, &mut epoch)
+            .physical_pack_writes,
+        0
+    );
+    // Warm: original key proofs come from exact immutable slice equality;
+    // ALL current physical bytes are still read and compared once.
+    assert_eq!(transport_work(), (0, 0, 12_000 + PACK_HEADER));
+    assert!(Arc::ptr_eq(
+        epoch.packs[&pack].bytes.as_ref().unwrap(),
+        &snapshot
+    ));
+
+    let mut reader = fixture.reader(1);
+    contents(&mut reader, &items);
+    let mut restored = reader.hint_epoch();
+    reset_transport_work();
+    fixture.publish(2, b"logical", &items, &mut restored);
+    assert_eq!(transport_work(), (0, 0, 12_000 + PACK_HEADER));
+
+    // A disk-only hint has neither checked item keys nor checked snapshots.
+    let mut hint = Epoch::hint(
+        &fixture.packs,
+        &fixture.manifest(2),
+        fixture.bounds,
+        &CancellationToken::default(),
+    )
+    .unwrap();
+    assert!(hint.checked.is_empty());
+    reset_transport_work();
+    fixture.publish(3, b"logical", &items, &mut hint);
+    assert_eq!(transport_work(), (12_000, 12_000 + PACK_HEADER, 0));
+
+    // Merely reading one slice cannot certify other locators in that pack.
+    let mut reader = fixture.reader(3);
+    reader.load(items[0].0).unwrap();
+    let mut partial = reader.hint_epoch();
+    assert_eq!(partial.checked.len(), 1);
+    reset_transport_work();
+    fixture.publish(4, b"logical", &items, &mut partial);
+    assert_eq!(transport_work(), (8000, 0, 12_000 + PACK_HEADER));
+}
+
+#[test]
+fn unrequested_forged_locator_cannot_certify_a_current_item_from_a_checked_pack() {
+    let fixture = Fixture::new(512);
+    let items = vec![item(b"first body"), item(b"other body")];
+    fixture.publish(0, b"logical", &items, &mut Epoch::default());
+    let before = fixture.manifest(0);
+    let mut manifest = Manifest::decode(&before, fixture.bounds).unwrap();
+    let wrong = manifest.locations[&items[1].0];
+    manifest.locations.insert(items[0].0, wrong);
+    let forged = manifest.encode(fixture.bounds).unwrap();
+    let token = CancellationToken::default();
+    let mut reader = Reader::new(&fixture.packs, &forged, fixture.bounds, &token).unwrap();
+    reader.load(items[1].0).unwrap();
+    let mut hint = reader.hint_epoch();
+    assert!(hint.packs.values().all(|pack| pack.bytes.is_some()));
+    assert!(!hint.checked.contains(&items[0].0));
+    let locations = hint.locations.clone();
+    let checked = hint.checked.clone();
+    let disk = cache_bytes(&fixture.root);
+    // These supplied bytes equal the forged slice, but not the original key.
+    let substituted = [(items[0].0, items[1].1.clone()), items[1].clone()];
+    assert!(
+        fixture
+            .publish_with_hook(0, b"new", &substituted, &mut hint, &token, || {})
+            .is_none()
+    );
+    assert_eq!(fixture.manifest(0), before);
+    assert_eq!(hint.locations, locations);
+    assert_eq!(hint.checked, checked);
+    assert_eq!(cache_bytes(&fixture.root), disk);
+}
+
+#[test]
+fn snapshot_comparison_checks_wrapper_and_stale_bytes_even_with_matching_file_stamps() {
+    let fixture = Fixture::new(512);
+    let items = vec![item([11; 40]), item([22; 40])];
+    let mut epoch = Epoch::default();
+    fixture.publish(0, b"both", &items, &mut epoch);
+    let pack = *epoch.packs.keys().next().unwrap();
+    let file = path(&fixture.packs, pack);
+    let raw = fs::read(&file).unwrap();
+    let snapshot = epoch.packs[&pack].bytes.as_ref().unwrap().clone();
+    let selected = items[0].clone();
+    let stale = epoch.locations[&items[1].0];
+    let before = fixture.manifest(0);
+    let locations = epoch.locations.clone();
+    // Include bytes outside the selected slice: a valid selected item does not
+    // permit a corrupt whole pack to be referenced by the new manifest.
+    for offset in [0, 8, 40, 72, 80, 80 + PACK_HEADER + stale.offset] {
+        let mut corrupt = raw.clone();
+        corrupt[offset] ^= 1;
+        fs::write(&file, corrupt).unwrap();
+        epoch.packs.get_mut(&pack).unwrap().stamp = stamp(&file);
+        assert!(
+            inspect_snapshot(
+                &fixture.packs,
+                pack,
+                snapshot.len(),
+                &snapshot,
+                fixture.bounds
+            )
+            .is_none()
+        );
+        let token = CancellationToken::default();
+        assert!(
+            fixture
+                .publish_with_hook(
+                    0,
+                    b"selected",
+                    std::slice::from_ref(&selected),
+                    &mut epoch,
+                    &token,
+                    || token.cancel()
+                )
+                .is_none()
+        );
+        assert_eq!(fixture.manifest(0), before);
+        assert_eq!(epoch.locations, locations);
+        fs::write(&file, &raw).unwrap();
+        epoch.packs.get_mut(&pack).unwrap().stamp = stamp(&file);
+    }
+    let mut longer = raw.clone();
+    longer.push(0);
+    for bytes in [&raw[..raw.len() - 1], longer.as_slice()] {
+        fs::write(&file, bytes).unwrap();
+        assert!(
+            inspect_snapshot(
+                &fixture.packs,
+                pack,
+                snapshot.len(),
+                &snapshot,
+                fixture.bounds
+            )
+            .is_none()
+        );
+    }
+    // A normal retry repairs the corrupt referenced pack instead of trusting
+    // the retained bytes or the stamp captured from the corrupt file.
+    epoch.packs.get_mut(&pack).unwrap().stamp = stamp(&file);
+    assert_eq!(
+        fixture
+            .publish(1, b"both", &items, &mut epoch)
+            .physical_pack_writes,
+        1
+    );
+    assert_eq!(fs::read(&file).unwrap(), raw);
+    contents(&mut fixture.reader(1), &items);
+}

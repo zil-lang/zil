@@ -286,6 +286,23 @@ fn cost(function: &TypedFunction) -> Option<usize> {
     Some(cost.saturating_add(1))
 }
 
+/// Current scalar observations prove absence of runtime-bearing instructions
+/// and types. Keep every foreign definition and every unproven body, in order;
+/// runtime consumers still perform their original target/ABI/error checks.
+pub(super) fn runtime_candidates(
+    inputs: Option<&Inputs>,
+    functions: &zil_ir::PersistentVec<TypedFunction>,
+) -> Option<zil_ir::PersistentVec<TypedFunction>> {
+    let inputs = inputs?;
+    let mut selected = zil_ir::PersistentVec::default();
+    for (index, function) in functions.iter().enumerate() {
+        if function.foreign.is_some() || !cacheable_with_inputs(Some(inputs), function) {
+            selected.push_owner(functions.owner(index)?.clone());
+        }
+    }
+    Some(selected)
+}
+
 pub(super) fn cacheable(function: &TypedFunction) -> bool {
     cacheable_with_inputs(None, function)
 }

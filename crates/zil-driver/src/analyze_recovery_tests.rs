@@ -319,6 +319,39 @@ fn semantic_buckets_require_complete_body_plan_and_sensitive_equality() {
         a, b,
         "outer identity and diagnostic placement do not split selectors"
     );
+    let mut selectors = Selectors::default();
+    let mut cached_fuel = Fuel(options.limits.max_analysis_steps);
+    assert_eq!(
+        selectors.get(&rows[0].input, &random, &mut cached_fuel),
+        Some((a, work))
+    );
+    let after_first = cached_fuel.0;
+    let mut renamed = (*rows[0].input).clone();
+    renamed.id = zil_ir::FunctionId(1234);
+    renamed.name = "different diagnostic label".into();
+    renamed.span.start += 1;
+    let renamed = Arc::new(renamed);
+    assert_eq!(
+        selectors.get(&renamed, &random, &mut cached_fuel),
+        Some((a, work))
+    );
+    assert_eq!(after_first - cached_fuel.0, work);
+    assert_eq!(selectors.0.values().map(Vec::len).sum::<usize>(), 1);
+    assert!(selectors.get(&renamed, &random, &mut Fuel(0)).is_none());
+    let mut changed_header = (*renamed).clone();
+    changed_header.entry = zil_ir::BlockId(99);
+    let changed_header = Arc::new(changed_header);
+    let expected = semantic_selector(
+        &changed_header,
+        &random,
+        &mut Fuel(options.limits.max_analysis_steps),
+    );
+    assert_eq!(
+        selectors.get(&changed_header, &random, &mut cached_fuel),
+        expected
+    );
+    assert_ne!(expected.unwrap().0, a);
+    assert_eq!(selectors.0.values().map(Vec::len).sum::<usize>(), 2);
     let plan_work = plan_work(&rows[0].plan, &mut fuel).unwrap();
     let old = Representative {
         input: rows[0].input.clone(),
@@ -327,6 +360,7 @@ fn semantic_buckets_require_complete_body_plan_and_sensitive_equality() {
         input_work: work,
         plan_work,
     };
+    let mut comparisons = HashMap::new();
     assert_eq!(
         same_representative(
             &old,
@@ -335,7 +369,8 @@ fn semantic_buckets_require_complete_body_plan_and_sensitive_equality() {
             false,
             other_work,
             plan_work,
-            &mut fuel
+            &mut fuel,
+            &mut comparisons
         ),
         Some(true)
     );
@@ -354,7 +389,8 @@ fn semantic_buckets_require_complete_body_plan_and_sensitive_equality() {
             false,
             other_work,
             plan_work,
-            &mut fuel
+            &mut fuel,
+            &mut comparisons
         ),
         Some(false)
     );
@@ -368,7 +404,8 @@ fn semantic_buckets_require_complete_body_plan_and_sensitive_equality() {
             false,
             other_work,
             plan_work,
-            &mut fuel
+            &mut fuel,
+            &mut comparisons
         ),
         Some(false)
     );
@@ -380,7 +417,8 @@ fn semantic_buckets_require_complete_body_plan_and_sensitive_equality() {
             true,
             other_work,
             plan_work,
-            &mut fuel
+            &mut fuel,
+            &mut comparisons
         ),
         Some(false)
     );
@@ -392,7 +430,8 @@ fn semantic_buckets_require_complete_body_plan_and_sensitive_equality() {
             false,
             other_work,
             plan_work,
-            &mut Fuel(0)
+            &mut Fuel(0),
+            &mut comparisons
         )
         .is_none()
     );

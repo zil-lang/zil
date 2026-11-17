@@ -73,6 +73,8 @@ pub struct BackendTimings {
     pub raw_models_encoded: u64,
     pub raw_model_encodings_reused: u64,
     pub current_class_bodies_checked: u64,
+    pub class_equivalence_comparisons: u64,
+    pub class_equivalence_reuses: u64,
     /// Nested detail inside machine_ns; never add these to the parent.
     pub machine_emit_ns: u64,
     pub machine_transform_ns: u64,
@@ -108,12 +110,14 @@ impl BackendTimings {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"machine_ns\":{},\"raw_models_decoded\":{},\"raw_models_encoded\":{},\"raw_model_encodings_reused\":{},\"current_class_bodies_checked\":{},\"machine_emit_ns\":{},\"machine_transform_ns\":{},\"transform_ranges_ns\":{},\"transform_checked_add_ns\":{},\"transform_scalar_ns\":{},\"transform_call_classes_ns\":{},\"transform_purity_ns\":{},\"machine_preflight_ns\":{},\"partition_ns\":{},\"diagnostic_ns\":{},\"object_ns\":{},\"link_key_ns\":{},\"link_execution_ns\":{},\"other_ns\":{},\"total_ns\":{}}}",
+            "{{\"machine_ns\":{},\"raw_models_decoded\":{},\"raw_models_encoded\":{},\"raw_model_encodings_reused\":{},\"current_class_bodies_checked\":{},\"class_equivalence_comparisons\":{},\"class_equivalence_reuses\":{},\"machine_emit_ns\":{},\"machine_transform_ns\":{},\"transform_ranges_ns\":{},\"transform_checked_add_ns\":{},\"transform_scalar_ns\":{},\"transform_call_classes_ns\":{},\"transform_purity_ns\":{},\"machine_preflight_ns\":{},\"partition_ns\":{},\"diagnostic_ns\":{},\"object_ns\":{},\"link_key_ns\":{},\"link_execution_ns\":{},\"other_ns\":{},\"total_ns\":{}}}",
             self.machine_ns,
             self.raw_models_decoded,
             self.raw_models_encoded,
             self.raw_model_encodings_reused,
             self.current_class_bodies_checked,
+            self.class_equivalence_comparisons,
+            self.class_equivalence_reuses,
             self.machine_emit_ns,
             self.machine_transform_ns,
             self.transform_ranges_ns,
@@ -700,6 +704,8 @@ pub fn build_view_with_cancellation_and_session(
                         cache.reused_keys,
                         cache.rebuilt_keys,
                     ));
+                    timings.class_equivalence_comparisons += cache.equivalence_comparisons as u64;
+                    timings.class_equivalence_reuses += cache.equivalence_reuses as u64;
                     class_cache = Some(std::sync::Arc::new(cache));
                     flat = reduced;
                 }
@@ -774,6 +780,8 @@ pub fn build_view_with_cancellation_and_session(
                         cache.reused_keys,
                         cache.rebuilt_keys,
                     ));
+                    timings.class_equivalence_comparisons += cache.equivalence_comparisons as u64;
+                    timings.class_equivalence_reuses += cache.equivalence_reuses as u64;
                     class_cache = Some(std::sync::Arc::new(cache));
                 } else {
                     call_classes = crate::machine_call_classes::canonicalize(
@@ -1565,7 +1573,8 @@ pub fn build_view_with_cancellation_and_session(
     check_cancelled(cancelled)?;
     let scan_started = std::time::Instant::now();
     let scoped_threads = if let Some(session) = session.as_deref_mut() {
-        session.scoped_threads(lir.functions)
+        let runtime_functions = session.lower.runtime_candidates(lir.functions);
+        session.scoped_threads(runtime_functions.as_ref().unwrap_or(lir.functions))
     } else {
         lir.functions
             .iter()

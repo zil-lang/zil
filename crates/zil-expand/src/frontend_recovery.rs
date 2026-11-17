@@ -4,6 +4,11 @@
 use super::*;
 use zil_base::SourceMapEntry;
 
+// Counts are bounded before reservation, but an invalid row may still follow.
+// Reserve small ordinary lists exactly without letting an encoded count force
+// a large typed allocation before its elements have actually decoded.
+const INITIAL_ITEMS: usize = 32;
+
 #[derive(Clone, Default)]
 pub struct FrontendProducts {
     pub context: Vec<u8>,
@@ -436,8 +441,9 @@ fn decode(
     let span = current.parsed.parsed().module.span;
     receipts.get(&(Stage::Preflight, span.start))?;
     receipts.get(&(Stage::Restore, span.start))?;
-    let mut imports = Vec::new();
-    for _ in 0..r.count()? {
+    let import_count = r.count()?;
+    let mut imports = Vec::with_capacity(import_count.min(INITIAL_ITEMS));
+    for _ in 0..import_count {
         imports.push(r.import()?);
     }
     let fees = [
@@ -449,11 +455,11 @@ fn decode(
         r.number()?,
         r.number()?,
     ];
-    let mut functions = Vec::new();
     let count = r.count()?;
     if count > limits.max_functions || count != normalized.len() {
         return None;
     }
+    let mut functions = Vec::with_capacity(count.min(INITIAL_ITEMS));
     for _ in 0..count {
         functions.push(r.function(0)?);
     }
@@ -503,7 +509,9 @@ fn decode(
         return None;
     }
     let mut map = SourceMap::new(current.parsed.source().module_id);
-    for _ in 0..r.count()? {
+    let map_count = r.count()?;
+    map.entries.reserve(map_count.min(INITIAL_ITEMS));
+    for _ in 0..map_count {
         map.entries.push(r.map_entry()?);
     }
     if !r.bytes.is_empty() {
@@ -761,11 +769,20 @@ impl<'a, 'n> Reader<'a, 'n> {
 macro_rules! scalar_tags {
     ($ty:ident, $write:ident, $read:ident, $($variant:ident),+ $(,)?) => {
         impl Writer { fn $write(&mut self, value: &$ty) -> Option<()> {
-            let variants = [$($ty::$variant),+];
-            self.byte(u8::try_from(variants.iter().position(|v| v == value)?).ok()?)
+            #[repr(u8)]
+            enum Tag { $($variant),+ }
+            $(if matches!(value, $ty::$variant) { return self.byte(Tag::$variant as u8); })+
+            None
         } }
         impl Reader<'_, '_> { fn $read(&mut self) -> Option<$ty> {
-            [$($ty::$variant),+].get(self.byte()? as usize).cloned()
+            // Construct only the selected scalar. In particular, do not build
+            // and clone an entire array of the large recursive Type enum for
+            // every current parameter, local annotation and conversion.
+            #[repr(u8)]
+            enum Tag { $($variant),+ }
+            let tag = self.byte()?;
+            $(if tag == Tag::$variant as u8 { return Some($ty::$variant); })+
+            None
         } }
     }
 }
@@ -1107,8 +1124,9 @@ impl Reader<'_, '_> {
                 scoped_callback: None,
             })
         })?;
-        let mut parameters = Vec::new();
-        for _ in 0..self.count()? {
+        let count = self.count()?;
+        let mut parameters = Vec::with_capacity(count.min(INITIAL_ITEMS));
+        for _ in 0..count {
             parameters.push(CoreParameter {
                 name: self.text()?,
                 ty: self.ty()?,
@@ -1142,8 +1160,9 @@ impl Reader<'_, '_> {
     fn block(&mut self, depth: usize) -> Option<CoreBlock> {
         self.node(depth)?;
         let span = self.span()?;
-        let mut statements = Vec::new();
-        for _ in 0..self.count()? {
+        let count = self.count()?;
+        let mut statements = Vec::with_capacity(count.min(INITIAL_ITEMS));
+        for _ in 0..count {
             statements.push(self.statement(depth + 1)?);
         }
         Some(CoreBlock { statements, span })
@@ -1204,8 +1223,9 @@ impl Reader<'_, '_> {
             },
             8 => {
                 let callee = Box::new(self.expr(depth + 1)?);
-                let mut arguments = Vec::new();
-                for _ in 0..self.count()? {
+                let count = self.count()?;
+                let mut arguments = Vec::with_capacity(count.min(INITIAL_ITEMS));
+                for _ in 0..count {
                     arguments.push(self.expr(depth + 1)?);
                 }
                 CoreExprKind::Call { callee, arguments }
@@ -1216,8 +1236,9 @@ impl Reader<'_, '_> {
                 owner: None,
             },
             10 => {
-                let mut bindings = Vec::new();
-                for _ in 0..self.count()? {
+                let count = self.count()?;
+                let mut bindings = Vec::with_capacity(count.min(INITIAL_ITEMS));
+                for _ in 0..count {
                     bindings.push((self.text()?, self.expr(depth + 1)?));
                 }
                 CoreExprKind::Sequence {
@@ -1259,8 +1280,9 @@ impl Reader<'_, '_> {
         };
         let origin = self.span()?;
         let role = self.role()?;
-        let mut related = Vec::new();
-        for _ in 0..self.count()? {
+        let count = self.count()?;
+        let mut related = Vec::with_capacity(count.min(INITIAL_ITEMS));
+        for _ in 0..count {
             related.push(self.span()?);
         }
         let parent = self.optional(|r| Some(SourceMapId(r.u32()?)))?;

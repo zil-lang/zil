@@ -594,6 +594,7 @@ pub(super) fn add_definitions_recording(
         )
     };
     let mut found = BTreeMap::<String, Type>::new();
+    let mut pending = Vec::new();
     for function in functions {
         let before = (work, *remaining);
         let roots = function
@@ -609,7 +610,7 @@ pub(super) fn add_definitions_recording(
             .chain(function.locals.iter().map(|l| &l.ty))
             .chain(std::iter::once(&function.return_type))
         {
-            let mut pending = vec![ty];
+            pending.push(ty);
             while let Some(ty) = pending.pop() {
                 if let Some(element) = element(ty) {
                     charge_pod(element, limits, function.span, remaining)?;

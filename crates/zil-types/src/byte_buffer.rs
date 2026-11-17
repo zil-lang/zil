@@ -65,6 +65,7 @@ pub(super) fn add_definition_recording(
     mut observations: Option<&mut push::PostObservations>,
 ) -> R<()> {
     let mut work = limits.max_analysis_steps;
+    let mut pending = Vec::new();
     let limit = || {
         Diagnostic::limit(
             Phase::Types,
@@ -90,7 +91,7 @@ pub(super) fn add_definition_recording(
             .chain(function.locals.iter().map(|l| &l.ty))
             .chain(std::iter::once(&function.return_type))
         {
-            let mut pending = vec![ty];
+            pending.push(ty);
             while let Some(ty) = pending.pop() {
                 match ty {
                     Type::Package { fields, .. } => {

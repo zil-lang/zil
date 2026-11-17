@@ -152,7 +152,6 @@ struct Template {
     input: Arc<TypedFunction>,
     plan: Arc<zil_ir::FunctionPlan>,
     span_sensitive: bool,
-    input_nodes: usize,
 }
 struct Encoded {
     input: Arc<[u8]>,
@@ -200,6 +199,31 @@ struct Representative {
     plan_work: usize,
 }
 const MAX_BUCKET: usize = 16;
+
+#[derive(Default)]
+struct Selectors(HashMap<Owners, Vec<(Arc<TypedFunction>, u64, usize)>>);
+impl Selectors {
+    fn get(
+        &mut self,
+        function: &Arc<TypedFunction>,
+        random: &RandomState,
+        fuel: &mut Fuel,
+    ) -> Option<(u64, usize)> {
+        let rows = self.0.entry(owners(function)).or_default();
+        if let Some((_, selector, work)) = rows
+            .iter()
+            .find(|(old, _, _)| RawAnalysisBase::same_template_headers(old, function))
+        {
+            // Same current immutable columns and every varying header. Keep
+            // the original per-row optional-cache allowance even on this hit.
+            fuel.spend(*work)?;
+            return Some((*selector, *work));
+        }
+        let (selector, work) = semantic_selector(function, random, fuel)?;
+        rows.push((function.clone(), selector, work));
+        Some((selector, work))
+    }
+}
 
 // The selector never authorizes an alias. Unsupported/rich data is simply not
 // indexed. All varying fields in the closed, non-sensitive vocabulary are
@@ -356,6 +380,7 @@ fn plan_work(plan: &zil_ir::FunctionPlan, fuel: &mut Fuel) -> Option<usize> {
     }
     Some(work)
 }
+#[allow(clippy::too_many_arguments)] // One current body/plan comparison and its original budget.
 fn same_representative(
     old: &Representative,
     function: &TypedFunction,
@@ -364,6 +389,7 @@ fn same_representative(
     input_work: usize,
     plan_work: usize,
     fuel: &mut Fuel,
+    comparisons: &mut HashMap<(Owners, Owners), bool>,
 ) -> Option<bool> {
     // Reserve both sides, including the eligibility walks inside same_template,
     // before exact comparison. Even deliberately colliding buckets stay bounded.
@@ -377,7 +403,10 @@ fn same_representative(
             && (if sensitive {
                 old.input.as_ref() == function
             } else {
-                RawAnalysisBase::same_template(&old.input, function)
+                // Both inputs already passed span_sensitive in this request.
+                // Recheck each header, share only the complete column relation;
+                // the strong representatives/selector owners outlive this map.
+                template_eq(comparisons, &old.input, function)
             })
             && old.plan.blocks == plan.blocks
             && old.plan.holds == plan.holds,
@@ -524,9 +553,18 @@ fn decode(
             input: function,
             plan,
             span_sensitive,
-            input_nodes: encoding.node_cost(),
         });
     }
+    // Bind each current producer once. These are actual immutable current
+    // Typed values, not persisted authority. Retain their strong owners while
+    // the request-local column comparison map is alive.
+    let canonical = program
+        .module
+        .functions
+        .iter()
+        .map(|current| products.get(&current.id)?.canonical_function(current))
+        .collect::<Vec<_>>();
+    let mut comparisons = HashMap::new();
     let mut expanded = Vec::with_capacity(rows.len());
     for (index, (template_index, costs)) in rows.into_iter().enumerate() {
         if options.cancellation.is_cancelled() {
@@ -542,24 +580,17 @@ fn decode(
             }
             template.input.clone()
         } else {
-            // A private current Types binding plus complete old/current raw
-            // fragment equality establishes this CURRENT semantic body. Adopt
-            // its real owner so Analyze need not rediscover equality for every
-            // alias. Diagnostic spans are ignored only in this non-sensitive
-            // domain; every callee ID, header and body field still binds.
-            let bound = products
-                .get(&current.id)
-                .and_then(|product| {
-                    product.canonical_encoding(current, limits, limits.max_source_bytes)
-                })
-                .and_then(|encoding| {
-                    encoding.reuse_decoded_scalar_header(
-                        encoded[template_index].input.clone(),
-                        limits,
-                        template.input_nodes,
-                    )
-                });
-            if bound.is_some() && RawAnalysisBase::same_template_headers(&template.input, current) {
+            // The old body has already passed the real bounded decoder and
+            // non-sensitive-domain check. Compare its COMPLETE semantic columns
+            // against the current producer value once per immutable body pair;
+            // every row still checks its complete current header. Recreating
+            // and comparing a full wire fragment for every scalar ID/name would
+            // undo the dictionary sharing just established by Types recovery.
+            let bound = canonical[index].as_ref().is_some_and(|function| {
+                RawAnalysisBase::same_template_headers(function, current)
+                    && template_eq(&mut comparisons, &template.input, function)
+            });
+            if bound {
                 program.module.functions.owner(index)?.clone()
             } else {
                 let mut function = template.input.as_ref().clone();
@@ -633,6 +664,7 @@ fn save_inner(
     let mut aliases = Vec::with_capacity(raw.rows.len());
     let mut sensitivities = HashMap::new();
     let mut comparisons = HashMap::new();
+    let mut selectors = Selectors::default();
     for (index, row) in raw.rows.iter().enumerate() {
         if options.cancellation.is_cancelled() {
             return None;
@@ -645,20 +677,20 @@ fn save_inner(
             .entry((owners(source), source.foreign.is_some()))
             .or_insert_with(|| RawAnalysisBase::span_sensitive(source))
             .as_ref()?;
-        let (selector, input_work) = if sensitive {
-            (None, 0)
-        } else {
-            let (selector, work) = semantic_selector(source, &random, &mut fuel)?;
-            // Complete canonical/current equality remains required below.
-            fuel.spend(work)?;
-            (Some(selector), work)
-        };
-        let plan_work = plan_work(&row.plan, &mut fuel)?;
         let function = (!sensitive)
             .then(|| products.get(&source.id)?.canonical_function(source))
             .flatten()
             .filter(|canonical| template_eq(&mut comparisons, source, canonical))
             .unwrap_or_else(|| row.input.clone());
+        let (selector, input_work) = if sensitive {
+            (None, 0)
+        } else {
+            let (selector, work) = selectors.get(&function, &random, &mut fuel)?;
+            // The complete canonical/current relation was checked above.
+            fuel.spend(work)?;
+            (Some(selector), work)
+        };
+        let plan_work = plan_work(&row.plan, &mut fuel)?;
         let owner = owners(&function);
         let mut representative = None;
         // Context requires distinct outer FunctionIds, so sensitive full-Eq
@@ -677,6 +709,7 @@ fn save_inner(
                         input_work,
                         plan_work,
                         &mut fuel,
+                        &mut comparisons,
                     )? {
                         representative = Some(index);
                         break;

@@ -115,6 +115,112 @@ fn restart_before_first_edit_avoids_unchanged_normalize_restore_and_core() {
 }
 
 #[test]
+fn bounded_recovery_lists_cover_wide_parameters_statements_arguments_and_republication() {
+    let limits = Limits::default();
+    let parameters = (0..64)
+        .map(|i| format!("p{i}:i32"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let statements = (0..96)
+        .map(|i| format!("let value{i}=p0+{i};"))
+        .collect::<String>();
+    let arguments = vec!["x"; 64].join(",");
+    let library = format!(
+        "pub fn wide({parameters})->i32{{{statements}return p0;}} fn invoke(x:i32)->i32{{return wide({arguments});}}"
+    );
+    let baseline = vec![parsed(0, "fn main()->i32=>1;"), parsed(1, &library)];
+    let mut writer = ExpandSession::default();
+    run(&mut writer, &baseline, &limits, false)
+        .unwrap()
+        .unwrap();
+    let products = writer.encode_frontend_products(&limits).unwrap();
+    drop(writer);
+    let current = vec![parsed(0, "fn main()->i32=>2;"), parsed(1, &library)];
+    let expected = run(&mut ExpandSession::default(), &current, &limits, false)
+        .unwrap()
+        .unwrap();
+    let mut restored = ExpandSession::default();
+    assert!(restored.restore_frontend_products(products, &limits));
+    assert_eq!(
+        run(&mut restored, &current, &limits, false)
+            .unwrap()
+            .unwrap(),
+        expected
+    );
+    assert_eq!(restored.last_stats().recovered_frontend_modules, 1);
+    let products = restored.encode_frontend_products(&limits).unwrap();
+    drop(restored);
+    let mut next = ExpandSession::default();
+    assert!(next.restore_frontend_products(products, &limits));
+    assert_eq!(
+        run(&mut next, &current, &limits, false).unwrap().unwrap(),
+        expected
+    );
+    assert_eq!(next.last_stats().recovered_frontend_modules, 2);
+}
+
+#[test]
+fn invalid_large_recovery_list_keeps_original_node_debits_and_fails_before_elements() {
+    let limits = Limits::default();
+    for count in [1, INITIAL_ITEMS, INITIAL_ITEMS + 1, 4096] {
+        let mut writer = Writer::new(&limits);
+        writer.span(Span::default()).unwrap();
+        writer.number(count).unwrap();
+        // Enough remaining bytes to admit the bounded count, followed by an
+        // invalid/noncanonical first NodeId. Only a small initial list capacity
+        // can be reserved before this row is actually read.
+        writer.byte(255).unwrap();
+        writer.put(&vec![0; count]).unwrap();
+        let mut nodes = limits.max_nodes;
+        {
+            let mut reader = Reader::new(&writer.bytes, &limits, &mut nodes).unwrap();
+            assert!(reader.block(0).is_none());
+        }
+        assert_eq!(nodes, limits.max_nodes - count - 2);
+    }
+}
+
+#[test]
+fn scalar_recovery_tags_keep_original_wire_ordinals_and_decline_unknown_types() {
+    let limits = Limits::default();
+    let scalars = [
+        Type::Unit,
+        Type::Bool,
+        Type::I32,
+        Type::I64,
+        Type::U64,
+        Type::Usize,
+        Type::F32,
+        Type::F64,
+        Type::U8,
+        Type::U16,
+        Type::U32,
+        Type::I8,
+        Type::I16,
+        Type::Isize,
+    ];
+    for (tag, ty) in scalars.iter().enumerate() {
+        let mut writer = Writer::new(&limits);
+        writer.ty(ty).unwrap();
+        assert_eq!(writer.bytes, [tag as u8]);
+        let mut nodes = limits.max_nodes;
+        assert_eq!(
+            Reader::new(&writer.bytes, &limits, &mut nodes)
+                .unwrap()
+                .ty(),
+            Some(ty.clone())
+        );
+    }
+    for tag in [14, 127, 255] {
+        let mut nodes = limits.max_nodes;
+        assert_eq!(Reader::new(&[tag], &limits, &mut nodes).unwrap().ty(), None);
+    }
+    let mut writer = Writer::new(&limits);
+    assert!(writer.ty(&Type::Named("not-scalar".into())).is_none());
+    assert!(writer.bytes.is_empty());
+}
+
+#[test]
 fn recovered_continuation_keeps_305_raw_function_owners_after_parser_eviction() {
     const MODULE: &str =
         "fn private(x:i32)->i32=>x+1; fn other(x:i32)->i32=>x+2; pub fn f(x:i32)->i32=>x+3;";

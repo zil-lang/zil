@@ -4,6 +4,7 @@
 use super::*;
 use crate::artifacts::CacheNamespace;
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::Read;
 use zil_db::CancellationToken;
 
 #[path = "packed_items_dictionary.rs"]
@@ -106,6 +107,42 @@ struct PackRecord {
 type VerifiedPack = (Arc<Vec<u8>>, Option<FileStamp>);
 type CheckedPack = Option<VerifiedPack>;
 
+// Borrowed immutable bytes whose item key has already been checked. Placement
+// consumes this association instead of hashing the same item a second time.
+#[derive(Clone, Copy)]
+struct CheckedItem<'a> {
+    key: Fingerprint,
+    bytes: &'a [u8],
+}
+impl<'a> CheckedItem<'a> {
+    fn check(key: Fingerprint, bytes: &'a [u8], previous: &Epoch) -> Option<Self> {
+        // This compares actual bytes against a previously checked immutable
+        // slice. A locator, path or file stamp alone cannot establish its key.
+        if previous.checked_bytes(key) != Some(bytes) && item_fingerprint(bytes) != key {
+            return None;
+        }
+        Some(Self { key, bytes })
+    }
+    fn of(bytes: &'a [u8]) -> Self {
+        Self {
+            key: item_fingerprint(bytes),
+            bytes,
+        }
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static ITEM_HASH_BYTES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static PACK_READ_BYTES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static SNAPSHOT_READ_BYTES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+fn item_fingerprint(bytes: &[u8]) -> Fingerprint {
+    #[cfg(test)]
+    ITEM_HASH_BYTES.with(|total| total.set(total.get() + bytes.len()));
+    Fingerprint::of(bytes)
+}
+
 /// Only the most recently published or restored current item set is remembered.
 /// Old manifests carry their own locations; no process-global item index exists.
 #[derive(Clone, Default)]
@@ -113,10 +150,20 @@ pub(crate) struct Epoch {
     namespace: Option<PathBuf>,
     locations: BTreeMap<Fingerprint, Location>,
     packs: BTreeMap<Fingerprint, PackRecord>,
+    // Only keys actually bound to their immutable pack slices by publication
+    // or Reader.load. Unread manifest locators are never in this set.
+    checked: BTreeSet<Fingerprint>,
     // Exactly one metadata placement epoch, never an epoch history.
     shared: Option<Arc<Epoch>>,
 }
 impl Epoch {
+    fn checked_bytes(&self, key: Fingerprint) -> Option<&[u8]> {
+        if !self.checked.contains(&key) {
+            return None;
+        }
+        let item = *self.locations.get(&key)?;
+        segment(self.packs.get(&item.pack)?.bytes.as_ref()?, item)
+    }
     pub(crate) fn hint(
         root: &Path,
         bytes: &[u8],
@@ -131,6 +178,7 @@ impl Epoch {
             namespace: Some(root.to_path_buf()),
             shared: manifest.shared,
             locations: manifest.locations,
+            checked: BTreeSet::new(),
             packs: manifest
                 .packs
                 .into_iter()
@@ -484,6 +532,7 @@ fn read_manifest(
     let mut decoded = dictionary::decode(&envelope, bounds)?;
     decoded.shared = Some(Arc::new(Epoch {
         namespace: Some(root.to_path_buf()),
+        checked: chunks.locations.keys().copied().collect(),
         locations: chunks.locations,
         packs: records,
         shared: None,
@@ -515,10 +564,10 @@ fn share_manifest(
         if context.cancellation.is_cancelled() {
             return None;
         }
-        let key = Fingerprint::of(piece);
-        descriptor.extend_from_slice(&key.0);
+        let item = CheckedItem::of(piece);
+        descriptor.extend_from_slice(&item.key.0);
         push_number(&mut descriptor, piece.len())?;
-        items.push((key, piece));
+        items.push(item);
     }
     stats.encode_ns += publication_elapsed(encode);
     let empty = Epoch::default();
@@ -556,6 +605,7 @@ fn share_manifest(
         descriptor,
         Some(Arc::new(Epoch {
             namespace: Some(context.namespace_key.to_path_buf()),
+            checked: locations.keys().copied().collect(),
             locations,
             packs: records,
             shared: None,
@@ -580,20 +630,78 @@ fn inspect_pack(
     else {
         return None;
     };
+    check_pack_shape(&bytes, length)?;
+    let after = stamp(&file);
+    let remembered = after.filter(|after| after == &before);
+    #[cfg(test)]
+    PACK_READ_BYTES.with(|total| total.set(total.get() + bytes.len()));
+    Some((Arc::new(bytes), remembered))
+}
+
+fn check_pack_shape(bytes: &[u8], length: usize) -> Option<()> {
     if bytes.len() != length
         || bytes.get(..8)? != PACK_MAGIC
-        || number(&bytes, 8)? != bytes.len().checked_sub(PACK_HEADER)?
-        || count(&bytes, 16)? == 0
+        || number(bytes, 8)? != bytes.len().checked_sub(PACK_HEADER)?
+        || count(bytes, 16)? == 0
         // A current manifest can select a small subset of an older pack. Its
         // old item count is bounded by nonempty payload bytes, not today's
         // selected function count, and never controls an allocation here.
-        || count(&bytes, 16)? > number(&bytes, 8)?
+        || count(bytes, 16)? > number(bytes, 8)?
     {
         return None;
     }
-    let after = stamp(&file);
-    let remembered = after.filter(|after| after == &before);
-    Some((Arc::new(bytes), remembered))
+    Some(())
+}
+
+/// Revalidate a current file against its already digest-checked immutable
+/// payload. Read and compare the ENTIRE envelope and payload, including stale
+/// pack bytes. Neither the path nor equal stat fields can skip this read.
+/// Exact equality to that snapshot proves the same checksum without another
+/// full hash, allocation, or removal/copy of ArtifactCache's envelope header.
+fn inspect_snapshot(
+    root: &Path,
+    key: Fingerprint,
+    length: usize,
+    snapshot: &Arc<Vec<u8>>,
+    bounds: Bounds,
+) -> Option<VerifiedPack> {
+    if length > bounds.pack_maximum()? {
+        return None;
+    }
+    check_pack_shape(snapshot, length)?;
+    let file_path = path(root, key);
+    let before = stamp(&file_path)?;
+    let mut file = fs::File::open(&file_path).ok()?;
+    // ArtifactCache's raw v2 envelope. Both its identity and checksum must
+    // equal the CAS key that was checked when this snapshot was admitted.
+    // Unknown formats are a miss, never an unchecked payload fallback.
+    let mut header = [0u8; 80];
+    if usize::try_from(file.metadata().ok()?.len()).ok()? != length.checked_add(header.len())? {
+        return None;
+    }
+    file.read_exact(&mut header).ok()?;
+    if &header[..8] != b"ZILRAW02"
+        || header[8..40] != key.0
+        || header[40..72] != key.0
+        || number(&header, 72)? != length
+    {
+        return None;
+    }
+    let mut buffer = [0u8; 16 * 1024];
+    for expected in snapshot.chunks(buffer.len()) {
+        let actual = &mut buffer[..expected.len()];
+        file.read_exact(actual).ok()?;
+        if actual != expected {
+            return None;
+        }
+    }
+    if file.read(&mut buffer[..1]).ok()? != 0 {
+        return None;
+    }
+    let remembered = stamp(&file_path).filter(|after| after == &before);
+    #[cfg(test)]
+    SNAPSHOT_READ_BYTES.with(|total| total.set(total.get() + snapshot.len()));
+    Some((snapshot.clone(), remembered))
 }
 fn segment(bytes: &[u8], item: Location) -> Option<&[u8]> {
     let start = PACK_HEADER.checked_add(item.offset)?;
@@ -645,12 +753,13 @@ impl Reader {
         std::mem::take(&mut self.manifest.logical)
     }
     /// Reuse this request's bounded locators and loaded raw pack snapshots.
-    /// Publication rechecks file stamps and complete current segment bytes;
+    /// Publication rechecks complete current file and segment bytes;
     /// unread packs remain hints and must still be inspected from disk.
     pub(crate) fn hint_epoch(&self) -> Epoch {
         Epoch {
             namespace: Some(self.root.clone()),
             locations: self.manifest.locations.clone(),
+            checked: self.requested.clone(),
             packs: self
                 .manifest
                 .packs
@@ -693,7 +802,7 @@ impl Reader {
             self.loaded.insert(item.pack, bytes);
         }
         let bytes = segment(&self.loaded.get(&item.pack)?.0, item)?;
-        if (!self.requested.contains(&physical_key) && Fingerprint::of(bytes) != physical_key)
+        if (!self.requested.contains(&physical_key) && item_fingerprint(bytes) != physical_key)
             || self.cancellation.is_cancelled()
         {
             return None;
@@ -750,6 +859,7 @@ impl Reader {
             .collect();
         Epoch {
             namespace: Some(self.root.clone()),
+            checked: self.requested.clone(),
             locations,
             packs,
             shared: self.manifest.shared.clone(),
@@ -810,7 +920,7 @@ fn publish_with_hook(
         return None;
     }
     let encode = publication_start(context.profile);
-    let prepared = dictionary::prepare(&items, bounds, context.cancellation)?;
+    let prepared = dictionary::prepare(&items, bounds, epoch, context.cancellation)?;
     stats.encode_ns += publication_elapsed(encode);
     let Placement {
         locations,
@@ -861,6 +971,7 @@ fn publish_with_hook(
     stats.manifest_bytes = stats.manifest_bytes.checked_add(envelope.len())?;
     *epoch = Epoch {
         namespace: Some(context.namespace_key.to_path_buf()),
+        checked: locations.keys().copied().collect(),
         locations,
         packs: records,
         shared,
@@ -877,9 +988,9 @@ struct Placement {
 
 // Body and metadata chunks use the same complete pack bounds and current
 // file checks. Placement does not publish a root or install a pending epoch.
-fn place_items<B: AsRef<[u8]>>(
+fn place_items(
     context: &PublishContext<'_>,
-    items: Vec<(Fingerprint, B)>,
+    items: Vec<CheckedItem<'_>>,
     bounds: Bounds,
     epoch: &Epoch,
     stats: &mut PublicationStats,
@@ -890,19 +1001,19 @@ fn place_items<B: AsRef<[u8]>>(
     }
     let encode = publication_start(context.profile);
     let logical_items = items.len();
-    let mut current = BTreeMap::<Fingerprint, B>::new();
+    let mut current = BTreeMap::<Fingerprint, &[u8]>::new();
     let mut current_total = 0usize;
-    for (key, bytes) in items {
-        if context.cancellation.is_cancelled() || bytes.as_ref().is_empty() {
+    for CheckedItem { key, bytes } in items {
+        if context.cancellation.is_cancelled() || bytes.is_empty() {
             return None;
         }
         if let Some(previous) = current.get(&key) {
-            if previous.as_ref() != bytes.as_ref() {
+            if *previous != bytes {
                 return None;
             }
         } else {
             current_total = current_total
-                .checked_add(bytes.as_ref().len())
+                .checked_add(bytes.len())
                 .filter(|size| *size <= bounds.maximum)?;
             current.insert(key, bytes);
         }
@@ -916,7 +1027,7 @@ fn place_items<B: AsRef<[u8]>>(
         for (key, bytes) in &current {
             if let Some(item) = epoch.locations.get(key)
                 && let Some(record) = epoch.packs.get(&item.pack)
-                && item.length == bytes.as_ref().len()
+                && item.length == bytes.len()
                 && record.length <= bounds.pack_maximum()?
                 && item.offset.checked_add(item.length)?
                     <= record.length.checked_sub(PACK_HEADER)?
@@ -992,21 +1103,26 @@ fn place_items<B: AsRef<[u8]>>(
             let item = *proposed.get(key)?;
             let record = epoch.packs.get(&item.pack)?;
             let value = checked.entry(item.pack).or_insert_with(|| {
-                let now = stamp(&path(context.packs.root(), item.pack));
-                if now.is_some()
-                    && now == record.stamp
+                if record.stamp.is_some()
                     && let Some(bytes) = &record.bytes
                 {
-                    Some((bytes.clone(), now))
+                    inspect_snapshot(
+                        context.packs.root(),
+                        item.pack,
+                        record.length,
+                        bytes,
+                        bounds,
+                    )
                 } else {
                     inspect_pack(context.packs.root(), item.pack, record.length, bounds)
                 }
             });
             let (pack_bytes, stamp) = value.as_ref()?;
             let stored = segment(pack_bytes, item)?;
-            // Even an unchanged file stamp only validates the raw snapshot.
-            // Bind complete current bytes, including on the warm path.
-            if stored != current.get(key)?.as_ref() || Fingerprint::of(stored) != *key {
+            // CheckedItem already binds these immutable current bytes to key.
+            // Exact equality also validates an untrusted hint's offset without
+            // rehashing the same slice after checking the whole pack.
+            if stored != *current.get(key)? {
                 return None;
             }
             packs.insert(item.pack, record.length);
@@ -1030,9 +1146,9 @@ fn place_items<B: AsRef<[u8]>>(
     let old_payload = packs.values().try_fold(0usize, |sum, length| {
         sum.checked_add(length.checked_sub(PACK_HEADER)?)
     })?;
-    let dirty_bytes = dirty.iter().try_fold(0usize, |sum, key| {
-        sum.checked_add(current[key].as_ref().len())
-    })?;
+    let dirty_bytes = dirty
+        .iter()
+        .try_fold(0usize, |sum, key| sum.checked_add(current[key].len()))?;
     if old_payload.checked_add(dirty_bytes)? > bounds.maximum {
         stats.compacted_items = current.len().checked_sub(dirty.len())?;
         locations.clear();
@@ -1043,30 +1159,29 @@ fn place_items<B: AsRef<[u8]>>(
     let mut written_pack = None;
     if !dirty.is_empty() {
         let encode = publication_start(context.profile);
-        let data_len = dirty.iter().try_fold(0usize, |sum, key| {
-            sum.checked_add(current[key].as_ref().len())
-        })?;
+        let data_len = dirty
+            .iter()
+            .try_fold(0usize, |sum, key| sum.checked_add(current[key].len()))?;
         let mut bytes = Vec::with_capacity(PACK_HEADER.checked_add(data_len)?);
         bytes.extend_from_slice(PACK_MAGIC);
         push_number(&mut bytes, data_len)?;
         push_count(&mut bytes, dirty.len())?;
         let mut offsets = Vec::with_capacity(dirty.len());
         for key in &dirty {
-            let item = current[key].as_ref();
-            if context.cancellation.is_cancelled() || Fingerprint::of(item) != *key {
+            let item = current[key];
+            if context.cancellation.is_cancelled() {
                 return None;
             }
             offsets.push((*key, bytes.len().checked_sub(PACK_HEADER)?, item.len()));
             bytes.extend_from_slice(item);
         }
         let pack = Fingerprint::of(&bytes);
+        let bytes = Arc::new(bytes);
         stats.encode_ns += publication_elapsed(encode);
         let io = publication_start(context.profile);
-        let existing = inspect_pack(context.packs.root(), pack, bytes.len(), bounds);
+        let existing = inspect_snapshot(context.packs.root(), pack, bytes.len(), &bytes, bounds);
         stats.item_io_ns += publication_elapsed(io);
-        let (pack_bytes, stamp) = if let Some(verified) =
-            existing.filter(|(existing, _)| existing.as_slice() == bytes.as_slice())
-        {
+        let (pack_bytes, stamp) = if let Some(verified) = existing {
             verified
         } else {
             let guard = publication_start(context.profile);
@@ -1077,10 +1192,8 @@ fn place_items<B: AsRef<[u8]>>(
                 .write_candidate_cancellable(pack, &bytes, context.cancellation)
                 .ok()?;
             let written_stamp = stamp(&path(context.packs.root(), pack))?;
-            let verified = inspect_pack(context.packs.root(), pack, bytes.len(), bounds)?;
-            if verified.0.as_slice() != bytes.as_slice() {
-                return None;
-            }
+            let verified =
+                inspect_snapshot(context.packs.root(), pack, bytes.len(), &bytes, bounds)?;
             stats.item_io_ns += publication_elapsed(io);
             stats.physical_pack_writes = 1;
             stats.physical_pack_bytes = usize::try_from(written_stamp.length).ok()?;

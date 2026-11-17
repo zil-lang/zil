@@ -595,6 +595,12 @@ impl Session {
         self.entries.retain_admitted(&self.admitted);
         !self.admitted.is_empty()
     }
+    pub(crate) fn runtime_candidates(
+        &self,
+        functions: &zil_ir::PersistentVec<TypedFunction>,
+    ) -> Option<zil_ir::PersistentVec<TypedFunction>> {
+        scalar_bodies::runtime_candidates(self.body_inputs.as_deref(), functions)
+    }
     pub(crate) fn identity(&self) -> Option<crate::incremental::ScalarIdentity> {
         (self.eligible
             && self.product_count == self.products.len()

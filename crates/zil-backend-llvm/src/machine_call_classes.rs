@@ -35,6 +35,8 @@ pub(crate) struct Cache {
     pub(crate) body_owners: usize,
     pub(crate) address_scans: usize,
     pub(crate) current_recovery_bodies_checked: usize,
+    pub(crate) equivalence_comparisons: usize,
+    pub(crate) equivalence_reuses: usize,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct FunctionReads {
@@ -610,6 +612,11 @@ fn canonicalize_inner(
     // still authorizes every class, including deliberate hash collisions.
     let mut classes: HashMap<zil_base::Fingerprint, Vec<(Function, usize)>> = HashMap::new();
     let mut current_keys: HashMap<usize, std::sync::Arc<Normalized>> = HashMap::new();
+    // Strong normalized values have already passed this current input/callee
+    // binding. Classify the same actual value once instead of comparing every
+    // diagnostic alias's full CFG with the bucket representative again.
+    let mut classified: HashMap<*const Normalized, (std::sync::Arc<Normalized>, usize)> =
+        HashMap::new();
     let mut class_count = 0usize;
     let mut stats = Stats::default();
     while !ready.is_empty() {
@@ -691,11 +698,22 @@ fn canonicalize_inner(
                 std::sync::Arc::make_mut(&mut cache.functions[index]).normalized =
                     Some(normalized.clone());
             }
+            let prior_class = classified
+                .get(&std::sync::Arc::as_ptr(&normalized))
+                .filter(|(value, _)| std::sync::Arc::ptr_eq(value, &normalized))
+                .map(|(_, rep)| *rep);
             let bucket = classes.entry(normalized.selector).or_default();
-            let rep = if let Some((_, rep)) =
-                bucket.iter().find(|(key, _)| *key == normalized.function)
-            {
-                *rep
+            let equal = if let Some(rep) = prior_class {
+                cache.equivalence_reuses += 1;
+                Some(rep)
+            } else {
+                bucket.iter().find_map(|(key, rep)| {
+                    cache.equivalence_comparisons += 1;
+                    (*key == normalized.function).then_some(*rep)
+                })
+            };
+            let rep = if let Some(rep) = equal {
+                rep
             } else {
                 if stable {
                     if normalized.function.linkage != Linkage::External {
@@ -726,6 +744,9 @@ fn canonicalize_inner(
                 class_count += 1;
                 index
             };
+            classified
+                .entry(std::sync::Arc::as_ptr(&normalized))
+                .or_insert_with(|| (normalized.clone(), rep));
             representatives[index] = Some(rep);
             if stable {
                 stable_names[index] = stable_names[rep].clone();

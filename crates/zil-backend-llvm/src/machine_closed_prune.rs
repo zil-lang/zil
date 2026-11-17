@@ -343,6 +343,33 @@ pub(crate) fn prune_closed_unit_with_preflight(
     cancelled: &(dyn Fn() -> bool + Sync),
     preflight: &mut crate::machine_preflight::CurrentPreflight,
 ) -> Result<Option<Stats>, zil_llvm_api::Error> {
+    prune_in_domain(module, classes, None, cancelled, preflight)
+}
+
+/// Treat only the current closed producer's exact candidates as local for
+/// reachability. The actual original model is validated without rewriting its
+/// linkage or cloning every function header, then retained values stay intact.
+pub(crate) fn prune_closed_graph_with_preflight(
+    module: &mut Module,
+    classes: &BTreeSet<String>,
+    candidates: &BTreeSet<String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
+) -> Result<Option<Stats>, zil_llvm_api::Error> {
+    prune_in_domain(module, classes, Some(candidates), cancelled, preflight)
+}
+fn prune_in_domain(
+    module: &mut Module,
+    classes: &BTreeSet<String>,
+    candidates: Option<&BTreeSet<String>>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
+) -> Result<Option<Stats>, zil_llvm_api::Error> {
+    let local = |function: &zil_llvm_api::model::Function| {
+        function.linkage.is_local()
+            || (function.linkage == zil_llvm_api::model::Linkage::External
+                && candidates.is_some_and(|names| names.contains(&function.name)))
+    };
     if cancelled() {
         return Ok(None);
     }
@@ -358,7 +385,7 @@ pub(crate) fn prune_closed_unit_with_preflight(
                 preflight.check(module)?;
                 return Ok(Some(Stats::default()));
             }
-            if f.blocks.is_some() && !f.linkage.is_local() {
+            if f.blocks.is_some() && !local(f) {
                 enqueue(index, &mut live, &mut pending);
             }
         }
@@ -433,7 +460,7 @@ pub(crate) fn prune_closed_unit_with_preflight(
             return Ok(None);
         }
         if let Item::Function(f) = item {
-            if f.blocks.is_some() && f.linkage.is_local() && !live[index] {
+            if f.blocks.is_some() && local(f) && !live[index] {
                 remove[index] = true;
                 stats.removed_names.push(f.name.clone());
             } else if f.blocks.is_none()
@@ -477,7 +504,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use zil_llvm_api::model::{Arg, Block, Function, Global, Inst, Linkage, Op, Signature, Ty};
 
-    fn leaf(name: &str, linkage: Linkage) -> Function {
+    pub(super) fn leaf(name: &str, linkage: Linkage) -> Function {
         Function {
             name: name.into(),
             linkage,
@@ -496,7 +523,7 @@ mod tests {
         }
     }
 
-    fn caller(name: &str, linkage: Linkage, target: &str) -> Function {
+    pub(super) fn caller(name: &str, linkage: Linkage, target: &str) -> Function {
         let mut f = leaf(name, linkage);
         f.blocks.as_mut().unwrap()[0].instructions.insert(
             0,
@@ -514,7 +541,7 @@ mod tests {
         f
     }
 
-    fn module(functions: Vec<Function>) -> Module {
+    pub(super) fn module(functions: Vec<Function>) -> Module {
         Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: "unchanged".into(),
@@ -867,6 +894,129 @@ mod tests {
                 .is_none()
             );
             assert_eq!(m, original);
+        }
+    }
+}
+
+#[cfg(test)]
+mod closed_domain_tests {
+    use super::tests::{caller, leaf, module};
+    use super::*;
+    use zil_llvm_api::model::{Arg, Global, Linkage, Op, Ty};
+
+    fn reference(
+        mut source: Module,
+        candidates: &BTreeSet<String>,
+        classes: &BTreeSet<String>,
+    ) -> (Module, Stats) {
+        let headers = source
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Function(f) => Some((f.name.clone(), f.linkage)),
+                _ => None,
+            })
+            .collect::<std::collections::BTreeMap<_, _>>();
+        crate::machine_cgu::internalize_closed_executable_names(
+            std::slice::from_mut(&mut source),
+            candidates,
+        );
+        let stats = prune_closed_unit(&mut source, classes, &|| false)
+            .unwrap()
+            .unwrap();
+        for item in &mut source.items {
+            if let Item::Function(f) = item {
+                f.linkage = headers[&f.name];
+            }
+        }
+        (source, stats)
+    }
+    #[test]
+    fn virtual_closed_domain_matches_staged_linkage_and_preserves_global_addresses() {
+        let mut source = module(vec![
+            caller("main", Linkage::External, "live"),
+            leaf("live", Linkage::External),
+            leaf("dead", Linkage::External),
+            leaf("addressed", Linkage::External),
+            leaf("available", Linkage::AvailableExternally),
+            leaf("export", Linkage::External),
+            leaf("private", Linkage::Private),
+        ]);
+        source.items.push(Item::Global(Global {
+            name: "root".into(),
+            linkage: Linkage::Private,
+            ty: Ty::Ptr,
+            initializer: Some(Val::Global("addressed".into())),
+            constant: true,
+            unnamed_addr: false,
+            alignment: 0,
+        }));
+        let candidates = BTreeSet::from([
+            "live".into(),
+            "dead".into(),
+            "addressed".into(),
+            "available".into(),
+        ]);
+        let expected = reference(source.clone(), &candidates, &BTreeSet::new());
+        let mut actual = source;
+        let stats = prune_closed_graph_with_preflight(
+            &mut actual,
+            &BTreeSet::new(),
+            &candidates,
+            &|| false,
+            &mut crate::machine_preflight::CurrentPreflight::default(),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!((actual.clone(), stats), expected);
+        zil_llvm_api::validate_module(&actual).unwrap();
+    }
+    #[test]
+    fn dead_invalid_current_model_and_cancellation_never_commit_partial_deletion() {
+        let mut source = module(vec![
+            caller("main", Linkage::External, "live"),
+            leaf("live", Linkage::External),
+            leaf("dead", Linkage::External),
+        ]);
+        let candidates = BTreeSet::from(["live".into(), "dead".into()]);
+        let Item::Function(f) = &mut source.items[2] else {
+            panic!()
+        };
+        f.blocks.as_mut().unwrap()[0].instructions[0].op =
+            Op::Return(Some(Arg::new(Ty::Int(64), Val::Int(7))));
+        let original = source.clone();
+        assert!(
+            prune_closed_graph_with_preflight(
+                &mut source,
+                &BTreeSet::new(),
+                &candidates,
+                &|| false,
+                &mut crate::machine_preflight::CurrentPreflight::default()
+            )
+            .is_err()
+        );
+        assert_eq!(source, original);
+        for after in 0..30 {
+            let mut source = module(vec![
+                caller("main", Linkage::External, "live"),
+                leaf("live", Linkage::External),
+                leaf("dead", Linkage::External),
+            ]);
+            let original = source.clone();
+            let calls = std::sync::atomic::AtomicUsize::new(0);
+            let cancelled = || calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= after;
+            if prune_closed_graph_with_preflight(
+                &mut source,
+                &BTreeSet::new(),
+                &candidates,
+                &cancelled,
+                &mut crate::machine_preflight::CurrentPreflight::default(),
+            )
+            .unwrap()
+            .is_none()
+            {
+                assert_eq!(source, original);
+            }
         }
     }
 }
