@@ -1,0 +1,53 @@
+{
+  "source_base": "8609df3a52cb6eeaa3ed6a17c1efa9b0f3f02d15",
+  "snapshot_utc": "20261117T180333Z",
+  "status": "Exact in-progress source preservation only; incomplete logic, no compile/test/functional acceptance",
+  "scope": [
+    "crates",
+    "spec",
+    "_zil_design.md",
+    "tests/language-readiness"
+  ],
+  "changed_files": {
+    "crates/zil-verify/src/dynamic_witness/semantic_patterns.rs": "cee8405fc93be89faba355a25c62fdee9fdc1e250f0ba7bc9daaa16a2dbeed3b",
+    "crates/zil-verify/src/semantic/call_results.rs": "7269ace05a4ce775d0ce67c8893081f766788e1856673ec1aa71a8c44b6accf5",
+    "crates/zil-verify/src/semantic/completion.rs": "4687325f6aa01817ed81af73708ecf41ccc4d8b46072c4950fedf31aa21d7925",
+    "crates/zil-verify/src/semantic/flow.rs": "ac4a863821bc109d5ecc4f3e17aa56b51fd67992d718f3b03250b1b9d03cf1da",
+    "crates/zil-verify/src/semantic/mod.rs": "b7322b8599995cdb9cf5b524edf7d78caa036ac11ab79f380a918ea450c1b990",
+    "crates/zil-verify/src/stored_flow.rs": "b82d17d3794b29cc4dde6b74c8eeb7adcdd35ac36b54281f2c12455005407254",
+    "crates/zil-verify/src/stored_flow/after_state.rs": "e81814965185234dab8d9136f0683d66c54e6369d8dc2a055b26cbe867408f0b",
+    "crates/zil-verify/src/stored_flow/anonymous_tuple.rs": "fdf59b14134de41f8965d8534aed62d28a819cd9d05f7248705de6f6e13af18b",
+    "crates/zil-verify/src/stored_flow/call_results.rs": "6d9127552d42f0a92d9864f42d7dabca7d5e70d8ebe3268b895d35a1d4849c07",
+    "crates/zil-verify/src/stored_flow/callable_cells.rs": "93e603d53fa017984c54b157d45bc0493ceb8cf5ce4af87c2458485229705df9",
+    "crates/zil-verify/src/stored_flow/captured_owner.rs": "a957d1a04947e76df21814a344ae49c0531855842153eb446a8d7bafa9fc635c",
+    "crates/zil-verify/src/stored_flow/compound.rs": "098e6faad259a7cb8071038fce5f9243d4eddb68e8bccabea1ea62ea9824a230",
+    "crates/zil-verify/src/stored_flow/dyn_ports.rs": "24684b3fb1aa517c721210f946ef5c66cc0bc82f9fa85bfe30293fd305f32e16",
+    "crates/zil-verify/src/stored_flow/enum_address.rs": "d5147ba8047fdf77c952f22b9c8a7a02ea482a255958e4e6c9c1131b284d6cbd",
+    "crates/zil-verify/src/stored_flow/enum_address/tags.rs": "69e0dbbfc44ac61eab8c3bd2a4e0b840b08a8ba944003bcaf53d343500fb9d85",
+    "crates/zil-verify/src/stored_flow/option_address.rs": "b327115ed2cd8a795247c7071e7a37688bd3cbfa9f74ea9150ae897ed519d73d",
+    "crates/zil-verify/src/stored_flow/owned_byte_views.rs": "d1e7cc69e8cd264f5dfbf30deb1cbf0f161bada4da174e4d7a3b03a286dc9e48",
+    "crates/zil-verify/src/stored_flow/receiver.rs": "848e2c61626695626ba9da4363b74bb5dcfc5e09cdcf07264127e23f01fe18e5",
+    "crates/zil-verify/src/stored_flow/replacements.rs": "6c30d5588aaadc316d4d2cb5728aa9e04fc333a2b53ccc180e6f58634feb2a0a",
+    "crates/zil-verify/src/stored_flow/returned_environment.rs": "861048655a834ed0a97a56c5d6e25d978c547a73d875adb3aeecd75e4f94d98f",
+    "crates/zil-verify/src/stored_flow/task_address.rs": "272cbb06ba4cbfd49efccb76462564c207801ef368d0e5e470885d7fad4c6b01",
+    "crates/zil-verify/src/stored_flow/task_failure.rs": "6e293056c930f87a39697013c3653234a5ed16de4b90ce10bed72cf26194468d",
+    "crates/zil-verify/src/stored_flow/value_transport.rs": "978e995cf4761ba8a7679cda139ece9dee1deac41a01567d18eb9f50babbb721",
+    "crates/zil-verify/src/stored_flow/value_transport/inputs.rs": "301dfd03a699b50d3cada5a11fa01475f59f8ccf6dc74e5080e3f5845afa3ce0",
+    "crates/zil-verify/src/stored_flow/value_transport/results.rs": "4f90b4800805ee9ccfe7b9b4e70a1648274ff24f66037f0a530f2a8a61ff744d",
+    "crates/zil-verify/src/stored_flow_pure_copy.rs": "f0e93c3dc74dc9bbe4e053954367ce1e8b1b6aa2bfc40ade03cef8e5e548a1a4"
+  },
+  "untracked_files": [
+    "crates/zil-verify/src/semantic/completion.rs",
+    "crates/zil-verify/src/stored_flow/after_state.rs",
+    "crates/zil-verify/src/stored_flow/call_results.rs",
+    "crates/zil-verify/src/stored_flow/value_transport.rs",
+    "crates/zil-verify/src/stored_flow/value_transport/inputs.rs",
+    "crates/zil-verify/src/stored_flow/value_transport/results.rs"
+  ],
+  "stable_double_read": true,
+  "patch_reconstruction_checked": true,
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ into that checkout. working-tree/ contains exact changed file bytes; null hashes denote deletions. Never blind-apply to a different base. Later writes are not included.",
+  "goal_commit": "1a021895c88451f644a76820b5227071b5645851",
+  "actual_executed_candidate": "3cbb0eeffa0da39533fc05132671648750bc831e",
+  "original_execution_counts_unchanged": true
+}
