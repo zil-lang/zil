@@ -238,7 +238,7 @@ fn check_shape_inner(module:&TypedModule,receiver:&terms::Value,kind:CallableKin
             if a.raw.ty!=z.raw.ty||a.raw.life!=z.raw.life{return Err(bad("Callable original source changes its whole parameter type or intrinsic geometry"));}
         }
         dynamic_metadata::recipe(&source.result.raw,b)?;dynamic_metadata::recipe(&signature.result.raw,b)?;
-        if source.result.raw.ty!=signature.result.raw.ty||if receiver_head.is_some(){!receiver_view_geometry(&source.result,&signature.result,b)?}else{source.result.raw.life!=signature.result.raw.life}{return Err(bad("Callable original source changes its whole result type or complete child geometry"));}
+        if source.result.raw.ty!=signature.result.raw.ty||if receiver_head.is_some(){!receiver_view_geometry(&source.result,&signature.result,actual_header.static_bindings.contains(&StoragePosition{base:StorageBase::Result,path:vec![]}),b)?}else{source.result.raw.life!=signature.result.raw.life}{return Err(bad("Callable original source changes its whole result type or complete child geometry"));}
         Some(headers::expected(module,&source.parameters,&source.result,b)?)
     }else{None};
     for parameter in signature
@@ -432,12 +432,14 @@ fn check_shape_inner(module:&TypedModule,receiver:&terms::Value,kind:CallableKin
 /// A new outer view may split a root formerly sharing its child's σ. Full
 /// child occurrence inventories and the raw complete child Type stay exact;
 /// each nonroot term is compared through source_relation in the main walker.
-fn receiver_view_geometry(source:&terms::Value,expected:&terms::Value,b:&mut Budget)->Check<bool>{
+fn receiver_view_geometry(source:&terms::Value,expected:&terms::Value,static_root:bool,b:&mut Budget)->Check<bool>{
     if !matches!(source.raw.ty,Type::Address{mutable:false,..})||source.raw.ty!=expected.raw.ty{return Ok(false);}
     let a=&source.raw.life;let z=&expected.raw.life;
     b.spend(a.slots.len().saturating_add(z.slots.len()).saturating_add(a.retained.len()).saturating_add(z.retained.len()).saturating_add(a.nominal_arguments.len()).saturating_add(z.nominal_arguments.len()))?;
-    if a.slots.len()!=z.slots.len()||a.retained.len()!=z.retained.len()||a.nominal_arguments.len()!=z.nominal_arguments.len(){return Ok(false);}
-    for(a,z)in a.slots.iter().zip(&z.slots){b.spend(a.path.len().saturating_add(z.path.len()))?;if a.path!=z.path||a.mode!=z.mode{return Ok(false);}}
+    let roots=a.slots.iter().filter(|slot|slot.path.is_empty()).collect::<Vec<_>>();let expected_roots=z.slots.iter().filter(|slot|slot.path.is_empty()).collect::<Vec<_>>();
+    if expected_roots.len()!=1||expected_roots[0].mode!=StoredBorrowMode::SharedAddress||roots.len()>1||roots.first().is_some_and(|slot|slot.mode!=StoredBorrowMode::SharedAddress)||roots.is_empty()&&!static_root{return Ok(false);}
+    if a.slots.len().saturating_sub(roots.len())!=z.slots.len().saturating_sub(expected_roots.len())||a.retained.len()!=z.retained.len()||a.nominal_arguments.len()!=z.nominal_arguments.len(){return Ok(false);}
+    for(a,z)in a.slots.iter().filter(|slot|!slot.path.is_empty()).zip(z.slots.iter().filter(|slot|!slot.path.is_empty())){b.spend(a.path.len().saturating_add(z.path.len()))?;if a.path!=z.path||a.mode!=z.mode{return Ok(false);}}
     for(a,z)in a.retained.iter().zip(&z.retained){b.spend(a.path.len().saturating_add(z.path.len()))?;if a.path!=z.path||a.class!=z.class{return Ok(false);}}
     for(a,z)in a.nominal_arguments.iter().zip(&z.nominal_arguments){b.spend(a.path.len().saturating_add(z.path.len()))?;if a.path!=z.path||a.declaration!=z.declaration||a.argument!=z.argument{return Ok(false);}}
     Ok(true)
@@ -642,6 +644,11 @@ pub(super) mod tests {
         let proof=check_shape_with_source(&stronger_module,&stronger_receiver,CallableKind::Fn,&shape,Some(&stronger_shape),Some(head),scope,false,&mut Budget::new(&limits)).unwrap();
         assert_eq!(crate::signature_life::outer(&proof.actual_header,StorageBase::Result),Some(StorageBinder::Fixed(0)),"the actual stronger σ is preserved");assert_eq!(crate::signature_life::outer(&proof.expected_header,StorageBase::Result),Some(StorageBinder::Invocation(0)),"only the public output view uses this subject's head");assert_ne!(head.origin,strong.origin);
         assert!(check_shape_with_source(&stronger_module,&stronger_receiver,CallableKind::Fn,&shape,None,Some(head),scope,false,&mut Budget::new(&limits)).is_err(),"a numeric Fixed/Invocation pair without the exact original result source is not a view proof");
+        let mut constant=module.clone();let header=constant.closures[0].storage_life.as_mut().unwrap();header.invocation_binder_count=0;header.bindings.clear();header.static_bindings=vec![StoragePosition{base:StorageBase::Result,path:vec![]}];constant.functions[0].storage_life=constant.closures[0].storage_life.clone();
+        let mut source=shape.clone();source.result=blank(shape.result.raw.ty.clone());let scope=DynInstantiationScope{fixed_binder_count:0,invocation_binder_count:1};let mut budget=Budget::new(&limits);
+        let proof=check_shape_with_source(&constant,&receiver,CallableKind::Fn,&shape,Some(&source),Some(head),scope,false,&mut budget).unwrap();
+        assert!(proof.actual_header.static_bindings.contains(&StoragePosition{base:StorageBase::Result,path:vec![]}));assert!(budget.proven_static_occurrences.is_empty(),"a stronger Static structural promise remains a final actual least-root obligation");
+        constant.closures[0].storage_life.as_mut().unwrap().static_bindings.clear();constant.functions[0].storage_life=constant.closures[0].storage_life.clone();assert!(check_shape_with_source(&constant,&receiver,CallableKind::Fn,&shape,Some(&source),Some(head),scope,false,&mut Budget::new(&limits)).is_err(),"absence of a root slot alone cannot discharge the Receiver demand");
     }
     fn signature(result: terms::Value) -> signatures::Resolved {
         signatures::Resolved {
