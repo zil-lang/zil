@@ -239,10 +239,116 @@ fn input_key(
         .map(|r| Fixed::Header(r.header_binder))
         .ok_or_else(|| unsupported(span, "actual capture has no matching creator input context"))
 }
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum InputOrigin {
+    Local(LocalId, BlockId, usize),
+    Value(ValueId),
+}
+/// Authenticate a local alias at this real mint boundary. Only actual loads,
+/// stores and permission-preserving reborrows transport an input identity.
+/// Unknown writes/calls and an ungrounded loop are not alias evidence.
+fn actual_input_origin(
+    creator: FunctionRef<'_>, local: LocalId, at: (BlockId, usize),
+    limits: &Limits, left: &mut usize, span: Span,
+) -> R<Option<u32>> {
+    let mut pending = vec![InputOrigin::Local(local, at.0, at.1)];
+    let mut seen = BTreeSet::new();
+    let mut sources = BTreeSet::new();
+    while let Some(query) = pending.pop() {
+        pay(left, seen.len().saturating_add(1).ilog2() as usize + 2, span)?;
+        if !seen.insert(query) { continue; }
+        if seen.len() > limits.max_nodes { return Err(limit("capture input-alias node limit exceeded", span)); }
+        let mut next = Vec::new();
+        match query {
+            InputOrigin::Value(value) => {
+                let mut selected = None;
+                pay(left, creator.blocks.len(), span)?;
+                for block in creator.blocks {
+                    pay(left, block.instructions.len(), span)?;
+                    for (index, instruction) in block.instructions.iter().enumerate() {
+                        if instruction.result == Some(value)
+                            && selected.replace((block.id, index, &instruction.kind)).is_some()
+                        { return Err(invalid(span, "capture alias SSA has multiple actual producers")); }
+                    }
+                }
+                pay(left, 1, span)?;
+                match selected {
+                    Some((block, index, InstructionKind::Load(local))) =>
+                        next.push(InputOrigin::Local(*local, block, index)),
+                    Some((_, _, InstructionKind::ReborrowAddress { address, .. })) =>
+                        next.push(InputOrigin::Value(*address)),
+                    _ => return Ok(None),
+                }
+            }
+            InputOrigin::Local(local, block, before) => {
+                pay(left, creator.parameters.len().saturating_add(creator.blocks.len()), span)?;
+                let parameter = creator.parameters.iter().position(|input| *input == local);
+                let body = creator.blocks.iter().find(|body| body.id == block)
+                    .ok_or_else(|| invalid(span, "capture alias has no actual block"))?;
+                if before > body.instructions.len() { return Err(invalid(span, "capture alias leaves its actual mint boundary")); }
+                let mut assigned = None;
+                for instruction in body.instructions[..before].iter().rev() {
+                    pay(left, 1, span)?;
+                    match &instruction.kind {
+                        InstructionKind::Store { local: target, value } if *target == local => {
+                            assigned = Some(*value); break;
+                        }
+                        InstructionKind::StorageLive(target) | InstructionKind::StorageDead(target)
+                        | InstructionKind::TakeLocal { local: target }
+                        | InstructionKind::BorrowLocalMut { local: target }
+                            if *target == local => return Ok(None),
+                        InstructionKind::Constant(_) | InstructionKind::Load(_)
+                        | InstructionKind::Store { .. } | InstructionKind::StorageLive(_)
+                        | InstructionKind::StorageDead(_) | InstructionKind::ScopeEnter { .. }
+                        | InstructionKind::ScopeExit { .. } | InstructionKind::BorrowLocal { .. }
+                        | InstructionKind::ReborrowAddress { .. }
+                        | InstructionKind::Unary { .. } | InstructionKind::Binary { .. } => {}
+                        // Calls/indirect writes and every unsupported operation
+                        // are not evidence that an input identity survived.
+                        _ => return Ok(None),
+                    }
+                }
+                if let Some(value) = assigned {
+                    pay(left, 1, span)?;
+                    next.push(InputOrigin::Value(value));
+                } else if block == creator.entry {
+                    let Some(parameter) = parameter else { return Ok(None); };
+                    let parameter = u32::try_from(parameter)
+                        .map_err(|_| limit("capture input ordinal exceeded", span))?;
+                    pay(left, sources.len().saturating_add(1).ilog2() as usize + 2, span)?;
+                    sources.insert(parameter);
+                } else {
+                    pay(left, creator.blocks.len(), span)?;
+                    for predecessor in creator.blocks {
+                        let incoming = match predecessor.terminator {
+                            Terminator::Jump(target) => target == block,
+                            Terminator::Branch { then_block, else_block, .. } => then_block == block || else_block == block,
+                            _ => false,
+                        };
+                        if incoming {
+                            pay(left, 1, span)?;
+                            next.push(InputOrigin::Local(local, predecessor.id, predecessor.instructions.len()));
+                        }
+                    }
+                    if next.is_empty() { return Ok(None); }
+                }
+            }
+        }
+        if pending.len().saturating_add(next.len()) > limits.max_nodes {
+            return Err(limit("capture input-alias frontier limit exceeded", span));
+        }
+        pay(left, next.len(), span)?;
+        pending.extend(next);
+    }
+    // Revisited loop states contribute no new source; a cyclic graph with no
+    // genuine entry source cannot turn the empty fixed point into evidence.
+    Ok((sources.len() == 1).then(|| *sources.iter().next().expect("one actual input")))
+}
+
 fn prepare(
     row: CoreClosureLifeContext,
     creator: FunctionRef<'_>,
-    captures: &[Capture],
+    captures: &[Capture], at: (BlockId, usize), limits: &Limits,
     left: &mut usize,
     span: Span,
 ) -> R<Formation> {
@@ -316,11 +422,7 @@ fn prepare(
     pay(left, captures.len(), span)?;
     for capture in captures {
         pay(left, creator.parameters.len().saturating_add(1), span)?;
-        let input = creator
-            .parameters
-            .iter()
-            .position(|l| *l == capture.source)
-            .map(|i| i as u32);
+        let input = actual_input_origin(creator, capture.source, at, limits, left, span)?;
         let source = creator
             .locals
             .get(capture.source.0 as usize)
@@ -412,13 +514,49 @@ impl State {
                 || !f.callable_parameters.is_empty()
                 || !f.type_parameters.is_empty()
                 || !f.state_parameters.is_empty()
-                || f.callable_return.is_some()
                 || f.call_kind.is_some_and(|k| k != CallKind::Direct)
             {
                 return Err(unsupported(
                     f.span,
                     "source closure creator requires an original ordinary free-function Definition",
                 ));
+            }
+            if let Some(returned) = &f.callable_return {
+                let scope = f.source_scope.as_ref().ok_or_else(|| invalid(f.span,
+                    "callable-return creator has no complete original input scope"))?;
+                let returned_scope = returned.source_life.as_ref().ok_or_else(|| invalid(f.span,
+                    "callable-return creator has no original return scope"))?;
+                self.snapshot(scope.parameters.len().saturating_add(returned_scope.parameters.len())
+                    .saturating_add(scope.inputs.len()).saturating_add(row.inputs.len()), f.span)?;
+                for identity in [&scope.identity, &returned_scope.identity] {
+                    self.snapshot(identity.package.len().saturating_add(identity.generation_path.len()), f.span)?;
+                    for name in identity.module_path.iter().chain(&identity.declaration_path) {
+                        self.snapshot(name.len(), f.span)?;
+                    }
+                }
+                if scope.parameters.iter().chain(&returned_scope.parameters)
+                    .any(|kind| *kind != LifeParameterKind::Lifetime)
+                    || scope.declaration != row.declaration || returned_scope.declaration != row.declaration
+                    || scope.identity != row.identity || returned_scope.identity != row.identity
+                    || scope.parameters != row.parameters || returned_scope.parameters != row.parameters
+                { return Err(invalid(f.span, "closure and callable return change their exact original Definition scope")); }
+                for anchor in &row.inputs {
+                    let anchor_path = match &anchor.position {
+                        CoreClosureHeaderPosition::Borrow(position) => position.path.len(),
+                        CoreClosureHeaderPosition::Class(position) => position.path.len(),
+                    };
+                    self.snapshot(scope.inputs.len().saturating_mul(anchor_path.saturating_add(1)), f.span)?;
+                    for candidate in &scope.inputs {
+                        let path = match &candidate.position {
+                            CoreClosureHeaderPosition::Borrow(position) => position.path.len(),
+                            CoreClosureHeaderPosition::Class(position) => position.path.len(),
+                        };
+                        self.snapshot(path.saturating_add(1), f.span)?;
+                    }
+                    if !scope.inputs.iter().any(|candidate| candidate == anchor) {
+                        return Err(invalid(f.span, "closure input is outside its exact callable-return creator scope"));
+                    }
+                }
             }
             self.snapshot(f.name.len().saturating_add(signatures.len()), f.span)?;
             let id = signatures
@@ -445,6 +583,7 @@ impl State {
         id: ClosureId,
         creator: FunctionRef<'_>,
         expression: NodeId,
+        at: Option<(BlockId, usize)>,
         span: Span,
     ) -> R<()> {
         if self.source_contexts.rows.is_empty() {
@@ -467,6 +606,8 @@ impl State {
             row,
             creator,
             &self.pending[id.0 as usize].captures,
+            at.ok_or_else(|| invalid(span, "source capture has no real mint position"))?,
+            &self.limits,
             &mut self.work_left,
             span,
         )?;
@@ -850,5 +991,65 @@ impl Formation {
             bindings: writer.bindings,
             classes: writer.classes,
         })
+    }
+}
+
+#[cfg(test)]
+mod input_alias_tests {
+    use super::*;
+
+    fn block(id: u32, input: u32, result: u32, next: u32) -> BasicBlock {
+        BasicBlock {
+            id: BlockId(id),
+            instructions: vec![
+                Instruction { result: Some(ValueId(result)), kind: InstructionKind::Load(LocalId(input)), span: Span::default() },
+                Instruction { result: None, kind: InstructionKind::Store { local: LocalId(2), value: ValueId(result) }, span: Span::default() },
+            ],
+            terminator: Terminator::Jump(BlockId(next)),
+        }
+    }
+    fn function(blocks: Vec<BasicBlock>) -> TypedFunction {
+        let ty = Type::Address { mutable: false, inner: Box::new(Type::I32) };
+        TypedFunction {
+            dyn_instance: None, retained_return_sources: None, storage_life: None,
+            call_kind: CallKind::Direct, resume_bound: zil_ir::TaskResumeBound::Local,
+            reference_return_bound: None, callable_return_contract: None,
+            callable_contract: None, protocol_contracts: Vec::new(),
+            id: FunctionId(0), name: "input-alias".into(), foreign: None, environment: None,
+            parameters: vec![LocalId(0), LocalId(1)], return_type: Type::Unit,
+            result_mode: PassingMode::Infer,
+            locals: (0..3).map(|id| LocalDecl { id: LocalId(id), name: format!("p{id}"),
+                ty: ty.clone(), mutable: true, span: Span::default() }).collect(),
+            values: vec![Type::Bool, ty.clone(), ty], blocks, entry: BlockId(0), span: Span::default(),
+        }
+    }
+    #[test]
+    fn capture_alias_requires_one_exact_parameter_on_every_reaching_edge() {
+        for (left, right, expected) in [(0, 0, Some(0)), (1, 1, Some(1)), (0, 1, None)] {
+            let f = function(vec![
+                BasicBlock { id: BlockId(0), instructions: vec![], terminator: Terminator::Branch {
+                    condition: ValueId(0), then_block: BlockId(1), else_block: BlockId(2) } },
+                block(1, left, 1, 3), block(2, right, 2, 3),
+                BasicBlock { id: BlockId(3), instructions: vec![], terminator: Terminator::Return(None) },
+            ]);
+            let limits = Limits::default();
+            let mut left = limits.max_analysis_steps;
+            assert_eq!(actual_input_origin(crate::FunctionRef::from(&f), LocalId(2),
+                (BlockId(3), 0), &limits, &mut left, Span::default()).unwrap(), expected);
+        }
+    }
+    #[test]
+    fn missing_or_replaced_input_is_not_recovered_from_equal_address_types() {
+        let mut f = function(vec![block(0, 0, 1, 1), BasicBlock {
+            id: BlockId(1), instructions: vec![], terminator: Terminator::Return(None) }]);
+        let limits = Limits::default();
+        f.blocks[0].instructions.clear();
+        let mut left = limits.max_analysis_steps;
+        assert_eq!(actual_input_origin(crate::FunctionRef::from(&f), LocalId(2),
+            (BlockId(1), 0), &limits, &mut left, Span::default()).unwrap(), None);
+        f.blocks[0] = block(0, 1, 1, 1);
+        let mut left = limits.max_analysis_steps;
+        assert_eq!(actual_input_origin(crate::FunctionRef::from(&f), LocalId(2),
+            (BlockId(1), 0), &limits, &mut left, Span::default()).unwrap(), Some(1));
     }
 }

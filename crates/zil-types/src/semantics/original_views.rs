@@ -283,13 +283,44 @@ impl Proof {
         }
         *left = left.checked_sub(steps.len()).ok_or_else(|| Diagnostic::limit(
             Phase::Types, "original return-source path work exceeded", None))?;
-        let ViewBorrowRoot::Result(node) = root else {
-            if matches!(root, ViewBorrowRoot::Parameter(_))
-                && !steps.iter().any(|step| matches!(step.kind, ViewBorrowStepKind::Parameter))
-            { return Ok(None); }
-            *left = left.checked_sub(1).ok_or_else(|| Diagnostic::limit(
-                Phase::Types, "original return-source leaf work exceeded", None))?;
-            return Ok(Some(vec![root]));
+        let node = match root {
+            ViewBorrowRoot::Result(node) => node,
+            ViewBorrowRoot::Local(binding) if steps.iter().any(|step|
+                matches!(step.kind, ViewBorrowStepKind::ReadLocal { binding: selected } if selected == binding)) => {
+                let Some(sources) = self.view_local_sources(owner, binding, limits, left)? else {
+                    return Ok(None);
+                };
+                *left = left.checked_sub(active.len().saturating_add(1).ilog2() as usize + 1)
+                    .ok_or_else(|| Diagnostic::limit(Phase::Types, "original local source cycle lookup exceeded", None))?;
+                if !active.insert(binding) { return Err(bad("original local return-source cycle")); }
+                let result = (|| {
+                    let mut roots = Vec::new();
+                    for source in sources {
+                        *left = left.checked_sub(self.view_bounds.len().saturating_add(1).ilog2() as usize + 1)
+                            .ok_or_else(|| Diagnostic::limit(Phase::Types, "local return-source lookup exceeded", None))?;
+                        let Some(bound) = self.view_bounds.get(&(owner, Query::Expression(source))) else { return Ok(None); };
+                        let Some(next) = self.view_sources(owner, bound.root, &bound.steps, limits, left, active, depth + 1)?
+                        else { return Ok(None); };
+                        if roots.len().saturating_add(next.len()) > limits.max_nodes {
+                            return Err(Diagnostic::limit(Phase::Types, "original local source domain node limit exceeded", None));
+                        }
+                        *left = left.checked_sub(next.len()).ok_or_else(|| Diagnostic::limit(
+                            Phase::Types, "original local return-source snapshot exceeded", None))?;
+                        roots.extend(next);
+                    }
+                    Ok(Some(roots))
+                })();
+                active.remove(&binding);
+                return result;
+            }
+            _ => {
+                if matches!(root, ViewBorrowRoot::Parameter(_))
+                    && !steps.iter().any(|step| matches!(step.kind, ViewBorrowStepKind::Parameter))
+                { return Ok(None); }
+                *left = left.checked_sub(1).ok_or_else(|| Diagnostic::limit(
+                    Phase::Types, "original return-source leaf work exceeded", None))?;
+                return Ok(Some(vec![root]));
+            }
         };
         *left = left.checked_sub(active.len().saturating_add(1).ilog2() as usize + steps.len() + 1)
             .ok_or_else(|| Diagnostic::limit(Phase::Types, "original return-source work exceeded", None))?;
@@ -377,6 +408,28 @@ impl Proof {
         Ok(roots.into_iter().filter_map(|root| match root {
             ViewBorrowRoot::Parameter(parameter) => Some(parameter), _ => None,
         }).collect())
+    }
+    pub(in crate::semantics) fn view_local_sources(
+        &self, owner: SemanticDefinitionId, binding: NodeId,
+        limits: &Limits, left: &mut usize,
+    ) -> R<Option<Vec<NodeId>>> {
+        *left = left.checked_sub(self.local_roles.len().saturating_add(1).ilog2() as usize + 1)
+            .ok_or_else(|| Diagnostic::limit(Phase::Types, "local source directory lookup exceeded", None))?;
+        let Some(role) = self.local_roles.get(&(owner, binding)) else { return Ok(None); };
+        if role.sources.len() > limits.max_nodes {
+            return Err(Diagnostic::limit(Phase::Types, "local source directory node limit exceeded", None));
+        }
+        *left = left.checked_sub(role.sources.len()).ok_or_else(|| Diagnostic::limit(
+            Phase::Types, "local source directory snapshot exceeded", None))?;
+        let mut sources = Vec::new();
+        for source in &role.sources {
+            let SemanticOriginalNode::Expression(node) = source.at else { return Ok(None); };
+            *left = left.checked_sub(self.view_bounds.len().saturating_add(1).ilog2() as usize + 1)
+                .ok_or_else(|| Diagnostic::limit(Phase::Types, "local source expression lookup exceeded", None))?;
+            if !self.view_bounds.contains_key(&(owner, Query::Expression(node))) { return Ok(None); }
+            sources.push(node);
+        }
+        Ok((!sources.is_empty()).then_some(sources))
     }
     pub(in crate::semantics) fn view_source_steps(
         &self, owner: SemanticDefinitionId, node: NodeId, limits: &Limits, left: &mut usize,

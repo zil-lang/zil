@@ -3612,8 +3612,10 @@ impl<'a, 'c> Builder<'a, 'c> {
         if let Some(expression) = source_expression {
             self.closures
                 .semantic_closure(self.function.id, expression, id, span)?;
+            let mint = self.current.and_then(|block| self.function.blocks.get(block.0 as usize)
+                .map(|body| (block, body.instructions.len())));
             self.closures
-                .bind_source_context(id, self.function.view(), expression, span)?;
+                .bind_source_context(id, self.function.view(), expression, mint, span)?;
         }
         self.closures.require_source_context(
             id,
@@ -4388,6 +4390,10 @@ impl<'a, 'c> Builder<'a, 'c> {
         } else {
             None
         };
+        if let Some(address) = borrowed_callee {
+            self.closures.semantic_emission.callee_place(self.function.id, callee.id,
+                address, &mut self.closures.work_left, callee.span)?;
+        }
         // A consumed callee has not entered its body while arguments are
         // being evaluated. Park its ownership so a later ? can release it.
         let staged_callee = if kind == CallableKind::FnOnce {

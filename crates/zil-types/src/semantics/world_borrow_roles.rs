@@ -61,10 +61,17 @@ enum ActivationSource {
 /// All real definitions reaching this Load, stopped at the nearest write on
 /// each CFG predecessor path. A loop backedge is not an arbitrary first store.
 fn reaching_values(
+    world: &mut World<'_, '_>, function: &TypedFunction,
+    local: LocalId, at: (BlockId, usize),
+) -> R<Vec<ActivationSource>> {
+    reaching_values_inner(world, function, local, at, false)
+}
+fn reaching_values_inner(
     world: &mut World<'_, '_>,
     function: &TypedFunction,
     local: LocalId,
     at: (BlockId, usize),
+    require_unaliased_writes: bool,
 ) -> R<Vec<ActivationSource>> {
     world.pay(index::search(world.cfg_shapes.len()).saturating_add(1))?;
     let shape = world
@@ -123,6 +130,20 @@ fn reaching_values(
                 {
                     return Err(bad("capture alias has no initialized reaching occupant"));
                 }
+                InstructionKind::Constant(_) | InstructionKind::StaticUtf8 { .. }
+                | InstructionKind::Load(_) | InstructionKind::Store { .. }
+                | InstructionKind::StorageLive(_) | InstructionKind::StorageDead(_)
+                | InstructionKind::ScopeEnter { .. } | InstructionKind::ScopeExit { .. }
+                | InstructionKind::BorrowLocal { .. } | InstructionKind::ReborrowAddress { .. }
+                | InstructionKind::ReadCapture { .. } | InstructionKind::ReadAddress { .. }
+                | InstructionKind::ReadDesc { .. } | InstructionKind::AddressField { .. }
+                | InstructionKind::AddressIndex { .. } | InstructionKind::AddressSlice { .. }
+                | InstructionKind::SliceLength { .. } | InstructionKind::Unary { .. }
+                | InstructionKind::Binary { .. } | InstructionKind::ConvertInteger { .. }
+                | InstructionKind::ConvertNumber { .. } | InstructionKind::ExtractField { .. }
+                | InstructionKind::ReadPackageField { .. } => {}
+                _ if require_unaliased_writes => return Err(bad(
+                    "local returned source crosses an untracked writable operation")),
                 _ => {}
             }
         }
@@ -1045,16 +1066,20 @@ fn trace_steps(
                     ));
                 }
                 let local = binding_local(world, instance, original, *binding, step.node)?;
-                let actual = world.local(locals, local)?;
-                match cursor {
-                    Cursor::Value(value) if matches!(producer(world, function, value)?.0, InstructionKind::Load(found) if *found == local) =>
-                        {}
-                    _ => {
-                        return Err(bad(
-                            "call loan does not read its real reaching mutable local",
-                        ));
-                    }
+                let Cursor::Value(value) = cursor else {
+                    return Err(bad("call loan does not read its real reaching mutable local"));
+                };
+                let (operation, block, instruction) = producer(world, function, value)?;
+                if !matches!(operation, InstructionKind::Load(found) if *found == local) {
+                    return Err(bad("call loan does not read its real reaching mutable local"));
                 }
+                // At an exit, the pointer cell may already be dead; the
+                // previously checked Load still carries the referent loan.
+                let actual = if return_boundary { world.get(values, value)? }
+                    else { world.local(locals, local)? };
+                local_read_sources(world, instance, original, function, *binding,
+                    local, (block, instruction), values, locals, implicit,
+                    return_boundary, depth + 1)?;
                 let expected = world.physical_type(
                     instance.id,
                     &SemanticTypeRecipe::OriginalType {
@@ -1524,7 +1549,10 @@ pub(super) fn return_view(
         let mut selected = None;
         for site in sites {
             world.pay(1)?;
-            if !matches!(site.action, SemanticSiteAction::TypeUse {
+            let call_result = matches!(site.action,
+                SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. }
+                    | SemanticSiteAction::CallableCall { .. });
+            if !call_result && !matches!(site.action, SemanticSiteAction::TypeUse {
                 subject: SemanticOperand::Value(value), ..
             } if value == operand)
             {
@@ -1555,16 +1583,26 @@ pub(super) fn return_view(
             // emitter keys are actual Core mints. The existing relocated
             // TypeUse is the bridge between them, at the real end boundary
             // selected by lower::site, not by numeric NodeId equality.
-            let SemanticSiteAddress::Typed {
-                block,
-                instruction,
-                edge: SemanticSiteEdge::Before,
-            } = site.at
-            else {
-                return Err(bad(
-                    "result view has no relocated actual expression boundary",
-                ));
+            let SemanticSiteAddress::Typed { block, instruction, edge } = site.at else {
+                return Err(bad("result view has no relocated actual expression boundary"));
             };
+            if call_result {
+                if edge != SemanticSiteEdge::After {
+                    return Err(bad("returned call view is not its real post-result boundary"));
+                }
+                world.pay(function.blocks.len())?;
+                let actual_result = function.blocks.iter().find(|row| row.id == block)
+                    .and_then(|row| row.instructions.get(instruction as usize))
+                    .and_then(|operation| operation.result);
+                if actual_result != Some(operand) { continue; }
+                // This same OriginalCall recipe and actual opcode must already
+                // be the exact producer of the returned SSA, not a second
+                // TypeUse manufactured for its lifetime adapter.
+                checked_call_source(world, instance, original, node, site.recipe,
+                    block, instruction as usize)?;
+            } else if edge != SemanticSiteEdge::Before {
+                return Err(bad("result view changes its original type-use boundary"));
+            }
             world.pay(index::search(world.index.expressions.len()))?;
             let emitted = world
                 .index
@@ -1580,11 +1618,17 @@ pub(super) fn return_view(
                     .expressions
                     .get(mint)
                     .ok_or_else(|| bad("result view changes its actual emitter index"))?;
-                if expression.value == Some(operand)
-                    && expression.end.is_some_and(|end| {
-                        end.block == block && end.instruction == instruction as usize
-                    })
-                {
+                world.pay(expression.instructions.len())?;
+                let boundary = if call_result {
+                    expression.instructions.iter().any(|point|
+                        point.block == block && point.instruction == instruction as usize)
+                        && expression.end.is_some_and(|end| end.block == block
+                            && end.instruction > instruction as usize)
+                } else {
+                    expression.end.is_some_and(|end|
+                        end.block == block && end.instruction == instruction as usize)
+                };
+                if expression.value == Some(operand) && boundary {
                     reaches_boundary = true;
                 }
             }
@@ -1593,7 +1637,7 @@ pub(super) fn return_view(
                     "result view changes its relocated expression boundary or actual SSA",
                 ));
             }
-            if selected.replace((node, role)).is_some() {
+            if selected.replace((node, role)).is_some_and(|(previous, _)| previous != node) {
                 return Err(bad(
                     "result SSA has several original result-loan occurrences",
                 ));
@@ -2026,18 +2070,104 @@ fn original_read_value(
         if site.instance != instance.id || !recipes.contains(&site.recipe) {
             continue;
         }
-        let SemanticSiteAction::TypeUse {
-            subject: SemanticOperand::Value(value),
-            ..
-        } = site.action
-        else {
-            continue;
+        let value = match site.action {
+            SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(value), .. } => value,
+            SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. }
+            | SemanticSiteAction::CallableCall { .. } => {
+                let SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After } = site.at else {
+                    return Err(bad("original source call is not its real result boundary"));
+                };
+                let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = instance.target else {
+                    return Err(bad("original source call has no actual function"));
+                };
+                let function = world.function(function)?;
+                world.pay(function.blocks.len())?;
+                let value = function.blocks.iter().find(|row| row.id == block)
+                    .and_then(|row| row.instructions.get(instruction as usize)).and_then(|op| op.result)
+                    .ok_or_else(|| bad("original source call has no actual result SSA"))?;
+                checked_call_source(world, instance, original, node, site.recipe, block, instruction as usize)?;
+                value
+            }
+            _ => continue,
         };
         if selected.replace(value).is_some_and(|old| old != value) {
             return Err(bad("one original loan read has different actual SSA mints"));
         }
     }
     Ok(selected)
+}
+
+/// A mutable pointer's complete original source union is not the pointer
+/// cell itself. Authenticate every real reaching copy against the corresponding
+/// immutable source expression, including grounded self-copy loop backedges.
+#[allow(clippy::too_many_arguments)]
+fn local_read_sources(
+    world: &mut World<'_, '_>, instance: &SemanticInstance, original: &SemanticDefinition,
+    function: &TypedFunction, binding: NodeId, local: LocalId, at: (BlockId, usize),
+    values: &[Option<SharedType>], locals: &[Option<SharedType>],
+    implicit: &BTreeMap<u32, SemanticClassExpr>, return_boundary: bool, depth: usize,
+) -> R<()> {
+    let ledger = world.ledger;
+    let proof = ledger.original.borrow();
+    let proof = proof.as_ref().ok_or_else(|| bad("local loan has no original source proof"))?;
+    let Some(nodes) = proof.view_local_sources(original.id, binding, world.limits, world.left)? else {
+        return Err(bad("local loan has no complete original incoming sources"));
+    };
+    world.pay(nodes.len())?;
+    let mut sources = Vec::new();
+    for node in nodes {
+        let value = original_read_value(world, instance, original, node)?
+            .ok_or_else(|| bad("local loan source lacks its exact original actual read"))?;
+        let (root, steps) = proof.view_source_steps(original.id, node, world.limits, world.left)?
+            .ok_or_else(|| bad("local loan source lacks its complete original path"))?;
+        sources.push((value, root, steps));
+    }
+    let mut pending = Vec::new();
+    for source in reaching_values_inner(world, function, local, at, true)? {
+        let ActivationSource::Value(value) = source else {
+            return Err(bad("local loan replaces its original initializer with a capture"));
+        };
+        world.pay(1)?;
+        pending.push(value);
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    let mut grounded = false;
+    while let Some(value) = pending.pop() {
+        world.pay(index::search(seen.len()).saturating_add(sources.len()).saturating_add(1))?;
+        if !seen.insert(value) { continue; }
+        if seen.len() > world.limits.max_nodes {
+            return Err(Diagnostic::limit(Phase::Types, "local loan reaching-copy node limit exceeded", None));
+        }
+        world.get(values, value)?;
+        if let Some((_, root, steps)) = sources.iter().find(|(source, _, _)| *source == value) {
+            trace_steps(world, instance, original, function, *root, steps, Cursor::Value(value),
+                values, locals, implicit, return_boundary, depth + 1)?;
+            grounded = true;
+            continue;
+        }
+        let (operation, block, instruction) = producer(world, function, value)?;
+        match operation {
+            InstructionKind::ReborrowAddress { address, mutable: false } => {
+                world.pay(1)?;
+                pending.push(*address);
+            }
+            InstructionKind::Load(local) => {
+                for source in reaching_values_inner(world, function, *local, (block, instruction), true)? {
+                    let ActivationSource::Value(value) = source else {
+                        return Err(bad("local loan alias changes its original storage source"));
+                    };
+                    world.pay(1)?;
+                    pending.push(value);
+                }
+            }
+            _ => return Err(bad("local loan value does not reach its original complete source")),
+        }
+        if pending.len() > world.limits.max_nodes {
+            return Err(Diagnostic::limit(Phase::Types, "local loan reaching-copy frontier exceeded", None));
+        }
+    }
+    if !grounded { return Err(bad("local loan alias cycle has no original source")); }
+    Ok(())
 }
 
 /// Source lowering can stage a field in a hygienic local. Authenticate every

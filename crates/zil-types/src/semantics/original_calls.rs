@@ -1817,6 +1817,17 @@ impl Check<'_, '_> {
         if self.declaration_path(base, variables, depth + 1)?.is_some() {
             return Ok(None);
         }
+        // Keep this invocation's preparation fact in its control flow. The
+        // fallback arm of place() fully evaluates an rvalue; Name/Member/Deref
+        // only select a place and still require their own transfer checks.
+        let mut selected_place = base;
+        while let CoreExprKind::Group(inner) = &selected_place.kind {
+            self.pay(1, depth)?;
+            selected_place = inner;
+        }
+        let evaluated_rvalue = !matches!(selected_place.kind,
+            CoreExprKind::Name(_) | CoreExprKind::Member { .. }
+                | CoreExprKind::Unary { op: UnaryOp::Dereference, .. });
         let callee_type = match self.place(owner, base, variables, depth + 1) {
             Ok(ty) => ty,
             Err(diagnostic)
@@ -1870,7 +1881,8 @@ impl Check<'_, '_> {
         if receiver.is_none() {
             match kind {
                 CallableKind::FnOnce => {
-                    self.consume_callable_place(owner, base, variables, depth + 1)?;
+                    self.consume_callable_place(owner, base, variables, &callee_type,
+                        evaluated_rvalue, depth + 1)?;
                 }
                 CallableKind::FnMut => {
                     self.writable(owner, base, variables, depth + 1)?;

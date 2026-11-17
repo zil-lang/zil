@@ -296,7 +296,7 @@ impl Engine<'_> {
             || function
                 .return_type
                 .as_ref()
-                .is_some_and(|result| !scalar_result(result))
+                .is_some_and(|result| !scalar_result(result) && callable::opaque_signature(result).is_none())
         {
             return Err(unavailable(
                 "closure creator requires the complete life-only Definition profile",
@@ -367,6 +367,24 @@ impl Engine<'_> {
             return Err(unavailable(
                 "generated closure creators need complete materialization lineage",
             ));
+        }
+        if function.return_type.as_ref().is_some_and(|ty| callable::opaque_signature(ty).is_some()) {
+            self.budget.identity_work(self.products.callable_returns.rows.len().saturating_add(1), span)?;
+            let mut returned = self.products.callable_returns.rows.iter().flatten()
+                .filter(|row| row.origin == origin);
+            let row = returned.next().ok_or_else(|| unavailable(
+                "closure factory has no complete original callable-return context"))?;
+            if returned.next().is_some() {
+                return Err(unavailable("closure factory repeats its original callable-return context"));
+            }
+            origins::pay_identity(&row.scope.identity, &mut self.budget, span)?;
+            self.budget.identity_work(row.scope.parameters.len().saturating_add(function.generics.len()), span)?;
+            if row.scope.declaration != (zil_ir::LifeDeclarationId {
+                    module: origin.declaration.module, declaration: source.declaration, compiler: false })
+                || row.scope.identity != source.identity
+                || row.scope.parameters.len() != function.generics.len()
+                || row.scope.parameters.iter().any(|kind| *kind != zil_ir::LifeParameterKind::Lifetime)
+            { return Err(unavailable("closure factory changes its complete original return Definition scope")); }
         }
         let source = source.clone();
         original_creator_capability(item, &mut self.budget)?;
@@ -972,12 +990,36 @@ mod tests {
     }
 
     #[test]
+    fn source_closure_context_preserves_shared_input_alias_identity() {
+        // This exact source used to exercise a profile limitation. A copied
+        // reference does not create a new referent; Types still independently
+        // checks every reaching actual Store at the capture mint.
+        let text = format!("{DECL}fn apply<life s>(left:&Tag<'s>)->i32{{let left:&Tag<'s>=left;let f=(p:&Tag<'s>)->i32=>i32(*p.p+*left.p);return f(left)}}");
+        let (_, products) = produce(&text, false, Limits::default().max_analysis_steps).unwrap();
+        let proposal = products.closure_contexts.entries[0].as_ref().unwrap();
+        assert!(!proposal.inputs.is_empty());
+        assert!(proposal.inputs.iter().all(|input| input.parameter == 0));
+    }
+
+    #[test]
+    fn source_closure_context_callable_factory_keeps_exact_alias_parameter() {
+        for (parameters, initializer, ordinal) in [
+            ("p:&'a i32", "p", 0),
+            ("p:&'a i32,q:&'a i32", "q", 1),
+        ] {
+            let text = format!("fn make<life a>({parameters})->impl FnMut(&'a i32)->i32{{var current={initializer};return move(next:&'a i32)=>{{current=next;return *current}}}}");
+            let (_, products) = produce(&text, false, Limits::default().max_analysis_steps).unwrap();
+            let proposal = products.closure_contexts.entries[0].as_ref().unwrap();
+            assert!(!proposal.inputs.is_empty());
+            assert!(proposal.inputs.iter().all(|input| input.parameter == ordinal));
+            assert_eq!(proposal.named_fixed.len(), 1);
+            assert_eq!(proposal.named_fixed[0].parameter, 0);
+        }
+    }
+
+    #[test]
     fn source_closure_context_shadow_nested_and_local_class_do_not_become_inputs() {
         for (body, message) in [
-            (
-                "let left:&Tag<'s>=left;let f=(p:&Tag<'s>)->i32=>i32(*p.p+*left.p);return f(left)",
-                "genuine enclosing definition context",
-            ),
             (
                 "let f=(left:&Tag<'s>)->i32=>i32(*left.p);return f(left)",
                 "actual shared qualified creator input capture",

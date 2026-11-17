@@ -165,6 +165,10 @@ pub(super) fn result_mode(function: &Function) -> R<zil_ir::PassingMode> {
     use zil_ir::PassingMode;
     let mut mode = PassingMode::Infer;
     for clause in &function.contract {
+        // Effect/restoration bounds have their own complete Source ABI
+        // reader (tasks::selection). They do not select a resource result
+        // mode, including on a scalar generic callable consumer.
+        if matches!(clause.name.as_str(), "effects" | "resume") { continue; }
         if matches!(clause.name.as_str(), "requires" | "provides" | "resume")
             && matches!(function.generics.as_slice(),[g] if function.params.iter().any(|p|callable::borrowed_registration(&p.ty,&g.name) || (p.give && callable::owned_registration(&p.ty,&g.name))))
         {
@@ -796,5 +800,33 @@ impl<'n> Shape<'_, '_, 'n, '_> {
 
     fn copy(&mut self, ty: &TypeRef) -> R<bool> {
         copy::concrete_storage(ty, self.nominals, self.budget)
+    }
+}
+
+#[cfg(test)]
+mod result_mode_tests {
+    use super::*;
+    use zil_ir::CallKind;
+    fn function(contract: &str) -> Function {
+        let text = format!("fn parent<F:FnOnce()->i32>(callback:F)->i32 contract{{{contract}}}{{return callback();}}");
+        let source = zil_base::SourceUnit::new(zil_base::FileId(0), zil_base::ModuleId(0), "effects-and-mode.zil", &text);
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let ItemKind::Function(function) = syntax.items.into_iter().next().unwrap().kind else { panic!("function"); };
+        function
+    }
+    #[test]
+    fn generic_scalar_result_keeps_its_independent_effect_upper() {
+        for (contract, expected) in [("effects(io);", CallKind::Direct),
+            ("effects(suspend);", CallKind::Suspend), ("resume(local);", CallKind::Suspend)]
+        {
+            let function = function(contract);
+            assert_eq!(result_mode(&function).unwrap(), zil_ir::PassingMode::Infer);
+            let mut left = Limits::default().max_analysis_steps;
+            assert_eq!(crate::tasks::selection(&function, &mut left).unwrap().0, Some(expected));
+        }
+        let malformed = function("effects(unknown);");
+        let mut left = Limits::default().max_analysis_steps;
+        assert!(crate::tasks::selection(&malformed, &mut left).is_err());
+        assert!(result_mode(&function("result(create);")).is_err());
     }
 }

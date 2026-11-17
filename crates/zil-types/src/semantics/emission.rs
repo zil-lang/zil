@@ -27,6 +27,9 @@ pub(crate) struct Expression {
     pub value: Option<ValueId>,
     pub place: Option<SemanticOperand>,
     pub callee: Option<NodeId>,
+    /// The exact address prepared for this call's whole callee place, before
+    /// arguments. This is not a logical Closure TypeUse or a type premise.
+    pub callee_place: Option<ValueId>,
     /// The actual owner place selected by this dynamic call, before borrowing.
     pub dyn_receiver: Option<NodeId>,
     pub end: Option<Point>,
@@ -583,6 +586,23 @@ impl Ledger {
                 ..Expression::default()
             },
         );
+        Ok(())
+    }
+    pub(crate) fn callee_place(
+        &mut self, function: FunctionId, callee: NodeId, address: ValueId,
+        left: &mut usize, span: Span,
+    ) -> R<()> {
+        if self.frames.is_empty() { return Ok(()); }
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        let Some(frame) = self.frames.get_mut(&function) else { return Ok(()); };
+        let call = *frame.stack.last().ok_or_else(|| invalid(span,
+            "callee place was prepared outside its actual call"))?;
+        pay(left, lookup_cost(frame.expressions.len()).saturating_add(1), span)?;
+        let row = frame.expressions.get_mut(&call).ok_or_else(|| invalid(span,
+            "callee place lost its active call receipt"))?;
+        if row.complete || row.callee != Some(callee) || row.callee_place.replace(address).is_some() {
+            return Err(invalid(span, "callee place changes its actual call preparation"));
+        }
         Ok(())
     }
     pub fn instruction(

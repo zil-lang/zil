@@ -258,12 +258,15 @@ impl Check<'_, '_> {
         owner: SemanticDefinitionId,
         expression: &SemanticOriginalExpr,
         variables: &mut BTreeMap<String, Binding>,
+        prepared: &SemanticTypeRecipe,
+        evaluated_rvalue: bool,
         depth: usize,
     ) -> R<()> {
         self.pay(1, depth)?;
         match &expression.kind {
             CoreExprKind::Group(inner) => {
-                self.consume_callable_place(owner, inner, variables, depth + 1)
+                self.consume_callable_place(owner, inner, variables, prepared,
+                    evaluated_rvalue, depth + 1)
             }
             CoreExprKind::Name(_) => {
                 self.expr(owner, expression, variables, None, depth + 1)?;
@@ -298,12 +301,23 @@ impl Check<'_, '_> {
                 self.observe_capture(owner, name, binding, depth + 1)?;
                 Ok(())
             }
-            _ => {
-                // Rvalues still undergo their complete original expression
-                // typing; no field or owner is inferred from a matching type.
-                self.expr(owner, expression, variables, None, depth + 1)?;
+            CoreExprKind::Unary { op: UnaryOp::Dereference, .. } => {
+                // place() already checked/evaluated the pointer exactly once.
+                // Observing its pointee did not transfer it: keep the original
+                // independent Copy gate instead of consuming a borrowed owner.
+                if !self.copy_type(owner, prepared, depth + 1)? {
+                    return Err(bad("original dereference cannot transfer a non-Copy pointee"));
+                }
                 Ok(())
             }
+            _ if evaluated_rvalue => {
+                // This exact prepare, not a cached QueryExpression, already
+                // executed the rvalue's complete input/capture transfers.
+                // Consumption and remaining-environment cleanup are checked
+                // by the selected operation; evaluating it again double-moves.
+                Ok(())
+            }
+            _ => Err(bad("callable transfer lacks its actual evaluated preparation")),
         }
     }
 

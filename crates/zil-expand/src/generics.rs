@@ -9,8 +9,9 @@ type R<T> = Result<T, Diagnostic>;
 pub(super) fn structural_value_bound(ty: &TypeRef) -> bool {
     trait_bounds::value::is_bound(ty)
 }
-// The real lexical binding carries its creator-input origin. Ordinary binding
-// insertion clears that origin even when the spelling and type are identical.
+// The real lexical binding carries its creator-input origin. Insertion clears
+// it by default; an actual transparent input copy may explicitly transport it.
+// Equal spelling or type alone never establishes this origin.
 #[derive(Clone, Default)]
 struct Env {
     bindings: BTreeMap<String, EnvBinding>,
@@ -2669,6 +2670,17 @@ impl<'a> Engine<'a> {
             StmtKind::Binding {
                 pattern, ty, value, ..
             } => {
+                // Input lineage is only a proposal for this exact initializer;
+                // Types authenticates every reaching actual Store/Load at mint.
+                let mut origin: &Expr = value;
+                while let ExprKind::Group(inner) = &origin.kind {
+                    self.budget.node(origin.span, depth)?;
+                    origin = inner;
+                }
+                let input_origin = if let ExprKind::Name(name) = &origin.kind {
+                    self.budget.identity_work(env.len().saturating_add(name.len()), origin.span)?;
+                    env.bindings.get(name).and_then(|binding| binding.input)
+                } else { None };
                 let source_enum = if let Some(t) = ty.as_ref()
                     && self.stored_nominals
                     && let TypeKind::Named { path, args } = &grouped(t).kind
@@ -2707,6 +2719,11 @@ impl<'a> Engine<'a> {
                     bind(pattern, actual, env);
                     self.bind_resource_access(pattern, value, ty.as_ref(), env)?;
                     self.bind_semantic_source(pattern, env)?;
+                    if let PatternKind::Name(name) = &pattern.kind {
+                        if let Some(binding) = env.bindings.get_mut(name) {
+                            binding.input = input_origin;
+                        }
+                    }
                 }
                 // The exact original local annotation and its scoped class
                 // recipe are already in the semantic body/emission directory,
@@ -2741,8 +2758,24 @@ impl<'a> Engine<'a> {
                 self.expr(e, env, depth + 1)?;
             }
             StmtKind::Assign { target, value, .. } => {
+                let mut source: &Expr = value;
+                while let ExprKind::Group(inner) = &source.kind {
+                    self.budget.node(source.span, depth)?;
+                    source = inner;
+                }
+                let input = if let ExprKind::Name(name) = &source.kind {
+                    self.budget.identity_work(env.len().saturating_add(name.len()), source.span)?;
+                    env.bindings.get(name).and_then(|binding| binding.input)
+                } else { None };
                 let expected = self.expr(target, env, depth + 1)?;
                 self.expr_expected(value, env, expected.as_ref(), depth + 1)?;
+                if let ExprKind::Name(name) = &target.kind {
+                    if let Some(binding) = env.bindings.get_mut(name)
+                        && binding.closure_depth == env.closure_depth
+                    {
+                        binding.input = input;
+                    }
+                }
             }
             StmtKind::If {
                 condition,

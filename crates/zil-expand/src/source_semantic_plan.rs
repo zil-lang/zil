@@ -232,7 +232,7 @@ fn projection_value(
         };
         match parent.node {
             body_nodes::Node::Statement(statement) => {
-                return Ok(!matches!(&statement.kind,s::StmtKind::Assign {..} if child==0));
+                return Ok(!matches!(&statement.kind,s::StmtKind::Assign {op: s::AssignOp::Set, ..} if child==0));
             }
             body_nodes::Node::Expression(expression) => match &expression.kind {
                 s::ExprKind::Group(_) if child == 0 => length -= 1,
@@ -467,7 +467,7 @@ fn assignment_navigation(
         };
         match parent.node {
             body_nodes::Node::Statement(statement) => {
-                return Ok(matches!(&statement.kind, s::StmtKind::Assign { .. } if child == 0));
+                return Ok(matches!(&statement.kind, s::StmtKind::Assign { op: s::AssignOp::Set, .. } if child == 0));
             }
             body_nodes::Node::Expression(expression) => match &expression.kind {
                 s::ExprKind::Group(_) | s::ExprKind::Member { .. } | s::ExprKind::Index { .. }

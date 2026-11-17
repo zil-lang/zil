@@ -406,6 +406,31 @@ fn capture_dependencies_ready(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
+fn operand_type(
+    program: &SemanticModule, module: &super::super::materialize::ActualDirectory<'_>,
+    ledger: &super::super::emission::Ledger, instance: &SemanticInstance,
+    base: &str, recipe: &SemanticTypeRecipe, hint: Option<&Type>,
+    limits: &Limits, left: &mut usize,
+) -> R<SemanticTypeValue> {
+    match super::super::materialize::type_in_view(program, module, ledger,
+        instance.id, recipe, hint, limits, left)
+    {
+        Ok(value) => Ok(value),
+        Err(mut error) => {
+            crate::dyn_metadata::semantic_operand_snapshot(instance, limits, left, 1)?;
+            crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
+            if let Some(hint) = hint {
+                inference::charge_type_snapshot(hint, Span::default(), limits, left, 1)?;
+            }
+            let detail = format!("original closure header operand {base:?}: instance {instance:?}; original recipe {recipe:?}; complete physical hint {hint:?}");
+            pay(left, detail.len())?;
+            error.notes.push(detail);
+            Err(error)
+        }
+    }
+}
+
 fn capture_value(
     program: &SemanticModule,
     module: &super::super::materialize::ActualDirectory<'_>,
@@ -422,16 +447,8 @@ fn capture_value(
         scope: SemanticScopeRef::Ancestor(0),
         ordinal,
     };
-    let value = super::super::materialize::type_in_view(
-        program,
-        module,
-        ledger,
-        instance.id,
-        &expected,
-        None,
-        limits,
-        left,
-    )?;
+    let value = operand_type(program, module, ledger, instance,
+        "capture environment", &expected, None, limits, left)?;
     let SemanticTypeValue::Resolved {
         ty: original_ty, ..
     } = &value
@@ -1547,16 +1564,8 @@ fn emitted_operands(
             scope: SemanticScopeRef::Ancestor(0),
             source: SemanticOriginalTypeSource::Parameter(ordinal as u32),
         };
-        let value = super::super::materialize::type_in_view(
-            program,
-            module,
-            ledger,
-            instance.id,
-            &recipe,
-            Some(actual),
-            limits,
-            left,
-        )?;
+        let value = operand_type(program, module, ledger, instance,
+            "parameter", &recipe, Some(actual), limits, left)?;
         if !matches!(&value, SemanticTypeValue::Resolved { ty, .. } if ty == actual) {
             return Err(bad(
                 "closure directory completion changes an original parameter type",
@@ -1568,16 +1577,8 @@ fn emitted_operands(
         scope: SemanticScopeRef::Ancestor(0),
         source: SemanticOriginalTypeSource::Result,
     };
-    let value = super::super::materialize::type_in_view(
-        program,
-        module,
-        ledger,
-        instance.id,
-        &recipe,
-        Some(entry.result()?),
-        limits,
-        left,
-    )?;
+    let value = operand_type(program, module, ledger, instance,
+        "result", &recipe, Some(entry.result()?), limits, left)?;
     if !matches!(&value, SemanticTypeValue::Resolved { ty, .. } if ty == entry.result()?) {
         return Err(bad(
             "closure directory completion changes its original result type",

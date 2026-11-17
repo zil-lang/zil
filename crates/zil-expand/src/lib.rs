@@ -1619,6 +1619,21 @@ impl Expander<'_> {
         };
         let read = self.expr_node(read, span);
         self.role(read.id, ExpansionRole::TemporaryRead, Vec::new());
+        // The original compound target observes the old value before writing.
+        // Its linear Source event belongs to this actual read, not to the
+        // post-store place or a second observation with an invented identity.
+        let work = self.semantic_node_emissions.len();
+        if work > self.member_owner_limit.saturating_sub(self.member_owner_work) {
+            self.diagnostics.push(Diagnostic::limit(Phase::Expand,
+                "compound read correspondence work exceeded", Some(span)));
+        } else {
+            self.member_owner_work += work;
+            for event in &mut self.semantic_node_emissions {
+                if !event.statement && Some(event.creator) == self.current_function
+                    && event.node == source_id
+                { event.node = read.id; }
+            }
+        }
         Some((target, read))
     }
     fn tuple_binding_pattern(pattern: &s::Pattern) -> bool {

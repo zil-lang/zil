@@ -61,8 +61,59 @@ pub(super) fn check(
             }
         }
     }
-    let source = source
-        .ok_or_else(|| pending("borrowed callee lacks its exact original whole-place receipt"))?;
+    if source.is_none() {
+        // A prepared member address has no logical Closure TypeUse: inventing
+        // one would compare Address<Closure> with Closure. Select its private
+        // emitter receipt only through this exact OriginalCall's actual opcode.
+        let recipe = world.original_recipe(original, call.recipe)?;
+        if !matches!(recipe.kind, SemanticSiteRecipeKind::OriginalCall)
+            || !matches!(call.at, SemanticSiteAddress::Typed { edge: SemanticSiteEdge::After, .. })
+        {
+            return Err(bad("prepared callee place is not its original call"));
+        }
+        let ledger = world.ledger;
+        let frame = ledger.frames.get(&id)
+            .ok_or_else(|| bad("prepared callee place lost its actual emission frame"))?;
+        world.pay(function.blocks.len())?;
+        let operation = function.blocks.iter().find(|row| row.id == block)
+            .and_then(|row| row.instructions.get(instruction as usize))
+            .ok_or_else(|| bad("prepared callee place has no actual call opcode"))?;
+        let InstructionKind::CallClosureBorrowed { callee, .. } = &operation.kind else {
+            return Err(bad("prepared callee place changed its borrowed call opcode"));
+        };
+        world.pay(frame.expressions.len())?;
+        let mut selected = None;
+        for row in frame.expressions.values() {
+            let Some(address) = row.callee_place else { continue; };
+            world.pay(row.instructions.len())?;
+            if row.callee.is_none() || !row.instructions.iter().any(|point|
+                point.block == block && point.instruction == instruction as usize)
+                || !row.end.is_some_and(|end| end.block == block && end.instruction > instruction as usize)
+            { continue; }
+            if address != *callee || selected.replace(address).is_some() {
+                return Err(bad("prepared callee place changes its exact call or address"));
+            }
+        }
+        let address = selected.ok_or_else(|| pending(
+            "borrowed callee lacks its exact original whole-place receipt"))?;
+        let value = world.get(values, address)?;
+        world.pay(1)?;
+        // Actual projection/permission/type checks have already formed this
+        // address. The receipt only preserves which place this call selected;
+        // it grants no ownership or permission and cannot select by type.
+        let selected = roles::outer(world, &value)?;
+        let expected = roles::outer(world, raw)?;
+        for source in [&selected, &expected] {
+            if let roles::Source::Class(class) = source {
+                crate::dyn_metadata::semantic_operand_snapshot(class, world.limits, world.left, 1)?;
+            }
+        }
+        if selected != expected {
+            return Err(bad("prepared callee place changes its complete actual address occurrence"));
+        }
+        return Ok(());
+    }
+    let source = source.expect("checked original place selection");
     let mut image = roles::outer(world, raw)?;
     let mut seen = std::collections::BTreeSet::new();
     loop {

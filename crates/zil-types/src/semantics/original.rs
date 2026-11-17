@@ -5073,6 +5073,7 @@ impl<'a> Check<'a, '_> {
                     };
                     let value = if *mutable && (ty.is_none() || family) {
                         if let Some(initializer) = initializer {
+                            self.view_bound(owner, initializer, variables, depth + 1)?;
                             self.introduce_role(
                                 owner,
                                 statement.id,
@@ -5135,7 +5136,21 @@ impl<'a> Check<'a, '_> {
                     let value = if task_family {
                         self.task_return_value(owner, value, variables, result, depth + 1)?
                     } else {
-                        let target = self.resolve(owner, result, depth + 1).ok();
+                        // The declaration is a typing goal, not its yet-unproved
+                        // hidden result equation. Resolving the current opaque's
+                        // Result here would depend on the closure we are about
+                        // to check and discard its declared parameter goals.
+                        let target = if matches!(result, SemanticTypeRecipe::Opaque {
+                            definition, hidden, ..
+                        } if *definition == owner && matches!(hidden.as_ref(),
+                            SemanticTypeRecipe::OriginalType {
+                                scope: SemanticScopeRef::Ancestor(0),
+                                source: SemanticOriginalTypeSource::Result,
+                            })) {
+                            Some(copy_recipe(result, self.limits, self.left)?)
+                        } else {
+                            self.resolve(owner, result, depth + 1).ok()
+                        };
                         // A receiver is a boundary upper, never a replacement
                         // for the original borrow expression's own sigma.
                         let target = target.as_ref().filter(|value| !matches!(value,
@@ -5332,6 +5347,7 @@ impl<'a> Check<'a, '_> {
                                 .local_roles
                                 .contains_key(&(binding.origin_owner, statement))
                             {
+                                self.view_bound(owner, value, variables, depth + 1)?;
                                 self.assign_role(
                                     owner,
                                     binding.origin_owner,
