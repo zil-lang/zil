@@ -1,0 +1,1135 @@
+diff --git a/crates/zil-analyze/src/budget.rs b/crates/zil-analyze/src/budget.rs
+index 5c01ebe91..9e71551f9 100644
+--- a/crates/zil-analyze/src/budget.rs
++++ b/crates/zil-analyze/src/budget.rs
+@@ -121,6 +121,7 @@ pub(super) struct Budget {
+     // Exact owning Task DropManaged sites discharged by the complete actual
+     // resource fixed point. This is never a structural SyncDrop theorem.
+     pub(super) semantic_cleanup_proofs: BTreeSet<(FunctionId, zil_ir::BlockId, usize, LocalId)>,
++    pub(super) semantic_capture_cleanups: BTreeSet<(zil_ir::ClosureId, u32)>,
+     // Exact constructor occurrences whose complete original class value and
+     // actual header embedding have both been proved. No target/loan facts.
+     pub(super) semantic_aggregate_classes:
+@@ -318,6 +319,7 @@ impl Budget {
+             semantic_raw_local_shapes: BTreeMap::new(),
+             semantic_cleanup_sites: BTreeSet::new(),
+             semantic_cleanup_proofs: BTreeSet::new(),
++            semantic_capture_cleanups: BTreeSet::new(),
+             semantic_aggregate_classes: BTreeMap::new(),
+             stored_synchronous_abis: BTreeSet::new(),
+             stored_task_frame_functions: BTreeSet::new(),
+diff --git a/crates/zil-analyze/src/lib.rs b/crates/zil-analyze/src/lib.rs
+index c6f2fce38..c805fdf73 100644
+--- a/crates/zil-analyze/src/lib.rs
++++ b/crates/zil-analyze/src/lib.rs
+@@ -152,6 +152,7 @@ fn analyze_budgeted_context(
+     budget.semantic_raw_local_shapes.clear();
+     budget.semantic_cleanup_sites.clear();
+     budget.semantic_cleanup_proofs.clear();
++    budget.semantic_capture_cleanups.clear();
+     budget.stored_synchronous_abis.clear();
+     budget.stored_task_frame_functions.clear();
+     budget.stored_task_frame_pending = false;
+@@ -269,7 +270,7 @@ fn analyze_budgeted_context(
+                 }
+             }
+             stored_holds = Some(stored_flow::infer(module, &hold_graphs, budget)?);
+-        } else if task_frame_calls || !budget.semantic_cleanup_sites.is_empty() {
++        } else if task_frame_calls || !budget.semantic_cleanup_sites.is_empty() || !budget.semantic_capture_cleanups.is_empty() {
+             // A concrete original cleanup is not a structural SyncDrop
+             // theorem. Keep the stored source proof and continue through the
+             // ordinary Task graph and resource ledger before discharging it.
+@@ -513,7 +514,8 @@ fn publish_holds(
+     plan: &mut CandidatePlan,
+     budget: &mut Budget,
+ ) -> CompileResult<()> {
+-    if !budget.semantic_cleanup_sites.is_empty() || !budget.semantic_cleanup_proofs.is_empty() {
++    if !budget.semantic_cleanup_sites.is_empty() || !budget.semantic_cleanup_proofs.is_empty()
++        || !budget.semantic_capture_cleanups.is_empty() {
+         return Err(bad("original concrete cleanup obligations remain undischarged at publication"));
+     }
+     if budget.stored_task_frame_pending {
+diff --git a/crates/zil-analyze/src/semantic/original.rs b/crates/zil-analyze/src/semantic/original.rs
+index 0a3f06fc7..7bb53e12b 100644
+--- a/crates/zil-analyze/src/semantic/original.rs
++++ b/crates/zil-analyze/src/semantic/original.rs
+@@ -10,6 +10,7 @@ pub(super) mod borrow_places;
+ mod buffers;
+ mod capabilities;
+ mod cleanup;
++pub(super) use cleanup::Source as CleanupSource;
+ mod call_regions;
+ mod captures;
+ mod constructors;
+@@ -296,8 +297,7 @@ struct Solver<'a, 'i> {
+     literals: Vec<Literal>,
+     integers: Vec<Term>,
+     needs: Vec<Need>,
+-    cleanup_terms: Vec<Term>,
+-    cleanup_origins: BTreeMap<usize, (SemanticDefinitionId, LocalAnchor)>,
++    cleanup_terms: Vec<cleanup::Occurrence>,
+     callable_needs: Vec<CallableNeed>,
+     mutating_closures: BTreeSet<SemanticDefinitionId>,
+     role_frames: Vec<roles::RoleFrame>,
+@@ -3093,7 +3093,7 @@ impl Solver<'_, '_> {
+                 CoreStatementKind::Expression(value) => {
+                     let discarded = self.expression(frame, value, b, depth + 1)?;
+                     if frame.alive {
+-                        Self::push(&mut self.cleanup_terms, discarded, b)?;
++                        self.record_cleanup(discarded, &cleanup::Origin::expression(frame.definition, value.id), &[], b)?;
+                     }
+                 }
+                 CoreStatementKind::Return(value) => {
+@@ -3441,7 +3441,8 @@ impl Solver<'_, '_> {
+                     if frame.alive {
+                         let old = &frame.locals[index];
+                         if old.live {
+-                            self.cleanup_partial(old.ty, &[], &old.vacant, b, 0)?;
++                            let origin = cleanup::Origin::local(frame.definition, old.anchor, cleanup::Event::Replace(statement.id));
++                            self.cleanup_partial(old.ty, &[], &old.vacant, &origin, b, 0)?;
+                         }
+                         frame.locals[index].used = false;
+                         frame.locals[index].initialized = true;
+@@ -4155,7 +4156,6 @@ pub(super) fn check(
+         integers: Vec::new(),
+         needs: Vec::new(),
+         cleanup_terms: Vec::new(),
+-        cleanup_origins: BTreeMap::new(),
+         callable_needs: Vec::new(),
+         mutating_closures: BTreeSet::new(),
+         role_frames: Vec::new(),
+@@ -4603,14 +4603,8 @@ impl Solver<'_, '_> {
+         for local in locals {
+             b.spend(1, WORK)?;
+             if local.live && !local.borrowed {
+-                let first = self.cleanup_terms.len();
+-                self.cleanup_partial(local.ty, &[], &local.vacant, b, 0)?;
+-                if local.vacant.is_empty() && let Some(anchor) = local.anchor {
+-                    for ordinal in first..self.cleanup_terms.len() {
+-                        b.lookup(self.cleanup_origins.len(), WORK)?;
+-                        self.cleanup_origins.insert(ordinal, (definition, anchor));
+-                    }
+-                }
++                let origin = cleanup::Origin::local(definition, local.anchor, cleanup::Event::Scope);
++                self.cleanup_partial(local.ty, &[], &local.vacant, &origin, b, 0)?;
+             }
+         }
+         Ok(())
+diff --git a/crates/zil-analyze/src/semantic/original/captures.rs b/crates/zil-analyze/src/semantic/original/captures.rs
+index 5b67a8ba3..a2294ed46 100644
+--- a/crates/zil-analyze/src/semantic/original/captures.rs
++++ b/crates/zil-analyze/src/semantic/original/captures.rs
+@@ -174,13 +174,16 @@ impl Solver<'_, '_> {
+                                 })?
+                                 .ty;
+                             let vacant = self.copy_vacancies(vacant, b)?;
+-                            Self::push(&mut remaining, (term, vacant), b)?;
++                            let local = &frame.locals[*index];
++                            let anchor = self.environment_anchor(frame, &local.name, b)?;
++                            Self::push(&mut remaining, (term, vacant, anchor), b)?;
+                         }
+                     }
+                 }
+             }
+-            for (term, vacant) in remaining {
+-                self.cleanup_partial(term, &[], &vacant, b, 0)?;
++            for (term, vacant, anchor) in remaining {
++                let origin = cleanup::Origin::local(definition, Some(anchor), cleanup::Event::CaptureExit);
++                self.cleanup_partial(term, &[], &vacant, &origin, b, 0)?;
+             }
+         }
+         Ok(())
+diff --git a/crates/zil-analyze/src/semantic/original/cleanup.rs b/crates/zil-analyze/src/semantic/original/cleanup.rs
+index fe35bea60..5dc27590e 100644
+--- a/crates/zil-analyze/src/semantic/original/cleanup.rs
++++ b/crates/zil-analyze/src/semantic/original/cleanup.rs
+@@ -3,9 +3,33 @@
+ //! worker/frame proof until raw preflight and the resource ledger complete.
+ use super::*;
+ 
++#[derive(Clone, Copy, Debug)]
++pub(super) enum Event { Scope, Replace(NodeId), Backedge, CaptureExit, Discard(NodeId) }
++#[derive(Clone, Copy)]
++pub(in crate::semantic) enum Source { Local(LocalAnchor), Expression(NodeId), Unknown }
++#[derive(Clone)]
++pub(super) struct Origin {
++    pub(in crate::semantic) definition: SemanticDefinitionId,
++    pub(in crate::semantic) source: Source,
++    pub(in crate::semantic) path: Vec<u32>,
++    pub(super) event: Event,
++}
++impl Origin {
++    pub(super) fn local(definition: SemanticDefinitionId, anchor: Option<LocalAnchor>, event: Event) -> Self {
++        Self { definition, source: anchor.map(Source::Local).unwrap_or(Source::Unknown), path: Vec::new(), event }
++    }
++    pub(super) fn expression(definition: SemanticDefinitionId, node: NodeId) -> Self {
++        Self { definition, source: Source::Expression(node), path: Vec::new(), event: Event::Discard(node) }
++    }
++}
++pub(super) struct Occurrence {
++    pub(super) term: Term,
++    pub(super) origin: Origin,
++}
+ pub(in crate::semantic) struct Pending {
+     pub(in crate::semantic) definition: SemanticDefinitionId,
+-    pub(in crate::semantic) anchor: LocalAnchor,
++    pub(in crate::semantic) source: Source,
++    pub(in crate::semantic) path: Vec<u32>,
+     term: Term,
+ }
+ 
+@@ -24,6 +48,13 @@ impl Checked {
+ }
+ 
+ impl Solver<'_, '_> {
++    pub(super) fn record_cleanup(&mut self, term: Term, origin: &Origin,
++        path: &[u32], b: &mut Budget) -> CompileResult<()> {
++        b.spend(path.len().saturating_add(origin.path.len() + 1), WORK)?;
++        let mut source = origin.clone();
++        source.path = path.to_vec();
++        Self::push(&mut self.cleanup_terms, Occurrence { term, origin: source }, b)
++    }
+     fn task_cleanup_environment(
+         &self,
+         term: Term,
+@@ -64,110 +95,34 @@ impl Solver<'_, '_> {
+         }
+     }
+ 
+-    fn bind_cleanup(
+-        &self,
+-        module: &TypedModule,
+-        term: Term,
+-        b: &mut Budget,
+-    ) -> CompileResult<bool> {
+-        let mut term = self.root(term, b)?;
+-        for depth in 0..=b.partial_depth {
+-            self.step(depth, b)?;
+-            if let Kind::CallResult { hidden, .. } = self.state.arena[term] {
+-                term = self.root(hidden, b)?;
+-            } else {
+-                break;
+-            }
+-        }
+-        let Kind::Closure { definition, .. } = self.state.arena[term] else {
+-            return Ok(false);
+-        };
+-        if !self.task_cleanup_environment(term, b, 0)? {
+-            return Ok(false);
+-        }
+-        let mut closures = BTreeSet::new();
+-        for instance in &self.program.instances {
+-            b.spend(1, WORK)?;
+-            if instance.definition != definition {
+-                continue;
+-            }
+-            let SemanticInstanceTarget::Function(target) = &instance.target else {
+-                return Err(fail("original concrete cleanup has no actual function instance"));
+-            };
+-            let entry = self.inventory.function(target, b)?;
+-            let id = entry.environment.ok_or_else(|| fail(
+-                "original concrete cleanup loses its actual closure environment"))?;
+-            let environment = instance.environment.as_ref().ok_or_else(|| fail(
+-                "original concrete cleanup has no complete creator environment"))?;
+-            let closure = module.closures.get(id.0 as usize)
+-                .filter(|closure| closure.id == id && closure.function == entry.id)
+-                .ok_or_else(|| fail("original concrete cleanup has another actual closure entry"))?;
+-            if environment.closure != SemanticClosureTarget::Typed(closure.id) {
+-                return Err(fail("original concrete cleanup changes its actual environment identity"));
+-            }
+-            b.lookup(closures.len(), WORK)?;
+-            closures.insert(id);
+-        }
+-        if closures.is_empty() {
+-            return Err(fail("original concrete cleanup has no complete actual closure instance"));
+-        }
+-        let mut found = BTreeSet::new();
+-        for function in &module.functions {
+-            for block in &function.blocks {
+-                for (position, instruction) in block.instructions.iter().enumerate() {
+-                    b.spend(1, WORK)?;
+-                    let InstructionKind::DropClosure { local } = instruction.kind else {
+-                        continue;
+-                    };
+-                    let Some(Type::Closure(id)) = function.locals.get(local.0 as usize)
+-                        .filter(|declaration| declaration.id == local).map(|declaration| &declaration.ty)
+-                    else { continue; };
+-                    b.lookup(closures.len(), WORK)?;
+-                    if !closures.contains(id) { continue; }
+-                    b.lookup(b.semantic_cleanup_sites.len(), WORK)?;
+-                    b.semantic_cleanup_sites.insert((function.id, block.id, position, local, Some(*id)));
+-                    b.lookup(found.len(), WORK)?;
+-                    found.insert(*id);
+-                }
+-            }
+-        }
+-        b.spend(closures.len().saturating_add(found.len()), WORK)?;
+-        if found != closures {
+-            return Err(fail("original concrete cleanup has no actual DropClosure site for every instance"));
+-        }
+-        Ok(true)
+-    }
+-
+-    pub(super) fn check_cleanups(&mut self, module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
++    pub(super) fn check_cleanups(&mut self, _module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+         for ordinal in 0..self.cleanup_terms.len() {
+-            let term = self.cleanup_terms[ordinal];
+-            if self.satisfies(term, Predicate::SyncDrop, b, 0)? {
+-                continue;
+-            }
+-            b.lookup(self.cleanup_origins.len(), WORK)?;
+-            if let Some((definition, anchor)) = self.cleanup_origins.get(&ordinal).copied() {
+-                let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
+-                    &self.inventory.definition(definition, b)?.body else {
+-                        return Err(fail("original cleanup occurrence has no complete declaration ABI"));
+-                    };
+-                let suspend = signature.call_kind == CallKind::Suspend;
+-                // A concrete owning Task can owe an actual cleanup theorem.
+-                // An abstract closed environment can owe a Suspend frame
+-                // theorem, never a SyncDrop predicate or Direct permission.
+-                if self.task_cleanup_environment(term, b, 0)?
++            let occurrence = &self.cleanup_terms[ordinal];
++            let term = occurrence.term;
++            if self.satisfies(term, Predicate::SyncDrop, b, 0)? { continue; }
++            let origin = &occurrence.origin;
++            let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
++                &self.inventory.definition(origin.definition, b)?.body else {
++                    return Err(fail("original cleanup occurrence has no complete declaration ABI"));
++                };
++            let suspend = signature.call_kind == CallKind::Suspend;
++            if !matches!(origin.source, Source::Unknown)
++                && (self.task_cleanup_environment(term, b, 0)?
+                     || suspend && self.satisfies(term,
+-                        Predicate::Capability(SemanticBuiltinTrait::ClosedEnvironment), b, 0)?
+-                {
+-                    Self::push(&mut self.state.pending_cleanups, Pending { definition, anchor, term }, b)?;
+-                    continue;
+-                }
+-            }
+-            if !self.bind_cleanup(module, term, b)? {
+-                let mut errors = fail("original live cleanup edge requires SyncDrop or its complete actual Task cleanup proof");
+-                errors[0].notes.push(format!("original cleanup term {}, whole kind {:?}",
+-                    self.type_root(term, b)?, std::mem::discriminant(&self.state.arena[self.type_root(term, b)?])));
+-                return Err(errors);
++                        Predicate::Capability(SemanticBuiltinTrait::ClosedEnvironment), b, 0)?)
++            {
++                b.spend(origin.path.len(), WORK)?;
++                let pending = Pending { definition: origin.definition, source: origin.source,
++                    path: origin.path.clone(), term };
++                Self::push(&mut self.state.pending_cleanups, pending, b)?;
++                continue;
+             }
++            b.spend(160, WORK)?;
++            let mut errors = fail("original live cleanup edge requires SyncDrop or its complete actual Task cleanup proof");
++            errors[0].notes.push(format!("original cleanup definition {:?}, event {:?}, subject {}, selector {:?}, whole kind {:?}",
++                origin.definition, origin.event, self.type_root(term, b)?, origin.path,
++                std::mem::discriminant(&self.state.arena[self.type_root(term, b)?])));
++            return Err(errors);
+         }
+         Ok(())
+     }
+diff --git a/crates/zil-analyze/src/semantic/original/loops.rs b/crates/zil-analyze/src/semantic/original/loops.rs
+index b58ef68db..ee9a7096b 100644
+--- a/crates/zil-analyze/src/semantic/original/loops.rs
++++ b/crates/zil-analyze/src/semantic/original/loops.rs
+@@ -265,7 +265,7 @@ impl Solver<'_, '_> {
+             }
+             for (old, next) in before.iter().zip(edge) {
+                 b.spend(1, WORK)?;
+-                self.cleanup_reintroduced(old, next, b)?;
++                self.cleanup_reintroduced(frame.definition, old, next, b)?;
+                 for hole in &next.maybe_vacant {
+                     let mut was_missing = false;
+                     for prior in &old.maybe_vacant {
+diff --git a/crates/zil-analyze/src/semantic/original/place_writes.rs b/crates/zil-analyze/src/semantic/original/place_writes.rs
+index 04b4112ac..f9044951c 100644
+--- a/crates/zil-analyze/src/semantic/original/place_writes.rs
++++ b/crates/zil-analyze/src/semantic/original/place_writes.rs
+@@ -180,6 +180,7 @@ impl Solver<'_, '_> {
+         term: Term,
+         path: &[u32],
+         vacant: &BTreeSet<Vec<u32>>,
++        origin: &cleanup::Origin,
+         b: &mut Budget,
+         depth: usize,
+     ) -> CompileResult<()> {
+@@ -193,7 +194,7 @@ impl Solver<'_, '_> {
+             partial |= hole.starts_with(path);
+         }
+         if !partial {
+-            return Self::push(&mut self.cleanup_terms, term, b);
++            return self.record_cleanup(term, origin, path, b);
+         }
+         let fields = match &self.state.arena[self.type_root(term, b)?] {
+             Kind::Tuple(fields) => {
+@@ -232,18 +233,20 @@ impl Solver<'_, '_> {
+                     .map_err(|_| resource("original cleanup field ordinal overflow"))?,
+                 b,
+             )?;
+-            self.cleanup_partial(*field, &child, vacant, b, depth + 1)?;
++            self.cleanup_partial(*field, &child, vacant, origin, b, depth + 1)?;
+         }
+         Ok(())
+     }
+     pub(super) fn cleanup_reintroduced(
+         &mut self,
++        definition: SemanticDefinitionId,
+         old: &Local,
+         next: &Local,
+         b: &mut Budget,
+     ) -> CompileResult<()> {
++        let origin = cleanup::Origin::local(definition, old.anchor, cleanup::Event::Backedge);
+         if !old.live && next.live {
+-            return self.cleanup_partial(old.ty, &[], &next.vacant, b, 0);
++            return self.cleanup_partial(old.ty, &[], &next.vacant, &origin, b, 0);
+         }
+         if !next.live {
+             return Ok(());
+@@ -262,7 +265,7 @@ impl Solver<'_, '_> {
+                     _ => return Err(fail("original loop vacancy has no exact product path")),
+                 };
+             }
+-            self.cleanup_partial(term, path, &next.vacant, b, 0)?;
++            self.cleanup_partial(term, path, &next.vacant, &origin, b, 0)?;
+         }
+         Ok(())
+     }
+@@ -632,10 +635,11 @@ impl Solver<'_, '_> {
+                 let local = &frame.locals[index];
+                 if local.live {
+                     let vacant = self.copy_vacancies(&local.vacant, b)?;
+-                    self.cleanup_partial(place.selected, &place.path, &vacant, b, depth + 1)?;
++                    let origin = cleanup::Origin::local(frame.definition, local.anchor, cleanup::Event::Replace(target.id));
++                    self.cleanup_partial(place.selected, &place.path, &vacant, &origin, b, depth + 1)?;
+                 }
+             } else {
+-                Self::push(&mut self.cleanup_terms, place.selected, b)?;
++                self.record_cleanup(place.selected, &cleanup::Origin::expression(frame.definition, target.id), &place.path, b)?;
+             }
+         }
+         self.write_complete(frame, &place, b)?;
+diff --git a/crates/zil-analyze/src/semantic/original/protocol.rs b/crates/zil-analyze/src/semantic/original/protocol.rs
+index fc82e55f5..d4b5f8685 100644
+--- a/crates/zil-analyze/src/semantic/original/protocol.rs
++++ b/crates/zil-analyze/src/semantic/original/protocol.rs
+@@ -6,6 +6,8 @@ mod canonical;
+ mod control;
+ mod outcomes;
+ mod owners;
++mod sources;
++use sources::OwnerSources;
+ const OPEN: u8 = 1;
+ const CLOSING: u8 = 2;
+ const CLOSED: u8 = 4;
+@@ -148,52 +150,31 @@ fn shape(
+ }
+ #[derive(Clone, PartialEq, Eq, Default)]
+ struct Data {
+-    alias: Option<u32>,
+-    // Exact owning subplaces transported by a checked constructor. Equal
+-    // Types/classes never establish these original source identities.
+-    parts: BTreeMap<Vec<PlaceProjection>, u32>,
++    sources: OwnerSources,
+     // A value may hide access to a tracked original head through a callable
+     // or an aggregate. Calls must not preserve a phase through that exposure.
+     exposed: bool,
+     outcomes: Vec<(ProtocolExit, BTreeMap<u32, u8>)>,
+ }
+ impl Data {
+-    fn charge_parts(&self, b: &mut Budget) -> CompileResult<()> {
+-        for path in self.parts.keys() {
+-            b.spend(path.len().saturating_add(1), WORK)?;
+-        }
+-        Ok(())
++    fn charge_sources(&self, b: &mut Budget) -> CompileResult<()> { self.sources.charge(b) }
++    fn borrow_exposure(&self) -> bool {
++        self.exposed || self.sources.has_any() || !self.outcomes.is_empty()
++    }
++    fn expose(&self) -> Self {
++        Self { exposed: self.borrow_exposure(), ..Self::default() }
+     }
+     fn project(&self, step: PlaceProjection, b: &mut Budget) -> CompileResult<Self> {
+-        let mut result = Self { exposed: self.exposed || self.alias.is_some(), ..Self::default() };
+-        for (path, role) in &self.parts {
+-            b.spend(path.len().saturating_add(1), WORK)?;
+-            if path.first() != Some(&step) { continue; }
+-            if path.len() == 1 {
+-                if result.alias.replace(*role).is_some() {
+-                    return Err(fail("original projected owner has competing source identities"));
+-                }
+-            } else {
+-                b.lookup(result.parts.len(), WORK)?;
+-                result.parts.insert(path[1..].to_vec(), *role);
+-            }
+-        }
+-        Ok(result)
++        let (sources, unknown_whole) = self.sources.project(step, b)?;
++        Ok(Self { sources, exposed: self.exposed || unknown_whole, outcomes: Vec::new() })
+     }
+     fn error_payload(&self, is_error: bool, b: &mut Budget) -> CompileResult<Self> {
+-        let mut result = self.project(PlaceProjection::ErrorArm(is_error), b)?;
+-        if !is_error {
+-            if result.alias.is_some_and(|role| Some(role) != self.alias) {
+-                return Err(fail("original success payload changes its owning result identity"));
+-            }
+-            result.alias = self.alias;
+-        }
+-        result.exposed = self.exposed;
+-        Ok(result)
++        Ok(Self { sources: self.sources.error_payload(is_error, b)?,
++            exposed: self.exposed, outcomes: Vec::new() })
+     }
+     fn payload(&self, b: &mut Budget) -> CompileResult<Self> {
+-        self.charge_parts(b)?;
+-        Ok(Self { alias: self.alias, parts: self.parts.clone(), exposed: self.exposed, outcomes: Vec::new() })
++        self.charge_sources(b)?;
++        Ok(Self { sources: self.sources.clone(), exposed: self.exposed, outcomes: Vec::new() })
+     }
+ }
+ #[derive(Clone, PartialEq, Eq)]
+@@ -215,7 +196,7 @@ impl State {
+     fn copy(&self, b: &mut Budget) -> CompileResult<Self> {
+         let mut locals = Vec::new();
+         for (name, data) in &self.locals {
+-            data.charge_parts(b)?;
++            data.charge_sources(b)?;
+             b.spend(
+                 name.len().saturating_add(
+                     data.outcomes
+@@ -272,8 +253,8 @@ impl State {
+             *self.phases.entry(*role).or_insert(0) |= *value;
+         }
+         for ((name, data), (other_name, other_data)) in self.locals.iter_mut().zip(&other.locals) {
+-            data.charge_parts(b)?;
+-            other_data.charge_parts(b)?;
++            data.charge_sources(b)?;
++            other_data.charge_sources(b)?;
+             b.spend(
+                 name.len().saturating_add(
+                     other_name.len()
+@@ -294,7 +275,7 @@ impl State {
+             if name != other_name {
+                 return Err(fail("original protocol join changes a lexical binder"));
+             }
+-            if data.alias != other_data.alias || data.parts != other_data.parts {
++            if data.sources != other_data.sources {
+                 return Err(unknown(
+                     "original protocol alias join requires its complete possible-head relation",
+                 ));
+@@ -364,6 +345,17 @@ impl Proof<'_, '_> {
+         }
+         Ok(())
+     }
++    fn call_receiver(&self, state: &mut State, callee: &SemanticOriginalExpr,
++        b: &mut Budget, depth: usize) -> CompileResult<Data> {
++        self.step(b, depth)?;
++        match &callee.kind {
++            CoreExprKind::TypeApply { callee, type_arguments } => {
++                b.spend(type_arguments.len(), WORK)?;
++                self.call_receiver(state, callee, b, depth + 1)
++            }
++            _ => self.expression(state, callee, b, depth + 1),
++        }
++    }
+     fn exit(&self, state: &State, data: &Data, b: &mut Budget) -> CompileResult<()> {
+         if !state.alive {
+             return Ok(());
+@@ -430,7 +422,7 @@ impl Proof<'_, '_> {
+                         WORK,
+                     )?;
+                     if key == name {
+-                        data.charge_parts(b)?;
++                        data.charge_sources(b)?;
+                         return Ok(data.clone());
+                     }
+                 }
+@@ -452,6 +444,8 @@ impl Proof<'_, '_> {
+                 operand,
+             } => self.expression(state, operand, b, depth + 1),
+             CoreExprKind::Call { callee, arguments } => {
++                let receiver = self.call_receiver(state, callee, b, depth + 1)?;
++                self.plain(&receiver)?;
+                 let mut actuals = Vec::new();
+                 for argument in arguments {
+                     let data = self.expression(state, argument, b, depth + 1)?;
+@@ -464,6 +458,10 @@ impl Proof<'_, '_> {
+                     .enum_constructors
+                     .get(&(self.definition.id, value.id))
+                 {
++                    if actuals.iter().any(|data| data.sources.has_any()) {
++                        return Err(unknown("original protocol constructor needs its complete owning payload source transport"));
++                    }
++                    let exposed = actuals.iter().any(Data::borrow_exposure);
+                     let Kind::Nominal { .. } =
+                         &self.checked.arena[self.checked.root(constructor.value, b)?]
+                     else {
+@@ -483,13 +481,12 @@ impl Proof<'_, '_> {
+                         };
+                         b.spend(state.phases.len(), WORK)?;
+                         return Ok(Data {
+-                            parts: BTreeMap::new(),
+-                            alias: None,
+-                            exposed: false,
++                            sources: OwnerSources::default(),
++                            exposed,
+                             outcomes: vec![(exit, state.phases.clone())],
+                         });
+                     }
+-                    return Ok(Data::default());
++                    return Ok(Data { exposed, ..Data::default() });
+                 }
+                 let mut names = BTreeSet::new();
+                 for (name, _) in &state.locals {
+@@ -517,7 +514,7 @@ impl Proof<'_, '_> {
+                                 "original registration operation changes its state-role arity",
+                             ));
+                         };
+-                        let role=data.alias.ok_or_else(||unknown("original registration operation needs its exact live parameter head"))?;
++                        let role=data.sources.only_exact_root().ok_or_else(||unknown("original registration operation needs its exact live parameter head"))?;
+                         let old = *state.phases.get(&role).ok_or_else(|| {
+                             fail("original registration state parameter is absent")
+                         })?;
+@@ -581,8 +578,7 @@ impl Proof<'_, '_> {
+                                     },
+                                 );
+                                 Ok(Data {
+-                                    parts: BTreeMap::new(),
+-                                    alias: None,
++                                    sources: OwnerSources::default(),
+                                     exposed: false,
+                                     outcomes,
+                                 })
+@@ -599,8 +595,7 @@ impl Proof<'_, '_> {
+                                     },
+                                 );
+                                 Ok(Data {
+-                                    parts: BTreeMap::new(),
+-                                    alias: None,
++                                    sources: OwnerSources::default(),
+                                     exposed: true,
+                                     outcomes: Vec::new(),
+                                 })
+@@ -616,7 +611,7 @@ impl Proof<'_, '_> {
+                         | sealed::Intrinsic::AsyncValid
+                         | sealed::Intrinsic::RegistrationValid
+                         | sealed::Intrinsic::SliceLength,
+-                    ) => Ok(Data::default()),
++                    ) => Ok(Data { exposed: actuals.iter().any(Data::borrow_exposure), ..Data::default() }),
+                     sealed::Resolution::Intrinsic(sealed::Intrinsic::TaskCreateOwned) => {
+                         self.owned_creation(state, value.id, arguments, &actuals, b)
+                     }
+@@ -631,7 +626,7 @@ impl Proof<'_, '_> {
+                         let frame = self.checked.frames.get(&target).ok_or_else(|| {
+                             fail("original protocol callee has no checked declaration domain")
+                         })?;
+-                        if data.alias.is_none()
++                        if !data.sources.has_any()
+                             && data.outcomes.is_empty()
+                             && self.async_owner(frame.result, b)?
+                         {
+@@ -642,11 +637,17 @@ impl Proof<'_, '_> {
+                     }
+                     sealed::Resolution::Intrinsic(_) => {
+                         state.call_effect(&actuals, &[], b)?;
+-                        Ok(Data::default())
++                        Ok(Data { exposed: actuals.iter().any(Data::borrow_exposure), ..Data::default() })
+                     }
+                     _ => {
+                         state.opaque(b)?;
+-                        Ok(Data::default())
++                        if self.async_owner(self.expression_term(value.id, b)?, b)? {
++                            self.fresh_owner(state, value.id, b)
++                        } else {
++                            Ok(Data { exposed: receiver.borrow_exposure()
++                                || actuals.iter().any(Data::borrow_exposure)
++                                || state.phases.values().any(|phase| *phase != 0), ..Data::default() })
++                        }
+                     }
+                 }
+             }
+@@ -661,8 +662,8 @@ impl Proof<'_, '_> {
+                 let left_value = self.expression(state, then_value, b, depth + 1)?;
+                 let right_value = self.expression(&mut right, else_value, b, depth + 1)?;
+                 state.join(&right, b)?;
+-                left_value.charge_parts(b)?;
+-                right_value.charge_parts(b)?;
++                left_value.charge_sources(b)?;
++                right_value.charge_sources(b)?;
+                 if left_value != right_value {
+                     return Err(unknown(
+                         "original protocol conditional result requires its complete outcome relation",
+@@ -681,7 +682,7 @@ impl Proof<'_, '_> {
+                 let right = self.expression(state, right, b, depth + 1)?;
+                 self.plain(&right)?;
+                 state.join(&skipped, b)?;
+-                Ok(Data::default())
++                Ok(Data { exposed: left.borrow_exposure() || right.borrow_exposure(), ..Data::default() })
+             }
+             CoreExprKind::Binary { left, right, .. }
+             | CoreExprKind::Range {
+@@ -692,7 +693,7 @@ impl Proof<'_, '_> {
+                 self.plain(&left)?;
+                 let right = self.expression(state, right, b, depth + 1)?;
+                 self.plain(&right)?;
+-                Ok(Data::default())
++                Ok(Data { exposed: left.borrow_exposure() || right.borrow_exposure(), ..Data::default() })
+             }
+             CoreExprKind::Index { object, index } => {
+                 let object = self.expression(state, object, b, depth + 1)?;
+@@ -700,9 +701,8 @@ impl Proof<'_, '_> {
+                 let index = self.expression(state, index, b, depth + 1)?;
+                 self.plain(&index)?;
+                 Ok(Data {
+-                    parts: BTreeMap::new(),
+-                    alias: None,
+-                    exposed: object.exposed || object.alias.is_some(),
++                    sources: OwnerSources::default(),
++                    exposed: object.borrow_exposure() || index.borrow_exposure(),
+                     outcomes: Vec::new(),
+                 })
+             }
+@@ -712,33 +712,23 @@ impl Proof<'_, '_> {
+             } => {
+                 let data = self.expression(state, operand, b, depth + 1)?;
+                 self.plain(&data)?;
+-                Ok(Data {
+-                    parts: BTreeMap::new(),
+-                    alias: None,
+-                    exposed: data.exposed || data.alias.is_some(),
+-                    outcomes: Vec::new(),
+-                })
++                Ok(data.expose())
+             }
+             CoreExprKind::Unary { operand, .. }
+             | CoreExprKind::NumericConvert { value: operand, .. }
+             | CoreExprKind::IntegerConvert { value: operand, .. } => {
+                 let data = self.expression(state, operand, b, depth + 1)?;
+                 self.plain(&data)?;
+-                Ok(Data::default())
++                Ok(data.expose())
+             }
+             CoreExprKind::Member { object, member, .. } => {
+                 let data = self.expression(state, object, b, depth + 1)?;
+                 self.plain(&data)?;
+-                if !data.parts.is_empty() {
++                if data.sources.has_any() {
+                     let ordinal = self.projected_field(object.id, member, b)?;
+                     return data.project(PlaceProjection::Field(ordinal), b);
+                 }
+-                Ok(Data {
+-                    parts: BTreeMap::new(),
+-                    alias: None,
+-                    exposed: data.exposed || data.alias.is_some(),
+-                    outcomes: Vec::new(),
+-                })
++                Ok(data.expose())
+             }
+             CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
+                 let mut exposed = false;
+@@ -746,15 +736,14 @@ impl Proof<'_, '_> {
+                     let data = self.expression(state, field, b, depth + 1)?;
+                     self.plain(&data)?;
+                     exposed |= data.exposed;
+-                    if data.alias.is_some() {
++                    if data.sources.has_any() {
+                         return Err(unknown(
+                             "original protocol aggregate needs its complete nested owner-place identity",
+                         ));
+                     }
+                 }
+                 Ok(Data {
+-                    parts: BTreeMap::new(),
+-                    alias: None,
++                    sources: OwnerSources::default(),
+                     exposed,
+                     outcomes: Vec::new(),
+                 })
+@@ -766,15 +755,14 @@ impl Proof<'_, '_> {
+                     let data = self.expression(state, field, b, depth + 1)?;
+                     self.plain(&data)?;
+                     exposed |= data.exposed;
+-                    if data.alias.is_some() {
++                    if data.sources.has_any() {
+                         return Err(unknown(
+                             "original protocol product needs its complete nested owner-place identity",
+                         ));
+                     }
+                 }
+                 Ok(Data {
+-                    parts: BTreeMap::new(),
+-                    alias: None,
++                    sources: OwnerSources::default(),
+                     exposed,
+                     outcomes: Vec::new(),
+                 })
+@@ -783,7 +771,7 @@ impl Proof<'_, '_> {
+                 let data = self.expression(state, base, b, depth + 1)?;
+                 self.plain(&data)?;
+                 let mut exposed = data.exposed;
+-                if data.alias.is_some() {
++                if data.sources.has_any() {
+                     return Err(unknown(
+                         "original protocol update needs its complete old and new owning-head identities",
+                     ));
+@@ -792,15 +780,14 @@ impl Proof<'_, '_> {
+                     let data = self.expression(state, field, b, depth + 1)?;
+                     self.plain(&data)?;
+                     exposed |= data.exposed;
+-                    if data.alias.is_some() {
++                    if data.sources.has_any() {
+                         return Err(unknown(
+                             "original protocol update needs its complete nested owner-place identity",
+                         ));
+                     }
+                 }
+                 Ok(Data {
+-                    parts: BTreeMap::new(),
+-                    alias: None,
++                    sources: OwnerSources::default(),
+                     exposed,
+                     outcomes: Vec::new(),
+                 })
+@@ -819,22 +806,22 @@ impl Proof<'_, '_> {
+             CoreExprKind::Slice { object, start, end } => {
+                 let data = self.expression(state, object, b, depth + 1)?;
+                 self.plain(&data)?;
++                let mut exposed = data.borrow_exposure();
+                 for bound in start.iter().chain(end) {
+                     let data = self.expression(state, bound, b, depth + 1)?;
+                     self.plain(&data)?;
++                    exposed |= data.borrow_exposure();
+                 }
+                 Ok(Data {
+-                    parts: BTreeMap::new(),
+-                    alias: None,
+-                    exposed: data.exposed || data.alias.is_some(),
++                    sources: OwnerSources::default(),
++                    exposed,
+                     outcomes: Vec::new(),
+                 })
+             }
+             CoreExprKind::Closure { .. } => {
+                 state.cleanup_unknown = true;
+                 Ok(Data {
+-                    parts: BTreeMap::new(),
+-                    alias: None,
++                    sources: OwnerSources::default(),
+                     exposed: state.phases.values().any(|phase| *phase != 0),
+                     outcomes: Vec::new(),
+                 })
+@@ -881,11 +868,10 @@ impl Proof<'_, '_> {
+             }
+             state.call_effect(arguments, &consumed, b)?;
+             return Ok(Data {
+-                parts: BTreeMap::new(),
+-                alias: None,
++                sources: OwnerSources::default(),
+                 exposed: arguments
+                     .iter()
+-                    .any(|argument| argument.exposed || argument.alias.is_some()),
++                    .any(|argument| argument.borrow_exposure()),
+                 outcomes: Vec::new(),
+             });
+         }
+@@ -897,7 +883,7 @@ impl Proof<'_, '_> {
+         for contract in protocol_contracts {
+             let role = arguments
+                 .get(contract.parameter as usize)
+-                .and_then(|data| data.alias)
++                .and_then(|data| data.sources.only_exact_root())
+                 .ok_or_else(|| {
+                     unknown("original state call needs its actual registration argument identity")
+                 })?;
+@@ -980,8 +966,7 @@ impl Proof<'_, '_> {
+             Ok(Data::default())
+         } else {
+             Ok(Data {
+-                parts: BTreeMap::new(),
+-                alias: None,
++                sources: OwnerSources::default(),
+                 exposed: false,
+                 outcomes,
+             })
+@@ -1117,7 +1102,7 @@ impl Proof<'_, '_> {
+                     self.plain(&target)?;
+                     let value = self.expression(state, value, b, depth + 1)?;
+                     self.plain(&value)?;
+-                    if target.alias.is_some() || value.alias.is_some() {
++                    if target.sources.has_any() || value.sources.has_any() {
+                         return Err(fail(
+                             "original protocol head cannot be a scalar compound-write operand",
+                         ));
+@@ -1138,14 +1123,16 @@ impl Proof<'_, '_> {
+                         continue;
+                     };
+                     let mut found = false;
++                    let mut opaque_cleanup = false;
+                     for (key, old) in state.locals.iter_mut().rev() {
+                         b.spend(key.len().saturating_add(name.len() + 1), WORK)?;
+                         if key == name {
+-                            if old.alias.is_some() {
++                            if old.sources.has_any() {
+                                 return Err(unknown(
+                                     "original registration parameter replacement requires its new object state and responsibility",
+                                 ));
+                             }
++                            opaque_cleanup = old.borrow_exposure();
+                             *old = data;
+                             found = true;
+                             break;
+@@ -1156,6 +1143,7 @@ impl Proof<'_, '_> {
+                             "original protocol assignment has no actual lexical binder",
+                         ));
+                     }
++                    if opaque_cleanup { state.opaque(b)?; }
+                 }
+                 CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
+                     self.block(state, body, b, depth + 1)?
+@@ -1276,8 +1264,7 @@ pub(super) fn check(
+                         (
+                             parameter.name.clone(),
+                             Data {
+-                                parts: BTreeMap::new(),
+-                                alias,
++                                sources: alias.map(OwnerSources::exact).unwrap_or_default(),
+                                 exposed: false,
+                                 outcomes: Vec::new(),
+                             },
+@@ -1310,10 +1297,9 @@ pub(super) fn check(
+                 for (ordinal, parameter) in parameters.iter().enumerate() {
+                     b.spend(parameter.name.len(), WORK)?;
+                     let data = Data {
+-                        parts: BTreeMap::new(),
+-                        alias: phases
++                        sources: phases
+                             .contains_key(&(ordinal as u32))
+-                            .then_some(ordinal as u32),
++                            .then(|| OwnerSources::exact(ordinal as u32)).unwrap_or_default(),
+                         exposed: false,
+                         outcomes: Vec::new(),
+                     };
+diff --git a/crates/zil-analyze/src/semantic/original/protocol/control.rs b/crates/zil-analyze/src/semantic/original/protocol/control.rs
+index f98f63962..fbc99ec6a 100644
+--- a/crates/zil-analyze/src/semantic/original/protocol/control.rs
++++ b/crates/zil-analyze/src/semantic/original/protocol/control.rs
+@@ -136,7 +136,7 @@ impl Proof<'_, '_> {
+         self.step(b, depth)?;
+         match &pattern.kind {
+             CorePatternKind::Name(name) => {
+-                data.charge_parts(b)?;
++                data.charge_sources(b)?;
+                 b.spend(name.len().saturating_add(data.outcomes.len()), WORK)?;
+                 Solver::push(&mut state.locals, (name.clone(), data.clone()), b)
+             }
+@@ -158,7 +158,7 @@ impl Proof<'_, '_> {
+             }
+             CorePatternKind::Record { fields, .. }
+             | CorePatternKind::RecordConstructor { fields, .. } => {
+-                if data.alias.is_some() || !data.parts.is_empty() {
++                if data.sources.has_any() {
+                     return Err(unknown(
+                         "original protocol product pattern needs its complete nested owner-place mapping",
+                     ));
+@@ -168,8 +168,7 @@ impl Proof<'_, '_> {
+                         state,
+                         field,
+                         &Data {
+-                            parts: BTreeMap::new(),
+-                            alias: None,
++                            sources: OwnerSources::default(),
+                             exposed: data.exposed,
+                             outcomes: Vec::new(),
+                         },
+@@ -180,7 +179,7 @@ impl Proof<'_, '_> {
+                 Ok(())
+             }
+             CorePatternKind::Tuple(fields) => {
+-                if data.alias.is_some() {
++                if data.sources.only_exact_root().is_some() {
+                     return Err(unknown("original tuple pattern cannot project an unexpanded owning head"));
+                 }
+                 for (index, field) in fields.iter().enumerate() {
+@@ -192,7 +191,7 @@ impl Proof<'_, '_> {
+             }
+             CorePatternKind::Constructor { fields, .. }
+             | CorePatternKind::Variant { fields, .. } => {
+-                if data.alias.is_some() || !data.parts.is_empty() {
++                if data.sources.has_any() {
+                     return Err(unknown(
+                         "original protocol sum/tuple pattern needs its complete nested owner-place mapping",
+                     ));
+@@ -202,8 +201,7 @@ impl Proof<'_, '_> {
+                         state,
+                         field,
+                         &Data {
+-                            parts: BTreeMap::new(),
+-                            alias: None,
++                            sources: OwnerSources::default(),
+                             exposed: data.exposed,
+                             outcomes: Vec::new(),
+                         },
+@@ -334,7 +332,7 @@ impl Proof<'_, '_> {
+                 if matches!(
+                     arm.pattern.kind,
+                     CorePatternKind::ErrorArm { is_error: true, .. }
+-                ) && let Some(role) = data.alias
++                ) && let Some(role) = data.sources.error_payload(false, b)?.only_exact_root()
+                 {
+                     branch.phases.insert(role, 0);
+                 }
+@@ -403,7 +401,7 @@ impl Proof<'_, '_> {
+             let mut matched = state.copy(b)?;
+             let mut unmatched = state.copy(b)?;
+             if let CorePatternKind::ErrorArm { is_error, .. } = pattern.kind
+-                && let Some(role) = data.alias
++                && let Some(role) = data.sources.error_payload(false, b)?.only_exact_root()
+             {
+                 if is_error {
+                     matched.phases.insert(role, 0);
+diff --git a/crates/zil-analyze/src/semantic/original/protocol/outcomes.rs b/crates/zil-analyze/src/semantic/original/protocol/outcomes.rs
+index 091aa33d1..7f1343bbd 100644
+--- a/crates/zil-analyze/src/semantic/original/protocol/outcomes.rs
++++ b/crates/zil-analyze/src/semantic/original/protocol/outcomes.rs
+@@ -9,17 +9,18 @@ impl State {
+         b: &mut Budget,
+     ) -> CompileResult<()> {
+         self.invalidate(b)?;
+-        let exposed = arguments.iter().any(|argument| argument.exposed || !argument.parts.is_empty());
+-        for argument in arguments { argument.charge_parts(b)?; }
++        // Exact whole/projected roles are visited below; only an opaque value
++        // can reach an otherwise unmentioned original head.
++        let exposed = arguments.iter().any(|argument| argument.exposed || !argument.outcomes.is_empty());
++        for argument in arguments { argument.charge_sources(b)?; }
+         for (role, phase) in &mut self.phases {
+-            b.spend(arguments.iter().fold(arguments.len().saturating_add(1),
+-                |work, argument| work.saturating_add(argument.parts.len())), WORK)?;
++            b.spend(arguments.len().saturating_add(1), WORK)?;
+             let mut passed = false;
+             let mut retired = false;
+             for (index, argument) in arguments.iter().enumerate() {
+-                if argument.alias == Some(*role) || argument.parts.values().any(|source| *source == *role) {
++                if argument.sources.contains(*role, b)? {
+                     passed = true;
+-                    retired |= argument.alias == Some(*role) && consumed.get(index) == Some(&true);
++                    retired |= argument.sources.only_exact_root() == Some(*role) && consumed.get(index) == Some(&true);
+                 }
+             }
+             if *phase == 0 {
+@@ -66,15 +67,14 @@ impl Proof<'_, '_> {
+         }
+         if data.outcomes.is_empty() {
+             let mut failure = state.copy(b)?;
+-            if let Some(role) = data.alias {
++            if let Some(role) = data.sources.error_payload(false, b)?.only_exact_root() {
+                 failure.phases.insert(role, 0);
+             }
+             b.spend(failure.phases.len(), WORK)?;
+             self.exit(
+                 &failure,
+                 &Data {
+-                    parts: BTreeMap::new(),
+-                    alias: None,
++                    sources: OwnerSources::default(),
+                     exposed: false,
+                     outcomes: vec![(ProtocolExit::ErrorErr, failure.phases.clone())],
+                 },
+@@ -89,15 +89,14 @@ impl Proof<'_, '_> {
+             branch.phases = phases.clone();
+             match exit {
+                 ProtocolExit::ErrorErr => {
+-                    if let Some(role) = data.alias {
++                    if let Some(role) = data.sources.error_payload(false, b)?.only_exact_root() {
+                         branch.phases.insert(role, 0);
+                     }
+                     b.spend(branch.phases.len(), WORK)?;
+                     self.exit(
+                         &branch,
+                         &Data {
+-                            parts: BTreeMap::new(),
+-                            alias: None,
++                            sources: OwnerSources::default(),
+                             exposed: false,
+                             outcomes: vec![(*exit, branch.phases.clone())],
+                         },
+diff --git a/crates/zil-analyze/src/semantic/original/protocol/owners.rs b/crates/zil-analyze/src/semantic/original/protocol/owners.rs
+index e4a6acd5b..480dc5078 100644
+--- a/crates/zil-analyze/src/semantic/original/protocol/owners.rs
++++ b/crates/zil-analyze/src/semantic/original/protocol/owners.rs
+@@ -40,25 +40,15 @@ impl Proof<'_, '_> {
+         }
+         state.call_effect(arguments, &consumed, b)?;
+         let mut result = self.fresh_owner(state, node, b)?;
+-        let result_role = result.alias.ok_or_else(|| fail("original owning Task loses its fresh result occurrence"))?;
++        let result_role = result.sources.only_exact_root().ok_or_else(|| fail("original owning Task loses its fresh result occurrence"))?;
+         let mut failure = before.phases;
+         b.lookup(failure.len(), WORK)?;
+         failure.insert(result_role, 0);
+         for (index, input) in arguments.iter().skip(1).enumerate() {
+-            input.charge_parts(b)?;
++            input.charge_sources(b)?;
+             let ordinal = u32::try_from(index).map_err(|_| resource("original returned input ordinal overflow"))?;
+             let prefix = [PlaceProjection::ErrorArm(true), PlaceProjection::Field(1), PlaceProjection::Field(ordinal)];
+-            if let Some(role) = input.alias {
+-                b.lookup(result.parts.len(), WORK)?;
+-                result.parts.insert(prefix.to_vec(), role);
+-            }
+-            for (path, role) in &input.parts {
+-                b.spend(path.len().saturating_add(prefix.len()), WORK)?;
+-                let mut selected = prefix.to_vec();
+-                selected.extend_from_slice(path);
+-                b.lookup(result.parts.len(), WORK)?;
+-                result.parts.insert(selected, *role);
+-            }
++            result.sources.append_under(&prefix, &input.sources, b)?;
+         }
+         b.spend(state.phases.len(), WORK)?;
+         Solver::push(&mut result.outcomes, (ProtocolExit::ErrorOk, state.phases.clone()), b)?;
+@@ -166,8 +156,7 @@ impl Proof<'_, '_> {
+         }
+         state.phases.insert(role, ANY);
+         Ok(Data {
+-            parts: BTreeMap::new(),
+-            alias: Some(role),
++            sources: OwnerSources::exact(role),
+             exposed: false,
+             outcomes: Vec::new(),
+         })
+@@ -244,8 +233,7 @@ impl Proof<'_, '_> {
+                 (
+                     local.name.clone(),
+                     Data {
+-                        parts: BTreeMap::new(),
+-                        alias,
++                        sources: alias.map(OwnerSources::exact).unwrap_or_default(),
+                         exposed: !head && self.captured_exposure(root, b, 0)?,
+                         outcomes: Vec::new(),
+                     },
+diff --git a/crates/zil-analyze/src/tasks.rs b/crates/zil-analyze/src/tasks.rs
+index 403814269..b5581e8e2 100644
+--- a/crates/zil-analyze/src/tasks.rs
++++ b/crates/zil-analyze/src/tasks.rs
+@@ -32,6 +32,7 @@ pub(super) use drop_sync::{
+     needs_proof as needs_synchronous_proof, once_cleanup_closed, once_cleanup_has_no_task,
+     require as require_synchronous_drop, require_value as require_synchronous_value,
+     require_original as require_original_synchronous_drop,
++    require_original_value as require_original_synchronous_value,
+     require_worker as require_synchronous_worker,
+ };
+ fn empty_context() -> zil_ir::RetainedLifeShape {
+diff --git a/crates/zil-analyze/src/tasks/drop_sync.rs b/crates/zil-analyze/src/tasks/drop_sync.rs
+index c9e377d4c..90b4b0d4a 100644
+--- a/crates/zil-analyze/src/tasks/drop_sync.rs
++++ b/crates/zil-analyze/src/tasks/drop_sync.rs
+@@ -271,6 +271,12 @@ pub(crate) fn require_value(
+ ) -> CompileResult<()> {
+     require_origin(module, f, None, Some(value), budget, span, true)
+ }
++pub(crate) fn require_original_value(
++    module: &TypedModule, f: &TypedFunction, value: ValueId,
++    budget: &mut Budget, span: Option<zil_base::Span>,
++) -> CompileResult<()> {
++    require_origin(module, f, None, Some(value), budget, span, false)
++}
+ fn require_origin(
+     module: &TypedModule,
+     f: &TypedFunction,

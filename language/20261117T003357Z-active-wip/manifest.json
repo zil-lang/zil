@@ -1,0 +1,42 @@
+{
+  "source_base": "9d27da59d8d93c9d6ebaf7d469058995d7de112a",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261117T003357Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-analyze/src/budget.rs": "a4213498b09ed367b932839f09c68abfd9c5c3a3bfd6a7c9e78d9a520069d9de",
+    "crates/zil-analyze/src/lib.rs": "d1dbfd2fa6443c116980efc4c22803c664c7ee8a3d3d72abec37b588ea7f050b",
+    "crates/zil-analyze/src/semantic/original.rs": "ba4d9c7715224c58918c69baaf3cd9fe966b2861b623baff745d996749e99b00",
+    "crates/zil-analyze/src/semantic/original/captures.rs": "8930b40add5b188280da0dd1ddd1e1f716fdc206f867c9d369f80169b14fa391",
+    "crates/zil-analyze/src/semantic/original/cleanup.rs": "128079bf01bf2e2ca894a52283c361c2971e298d470d9483f233537da157ed79",
+    "crates/zil-analyze/src/semantic/original/loops.rs": "3aa88619fb57f4661ba3dc0139b7a89a03d434a82cd71f2ca9c43cc621451074",
+    "crates/zil-analyze/src/semantic/original/place_writes.rs": "248b70b45fddf32d21a0aaa102ff04f769bd48b407c738bf11c38298c022b5ef",
+    "crates/zil-analyze/src/semantic/original/protocol.rs": "c851fde6e3a7810b3328e1450435c65afe5e489c7dff3cf58db2bfee44c61466",
+    "crates/zil-analyze/src/semantic/original/protocol/control.rs": "95d5fb28c24448955ecf28341c8a6e35559ce55dca4143e7dafb4b568fbca991",
+    "crates/zil-analyze/src/semantic/original/protocol/outcomes.rs": "14bd171e66e2babe0f709c4700d2da62e70b607c53fb6d5fa01877cd8aeefff4",
+    "crates/zil-analyze/src/semantic/original/protocol/owners.rs": "50924e44091584b4f832e83a5743ec027b45c320ad373512c5dc6918c0ca1f64",
+    "crates/zil-analyze/src/semantic/original/protocol/sources.rs": "b438dc4209e3c422d594e0807c10a76dac5be9ceb072b92288598e9fa9ed40b8",
+    "crates/zil-analyze/src/tasks.rs": "e529b9d848e77c0fd52eb2dadc2bb321551c5fb340bef77a70cc135d5011f520",
+    "crates/zil-analyze/src/tasks/drop_sync.rs": "337fc4b37aa121f1fc4e76dd07d04a24aabab08c98734b82995791c26d1dde62"
+  },
+  "artifacts": {
+    "source.patch": "89fe2b81e9ca9ecb4e98b55333d18b693c10ff4183c99eb4c9ea1620f0c6bfcb",
+    "untracked/crates/zil-analyze/src/semantic/original/protocol/sources.rs": "b438dc4209e3c422d594e0807c10a76dac5be9ceb072b92288598e9fa9ed40b8",
+    "supporting-tools/run-alpha-candidate.sh": "31fadc4b40984808371f8446781fad8888d738ab25850ae505f9180ff0f33f70",
+    "supporting-tools/check-alpha-core-chain.py": "b6794b9aee82f5c577c8665cfffef1a8c402be5ecbd433099be70904903157ec",
+    "supporting-tools/run-native-alpha.py": "666bb3245e60f9299bca022cc87f727525bf5364c30fe4d2a133688304e6e0f8",
+    "supporting-tools/run-native-alpha-plan.json": "eacd70077354e42d48f7632c4ad88b1d303f76980a7f64bee035ba233d8d328e",
+    "supporting-tools/run-native-alpha-manual.txt": "1fd5960890c6fe1157fafafabf0252d25591b920c55c49ea3ff39df9e489ba4a",
+    "supporting-tools/backup-language-wip.py": "ddf9df9820dd7be9217fd0f38085a5af94724274f01288c8a9b552efc1ddefc0",
+    "supporting-tools/check-all-task-helper-sources.py": "fb6110dd85a9fe355036b8390bab8fe3de1cc4c73f19cdbb196066cee1fe7982",
+    "supporting-tools/check-task-helper-native-cases.py": "3b3f484f8d15bf19f4cab9fffe6f8b39dfe27915546aa4e7f31cd1ca27dbe400",
+    "supporting-tools/check-task-frame-observer.py": "9f2eada808d337839a78ac7f0e2e0a1af20b21c7c8df661588fcbbf15a1892fa",
+    "supporting-tools/check-extra-originals.py": "b84d34aeaad8dead1fc3f1d93e319f3b4fdc944cf1a25821801dda1920932879",
+    "supporting-tools/check-alpha-nearest-complete.py": "df2a1d02e36ea066d27752073440a1be81956f800a20f0af493ca8ccf923ce44",
+    "supporting-tools/run-core-alpha-units.py": "964e56e67f6dbe5deebc655ca21c18418131339704c5a559c6bdf56e02b83ffe",
+    "supporting-tools/summarize-alpha-run.py": "7da153cb98d712d204d1e6256df22695e15db67b59afa33ee2548c54f758a110",
+    "supporting-tools/check-static-callable-original.py": "5b9b997cc26d1edb23917b322845446ee30758e788149ce82d61a2efc7ef89dd",
+    "supporting-tools/check-task-positive-fixtures.py": "aa4474ab8cae67dd3b699dfd43dc3dd1797a7337b75feff70e0205590dbb3f86"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}
