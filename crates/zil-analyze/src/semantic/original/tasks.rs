@@ -224,8 +224,14 @@ impl Solver<'_, '_> {
         // Cache only the independently checked original declaration domain.
         // Call/role instantiations are not allowed to overwrite that template.
         let declaration = self.inventory.definition(frame.definition, b)?;
-        let mut original =
-            self.role_frames.is_empty() && declaration.parameters.len() == frame.formals.len();
+        // A zero-binder callable bound still pushes a role frame. It has
+        // no Invocation/Implicit substitution and does not specialize the
+        // declaration's rigid Gamma. Nonempty role/bound frames remain local
+        // and must never publish a declaration template from a caller image.
+        b.spend(self.role_frames.len(), WORK)?;
+        let mut original = self.bound_frames.is_empty()
+            && self.role_frames.iter().all(|role| role.lifetimes.is_empty() && role.implicits.is_empty())
+            && declaration.parameters.len() == frame.formals.len();
         for (owner, _) in &self.trait_state.selves {
             b.spend(self.trait_state.selves.len().saturating_mul(2), WORK)?;
             let first = self
