@@ -1712,6 +1712,9 @@ mod static_result_tests {
     fn literal_opaque_results_keep_static_without_receiver_or_invocation_classes() {
         for text in [
             include_str!("../../../tests/fixtures/returned-owning-holders/fnonce-static-slice-result.zil"),
+            "fn make()->impl FnOnce()->&[u8]{\n let pair=(\"A\",7i32)\n return move()=>{return pair.0}\n}\nfn main()->i32{\n let callback=make()\n let text=callback()\n return i32(text[0])-65\n}\n",
+            "fn make()->impl FnOnce()->&[u8]{let pair=((\"A\",7),8);let alias=pair;return move()=>{let (inner,_)=alias;return inner.0};}fn main(){}",
+            "fn make(flag:bool)->impl Fn()->&[u8]{let pair=if flag{(\"A\",7)}else{(\"B\",9)};return move()=>pair.0;}fn main(){}",
             "fn make()->impl Fn()->&[u8]{let text=\"abc\";return move()=>text;}fn main(){}",
             "fn make()->impl FnMut()->&[u8]{let text=\"abc\";var count=0;return move()=>{count+=1;return text;};}fn main(){}",
             "fn make(flag:bool)->impl Fn()->&[u8]{let text=\"abc\";return move()=>{if flag{return text;}else{return \"def\";}};}fn main(){}",
