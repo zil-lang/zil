@@ -1825,7 +1825,7 @@ impl Check<'_, '_> {
                         "actual error carrier has no complete original function body",
                     ));
                 };
-                let mut expected = None;
+                let mut expected: Option<Value> = None;
                 for site in &self.program.sites {
                     b.spend(1, WORK)?;
                     if site.instance != instance.id {
@@ -1854,10 +1854,12 @@ impl Check<'_, '_> {
                         ));
                     };
                     let original = self.recipe_value(instance, source, b, depth + 1)?;
-                    if expected.as_ref().is_some_and(|old| old != &original) {
-                        return Err(fail(
-                            "actual error carrier has competing original whole values",
-                        ));
+                    if let Some(old) = &expected {
+                        if !old.equal_paid(&original, b)? {
+                            return Err(fail(
+                                "actual error carrier has competing original whole values",
+                            ));
+                        }
                     }
                     expected = Some(original);
                 }
