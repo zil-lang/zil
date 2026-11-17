@@ -1,464 +1,216 @@
 {
-  "disk_accounting": "Peak of simultaneous per-arm totals in original workflow snapshots, global inode dedup st_blocks*512. Not sum of independent category peaks; not transient peaks; SDK/host/evidence excluded.",
-  "host_build_features": [
-    "native-products",
-    "host-jemalloc"
-  ],
-  "host_allocator": {
-    "identity": "tikv-jemalloc-sys0.6.1 process C override",
-    "exports": {
-      "malloc": "T",
-      "free": "T",
-      "realloc": "T",
-      "calloc": "T",
-      "posix_memalign": "T",
-      "malloc_usable_size": "T"
-    },
-    "LD_PRELOAD": null,
-    "MALLOC_CONF_present": false
-  },
-  "rust_reference": {
-    "commit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
-    "CGU_reuse": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_codegen_ssa/src/base.rs#L1238",
-    "dispatch": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_codegen_ssa/src/base.rs#L842",
-    "postLTO": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_codegen_ssa/src/back/write.rs#L2267",
-    "lesson": "Existing green dependency node plus actual workproduct allows reuse before LLVM module construction. ZILrawcache currently stops before canonical class graph, forcing fresh reconstruction after process exit; not two classpasses on successful earlyreduction."
-  },
-  "schema": "zil.native-direct-firstedit-result.v9",
-  "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-  "binary_sha256": "8f5a44be3f4a6ab879366ac8a787ab5f63c25f3377d1ff6d1e9afb3800f3acc2",
+  "schema": "zil.native-direct-firstedit-result.v10",
+  "source": "7bc2bc0d8fad62092cd9a1addf2be48821837998",
+  "binary_sha256": "536fcc9909bdf5e868768931d3e04a7ed871a6131c06040c356f3e4ce2630508",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "scope": "Original5105 functions/102 sourcefiles, actualmain/current/Rust, O2/CGU16/compilerjobs1. Explicit default-off bounded-classes-128-v4 and host-jemalloc; SDK18 reused. Original direct first resident request excludes startup/drop; ordinaryCLI companion includes complete process.",
+  "result": "NoGo: first-edit target unmet; ordinaryCLI C1890.425/Rust1141.811ms; all6pairsfaster=False; comprehensive goal remains open.",
+  "scope": "5105functions/102files; actualmain/candidate/Rust; fullO2/CGU16/compilerjobs1; SDK18/native-link reused, noLLVMrebuild; explicit default-off research flags and host-jemalloc.",
   "execution_complete": true,
   "functional_quality_valid": true,
   "runtime_candidate_rust_accepted": true,
   "accepted": false,
   "counts": {
-    "formal_workflow_requests": 30,
-    "runtime_profile_build_requests": 12,
+    "formal_requests": 30,
     "functional_cells": 10,
-    "sustained_runtime_cases": 4
+    "runtime_builds": 12,
+    "runtime_cases": 4,
+    "ordinary_cli_builds": 36,
+    "ordinary_cli_balanced_blocks": 6
   },
   "compile_median_ms": {
     "cold": {
-      "candidate": 3683.178373,
-      "rust": 6731.854413
+      "candidate": 3463.705288,
+      "rust": 6582.309095500001
     },
     "unchanged": {
-      "candidate": 61.2595855,
-      "rust": 20.822907
+      "candidate": 58.5296405,
+      "rust": 25.411745500000002
     },
     "private-001": {
-      "candidate": 1710.6276305000001,
-      "rust": 1304.97887
+      "candidate": 1599.0015195,
+      "rust": 1386.3974389999998
     },
     "recovery": {
-      "candidate": 1628.708768,
-      "rust": 5889.599071500001
-    },
-    "error": {
-      "candidate": 1386.779284,
-      "rust": 1799.1446975
+      "candidate": 1967.1633965,
+      "rust": 5778.311153500001
     }
+  },
+  "ordinary_cli": {
+    "execution_complete": true,
+    "rows": 36,
+    "blocks": 6,
+    "first_edit_pairs_ms": [
+      {
+        "candidate": 1921.348174,
+        "rust": 1003.188999
+      },
+      {
+        "candidate": 1719.948372,
+        "rust": 1395.866048
+      },
+      {
+        "candidate": 1932.115357,
+        "rust": 1137.611354
+      },
+      {
+        "candidate": 1508.43656,
+        "rust": 1351.489711
+      },
+      {
+        "candidate": 1859.501729,
+        "rust": 1146.01074
+      },
+      {
+        "candidate": 1938.151521,
+        "rust": 990.423745
+      }
+    ],
+    "candidate_faster_in_every_first_edit_pair": false,
+    "median_ms": {
+      "cold": {
+        "baseline": 505.4369855,
+        "candidate": 3209.1675225,
+        "rust": 6678.3620654999995
+      },
+      "private-001": {
+        "baseline": 589.0111655000001,
+        "candidate": 1890.4249515000001,
+        "rust": 1141.811047
+      }
+    },
+    "clock": "ordinary CLI launch through process exit; default session capacity; no diagnostic flags",
+    "profile": "O2/CGU16/compiler jobs1; original budgets; explicit research options from parent",
+    "history": "empty per-block user caches -> cold -> process exit -> edit -> fresh process first build",
+    "full_runtime_gate": "parent matrix; three output controls per successful CLI build only"
   },
   "runtime_ms": {
     "5105/cold": {
-      "candidate": 32.04415,
-      "rust": 190.3089625
+      "candidate": 33.9769635,
+      "rust": 192.718708
     },
     "5105/unchanged": {
-      "candidate": 32.438483,
-      "rust": 197.209876
+      "candidate": 32.773967,
+      "rust": 203.022471
     },
     "5105/private-001": {
-      "candidate": 31.983014999999998,
-      "rust": 184.15299800000003
+      "candidate": 35.843442499999995,
+      "rust": 207.8680255
     },
     "5105/recovery": {
-      "candidate": 33.106415999999996,
-      "rust": 189.8437145
+      "candidate": 33.861172999999994,
+      "rust": 191.1340055
     }
   },
-  "raw": "out/runs/direct-firstedit-performance-direct-28",
-  "changes": [
-    "Current exact Core/Limits raw inference observations reach actual Types key and name consumers, including a fresh process first edit. Current signature reads reconstruct dependencies. Original ledgers and error precedence remain.",
-    "Original ordered task/registration/byte-buffer/dynamic-store consumers record actual scoped charges. Context construction consumes complete reconciled observations instead of rerunning these passes. Equal output anchors still require complete input equality.",
-    "Raw class and partition work products are bounded, produced by cold builds, success-only published, loaded after restart, checked against full current inputs/ABI/callee classes/graph/roles/copy allowance, and consumed before CGU materialization. Decoded dependency and rendering relations are independently rederived; selector is rehashed; no checker authority persisted.",
-    "Semantic encoding preparation starts after current Verify, overlaps backend work, and always joins before return. Successful guarded publication alone advances cache epochs. Failure/cancellation and bounded raw OnceLock associations retain original semantics.",
-    "Fresh closure inference, current header context construction and absolute CFG span rebinding remain. This is not serialized Context authority or zero-copy span rebasing."
-  ],
-  "previous_formal_result": "window27.json",
-  "result": "window28 firstedit 1.710628/Rust1.304979s; NoGo: firstedit still slower; comprehensive target remains open",
-  "user_disk_boundary_peak_physical_bytes": [
+  "disk_accounting": "Peak of simultaneous per-arm totals in original globally inode-deduplicated snapshots; physical=st_blocks*512; excludes SDK, host build and research evidence; boundary peaks not transient peak.",
+  "user_disk_boundaries": [
     {
       "block": 0,
-      "candidate": 50003968,
-      "rust": 76734464
-    },
-    {
-      "block": 1,
-      "candidate": 50036736,
-      "rust": 61546496
-    }
-  ],
-  "direct_firstedit_costs": [
-    {
-      "block": 0,
-      "wall_ms": 1533.85063,
-      "cpu_seconds": 1.52,
-      "phases_ms": {
-        "parse": 0.156754,
-        "expand": 112.401889,
-        "types": 99.781589,
-        "analyze": 42.193821,
-        "verify": 58.573396,
-        "lower": 3.535612,
-        "codegen": 748.643931,
-        "ct": 50.878467
+      "candidate": {
+        "logical_bytes": 29505034,
+        "physical_bytes": 30019584
       },
-      "backend_ms": {
-        "machine": 504.633851,
-        "machine_emit": 354.001089,
-        "machine_transform": 146.393513,
-        "transform_ranges": 12.040957,
-        "transform_checked_add": 1.198805,
-        "transform_scalar": 1.264845,
-        "transform_call_classes": 69.348115,
-        "transform_purity": 1.689658,
-        "machine_preflight": 32.415334,
-        "partition": 15.3331,
-        "diagnostic": 9.424366,
-        "object": 124.812665,
-        "link_key": 33.545049,
-        "link_execution": 33.357526,
-        "other": 26.483759,
-        "total": 747.590316
-      },
-      "backend_work": {
-        "lowered_functions": 5105,
-        "reused_functions": 0,
-        "reused_body_templates": 4857,
-        "produced_body_templates": 244,
-        "restored_emission_templates": 243,
-        "raw_emission_cache_misses": 5,
-        "shared_body_template_reuses": 4857,
-        "shared_admission_reuses": 4857,
-        "reused_machine_module": false,
-        "whole_machine_input_functions_compared": 0,
-        "reused_machine_transforms": false,
-        "reused_call_class_inputs": 5108,
-        "rebuilt_call_class_inputs": 1,
-        "reused_call_class_keys": 5098,
-        "rebuilt_call_class_keys": 2,
-        "machine_body_preflights_checked": 1601,
-        "machine_body_preflights_reused": 336,
-        "machine_preflights_checked": 20,
-        "machine_preflights_reused": 2,
-        "checked_add_functions_checked": 161,
-        "checked_add_functions_reused": 0,
-        "reused_partition_layout": true,
-        "reused_partition": false,
-        "reused_object_keys": 0,
-        "reused_link": false,
-        "rendered_diagnostic_items": 166,
-        "reused_diagnostic_items": 0,
-        "reused_partition_recipe": false,
-        "reused_partition_units": 14,
-        "rebuilt_partition_units": 2,
-        "reused_partition_items": 1264,
-        "rebuilt_partition_items": 67,
-        "representation_functions_checked": 248,
-        "representation_functions_reused": 4857,
-        "scoped_thread_functions_checked": 5105,
-        "scoped_thread_functions_reused": 0,
-        "source_projection_traversals": 0,
-        "source_projection_instruction_visits": 0,
-        "source_projection_reuses": 0,
-        "source_projection_admission_reuses": 5105,
-        "native_history_restored_units": 0,
-        "native_history_retained_epochs": 0,
-        "native_history_payload_bytes": 0
-      },
-      "function_types": {
-        "cost_profiled": false,
-        "total_ns": 0,
-        "shape_resolution_ns": 0,
-        "context_construction_ns": 0,
-        "projection_context_ns": 0,
-        "core_validation_ns": 0,
-        "inventory_ns": 0,
-        "graph_maintenance_ns": 0,
-        "evaluator_ns": 0,
-        "body_key_ns": 0,
-        "cfg_reuse_ns": 0,
-        "cfg_execute_ns": 0,
-        "cfg_store_ns": 0,
-        "producer_version_reuses": 0,
-        "inventory_functions_visited": 5105,
-        "reused_functions": 5100,
-        "restored_reused_functions": 5100,
-        "cfg_same_span_reuses": 0,
-        "cfg_relocated_functions": 5100,
-        "executed_functions": 5,
-        "body_key_executions": 2,
-        "body_key_reuses": 0,
-        "body_key_current_projections": 0,
-        "names_current_replays": 0,
-        "core_function_eq_comparisons": 0,
-        "body_key_visited_nodes": 4,
-        "context_modules_visited": 102,
-        "context_declarations_hashed": 5105,
-        "context_imports_hashed": 101,
-        "graph_edges": 0,
-        "graph": {
-          "executed": 0,
-          "edge_reads": 0,
-          "notifications": 0,
-          "enqueues": 0,
-          "deduplicated": 0,
-          "reused_bonds": 0,
-          "new_bonds": 0,
-          "removed_bonds": 0,
-          "rank_visits": 0,
-          "input_updates": 0,
-          "retained_nodes": 0,
-          "retained_edges": 0,
-          "inventory_visits": 0,
-          "equal_results": 0,
-          "changed_results": 0,
-          "cycle_check_edges": 0,
-          "validation_edge_reads": 0,
-          "rank_edge_reads": 0
-        }
-      },
-      "types_push_work": {
-        "context_rebuilds": 1,
-        "sparse_batches": 0,
-        "body_checks": 5,
-        "position_rebindings": 0,
-        "retained_functions": 5100,
-        "receipt_tree_updates": 0,
-        "signature_updates": 0,
-        "signature_readers_checked": 0,
-        "post_functions_observed": 5105,
-        "post_functions_rechecked": 0
-      },
-      "raw_inference_work": {
-        "full_runs": 1,
-        "sparse_batches": 0,
-        "replay_fallbacks": 0,
-        "closure_bodies_checked": 5105,
-        "closure_bodies_reused": 0,
-        "name_functions_checked": 5105,
-        "name_functions_reused": 0,
-        "dependency_bodies_checked": 5105,
-        "dependency_bodies_reused": 0,
-        "name_bodies_observed": 5105,
-        "dependency_bodies_observed": 5105,
-        "body_inputs_produced": 5103
+      "rust": {
+        "logical_bytes": 76553667,
+        "physical_bytes": 76734464
       }
     },
     {
       "block": 1,
-      "wall_ms": 1887.404631,
-      "cpu_seconds": 1.89,
-      "phases_ms": {
-        "parse": 0.112699,
-        "expand": 208.382596,
-        "types": 171.924251,
-        "analyze": 44.483752,
-        "verify": 75.236161,
-        "lower": 2.463389,
-        "codegen": 814.491917,
-        "ct": 55.849486
+      "candidate": {
+        "logical_bytes": 29465904,
+        "physical_bytes": 29966336
       },
-      "backend_ms": {
-        "machine": 551.573413,
-        "machine_emit": 271.394424,
-        "machine_transform": 274.848922,
-        "transform_ranges": 13.519012,
-        "transform_checked_add": 1.39356,
-        "transform_scalar": 1.280548,
-        "transform_call_classes": 89.839444,
-        "transform_purity": 0.450131,
-        "machine_preflight": 33.815544,
-        "partition": 16.729011,
-        "diagnostic": 8.402699,
-        "object": 109.370908,
-        "link_key": 32.33265,
-        "link_execution": 31.55993,
-        "other": 63.484504,
-        "total": 813.453115
+      "rust": {
+        "logical_bytes": 61371066,
+        "physical_bytes": 61554688
+      }
+    }
+  ],
+  "ordinary_cli_disk_boundaries": [
+    {
+      "block": 0,
+      "candidate": {
+        "logical_bytes": 27983513,
+        "physical_bytes": 28471296
       },
-      "backend_work": {
-        "lowered_functions": 5105,
-        "reused_functions": 0,
-        "reused_body_templates": 4857,
-        "produced_body_templates": 244,
-        "restored_emission_templates": 243,
-        "raw_emission_cache_misses": 5,
-        "shared_body_template_reuses": 4857,
-        "shared_admission_reuses": 4857,
-        "reused_machine_module": false,
-        "whole_machine_input_functions_compared": 0,
-        "reused_machine_transforms": false,
-        "reused_call_class_inputs": 5108,
-        "rebuilt_call_class_inputs": 1,
-        "reused_call_class_keys": 5098,
-        "rebuilt_call_class_keys": 2,
-        "machine_body_preflights_checked": 1601,
-        "machine_body_preflights_reused": 336,
-        "machine_preflights_checked": 20,
-        "machine_preflights_reused": 2,
-        "checked_add_functions_checked": 161,
-        "checked_add_functions_reused": 0,
-        "reused_partition_layout": true,
-        "reused_partition": false,
-        "reused_object_keys": 0,
-        "reused_link": false,
-        "rendered_diagnostic_items": 166,
-        "reused_diagnostic_items": 0,
-        "reused_partition_recipe": false,
-        "reused_partition_units": 14,
-        "rebuilt_partition_units": 2,
-        "reused_partition_items": 1264,
-        "rebuilt_partition_items": 67,
-        "representation_functions_checked": 248,
-        "representation_functions_reused": 4857,
-        "scoped_thread_functions_checked": 5105,
-        "scoped_thread_functions_reused": 0,
-        "source_projection_traversals": 0,
-        "source_projection_instruction_visits": 0,
-        "source_projection_reuses": 0,
-        "source_projection_admission_reuses": 5105,
-        "native_history_restored_units": 0,
-        "native_history_retained_epochs": 0,
-        "native_history_payload_bytes": 0
+      "rust": {
+        "logical_bytes": 60994380,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 1,
+      "candidate": {
+        "logical_bytes": 27964761,
+        "physical_bytes": 28438528
       },
-      "function_types": {
-        "cost_profiled": false,
-        "total_ns": 0,
-        "shape_resolution_ns": 0,
-        "context_construction_ns": 0,
-        "projection_context_ns": 0,
-        "core_validation_ns": 0,
-        "inventory_ns": 0,
-        "graph_maintenance_ns": 0,
-        "evaluator_ns": 0,
-        "body_key_ns": 0,
-        "cfg_reuse_ns": 0,
-        "cfg_execute_ns": 0,
-        "cfg_store_ns": 0,
-        "producer_version_reuses": 0,
-        "inventory_functions_visited": 5105,
-        "reused_functions": 5100,
-        "restored_reused_functions": 5100,
-        "cfg_same_span_reuses": 0,
-        "cfg_relocated_functions": 5100,
-        "executed_functions": 5,
-        "body_key_executions": 2,
-        "body_key_reuses": 0,
-        "body_key_current_projections": 0,
-        "names_current_replays": 0,
-        "core_function_eq_comparisons": 0,
-        "body_key_visited_nodes": 4,
-        "context_modules_visited": 102,
-        "context_declarations_hashed": 5105,
-        "context_imports_hashed": 101,
-        "graph_edges": 0,
-        "graph": {
-          "executed": 0,
-          "edge_reads": 0,
-          "notifications": 0,
-          "enqueues": 0,
-          "deduplicated": 0,
-          "reused_bonds": 0,
-          "new_bonds": 0,
-          "removed_bonds": 0,
-          "rank_visits": 0,
-          "input_updates": 0,
-          "retained_nodes": 0,
-          "retained_edges": 0,
-          "inventory_visits": 0,
-          "equal_results": 0,
-          "changed_results": 0,
-          "cycle_check_edges": 0,
-          "validation_edge_reads": 0,
-          "rank_edge_reads": 0
-        }
+      "rust": {
+        "logical_bytes": 60994380,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 2,
+      "candidate": {
+        "logical_bytes": 27981004,
+        "physical_bytes": 28459008
       },
-      "types_push_work": {
-        "context_rebuilds": 1,
-        "sparse_batches": 0,
-        "body_checks": 5,
-        "position_rebindings": 0,
-        "retained_functions": 5100,
-        "receipt_tree_updates": 0,
-        "signature_updates": 0,
-        "signature_readers_checked": 0,
-        "post_functions_observed": 5105,
-        "post_functions_rechecked": 0
+      "rust": {
+        "logical_bytes": 60994380,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 3,
+      "candidate": {
+        "logical_bytes": 28005661,
+        "physical_bytes": 28483584
       },
-      "raw_inference_work": {
-        "full_runs": 1,
-        "sparse_batches": 0,
-        "replay_fallbacks": 0,
-        "closure_bodies_checked": 5105,
-        "closure_bodies_reused": 0,
-        "name_functions_checked": 5105,
-        "name_functions_reused": 0,
-        "dependency_bodies_checked": 5105,
-        "dependency_bodies_reused": 0,
-        "name_bodies_observed": 5105,
-        "dependency_bodies_observed": 5105,
-        "body_inputs_produced": 5103
+      "rust": {
+        "logical_bytes": 60994380,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 4,
+      "candidate": {
+        "logical_bytes": 28000394,
+        "physical_bytes": 28483584
+      },
+      "rust": {
+        "logical_bytes": 60994380,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 5,
+      "candidate": {
+        "logical_bytes": 27990055,
+        "physical_bytes": 28471296
+      },
+      "rust": {
+        "logical_bytes": 60994380,
+        "physical_bytes": 61153280
       }
     }
   ],
   "gates": {
-    "strict": {
-      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-      "valid": true,
-      "test_results": []
-    },
-    "types": {
-      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-      "valid": true,
-      "test_results": [
-        [
-          "ok",
-          "127",
-          "0",
-          "0"
-        ]
-      ]
-    },
-    "backend": {
-      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-      "valid": true,
-      "test_results": [
-        [
-          "ok",
-          "394",
-          "0",
-          "0"
-        ]
-      ]
-    },
-    "driver": {
-      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-      "valid": true,
-      "test_results": [
-        [
-          "ok",
-          "255",
-          "0",
-          "0"
-        ]
-      ]
-    },
     "publication": {
-      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--test",
+        "retained_native_publication",
+        "--",
+        "--ignored"
+      ],
+      "exit_code": 0,
       "valid": true,
       "test_results": [
         [
@@ -470,166 +222,386 @@
       ]
     },
     "fmt": {
-      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
       "valid": true,
       "test_results": []
+    },
+    "expand": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-expand",
+        "--lib"
+      ],
+      "exit_code": 0,
+      "valid": true,
+      "test_results": [
+        [
+          "ok",
+          "151",
+          "0",
+          "0"
+        ]
+      ]
+    },
+    "backend": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--include-ignored"
+      ],
+      "exit_code": 0,
+      "valid": true,
+      "test_results": [
+        [
+          "ok",
+          "399",
+          "0",
+          "0"
+        ]
+      ]
     },
     "release": {
-      "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "-p",
+        "zil-cli",
+        "--features",
+        "native-products,host-jemalloc"
+      ],
+      "exit_code": 0,
       "valid": true,
       "test_results": []
+    },
+    "types": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-types",
+        "--lib"
+      ],
+      "exit_code": 0,
+      "valid": true,
+      "test_results": [
+        [
+          "ok",
+          "134",
+          "0",
+          "0"
+        ]
+      ]
+    },
+    "strict": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-cli",
+        "-p",
+        "zil-ir",
+        "-p",
+        "zil-analyze",
+        "-p",
+        "zil-expand",
+        "-p",
+        "zil-types",
+        "-p",
+        "zil-driver",
+        "-p",
+        "zil-llvm-api",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "zil-cli/native-products,zil-cli/host-jemalloc,zil-driver/native-products,zil-llvm-api/text-reference",
+        "--all-targets",
+        "--keep-going",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "valid": true,
+      "test_results": []
+    },
+    "driver": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--include-ignored"
+      ],
+      "exit_code": 0,
+      "valid": true,
+      "test_results": [
+        [
+          "ok",
+          "265",
+          "0",
+          "0"
+        ]
+      ]
     }
   },
-  "review": {
-    "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-    "model": "gpt-6-astra",
-    "verdict": "PASS, no blocking source findings; all33files match commit; source review, not measured speedup"
+  "source_review": {
+    "source": "7bc2bc0d8fad62092cd9a1addf2be48821837998",
+    "reviewer": "gpt-6-astra",
+    "verdict": "PASS source review; no blockers; not performance acceptance",
+    "scope": "All20 production/test files since43e19dea; final test-only strict-lint fix included, production identical164475f92.",
+    "preserved": [
+      "Current Analyze complete binding, per-row fees, decode budgets, exact live owner relationships",
+      "Current class dependencies/COW invalidation and runtime consumers",
+      "Complete original preflight beforeprune and cancellation beforecommit",
+      "Physical checkedkeys and logical dictionary boundaries; complete current envelope/payload comparison",
+      "Independent Verify, original budgets, success-only publication"
+    ],
+    "tests_by_reviewer": false
   },
-  "ordinary_cli": {
-    "execution_complete": true,
-    "rows": 12,
-    "tool_source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-    "candidate_source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-    "candidate_binary_sha256": "8f5a44be3f4a6ab879366ac8a787ab5f63c25f3377d1ff6d1e9afb3800f3acc2",
-    "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-    "parent": "/workspace/zil-push-main/out/runs/direct-firstedit-performance-direct-28",
-    "median_ms": {
-      "cold": {
-        "baseline": 737.3988925,
-        "candidate": 3161.099756,
-        "rust": 6830.975657999999
+  "raw": "out/runs/direct-firstedit-performance-direct-30",
+  "paired_phase_diagnostic": "out/runs/paired-firstedit-phases-30/current.json",
+  "changes": [
+    "Current canonical shared bodies flow into Analyze restoration: complete nonsensitive columns compared once per immutable owner pair, each current header and original fee remain. Raw wire expansion per alias removed.",
+    "Current normalized machine classes classified once per strong normalized owner. Complete actual original machine preflight before closed graph pruning; temporary linkage model clone and restore removed. Runtime absence observations reach actual emitter and linker consumers.",
+    "Packed publication binds actual immutable item bytes once, revalidates complete current envelope and payload against checked snapshot, avoiding repeated allocation and hashing; stale payload bytes and races still checked.",
+    "Frontend raw scalar enum decoding constructs selected value only, bounded list reservation and current Types traversal scratch storage reused; original budgets and error precedence retained."
+  ],
+  "remaining": [
+    "OrdinaryCLI firstedit still fails target. Do not claim success based on cache reductions or local counters.",
+    "All conclusions limited to measured5105function102file directrestartfirstedit chain; original budgets/Verify/fullO2 remain.",
+    "Actualmain originalResourceLimit, industrial multicrate/procmacro/build.rs/minute-scale and comprehensive compile goal remain unproven."
+  ],
+  "previous_result": "window29.json",
+  "ordinary_cli_phase_samples": [
+    {
+      "block": 0,
+      "wall_ms": 1921.348174,
+      "reported_ms": 1792.680035,
+      "phase_ms": {
+        "parse": 0.119462,
+        "expand": 94.761927,
+        "types": 84.280896,
+        "analyze": 44.578508,
+        "verify": 89.812289,
+        "lower": 21.039393,
+        "codegen": 1035.110182,
+        "ct": 51.117273
       },
-      "private-001": {
-        "baseline": 493.50435949999996,
-        "candidate": 2171.3766244999997,
-        "rust": 1241.3314125
+      "backend_ms": {
+        "machine_ns": 773.353512,
+        "machine_emit_ns": 639.074985,
+        "machine_transform_ns": 132.969424,
+        "transform_ranges_ns": 16.921059,
+        "transform_checked_add_ns": 1.706473,
+        "transform_scalar_ns": 2.072407,
+        "transform_call_classes_ns": 110.860254,
+        "transform_purity_ns": 0.50875,
+        "machine_preflight_ns": 35.081425,
+        "partition_ns": 13.949162,
+        "diagnostic_ns": 11.64864,
+        "object_ns": 149.062221,
+        "link_key_ns": 33.764131,
+        "link_execution_ns": 30.015637,
+        "other_ns": 22.466613,
+        "total_ns": 1034.259916
       }
     },
-    "clock": "ordinary CLI launch through process exit; default session capacity; no diagnostic flags",
-    "profile": "O2/CGU16/compiler jobs1; original budgets; explicit research options from parent",
-    "history": "empty per-block user caches -> cold -> process exit -> edit -> fresh process first build",
-    "full_runtime_gate": "parent matrix; three output controls per successful CLI build only"
-  },
-  "unresolved": [
-    "Actualmain originaldefaultResourceLimit: no main-regression acceptance or merge.",
-    "Industrial multi-crate/proc-macro/build.rs, minute-scale/GB-scale workloads not established.",
-    "Two balanced blocks do not establish stable performance tails; profile stage times are not summed across asynchronous work."
-  ],
-  "failures_preserved": [
-    "163f83e7 strict: iterator/codec visibility errors, recorded in combined-restart-gates-28; fixed without changing obligations.",
-    "c9c48ed35 Types120/7: equal-anchor scope binding, epoch lifetime and newfixture reservedname; original assertions retained and fixed.",
-    "7623ad13c native initial InfraError: outer execution sandbox made nested bwrap UID mapping read-only; same-source native gates rerun outside that sandbox, no SDK/LLVM changes."
-  ],
-  "paired_phase_diagnostic": {
-    "source": "7623ad13c4fea78ace29a426dec9a1633e8fa678",
-    "diagnostic_only": true,
-    "formal_ratio": false,
-    "raw": "out/runs/paired-firstedit-phases-28",
-    "candidate_exclusive_ms": {
-      "analyze": 39.647123,
-      "codegen": 557.08534,
-      "ct": 50.225653,
-      "discovery_receipt_publication": 3.095175,
-      "expand_assembly": 0.401269,
-      "expand_context": 3.609592,
-      "expand_materialization": 20.009293,
-      "expand_other": 74.63472,
-      "expand_production": 10.759201,
-      "expand_reuse": 1.672938,
-      "frontend_product_publication": 14.993562,
-      "frontend_product_read": 15.835035,
-      "function_cache_publication": 20.831326,
-      "function_cache_read": 307.593842,
-      "function_checkpoint": 0.237189,
-      "lower": 2.745425,
-      "owner_binding": 0.079731,
-      "parse": 0.10936,
-      "producer_checkpoint": 0.02642,
-      "project_setup": 1.377785,
-      "semantic_cache_read": 6.078549,
-      "semantic_candidate_publication": 78.524211,
-      "semantic_publication_wait": 0.002685,
-      "source_ingress": 87.570111,
-      "types_cfg_execute": 0.575112,
-      "types_cfg_reuse": 60.765958,
-      "types_cfg_store": 0.031337,
-      "types_context": 8.445106,
-      "types_core_comparison": 0.0,
-      "types_graph_maintenance": 0.0,
-      "types_input_inventory": 1.831553,
-      "types_other": 59.388967,
-      "types_projection_context": 2.592474,
-      "types_query_evaluation": 4.200025,
-      "types_shape": 31.255693,
-      "verify": 53.831921
+    {
+      "block": 1,
+      "wall_ms": 1719.948372,
+      "reported_ms": 1600.562164,
+      "phase_ms": {
+        "parse": 0.130638,
+        "expand": 99.777,
+        "types": 99.427261,
+        "analyze": 46.990369,
+        "verify": 97.182338,
+        "lower": 5.958779,
+        "codegen": 764.954969,
+        "ct": 56.489486
+      },
+      "backend_ms": {
+        "machine_ns": 502.609937,
+        "machine_emit_ns": 295.821893,
+        "machine_transform_ns": 205.449358,
+        "transform_ranges_ns": 13.27394,
+        "transform_checked_add_ns": 1.232485,
+        "transform_scalar_ns": 1.312186,
+        "transform_call_classes_ns": 188.032107,
+        "transform_purity_ns": 0.379524,
+        "machine_preflight_ns": 35.50002,
+        "partition_ns": 10.385329,
+        "diagnostic_ns": 8.505352,
+        "object_ns": 124.47869,
+        "link_key_ns": 30.706614,
+        "link_execution_ns": 35.565172,
+        "other_ns": 51.846518,
+        "total_ns": 764.097612
+      }
     },
-    "candidate_backend_ms": {
-      "machine_ns": 309.075754,
-      "machine_emit_ns": 114.943679,
-      "machine_transform_ns": 188.419991,
-      "transform_ranges_ns": 14.322366,
-      "transform_checked_add_ns": 1.124793,
-      "transform_scalar_ns": 0.973854,
-      "transform_call_classes_ns": 87.674519,
-      "transform_purity_ns": 0.392153,
-      "machine_preflight_ns": 34.076713,
-      "partition_ns": 15.042637,
-      "diagnostic_ns": 8.190676,
-      "object_ns": 106.908348,
-      "link_key_ns": 33.610077,
-      "link_execution_ns": 28.582038,
-      "other_ns": 54.682587,
-      "total_ns": 556.092117
+    {
+      "block": 2,
+      "wall_ms": 1932.115357,
+      "reported_ms": 1423.683968,
+      "phase_ms": {
+        "parse": 0.156047,
+        "expand": 196.968691,
+        "types": 91.957069,
+        "analyze": 44.945491,
+        "verify": 94.529403,
+        "lower": 7.782899,
+        "codegen": 579.926501,
+        "ct": 55.170436
+      },
+      "backend_ms": {
+        "machine_ns": 322.924589,
+        "machine_emit_ns": 154.302924,
+        "machine_transform_ns": 166.793117,
+        "transform_ranges_ns": 16.579101,
+        "transform_checked_add_ns": 1.601314,
+        "transform_scalar_ns": 1.893646,
+        "transform_call_classes_ns": 145.194179,
+        "transform_purity_ns": 0.465835,
+        "machine_preflight_ns": 37.985199,
+        "partition_ns": 12.307927,
+        "diagnostic_ns": 9.010705,
+        "object_ns": 125.773418,
+        "link_key_ns": 36.496435,
+        "link_execution_ns": 29.032628,
+        "other_ns": 43.361927,
+        "total_ns": 578.907629
+      }
     },
-    "rust_pass_ms": {
-      "macro_expand_crate": 95.557028,
-      "type_check_crate": 31.599743999999998,
-      "codegen_crate": 80.168751,
-      "serialize_dep_graph": 70.949437,
-      "LLVM_thinlto": 644.7779019999999,
-      "finish_ongoing_codegen": 569.718439,
-      "link": 61.233633000000005,
-      "total": 1256.761783
+    {
+      "block": 3,
+      "wall_ms": 1508.43656,
+      "reported_ms": 1392.236237,
+      "phase_ms": {
+        "parse": 0.184875,
+        "expand": 100.904374,
+        "types": 100.568357,
+        "analyze": 35.160141,
+        "verify": 70.649819,
+        "lower": 4.874058,
+        "codegen": 613.590347,
+        "ct": 49.510888
+      },
+      "backend_ms": {
+        "machine_ns": 391.078168,
+        "machine_emit_ns": 188.838316,
+        "machine_transform_ns": 200.942628,
+        "transform_ranges_ns": 12.513051,
+        "transform_checked_add_ns": 1.272386,
+        "transform_scalar_ns": 1.267609,
+        "transform_call_classes_ns": 184.515263,
+        "transform_purity_ns": 0.410682,
+        "machine_preflight_ns": 33.556242,
+        "partition_ns": 10.865618,
+        "diagnostic_ns": 7.205557,
+        "object_ns": 103.769346,
+        "link_key_ns": 26.513102,
+        "link_execution_ns": 23.304601,
+        "other_ns": 49.674649,
+        "total_ns": 612.411041
+      }
     },
-    "warning": "Nested and async Rust stages overlap; do not sum or compare codegen_crate alone to all ZIL backend work."
-  },
-  "remaining_work": [
-    "Raw work product recovery still decodes, rederives dependencies/normalization, binds current inputs and serializes auxiliary class/partition products; logical hits alone did not remove enough CPU.",
-    "Current canonical CFGs still rebind5100 absolute span-bearing bodies; fresh closure inference and current header context remain.",
-    "OrdinaryCLI includes large compiler session destruction after compile_path, unlike the separate resident request clock; compilerjobs1/CGU16/O2 remain equal."
-  ],
-  "counter_reporting_limitation": "The new FunctionStats body_key_current_projections/names_current_replays fields were omitted by CompileReport add_function_work aggregation. Formal zeros for those two fields are not cache misses. Body_key_executions2 and existing backend/TypesPush counters remain actual. A report-only fix and targeted aggregation regression follow; no timings are attributed to that later source.",
-  "auxiliary_raw_machine_payload_bytes": {
-    "call_classes": 5646262,
-    "partition": 1252786
-  },
-  "retained_disk_tradeoff": "Current candidate boundary peaks50.0MB versus prior source3c43.0MB; new auxiliary class/partition payloads add about6.9MB. Both source-bound results retained; no host cleanup counted.",
-  "next_structural_bottlenecks": {
-    "function_payload_representation": {
-      "complete_fragments": 5101,
-      "complete_fragment_bytes": 7236617,
-      "distinct_scalar_header_bodies": 374,
-      "distinct_body_bytes": 1565629,
-      "own_id_and_name_descriptor_bytes_approx": 55000,
-      "status": "Read-only analysis of current cache, not implemented or a measured speedup"
+    {
+      "block": 4,
+      "wall_ms": 1859.501729,
+      "reported_ms": 1742.390598,
+      "phase_ms": {
+        "parse": 0.121073,
+        "expand": 96.069806,
+        "types": 81.217908,
+        "analyze": 33.016639,
+        "verify": 59.240227,
+        "lower": 2.799206,
+        "codegen": 1072.417183,
+        "ct": 51.636278
+      },
+      "backend_ms": {
+        "machine_ns": 809.244408,
+        "machine_emit_ns": 652.420935,
+        "machine_transform_ns": 155.318846,
+        "transform_ranges_ns": 14.808392,
+        "transform_checked_add_ns": 1.511227,
+        "transform_scalar_ns": 1.494843,
+        "transform_call_classes_ns": 135.664781,
+        "transform_purity_ns": 0.870648,
+        "machine_preflight_ns": 34.879311,
+        "partition_ns": 14.327974,
+        "diagnostic_ns": 9.71941,
+        "object_ns": 144.94096,
+        "link_key_ns": 37.541437,
+        "link_execution_ns": 33.097771,
+        "other_ns": 22.499081,
+        "total_ns": 1071.371041
+      }
     },
-    "backend_bound_recovery": "Avoid separate old input-machine materialization, bind to actual current machine while retaining current read/normalized/callee checks; retain accepted raw bytes across delta publication. Not implemented."
-  },
-  "reporting_followup": {
-    "source": "adc3d54baa592aa534f401e2fee5eede0d2db9e5",
-    "scope": "Only missing aggregate counters and existing regression assertions",
-    "release_regression": {
-      "passed": 1,
-      "failed": 0,
-      "ignored": 0,
-      "filtered": 254,
-      "command": "cargo test --locked --offline --release -p zil-driver --features native-products --lib attempt_totals_add_execution_costs_and_keep_only_final_retained_gauges"
-    },
-    "performance_measured": false,
-    "strict": {
-      "valid": true,
-      "command": "cargo clippy --locked --offline --release -p zil-driver --features native-products --lib -- -D warnings",
-      "log_sha256": "ef415ebff64e3a971e2ed07eeaaec22f8a7dd041ff69e4b1c97c1e196a328826"
+    {
+      "block": 5,
+      "wall_ms": 1938.151521,
+      "reported_ms": 1816.0220599999998,
+      "phase_ms": {
+        "parse": 0.463846,
+        "expand": 164.618773,
+        "types": 192.377965,
+        "analyze": 43.081602,
+        "verify": 70.517766,
+        "lower": 3.800252,
+        "codegen": 611.548346,
+        "ct": 45.490318
+      },
+      "backend_ms": {
+        "machine_ns": 373.267653,
+        "machine_emit_ns": 188.428768,
+        "machine_transform_ns": 183.333437,
+        "transform_ranges_ns": 11.874261,
+        "transform_checked_add_ns": 1.138554,
+        "transform_scalar_ns": 1.253567,
+        "transform_call_classes_ns": 167.875521,
+        "transform_purity_ns": 0.381327,
+        "machine_preflight_ns": 33.511649,
+        "partition_ns": 10.225826,
+        "diagnostic_ns": 10.47258,
+        "object_ns": 112.549718,
+        "link_key_ns": 29.192902,
+        "link_execution_ns": 24.867094,
+        "other_ns": 50.031598,
+        "total_ns": 610.607371
+      }
     }
-  }
+  ]
 }

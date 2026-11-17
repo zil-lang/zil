@@ -1,19 +1,24 @@
 # 原生重启首改整链结果
 
-源码 `7623ad13c4fea78ace29a426dec9a1633e8fa678`，A/B及Driver合为同一候选验收。window28 firstedit 1.710628/Rust1.304979s; NoGo: firstedit still slower; comprehensive target remains open。
+源码 `7bc2bc0d8fad62092cd9a1addf2be48821837998`；生产源码 `164475f92d215ad53507d2d9783308894fe66af5`。完整 A/B/Driver 链同批验收。
+
+NoGo: first-edit target unmet; ordinaryCLI C1890.425/Rust1141.811ms; all6pairsfaster=False; comprehensive goal remains open.
 
 | 场景 | ZIL秒 | Rust秒 |
 | --- | ---: | ---: |
-| cold | 3.683178 | 6.731854 |
-| unchanged | 0.061260 | 0.020823 |
-| private-001 | 1.710628 | 1.304979 |
-| error | 1.386779 | 1.799145 |
-| recovery | 1.628709 | 5.889599 |
+| 驻留首请求 cold | 3.463705 | 6.582309 |
+| 驻留首请求 unchanged | 0.058530 | 0.025412 |
+| 驻留首请求 private-001 | 1.599002 | 1.386397 |
+| 驻留首请求 recovery | 1.967163 | 5.778311 |
+| 普通CLI完整进程 cold | 3.209168 | 6.678362 |
+| 普通CLI完整进程 private-001 | 1.890425 | 1.141811 |
 
-上表为新进程首个驻留请求；启动/退出单列。普通CLI完整进程结果、当前工作计数、运行质量和同一时点全局inode去重盘量见[current.json](native-direct-edit-chain-20261116/current.json)。原30请求/10功能格，另12运行构建/4运行格。
+原30请求/10功能格、另12运行构建/4运行格；普通CLI六个交替区块，共36次构建。用户盘量完整历史采样峰 ZIL 30.0–30.0 MB，Rust 61.6–76.7 MB；每个时点全局inode去重后再取峰，含实际缓存和最终产物，不含SDK/宿主构建/研究输出。
 
-前端复用本次实际观察的键/名字/资源费用；后端贯通原始类/分区生产、保存、重启校验与CGU消费；发布准备与后端重叠并成功后提交。fresh推断、当前头部上下文和绝对位置绑定仍保留。独立Verify、原预算、完整O2不变；研究选项默认关。旧3c418570数字保留[window27](native-direct-edit-chain-20261116/window27.json)，不转记新收益。实际main超限、工业规模及全面超越仍开放。
+strict、Expand151、Types134、backend399、Driver265、native publication4、fmt、release和Astra源码独审通过。164475的两处测试lint失败与修正保留；编译检查通过。
 
-普通 CLI（启动到退出、默认会话容量）首改 **2.171s / Rust1.241s，仍慢约75%**；冷编译 **3.161s / Rust6.831s**。驻留首改仍慢约31%，不能宣称达到目标。用户盘量峰 **50.0MB / Rust61.5–76.7MB**；较旧候选43.0MB增加约7MB，保留这个负向取舍。
+恢复后的共享函数体贯穿Analyze/机器类消费者；完整当前比较仅按实际共享体执行，逐行头部、费用和当前Verify保留。闭图裁剪直接校验当前完整机器图，删除临时linkage克隆与还原；完整当前文件比较消费已验checksum快照，原边界和原子发布保持。
 
-实际首改类键重建243→2、分区重建16→2，资源后检查5105个观察/0个重跑；全链耗时仍不足。新投影/名字计数在报告聚合中漏加，另有仅报告的修复，不把旧测量归给后续源码。原始恢复、关系检查、再次编码与普通CLI会话析构仍有成本。
+旧约1.5秒为驻留请求；普通CLI包含启动和退出。window29驻留1.776/Rust1.484秒、CLI1.800/Rust1.074秒仍未达标；不能把时钟差异当作回退的全部解释。旧window28/29负结果均保留，跨窗口差额不冒称因果收益。
+
+完整结果：[current.json](native-direct-edit-chain-20261116/current.json)；历史：[window29](native-direct-edit-chain-20261116/window29.json)。实际main超限、工业多crate/proc-macro/build.rs、分钟/GB规模及全面超越目标仍开放；未合main。
