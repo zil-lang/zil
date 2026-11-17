@@ -18,14 +18,20 @@ pub(super) enum CaptureDirectory {
 }
 impl CaptureDirectory {
     pub(super) fn len(&self) -> usize {
-        match self { Self::Address(rows) => rows.len(), Self::Ghost(rows) => rows.len() }
+        match self {
+            Self::Address(rows) => rows.len(),
+            Self::Ghost(rows) => rows.len(),
+        }
     }
-    pub(super) fn is_empty(&self) -> bool { self.len() == 0 }
+    pub(super) fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     fn address(self) -> CompileResult<Vec<u32>> {
         match self {
             Self::Address(rows) => Ok(rows),
             Self::Ghost(_) => Err(unknown(
-                "opaque class needs its exact child/capture source selector, not an equal class image")),
+                "opaque class needs its exact child/capture source selector, not an equal class image",
+            )),
         }
     }
 }
@@ -132,9 +138,15 @@ impl Check<'_, '_> {
         self.scope_queries.borrow_mut().remove(&id);
         result
     }
-    fn capture_directory_inner(&self, id: ClosureId, b: &mut Budget) -> CompileResult<CaptureDirectory> {
+    fn capture_directory_inner(
+        &self,
+        id: ClosureId,
+        b: &mut Budget,
+    ) -> CompileResult<CaptureDirectory> {
         if self.has_ghost_capture(id, b)? {
-            return self.ghost_capture_directory(id, b).map(CaptureDirectory::Ghost);
+            return self
+                .ghost_capture_directory(id, b)
+                .map(CaptureDirectory::Ghost);
         }
         b.spend(self.module.closures.len().saturating_add(1), WORK)?;
         let closure = self
@@ -487,7 +499,8 @@ impl Check<'_, '_> {
         directory
             .into_iter()
             .map(|row| row.ok_or_else(|| fail("implicit head directory is incomplete")))
-            .collect::<CompileResult<Vec<_>>>().map(CaptureDirectory::Address)
+            .collect::<CompileResult<Vec<_>>>()
+            .map(CaptureDirectory::Address)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -501,10 +514,36 @@ impl Check<'_, '_> {
         depth: usize,
         b: &mut Budget,
     ) -> CompileResult<Heads> {
+        self.place_heads(function, local, None, class, at, active, depth, b)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn place_heads(
+        &self,
+        function: &TypedFunction,
+        local: LocalId,
+        slot: Option<&persistent_slots::Slot>,
+        class: Option<u32>,
+        at: (BlockId, usize, SemanticSiteEdge),
+        active: &mut BTreeSet<(FunctionId, ValueId, Option<u32>)>,
+        depth: usize,
+        b: &mut Budget,
+    ) -> CompileResult<Heads> {
         if depth > b.partial_depth {
             return Err(unknown(
                 "actual implicit local-head derivation exceeds its finite bound",
             ));
+        }
+        if slot.is_some() {
+            operations::initialized_local_before(
+                function,
+                (
+                    at.0,
+                    at.1.saturating_add(usize::from(at.2 == SemanticSiteEdge::After)),
+                ),
+                local,
+                b,
+            )?;
         }
         let initialization = crate::shared_initialization(function, b)?;
         let mut out = Heads::new();
@@ -521,7 +560,7 @@ impl Check<'_, '_> {
             let actual = function
                 .blocks
                 .get(block.0 as usize)
-                .filter(|actual| actual.id == block)
+                .filter(|actual| actual.id == block && end <= actual.instructions.len())
                 .ok_or_else(|| fail("implicit local head has no actual CFG boundary"))?;
             let mut found = false;
             for (index, instruction) in actual.instructions.iter().enumerate().take(end).rev() {
@@ -537,11 +576,54 @@ impl Check<'_, '_> {
                             value,
                             b,
                         )?;
+                        let source = if let Some(slot) = slot {
+                            if slot.initial_store() != (block, index) || slot.array() != value {
+                                return Err(fail(
+                                    "implicit slot head crosses an unrelated shell Store",
+                                ));
+                            }
+                            slot.initial()
+                        } else {
+                            value
+                        };
+                        let sources = self.heads(function, source, class, active, depth + 1, b)?;
+                        b.spend(out.len().saturating_add(sources.len()), WORK)?;
+                        out.extend(sources);
+                        found = true;
+                        break;
+                    }
+                    InstructionKind::StoreOwnedArrayElement {
+                        local: destination,
+                        index: element,
+                        value,
+                    } if destination == local && slot.is_some() => {
+                        if element != 0 {
+                            return Err(fail("implicit slot head selects another actual element"));
+                        }
+                        operations::available_before(
+                            function,
+                            (block, index, SemanticSiteEdge::Before),
+                            value,
+                            b,
+                        )?;
                         let sources = self.heads(function, value, class, active, depth + 1, b)?;
                         b.spend(out.len().saturating_add(sources.len()), WORK)?;
                         out.extend(sources);
                         found = true;
                         break;
+                    }
+                    InstructionKind::TakeOwnedArrayElement {
+                        local: destination, ..
+                    }
+                    | InstructionKind::DropOwnedArrayElement {
+                        local: destination, ..
+                    }
+                    | InstructionKind::DropOwnedArray { local: destination }
+                        if destination == local && slot.is_some() =>
+                    {
+                        return Err(fail(
+                            "implicit slot head read crosses an actual vacant element",
+                        ));
                     }
                     InstructionKind::StorageLive(destination)
                     | InstructionKind::StorageDead(destination)
@@ -564,17 +646,21 @@ impl Check<'_, '_> {
                     "implicit local head has no actual initialized entry origin",
                 ));
             }
-            for predecessor in &function.blocks {
+            let mut incoming = false;
+            for predecessor in &initialization.predecessors[block.0 as usize] {
                 b.spend(1, WORK)?;
-                if !initialization.reachable[predecessor.id.0 as usize] {
+                if !initialization.reachable[*predecessor] {
                     continue;
                 }
-                if matches!(predecessor.terminator, Terminator::Jump(next) if next == block)
-                    || matches!(predecessor.terminator, Terminator::Branch { then_block, else_block, .. } if then_block == block || else_block == block)
-                {
-                    b.spend(1, WORK)?;
-                    pending.push((predecessor.id, predecessor.instructions.len()));
-                }
+                let previous = &function.blocks[*predecessor];
+                b.spend(pending.len().saturating_add(1), WORK)?;
+                pending.push((previous.id, previous.instructions.len()));
+                incoming = true;
+            }
+            if !incoming {
+                return Err(fail(
+                    "implicit head has no initialized reachable predecessor",
+                ));
             }
         }
         if out.is_empty() {
@@ -583,6 +669,99 @@ impl Check<'_, '_> {
             ));
         }
         Ok(out)
+    }
+
+    // heads() derives physical source identities without an original-world
+    // argument. Establish the same exact representation in every real world
+    // of this function; never select the first equal image as an authority.
+    fn head_slot(
+        &self,
+        function: &TypedFunction,
+        local: LocalId,
+        b: &mut Budget,
+    ) -> CompileResult<Option<persistent_slots::Slot>> {
+        let mut selected: Option<persistent_slots::Slot> = None;
+        let mut worlds = 0usize;
+        for instance in &self.program.instances {
+            b.spend(1, WORK)?;
+            let SemanticInstanceTarget::Function(target) = &instance.target else {
+                continue;
+            };
+            if self.inventory.function(target, b)?.id != function.id {
+                continue;
+            }
+            worlds += 1;
+            let Some(slot) = self.persistent_slot(instance, function, local, b)? else {
+                return Err(unknown(
+                    "implicit array head has no exact original closure slot witness",
+                ));
+            };
+            if let Some(old) = &selected {
+                if old.local() != slot.local()
+                    || old.declaration() != slot.declaration()
+                    || old.initial_store() != slot.initial_store()
+                    || old.array() != slot.array()
+                    || old.initial() != slot.initial()
+                {
+                    return Err(fail(
+                        "implicit slot worlds disagree on the actual representation",
+                    ));
+                }
+            } else {
+                selected = Some(slot);
+            }
+        }
+        if worlds == 0 {
+            return Err(fail(
+                "implicit slot head has no actual original function world",
+            ));
+        }
+        Ok(selected)
+    }
+
+    fn array_head_slot(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        value: ValueId,
+        b: &mut Budget,
+    ) -> CompileResult<Option<persistent_slots::Slot>> {
+        if !matches!(function.values.get(value.0 as usize),
+            Some(Type::Array { length: 1, element }) if matches!(element.as_ref(), Type::Closure(_)))
+        {
+            return Ok(None);
+        }
+        let mut selected = None;
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                b.spend(1, WORK)?;
+                let InstructionKind::Store {
+                    local,
+                    value: actual,
+                } = instruction.kind
+                else {
+                    continue;
+                };
+                if actual != value {
+                    continue;
+                }
+                let Some(slot) = self.persistent_slot(instance, function, local, b)? else {
+                    continue;
+                };
+                if slot.array() != value {
+                    continue;
+                }
+                if selected.is_some() {
+                    return Err(fail(
+                        "implicit array source has competing original slot destinations",
+                    ));
+                }
+                selected = Some(slot);
+            }
+        }
+        selected.map(Some).ok_or_else(|| {
+            unknown("implicit array source lacks its complete original slot witness")
+        })
     }
 
     fn definition_at(
@@ -688,6 +867,48 @@ impl Check<'_, '_> {
                     depth + 1,
                     b,
                 ),
+            (InstructionKind::TakeOwnedArrayElement { local, index }, Some(class))
+            | (InstructionKind::BorrowOwnedArrayElement { local, index, .. }, Some(class)) => {
+                if *index != 0 {
+                    return Err(fail(
+                        "implicit closure head selects another persistent slot element",
+                    ));
+                }
+                let slot = self.head_slot(function, *local, b)?.ok_or_else(|| {
+                    unknown("implicit closure element has no complete original slot")
+                })?;
+                let output = function
+                    .values
+                    .get(value.0 as usize)
+                    .ok_or_else(|| fail("implicit slot read omits its actual result type"))?;
+                match self.instruction(function, value, b)? {
+                    InstructionKind::TakeOwnedArrayElement { .. } => {
+                        if !geometry::same_type(output, &slot.logical().ty, b)? {
+                            return Err(fail("implicit slot take changes its complete child type"));
+                        }
+                    }
+                    InstructionKind::BorrowOwnedArrayElement { mutable, .. } => {
+                        if !matches!(output, Type::Address { mutable: actual, inner }
+                            if actual == mutable && inner.as_ref() == &slot.logical().ty)
+                        {
+                            return Err(fail(
+                                "implicit slot borrow changes its complete child or mode",
+                            ));
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+                self.place_heads(
+                    function,
+                    *local,
+                    Some(&slot),
+                    Some(class),
+                    self.definition_at(function, value, b)?,
+                    active,
+                    depth + 1,
+                    b,
+                )
+            }
             (InstructionKind::MakeClosure { closure, captures }, Some(class)) => {
                 let directory = self.capture_directory(*closure, b)?.address()?;
                 let index = directory.get(class as usize).ok_or_else(|| {
@@ -768,15 +989,19 @@ impl Check<'_, '_> {
                     operand: SemanticOperand::Local(local),
                     path,
                     class,
-                } if path.is_empty() => self.local_heads(
-                    function,
-                    *local,
-                    Some(*class),
-                    at,
-                    &mut BTreeSet::new(),
-                    0,
-                    b,
-                )?,
+                } if path.is_empty() => {
+                    let slot = self.persistent_slot(instance, function, *local, b)?;
+                    self.place_heads(
+                        function,
+                        *local,
+                        slot.as_ref(),
+                        Some(*class),
+                        at,
+                        &mut BTreeSet::new(),
+                        0,
+                        b,
+                    )?
+                }
                 _ => {
                     return Err(unknown(
                         "implicit closure image requires its actual emitted capture-head selector",
@@ -801,23 +1026,31 @@ impl Check<'_, '_> {
         let function = self.inventory.function(target, b)?;
         for (class, expected) in expected.iter().enumerate() {
             let actual = match operand {
-                SemanticOperand::Value(value) => self.heads(
-                    function,
-                    *value,
-                    Some(class as u32),
-                    &mut BTreeSet::new(),
-                    0,
-                    b,
-                )?,
-                SemanticOperand::Local(local) => self.local_heads(
-                    function,
-                    *local,
-                    Some(class as u32),
-                    at,
-                    &mut BTreeSet::new(),
-                    0,
-                    b,
-                )?,
+                SemanticOperand::Value(value) => {
+                    let slot = self.array_head_slot(instance, function, *value, b)?;
+                    let source = slot.as_ref().map_or(*value, |slot| slot.initial());
+                    self.heads(
+                        function,
+                        source,
+                        Some(class as u32),
+                        &mut BTreeSet::new(),
+                        0,
+                        b,
+                    )?
+                }
+                SemanticOperand::Local(local) => {
+                    let slot = self.persistent_slot(instance, function, *local, b)?;
+                    self.place_heads(
+                        function,
+                        *local,
+                        slot.as_ref(),
+                        Some(class as u32),
+                        at,
+                        &mut BTreeSet::new(),
+                        0,
+                        b,
+                    )?
+                }
                 _ => {
                     return Err(unknown(
                         "implicit closure domain needs its exact actual value or occupant",
