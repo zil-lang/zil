@@ -2,6 +2,36 @@
 //! never supplies a capability missing from the abstract caller's declaration.
 use super::*;
 impl CheckedOriginal {
+    /// Query the original declaration before applying any actual world. An
+    /// actual caller may check correspondence, never supply this premise.
+    pub(in crate::semantic) fn closed_input_original(&mut self,module:&TypedModule,context:&CheckedContext,definition:SemanticDefinitionId,ordinal:u32,path:&[ContractProjection],active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
+        if !self.checked.contains(&definition){return Ok(false);}
+        let Some(root)=self.parameters.get(&(definition,ordinal))else{return Ok(false);};
+        let mut ty=self.resolved(root,b)?;
+        let env=self.environment(module,context,definition,active,b)?;
+        let previous=self.current.replace(definition);
+        let result=(||{
+            for step in path{
+                b.spend(1)?;
+                while let Ty::Managed(inner)=ty{ty=self.resolved(&inner,b)?;}
+                ty=match(step,self.resolved(&ty,b)?){
+                    (ContractProjection::Place(PlaceProjection::Field(index)),Ty::Tuple(fields))=>fields.get(*index as usize).cloned(),
+                    (ContractProjection::Place(PlaceProjection::Field(index)),Ty::Array(child,_))=>Some(*child),
+                    (ContractProjection::Place(PlaceProjection::ErrorArm(failed)),Ty::ErrorUnion(error,result))=>Some(if *failed{*error}else{*result}),
+                    (ContractProjection::Place(PlaceProjection::Field(index)),Ty::Nominal(id,arguments))=>{
+                        let declared=context.definition(module,id,b)?;
+                        let SemanticDefinitionBody::Nominal{body:SemanticNominalBody::Product{fields},..}=&declared.body else{return Ok(false);};
+                        let Some(field)=fields.get(*index as usize)else{return Ok(false);};
+                        b.spend(field.name.len())?;let name=field.name.clone();
+                        Some(self.field(module,context,&Ty::Nominal(id,arguments),&name,&env,active,b)?)
+                    },
+                    _=>None,
+                }.ok_or_else(||unsupported("original ClosedEnvironment input needs its exact complete value projection",None))?;
+            }
+            self.closed_value(module,context,&ty,&env,active,b)
+        })();
+        self.current=previous;result
+    }
     pub(super) fn builtin_premise(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,kind:SemanticBuiltinTrait,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
         if self.current!=Some(env.current()?){return Err(bad("operational premise queried in another original caller domain"));}
         for(depth,frame)in env.lexical.iter().enumerate(){
@@ -122,5 +152,28 @@ mod static_environment_tests{
             assert!(original.builtin_obligation(&module,&context,&ty,SemanticBuiltinTrait::Transfer,&env,&mut active,&mut b).is_err());
         }
         assert!(!original.closed_value(&module,&context,&Ty::Slice(Box::new(Ty::Atom(Type::U8))),&env,&mut active,&mut b).unwrap());
+    }
+}
+
+#[cfg(test)]
+mod closed_input_tests{
+    use super::*;
+    #[test]
+    fn closed_input_uses_the_original_parameter_bound_without_substituting_actual_callers(){
+        let limits=Limits::default();
+        let bytes=include_bytes!("../fixtures/ordinary-identity-complete-head.wire");
+        for premise in [false,true]{
+            let(mut module,_)=zil_ir::wire::decode_module_candidate(bytes,&limits).unwrap();
+            let definition=&mut module.semantic.as_mut().unwrap().definitions[0];
+            let id=definition.id;definition.parent=None;
+            definition.parameters=vec![SemanticFormal::Type{requirements:vec![]}];definition.environment.clear();definition.requirements.clear();
+            if premise{definition.requirements.push(SemanticRequirementRecipe::Builtin{ty:SemanticTypeRecipe::Formal(SemanticFormalRef{scope:SemanticScopeRef::Ancestor(0),ordinal:0}),trait_kind:SemanticBuiltinTrait::ClosedEnvironment});}
+            let mut budget=Budget::new(&limits);let context=CheckedContext::catalogue(&module,&mut budget).unwrap();
+            let mut original=CheckedOriginal::default();original.checked.insert(id);original.parameters.insert((id,0),Ty::Variable(id,0));
+            let result=original.closed_input_original(&module,&context,id,0,&[],&mut ActiveQueries::new(),&mut budget).unwrap();
+            assert_eq!(result,premise,"a concrete actual Type cannot replace the original F:ClosedEnvironment premise");
+            assert!(original.current.is_none());
+            assert!(!original.closed_input_original(&module,&context,id,1,&[],&mut ActiveQueries::new(),&mut budget).unwrap(),"another parameter cannot borrow this original subject's bound");
+        }
     }
 }

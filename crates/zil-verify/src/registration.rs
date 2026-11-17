@@ -58,21 +58,159 @@ pub(super) fn carrier(
         *id,
         span,
         budget,
-        matches!(p.as_ref(), Type::AsyncRegistration { .. }),
+        ClosedPurpose::Registration{asynchronous:matches!(p.as_ref(), Type::AsyncRegistration { .. })},
     )
 }
 pub(super) fn semantic_closed_environment(module:&TypedModule,closure:ClosureId,budget:&mut Budget)->Check<()>{
-    closed(module,closure,None,budget,false)
+    closed(module,closure,None,budget,ClosedPurpose::Semantic)
 }
 pub(super) fn semantic_thread_callable(module:&TypedModule,closure:ClosureId,budget:&mut Budget)->Check<()>{
     threaded::actual(module,closure,None,budget)
 }
+#[derive(Clone,Copy)]
+enum ClosedPurpose{Semantic,Registration{asynchronous:bool}}
+impl ClosedPurpose{fn semantic(self)->bool{matches!(self,Self::Semantic)}fn asynchronous(self)->bool{matches!(self,Self::Registration{asynchronous:true})}}
+#[derive(Clone,Debug,PartialEq,Eq,PartialOrd,Ord)]
+pub(crate) enum ClosedTaskOccurrence{
+    Capture{closure:ClosureId,position:StoragePosition,task:Type},
+    Value{function:FunctionId,value:ValueId,path:Vec<ContractProjection>,task:Type},
+}
+fn defer_closed_task(module:&TypedModule,task:&Type,source:ClosedTaskOccurrence,b:&mut Budget)->Check<()>{
+    let Type::Task{retained_life,..}=task else{return Err(error(None,"closed Task source changes its complete actual kind"));};
+    if retained_life.binder_count!=0||crate::semantic::task_domains::task_metadata_domain(module,task,b)?!=0{return Err(error(None,"Task ClosedEnvironment retains a free/phantom class or physical port"));}
+    dynamic_metadata::ty(task,b)?;
+    b.spend(b.semantic_closed_task_captures.len().checked_ilog2().map_or(1,|n|n as usize+1))?;
+    if b.semantic_closed_task_captures.len()>=b.limits.max_nodes{return Err(limit("Task ClosedEnvironment source inventory exceeded"));}
+    b.semantic_closed_task_captures.insert(source);b.task_origin_roots=true;Ok(())
+}
+fn task_leaf<'a>(module:&'a TypedModule,mut ty:&'a Type,path:&[ContractProjection],b:&mut Budget)->Check<&'a Type>{
+    for step in path{
+        b.spend(1)?;
+        while let Type::BorrowedStorage{storage,..}|Type::Managed(storage)=ty{ty=storage;}
+        ty=match(step,ty){
+            (ContractProjection::Place(PlaceProjection::Field(index)),Type::Tuple(fields))=>fields.get(*index as usize),
+            (ContractProjection::Place(PlaceProjection::Field(index)),Type::Record{fields,..}|Type::Package{fields,..})=>fields.get(*index as usize).map(|(_,ty)|ty),
+            (ContractProjection::Place(PlaceProjection::Field(index)),Type::Array{element,length})if *index<*length=>Some(element.as_ref()),
+            (ContractProjection::Place(PlaceProjection::ErrorArm(failed)),Type::ErrorUnion{error,result})=>Some(if *failed{error.as_ref()}else{result.as_ref()}),
+            (ContractProjection::Place(PlaceProjection::Variant(row)),Type::Enum{variants,..})=>variants.get(row.variant as usize).and_then(|(_,fields)|fields.get(row.index as usize)),
+            (ContractProjection::Capture(index),Type::Closure(id))=>crate::closures::definition(module,*id,None)?.captures.get(*index as usize),
+            _=>None,
+        }.ok_or_else(||error(None,"Task ClosedEnvironment source crosses another complete actual value selector"))?;
+    }
+    if let Type::Managed(inner)=ty{ty=inner;}
+    if !matches!(ty,Type::Task{..}){return Err(error(None,"Task ClosedEnvironment source selects another complete actual leaf"));}
+    Ok(ty)
+}
+fn endpoint_workers(module:&TypedModule,function:FunctionId,value:ValueId,path:&[ContractProjection],task:&Type,b:&mut Budget)->Check<BTreeSet<FunctionId>>{
+    let source=module.functions.get(function.0 as usize).and_then(|function|function.values.get(value.0 as usize)).ok_or_else(||error(None,"Task ClosedEnvironment actual SSA is absent"))?;
+    dynamic_metadata::ty(source,b)?;
+    if task_leaf(module,source,path,b)?!=task{return Err(error(None,"Task ClosedEnvironment source changes the complete retained/result type"));}
+    crate::tasks::closed_frame_workers(module,function,value,path,b)
+}
+fn capture_workers(module:&TypedModule,closure:ClosureId,position:&StoragePosition,task:&Type,b:&mut Budget)->Check<BTreeSet<FunctionId>>{
+    let definition=crate::closures::definition(module,closure,None)?;
+    let StorageBase::Capture(index)=position.base else{return Err(error(None,"Task ClosedEnvironment capture source has another original role"));};
+    let root=definition.captures.get(index as usize).ok_or_else(||error(None,"Task ClosedEnvironment capture ordinal is absent"))?;
+    if task_leaf(module,root,&position.path,b)?!=task{return Err(error(None,"Task ClosedEnvironment capture selector changes its complete child"));}
+    let mut workers=BTreeSet::new();
+    for(function,value)in crate::tasks::closed_capture_sources(module,closure,index,b)?{
+        workers.extend(endpoint_workers(module,function,value,&position.path,task,b)?);
+    }
+    Ok(workers)
+}
+
+/// Structural data qualification of an actual frame input/result. It does not
+/// inspect the executable worker graph or grant synchronous retirement.
+fn closed_frame_data(module:&TypedModule,ty:&Type,source:Option<(FunctionId,ValueId,Vec<ContractProjection>)>,b:&mut Budget)->Check<()>{
+    let mut work=vec![(ty,source,0usize)];
+    while let Some((ty,source,depth))=work.pop(){
+        b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("closed frame data depth exceeded"));}
+        let descend=|step:PlaceProjection,b:&mut Budget|->Check<Option<(FunctionId,ValueId,Vec<ContractProjection>)>>{if let Some((function,value,path))=&source{b.spend(path.len().saturating_add(1))?;let mut path=path.clone();path.push(ContractProjection::Place(step));Ok(Some((*function,*value,path)))}else{Ok(None)}};
+        match ty{
+            Type::Task{..}=>{
+                let(function,value,path)=source.ok_or_else(||unsupported("phantom Task frame data requires its explicit closed-environment premise",None))?;
+                dynamic_metadata::ty(ty,b)?;
+                defer_closed_task(module,ty,ClosedTaskOccurrence::Value{function,value,path,task:ty.clone()},b)?;
+            },
+            Type::Closure(id)=>semantic_closed_environment(module,*id,b)?,
+            Type::Managed(inner)|Type::Opaque{hidden:inner,..}=>work.push((inner,source,depth+1)),
+            Type::BorrowedStorage{storage,life}=>{if life.binder_count!=0{return Err(error(None,"closed Task frame retains an independent nominal/phantom class"));}work.push((storage,source,depth+1));},
+            Type::Registration{environment}|Type::AsyncRegistration{environment}=>work.push((environment,None,depth+1)),
+            Type::Tuple(fields)=>{b.spend(fields.len())?;for(index,child)in fields.iter().enumerate(){work.push((child,descend(PlaceProjection::Field(index as u32),b)?,depth+1));}},
+            Type::Record{fields,..}|Type::Package{fields,..}=>{b.spend(fields.len())?;for(index,(_,child))in fields.iter().enumerate(){work.push((child,descend(PlaceProjection::Field(index as u32),b)?,depth+1));}},
+            Type::Array{element,length}=>{if *length as usize>b.limits.max_nodes{return Err(limit("closed Task frame array inventory exceeded"));}b.spend(*length as usize)?;for index in 0..*length{work.push((element,descend(PlaceProjection::Field(index),b)?,depth+1));}},
+            Type::Enum{variants,..}=>{for(variant,(_,fields))in variants.iter().enumerate(){b.spend(fields.len())?;for(index,child)in fields.iter().enumerate(){work.push((child,descend(PlaceProjection::Variant(VariantProjection{variant:variant as u32,index:index as u32}),b)?,depth+1));}}},
+            Type::ErrorUnion{error,result}=>{work.push((error,descend(PlaceProjection::ErrorArm(true),b)?,depth+1));work.push((result,descend(PlaceProjection::ErrorArm(false),b)?,depth+1));},
+            Type::OwnedStore{element}|Type::Mutex{payload:element}=>work.push((element,None,depth+1)),
+            Type::BorrowedFunctionPointer{life,..}if life.fixed_binder_count==0=>{},
+            Type::FunctionPointer{..}|Type::ForeignCallback{..}|Type::Unit|Type::Bool|Type::I8|Type::I16|Type::I32|Type::I64|Type::Isize|Type::U8|Type::U16|Type::U32|Type::U64|Type::Usize|Type::F32|Type::F64|Type::ForeignHandle|Type::CWideString|Type::ByteBuffer|Type::TaskI32=>{},
+            _=>return Err(error(None,"Task ClosedEnvironment frame data retains a borrowed, unresolved or unsupported hidden position")),
+        }
+    }Ok(())
+}
+
+/// Runs after the complete constructor/source, Static, worker and resource
+/// passes. Pending requests remain exact occurrences, never a same-Type frame
+/// cache. Every real construction and replacement contributes its own source.
+pub(crate) fn finish_semantic_closed_tasks(module:&TypedModule,b:&mut Budget)->Check<()>{
+    let mut completed=BTreeSet::new();let mut checked_workers=BTreeSet::new();
+    loop{
+        b.spend(b.semantic_closed_task_captures.len().saturating_add(completed.len()))?;
+        let pending=std::mem::take(&mut b.semantic_closed_task_captures);
+        let copied:Check<Option<ClosedTaskOccurrence>>=(||{
+            let Some(row)=pending.iter().find(|row|!completed.contains(*row))else{return Ok(None);};
+            match row{ClosedTaskOccurrence::Capture{position,task,..}=>{dynamic_metadata::position(position,b)?;dynamic_metadata::ty(task,b)?;},ClosedTaskOccurrence::Value{path,task,..}=>{b.spend(path.len().saturating_add(1))?;dynamic_metadata::ty(task,b)?;}}
+            Ok(Some(row.clone()))
+        })();
+        b.semantic_closed_task_captures=pending;
+        let Some(request)=copied?else{break;};
+        let workers=match &request{
+            ClosedTaskOccurrence::Capture{closure,position,task}=>capture_workers(module,*closure,position,task,b)?,
+            ClosedTaskOccurrence::Value{function,value,path,task}=>endpoint_workers(module,*function,*value,path,task,b)?,
+        };
+        completed.insert(request);
+        for worker in workers{
+            if !checked_workers.insert(worker){continue;}
+            b.spend(b.task_constructors.len())?;
+            let copied_keys=b.task_constructors.values().filter(|row|row.key.worker==worker).fold(0usize,|n,row|n.saturating_add(row.frames.len()).saturating_add(1));b.spend(copied_keys)?;
+            let mut sites=Vec::new();
+            for row in b.task_constructors.values().filter(|row|row.key.worker==worker){
+                if row.state!=crate::semantic::task_domains::ObligationState::Discharged||!row.raw_checked||module.semantic.is_some()&&!row.semantic_checked{return Err(error(None,"Task ClosedEnvironment constructor source has no completed exact-site proof"));}
+                sites.push((row.key,row.frames.clone()));
+            }
+            if sites.is_empty(){return Err(error(None,"Task ClosedEnvironment source worker lacks its real constructor obligations"));}
+            let frames=crate::semantic::task_domains::metadata_candidates(worker,b)?;
+            for(site,keys)in sites{
+                let caller=module.functions.get(site.function.0 as usize).ok_or_else(||error(None,"closed Task constructor source function is absent"))?;
+                let instruction=caller.blocks.iter().find(|block|block.id==site.block).and_then(|block|block.instructions.get(site.instruction as usize)).ok_or_else(||error(None,"closed Task constructor source instruction is absent"))?;
+                let arguments=match &instruction.kind{InstructionKind::TaskCreate{worker:actual,arguments,..}|InstructionKind::TaskCreateOwned{worker:actual,arguments,..}if *actual==worker&&instruction.result==Some(site.result)=>arguments,_=>return Err(error(None,"closed Task source changes its exact actual constructor role"))};
+                if keys.is_empty(){return Err(error(None,"Task ClosedEnvironment constructor has no full original frame world"));}
+                for key in keys{
+                    b.spend(frames.len().saturating_add(1))?;
+                    let frame=frames.iter().find(|frame|frame.key==key).ok_or_else(||error(None,"Task ClosedEnvironment source frame remains Building/absent"))?;
+                    if frame.key.worker!=worker||frame.shape.binder_count!=0||module.semantic.is_some()&&!frame.worker_checked||frame.parameter_types.len()!=arguments.len(){return Err(error(None,"Task ClosedEnvironment source frame changes its full checked worker/input/context domain"));}
+                    for(argument,ty)in arguments.iter().zip(&frame.parameter_types){dynamic_metadata::ty(ty,b)?;closed_frame_data(module,ty,Some((caller.id,*argument,vec![])),b)?;}
+                    for actual in &frame.arguments{match actual{
+                        crate::semantic::api::CheckedActual::Type(ty)|crate::semantic::api::CheckedActual::Const{carrier:ty,..}=>{if ty.life.binder_count!=0{return Err(error(None,"Task ClosedEnvironment retains a complete phantom actual domain"));}closed_frame_data(module,&ty.ty,None,b)?;},
+                        crate::semantic::api::CheckedActual::Life(_)=>return Err(error(None,"Task ClosedEnvironment retains an original Life actual")),
+                    }}
+                    let entry=module.functions.get(worker.0 as usize).ok_or_else(||error(None,"closed Task frame worker entry is absent"))?;
+                    let mut returns=false;
+                    for block in &entry.blocks{if let Terminator::Return(Some(value))=block.terminator{returns=true;closed_frame_data(module,&frame.result_type,Some((worker,value,vec![])),b)?;}}
+                    if !returns{closed_frame_data(module,&frame.result_type,None,b)?;}
+                }
+            }
+        }
+    }
+    b.semantic_closed_task_captures.clear();Ok(())
+}
+
 fn closed(
     module: &TypedModule,
     root: ClosureId,
     span: Option<Span>,
     budget: &mut Budget,
-    asynchronous: bool,
+    purpose: ClosedPurpose,
 ) -> Check<()> {
     let mut closure_queue = vec![root];
     let mut closures_seen = BTreeSet::new();
@@ -105,10 +243,11 @@ fn closed(
             .ok_or_else(|| error(span, "registration entry is absent"))?;
         budget.spend(c.parameters.len().saturating_add(1))?;
         if entry.environment != Some(id)
+            || entry.call_kind!=CallKind::Direct
             || entry.foreign.is_some()
             || entry.parameters.len() != c.parameters.len()
             || entry.return_type != c.result
-            || entry.result_mode != PassingMode::Infer
+            || !purpose.semantic()&&entry.result_mode != PassingMode::Infer
         {
             return Err(error(
                 span,
@@ -120,7 +259,7 @@ fn closed(
                 return Err(error(span, "registration actual entry parameter differs"));
             }
         }
-        code_queue.push(c.function);
+        if !purpose.semantic(){code_queue.push(c.function);}
         if let Some(header)=c.storage_life.as_ref().filter(|header|!header.static_bindings.is_empty()){
             if header.fixed_binder_count!=0{return Err(error(span,"Static ClosedEnvironment cannot erase free or phantom classes"));}
             signature_life::closure_relation_resource_scopes(module,&c.parameters,&c.captures,c.kind,stored_callables::life_result(c),header,span,budget)?;
@@ -134,6 +273,7 @@ fn closed(
                     fields.push((inner,None,true));
                 },
                 Type::Slice{element}if static_pointee=>fields.push((element,None,true)),
+                Type::AsyncRegistration { environment }if purpose.semantic()=>fields.push((environment,None,false)),
                 Type::AsyncRegistration { .. } => {
                     return Err(unsupported(
                         "ClosedEnvironment cannot retain a pollable registration with asynchronous teardown",
@@ -152,12 +292,17 @@ fn closed(
                         "ClosedEnvironment contains an external loan or unresolved position",
                     ));
                 }
-                Type::TaskI32 if asynchronous => {
+                Type::TaskI32 if purpose.asynchronous() => {
                     return Err(error(
                         span,
                         "AsyncRegistration environment lacks an actual synchronous legacy Task frame cleanup proof",
                     ));
                 }
+                Type::Task { .. }if purpose.semantic()=>{
+                    let position=position.ok_or_else(||unsupported("closed Task capture lacks its complete actual source selector",span))?;
+                    dynamic_metadata::ty(t,budget)?;
+                    defer_closed_task(module,t,ClosedTaskOccurrence::Capture{closure:id,position,task:t.clone()},budget)?;
+                },
                 Type::Task { .. } => {
                     return Err(error(
                         span,
@@ -179,7 +324,7 @@ fn closed(
                         }
                     }
                     budget.spend(1)?;
-                    fields.push((p,None,static_pointee));
+                    fields.push((p,if purpose.semantic(){position}else{None},static_pointee));
                 }
                 Type::BorrowedStorage{storage:p,life}=>{
                     if life.binder_count!=0{return Err(error(span,"ClosedEnvironment retains an independent nominal or phantom class"));}
@@ -512,7 +657,7 @@ pub(super) fn factory(module: &TypedModule, f: &TypedFunction, budget: &mut Budg
         *id,
         Some(f.span),
         budget,
-        matches!(payload.as_ref(), Type::AsyncRegistration { .. }),
+        ClosedPurpose::Registration{asynchronous:matches!(payload.as_ref(), Type::AsyncRegistration { .. })},
     )?;
     Ok(true)
 }

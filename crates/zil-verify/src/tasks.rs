@@ -10,6 +10,7 @@ pub(super) mod input_scope;
 mod owned;
 pub(super) use drop_sync::{
     needs_proof as needs_synchronous_proof, once_cleanup_closed, once_cleanup_has_no_task,
+    require_direct_consuming_environment, closed_frame_workers, closed_capture_sources,
     require as require_synchronous_drop, require_value as require_synchronous_value,
     require_worker as require_synchronous_worker,
 };

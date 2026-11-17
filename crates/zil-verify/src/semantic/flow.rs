@@ -129,6 +129,12 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
     Ok(())
 }
 impl CheckedContext {
+    pub(crate) fn closed_input_original(&self,module:&TypedModule,definition:SemanticDefinitionId,ordinal:u32,path:&[ContractProjection],active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
+        self.original.borrow_mut().as_mut().ok_or_else(||bad("ClosedEnvironment input has no completed original programme"))?.closed_input_original(module,self,definition,ordinal,path,active,b)
+    }
+    pub(crate) fn finish_original_callable_retirements(&self,module:&TypedModule,worlds:&[(SemanticInstanceId,EvalEnv)],b:&mut Budget)->Check<()>{
+        self.original.borrow().as_ref().ok_or_else(||bad("callable retirement final query lacks the completed original programme"))?.finish_callable_retirements(module,self,worlds,b)
+    }
     pub(super) fn record(&self,scope:ScopeKey,key:OperandKey,value:&CheckedType,b:&mut Budget)->Check<()> {
         value.charge_clone(b)?;
         b.spend(value.classes.len().saturating_add(value.origins.len()).saturating_add(value.statics.len()))?;

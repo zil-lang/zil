@@ -20,6 +20,7 @@ struct Engine<'a> {
     next: u64,
     closed_tasks: BTreeSet<Place>,
     async_tasks: BTreeSet<Place>,
+    retiring_captures:BTreeSet<Place>,
     synchronous_births:&'a mut tasks::SynchronousBirths,
     result_sources_by_function:&'a BTreeMap<SemanticDefinitionId,ResultSources>,
     returned_sources:Option<ResultSources>,
@@ -172,6 +173,7 @@ impl CheckedOriginal {
                 next: 0,
                 closed_tasks: BTreeSet::new(),
                 async_tasks: BTreeSet::new(),
+                retiring_captures:BTreeSet::new(),
                 synchronous_births:&mut synchronous_births,
                 result_sources_by_function:&result_sources_by_function,
                 returned_sources:None,
@@ -287,8 +289,10 @@ impl CheckedOriginal {
             }
             let closed = std::mem::take(&mut engine.closed_tasks);
             let asynchronous = std::mem::take(&mut engine.async_tasks);
+            let retiring_captures=std::mem::take(&mut engine.retiring_captures);
             let returned=engine.returned_sources.take();
             drop(engine);
+            for root in retiring_captures{self.remember_callable_retirement(id,&root,cleanup::CallableRetirement::ActivationCapture,b)?;}
             if let Some(returned)=returned{b.spend(returned.len())?;result_sources_by_function.insert(id,returned);}
             for root in closed {
                 b.spend(1)?;

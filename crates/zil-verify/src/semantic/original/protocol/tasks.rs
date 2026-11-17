@@ -536,7 +536,14 @@ impl<'a> Engine<'a> {
             .map(|(root, _)| root.clone())
             .collect::<Vec<_>>();
         for root in roots {
-            self.task_cleanup_root(state, &root, b)?;
+            if matches!(root.binder,Binder::Capture{definition,..}if definition==self.current)
+                &&self.original.prototypes.get(&self.current).is_some_and(|prototype|prototype.callable_kind==Some(CallableKind::FnOnce)){
+                // Final environment retirement belongs to the complete consume
+                // operation. It is not a Direct user-body cleanup or a new
+                // Closed/NoExternal fact about this incoming capture.
+                root.binder.charge_clone(b)?;b.spend(root.fields.iter().map(String::len).sum::<usize>().saturating_add(1))?;
+                self.retiring_captures.insert(root.clone());self.update(state,&root,DEAD,b)?;
+            }else{self.task_cleanup_root(state, &root, b)?;}
         }
         Ok(())
     }

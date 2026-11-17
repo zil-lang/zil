@@ -681,7 +681,7 @@ mod error_arm_coverage_tests{
             }
             let body:SemanticOriginalBlock=zil_ir::CoreBlock{statements:vec![zil_ir::CoreStatement{id:NodeId(901),kind:CoreStatementKind::Match{value:zil_ir::CoreExpr{id:NodeId(900),kind:CoreExprKind::Name("sum".into()),span},arms},span}],span};
             let mut births=tasks::SynchronousBirths::default();let summaries=BTreeMap::new();
-            let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),creation_shapes:BTreeMap::new()};
+            let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:0,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),retiring_captures:BTreeSet::new(),synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),creation_shapes:BTreeMap::new()};
             let outcome=engine.block(&body,State::default(),&[],None,0,&mut b).unwrap();
             assert_eq!(outcome.fall.is_none(),typed_sum&&complete&&!refutable,"a real exhaustive two-arm return has no third cleanup/source route; missing type/arm or refutable payload must retain it");
         }

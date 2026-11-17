@@ -44,6 +44,11 @@ pub(crate) fn drain(module:&TypedModule,b:&mut Budget)->Check<()> {
         if definition.storage_life.as_ref()!=Some(&request.actual_header)||function.storage_life.as_ref()!=Some(&request.actual_header)||function.call_kind!=request.call_kind||function.result_mode!=request.result_mode||definition.result!=request.result.ty||definition.parameters.len()!=request.parameters.len()||request.parameter_modes.len()!=request.parameters.len(){return Err(bad("Callable final actual ABI/domain differs from its original requirement"));}
         if !matches!((definition.kind,request.kind),(CallableKind::Fn,_)|(CallableKind::FnMut,CallableKind::FnMut|CallableKind::FnOnce)|(CallableKind::FnOnce,CallableKind::FnOnce)){return Err(bad("Callable final role exceeds its actual entry role"));}
         for(actual,required)in definition.parameters.iter().zip(&request.parameters){if actual!=&required.ty{return Err(bad("Callable final whole parameter type differs"));}}
+        if request.kind==CallableKind::FnOnce&&request.call_kind==CallKind::Direct{
+            // The required operation includes settling the remaining environment.
+            // A Suspend caller's resumable fallback cannot fulfill a Direct bound.
+            crate::tasks::require_direct_consuming_environment(module,request.closure,b)?;
+        }
         let program=module.semantic.as_ref().ok_or_else(||bad("Callable final original programme is absent"))?;
         for world in pending.worlds{b.spend(program.instances.len())?;let mut rows=program.instances.iter().filter(|row|row.id==world);let row=rows.next().ok_or_else(||bad("Callable final exact world disappeared"))?;if rows.next().is_some()||!matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id))if id==request.function){return Err(bad("Callable final world changed its actual target"));}}
         // The full static validator has checked all real construction/write
@@ -58,6 +63,8 @@ pub(crate) fn drain(module:&TypedModule,b:&mut Budget)->Check<()> {
             },
         }}
     }
+    crate::registration::finish_semantic_closed_tasks(module,b)?;
+    dynamic_witness::semantic_patterns::finish_original_callable_retirements(module,b)?;
     let logical=std::mem::take(&mut b.semantic_static_occurrences);
     for(closure,position)in logical{static_node(module,closure,&position,b)?;}
     Ok(())

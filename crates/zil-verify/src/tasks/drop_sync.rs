@@ -57,7 +57,7 @@ pub(super) fn contains_kind(
             Type::AsyncRegistration { environment } | Type::Registration { environment } => {
                 pending.push(environment)
             }
-            Type::Managed(p) | Type::Desc(p) | Type::Address { inner: p, .. } => pending.push(p),
+            Type::Managed(p) | Type::Desc(p) | Type::Address { inner: p, .. } | Type::BorrowedStorage { storage:p,.. } | Type::Mutex { payload:p } | Type::MutexGuard { payload:p,.. } => pending.push(p),
             Type::Closure(id) => {
                 budget.spend(closures.len().saturating_add(1))?;
                 if closures.insert(*id) {
@@ -132,6 +132,9 @@ fn dependencies(
                 }
             }
             Type::Desc(p)
+            | Type::BorrowedStorage { storage:p,.. }
+            | Type::Mutex { payload:p }
+            | Type::MutexGuard { payload:p,.. }
             | Type::Address { inner: p, .. }
             | Type::Registration { environment: p }
             | Type::AsyncRegistration { environment: p }
@@ -997,4 +1000,176 @@ pub(crate) fn once_cleanup_has_no_task(
         }
     }
     Ok(true)
+}
+
+/// One source boundary for an actual environment. Constructor and explicit
+/// capture replacements are complete; unmodelled writes through owner aliases
+/// invalidate the boundary instead of retaining an old constructor's source.
+pub(crate) fn closed_capture_sources(module:&TypedModule,id:ClosureId,index:u32,b:&mut Budget)->Check<Vec<(FunctionId,ValueId)>>{
+    let definition=crate::closures::definition(module,id,None)?;
+    let ty=definition.captures.get(index as usize).ok_or_else(||reject("E-VERIFY-TASK",None,"environment source capture ordinal is absent"))?;
+    check_environment_mutations(module,definition.function,b)?;
+    let mut sources=Vec::new();let mut constructor=false;
+    for function in &module.functions{for block in &function.blocks{for instruction in &block.instructions{
+        b.spend(1)?;
+        let value=match &instruction.kind{
+            InstructionKind::MakeClosure{closure,captures}if *closure==id=>{
+                if captures.len()!=definition.captures.len(){return Err(reject("E-VERIFY-TASK",Some(instruction.span),"environment source changes its full capture arity"));}
+                constructor=true;Some(captures[index as usize])
+            },
+            InstructionKind::WriteCapture{index:actual,value}if function.environment==Some(id)&&*actual==index=>Some(*value),
+            _=>None,
+        };
+        if let Some(value)=value{
+            resources::charge_payload(ty,b)?;
+            if function.values.get(value.0 as usize)!=Some(ty){return Err(reject("E-VERIFY-TASK",Some(instruction.span),"environment source changes its complete capture type"));}
+            if sources.len()>=b.limits.max_nodes{return Err(limit("environment source inventory exceeded"));}
+            sources.push((function.id,value));
+        }
+    }}}
+    if !constructor{return Err(reject("E-VERIFY-TASK",None,"environment source lacks its real constructor inventory"));}
+    Ok(sources)
+}
+/// This is a conservative after-source boundary, not a source of permissions.
+/// View-local Store/StorageDead never mutates its referent. Physical writes of
+/// Task-bearing owners and unresolved call targets require an after-summary.
+fn check_environment_mutations(module:&TypedModule,entry:FunctionId,b:&mut Budget)->Check<()>{
+    let mut pending=vec![entry];let mut seen=BTreeSet::new();
+    while let Some(id)=pending.pop(){
+        b.spend(seen.len().saturating_add(1))?;if !seen.insert(id){continue;}
+        let function=module.functions.get(id.0 as usize).filter(|f|f.id==id).ok_or_else(||reject("E-VERIFY-TASK",None,"environment after-source helper is absent"))?;
+        if function.foreign.is_some(){
+            for parameter in &function.parameters{
+                let ty=&function.locals.get(parameter.0 as usize).ok_or_else(||reject("E-VERIFY-TASK",Some(function.span),"foreign environment effect parameter is absent"))?.ty;
+                if contains_kind(module,ty,b,false)?||contains_kind(module,ty,b,true)?{return Err(unsupported("foreign Task owner effect has no complete after-source summary",Some(function.span)));}
+            }
+        }
+        for block in &function.blocks{for instruction in &block.instructions{
+            b.spend(1)?;
+            let written=match &instruction.kind{
+                InstructionKind::WriteAddress{value,..}|InstructionKind::WriteDesc{value,..}|InstructionKind::CommitPlaceReplace{value,..}|InstructionKind::StorePackageField{value,..}|InstructionKind::StoreOwnedArrayElement{value,..}|InstructionKind::OwnedStorePush{value,..}=>Some(*value),
+                _=>None,
+            };
+            if let Some(value)=written{
+                let ty=function.values.get(value.0 as usize).ok_or_else(||reject("E-VERIFY-TASK",Some(instruction.span),"environment replacement operand is absent"))?;
+                if contains_kind(module,ty,b,false)?||contains_kind(module,ty,b,true)?{return Err(unsupported("environment owner replacement needs its complete after-source summary",Some(instruction.span)));}
+            }
+            let callable=match &instruction.kind{
+                InstructionKind::Call{function,..}|InstructionKind::SuspendCall{function,..}|InstructionKind::ForeignCall{function,..}=>{pending.push(*function);None},
+                InstructionKind::CallClosure{callee,..}|InstructionKind::CallClosureOnce{callee,..}|InstructionKind::CallClosureBorrowed{callee,..}=>function.values.get(callee.0 as usize),
+                InstructionKind::CallClosureMut{callee,..}|InstructionKind::CallClosureShared{callee,..}=>function.locals.get(callee.0 as usize).map(|l|&l.ty),
+                InstructionKind::CallIndirect{..}|InstructionKind::CallDynSlot{..}=>return Err(unsupported("environment mutation has no complete independent indirect after-source summary",Some(instruction.span))),
+                _=>None,
+            };
+            if let Some(mut ty)=callable{
+                while let Type::Address{inner,..}|Type::Desc(inner)|Type::Managed(inner)=ty{ty=inner;}
+                let Type::Closure(closure)=ty else{return Err(unsupported("environment call has no exact actual closure after-source boundary",Some(instruction.span)));};
+                pending.push(crate::closures::definition(module,*closure,Some(instruction.span))?.function);
+            }
+        }}
+    }Ok(())
+}
+
+/// A Direct FnOnce capability describes the whole consuming operation, not
+/// only its user entry. A surrounding Task continuation cannot supply this
+/// synchronous upper. Real constructors and environment writes must all agree.
+pub(crate) fn require_direct_consuming_environment(module:&TypedModule,id:ClosureId,b:&mut Budget)->Check<()>{
+    let definition=crate::closures::definition(module,id,None)?;
+    if once_cleanup_has_no_task(module,id,b)?||once_cleanup_closed(module,id,b)?{return Ok(());}
+    // The complete entry/helper execution graph is part of the consuming
+    // operation. Safe initial fields alone cannot certify its final occupant.
+    require_worker(module,definition.function,b,None)?;
+    for(index,ty)in definition.captures.iter().enumerate(){
+        if contains_kind(module,ty,b,true)?{return Err(reject("E-VERIFY-TASK",None,"Direct consuming capability has no synchronous remaining asynchronous-registration retirement proof"));}
+        if !contains_kind(module,ty,b,false)?{continue;}
+        if !b.task_origin_roots{return Err(reject("E-VERIFY-TASK",None,"Direct consuming capability lacks complete Task source scheduling"));}
+        for(function,value)in closed_capture_sources(module,id,index as u32,b)?{
+            let function=&module.functions[function.0 as usize];
+            let source=selected::endpoint(module,function,value,&[],b)?;
+            if source.unknown||!source.parameters.is_empty()||!source.selected.is_empty()||source.workers.is_empty(){return Err(reject("E-VERIFY-TASK",None,"Direct consuming capability has no universal synchronous capture source"));}
+            require_workers(module,source.workers.into_iter().collect(),b,None)?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod direct_consuming_tests{
+    use super::*;
+    #[test]
+    fn direct_consuming_capability_checks_every_constructor_and_rejects_unknown_replacements_raw_wire(){
+        let limits=Limits::default();let(mut module,_)=crate::tests::baseline();let template=module.functions[0].clone();let span=template.span;
+        let task=Type::Managed(Box::new(Type::Task{result:Box::new(Type::I32),retained_life:super::super::empty_context()}));
+        let outcome=super::super::task_create_type(&Type::I32,super::super::empty_context());
+        let op=|result:Option<u32>,kind:InstructionKind|Instruction{result:result.map(ValueId),kind,span};
+        let maker=&mut module.functions[0];maker.values=vec![outcome,task.clone(),Type::Closure(ClosureId(0)),task.clone(),Type::Closure(ClosureId(0))];maker.locals=vec![LocalDecl{id:LocalId(0),name:"incoming".into(),ty:task.clone(),mutable:true,span}];maker.parameters=vec![LocalId(0)];maker.blocks=vec![BasicBlock{id:BlockId(0),instructions:vec![op(Some(0),InstructionKind::TaskCreate{worker:FunctionId(1),arguments:vec![],port_bindings:vec![]}),op(Some(1),InstructionKind::TakeErrorUnion{value:ValueId(0),is_error:false}),op(Some(2),InstructionKind::MakeClosure{closure:ClosureId(0),captures:vec![ValueId(1)]})],terminator:Terminator::Return(None)}];
+        let mut worker=template.clone();worker.id=FunctionId(1);worker.parameters.clear();worker.locals.clear();worker.values=vec![Type::I32];worker.blocks=vec![BasicBlock{id:BlockId(0),instructions:vec![op(Some(0),InstructionKind::Constant(Constant::I32(7)))],terminator:Terminator::Return(Some(ValueId(0)))}];
+        let mut entry=worker.clone();entry.id=FunctionId(2);entry.environment=Some(ClosureId(0));module.functions.extend([worker,entry]);module.closures=vec![ClosureDefinition{id:ClosureId(0),function:FunctionId(2),captures:vec![task],parameters:vec![],result:Type::I32,kind:CallableKind::FnMut,lending_captures:vec![],storage_life:Some(StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],classes:vec![],static_bindings:vec![]})}];
+        for wire in [false,true]{
+            let plan=CandidatePlan::empty_for(&module);let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();let decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;let original=if wire{decoded}else{module.clone()};
+            let mut budget=Budget::new(&limits);budget.task_origin_roots=true;require_direct_consuming_environment(&original,ClosureId(0),&mut budget).unwrap();
+            let frame_key=crate::semantic::task_domains::FrameKey{worker:FunctionId(1),instance:None,raw_declaration:None};
+            let ctor_key=crate::semantic::task_domains::ConstructorKey{caller:None,function:FunctionId(0),block:BlockId(0),instruction:0,result:ValueId(0),worker:FunctionId(1),owned:false};
+            let frame=crate::semantic::task_domains::FrameMetadata{key:frame_key,definition:None,arguments:vec![],parameters:vec![],parameter_types:vec![],parameter_lives:vec![],result_life:StorageLifeShape{binder_count:0,slots:vec![],retained:vec![],nominal_arguments:vec![]},result:None,result_type:Type::I32,shape:super::super::empty_context(),port_sources:vec![],input_maps:vec![],result_map:vec![],selectors:vec![],worker_checked:true};
+            let mut data=Budget::new(&limits);crate::registration::semantic_closed_environment(&original,ClosureId(0),&mut data).unwrap();assert!(!data.semantic_closed_task_captures.is_empty());
+            assert!(crate::registration::finish_semantic_closed_tasks(&original,&mut data).is_err(),"a header/N0 and known worker name cannot discharge missing exact constructor/frame proof");
+            data.task_frames.insert(frame_key,crate::semantic::task_domains::FrameState::MetadataReady(frame));
+            data.task_constructors.insert(ctor_key,crate::semantic::task_domains::ConstructorObligation{key:ctor_key,ty:original.functions[0].values[0].clone(),frame:Some(frame_key),frames:vec![frame_key],state:crate::semantic::task_domains::ObligationState::Discharged,raw_checked:true,semantic_checked:true});
+            crate::registration::finish_semantic_closed_tasks(&original,&mut data).unwrap();assert!(data.semantic_closed_task_captures.is_empty());
+
+            let mut unscheduled=Budget::new(&limits);assert!(require_direct_consuming_environment(&original,ClosureId(0),&mut unscheduled).is_err(),"a missing source pass cannot turn the exact Task field into no obligation");
+            let mut changed=original.clone();changed.functions[0].blocks[0].instructions.extend([op(Some(3),InstructionKind::TakeLocal{local:LocalId(0)}),op(Some(4),InstructionKind::MakeClosure{closure:ClosureId(0),captures:vec![ValueId(3)]})]);
+            let mut budget=Budget::new(&limits);budget.task_origin_roots=true;assert!(require_direct_consuming_environment(&changed,ClosureId(0),&mut budget).is_err(),"one safe constructor cannot hide a second unknown incoming Task source");
+            let mut data=Budget::new(&limits);crate::registration::semantic_closed_environment(&changed,ClosureId(0),&mut data).unwrap();assert!(crate::registration::finish_semantic_closed_tasks(&changed,&mut data).is_err(),"an unrelated same-Type safe Task constructor does not ground an incoming Task capture");
+
+            let mut alias_write=original.clone();let task=alias_write.closures[0].captures[0].clone();
+            alias_write.functions[2].values.extend([Type::Address{mutable:true,inner:Box::new(task.clone())},task.clone()]);
+            alias_write.functions[2].blocks[0].instructions.push(op(None,InstructionKind::WriteAddress{address:ValueId(1),value:ValueId(2)}));
+            let mut budget=Budget::new(&limits);budget.task_origin_roots=true;assert!(require_direct_consuming_environment(&alias_write,ClosureId(0),&mut budget).is_err(),"an unmodelled owner-alias replacement invalidates the safe initial capture");
+            let mut data=Budget::new(&limits);crate::registration::semantic_closed_environment(&alias_write,ClosureId(0),&mut data).unwrap();assert!(crate::registration::finish_semantic_closed_tasks(&alias_write,&mut data).is_err(),"CE and Direct consumption use the same actual owner-write boundary");
+            let mut view_local=original.clone();let entry=&mut view_local.functions[2];
+            entry.locals.push(LocalDecl{id:LocalId(0),name:"temporary_view".into(),ty:Type::Desc(Box::new(Type::I32)),mutable:true,span});
+            entry.values.push(Type::Desc(Box::new(Type::I32)));entry.blocks[0].instructions.extend([op(None,InstructionKind::Store{local:LocalId(0),value:ValueId(1)}),op(None,InstructionKind::StorageDead(LocalId(0)))]);
+            check_environment_mutations(&view_local,FunctionId(2),&mut Budget::new(&limits)).unwrap();
+            let mut replaced=original;let task=replaced.closures[0].captures[0].clone();replaced.closures[0].parameters=vec![task.clone()];replaced.functions[2].locals=vec![LocalDecl{id:LocalId(0),name:"replacement".into(),ty:task.clone(),mutable:true,span}];replaced.functions[2].parameters=vec![LocalId(0)];replaced.functions[2].values.push(task);replaced.functions[2].blocks[0].instructions.extend([op(Some(1),InstructionKind::TakeLocal{local:LocalId(0)}),op(None,InstructionKind::WriteCapture{index:0,value:ValueId(1)})]);
+            let mut budget=Budget::new(&limits);budget.task_origin_roots=true;assert!(require_direct_consuming_environment(&replaced,ClosureId(0),&mut budget).is_err(),"a later environment write invalidates an otherwise safe constructor source");
+        }
+    }
+}
+
+/// Select actual hidden frames without applying the synchronous-execution
+/// qualification. Callers prove data CE separately from cleanup/NoExternal.
+pub(crate) fn closed_frame_workers(module:&TypedModule,function:FunctionId,value:ValueId,path:&[ContractProjection],b:&mut Budget)->Check<BTreeSet<FunctionId>>{
+    closed_frame_workers_at(module,function,value,path,&mut BTreeSet::new(),b,0)
+}
+fn closed_frame_workers_at(module:&TypedModule,function:FunctionId,value:ValueId,path:&[ContractProjection],visiting:&mut BTreeSet<(FunctionId,ValueId,Vec<ContractProjection>)>,b:&mut Budget,depth:usize)->Check<BTreeSet<FunctionId>>{
+    if depth>b.limits.max_call_depth.min(128){return Err(limit("closed Task source traversal depth exceeded"));}
+    b.spend(visiting.len().saturating_add(path.len()).saturating_add(1))?;
+    let key=(function,value,path.to_vec());
+    if !visiting.insert(key.clone()){return Err(reject("E-VERIFY-REGISTRATION",None,"Task ClosedEnvironment source has an ungrounded capture cycle"));}
+    let result=(||{
+    let actual=module.functions.get(function.0 as usize).filter(|row|row.id==function).ok_or_else(||reject("E-VERIFY-TASK",None,"closed frame source function is absent"))?;
+    let symbolic=selected::endpoint(module,actual,value,path,b)?;
+    let mut sources=symbolic;
+    for parameter in std::mem::take(&mut sources.parameters){
+        let position=StoragePosition{base:StorageBase::Parameter(parameter),path:vec![]};
+        if !crate::dynamic_witness::semantic_patterns::closed_task_input(module,actual,&position,b)?{sources.unknown=true;}
+    }
+    for position in std::mem::take(&mut sources.selected){
+        match position.base{
+            StorageBase::Capture(index)=>{
+                let closure=actual.environment.ok_or_else(||reject("E-VERIFY-REGISTRATION",None,"closed Task capture source has no exact environment"))?;
+                for(creator,operand)in closed_capture_sources(module,closure,index,b)?{
+                    sources.workers.extend(closed_frame_workers_at(module,creator,operand,&position.path,visiting,b,depth+1)?);
+                }
+            },
+            StorageBase::Parameter(_)=>if !crate::dynamic_witness::semantic_patterns::closed_task_input(module,actual,&position,b)?{sources.unknown=true;},
+            _=>sources.unknown=true,
+        }
+    }
+    b.spend(sources.workers.len().saturating_add(1))?;
+    if sources.unknown{return Err(reject("E-VERIFY-REGISTRATION",None,"Task ClosedEnvironment has no complete original input premise or actual constructor source"));}
+    Ok(sources.workers)
+    })();
+    visiting.remove(&key);result
 }

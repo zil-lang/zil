@@ -85,6 +85,7 @@ pub(super) struct CheckedOriginal {
     task_closed_cleanups:BTreeSet<(SemanticDefinitionId,Place)>,
     task_async_cleanups:BTreeSet<(SemanticDefinitionId,Place)>,
     task_synchronous_cleanups:BTreeSet<(SemanticDefinitionId,Place)>,
+    callable_retirements:BTreeMap<(SemanticDefinitionId,Place),cleanup::CallableRetirement>,
     callable_nodes:BTreeMap<(SemanticDefinitionId,NodeId),NodeId>,
     code_sources:BTreeMap<(SemanticDefinitionId,NodeId),SemanticDefinitionId>,
     prototypes:BTreeMap<SemanticDefinitionId,Prototype>,

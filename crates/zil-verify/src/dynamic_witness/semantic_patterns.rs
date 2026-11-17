@@ -18,6 +18,32 @@ impl Session {
     }
 }
 
+/// Bind a source parameter to its original universal capability theorem.
+/// World substitution is deliberately not applied to the original subject.
+pub(crate) fn closed_task_input(module:&TypedModule,function:&TypedFunction,position:&StoragePosition,b:&mut Budget)->Check<bool>{
+    let StorageBase::Parameter(ordinal)=position.base else{return Ok(false);};
+    if module.semantic.is_none()||function.parameters.get(ordinal as usize).is_none(){return Ok(false);}
+    let Some(session)=b.semantic_checked.clone()else{return Ok(false);};
+    if session.module!=module as *const TypedModule as usize{return Err(bad("ClosedEnvironment source session belongs to another module"));}
+    let mut worlds=0usize;
+    for(id,_)in &session.worlds{
+        let instance=session.context.instance(module,*id,b)?;
+        if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){continue;}
+        if !session.context.closed_input_original(module,instance.definition,ordinal,&position.path,&mut session.active.borrow_mut(),b)?{return Ok(false);}
+        worlds+=1;
+    }
+    Ok(worlds!=0)
+}
+
+/// The caller runs this only after the complete resource/Task/phase passes;
+/// no individual successful consuming call discharges another world's owner.
+pub(crate) fn finish_original_callable_retirements(module:&TypedModule,b:&mut Budget)->Check<()>{
+    if module.semantic.is_none(){return Ok(());}
+    let session=b.semantic_checked.clone().ok_or_else(||bad("callable retirement has no completed semantic session"))?;
+    if session.module!=module as *const TypedModule as usize{return Err(bad("callable retirement session belongs to another actual module"));}
+    session.context.finish_original_callable_retirements(module,&session.worlds,b)
+}
+
 /// Only the completed exact-module semantic session exposes ordinary member
 /// execution. This proves no vtable contract, source envelope or permission.
 pub(crate) fn checked_static_specialization(module:&TypedModule,function:&TypedFunction,b:&mut Budget)->Check<bool>{

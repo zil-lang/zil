@@ -463,9 +463,10 @@ impl<'a> Inventory<'a> {
     fn zero(&mut self, ty: &'a Type, b: &mut Budget) -> Check<Domain> {
         let domain = self.domain(ty, b)?;
         if domain.count != 0 {
-            return Err(bad(
-                "unqualified container omits its child class occurrences",
-            ));
+            dynamic_metadata::ty(ty,b)?;
+            for ancestor in &self.active{dynamic_metadata::ty(ancestor,b)?;}
+            return Err(bad("unqualified container omits its child class occurrences")
+                .with_note(format!("actual unqualified child {ty:?}; complete query ancestors {:?}",self.active)));
         }
         Ok(domain)
     }
@@ -574,21 +575,25 @@ pub(super) fn check(
 pub(super) fn check_parts(module:&TypedModule,ty:&Type,life:&StorageLifeShape,classes:&[StorageBinder],scope:DynInstantiationScope,b:&mut Budget)->Check<Domain>{
     Inventory{module,active:vec![]}.parts(ty,life,classes,scope,b)
 }
+#[track_caller]
 pub(super) fn intrinsic(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<Domain> {
-    Inventory {
-        module,
-        active: vec![],
-    }
-    .domain(ty, b)
+    let caller=std::panic::Location::caller();
+    let result=Inventory {module,active:vec![]}.domain(ty,b);
+    query_consumer(result,caller,b)
 }
 /// Proves only a zero class domain, never ClosedEnvironment or static sources.
+#[track_caller]
 pub(super) fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<()> {
-    Inventory {
-        module,
-        active: vec![],
-    }
-    .zero(ty, b)
-    .map(|_| ())
+    let caller=std::panic::Location::caller();
+    let result=Inventory {module,active:vec![]}.zero(ty,b).map(|_|());
+    query_consumer(result,caller,b)
+}
+
+fn query_consumer<T>(result:Check<T>,caller:&std::panic::Location<'_>,b:&mut Budget)->Check<T>{
+    match result{Ok(value)=>Ok(value),Err(error)=>{
+        b.spend(caller.file().len().saturating_add(48))?;
+        Err(error.with_note(format!("complete actual domain consumer {}:{}:{}",caller.file(),caller.line(),caller.column())))
+    }}
 }
 
 #[cfg(test)]
