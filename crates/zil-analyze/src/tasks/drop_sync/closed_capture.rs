@@ -648,7 +648,8 @@ fn step(
                 return Err(fail(i.span, "closed element refill changes its exact type or selector"));
             }
             let token = state.aliases.get(value.0 as usize).and_then(OwnerAliases::root);
-            if let ElementAlias::Owner(previous) = state.local_aliases[local.0 as usize].element(*index, b)?
+            if let ElementAlias::Owner(previous) | ElementAlias::ConditionalOwner(previous, _) =
+                state.local_aliases[local.0 as usize].element(*index, b)?
                 && token != Some(*previous) { state.retire(*previous, b)?; }
             state.local_aliases[local.0 as usize].set_element(*index,
                 token.map_or(ElementAlias::Unknown, ElementAlias::Owner), b)?;
@@ -1110,9 +1111,21 @@ pub(super) fn allow_at(
                 Ok(tasks.is_empty() || state.closed.get(token)
                     .is_some_and(|leaves| tasks.iter().all(|capture| leaves.contains(capture))))
             }
-            ElementAlias::ConditionalOwner(_, leaves) => {
+            ElementAlias::ConditionalOwner(token, leaves) => {
                 proved_owner = true;
-                Ok(tasks.iter().all(|capture| leaves.contains(capture)))
+                b.lookup(state.closed.len(), "closed current universal occupant fact")?;
+                let universal = state.closed.get(token);
+                // A new actual call can establish a universal fact after the
+                // conditional join. Its must-fact adds no permission on an
+                // absent branch and uses this exact token, never another head.
+                for capture in &tasks {
+                    b.lookup(leaves.len(), "closed selector-conditional leaf")?;
+                    if !leaves.contains(capture) {
+                        b.lookup(universal.map_or(0, BTreeSet::len), "closed universal actual leaf")?;
+                        if !universal.is_some_and(|leaves| leaves.contains(capture)) { return Ok(false); }
+                    }
+                }
+                Ok(true)
             }
         }
     };
