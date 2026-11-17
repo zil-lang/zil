@@ -7,6 +7,96 @@
 use std::collections::{BTreeSet, HashMap};
 use zil_llvm_api::model::{Block, Item, Module, SharedVec, Val};
 
+/// Storage differs, but symbol identity, graph observations, validation order
+/// and the cancellation boundary must be identical for flat and alias inputs.
+pub(super) trait ClosedModule {
+    fn views(&self) -> Vec<(&str, &Item)>;
+    fn check_current(
+        &self,
+        preflight: &mut crate::machine_preflight::CurrentPreflight,
+    ) -> Result<(), zil_llvm_api::Error>;
+    fn retain_current(
+        &mut self,
+        remove: &[bool],
+        count: usize,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Option<()>;
+}
+
+fn retained<T: Clone>(
+    items: &[T],
+    remove: &[bool],
+    count: usize,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Option<Vec<T>> {
+    let mut retained = Vec::with_capacity(items.len() - count);
+    for (index, item) in items.iter().enumerate() {
+        if cancelled() {
+            return None;
+        }
+        if !remove[index] {
+            retained.push(item.clone());
+        }
+    }
+    if cancelled() {
+        return None;
+    }
+    Some(retained)
+}
+
+impl ClosedModule for Module {
+    fn views(&self) -> Vec<(&str, &Item)> {
+        self.items
+            .iter()
+            .map(|item| {
+                let name = match item {
+                    Item::Function(f) => f.name.as_str(),
+                    Item::Global(g) => g.name.as_str(),
+                    Item::NamedType(name, _) => name.as_str(),
+                };
+                (name, item)
+            })
+            .collect()
+    }
+    fn check_current(
+        &self,
+        preflight: &mut crate::machine_preflight::CurrentPreflight,
+    ) -> Result<(), zil_llvm_api::Error> {
+        preflight.check(self)
+    }
+    fn retain_current(
+        &mut self,
+        remove: &[bool],
+        count: usize,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Option<()> {
+        self.items = retained(&self.items, remove, count, cancelled)?.into();
+        Some(())
+    }
+}
+
+impl ClosedModule for crate::machine_output::AliasModule {
+    fn views(&self) -> Vec<(&str, &Item)> {
+        self.views()
+    }
+    fn check_current(
+        &self,
+        preflight: &mut crate::machine_preflight::CurrentPreflight,
+    ) -> Result<(), zil_llvm_api::Error> {
+        preflight.check_aliases(self)
+    }
+    fn retain_current(
+        &mut self,
+        remove: &[bool],
+        count: usize,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Option<()> {
+        // Clone only live alias handles; no logical Function is materialized.
+        self.items = retained(&self.items, remove, count, cancelled)?;
+        Some(())
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Stats {
     pub(crate) removed_count: usize,
@@ -350,7 +440,7 @@ pub(crate) fn prune_closed_unit_with_preflight(
 /// reachability. The actual original model is validated without rewriting its
 /// linkage or cloning every function header, then retained values stay intact.
 pub(crate) fn prune_closed_graph_with_preflight(
-    module: &mut Module,
+    module: &mut impl ClosedModule,
     classes: &BTreeSet<String>,
     candidates: &BTreeSet<String>,
     cancelled: &(dyn Fn() -> bool + Sync),
@@ -359,33 +449,34 @@ pub(crate) fn prune_closed_graph_with_preflight(
     prune_in_domain(module, classes, Some(candidates), cancelled, preflight)
 }
 fn prune_in_domain(
-    module: &mut Module,
+    module: &mut impl ClosedModule,
     classes: &BTreeSet<String>,
     candidates: Option<&BTreeSet<String>>,
     cancelled: &(dyn Fn() -> bool + Sync),
     preflight: &mut crate::machine_preflight::CurrentPreflight,
 ) -> Result<Option<Stats>, zil_llvm_api::Error> {
-    let local = |function: &zil_llvm_api::model::Function| {
+    let local = |name: &str, function: &zil_llvm_api::model::Function| {
         function.linkage.is_local()
             || (function.linkage == zil_llvm_api::model::Linkage::External
-                && candidates.is_some_and(|names| names.contains(&function.name)))
+                && candidates.is_some_and(|names| names.contains(name)))
     };
     if cancelled() {
         return Ok(None);
     }
+    let items = module.views();
     let mut names = HashMap::new();
-    let mut live = vec![false; module.items.len()];
+    let mut live = vec![false; items.len()];
     let mut pending = Vec::new();
-    for (index, item) in module.items.iter().enumerate() {
+    for (index, &(name, item)) in items.iter().enumerate() {
         if cancelled() {
             return Ok(None);
         }
         if let Item::Function(f) = item {
-            if names.insert(f.name.as_str(), index).is_some() {
-                preflight.check(module)?;
+            if names.insert(name, index).is_some() {
+                module.check_current(preflight)?;
                 return Ok(Some(Stats::default()));
             }
-            if f.blocks.is_some() && !local(f) {
+            if f.blocks.is_some() && !local(name, f) {
                 enqueue(index, &mut live, &mut pending);
             }
         }
@@ -394,7 +485,7 @@ fn prune_in_domain(
     // the retained unit, including nested constants and repeated body uses.
     // For known values its pending-stack bound is implied by this same total.
     let mut declaration_budget = Some(1_000_000usize);
-    for item in &module.items {
+    for &(_, item) in &items {
         if cancelled() {
             return Ok(None);
         }
@@ -418,7 +509,7 @@ fn prune_in_domain(
         if cancelled() {
             return Ok(None);
         }
-        let Item::Function(f) = &module.items[index] else {
+        let Item::Function(f) = items[index].1 else {
             unreachable!("only function items are queued")
         };
         let Some(blocks) = &f.blocks else {
@@ -452,20 +543,20 @@ fn prune_in_domain(
             enqueue(index, &mut live, &mut pending);
         }
     }
-    let mut remove = vec![false; module.items.len()];
+    let mut remove = vec![false; items.len()];
     let mut stats = Stats::default();
     let mut count = 0;
-    for (index, item) in module.items.iter().enumerate() {
+    for (index, &(name, item)) in items.iter().enumerate() {
         if cancelled() {
             return Ok(None);
         }
         if let Item::Function(f) = item {
-            if f.blocks.is_some() && local(f) && !live[index] {
+            if f.blocks.is_some() && local(name, f) && !live[index] {
                 remove[index] = true;
-                stats.removed_names.push(f.name.clone());
+                stats.removed_names.push(name.to_owned());
             } else if f.blocks.is_none()
                 && declaration_budget.is_some()
-                && classes.contains(&f.name)
+                && classes.contains(name)
                 && !live[index]
             {
                 remove[index] = true;
@@ -481,20 +572,10 @@ fn prune_in_domain(
         return Ok(None);
     }
     // Includes every dead body and unused prototype, before either deletion.
-    preflight.check(module)?;
-    let mut retained = Vec::with_capacity(module.items.len() - count);
-    for (index, item) in module.items.iter().enumerate() {
-        if cancelled() {
-            return Ok(None);
-        }
-        if !remove[index] {
-            retained.push(item.clone());
-        }
-    }
-    if cancelled() {
+    module.check_current(preflight)?;
+    if module.retain_current(&remove, count, cancelled).is_none() {
         return Ok(None);
     }
-    module.items = retained.into();
     Ok(Some(stats))
 }
 

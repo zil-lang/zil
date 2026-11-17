@@ -11,6 +11,19 @@ pub(crate) struct CurrentPreflight {
     pub(crate) elapsed_ns: u64,
 }
 impl CurrentPreflight {
+    pub(crate) fn check_aliases(
+        &mut self,
+        current: &crate::machine_output::AliasModule,
+    ) -> Result<(), zil_llvm_api::Error> {
+        self.executions += 1;
+        let start = std::time::Instant::now();
+        let result = self
+            .bodies
+            .borrow_mut()
+            .validate_aliases(&current.triple, &current.views());
+        self.elapsed_ns += crate::object_cache::elapsed_ns(start);
+        result
+    }
     pub(crate) fn body_session(
         &self,
     ) -> std::rc::Rc<std::cell::RefCell<zil_llvm_api::PreflightSession>> {

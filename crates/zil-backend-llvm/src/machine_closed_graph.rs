@@ -1,6 +1,8 @@
 //! Reduce the already classed CLOSED current machine graph before planning.
 //! This carries raw values only. All original bodies, including dead bodies,
 //! must pass current preflight before reachability can remove any of them.
+use crate::machine_closed_prune::ClosedModule;
+use crate::machine_output::AliasModule;
 use std::collections::BTreeSet;
 use zil_ir::{LirView, PersistentVec, TypedFunction};
 use zil_llvm_api::model::{Item, Module};
@@ -45,8 +47,35 @@ pub(crate) fn prune(
     )
 }
 
+// Keep the flat entry point for existing callers and equivalence regressions.
+#[cfg_attr(not(test), allow(dead_code))]
+#[cfg(test)]
 pub(crate) fn prune_with_preflight(
     module: &mut Module,
+    lir: &LirView<'_>,
+    classes: &mut BTreeSet<String>,
+    protected: &BTreeSet<String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
+) -> Result<Option<Reduction>, zil_llvm_api::Error> {
+    prune_current(module, lir, classes, protected, cancelled, preflight)
+}
+
+/// Reduce logical aliases before materializing the surviving machine module.
+/// The complete original classed alias input still passes current preflight.
+pub(crate) fn prune_aliases_with_preflight(
+    module: &mut AliasModule,
+    lir: &LirView<'_>,
+    classes: &mut BTreeSet<String>,
+    protected: &BTreeSet<String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
+) -> Result<Option<Reduction>, zil_llvm_api::Error> {
+    prune_current(module, lir, classes, protected, cancelled, preflight)
+}
+
+fn prune_current(
+    module: &mut impl ClosedModule,
     lir: &LirView<'_>,
     classes: &mut BTreeSet<String>,
     protected: &BTreeSet<String>,
@@ -65,19 +94,20 @@ pub(crate) fn prune_with_preflight(
     candidates.retain(|name| !protected.contains(name));
     // The actual full current source graph supplies the original copy cap,
     // including protected sources, before any definition is removed.
-    let copy_allowance = module
-        .items
+    let items = module.views();
+    let copy_allowance = items
         .iter()
-        .filter_map(|item| match item {
-            Item::Function(f) if f.blocks.is_some() && source_names.contains(&f.name) => {
+        .filter_map(|&(name, item)| match item {
+            Item::Function(f) if f.blocks.is_some() && source_names.contains(name) => {
                 Some(f.cost())
             }
             _ => None,
         })
         .fold(0usize, usize::saturating_add);
-    let Some(witness) = witness(module, copy_allowance) else {
+    let Some(witness) = witness(&items, copy_allowance) else {
         return Ok(None);
     };
+    drop(items);
     // The private closed domain affects reachability only. Validate the actual
     // COMPLETE classed original before deletion; no temporary linkage model or
     // restoration pass is needed, and malformed dead bodies remain visible.
@@ -93,12 +123,10 @@ pub(crate) fn prune_with_preflight(
     };
     // The pruning consumer performs the final cancellation check before commit.
     let live_classes = module
-        .items
+        .views()
         .iter()
-        .filter_map(|item| match item {
-            Item::Function(function) if classes.contains(&function.name) => {
-                Some(function.name.clone())
-            }
+        .filter_map(|&(name, item)| match item {
+            Item::Function(_) if classes.contains(name) => Some(name.to_owned()),
             _ => None,
         })
         .collect();
@@ -115,7 +143,7 @@ pub(crate) fn prune_with_preflight(
 // The qualifier reconstructs every item and checks full source/class body Eq
 // before later range/scalar transforms, then binds the final live ABI and roles.
 // This is ordinary diagnostic text, never loaded as a permission or machine IR.
-fn witness(module: &Module, copy_allowance: usize) -> Option<String> {
+fn witness(items: &[(&str, &Item)], copy_allowance: usize) -> Option<String> {
     use std::collections::HashMap;
     use zil_base::json_string;
     use zil_llvm_api::model::Function;
@@ -123,9 +151,9 @@ fn witness(module: &Module, copy_allowance: usize) -> Option<String> {
     const OUTER: &str = "__zil_witness_outer__";
     let mut owners: HashMap<usize, Vec<(&Function, usize)>> = HashMap::new();
     let mut templates = Vec::new();
-    let mut rows = Vec::with_capacity(module.items.len());
+    let mut rows = Vec::with_capacity(items.len());
     let mut bytes = 0usize;
-    for item in &module.items {
+    for &(alias, item) in items {
         let (name, selected) = if let Item::Function(f) = item {
             let owner = f.blocks.as_ref().map(|b| std::ptr::from_ref(&**b) as usize);
             let selected = owner.and_then(|owner| owners.get(&owner)).and_then(|rows| {
@@ -160,7 +188,7 @@ fn witness(module: &Module, copy_allowance: usize) -> Option<String> {
                 }
                 index
             };
-            (json_string(&f.name), index)
+            (json_string(alias), index)
         } else {
             let encoded = json_string(&zil_llvm_api::model::item_to_text(item));
             bytes = bytes.checked_add(encoded.len())?;
@@ -239,6 +267,10 @@ impl Reduction {
 }
 
 #[cfg(test)]
+#[path = "machine_closed_graph_alias_tests.rs"]
+mod alias_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use zil_base::{FileId, Fingerprint, ModuleId, Span, TargetProfile};
@@ -247,7 +279,7 @@ mod tests {
         Arg, Block, Function, Global, Inst, Linkage, Op, Signature, Ty, Val,
     };
 
-    fn source() -> LirModule {
+    pub(super) fn source() -> LirModule {
         LirModule {
             schema_version: zil_base::SCHEMA_VERSION,
             module_id: ModuleId(0),
@@ -284,7 +316,7 @@ mod tests {
             layouts: vec![],
         }
     }
-    fn function(name: &str, target: Option<&str>) -> Item {
+    pub(super) fn function(name: &str, target: Option<&str>) -> Item {
         let mut instructions = vec![];
         let returned = if let Some(target) = target {
             instructions.push(Inst::new(

@@ -1,6 +1,7 @@
 //! Checker-owned, bounded, process-local successful body inputs. This object
 //! cannot be decoded from cache bytes or supply a Builder schedule.
 use super::*;
+use crate::model;
 use std::hash::{Hash, Hasher};
 const MAX_RETAINED: usize = 16 * 1024 * 1024;
 // Count the complete derived structural encoding without producing bytes.
@@ -58,6 +59,17 @@ pub struct PreflightSession {
 impl PreflightSession {
     pub fn validate(&mut self, module: &Module) -> std::result::Result<(), crate::Error> {
         let (triple, items) = inputs(module);
+        self.validate_aliases(triple, &borrowed_inputs(items))
+    }
+    /// Check the complete current world through borrowed items. Each tuple name
+    /// is the actual current symbol; only functions may override the stored
+    /// name of a shared template. Globals and named types must keep their names.
+    /// This grants no persistent receipt or Builder schedule.
+    pub fn validate_aliases(
+        &mut self,
+        triple: &str,
+        items: &[(&str, &model::Item)],
+    ) -> std::result::Result<(), crate::Error> {
         validate_inputs_cached::<false>(triple, items, Some(self))
             .map(|_| ())
             .map_err(|message| crate::Error {

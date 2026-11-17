@@ -126,6 +126,8 @@ fn alignment(a: u32) -> Result<()> {
 }
 struct World<'a> {
     named: BTreeMap<&'a str, &'a Vec<Ty>>,
+    // Keys are actual current names, independent of a function template's name.
+    // All consumers read the original item, including its current signature.
     symbols: BTreeMap<&'a str, &'a Item>,
     // Request-local successful DAG summaries, including maximum nesting height.
     // A shallow success alone cannot authorize a deeper use of the same type.
@@ -841,9 +843,18 @@ fn dominates(
         b = idom[b];
     }
 }
+#[cfg(test)]
 fn function<'a, const COLLECT_SCHEDULE: bool>(
     world: &'a World<'_>,
     f: &'a Function,
+    reusable: &mut FunctionScratch<'a>,
+) -> Result<Vec<(usize, usize)>> {
+    function_named::<COLLECT_SCHEDULE>(world, f, &f.name, reusable)
+}
+fn function_named<'a, const COLLECT_SCHEDULE: bool>(
+    world: &'a World<'_>,
+    f: &'a Function,
+    display_name: &str,
     reusable: &mut FunctionScratch<'a>,
 ) -> Result<Vec<(usize, usize)>> {
     if f.blocks.is_none() {
@@ -852,7 +863,7 @@ fn function<'a, const COLLECT_SCHEDULE: bool>(
     #[cfg(test)]
     BODY_VALIDATIONS.with(|count| count.set(count.get().saturating_add(1)));
     if reusable_function_scratch(f) {
-        let result = function_in::<COLLECT_SCHEDULE>(world, f, reusable);
+        let result = function_in_named::<COLLECT_SCHEDULE>(world, f, display_name, reusable);
         // A single operand may contain nested values. Bound retained scratch,
         // without rescanning operands or changing validation's peak/work rules.
         if reusable.uses.capacity() > 256 {
@@ -862,12 +873,26 @@ fn function<'a, const COLLECT_SCHEDULE: bool>(
     } else {
         // Large functions still receive all the same checks, without retaining
         // their allocations in the small-function pool for the rest of the unit.
-        function_in::<COLLECT_SCHEDULE>(world, f, &mut FunctionScratch::default())
+        function_in_named::<COLLECT_SCHEDULE>(
+            world,
+            f,
+            display_name,
+            &mut FunctionScratch::default(),
+        )
     }
 }
+#[cfg(test)]
 fn function_in<'a, const COLLECT_SCHEDULE: bool>(
     world: &'a World<'_>,
     f: &'a Function,
+    scratch: &mut FunctionScratch<'a>,
+) -> Result<Vec<(usize, usize)>> {
+    function_in_named::<COLLECT_SCHEDULE>(world, f, &f.name, scratch)
+}
+fn function_in_named<'a, const COLLECT_SCHEDULE: bool>(
+    world: &'a World<'_>,
+    f: &'a Function,
+    display_name: &str,
     scratch: &mut FunctionScratch<'a>,
 ) -> Result<Vec<(usize, usize)>> {
     scratch.clear();
@@ -983,7 +1008,7 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
         for (j, i) in block.instructions.iter().enumerate() {
             world
                 .op(&i.op, defs, &f.signature)
-                .map_err(|s| format!("@{} / {} / {}: {s}", f.name, block.name, j))?;
+                .map_err(|s| format!("@{display_name} / {} / {}: {s}", block.name, j))?;
             if let Op::Phi { incoming, .. } = &i.op {
                 let mut incoming_ids = vec![];
                 for (v, p) in incoming {
@@ -1154,12 +1179,28 @@ pub(super) fn inputs(module: &Module) -> (&str, &SharedVec<Item>) {
 }
 
 fn validate_inputs<const COLLECT_SCHEDULE: bool>(triple: &str, items: &[Item]) -> Result<Schedule> {
-    validate_inputs_cached::<COLLECT_SCHEDULE>(triple, items, None)
+    validate_inputs_cached::<COLLECT_SCHEDULE>(triple, &borrowed_inputs(items), None)
+}
+
+// The ordinary Module path supplies the exact stored names. This adapter owns
+// only reference tuples; headers, signatures and bodies remain borrowed.
+fn borrowed_inputs(items: &[Item]) -> Vec<(&str, &Item)> {
+    items
+        .iter()
+        .map(|item| {
+            let name = match item {
+                Item::NamedType(name, _) => name,
+                Item::Global(g) => &g.name,
+                Item::Function(f) => &f.name,
+            };
+            (name.as_str(), item)
+        })
+        .collect()
 }
 
 fn validate_inputs_cached<const COLLECT_SCHEDULE: bool>(
     triple: &str,
-    items: &[Item],
+    items: &[(&str, &Item)],
     mut session: Option<&mut PreflightSession>,
 ) -> Result<Schedule> {
     if !matches!(
@@ -1174,14 +1215,22 @@ fn validate_inputs_cached<const COLLECT_SCHEDULE: bool>(
         valid_named: RefCell::new(BTreeMap::new()),
         reads: RefCell::new(None),
     };
-    for item in items {
+    for &(name, item) in items {
         match item {
             Item::NamedType(n, fields) => {
-                if !identifier(n) || world.named.insert(n, fields).is_some() {
+                if name != n {
+                    return fail("named type alias does not match item name");
+                }
+                if !identifier(name) || world.named.insert(name, fields).is_some() {
                     return fail("duplicate/invalid type name");
                 }
             }
-            Item::Global(Global { name, .. }) | Item::Function(Function { name, .. }) => {
+            Item::Global(_) | Item::Function(_) => {
+                if let Item::Global(g) = item
+                    && name != g.name
+                {
+                    return fail("global alias does not match item name");
+                }
                 if !identifier(name) || world.symbols.insert(name, item).is_some() {
                     return fail(format!("duplicate/invalid global symbol {name}"));
                 }
@@ -1209,7 +1258,7 @@ fn validate_inputs_cached<const COLLECT_SCHEDULE: bool>(
         schedule: Vec<(usize, usize)>,
     }
     let mut checked_bodies: HashMap<usize, Vec<CheckedBody<'_>>> = HashMap::new();
-    for item in items {
+    for &(name, item) in items {
         match item {
             Item::NamedType(n, _) => world.check_ty(&Ty::Named(n.clone()), false)?,
             Item::Global(g) => {
@@ -1261,7 +1310,8 @@ fn validate_inputs_cached<const COLLECT_SCHEDULE: bool>(
                             if session.is_some() {
                                 *world.reads.borrow_mut() = Some(BTreeSet::new());
                             }
-                            let result = function::<COLLECT_SCHEDULE>(&world, f, &mut scratch);
+                            let result =
+                                function_named::<COLLECT_SCHEDULE>(&world, f, name, &mut scratch);
                             if result.is_ok()
                                 && let Some(session) = session.as_deref_mut()
                                 && let Some(body) = session.capture(f, &world)
@@ -1286,7 +1336,7 @@ fn validate_inputs_cached<const COLLECT_SCHEDULE: bool>(
                     Vec::new()
                 };
                 if COLLECT_SCHEDULE {
-                    functions.insert(f.name.clone(), schedule);
+                    functions.insert(name.to_owned(), schedule);
                 }
             }
         }
@@ -1304,6 +1354,10 @@ mod validate_only_tests;
 #[cfg(test)]
 #[path = "preflight_shared_body_tests.rs"]
 mod shared_body_tests;
+
+#[cfg(test)]
+#[path = "preflight_alias_tests.rs"]
+mod alias_tests;
 
 #[cfg(test)]
 mod named_layout_tests {

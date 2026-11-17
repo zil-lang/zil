@@ -205,6 +205,7 @@ pub(super) fn same(inputs: Option<&Inputs>, left: &TypedFunction, right: &TypedF
 }
 
 pub(super) struct Cache<'a> {
+    pub(super) lazy_aliases: bool,
     products: Vec<Product<'a>>,
     buckets: HashMap<u64, Vec<usize>>,
     owners: HashMap<Key, usize>,
@@ -218,6 +219,7 @@ pub(super) struct Cache<'a> {
 impl Default for Cache<'_> {
     fn default() -> Self {
         Self {
+            lazy_aliases: false,
             products: Vec::new(),
             buckets: HashMap::new(),
             owners: HashMap::new(),
@@ -404,7 +406,11 @@ impl<'a> Cache<'a> {
             reserve()?;
             self.hits += 1;
             self.owner_hits += 1;
-            return Ok(rebind(&self.products[index].output, function.id));
+            return Ok(rebind_with_policy(
+                &self.products[index].output,
+                function.id,
+                self.lazy_aliases,
+            ));
         }
         let cost = current_cost(self.inputs.as_deref(), function);
         let Some(cost) = cost.filter(|cost| *cost <= self.fuel) else {
@@ -426,7 +432,7 @@ impl<'a> Cache<'a> {
                 // Run the original CURRENT ordered fee consumer. Any error is
                 // reported at the current source, before publishing a body.
                 reserve()?;
-                let output = rebind(&product.output, function.id);
+                let output = rebind_with_policy(&product.output, function.id, self.lazy_aliases);
                 // Retain the current owner too: its siblings need no repeated
                 // content scan even if this was independently allocated input.
                 self.owners.insert(owner, self.products.len());
@@ -460,7 +466,15 @@ impl<'a> Cache<'a> {
 }
 
 pub(super) fn rebind(output: &FunctionBatch, id: FunctionId) -> FunctionBatch {
+    rebind_with_policy(output, id, false)
+}
+fn rebind_with_policy(output: &FunctionBatch, id: FunctionId, lazy: bool) -> FunctionBatch {
     let mut output = output.clone();
+    if lazy {
+        output.alias = Some(symbol(id));
+        return output;
+    }
+    output.alias = None;
     let m::Item::Function(machine) = &mut output.body[0] else {
         unreachable!("only one successful definition is retained")
     };

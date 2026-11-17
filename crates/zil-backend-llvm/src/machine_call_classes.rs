@@ -6,6 +6,7 @@
 //! restrict the candidate domain; complete Function equality authorizes a class.
 //! Definitions, linkage, attributes, local names and all address uses survive.
 mod recovery;
+pub(crate) use recovery::Candidates;
 use std::collections::{BTreeSet, HashMap};
 use zil_llvm_api::model::{Arg, Block, Function, Item, Linkage, Module, Op, SharedVec, Ty, Val};
 
@@ -40,7 +41,7 @@ pub(crate) struct Cache {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct FunctionReads {
-    input: Function,
+    input: std::sync::Arc<Function>,
     addresses: std::sync::Arc<BTreeSet<String>>,
     dependencies: std::sync::Arc<Option<BTreeSet<usize>>>,
     cost: usize,
@@ -400,7 +401,7 @@ pub(crate) fn canonicalize(
     protected: &BTreeSet<String>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Option<Stats> {
-    canonicalize_inner(module, protected, cancelled, false, None).map(|(stats, _, _)| stats)
+    canonicalize_inner(module, protected, cancelled, false, None, None).map(|(stats, _, _)| stats)
 }
 
 /// Materialize a complete equal class under a content-derived private symbol.
@@ -418,13 +419,24 @@ pub(crate) fn canonicalize_stable(
         .map(|(stats, symbols, _)| (stats, symbols))
 }
 
+#[cfg(test)]
 pub(crate) fn canonicalize_stable_cached(
     module: &mut Module,
     protected: &BTreeSet<String>,
     cancelled: &(dyn Fn() -> bool + Sync),
     previous: Option<&Cache>,
 ) -> Option<(Stats, BTreeSet<String>, Cache)> {
-    canonicalize_inner(module, protected, cancelled, true, previous)
+    canonicalize_inner(module, protected, cancelled, true, previous, None)
+}
+
+pub(crate) fn canonicalize_recovering(
+    module: &mut Module,
+    protected: &BTreeSet<String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    previous: Option<&Cache>,
+    candidates: Option<&mut Candidates<'_, '_>>,
+) -> Option<(Stats, BTreeSet<String>, Cache)> {
+    canonicalize_inner(module, protected, cancelled, true, previous, candidates)
 }
 
 fn canonicalize_inner(
@@ -433,11 +445,46 @@ fn canonicalize_inner(
     cancelled: &(dyn Fn() -> bool + Sync),
     stable: bool,
     previous: Option<&Cache>,
+    candidates: Option<&mut Candidates<'_, '_>>,
+) -> Option<(Stats, BTreeSet<String>, Cache)> {
+    let mut aliases = crate::machine_output::AliasModule::from_module(module);
+    let result = canonicalize_aliases_inner(
+        &mut aliases,
+        protected,
+        cancelled,
+        stable,
+        previous,
+        candidates,
+    )?;
+    // Only a completed pass may publish a changed physical representation.
+    if result.0.rewritten_calls != 0 || !result.1.is_empty() {
+        *module = aliases.materialize();
+    }
+    Some(result)
+}
+pub(crate) fn canonicalize_aliases(
+    module: &mut crate::machine_output::AliasModule,
+    protected: &BTreeSet<String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    previous: Option<&Cache>,
+    candidates: Option<&mut Candidates<'_, '_>>,
+) -> Option<(Stats, BTreeSet<String>, Cache)> {
+    canonicalize_aliases_inner(module, protected, cancelled, true, previous, candidates)
+}
+
+fn canonicalize_aliases_inner(
+    module: &mut crate::machine_output::AliasModule,
+    protected: &BTreeSet<String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    stable: bool,
+    previous: Option<&Cache>,
+    mut candidates: Option<&mut Candidates<'_, '_>>,
 ) -> Option<(Stats, BTreeSet<String>, Cache)> {
     if cancelled() {
         return None;
     }
     let mut functions = Vec::new();
+    let mut function_names = Vec::new();
     let mut names = HashMap::new();
     let mut addresses = protected.clone();
     let mut all_symbols = BTreeSet::new();
@@ -448,7 +495,7 @@ fn canonicalize_inner(
         if cancelled() {
             return None;
         }
-        match item {
+        match item.value.as_ref() {
             Item::Global(global) => {
                 all_symbols.insert(global.name.as_str());
                 if let Some(value) = &global.initializer {
@@ -456,14 +503,12 @@ fn canonicalize_inner(
                 }
             }
             Item::Function(function) => {
-                all_symbols.insert(function.name.as_str());
-                if names
-                    .insert(function.name.as_str(), functions.len())
-                    .is_some()
-                {
+                all_symbols.insert(item.name.as_str());
+                if names.insert(item.name.as_str(), functions.len()).is_some() {
                     return None;
                 }
                 functions.push(function);
+                function_names.push(item.name.as_str());
             }
             Item::NamedType(..) => {}
         }
@@ -471,10 +516,12 @@ fn canonicalize_inner(
     let count = functions.len();
     let context = functions
         .iter()
-        .map(|function| {
+        .enumerate()
+        .map(|(index, function)| {
             let defined = function.blocks.is_some();
             let mut header = (*function).clone();
             header.blocks = None;
+            header.name = function_names[index].to_owned();
             (header, defined)
         })
         .collect::<Vec<_>>();
@@ -503,7 +550,7 @@ fn canonicalize_inner(
         let old = previous
             .and_then(|old| old.functions.get(index))
             .filter(|old| {
-                if old.input.name != function.name || !same_class_header(&old.input, function) {
+                if !same_class_header(&old.input, function) {
                     return false;
                 }
                 match (&old.input.blocks, &function.blocks) {
@@ -539,7 +586,7 @@ fn canonicalize_inner(
             cache.shared_inputs += 1;
             let shared = &cache.functions[other];
             std::sync::Arc::new(FunctionReads {
-                input: (*function).clone(),
+                input: shared.input.clone(),
                 addresses: shared.addresses.clone(),
                 dependencies: shared.dependencies.clone(),
                 cost: shared.cost,
@@ -548,7 +595,7 @@ fn canonicalize_inner(
         } else {
             cache.rebuilt_inputs += 1;
             std::sync::Arc::new(FunctionReads {
-                input: (*function).clone(),
+                input: std::sync::Arc::new((*function).clone()),
                 addresses: if let Some(other) = body {
                     cache.functions[other].addresses.clone()
                 } else if let Some(old) = old {
@@ -582,11 +629,11 @@ fn canonicalize_inner(
     let mut outstanding = vec![None; count];
     let mut parents = vec![Vec::new(); count];
     let mut ready = BTreeSet::new();
-    for (index, function) in functions.iter().enumerate() {
+    for (index, _) in functions.iter().enumerate() {
         if cancelled() {
             return None;
         }
-        if !generated(&function.name) || addresses.contains(&function.name) {
+        if !generated(function_names[index]) || addresses.contains(function_names[index]) {
             continue;
         }
         let Some(deps) = cache.functions[index].dependencies.as_ref().as_ref() else {
@@ -641,7 +688,7 @@ fn canonicalize_inner(
                             let current = if stable {
                                 stable_names[*callee].as_deref()
                             } else {
-                                representatives[*callee].map(|rep| functions[rep].name.as_str())
+                                representatives[*callee].map(|rep| function_names[rep])
                             };
                             current == Some(name.as_str())
                         })
@@ -660,6 +707,11 @@ fn canonicalize_inner(
                 cache.reused_keys += 1;
                 cache.shared_keys += 1;
                 shared.clone()
+            } else if let Some(recovered) = candidates.as_deref_mut().and_then(|candidates| {
+                candidates.request(index, &cache.functions[index], &names, &stable_names)
+            }) {
+                cache.reused_keys += 1;
+                recovered
             } else {
                 cache.rebuilt_keys += 1;
                 let callees = dependencies
@@ -668,7 +720,7 @@ fn canonicalize_inner(
                         let name = if stable {
                             stable_names[callee].as_ref()?.clone()
                         } else {
-                            functions[representatives[callee]?].name.clone()
+                            function_names[representatives[callee]?].to_owned()
                         };
                         Some((callee, name))
                     })
@@ -770,11 +822,16 @@ fn canonicalize_inner(
             let rep = (*rep)?;
             if stable {
                 Some((
-                    functions[index].name.clone(),
+                    function_names[index].to_owned(),
                     stable_names[index].as_ref()?.clone(),
                 ))
             } else {
-                (rep != index).then(|| (functions[index].name.clone(), functions[rep].name.clone()))
+                (rep != index).then(|| {
+                    (
+                        function_names[index].to_owned(),
+                        function_names[rep].to_owned(),
+                    )
+                })
             }
         })
         .collect();
@@ -784,75 +841,86 @@ fn canonicalize_inner(
     // Stage all changes in a COW clone: cancellation at any point cannot leave
     // an incompletely transformed original module or publish partial classes.
     let mut changed = module.clone();
-    // The replacement map is fixed. Rewrite an observed original body once,
-    // including non-candidates, and preserve sharing for downstream consumers.
     let mut rewritten_bodies: HashMap<*const Vec<Block>, (usize, SharedVec<Block>, usize)> =
+        HashMap::new();
+    // The same current template can have thousands of outer aliases. Preserve
+    // this representation through rewriting instead of constructing thousands
+    // of Functions that closed-graph pruning will immediately discard.
+    let mut rewritten_templates: HashMap<*const Item, (std::sync::Arc<Item>, usize)> =
         HashMap::new();
     let mut function_index = 0;
     for item in &mut changed.items {
         if cancelled() {
             return None;
         }
-        let Item::Function(function) = item else {
+        let Item::Function(original) = item.value.as_ref() else {
             continue;
         };
         let index = function_index;
         function_index += 1;
-        let Some(owner) = body_owner(function) else {
+        let template = std::sync::Arc::as_ptr(&item.value);
+        if let Some((value, calls)) = rewritten_templates.get(&template) {
+            stats.rewritten_calls += *calls;
+            item.value = value.clone();
+            continue;
+        }
+        let Some(owner) = body_owner(original) else {
             continue;
         };
-        if let Some((_, blocks, calls)) = rewritten_bodies
+        let (blocks, calls) = if let Some((_, blocks, calls)) = rewritten_bodies
             .get(&owner)
-            .filter(|(other, _, _)| same_body_owner(function, functions[*other]))
+            .filter(|(other, _, _)| same_body_owner(original, functions[*other]))
         {
-            function.blocks = Some(blocks.clone());
-            stats.rewritten_calls += *calls;
-            continue;
-        }
-        let mut calls = 0;
-        for block in function.blocks.iter().flatten() {
-            for inst in &block.instructions {
-                if cancelled() {
-                    return None;
-                }
-                if matches!(&inst.op, Op::Call { callee: Val::Global(name), .. } if replacements.contains_key(name))
-                {
-                    calls += 1;
+            (blocks.clone(), *calls)
+        } else {
+            let mut calls = 0;
+            for block in original.blocks.iter().flatten() {
+                for inst in &block.instructions {
+                    if cancelled() {
+                        return None;
+                    }
+                    if matches!(&inst.op, Op::Call { callee: Val::Global(name), .. } if replacements.contains_key(name))
+                    {
+                        calls += 1;
+                    }
                 }
             }
-        }
-        if calls != 0 {
-            // Only a function CLASSIFIED in this current pass may consume the
-            // normalized data. A previous normalized row for a now-protected
-            // function or unclassified dependency never supplies this output.
-            // Current normalized_key changed precisely these target atoms;
-            // its complete input/header/callee binding was checked above.
-            let normalized = stable
-                .then_some(representatives[index])
-                .flatten()
-                .and_then(|_| cache.functions[index].normalized.as_ref());
-            if let Some(normalized) = normalized {
-                function.blocks = normalized.function.blocks.clone();
-            } else {
-                for block in function.blocks.as_mut()?.iter_mut() {
-                    for inst in &mut block.instructions {
-                        if cancelled() {
-                            return None;
-                        }
-                        if let Op::Call {
-                            callee: Val::Global(name),
-                            ..
-                        } = &mut inst.op
-                            && let Some(rep) = replacements.get(name)
-                        {
-                            *name = rep.clone();
+            let mut blocks = original.blocks.as_ref()?.clone();
+            if calls != 0 {
+                let normalized = stable
+                    .then_some(representatives[index])
+                    .flatten()
+                    .and_then(|_| cache.functions[index].normalized.as_ref());
+                if let Some(normalized) = normalized {
+                    blocks = normalized.function.blocks.as_ref()?.clone();
+                } else {
+                    for block in blocks.iter_mut() {
+                        for inst in &mut block.instructions {
+                            if cancelled() {
+                                return None;
+                            }
+                            if let Op::Call {
+                                callee: Val::Global(name),
+                                ..
+                            } = &mut inst.op
+                                && let Some(rep) = replacements.get(name)
+                            {
+                                *name = rep.clone();
+                            }
                         }
                     }
                 }
             }
-        }
+            rewritten_bodies.insert(owner, (index, blocks.clone(), calls));
+            (blocks, calls)
+        };
         stats.rewritten_calls += calls;
-        rewritten_bodies.insert(owner, (index, function.blocks.as_ref()?.clone(), calls));
+        if !original.blocks.as_ref()?.ptr_eq(&blocks) {
+            let mut function = original.clone();
+            function.blocks = Some(blocks);
+            item.value = std::sync::Arc::new(Item::Function(function));
+        }
+        rewritten_templates.insert(template, (item.value.clone(), calls));
     }
     if cancelled() {
         return None;
@@ -866,7 +934,12 @@ fn canonicalize_inner(
     if stable {
         changed
             .items
-            .extend(implementations.into_values().map(Item::Function));
+            .extend(implementations.into_values().map(|function| {
+                crate::machine_output::AliasItem {
+                    name: function.name.clone(),
+                    value: std::sync::Arc::new(Item::Function(function)),
+                }
+            }));
     }
     if stats.rewritten_calls != 0 || stable {
         *module = changed;

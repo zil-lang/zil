@@ -507,7 +507,7 @@ pub(super) fn encode_bounded(batch: &FunctionBatch, maximum: usize) -> Option<Ve
     } = signature;
     let mut out = Writer::bounded(maximum);
     out.put(b"ZILRAW01")?;
-    out.text(name)?;
+    out.text(batch.alias.as_deref().unwrap_or(name))?;
     out.tag(match linkage {
         m::Linkage::External => 0,
         _ => return None,
@@ -610,6 +610,7 @@ pub(super) fn decode(
     }
     *remaining = input.nodes;
     Some(FunctionBatch {
+        alias: None,
         body: vec![m::Item::Function(m::Function {
             name,
             linkage: m::Linkage::External,

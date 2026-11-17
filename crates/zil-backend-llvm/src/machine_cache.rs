@@ -147,6 +147,13 @@ pub(crate) struct Decoder<'a> {
     remaining: usize,
     pub(crate) decoded: usize,
 }
+/// A bounded dictionary location. Reading an index never materializes its body
+/// or grants permission to consume it; the requesting stage binds its inputs.
+pub(crate) struct FunctionRef {
+    index: usize,
+    name: String,
+    linkage: Linkage,
+}
 impl<'a> Decoder<'a> {
     pub(crate) fn new(bytes: &'a [u8], magic: &[u8; 8], limits: &Limits) -> Option<Self> {
         let mut input = Reader::new(bytes, limits.max_nodes.min(1_000_000))?;
@@ -180,7 +187,28 @@ impl<'a> Decoder<'a> {
         Some(())
     }
     pub(crate) fn function(&mut self) -> Option<Function> {
+        let reference = self.function_ref()?;
+        self.resolve(&reference)
+    }
+    pub(crate) fn function_ref(&mut self) -> Option<FunctionRef> {
         let index = self.input.word()?;
+        self.encoded.get(index)?;
+        let name = self.input.text()?;
+        let linkage = match self.input.word()? {
+            0 => Linkage::External,
+            1 => Linkage::Internal,
+            2 => Linkage::Private,
+            3 => Linkage::AvailableExternally,
+            _ => return None,
+        };
+        Some(FunctionRef {
+            index,
+            name,
+            linkage,
+        })
+    }
+    pub(crate) fn resolve(&mut self, reference: &FunctionRef) -> Option<Function> {
+        let index = reference.index;
         let slot = self.functions.get_mut(index)?;
         if slot.is_none() {
             let function =
@@ -192,14 +220,8 @@ impl<'a> Decoder<'a> {
             self.decoded += 1;
         }
         let mut function = slot.as_ref()?.clone();
-        function.name = self.input.text()?;
-        function.linkage = match self.input.word()? {
-            0 => Linkage::External,
-            1 => Linkage::Internal,
-            2 => Linkage::Private,
-            3 => Linkage::AvailableExternally,
-            _ => return None,
-        };
+        function.name = reference.name.clone();
+        function.linkage = reference.linkage;
         let indices = self.names.entry(function.name.clone()).or_default();
         if !indices.contains(&index) {
             indices.push(index);
@@ -241,12 +263,27 @@ impl<'a> Recovery<'a> {
             partition,
         })
     }
+    #[cfg(test)]
     pub(crate) fn classes(
         &mut self,
         current: &Module,
     ) -> Option<crate::machine_call_classes::Cache> {
         self.decoder.section(self.classes)?;
         crate::machine_call_classes::Cache::decode_from(&mut self.decoder, current)
+    }
+    pub(crate) fn class_candidates(
+        &mut self,
+        current: &Module,
+    ) -> Option<crate::machine_call_classes::Candidates<'a, '_>> {
+        self.decoder.section(self.classes)?;
+        crate::machine_call_classes::Candidates::read(&mut self.decoder, current)
+    }
+    pub(crate) fn alias_class_candidates(
+        &mut self,
+        current: &crate::machine_output::AliasModule,
+    ) -> Option<crate::machine_call_classes::Candidates<'a, '_>> {
+        self.decoder.section(self.classes)?;
+        crate::machine_call_classes::Candidates::read_aliases(&mut self.decoder, current)
     }
     pub(crate) fn partition(
         &mut self,

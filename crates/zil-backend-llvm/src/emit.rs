@@ -401,6 +401,10 @@ pub(crate) fn lower_output_with_raw_products(
         // invocation or authorize any source, verification or native-cache hit.
         let mut scalar_bodies = scalar_bodies::Cache::default();
         scalar_bodies.set_inputs(session.body_inputs.clone());
+        scalar_bodies.lazy_aliases = incremental_scalar_policy
+            && closed_scalar_collection
+            && collected.is_none()
+            && session.eligible;
         if let Some(raw) = raw_products.as_deref_mut() {
             raw.set_inputs(session.body_inputs.clone());
             raw.bind(
@@ -498,6 +502,7 @@ pub(crate) fn lower_output_with_raw_products(
         session.shared_body_template_reuses = scalar_bodies.owner_hits;
         if batches.is_empty() {
             batches.push(FunctionBatch {
+                alias: None,
                 body: Vec::new().into(),
                 intrinsics: BTreeSet::new(),
                 task_machines: Vec::new(),
@@ -532,17 +537,35 @@ pub(crate) fn lower_output_with_raw_products(
             .as_ref()
             .is_some_and(|session| session.identity().is_some())
         && batches.iter().all(|batch| batch.task_machines.is_empty());
-    let mut batches = batches.into_iter();
+    let alias_output = incremental_scalar_policy
+        && closed_scalar_collection
+        && collected.is_none()
+        && session.as_ref().is_some_and(|s| s.eligible)
+        && batches.iter().all(|batch| batch.task_machines.is_empty());
+    let mut alias_parts = alias_output.then(|| {
+        batches
+            .iter()
+            .map(|batch| (batch.alias.clone(), batch.body.clone()))
+            .collect::<Vec<_>>()
+    });
+    let mut batches = batches.into_iter().map(|mut batch| {
+        if !alias_output && batch.alias.is_some() {
+            batch.body = batch.materialized_body();
+            batch.alias = None;
+        }
+        batch
+    });
     let FunctionBatch {
+        alias: _,
         mut body,
         mut intrinsics,
         mut task_machines,
         mut foreign_adapters,
     } = batches.next().expect("lowering always returns a batch");
-    if piece_output {
+    if piece_output || alias_output {
         body = m::SharedVec::default();
     }
-    if !piece_output {
+    if !piece_output && !alias_output {
         body.reserve(
             collected
                 .as_ref()
@@ -551,7 +574,7 @@ pub(crate) fn lower_output_with_raw_products(
         );
     }
     for batch in batches {
-        if !piece_output {
+        if !piece_output && !alias_output {
             body.extend(batch.body);
         }
         intrinsics.extend(batch.intrinsics);
@@ -565,6 +588,17 @@ pub(crate) fn lower_output_with_raw_products(
         verified,
         &task_meter,
     )?);
+    if alias_output && !body.is_empty() {
+        let mut complete = crate::machine_output::MachineOutput::from_aliases(
+            lir.target.triple.clone(),
+            verified.fingerprint().to_hex(),
+            alias_parts.take().expect("current alias parts"),
+        )
+        .to_module()
+        .items;
+        complete.extend(body);
+        body = complete;
+    }
     // A future worker-domain extension must not silently drop an actual body
     // product. Preserve original order and materialize the unknown case.
     let piece_output = if piece_output && !body.is_empty() {
@@ -825,7 +859,17 @@ pub(crate) fn lower_output_with_raw_products(
         ]));
     }
     let suffix = text.into_items().map_err(machine_error)?;
-    let machine = if piece_output {
+    let machine = if let Some(mut parts) = alias_parts {
+        parts.insert(0, (None, prefix.into()));
+        let mut last = wrapper;
+        last.extend(suffix);
+        parts.push((None, last.into()));
+        crate::machine_output::MachineOutput::from_aliases(
+            lir.target.triple.clone(),
+            verified.fingerprint().to_hex(),
+            parts,
+        )
+    } else if piece_output {
         let mut suffix_items = wrapper;
         suffix_items.extend(suffix);
         session
@@ -861,10 +905,31 @@ pub(crate) fn lower_output_with_raw_products(
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct FunctionBatch {
+    // Current outer symbol only; immutable machine contents remain shared.
+    // Only the closed scalar consumer requests this representation.
+    alias: Option<String>,
     body: m::SharedVec<m::Item>,
     intrinsics: BTreeSet<(&'static str, u32)>,
     task_machines: Vec<(FunctionId, m::Function)>,
     foreign_adapters: BTreeSet<FunctionId>,
+}
+impl FunctionBatch {
+    fn body_name(&self) -> Option<&str> {
+        let [m::Item::Function(function)] = self.body.as_slice() else {
+            return None;
+        };
+        Some(self.alias.as_deref().unwrap_or(&function.name))
+    }
+    fn materialized_body(&self) -> m::SharedVec<m::Item> {
+        let mut body = self.body.clone();
+        if let Some(alias) = &self.alias {
+            let [m::Item::Function(function)] = body.as_mut_slice() else {
+                unreachable!("only a single function can have an alias")
+            };
+            function.name.clone_from(alias);
+        }
+        body
+    }
 }
 
 fn resource_head_address(ty: &Type) -> bool {
@@ -1027,6 +1092,7 @@ fn lower_function_batch<'a>(
         }
     }
     Ok(FunctionBatch {
+        alias: None,
         body: body.into(),
         intrinsics,
         task_machines,

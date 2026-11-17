@@ -14,6 +14,81 @@ pub(crate) struct MachineOutput {
 enum Data {
     Flat(SharedVec<Item>),
     Pieces(Arc<Pieces>),
+    Aliases(Arc<Aliases>),
+}
+#[derive(Clone, Debug)]
+pub(crate) struct AliasItem {
+    pub(crate) name: String,
+    pub(crate) value: Arc<Item>,
+}
+impl AliasItem {
+    pub(crate) fn materialize(&self) -> Item {
+        let mut value = (*self.value).clone();
+        if let Item::Function(function) = &mut value {
+            function.name.clone_from(&self.name);
+        }
+        value
+    }
+}
+impl PartialEq for AliasItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && (Arc::ptr_eq(&self.value, &other.value)
+                || match (self.value.as_ref(), other.value.as_ref()) {
+                    (Item::Function(a), Item::Function(b)) => {
+                        a.linkage == b.linkage
+                            && a.signature == b.signature
+                            && a.attrs == b.attrs
+                            && a.blocks == b.blocks
+                    }
+                    (a, b) => a == b,
+                })
+    }
+}
+impl Eq for AliasItem {}
+#[derive(Clone, Debug)]
+pub(crate) struct AliasModule {
+    pub(crate) triple: String,
+    pub(crate) fingerprint: String,
+    pub(crate) items: Vec<AliasItem>,
+}
+impl AliasModule {
+    pub(crate) fn from_module(module: &Module) -> Self {
+        Self {
+            triple: module.triple.clone(),
+            fingerprint: module.fingerprint.clone(),
+            items: module
+                .items
+                .iter()
+                .map(|item| AliasItem {
+                    name: match item {
+                        Item::Function(f) => f.name.clone(),
+                        Item::Global(g) => g.name.clone(),
+                        Item::NamedType(name, _) => name.clone(),
+                    },
+                    value: Arc::new(item.clone()),
+                })
+                .collect(),
+        }
+    }
+    pub(crate) fn views(&self) -> Vec<(&str, &Item)> {
+        self.items
+            .iter()
+            .map(|item| (item.name.as_str(), item.value.as_ref()))
+            .collect()
+    }
+    pub(crate) fn materialize(&self) -> Module {
+        Module {
+            triple: self.triple.clone(),
+            fingerprint: self.fingerprint.clone(),
+            items: self.items.iter().map(AliasItem::materialize).collect(),
+        }
+    }
+}
+#[derive(Debug)]
+struct Aliases {
+    model: AliasModule,
+    flat: OnceLock<Module>,
 }
 #[derive(Debug)]
 struct Pieces {
@@ -46,6 +121,9 @@ impl PartialEq for MachineOutput {
         match (&self.data, &other.data) {
             (Data::Flat(a), Data::Flat(b)) => a == b,
             (Data::Pieces(a), Data::Pieces(b)) if Arc::ptr_eq(a, b) => true,
+            (Data::Aliases(a), Data::Aliases(b)) => {
+                Arc::ptr_eq(a, b) || a.model.items == b.model.items
+            }
             _ => self.changed_items(other).map_or_else(
                 || (0..self.len()).all(|index| self.item(index) == other.item(index)),
                 |changed| changed.is_empty(),
@@ -55,9 +133,55 @@ impl PartialEq for MachineOutput {
 }
 impl Eq for MachineOutput {}
 impl MachineOutput {
+    pub(crate) fn from_aliases(
+        triple: String,
+        fingerprint: String,
+        parts: Vec<(Option<String>, SharedVec<Item>)>,
+    ) -> Self {
+        let mut owners = std::collections::HashMap::<*const Vec<Item>, Vec<Arc<Item>>>::new();
+        let mut items = Vec::new();
+        for (alias, body) in &parts {
+            let values = owners
+                .entry(std::ptr::from_ref(&**body))
+                .or_insert_with(|| body.iter().cloned().map(Arc::new).collect());
+            for value in values {
+                let name = match value.as_ref() {
+                    Item::Function(function) => alias.as_ref().unwrap_or(&function.name).clone(),
+                    Item::Global(global) => global.name.clone(),
+                    Item::NamedType(name, _) => name.clone(),
+                };
+                items.push(AliasItem {
+                    name,
+                    value: value.clone(),
+                });
+            }
+        }
+        Self {
+            triple: triple.clone(),
+            fingerprint: fingerprint.clone(),
+            data: Data::Aliases(Arc::new(Aliases {
+                model: AliasModule {
+                    triple,
+                    fingerprint,
+                    items,
+                },
+                flat: OnceLock::new(),
+            })),
+        }
+    }
+    pub(crate) fn aliases(&self) -> Option<&AliasModule> {
+        match &self.data {
+            Data::Aliases(aliases) => Some(&aliases.model),
+            _ => None,
+        }
+    }
     /// Diagnostic fingerprints are not native values. Compare every actual item
     /// (or its immutable shared owner) before result equality stops propagation.
     pub(crate) fn same_values(&self, other: &Self) -> bool {
+        if let (Data::Aliases(a), Data::Aliases(b)) = (&self.data, &other.data) {
+            return self.triple == other.triple
+                && (Arc::ptr_eq(a, b) || a.model.items == b.model.items);
+        }
         self.triple == other.triple
             && self.len() == other.len()
             && self.changed_items(other).map_or_else(
@@ -130,11 +254,17 @@ impl MachineOutput {
         match &self.data {
             Data::Flat(items) => items.len(),
             Data::Pieces(p) => p.len,
+            Data::Aliases(aliases) => aliases.model.items.len(),
         }
     }
     pub(crate) fn item(&self, index: usize) -> Option<&Item> {
         match &self.data {
             Data::Flat(items) => items.get(index),
+            Data::Aliases(aliases) => aliases
+                .flat
+                .get_or_init(|| aliases.model.materialize())
+                .items
+                .get(index),
             Data::Pieces(p) => {
                 if index < p.prefix.len() {
                     return p.prefix.get(index);
@@ -154,6 +284,11 @@ impl MachineOutput {
     pub(crate) fn to_module(&self) -> Module {
         let items = match &self.data {
             Data::Flat(items) => items.clone(),
+            Data::Aliases(aliases) => aliases
+                .flat
+                .get_or_init(|| aliases.model.materialize())
+                .items
+                .clone(),
             Data::Pieces(p) => p
                 .flat
                 .get_or_init(|| {
@@ -213,6 +348,7 @@ impl MachineOutput {
         match &self.data {
             Data::Flat(_) => true,
             Data::Pieces(p) => p.flat.get().is_some(),
+            Data::Aliases(aliases) => aliases.flat.get().is_some(),
         }
     }
 }

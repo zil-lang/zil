@@ -245,6 +245,15 @@ type Inventory = (
     BTreeMap<FunctionId, usize>,
     BTreeMap<String, ByteView>,
 );
+struct DecodedRecord {
+    input: TypedFunction,
+    output: DecodedOutput,
+}
+enum DecodedOutput {
+    Pending,
+    Rejected,
+    Ready(FunctionBatch),
+}
 pub(crate) struct Request {
     inputs: Option<Arc<scalar_bodies::Inputs>>,
     validation: Option<std::rc::Rc<std::cell::RefCell<zil_llvm_api::PreflightSession>>>,
@@ -254,7 +263,9 @@ pub(crate) struct Request {
     limits: Limits,
     old: Vec<RawRecord>,
     aliases: BTreeMap<FunctionId, usize>,
-    decoded: BTreeMap<usize, Option<(TypedFunction, FunctionBatch)>>,
+    // Absent = input not decoded; None = rejected input. A body mismatch is
+    // alias-local: retain the input and leave its output pending for siblings.
+    decoded: BTreeMap<usize, Option<DecodedRecord>>,
     accepted: BTreeMap<FunctionId, (usize, FunctionBatch)>,
     decode_nodes: usize,
     products: BTreeMap<String, ByteView>,
@@ -516,6 +527,23 @@ impl Request {
                     }
                 };
                 self.decode_nodes = self.decode_nodes.checked_sub(nodes)?;
+                Some(DecodedRecord {
+                    input: raw,
+                    output: DecodedOutput::Pending,
+                })
+            })();
+            self.decoded.insert(index, decoded);
+        }
+        let decoded = self.decoded.get_mut(&index)?.as_mut()?;
+        let raw = &decoded.input;
+        if !incremental::same_body_input(raw, function) {
+            return None;
+        }
+        // Only a complete current input/facts match demands a machine value.
+        // Both decoders charge the same request-wide budget exactly once per
+        // record. Failed output decoding is terminal, as is failed validation.
+        if matches!(decoded.output, DecodedOutput::Pending) {
+            let output = (|| {
                 let output =
                     match raw_codec::decode(&record.output, &self.limits, &mut self.decode_nodes) {
                         Some(output) => output,
@@ -528,10 +556,10 @@ impl Request {
                     return None;
                 };
                 if machine.name != symbol(raw.id)
-                    || !scalar_bodies::cacheable(&raw)
+                    || !scalar_bodies::cacheable(raw)
                     || !valid_machine(
                         machine,
-                        &raw,
+                        raw,
                         functions,
                         target,
                         &output.intrinsics,
@@ -540,14 +568,13 @@ impl Request {
                 {
                     return None;
                 }
-                Some((raw, output))
+                Some(output)
             })();
-            self.decoded.insert(index, decoded);
+            decoded.output = output.map_or(DecodedOutput::Rejected, DecodedOutput::Ready);
         }
-        let (raw, output) = self.decoded.get(&index)?.as_ref()?;
-        if !incremental::same_body_input(raw, function) {
+        let DecodedOutput::Ready(output) = &decoded.output else {
             return None;
-        }
+        };
         let output = scalar_bodies::rebind(output, function.id);
         self.accepted.insert(function.id, (index, output.clone()));
         Some(output)
@@ -590,10 +617,10 @@ impl Request {
         {
             return None;
         }
-        let [m::Item::Function(machine)] = output.body.as_slice() else {
+        let [m::Item::Function(_)] = output.body.as_slice() else {
             return None;
         };
-        if machine.name != symbol(function.id) {
+        if output.body_name() != Some(symbol(function.id).as_str()) {
             return None;
         }
         let retained = self
@@ -618,7 +645,10 @@ impl Request {
                 .checked_sub(input.len())?
                 .checked_sub(facts.len())?
                 .checked_sub(20)?;
-            let output = raw_codec::encode_bounded(output, remaining)?;
+            let mut materialized = output.clone();
+            materialized.body = output.materialized_body();
+            materialized.alias = None;
+            let output = raw_codec::encode_bounded(&materialized, remaining)?;
             RawRecord {
                 input: input.into(),
                 facts: facts.into(),

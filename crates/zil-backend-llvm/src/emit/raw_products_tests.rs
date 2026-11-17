@@ -216,6 +216,398 @@ fn lower(verified: &VerifiedModule, raw: &LirModule, cache: Option<&mut Request>
     .map(|(module, collected, work)| (module.to_module(), collected, work))
 }
 
+// Keep the producer's exact bound context, but load a fresh inventory without
+// lowering first: these tests observe the very first demand after restart.
+fn restart_inventory(cold: Request, root: &Path) -> Request {
+    let mut restored = request(root);
+    restored.context = cold.context.clone();
+    restored.manifest = cold.manifest.clone();
+    restored.limits = cold.limits.clone();
+    restored.maximum = cold.maximum;
+    cold.pending().unwrap().commit(root);
+    let (records, aliases, products) = restored.load().unwrap();
+    restored.old = records;
+    restored.aliases = aliases;
+    restored.old_products = products;
+    restored.decode_nodes = restored.limits.max_nodes.min(1_000_000);
+    restored.enabled = true;
+    restored
+}
+
+fn decode_costs(record: &RawRecord, limits: &Limits) -> (usize, usize) {
+    let (_, input) =
+        zil_ir::wire::decode_raw_function_bounded(&record.input, limits, 1_000_000).unwrap();
+    let mut remaining = 1_000_000;
+    raw_codec::decode(&record.output, limits, &mut remaining).unwrap();
+    (input, 1_000_000 - remaining)
+}
+
+#[test]
+fn changed_inputs_defer_shared_output_until_an_unchanged_alias_demands_it() {
+    let directory = Directory::new();
+    let verified = fixture(false);
+    let source = lir(&verified);
+    let mut cold = request(&directory.0);
+    lower(&verified, &source, Some(&mut cold)).unwrap();
+    let mut restored = restart_inventory(cold, &directory.0);
+    let checker = crate::machine_preflight::CurrentPreflight::default();
+    restored.use_preflight(checker.body_session());
+    let current = fixture(true);
+    let functions = current
+        .module()
+        .functions
+        .iter()
+        .map(|function| (function.id, function))
+        .collect();
+    let summaries = BTreeMap::new();
+    let index = restored.aliases[&FunctionId(0)];
+    assert_eq!(restored.aliases[&FunctionId(3)], index);
+    let (input_cost, output_cost) = decode_costs(&restored.old[index], &restored.limits);
+    let budget = restored.decode_nodes;
+    // Body, locals, value types and header differences all precede output
+    // decoding. Repeated changed aliases must not reject the shared record.
+    for fault in 0..4 {
+        let mut changed = source.functions[0].clone();
+        match fault {
+            0 => changed = current.module().functions[0].clone(),
+            1 => changed.locals[0].mutable = true,
+            2 => changed.values[0] = Type::I64,
+            _ => changed.return_type = Type::I64,
+        }
+        assert!(
+            restored
+                .lookup(&changed, Some(&summaries), &functions, &source.target)
+                .is_none()
+        );
+        assert_eq!(restored.decode_nodes, budget - input_cost);
+        assert!(matches!(
+            restored.decoded[&index].as_ref().unwrap().output,
+            DecodedOutput::Pending
+        ));
+        assert!(restored.accepted.is_empty());
+        assert_eq!(checker.body_session().borrow().body_counts(), (0, 0));
+    }
+    let first = restored
+        .lookup(
+            &source.functions[3],
+            Some(&summaries),
+            &functions,
+            &source.target,
+        )
+        .unwrap();
+    let second = restored
+        .lookup(
+            &source.functions[6],
+            Some(&summaries),
+            &functions,
+            &source.target,
+        )
+        .unwrap();
+    assert_eq!(restored.decode_nodes, budget - input_cost - output_cost);
+    assert_eq!(checker.body_session().borrow().body_counts(), (1, 0));
+    assert_eq!(restored.decoded.len(), 1, "unused records stay encoded");
+    let [m::Item::Function(first)] = first.body.as_slice() else {
+        unreachable!()
+    };
+    let [m::Item::Function(second)] = second.body.as_slice() else {
+        unreachable!()
+    };
+    assert_eq!(first.name, symbol(FunctionId(3)));
+    assert_eq!(second.name, symbol(FunctionId(6)));
+    assert!(
+        first
+            .blocks
+            .as_ref()
+            .unwrap()
+            .ptr_eq(second.blocks.as_ref().unwrap())
+    );
+    // A later changed lookup cannot consume an already decoded shared result.
+    assert!(
+        restored
+            .lookup(
+                &current.module().functions[0],
+                Some(&summaries),
+                &functions,
+                &source.target
+            )
+            .is_none()
+    );
+    assert!(!restored.accepted.contains_key(&FunctionId(0)));
+    assert_eq!(restored.decode_nodes, budget - input_cost - output_cost);
+}
+
+#[test]
+fn changed_facts_leave_both_input_and_output_undecoded() {
+    let directory = Directory::new();
+    let verified = chain_fixture(false);
+    let source = lir(&verified);
+    let functions = source.functions.iter().map(|f| (f.id, f)).collect();
+    let mut cold = request(&directory.0);
+    lower(&verified, &source, Some(&mut cold)).unwrap();
+    let mut restored = restart_inventory(cold, &directory.0);
+    let budget = restored.decode_nodes;
+    let changed = BTreeMap::from([(FunctionId(0), Constant::I32(7))]);
+    for summaries in [None, Some(&changed)] {
+        assert!(
+            restored
+                .lookup(&source.functions[6], summaries, &functions, &source.target)
+                .is_none()
+        );
+        assert_eq!(restored.decode_nodes, budget);
+        assert!(restored.decoded.is_empty());
+        assert!(restored.accepted.is_empty());
+    }
+    assert!(
+        restored
+            .lookup(
+                &source.functions[9],
+                Some(&BTreeMap::new()),
+                &functions,
+                &source.target
+            )
+            .is_some()
+    );
+    assert_eq!(restored.decoded.len(), 1);
+}
+
+#[test]
+fn corrupt_raw_input_or_demanded_output_exhausts_decode_budget_and_stays_rejected() {
+    let directory = Directory::new();
+    let verified = fixture(false);
+    let source = lir(&verified);
+    let functions = source.functions.iter().map(|f| (f.id, f)).collect();
+    let summaries = BTreeMap::new();
+    for corrupt_input in [true, false] {
+        let mut cold = request(&directory.0);
+        lower(&verified, &source, Some(&mut cold)).unwrap();
+        let index = cold.current_aliases[&FunctionId(0)];
+        let bytes = if corrupt_input {
+            &mut cold.current[index].input
+        } else {
+            &mut cold.current[index].output
+        };
+        *bytes = bytes[..bytes.len() - 1].to_vec().into();
+        // Publish a checksum-correct envelope with a truncated inner record.
+        let mut restored = restart_inventory(cold, &directory.0);
+        let mut changed = source.functions[0].clone();
+        changed.blocks[0].instructions[1].kind = InstructionKind::Constant(Constant::I32(99));
+        assert!(
+            restored
+                .lookup(&changed, Some(&summaries), &functions, &source.target)
+                .is_none()
+        );
+        if corrupt_input {
+            assert_eq!(restored.decode_nodes, 0);
+            assert!(restored.decoded[&index].is_none());
+        } else {
+            assert!(
+                restored.decode_nodes > 0,
+                "unused corrupt output is not decoded"
+            );
+            assert!(matches!(
+                restored.decoded[&index].as_ref().unwrap().output,
+                DecodedOutput::Pending
+            ));
+        }
+        for id in [3, 6, 1] {
+            assert!(
+                restored
+                    .lookup(
+                        &source.functions[id],
+                        Some(&summaries),
+                        &functions,
+                        &source.target
+                    )
+                    .is_none()
+            );
+            assert_eq!(restored.decode_nodes, 0);
+        }
+        if !corrupt_input {
+            assert!(matches!(
+                restored.decoded[&index].as_ref().unwrap().output,
+                DecodedOutput::Rejected
+            ));
+        }
+        assert!(restored.accepted.is_empty());
+    }
+}
+
+#[test]
+fn lazy_raw_decoders_share_exact_aggregate_budget_and_memoize_failures() {
+    let directory = Directory::new();
+    let verified = fixture(false);
+    let source = lir(&verified);
+    let functions = source.functions.iter().map(|f| (f.id, f)).collect();
+    let summaries = BTreeMap::new();
+    let mut changed = source.functions[0].clone();
+    changed.blocks[0].instructions[1].kind = InstructionKind::Constant(Constant::I32(99));
+    let mut cold = request(&directory.0);
+    lower(&verified, &source, Some(&mut cold)).unwrap();
+    let index = cold.current_aliases[&FunctionId(0)];
+    let (input, output) = decode_costs(&cold.current[index], &cold.limits);
+    let other = cold.current_aliases[&FunctionId(1)];
+    let (other_input, other_output) = decode_costs(&cold.current[other], &cold.limits);
+    // Republish the same immutable records for independent request budgets.
+    for budget in [input - 1, input, input + output - 1, input + output] {
+        let mut producer = request(&directory.0);
+        lower(&verified, &source, Some(&mut producer)).unwrap();
+        let mut restored = restart_inventory(producer, &directory.0);
+        restored.decode_nodes = budget;
+        assert!(
+            restored
+                .lookup(&changed, Some(&summaries), &functions, &source.target)
+                .is_none()
+        );
+        assert_eq!(restored.decode_nodes, budget.saturating_sub(input));
+        for id in [3, 6] {
+            assert_eq!(
+                restored
+                    .lookup(
+                        &source.functions[id],
+                        Some(&summaries),
+                        &functions,
+                        &source.target
+                    )
+                    .is_some(),
+                budget == input + output
+            );
+            assert_eq!(restored.decode_nodes, 0);
+        }
+        // A failure on another record cannot evict already decoded results;
+        // rejected records cannot retry even if spare budget becomes available.
+        assert!(
+            restored
+                .lookup(
+                    &source.functions[1],
+                    Some(&summaries),
+                    &functions,
+                    &source.target
+                )
+                .is_none()
+        );
+        restored.decode_nodes = 1_000_000;
+        assert_eq!(
+            restored
+                .lookup(
+                    &source.functions[3],
+                    Some(&summaries),
+                    &functions,
+                    &source.target
+                )
+                .is_some(),
+            budget == input + output
+        );
+        assert!(
+            restored
+                .lookup(
+                    &source.functions[1],
+                    Some(&summaries),
+                    &functions,
+                    &source.target
+                )
+                .is_none()
+        );
+        assert_eq!(restored.decode_nodes, 1_000_000);
+    }
+    let mut restored = restart_inventory(cold, &directory.0);
+    restored.decode_nodes = input + other_input + other_output + output - 1;
+    assert!(
+        restored
+            .lookup(&changed, Some(&summaries), &functions, &source.target)
+            .is_none()
+    );
+    assert!(
+        restored
+            .lookup(
+                &source.functions[1],
+                Some(&summaries),
+                &functions,
+                &source.target
+            )
+            .is_some()
+    );
+    assert_eq!(restored.decode_nodes, output - 1);
+    assert!(
+        restored
+            .lookup(
+                &source.functions[3],
+                Some(&summaries),
+                &functions,
+                &source.target
+            )
+            .is_none()
+    );
+    assert_eq!(restored.decode_nodes, 0);
+}
+
+#[test]
+fn raw_staging_binds_lazy_aliases_and_retains_only_exact_accepted_batches() {
+    let directory = Directory::new();
+    let verified = fixture(false);
+    let source = lir(&verified);
+    let functions = source.functions.iter().map(|f| (f.id, f)).collect();
+    let summaries = BTreeMap::new();
+    let function = &source.functions[3];
+    for lazy in [false, true] {
+        let mut cold = request(&directory.0);
+        lower(&verified, &source, Some(&mut cold)).unwrap();
+        let mut restored = restart_inventory(cold, &directory.0);
+        let accepted = restored
+            .lookup(function, Some(&summaries), &functions, &source.target)
+            .unwrap();
+        let index = restored.aliases[&function.id];
+        let old = restored.old[index].clone();
+        let mut output = if lazy {
+            let DecodedOutput::Ready(output) = &restored.decoded[&index].as_ref().unwrap().output
+            else {
+                unreachable!()
+            };
+            let mut output = output.clone();
+            output.alias = Some(symbol(function.id));
+            output
+        } else {
+            accepted.clone()
+        };
+        let alias = output.alias.clone();
+        output.alias = Some(symbol(FunctionId(99)));
+        restored.stage(
+            function,
+            &output,
+            scalar_bodies::key(None, function),
+            Some(&summaries),
+        );
+        assert!(
+            restored.current.is_empty(),
+            "wrong logical symbol is refused"
+        );
+        output.alias = alias;
+        let unchanged = output.clone();
+        restored.stage(
+            function,
+            &output,
+            scalar_bodies::key(None, function),
+            Some(&summaries),
+        );
+        assert_eq!(
+            output, unchanged,
+            "staging cannot mutate the shared template"
+        );
+        assert_eq!(restored.accepted[&function.id].1, accepted);
+        let record = &restored.current[0];
+        assert_eq!(same_view(&record.input, &old.input), !lazy);
+        assert_eq!(same_view(&record.output, &old.output), !lazy);
+        let (input, _) =
+            zil_ir::wire::decode_raw_function_bounded(&record.input, &restored.limits, 1_000_000)
+                .unwrap();
+        let decoded = raw_codec::decode(&record.output, &restored.limits, &mut 1_000_000).unwrap();
+        assert!(decoded.alias.is_none());
+        assert_eq!(decoded.body_name(), Some(symbol(input.id).as_str()));
+        if lazy {
+            assert_eq!(input.id, function.id);
+        }
+    }
+}
+
 #[test]
 fn restarted_raw_products_match_original_emitter_and_edit_only_one_representative() {
     let directory = Directory::new();
@@ -654,6 +1046,7 @@ fn scalar_raw_codec_roundtrips_every_supported_field_and_refuses_truncation_and_
         },
     ];
     let output = FunctionBatch {
+        alias: None,
         body: vec![m::Item::Function(m::Function {
             name: "zil.fn.5".into(),
             linkage: m::Linkage::External,

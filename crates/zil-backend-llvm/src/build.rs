@@ -63,12 +63,83 @@ impl Default for CodegenOptions {
     }
 }
 
+type ReducedClasses = (
+    zil_llvm_api::model::Module,
+    crate::machine_call_classes::Stats,
+    std::collections::BTreeSet<String>,
+    crate::machine_call_classes::Cache,
+    crate::machine_closed_graph::Reduction,
+);
+#[allow(clippy::too_many_arguments)]
+fn reduce_current_classes(
+    machine: &crate::machine_output::MachineOutput,
+    lir: &LirView<'_>,
+    protected: &std::collections::BTreeSet<String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
+    previous: Option<&crate::machine_call_classes::Cache>,
+    recovery: Option<&mut crate::machine_cache::Recovery<'_>>,
+    timings: &mut BackendTimings,
+) -> CompileResult<Option<ReducedClasses>> {
+    let mut aliases = machine
+        .aliases()
+        .cloned()
+        .unwrap_or_else(|| crate::machine_output::AliasModule::from_module(&machine.to_module()));
+    preflight.check_aliases(&aliases).map_err(api_error)?;
+    let mut candidates = if previous.is_none() {
+        recovery.and_then(|recovery| recovery.alias_class_candidates(&aliases))
+    } else {
+        None
+    };
+    let classified = crate::machine_call_classes::canonicalize_aliases(
+        &mut aliases,
+        protected,
+        cancelled,
+        previous,
+        candidates.as_mut(),
+    );
+    timings.current_class_bodies_checked += candidates.as_ref().map_or(0, |c| c.checked as u64);
+    let Some((stats, mut symbols, cache)) = classified else {
+        return Ok(None);
+    };
+    if symbols.is_empty() {
+        return Ok(None);
+    }
+    let original_count = aliases.items.len();
+    let Some(reduction) = crate::machine_closed_graph::prune_aliases_with_preflight(
+        &mut aliases,
+        lir,
+        &mut symbols,
+        protected,
+        cancelled,
+        preflight,
+    )
+    .map_err(api_error)?
+    else {
+        return Ok(None);
+    };
+    if symbols.is_empty() {
+        return Ok(None);
+    }
+    let reduced = aliases.materialize();
+    if reduction.source_functions(&reduced, lir).is_none() {
+        return Ok(None);
+    }
+    if machine.aliases().is_some() {
+        timings.factored_machine_items += original_count as u64;
+        timings.factored_live_items += reduced.items.len() as u64;
+    }
+    Ok(Some((reduced, stats, symbols, cache, reduction)))
+}
+
 /// Non-overlapping wall-time buckets for this native build. Object work includes
 /// cache preparation and unit scheduling; other includes output/path admission
 /// and publication. These are measurements, not estimated work or skipped cost.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BackendTimings {
     pub machine_ns: u64,
+    pub factored_machine_items: u64,
+    pub factored_live_items: u64,
     pub raw_models_decoded: u64,
     pub raw_models_encoded: u64,
     pub raw_model_encodings_reused: u64,
@@ -110,8 +181,10 @@ impl BackendTimings {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"machine_ns\":{},\"raw_models_decoded\":{},\"raw_models_encoded\":{},\"raw_model_encodings_reused\":{},\"current_class_bodies_checked\":{},\"class_equivalence_comparisons\":{},\"class_equivalence_reuses\":{},\"machine_emit_ns\":{},\"machine_transform_ns\":{},\"transform_ranges_ns\":{},\"transform_checked_add_ns\":{},\"transform_scalar_ns\":{},\"transform_call_classes_ns\":{},\"transform_purity_ns\":{},\"machine_preflight_ns\":{},\"partition_ns\":{},\"diagnostic_ns\":{},\"object_ns\":{},\"link_key_ns\":{},\"link_execution_ns\":{},\"other_ns\":{},\"total_ns\":{}}}",
+            "{{\"machine_ns\":{},\"factored_machine_items\":{},\"factored_live_items\":{},\"raw_models_decoded\":{},\"raw_models_encoded\":{},\"raw_model_encodings_reused\":{},\"current_class_bodies_checked\":{},\"class_equivalence_comparisons\":{},\"class_equivalence_reuses\":{},\"machine_emit_ns\":{},\"machine_transform_ns\":{},\"transform_ranges_ns\":{},\"transform_checked_add_ns\":{},\"transform_scalar_ns\":{},\"transform_call_classes_ns\":{},\"transform_purity_ns\":{},\"machine_preflight_ns\":{},\"partition_ns\":{},\"diagnostic_ns\":{},\"object_ns\":{},\"link_key_ns\":{},\"link_execution_ns\":{},\"other_ns\":{},\"total_ns\":{}}}",
             self.machine_ns,
+            self.factored_machine_items,
+            self.factored_live_items,
             self.raw_models_decoded,
             self.raw_models_encoded,
             self.raw_model_encodings_reused,
@@ -654,47 +727,28 @@ pub fn build_view_with_cancellation_and_session(
         }
     } else {
         if options.optimization == Optimization::O2 && options.incremental_o2 {
-            let mut flat = machine.to_module();
-            if call_classes_enabled && options.bounded_class_imports && !collected_closed {
+            let demand_classes =
+                call_classes_enabled && options.bounded_class_imports && !collected_closed;
+            // Keep the original as aliases through both complete preflights and
+            // closed reachability. Only surviving definitions become Functions.
+            let mut flat = if demand_classes {
                 let pass_started = std::time::Instant::now();
-                machine_preflight.check(&flat).map_err(api_error)?;
-                let mut reduced = flat.clone();
-                let restored_classes = session
-                    .as_ref()
-                    .and_then(|s| s.transformed.as_ref())
-                    .is_none()
-                    .then(|| machine_recovery.as_mut()?.classes(&flat))
-                    .flatten();
-                if let Some(restored) = &restored_classes {
-                    timings.current_class_bodies_checked +=
-                        restored.current_recovery_bodies_checked as u64;
-                }
                 let previous = session
                     .as_ref()
                     .and_then(|s| s.transformed.as_ref())
                     .filter(|old| old.policy == transform_policy)
-                    .and_then(|old| old.class_cache.as_deref())
-                    .or(restored_classes.as_ref());
-                if let Some((stats, mut symbols, cache)) =
-                    crate::machine_call_classes::canonicalize_stable_cached(
-                        &mut reduced,
-                        &transform_policy.protected,
-                        cancelled,
-                        previous,
-                    )
-                    && !symbols.is_empty()
-                    && let Some(reduction) = crate::machine_closed_graph::prune_with_preflight(
-                        &mut reduced,
-                        lir,
-                        &mut symbols,
-                        &transform_policy.protected,
-                        cancelled,
-                        &mut machine_preflight,
-                    )
-                    .map_err(api_error)?
-                    && !symbols.is_empty()
-                    && reduction.source_functions(&reduced, lir).is_some()
-                {
+                    .and_then(|old| old.class_cache.as_deref());
+                let result = reduce_current_classes(
+                    &machine,
+                    lir,
+                    &transform_policy.protected,
+                    cancelled,
+                    &mut machine_preflight,
+                    previous,
+                    machine_recovery.as_mut(),
+                    &mut timings,
+                )?;
+                let flat = if let Some((reduced, stats, symbols, cache, reduction)) = result {
                     early_closed_graph = Some(reduction);
                     call_classes = Some(stats);
                     class_symbols = symbols;
@@ -707,11 +761,16 @@ pub fn build_view_with_cancellation_and_session(
                     timings.class_equivalence_comparisons += cache.equivalence_comparisons as u64;
                     timings.class_equivalence_reuses += cache.equivalence_reuses as u64;
                     class_cache = Some(std::sync::Arc::new(cache));
-                    flat = reduced;
-                }
+                    reduced
+                } else {
+                    machine.to_module()
+                };
                 check_cancelled(cancelled)?;
                 timings.transform_call_classes_ns += crate::object_cache::elapsed_ns(pass_started);
-            }
+                flat
+            } else {
+                machine.to_module()
+            };
             if options.bounded_class_imports {
                 let pass_started = std::time::Instant::now();
                 crate::machine_integer_ranges::fold_classes(
@@ -745,29 +804,23 @@ pub fn build_view_with_cancellation_and_session(
                 // The class pass reads and stages a complete model. A source
                 // capability or a hash is not its machine admission proof.
                 machine_preflight.check(&flat).map_err(api_error)?;
-                let restored_classes = session
-                    .as_ref()
-                    .and_then(|s| s.transformed.as_ref())
-                    .is_none()
-                    .then(|| machine_recovery.as_mut()?.classes(&flat))
-                    .flatten();
-                if let Some(restored) = &restored_classes {
-                    timings.current_class_bodies_checked +=
-                        restored.current_recovery_bodies_checked as u64;
-                }
                 let previous = session
                     .as_ref()
                     .and_then(|session| session.transformed.as_ref())
                     .filter(|old| old.policy == transform_policy && old.call_classes_enabled)
-                    .and_then(|old| old.class_cache.as_deref())
-                    .or(restored_classes.as_ref());
+                    .and_then(|old| old.class_cache.as_deref());
+                let mut candidates = previous
+                    .is_none()
+                    .then(|| machine_recovery.as_mut()?.class_candidates(&flat))
+                    .flatten();
                 if let Some((stats, symbols, cache)) = (!collected_closed)
                     .then(|| {
-                        crate::machine_call_classes::canonicalize_stable_cached(
+                        crate::machine_call_classes::canonicalize_recovering(
                             &mut flat,
                             &transform_policy.protected,
                             cancelled,
                             previous,
+                            candidates.as_mut(),
                         )
                     })
                     .flatten()
@@ -790,6 +843,8 @@ pub fn build_view_with_cancellation_and_session(
                         cancelled,
                     );
                 }
+                timings.current_class_bodies_checked +=
+                    candidates.as_ref().map_or(0, |c| c.checked as u64);
                 check_cancelled(cancelled)?;
                 timings.transform_call_classes_ns += crate::object_cache::elapsed_ns(pass_started);
             }
