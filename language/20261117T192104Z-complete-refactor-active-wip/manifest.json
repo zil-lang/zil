@@ -1,0 +1,52 @@
+{
+  "source_base": "5f49e0559110db8860a129889a40aa8de308ef2f",
+  "snapshot_utc": "20261117T192104Z",
+  "status": "Exact in-progress source preservation only; incomplete logic, no compile/test/functional acceptance",
+  "scope": [
+    "crates",
+    "spec",
+    "_zil_design.md",
+    "tests/language-readiness"
+  ],
+  "changed_files": {
+    "crates/zil-analyze/src/stored_flow.rs": "062fa30957f680ddd3367a88bd52cca4452872ccddbfd68a536d822dfc5a19cf",
+    "crates/zil-analyze/src/stored_flow/active_projection_tests.rs": "1e4ecaec39ed4b4e9b0628f310ccd6d47a28b71c23ca81afe980d0d1b96bafdb",
+    "crates/zil-analyze/src/stored_flow/array_snapshot.rs": "d067ce3059f7294b905c8f598d462c084046eb81ff7249ff827d9b625c5e2bf6",
+    "crates/zil-analyze/src/stored_flow/capture_after.rs": "7b3293428e5dcf5f08afffc61403e3cd4669f4ee9f0e843270cfdfb3c979e8e2",
+    "crates/zil-analyze/src/stored_flow/enum_address.rs": "9e1550fd94d6784c21a1a89fd9c7feb85fd6a29906f9f714618b4c7f8f0aaecd",
+    "crates/zil-analyze/src/stored_flow/environment_memory.rs": "620572bc5b20a34f57054a50c99a215817e5493fc0681689a09a1b440dc21230",
+    "crates/zil-analyze/src/stored_flow/pointee_memory.rs": "a5eaae8d8d65cc525a5c9d26c0b2217bdfa3da2133177399d6ad769708665fbd",
+    "crates/zil-analyze/src/stored_flow/raw_references.rs": "92ec0da97b0f7e8d8217814de37d727615a6ddd233ca25bd990b4abbc66c49e1",
+    "crates/zil-analyze/src/stored_flow/set_bits_tests.rs": "076d2dee55e6d93d6490f134e29a57b3a5d2b7cce4af624c9f781b8077e5fea6",
+    "crates/zil-analyze/src/stored_flow/task_failure.rs": "8839a93d7480cd479837141f8d962fa6045d1ef8624e46db4f82a2742a9ba277",
+    "crates/zil-verify/src/class_flow.rs": "a81c1600d547571062f825180ed1b391ed9a1fff5285491119d9dbff125ce228",
+    "crates/zil-verify/src/lib.rs": "ffc7f3b5ed52714658f73b8b9296046d7dd985dc6409fe00743ed544b2c6ff88",
+    "crates/zil-verify/src/stored_flow.rs": "88e21a0c78f207dd2acbd6620fcb0d302c0715b207572bbda4ef03e40ac04a26",
+    "crates/zil-verify/src/stored_flow/after_state.rs": "8a3d332c491578ae28177ac815a10ea93f5a99dac1ac2f740f0a251468bd8bc0",
+    "crates/zil-verify/src/stored_flow/array_snapshot.rs": "8361f768d4999c6c9b836868c9bacd8632f1788636d89a21970d8cb75dfad216",
+    "crates/zil-verify/src/stored_flow/call_results.rs": "038bad670f06786471cf59e9ffa4b85d3d0a593d1f1bd51f795fc753ffc2d705",
+    "crates/zil-verify/src/stored_flow/captured_owner.rs": "780cacad2da277422a4db0010fd9ce4c4f290a05a7ecbb8c73bd86b40e84677c",
+    "crates/zil-verify/src/stored_flow/dyn_ports.rs": "e58593987534292f814bd95dbd6adfe087e02d7878047c173448a22dda3c5323",
+    "crates/zil-verify/src/stored_flow/dyn_returns.rs": "25a28ed1e88791b3dfb69c976c67849a4d3979c73789b1bd2193905e385b9c86",
+    "crates/zil-verify/src/stored_flow/live_loan_ids.rs": "194c46ed87db62a2b01b57f6b7be5f3d31fb103ea3207c3f97cf2424f37c7441",
+    "crates/zil-verify/src/stored_flow/receiver.rs": "a6cc7a25a338976b176d378d4654b332400fc94caf2a4d706f7c3a7fd7ff82cf",
+    "crates/zil-verify/src/stored_flow/reference_cells.rs": "62f356bcd81aba36feab793b3683c270bc18767834cadb7f4a02f8da08e47f21",
+    "crates/zil-verify/src/stored_flow/replacements.rs": "c0ed1db5004ec1050b63addc8b801861f3f48a3210efb99f86ba43a9cee8b847",
+    "crates/zil-verify/src/stored_flow/task_address.rs": "a424d7704a34a30d407b6101e20f3e55e97b5edc47855d355085759e382f86da",
+    "crates/zil-verify/src/stored_flow/task_failure.rs": "ef8185b151b5cf5e07a1c6f5f9e424ac0663aeb4ae3346f752ddf8f0120c3e49",
+    "crates/zil-verify/src/stored_flow/value_transport.rs": "5201a0a7fd27358455bbb3fdcb37525471c2bf52a2dcb3987edfbd52631d3c8f",
+    "crates/zil-verify/src/stored_flow/value_transport/after.rs": "2e1a872b0167ed5e5bd7a35dc8e2d7d4254c5e5c5eab6c96003b1a8785d7c556",
+    "crates/zil-verify/src/stored_flow/value_transport/results.rs": "fbd9cd67d00491626658a895f0c2e30e69e88d93be985bf6a28e7424afbb6380",
+    "crates/zil-verify/src/stored_flow_pure_copy/callable_tuple_tests.rs": "583ccde8a19da4fb6445529dc651152cf2b7528253f9b6e5a7f36d7c372f3934",
+    "crates/zil-verify/src/stored_partition.rs": "081bae9d313e987689f0eced8ae77f98a0def570e86d82f1930926a25fbe70ed"
+  },
+  "untracked_files": [
+    "crates/zil-analyze/src/stored_flow/pointee_memory.rs"
+  ],
+  "stable_double_read": true,
+  "patch_reconstruction_checked": true,
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ into that checkout. working-tree/ contains exact changed file bytes; null hashes denote deletions. Never blind-apply to a different base. Later writes are not included.",
+  "goal_commit": "2fd1a2f1699a41fd2e0eff8b18db6f31391c81dc",
+  "actual_executed_candidate": "3cbb0eeffa0da39533fc05132671648750bc831e",
+  "original_execution_counts_unchanged": true
+}
