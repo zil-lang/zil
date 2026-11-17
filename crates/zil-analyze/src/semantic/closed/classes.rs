@@ -3303,7 +3303,10 @@ impl Check<'_, '_> {
                 let mut selected = None;
                 for row in &contract.bindings {
                     b.spend(row.position.path.len().saturating_add(slot.path.len()).saturating_add(1), WORK)?;
-                    if row.position.base == StorageBase::Result && row.position.path == slot.path {
+                    if row.position.base == StorageBase::Result
+                        && row.position.path.len() == slot.path.len()
+                        && row.position.path.iter().zip(&slot.path).all(|(actual, expected)|
+                            matches!(actual, ContractProjection::Place(projection) if projection == expected)) {
                         if selected.replace(row.binder).is_some() {
                             return Err(fail("Fixed result repeats an outer occurrence"));
                         }
