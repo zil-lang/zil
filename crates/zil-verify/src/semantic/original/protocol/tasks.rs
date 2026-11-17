@@ -357,7 +357,9 @@ impl<'a> Engine<'a> {
             if prototype.call_kind != CallKind::Suspend {
                 b.spend(source_width(&owner.sources))?;
                 if owner.sources.is_empty()||!owner.sources.iter().all(|source|matches!(source,TaskSource::Birth{definition,node}if self.synchronous_births.contains(&(*definition,*node)))){
-                    return Err(bad("original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend"));
+                    let detail=format!("original cleanup owner {:?}; root {root:?}; phase {}; universal sources {:?}",self.current,owner.states,owner.sources);
+                    b.spend(detail.len())?;
+                    return Err(bad("original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend").with_note(detail));
                 }
                 self.synchronous_tasks.insert(root.clone());
             }else{

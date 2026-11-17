@@ -747,11 +747,13 @@ fn helper_graph(
                     | InstructionKind::BorrowPlaceLocal { .. }
                     | InstructionKind::ReadErrorUnion { .. } => {}
                     _ => {
+                        let detail=format!("actual helper graph root {first:?}; current {:?} ({}) driving={driving}, borrowed_driver={borrowed_driver}, closed_retirement={closed_retirement}; actual operation {:?}",f.id,f.name,i.kind);
+                        budget.spend(detail.len())?;
                         return Err(reject(
                             "E-VERIFY-TASK",
                             Some(i.span),
                             "task cleanup contains an asynchronous or external-user operation",
-                        ));
+                        ).with_note(detail));
                     }
                 }
             }
