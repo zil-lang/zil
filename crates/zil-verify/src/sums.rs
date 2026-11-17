@@ -2,6 +2,8 @@
 //! Nothing in this module reads producer responsibility/tag annotations.
 use super::*;
 use std::collections::{BTreeMap, VecDeque};
+#[cfg(test)]
+mod closure_product_tests;
 mod dirty_tags;
 mod initialization;
 #[cfg(test)]
@@ -30,7 +32,7 @@ pub(super) fn owned(ty: &Type) -> bool {
 fn owned_leaf(ty: &Type) -> bool {
     match ty {
         Type::BorrowedStorage { storage, .. } => owned_leaf(storage),
-        Type::Managed(_) => true,
+        Type::Managed(_) | Type::Closure(_) => true,
         Type::Tuple(fields) => fields.iter().any(owned_leaf),
         Type::Record { fields, .. } | Type::Package { fields, .. } => {
             fields.iter().any(|(_, field)| owned_leaf(field))
@@ -112,6 +114,7 @@ pub(super) fn needs_shape(ty: &Type, budget: &mut Budget) -> Check<bool> {
                 pending.push((error, true, in_product));
                 pending.push((result, true, in_product));
             }
+            Type::Closure(_) if in_product || in_error => return Ok(true),
             Type::Package { fields, .. } => {
                 pending.extend(fields.iter().map(|(_, ty)| (ty, in_error, true)));
             }
@@ -225,6 +228,16 @@ pub(super) fn check_type_for(
             continue;
         }
         match ty {
+            Type::Closure(id) => {
+                closures::definition(module, *id, span)?;
+                // This is metadata qualification, not a source/CE/SyncDrop proof.
+                // A plain Product has no surrounding class scope in which to
+                // erase a persistent opaque environment's intrinsic classes.
+                let (count, _) = dynamic_witness::intrinsic_domain(module, ty, budget)?;
+                if owning_container && count != 0 {
+                    return Err(bad(span, "plain callable Product requires its complete qualified intrinsic scope"));
+                }
+            }
             Type::Managed(_) => resources::check_type_for(module, ty, span, budget)?,
             Type::Tuple(fields) => {
                 budget.spend(fields.len())?;
@@ -248,7 +261,7 @@ pub(super) fn check_type_for(
                         return Err(bad(span, "Product fields must have unique nonempty names"));
                     }
                     owns |=
-                        matches!(field, Type::Managed(_) | Type::Package { .. }) || owned(field);
+                        matches!(field, Type::Managed(_) | Type::Package { .. } | Type::Closure(_)) || owned(field);
                     pending.push(field);
                 }
                 // A nonempty all-Copy field layout is the existing affine
@@ -308,7 +321,7 @@ pub(super) fn check_type_for(
                 if dynamic_store::inline_owner(error) || dynamic_store::inline_owner(result) {
                     for payload in [error.as_ref(), result.as_ref()] {
                         if !payload.is_copy_value()
-                            && !matches!(payload, Type::Package { .. } | Type::Enum { .. })
+                            && !matches!(payload, Type::Package { .. } | Type::Enum { .. } | Type::Closure(_))
                             && !dynamic_store::inline_owner(payload)
                         {
                             return Err(unsupported(
@@ -327,7 +340,7 @@ pub(super) fn check_type_for(
                     }
                 } else {
                     for payload in [error.as_ref(), result.as_ref()] {
-                        if !matches!(payload, Type::Package { .. } | Type::Enum { .. }) {
+                        if !matches!(payload, Type::Package { .. } | Type::Enum { .. } | Type::Closure(_)) {
                             resources::charge_payload(payload, budget)?;
                             if !payload.is_copy_value() {
                                 return Err(unsupported(
@@ -756,7 +769,7 @@ impl Content {
             }
         }
     }
-    fn live_async(&self, ty: &Type, b: &mut Budget) -> Check<bool> {
+    fn live_async(&self, module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
         b.spend(1)?;
         let ty = shared_enum_physical(ty, b)?;
         match (self, ty) {
@@ -764,9 +777,10 @@ impl Content {
             (Content::Leaf(_), Type::Managed(t)) => {
                 Ok(matches!(t.as_ref(), Type::AsyncRegistration { .. }))
             }
+            (Content::Leaf(_), Type::Closure(id)) => closure_live_async(module, *id, b),
             (Content::Product(children), Type::Tuple(fields)) => {
                 for (index, child) in children.iter().enumerate() {
-                    if child.live_async(&fields[index], b)? {
+                    if child.live_async(module, &fields[index], b)? {
                         return Ok(true);
                     }
                 }
@@ -774,7 +788,7 @@ impl Content {
             }
             (Content::Product(children), Type::Package { fields, .. }) => {
                 for (index, child) in children.iter().enumerate() {
-                    if child.live_async(&fields[index].1, b)? {
+                    if child.live_async(module, &fields[index].1, b)? {
                         return Ok(true);
                     }
                 }
@@ -788,7 +802,7 @@ impl Content {
             ) => {
                 for (index, children) in variants {
                     for (field, child) in children.iter().enumerate() {
-                        if child.live_async(&types[*index as usize].1[field], b)? {
+                        if child.live_async(module, &types[*index as usize].1[field], b)? {
                             return Ok(true);
                         }
                     }
@@ -798,7 +812,7 @@ impl Content {
             (Content::Sum(variants, _), Type::ErrorUnion { error, result }) => {
                 for (index, children) in variants {
                     if let Some(child) = children.first()
-                        && child.live_async(if *index == 0 { error } else { result }, b)?
+                        && child.live_async(module, if *index == 0 { error } else { result }, b)?
                     {
                         return Ok(true);
                     }
@@ -813,7 +827,7 @@ impl Content {
         let ty = shared_enum_physical(ty, b)?;
         match (self, ty) {
             (Content::Missing(_), _) => Ok(false),
-            (Content::Leaf(_), Type::Managed(_)) => Ok(true),
+            (Content::Leaf(_), Type::Managed(_) | Type::Closure(_)) => Ok(true),
             (Content::Product(children), Type::Tuple(fields)) => {
                 for (index, child) in children.iter().enumerate() {
                     if child.live_task(&fields[index], b)? {
@@ -1037,6 +1051,7 @@ impl Content {
             (Self::Copy, ty) => Ok(!matches!(
                 ty,
                 Type::Managed(_)
+                    | Type::Closure(_)
                     | Type::Tuple(_)
                     | Type::Package { .. }
                     | Type::Enum { .. }
@@ -1509,6 +1524,66 @@ fn forget_shared_copy_tags(
     Arc::make_mut(value).forget_copy_tags(ty, budget)
 }
 
+/// An opaque callback may itself own an async registration. This conservative
+/// data traversal grants no Closed/SyncDrop fact and never looks through a Task
+/// result type. The actual task/callback phase and cleanup checks remain separate.
+fn closure_live_async(module: &TypedModule, id: ClosureId, b: &mut Budget) -> Check<bool> {
+    let mut closures = BTreeSet::new();
+    b.spend(1)?;
+    let mut pending = vec![(Type::Closure(id), 0usize)];
+    while let Some((ty, depth)) = pending.pop() {
+        b.spend(1)?;
+        if depth > b.limits.max_call_depth {
+            return Err(limit("callable cleanup capture depth exceeded"));
+        }
+        resources::charge_payload(&ty, b)?;
+        match ty {
+            Type::Closure(id) => {
+                b.spend(closures.len().saturating_add(1))?;
+                if !closures.insert(id) { continue; }
+                let definition = closures::definition(module, id, None)?;
+                b.spend(definition.captures.len())?;
+                for capture in &definition.captures {
+                    resources::charge_payload(capture, b)?;
+                    pending.push((capture.clone(), depth + 1));
+                }
+            }
+            Type::Managed(inner) => match *inner {
+                Type::AsyncRegistration { .. } => return Ok(true),
+                Type::Task { .. } => {},
+                inner => { b.spend(1)?; pending.push((inner, depth + 1)); }
+            },
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields.into_iter().map(|ty| (ty, depth + 1)));
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.into_iter().map(|(_, ty)| (ty, depth + 1)));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields.into_iter().map(|ty| (ty, depth + 1)));
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.extend([(*error, depth + 1), (*result, depth + 1)]);
+            }
+            Type::BorrowedStorage { storage, .. } => {
+                b.spend(1)?; pending.push((*storage, depth + 1));
+            }
+            Type::Array { element, .. } => {
+                b.spend(1)?; pending.push((*element, depth + 1));
+            }
+            _ => {},
+        }
+    }
+    Ok(false)
+}
+
 fn content(
     ty: &Type,
     parameter: Option<u32>,
@@ -1524,7 +1599,7 @@ fn content(
         }
     }
     Ok(match ty {
-        Type::Managed(_) | Type::OwnedDyn { .. } => Content::Leaf(if bottom {
+        Type::Managed(_) | Type::OwnedDyn { .. } | Type::Closure(_) => Content::Leaf(if bottom {
             BTreeSet::new()
         } else {
             BTreeSet::from([parameter.map_or(Source::Unknown, |p| Source::Input(p, path.clone()))])
@@ -2445,6 +2520,23 @@ impl Flow<'_> {
                     }
                     self.kill(state, *local, budget)?;
                 }
+                InstructionKind::DropPackageField { local, index } => {
+                    // The affine resource kernel checks the actual cleanup and
+                    // phase. Retire this exact field in the same Content tree;
+                    // other fields and moved subtrees keep their own state.
+                    self.kill(state, *local, budget)?;
+                    state.locals[local.0 as usize].cost(budget)?;
+                    if let Content::Product(fields) =
+                        Arc::make_mut(&mut state.locals[local.0 as usize])
+                    {
+                        let field = &mut fields[*index as usize];
+                        if !matches!(field, Content::Missing(_)) {
+                            budget.spend(1)?;
+                            let old = std::mem::replace(field, Content::Copy);
+                            *field = Content::Missing(Box::new(old));
+                        }
+                    }
+                }
                 InstructionKind::StorePackageField {
                     local,
                     index,
@@ -2654,7 +2746,7 @@ impl Flow<'_> {
                                 | InstructionKind::DropErrorUnion { .. }
                         )
                         && state.locals[local.0 as usize]
-                            .live_async(&self.f.locals[local.0 as usize].ty, budget)?
+                            .live_async(self.module, &self.f.locals[local.0 as usize].ty, budget)?
                     {
                         return Err(bad(
                             Some(instruction.span),
@@ -3222,7 +3314,7 @@ pub(super) fn check_module(
         .iter()
         .map(|f| {
             Ok(f.foreign.is_none()
-                && (matches!(f.return_type, Type::Managed(_) | Type::Package { .. })
+                && (matches!(f.return_type, Type::Managed(_) | Type::Package { .. } | Type::Closure(_))
                     || owned(&f.return_type)
                     || dyn_outcome(module, &f.return_type, budget)?
                     || shared_enum_content(&f.return_type, budget)?))

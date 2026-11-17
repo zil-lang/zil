@@ -255,6 +255,9 @@ pub(super) fn check_product_type(
     budget: &mut Budget,
     stores: bool,
 ) -> Check<()> {
+    if sums::needs_shape(ty, budget)? {
+        return sums::check_type_for(module, ty, span, budget);
+    }
     if matches!(ty, Type::BorrowedStorage { storage, .. }
         if matches!(storage.as_ref(), Type::Package { .. }))
     {
@@ -626,8 +629,12 @@ pub(super) fn check_instruction(
             match &instruction.kind {
                 InstructionKind::BorrowPackageField { mutable, .. } => {
                     if let Type::Closure(id) = ty {
-                        closures::old_container_signature(module, *id, span, budget)?;
-                        closures::self_contained(module, *id, budget)?;
+                        if budget.sums {
+                            sums::check_type_for(module, ty, span, budget)?;
+                        } else {
+                            closures::old_container_signature(module, *id, span, budget)?;
+                            closures::self_contained(module, *id, budget)?;
+                        }
                     } else if !*mutable && matches!(ty, Type::Package { .. }) {
                         check_shared_product_type(module, ty, span, budget)?;
                     } else if !*mutable
