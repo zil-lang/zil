@@ -2,6 +2,21 @@
 //! This proves no closing state, synchronous cleanup, parent loan or access.
 use super::*;
 
+/// Pure opaque-domain formation. The caller must recursively prove its
+/// result Type; no allocation, creator, phase, owner or cleanup fact is made.
+pub(super) fn type_domain_zero(payload: &Type, b: &mut Budget) -> CompileResult<()> {
+    let Type::Task { retained_life, .. } = payload else {
+        return Err(bad("Task type domain selects another payload family"));
+    };
+    crate::dyn_metadata::ty(payload, b)?;
+    if retained_life.binder_count != 0 || !retained_life.ports.is_empty()
+        || !retained_life.retained.is_empty() || !retained_life.nominal_arguments.is_empty() {
+        return Err(vec![Diagnostic::unsupported(Phase::Analyze,
+            "pure Task Type domain needs its complete nonzero class/port/phantom directory", None)]);
+    }
+    Ok(())
+}
+
 pub(super) fn zero(
     module: &TypedModule,
     payload: &Type,
@@ -10,25 +25,14 @@ pub(super) fn zero(
 ) -> CompileResult<()> {
     let Type::Task {
         result,
-        retained_life,
+        ..
     } = payload
     else {
         return Err(bad(
             "semantic Task inventory selects another payload family",
         ));
     };
-    crate::dyn_metadata::ty(payload, b)?;
-    if retained_life.binder_count != 0
-        || !retained_life.ports.is_empty()
-        || !retained_life.retained.is_empty()
-        || !retained_life.nominal_arguments.is_empty()
-    {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "nonzero Task scope needs its complete actual result/input/phantom directory",
-            None,
-        )]);
-    }
+    type_domain_zero(payload, b)?;
     // Prepay the whole raw type inventory before the existing worker graph can
     // recurse, hash or clone any actual value outside a source type-use row.
     for function in &module.functions {
@@ -76,6 +80,7 @@ pub(super) fn zero(
         let mut errors = bad("semantic Task scope has no exact unique sealed resource definition");
         errors[0].notes.push(format!("requested complete Task payload {payload:?}; exact matching definitions {definitions}"));
         for resource in &module.resources {
+            b.spend(resource.name.len(), "semantic Task resource diagnostic name")?;
             b.type_work(&resource.payload, true, "semantic Task actual resource diagnostic")?;
             errors[0].notes.push(format!("actual sealed resource {} payload {:?}", resource.name, resource.payload));
         }

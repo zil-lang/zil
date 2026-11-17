@@ -3,6 +3,11 @@
 use super::*;
 use std::hash::{Hash, Hasher};
 
+// Phantom Type arguments prove formation only. Runtime fields additionally
+// require their actual canonical resource/creator inventory.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TypePurpose { Domain, Physical }
+
 // This key only selects candidates. It deliberately does not hash child
 // Types, domains or fields; every candidate still compares the complete Type.
 fn candidate_hash(mut ty: &Type, b: &mut Budget) -> CompileResult<u64> {
@@ -36,7 +41,7 @@ pub(super) fn validate(
     limits: &Limits,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    instance_zero(module, instance, limits, b, &mut Vec::new(), 0)
+    instance_zero_at(module, instance, limits, b, &mut Vec::new(), 0, TypePurpose::Physical)
 }
 
 pub(super) fn validate_type(
@@ -45,7 +50,7 @@ pub(super) fn validate_type(
     limits: &Limits,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    type_zero(module, ty, limits, b, &mut Vec::new(), 0)
+    type_zero_at(module, ty, limits, b, &mut Vec::new(), 0, TypePurpose::Physical)
 }
 
 pub(super) fn exact_index(
@@ -163,13 +168,14 @@ fn empty(life: &StorageLifeShape) -> bool {
         && life.nominal_arguments.is_empty()
 }
 
-fn instance_zero(
+fn instance_zero_at(
     module: &TypedModule,
     instance: &LifeNominalInstance,
     limits: &Limits,
     b: &mut Budget,
     active: &mut Vec<usize>,
     depth: usize,
+    purpose: TypePurpose,
 ) -> CompileResult<()> {
     fee(b, active.len().saturating_add(1))?;
     if depth > limits.max_call_depth {
@@ -181,7 +187,7 @@ fn instance_zero(
     }
     // A deep occurrence still runs its own depth-bounded proof. Reusing only
     // depth-zero successes cannot hide a longer current dependency path.
-    let cache = if depth == 0 && active.is_empty() {
+    let cache = if purpose == TypePurpose::Physical && depth == 0 && active.is_empty() {
         fee(b, module.life_instances.len().saturating_add(8))?;
         let root = module
             .life_instances
@@ -274,7 +280,7 @@ fn instance_zero(
     for (formal, actual) in declaration.parameters.iter().zip(&instance.arguments) {
         match (formal, actual) {
             (LifeParameterKind::Type, LifeNominalActual::Type(ty)) => {
-                type_zero(module, ty, limits, b, active, depth + 1)?;
+                type_zero_at(module, ty, limits, b, active, depth + 1, TypePurpose::Domain)?;
             }
             (LifeParameterKind::Type, LifeNominalActual::QualifiedType { ty, life }) => {
                 fee(
@@ -288,10 +294,10 @@ fn instance_zero(
                 if !empty(life) {
                     return Err(failure("plain nominal has a nonzero qualified Type actual"));
                 }
-                type_zero(module, ty, limits, b, active, depth + 1)?;
+                type_zero_at(module, ty, limits, b, active, depth + 1, TypePurpose::Domain)?;
             }
             (LifeParameterKind::Const(carrier), LifeNominalActual::Const(value)) => {
-                type_zero(module, carrier, limits, b, active, depth + 1)?;
+                type_zero_at(module, carrier, limits, b, active, depth + 1, TypePurpose::Domain)?;
                 b.type_work(carrier, false, "zero nominal constant carrier")?;
                 if value.ty() != *carrier
                     || !matches!(
@@ -322,7 +328,7 @@ fn instance_zero(
             }
         }
     }
-    physical_zero(module, storage, limits, b, active, depth + 1)?;
+    physical_zero_at(module, storage, limits, b, active, depth + 1, purpose)?;
     active.pop();
     if let Some((module, phase, root)) = cache {
         // No partial/negative/Pending result reaches this publication.
@@ -423,20 +429,21 @@ fn compiler_zero(
     Ok(())
 }
 
-fn physical_zero(
+fn physical_zero_at(
     module: &TypedModule,
     storage: &Type,
     limits: &Limits,
     b: &mut Budget,
     active: &mut Vec<usize>,
     depth: usize,
+    purpose: TypePurpose,
 ) -> CompileResult<()> {
     fee(b, 1)?;
     match storage {
         Type::Record { fields, .. } | Type::Package { fields, .. } => {
             fee(b, fields.len())?;
             for (_, ty) in fields {
-                type_zero(module, ty, limits, b, active, depth)?;
+                type_zero_at(module, ty, limits, b, active, depth, purpose)?;
             }
         }
         Type::Enum { variants, .. } => {
@@ -444,7 +451,7 @@ fn physical_zero(
             for (_, fields) in variants {
                 fee(b, fields.len())?;
                 for ty in fields {
-                    type_zero(module, ty, limits, b, active, depth)?;
+                    type_zero_at(module, ty, limits, b, active, depth, purpose)?;
                 }
             }
         }
@@ -453,13 +460,14 @@ fn physical_zero(
     Ok(())
 }
 
-fn type_zero(
+fn type_zero_at(
     module: &TypedModule,
     ty: &Type,
     limits: &Limits,
     b: &mut Budget,
     active: &mut Vec<usize>,
     depth: usize,
+    purpose: TypePurpose,
 ) -> CompileResult<()> {
     fee(b, 1)?;
     if depth > limits.max_call_depth {
@@ -497,13 +505,14 @@ fn type_zero(
         | Type::CWideString
         | Type::ByteBuffer
         | Type::SyncCell(_) => Ok(()),
-        Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => instance_zero(
+        Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => instance_zero_at(
             module,
             exact(module, ty, limits, b)?,
             limits,
             b,
             active,
             depth,
+            purpose,
         ),
         Type::BorrowedStorage { storage, life } => {
             if !empty(life) {
@@ -513,23 +522,24 @@ fn type_zero(
                 storage.as_ref(),
                 Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }
             ) {
-                instance_zero(
+                instance_zero_at(
                     module,
                     exact(module, ty, limits, b)?,
                     limits,
                     b,
                     active,
                     depth,
+                    purpose,
                 )
             } else {
                 physical(ty, b)?;
-                type_zero(module, storage, limits, b, active, depth + 1)
+                type_zero_at(module, storage, limits, b, active, depth + 1, purpose)
             }
         }
         Type::Tuple(fields) => {
             fee(b, fields.len())?;
             for ty in fields {
-                type_zero(module, ty, limits, b, active, depth + 1)?;
+                type_zero_at(module, ty, limits, b, active, depth + 1, purpose)?;
             }
             Ok(())
         }
@@ -538,24 +548,33 @@ fn type_zero(
         | Type::OwnedStore { element }
         | Type::Managed(element)
         | Type::Mutex { payload: element } => {
-            type_zero(module, element, limits, b, active, depth + 1)
+            type_zero_at(module, element, limits, b, active, depth + 1, purpose)
         }
         Type::ErrorUnion { error, result } => {
-            type_zero(module, error, limits, b, active, depth + 1)?;
-            type_zero(module, result, limits, b, active, depth + 1)
+            type_zero_at(module, error, limits, b, active, depth + 1, purpose)?;
+            type_zero_at(module, result, limits, b, active, depth + 1, purpose)
         }
         Type::FunctionPointer { parameters, result }
         | Type::ForeignCallback { parameters, result } => {
             fee(b, parameters.len())?;
             for ty in parameters {
-                type_zero(module, ty, limits, b, active, depth + 1)?;
+                type_zero_at(module, ty, limits, b, active, depth + 1, purpose)?;
             }
-            type_zero(module, result, limits, b, active, depth + 1)
+            type_zero_at(module, result, limits, b, active, depth + 1, purpose)
         }
         Type::Address { .. } | Type::Desc(_) => Err(failure(
             "plain nominal contains an outer persistent borrow occurrence",
         )),
-        Type::Task { .. } => crate::tasks::semantic_resource_scope(module, ty, limits, b),
+        Type::Task { result, .. } => {
+            if purpose == TypePurpose::Physical {
+                crate::tasks::semantic_resource_scope(module, ty, limits, b)
+            } else {
+                crate::tasks::semantic_type_domain_zero(ty, b)?;
+                // The complete child formation is independent of the Task
+                // directory, including any nested nominal/phantom children.
+                type_zero_at(module, result, limits, b, active, depth + 1, TypePurpose::Domain)
+            }
+        },
         Type::Closure(id) => {
             b.lookup(
                 b.semantic_zero_closures.len(),
@@ -586,7 +605,7 @@ fn type_zero(
                 }
                 fee(b, closure.captures.len())?;
                 for capture in &closure.captures {
-                    type_zero(module, capture, limits, b, active, depth + 1)?;
+                    type_zero_at(module, capture, limits, b, active, depth + 1, purpose)?;
                 }
                 Ok(())
             }
@@ -647,7 +666,7 @@ fn type_zero(
                     "zero registration has no concrete callback environment",
                 ));
             }
-            type_zero(module, environment, limits, b, active, depth + 1)
+            type_zero_at(module, environment, limits, b, active, depth + 1, purpose)
         }
         // Their hidden class domains need the completed original/opaque
         // consumer. Neither an empty port list nor Some(0) proves this case.

@@ -10,6 +10,11 @@ pub(super) use context_work::{
 pub(super) mod input_scope;
 mod owned;
 mod semantic_scope;
+// A complete phantom Type domain is not a physical resource occurrence.
+pub(crate) fn semantic_type_domain_zero(payload: &Type, budget: &mut Budget) -> CompileResult<()> {
+    semantic_scope::type_domain_zero(payload, budget)
+}
+
 pub(crate) fn semantic_resource_scope(
     module: &TypedModule,
     payload: &Type,
