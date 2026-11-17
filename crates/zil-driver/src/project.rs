@@ -1753,6 +1753,19 @@ impl CompilationSession {
             if options.profile_compilation {
                 report.semantic_cache_publication = publication;
             }
+            if options.push_reuse
+                && !options.cancellation.is_cancelled()
+                && let Some(raw) = self.analysis.raw_product_for(typed.program(), &candidate)
+            {
+                super::semantic_cache::analyze_recovery::save(
+                    options,
+                    &artifacts,
+                    typed.program(),
+                    &raw,
+                    &self.semantic_publication,
+                    self.function_types.last_products(),
+                );
+            }
         }
         report.record_driver_cost("semantic_candidate_publication", persistence_start);
         let persistence_start = cost_start(options.profile_compilation);

@@ -9,6 +9,8 @@ use zil_ir::{
 };
 
 const MAGIC: &[u8; 8] = b"ZILSEM04";
+#[path = "analyze_recovery.rs"]
+pub(crate) mod analyze_recovery;
 #[path = "semantic_items.rs"]
 mod items;
 #[path = "packed_items.rs"]

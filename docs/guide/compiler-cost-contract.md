@@ -28,7 +28,7 @@
 
 ## 编译器进程的分配器
 
-Linux x86_64 的 `host-jemalloc` 是默认关闭的构建特性。它使用与 Rust 发行版相同的 `tikv-jemalloc-sys 0.6.1` 和 `override_allocator_on_supported_platforms`，在编译器二进制中保留整进程 C 分配器替换，使 Rust 与动态载入的 LLVM 使用同一分配器；不通过 `LD_PRELOAD` 注入。
+Linux x86_64 的 `host-jemalloc` 是默认关闭的构建特性。它使用与 [Rust 发行版](https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc/src/main.rs)相同的 `tikv-jemalloc-sys 0.6.1` 和 `override_allocator_on_supported_platforms`，在编译器二进制中保留整进程 C 分配器替换，使 Rust 与动态载入的 LLVM 使用同一分配器；不通过 `LD_PRELOAD` 注入。
 
 该特性只改变宿主编译器的内存分配，不选择生成程序的分配器，不改变语言预算、独立 Verify 或 LLVM `default<O2>`。比较时记录实际构建特性、编译器身份、完整请求时间与 RSS；分配调用较多不能单独证明它能提速。未启用该特性的构建继续使用原宿主分配器。
 

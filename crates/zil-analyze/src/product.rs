@@ -3,9 +3,12 @@
 //! Rich cross-function domains remain complete global obligations; no producer
 //! identity, result digest, or empty intermediate claim grants Verify authority.
 use super::*;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use zil_base::{Fingerprint, FingerprintBuilder};
+#[path = "raw_product.rs"]
+mod raw;
+pub use raw::{RawAnalysisBase, RawAnalysisRow};
 
 #[derive(Clone)]
 pub(super) struct Recording {
@@ -33,6 +36,7 @@ struct Row {
     callees: Vec<FunctionId>,
     output: Fingerprint,
     admission_cost: usize,
+    costs: [usize; 5],
     dependencies: Fingerprint,
     span_sensitive: bool,
     initialization: Option<Arc<candidate_queries::InitializationEntry>>,
@@ -151,11 +155,20 @@ fn scalar(ty: &Type) -> bool {
 }
 /// Exhaustive supported local input vocabulary. This is only query eligibility;
 /// original metadata, CFG, scope and Hold routines still earn each new receipt.
+#[derive(Clone)]
 struct LocalInput {
     callees: Vec<FunctionId>,
     span_sensitive: bool,
 }
 fn closed(function: &TypedFunction) -> Option<LocalInput> {
+    if !closed_header(function) {
+        return None;
+    }
+    let mut local = closed_columns(function)?;
+    local.span_sensitive |= function.foreign.is_some();
+    Some(local)
+}
+fn closed_header(function: &TypedFunction) -> bool {
     if function.call_kind != CallKind::Direct
         || function.storage_life.is_some()
         || function.reference_return_bound.is_some()
@@ -168,13 +181,17 @@ fn closed(function: &TypedFunction) -> Option<LocalInput> {
             .foreign
             .as_ref()
             .is_some_and(|f| f.scoped_callback.is_some())
-        || !function.locals.iter().all(|l| scalar(&l.ty))
-        || !function.values.iter().all(scalar)
     {
+        return false;
+    }
+    true
+}
+fn closed_columns(function: &TypedFunction) -> Option<LocalInput> {
+    if !function.locals.iter().all(|l| scalar(&l.ty)) || !function.values.iter().all(scalar) {
         return None;
     }
     let mut callees = BTreeSet::new();
-    let mut span_sensitive = function.foreign.is_some();
+    let mut span_sensitive = false;
     for block in &function.blocks {
         for instruction in &block.instructions {
             match &instruction.kind {
@@ -208,6 +225,44 @@ fn closed(function: &TypedFunction) -> Option<LocalInput> {
         callees: callees.into_iter().collect(),
         span_sensitive,
     })
+}
+
+type BodyOwners = (usize, usize, usize);
+fn body_owners(function: &TypedFunction) -> BodyOwners {
+    (
+        std::ptr::from_ref(&*function.locals) as usize,
+        std::ptr::from_ref(&*function.values) as usize,
+        std::ptr::from_ref(&*function.blocks) as usize,
+    )
+}
+#[derive(Default)]
+struct BodyFacts {
+    rows: HashMap<BodyOwners, (Option<LocalInput>, Option<Total>)>,
+    built: usize,
+    reused: usize,
+}
+impl BodyFacts {
+    fn get(&mut self, function: &TypedFunction) -> Option<(LocalInput, Total)> {
+        // The live immutable owners, rather than a content hash, bind every
+        // array read. All varying outer metadata is checked on every alias.
+        if !closed_header(function) {
+            return None;
+        }
+        let key = body_owners(function);
+        let facts = match self.rows.entry(key) {
+            std::collections::hash_map::Entry::Occupied(entry) => {
+                self.reused += 1;
+                entry.into_mut()
+            }
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                self.built += 1;
+                entry.insert((closed_columns(function), Total::function(function, 0)))
+            }
+        };
+        let mut local = facts.0.clone()?;
+        local.span_sensitive |= function.foreign.is_some();
+        Some((local, facts.1?))
+    }
 }
 // Only bounded raw collections may be traversed by eligibility projection.
 // A rejected projection returns to the original preflight to choose its error.
@@ -315,6 +370,23 @@ impl Epoch {
         recording: Recording,
         initialized: &BTreeMap<FunctionId, Arc<candidate_queries::Initialized>>,
     ) -> Option<Self> {
+        Self::new_with_facts(
+            program,
+            candidate,
+            limits,
+            recording,
+            initialized,
+            &mut BodyFacts::default(),
+        )
+    }
+    fn new_with_facts(
+        program: &Arc<TypedProgram>,
+        candidate: Arc<CandidatePlan>,
+        limits: &Limits,
+        recording: Recording,
+        initialized: &BTreeMap<FunctionId, Arc<candidate_queries::Initialized>>,
+        facts: &mut BodyFacts,
+    ) -> Option<Self> {
         if !global(&program.module, program) || program.module.functions.is_empty() {
             return None;
         }
@@ -323,7 +395,7 @@ impl Epoch {
         let mut readers = vec![BTreeSet::new(); program.module.functions.len()];
         let mut local_cost = 0usize;
         for (index, function) in program.module.functions.iter().enumerate() {
-            let local = closed(function)?;
+            let (local, inventory) = facts.get(function)?;
             let callees = local.callees;
             for id in &callees {
                 let callee = program.module.functions.get(id.0 as usize)?;
@@ -343,13 +415,14 @@ impl Epoch {
                 callees: callees.clone(),
                 output: candidate.functions.item_fingerprint(index)?,
                 admission_cost: recording.costs[index][0].checked_add(recording.costs[index][1])?,
+                costs: recording.costs[index],
                 dependencies: fingerprint_reads(&program.module, &callees),
                 span_sensitive: local.span_sensitive,
                 initialization: initialized
                     .get(&function.id)
                     .map(|entry| entry.value.clone()),
             });
-            totals.push(Total::function(function, cost)?);
+            totals.push(Total { cost, ..inventory });
         }
         Some(Self {
             program: program.clone(),
@@ -417,6 +490,9 @@ impl Epoch {
         let mut work = BTreeSet::new();
         let mut eligibility = BTreeMap::new();
         let mut relocated = BTreeSet::new();
+        let mut body_comparisons = HashMap::new();
+        let mut compared_bodies = 0;
+        let mut reused_comparisons = 0;
         for &index in &dirty {
             let prior = self.rows.get(index)?;
             let before = prior.function.as_ref();
@@ -424,7 +500,21 @@ impl Epoch {
             let same = if prior.span_sensitive {
                 before == after
             } else {
-                candidate_queries::semantic_input_eq(before, after)
+                before.id == after.id
+                    && before.name == after.name
+                    && candidate_queries::semantic_header_eq(before, after)
+                    && {
+                        let key = (body_owners(before), body_owners(after));
+                        if let Some(equal) = body_comparisons.get(&key) {
+                            reused_comparisons += 1;
+                            *equal
+                        } else {
+                            compared_bodies += 1;
+                            let equal = candidate_queries::semantic_columns_eq(before, after);
+                            body_comparisons.insert(key, equal);
+                            equal
+                        }
+                    }
             };
             if same {
                 relocated.insert(index);
@@ -467,6 +557,7 @@ impl Epoch {
                     budget: Budget::new(limits),
                     cost: prior.admission_cost,
                     package: false,
+                    costs: [prior.costs[0], prior.costs[1]],
                 }
             };
             available = available.checked_sub(admission.cost)?;
@@ -505,7 +596,7 @@ impl Epoch {
             // original complete traversal; it must emit the original first error.
             let admission = admissions.remove(&index)?;
             let admission_cost = admission.cost;
-            let (result, cost, remaining, initialization, reused_initialization) = execute(
+            let (result, cost, remaining, initialization, reused_initialization, costs) = execute(
                 &program.module,
                 function,
                 limits,
@@ -550,6 +641,7 @@ impl Epoch {
                     callees,
                     output,
                     admission_cost,
+                    costs,
                     dependencies,
                     span_sensitive: local.span_sensitive,
                     initialization,
@@ -592,6 +684,8 @@ impl Epoch {
         let count = program.module.functions.len();
         let executed = stats.product_function_queries_executed;
         stats.product_semantic_functions_compared = dirty.len();
+        stats.product_semantic_body_comparisons = compared_bodies;
+        stats.product_semantic_body_comparison_reuses = reused_comparisons;
         stats.product_relocated_function_bindings = relocated.len();
         stats.product_admission_functions_checked = dirty.len() - relocated.len();
         stats.product_function_queries_reused = count - executed;
@@ -633,6 +727,7 @@ fn admit(
         }
     }
     budget.product(roots, 2, 1, "type shape")?;
+    let shape_cost = before - budget.remaining();
     let package = budget::preflight_function(
         module,
         index,
@@ -646,12 +741,14 @@ fn admit(
         budget,
         cost,
         package,
+        costs: [shape_cost, cost - shape_cost],
     })
 }
 struct Admission {
     budget: Budget,
     cost: usize,
     package: bool,
+    costs: [usize; 2],
 }
 type ExecutedFunction = (
     FunctionPlan,
@@ -659,6 +756,7 @@ type ExecutedFunction = (
     usize,
     Option<Arc<candidate_queries::InitializationEntry>>,
     bool,
+    [usize; 5],
 );
 fn execute(
     module: &TypedModule,
@@ -672,6 +770,7 @@ fn execute(
         mut budget,
         cost: admission_cost,
         package,
+        costs: admission_costs,
     } = admission;
     budget.restrict_product_balance(available);
     let before = budget.remaining();
@@ -718,7 +817,11 @@ fn execute(
         mixed_address_sums::check(module, function, &reachable, limits, &mut budget)?;
         (blocks, (predecessors, reachable))
     };
+    let initialization_cost = before - budget.remaining();
+    let scope_before = budget.remaining();
     scopes::check(module, function, package, &mut budget)?;
+    let scope_cost = scope_before - budget.remaining();
+    let holds_before = budget.remaining();
     budget.spend(
         function
             .locals
@@ -742,6 +845,13 @@ fn execute(
         budget.remaining(),
         initialization_product,
         reused_initialization,
+        [
+            admission_costs[0],
+            admission_costs[1],
+            initialization_cost,
+            scope_cost,
+            holds_before - budget.remaining(),
+        ],
     ))
 }
 impl AnalysisSession {

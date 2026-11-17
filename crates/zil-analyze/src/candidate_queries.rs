@@ -583,6 +583,10 @@ pub(super) fn semantic_input_eq(previous: &TypedFunction, current: &TypedFunctio
 }
 
 fn semantic_body_eq(previous: &TypedFunction, current: &TypedFunction) -> bool {
+    semantic_header_eq(previous, current) && semantic_columns_eq(previous, current)
+}
+
+pub(super) fn semantic_header_eq(previous: &TypedFunction, current: &TypedFunction) -> bool {
     let TypedFunction {
         storage_life,
         call_kind,
@@ -597,9 +601,9 @@ fn semantic_body_eq(previous: &TypedFunction, current: &TypedFunction) -> bool {
         parameters,
         return_type,
         result_mode,
-        locals,
-        values,
-        blocks,
+        locals: _,
+        values: _,
+        blocks: _,
         entry,
         span: _,
     } = current;
@@ -631,8 +635,16 @@ fn semantic_body_eq(previous: &TypedFunction, current: &TypedFunction) -> bool {
         &previous.return_type,
         &previous.result_mode,
         &previous.entry,
-    ) || previous.values != *values
-    {
+    ) {
+        return false;
+    }
+    true
+}
+
+pub(super) fn semantic_columns_eq(previous: &TypedFunction, current: &TypedFunction) -> bool {
+    let locals = &current.locals;
+    let blocks = &current.blocks;
+    if previous.values != current.values {
         return false;
     }
     let locals_equal = previous.locals.ptr_eq(locals)

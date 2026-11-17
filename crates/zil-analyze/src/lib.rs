@@ -65,6 +65,7 @@ use zil_ir::*;
 use budget::{Budget, preflight};
 pub use candidate_queries::AnalysisFunctionResult;
 pub use incremental::{AnalysisSession, AnalysisStats};
+pub use product::{RawAnalysisBase, RawAnalysisRow};
 
 fn bad(message: impl Into<String>) -> Vec<Diagnostic> {
     vec![Diagnostic::error(

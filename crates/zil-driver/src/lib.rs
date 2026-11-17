@@ -676,6 +676,27 @@ impl CompileReport {
                 total.product_semantic_functions_compared = total
                     .product_semantic_functions_compared
                     .saturating_add(work.product_semantic_functions_compared);
+                total.raw_functions_restored = total
+                    .raw_functions_restored
+                    .saturating_add(work.raw_functions_restored);
+                total.raw_body_facts_built = total
+                    .raw_body_facts_built
+                    .saturating_add(work.raw_body_facts_built);
+                total.raw_body_facts_reused = total
+                    .raw_body_facts_reused
+                    .saturating_add(work.raw_body_facts_reused);
+                total.raw_plan_shapes_checked = total
+                    .raw_plan_shapes_checked
+                    .saturating_add(work.raw_plan_shapes_checked);
+                total.raw_plan_shapes_reused = total
+                    .raw_plan_shapes_reused
+                    .saturating_add(work.raw_plan_shapes_reused);
+                total.product_semantic_body_comparisons = total
+                    .product_semantic_body_comparisons
+                    .saturating_add(work.product_semantic_body_comparisons);
+                total.product_semantic_body_comparison_reuses = total
+                    .product_semantic_body_comparison_reuses
+                    .saturating_add(work.product_semantic_body_comparison_reuses);
                 total.product_relocated_function_bindings = total
                     .product_relocated_function_bindings
                     .saturating_add(work.product_relocated_function_bindings);
@@ -843,8 +864,8 @@ fn frontend_stats_json(
         || "null".into(),
         |stats| {
             format!(
-                "{{\"executed_functions\":{},\"reused_functions\":{},\"retained_queries\":{},\"candidate_reused_functions\":{},\"candidate_executed_functions\":{},\"equal_function_results\":{},\"changed_function_results\":{},\"shared_program_reuses\":{},\"initialization_inputs_built\":{},\"candidate_inputs_built\":{},\"candidate_input_projection_reuses\":{},\"candidate_output_projection_reuses\":{},\"dependency_signatures_checked\":{},\"resource_transfers_executed\":{},\"resource_transfers_reused\":{},\"retained_candidate_queries\":{},\"product_admission_functions_checked\":{},\"product_function_queries_executed\":{},\"product_function_queries_reused\":{},\"product_global_obligations_executed\":{},\"product_global_obligations_reused\":{},\"product_plan_rows_replaced\":{},\"product_semantic_functions_compared\":{},\"product_relocated_function_bindings\":{},\"bootstrap_templates\":{},\"bootstrap_initialization_reuses\":{},\"bootstrap_local_reuses\":{},\"bootstrap_scope_reuses\":{},\"bootstrap_hold_reuses\":{}}}",
-                stats.executed_functions, stats.reused_functions, stats.retained_queries, stats.candidate_reused_functions, stats.candidate_executed_functions, stats.equal_function_results, stats.changed_function_results, stats.shared_program_reuses, stats.initialization_inputs_built, stats.candidate_inputs_built, stats.candidate_input_projection_reuses, stats.candidate_output_projection_reuses, stats.dependency_signatures_checked, stats.resource_transfers_executed, stats.resource_transfers_reused, stats.retained_candidate_queries, stats.product_admission_functions_checked, stats.product_function_queries_executed, stats.product_function_queries_reused, stats.product_global_obligations_executed, stats.product_global_obligations_reused, stats.product_plan_rows_replaced, stats.product_semantic_functions_compared, stats.product_relocated_function_bindings, stats.bootstrap_templates, stats.bootstrap_initialization_reuses, stats.bootstrap_local_reuses, stats.bootstrap_scope_reuses, stats.bootstrap_hold_reuses,
+                "{{\"executed_functions\":{},\"reused_functions\":{},\"retained_queries\":{},\"candidate_reused_functions\":{},\"candidate_executed_functions\":{},\"equal_function_results\":{},\"changed_function_results\":{},\"shared_program_reuses\":{},\"initialization_inputs_built\":{},\"candidate_inputs_built\":{},\"candidate_input_projection_reuses\":{},\"candidate_output_projection_reuses\":{},\"dependency_signatures_checked\":{},\"resource_transfers_executed\":{},\"resource_transfers_reused\":{},\"retained_candidate_queries\":{},\"product_admission_functions_checked\":{},\"product_function_queries_executed\":{},\"product_function_queries_reused\":{},\"product_global_obligations_executed\":{},\"product_global_obligations_reused\":{},\"product_plan_rows_replaced\":{},\"product_semantic_functions_compared\":{},\"raw_functions_restored\":{},\"raw_body_facts_built\":{},\"raw_body_facts_reused\":{},\"raw_plan_shapes_checked\":{},\"raw_plan_shapes_reused\":{},\"product_semantic_body_comparisons\":{},\"product_semantic_body_comparison_reuses\":{},\"product_relocated_function_bindings\":{},\"bootstrap_templates\":{},\"bootstrap_initialization_reuses\":{},\"bootstrap_local_reuses\":{},\"bootstrap_scope_reuses\":{},\"bootstrap_hold_reuses\":{}}}",
+                stats.executed_functions, stats.reused_functions, stats.retained_queries, stats.candidate_reused_functions, stats.candidate_executed_functions, stats.equal_function_results, stats.changed_function_results, stats.shared_program_reuses, stats.initialization_inputs_built, stats.candidate_inputs_built, stats.candidate_input_projection_reuses, stats.candidate_output_projection_reuses, stats.dependency_signatures_checked, stats.resource_transfers_executed, stats.resource_transfers_reused, stats.retained_candidate_queries, stats.product_admission_functions_checked, stats.product_function_queries_executed, stats.product_function_queries_reused, stats.product_global_obligations_executed, stats.product_global_obligations_reused, stats.product_plan_rows_replaced, stats.product_semantic_functions_compared, stats.raw_functions_restored, stats.raw_body_facts_built, stats.raw_body_facts_reused, stats.raw_plan_shapes_checked, stats.raw_plan_shapes_reused, stats.product_semantic_body_comparisons, stats.product_semantic_body_comparison_reuses, stats.product_relocated_function_bindings, stats.bootstrap_templates, stats.bootstrap_initialization_reuses, stats.bootstrap_local_reuses, stats.bootstrap_scope_reuses, stats.bootstrap_hold_reuses,
             )
         },
     );

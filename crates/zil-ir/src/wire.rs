@@ -260,6 +260,9 @@ pub struct RawFunctionPlanEncoding {
     encoding: RawFunctionEncoding,
 }
 
+mod raw_plan;
+pub use raw_plan::{decode_raw_function_plan_shared_owner, encode_raw_function_plan};
+
 impl RawFunctionPlanEncoding {
     /// The immutable raw transport fragment, with no Verify authority.
     pub fn shared_bytes(&self) -> Arc<[u8]> {
@@ -5364,38 +5367,7 @@ impl<'a> Reader<'a> {
         for _ in 0..count {
             let start = self.position;
             let nodes = self.nodes;
-            let function = FunctionId(self.u32()?);
-            let count = self.count(self.limits.max_blocks, 12)?;
-            let mut blocks = Vec::with_capacity(count);
-            for _ in 0..count {
-                blocks.push(BlockPlan {
-                    block: BlockId(self.u32()?),
-                    initialized_in: self.locals()?,
-                    initialized_out: self.locals()?,
-                });
-            }
-            let count = self.count(self.limits.max_values, 8)?;
-            let mut holds = Vec::with_capacity(count);
-            for _ in 0..count {
-                let value = ValueId(self.u32()?);
-                let count = self.count(self.limits.max_nodes, 1)?;
-                let mut roots = Vec::with_capacity(count);
-                for _ in 0..count {
-                    roots.push(match self.u8()? {
-                        0 => HoldRoot::Local(LocalId(self.u32()?)),
-                        1 => HoldRoot::Capture(self.u32()?),
-                        2 => HoldRoot::Parameter(self.u32()?),
-                        3 => HoldRoot::Static,
-                        _ => return Err(malformed("E-WIRE-TAG", "unknown Hold root tag")),
-                    });
-                }
-                holds.push(ValueHold { value, roots });
-            }
-            functions.push(FunctionPlan {
-                function,
-                blocks: blocks.into(),
-                holds: holds.into(),
-            });
+            functions.push(self.raw_function_plan()?);
             if let Some(recording) = &mut recording {
                 recording
                     .plans

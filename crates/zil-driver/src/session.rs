@@ -1238,6 +1238,36 @@ impl CompilationSession {
         artifacts: ArtifactPlan,
         stable_source: Option<&super::stable_source_identity::SourceIdentities>,
     ) -> CompileResult<()> {
+        let checkpoint =
+            (options.push_reuse && options.semantic_cache.is_some()).then(|| self.analysis.clone());
+        let result = self.finish_typed_inner(
+            options,
+            report,
+            observer,
+            typed,
+            typed_snapshot,
+            artifacts,
+            stable_source,
+        );
+        if result.is_err()
+            && let Some(checkpoint) = checkpoint
+        {
+            self.analysis = checkpoint;
+        }
+        result
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn finish_typed_inner(
+        &mut self,
+        options: &CompileOptions,
+        report: &mut CompileReport,
+        observer: &mut dyn FnMut(&QueryEvent),
+        typed: TypedInput,
+        typed_snapshot: Arc<QuerySnapshot>,
+        artifacts: ArtifactPlan,
+        stable_source: Option<&super::stable_source_identity::SourceIdentities>,
+    ) -> CompileResult<()> {
         // Types and Analyze depend on the same complete request identity. The
         // cached raw result is still independently checked below on every call.
         let mut analysis_key = typed_snapshot.key.clone();
@@ -1257,6 +1287,23 @@ impl CompilationSession {
         } else {
             let mut analysis = std::mem::take(&mut self.analysis);
             let checkpoint = analysis.clone();
+            let raw_analysis = if options.push_reuse
+                && options.semantic_cache.is_some()
+                && !analysis.has_product_base()
+            {
+                if let TypedInput::Program(program) = &typed {
+                    super::semantic_cache::analyze_recovery::load(
+                        options,
+                        &artifacts,
+                        program,
+                        self.function_types.last_products(),
+                    )
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
             let mut initialization_work = None;
             let queried = self.query(
                 analysis_key,
@@ -1266,9 +1313,12 @@ impl CompilationSession {
                 observer,
                 || {
                     let result = match &typed {
-                        TypedInput::Program(program) if options.push_reuse => {
-                            analysis.analyze_product(program, &options.limits)
-                        }
+                        TypedInput::Program(program) if options.push_reuse => analysis
+                            .analyze_product_with_raw(
+                                program,
+                                &options.limits,
+                                raw_analysis.as_ref(),
+                            ),
                         TypedInput::Program(program) if options.reuse_producers() => {
                             analysis.analyze_shared_program(program, &options.limits)
                         }

@@ -118,6 +118,37 @@ struct FunctionBinding {
 }
 
 impl SemanticPublicationSession {
+    /// Reuse only serialization slots bound by this actual current successful
+    /// publication. These are raw bytes/decoder associations, never A/V proof.
+    pub(crate) fn analyze_function_encoding(
+        &self,
+        typed: &Arc<TypedProgram>,
+        index: usize,
+    ) -> Option<RawFunctionEncoding> {
+        if !self
+            .previous
+            .as_ref()
+            .is_some_and(|old| Arc::ptr_eq(old, typed))
+        {
+            return None;
+        }
+        self.slots.get(index)?.get().cloned()
+    }
+    pub(crate) fn analyze_plan_encoding(
+        &self,
+        typed: &Arc<TypedProgram>,
+        index: usize,
+        plan: &Arc<zil_ir::FunctionPlan>,
+    ) -> Option<Arc<RawFunctionPlanEncoding>> {
+        if !self
+            .previous
+            .as_ref()
+            .is_some_and(|old| Arc::ptr_eq(old, typed))
+        {
+            return None;
+        }
+        self.plan_slots.get(index)?.as_ref()?.bind_owner(plan)
+    }
     pub(crate) fn decoded_function_hints(&self) -> DecodedFunctionHints {
         DecodedFunctionHints {
             slots: self
