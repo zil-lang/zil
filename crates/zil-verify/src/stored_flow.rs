@@ -6427,7 +6427,8 @@ fn windows(
                         }
                         if let Some((definition,actuals))=stored_callables::called(module,f,&i.kind){
                             for(source,write)in &summaries[definition.function.0 as usize].head_accesses{
-                                let permission=captured_owner::substitute_access(module,f,i,source,definition,actuals,&solution.values,&state,b)?;
+                                let access=captured_owner::substitute_access(module,f,i,source,definition,actuals,&solution.values,&state,b)?;
+                                let permission=match access{captured_owner::Access::OwnedEnvironment=>continue,captured_owner::Access::External(permission)=>permission};
                                 if *write{store_paths::writable(&permission,&solution.loans,b)?;}
                                 checks.check(&permission,*write,requirements,b)?;
                                 store_paths::record(head_accesses,&permission,*write,b)?;
@@ -6443,7 +6444,7 @@ fn windows(
                                 // not a list of mutually disjoint arguments.
                                 // Inferred apart obligations are checked above.
                                 for (source, write) in &actual.dyn_accesses {
-                                    let p = captured_owner::substitute_access(
+                                    let access = captured_owner::substitute_access(
                                         module,
                                         f,
                                         i,
@@ -6454,6 +6455,7 @@ fn windows(
                                         &state,
                                         b,
                                     )?;
+                                    let p=match access{captured_owner::Access::OwnedEnvironment=>continue,captured_owner::Access::External(permission)=>permission};
                                     if *write{store_paths::writable(&p,&solution.loans,b)?;}
                                     checks.check(&p, *write, requirements, b)?;
                                 }

@@ -681,14 +681,22 @@ fn apply_consumed(
     Ok(())
 }
 
+/// An internal owner is not an empty external pointer permission. Keep this
+/// distinction explicit so every summary consumer must choose whether it has
+/// an external access obligation.
+pub(super) enum Access {
+    OwnedEnvironment,
+    External(Permission),
+}
+
 /// Access summaries and returned data have different responsibilities. An
-/// exact consuming environment owns its scalar resource capture outright;
+/// exact SSA environment owns its scalar resource capture outright;
 /// accessing that internal storage exports no alias to a caller target. The
 /// actual resource kernel still proves its affine move, live flag and cleanup.
 /// Borrowed captures, retained ports and all result-source substitutions keep
 /// their complete original pointer/parent mapping.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn substitute_access(module:&TypedModule,f:&TypedFunction,i:&Instruction,source:&Source,definition:&ClosureDefinition,arguments:&[ValueId],values:&[Payload],state:&Frame,b:&mut Budget)->Check<Permission>{
+pub(super) fn substitute_access(module:&TypedModule,f:&TypedFunction,i:&Instruction,source:&Source,definition:&ClosureDefinition,arguments:&[ValueId],values:&[Payload],state:&Frame,b:&mut Budget)->Check<Access>{
     if let(Some(value),HoldRoot::Capture(index))=(consuming_value(&i.kind),source.base){
         source_work(std::slice::from_ref(source),b)?;
         let(actual,_)=stored_callables::called(module,f,&i.kind).ok_or_else(||err("capture access lacks its exact actual invocation"))?;
@@ -699,8 +707,8 @@ pub(super) fn substitute_access(module:&TypedModule,f:&TypedFunction,i:&Instruct
             // No pointer, target or loan is manufactured. There is no outside
             // memory requirement for a uniquely transferred private scalar
             // owner; its body accesses are still checked at the entry itself.
-            return Ok(Permission::default());
+            return Ok(Access::OwnedEnvironment);
         }
     }
-    dyn_captures::substitute(module,f,i,source,definition,arguments,values,state,b)
+    dyn_captures::substitute(module,f,i,source,definition,arguments,values,state,b).map(Access::External)
 }
