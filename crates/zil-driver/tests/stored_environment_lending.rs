@@ -89,12 +89,16 @@ fn native_on(files: &[(&str, &str)], exit: i32, backend: NativeBackend) {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
+        let generated = report.native_codegen.as_ref().unwrap();
+        assert_eq!(generated.backend, backend);
+        assert!(generated.fallback.is_none());
         let output = Command::new(executable).output().unwrap();
         fs::write(dir.join("stdout"), &output.stdout).unwrap();
         fs::write(dir.join("stderr"), &output.stderr).unwrap();
         fs::write(dir.join("exit.txt"), format!("{:?}", output.status.code())).unwrap();
         assert_eq!(output.status.code(), Some(exit), "{output:?}");
         assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
     }
 }
 const MAKE: &str = "pub fn make(n:i32)->impl Fn()->&i32{return move()=>&n}";
@@ -143,11 +147,36 @@ fn borrowed_generic_helper_forwards_environment_lending_origin() {
         0,
     );
 }
+const CAPTURED_EXTERNAL_ORIGINAL: &str =
+    "fn main(){let n=3;let p=&n;let f=move()=>p;let v=f();}";
+
+#[test]
+fn shared_external_capture_preserves_its_actual_parent_lifetime() {
+    // Retain the exact former negative: its referent outlives both calls and
+    // results. A captured Fixed source is not a dangling activation local.
+    let report = check(CAPTURED_EXTERNAL_ORIGINAL);
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+    let observed = "fn main()->i32{let n=3;let p=&n;let f=move()=>p;let v=f();return *v-3}";
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") { continue; }
+        native_on(&[("main", observed)], 0, backend);
+    }
+    // Moving the closure cannot extend the actual captured referent's life.
+    let escaping = "fn bad()->impl Fn()->&i32{let n=3;let p=&n;return move()=>p}fn main()->i32{let f=bad();return *f()}";
+    let report = check(escaping);
+    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+    assert!(report.diagnostics.iter().any(|diagnostic|
+        diagnostic.phase == zil_base::Phase::Types
+            && diagnostic.category == ResultCategory::SafeReject
+            && diagnostic.code == "E-SEMANTIC-ORIGINAL"
+            && diagnostic.message == "original escaping value retains a borrow of local storage"), "{}", report.to_json());
+}
+
 #[test]
 fn environment_results_reject_local_external_and_temporary_sources() {
     for source in [
         "fn make()->impl Fn()->&i32{return move()=>{let n=3;return &n}}fn main(){}".to_string(),
-        "fn main(){let n=3;let p=&n;let f=move()=>p;let v=f();}".to_string(),
         "fn main(){let f=(n:i32)=>&n;let v=f(3);}".to_string(),
         format!("{MAKE}fn main()->i32{{let f=make(3);return *FnOnce.call_once(f,())}}"),
         format!("{MAKE}fn bad()->&i32{{let f=make(3);return f()}}fn main(){{}}"),
