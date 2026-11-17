@@ -16,6 +16,8 @@ pub struct RawFunctionDecodingStats {
     pub reused_decoded_functions: usize,
     /// A subset of reused_decoded_functions: only the diagnostic label changed.
     pub relabeled_decoded_functions: usize,
+    /// Exact decoder body reuse also retained the caller's raw result projection.
+    pub reused_result_projections: usize,
 }
 
 /// A bounded lookup selector for the current scalar wire profile. This neither

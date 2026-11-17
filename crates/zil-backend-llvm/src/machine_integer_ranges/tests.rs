@@ -564,3 +564,47 @@ fn closed_argument_ranges_reach_callees_and_all_unknown_callers_still_join() {
     assert_eq!(apply(&mut protected, &BTreeSet::from(["caller".into()])), 3);
     zil_llvm_api::validate_module(&protected).unwrap();
 }
+
+#[test]
+fn range_round_reuse_matches_fresh_rounds_at_exact_work_boundary() {
+    let protected = BTreeSet::from(["root".into()]);
+    for unknown in [false, true] {
+        let raw = generated_with_bounded_root(unknown);
+        let run = |limit, reuse| {
+            let mut module = raw.clone();
+            FACT_EXECUTIONS.with(|n| n.set(0));
+            let changed = fold_with_work(
+                &mut module,
+                &protected,
+                &mut Default::default(),
+                limit,
+                reuse,
+            );
+            (changed, module, FACT_EXECUTIONS.with(std::cell::Cell::get))
+        };
+        let (changed, expected, old_walks) = run(MAX_WORK, false);
+        assert!(changed > 0);
+        let (current, actual, walks) = run(MAX_WORK, true);
+        assert_eq!((current, &actual), (changed, &expected));
+        assert!(walks < old_walks, "must remove actual fact/CFG walks");
+        zil_llvm_api::validate_module(&actual).unwrap();
+        // Find the ordinary planner's first complete admissible work budget.
+        let (mut low, mut high) = (0, MAX_WORK);
+        while low < high {
+            let middle = low + (high - low) / 2;
+            if run(middle, false).0 == 0 {
+                low = middle + 1;
+            } else {
+                high = middle;
+            }
+        }
+        assert!(low > 0);
+        for limit in [0, low - 1, low, low + 1, MAX_WORK] {
+            let (a, ma, _) = run(limit, true);
+            let (b, mb, _) = run(limit, false);
+            assert_eq!((a, ma), (b, mb), "original fee boundary {limit}");
+        }
+        assert_eq!(run(low - 1, true).0, 0);
+        assert_eq!(run(low, true).0, changed);
+    }
+}

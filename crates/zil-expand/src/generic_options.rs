@@ -128,10 +128,15 @@ struct Probe<'a> {
     budget: Budget<'a>,
     present: bool,
     tasks: bool,
+    scalar: Option<crate::lifetimes::scalar::Probe>,
 }
 impl crate::ct_selection::Visitor for Probe<'_> {
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
-        self.budget.node(span, depth).map_err(|e| vec![e])
+        self.budget.node(span, depth).map_err(|e| vec![e])?;
+        if let Some(scalar) = &mut self.scalar {
+            scalar.node(depth);
+        }
+        Ok(())
     }
     fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
         self.budget.text(text, span).map_err(|e| vec![e])
@@ -144,6 +149,9 @@ impl crate::ct_selection::Visitor for Probe<'_> {
         Ok(())
     }
     fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+        if let Some(scalar) = &mut self.scalar {
+            scalar.ty(ty);
+        }
         if matches!(ty.kind, TypeKind::Optional(_))
             || matches!(&ty.kind, TypeKind::Named{path,..} if path.as_slice()==["Option"])
         {
@@ -153,10 +161,19 @@ impl crate::ct_selection::Visitor for Probe<'_> {
         crate::ct_selection::walk_type(self, ty, depth)
     }
     fn expression(&mut self, e: &Expr, depth: usize) -> CompileResult<()> {
+        if let Some(scalar) = &mut self.scalar {
+            scalar.expression(e);
+        }
         self.present |= matches!(&e.kind, ExprKind::Name(name) if name=="Option");
         self.tasks |= matches!(&e.kind, ExprKind::Name(name) if task_declaration(name).is_some() || name=="task_create");
         self.tasks |= matches!(&e.kind,ExprKind::Member{member:MemberName::Name(name),..} if task_declaration(name).is_some());
         crate::ct_selection::walk_expression(self, e, depth)
+    }
+    fn statement(&mut self, statement: &Stmt, depth: usize) -> CompileResult<()> {
+        if let Some(scalar) = &mut self.scalar {
+            scalar.statement(statement);
+        }
+        crate::ct_selection::walk_statement(self, statement, depth)
     }
 }
 struct Normalize<'a> {
@@ -220,6 +237,7 @@ fn probe_inputs<'a, 'i, 'p: 'i>(
         budget: Budget::new(limits),
         present: false,
         tasks: false,
+        scalar: None,
     };
     for mut input in items {
         let span = input.span();
@@ -229,7 +247,11 @@ fn probe_inputs<'a, 'i, 'p: 'i>(
             continue;
         }
         let before = probe.budget.remaining_limits();
+        let scalar_product = matches!(&input, crate::modules::scalar_products::Input::Product(_));
         let item = input.ensure(reuse.as_deref_mut())?;
+        probe.scalar = scalar_product
+            .then(|| crate::lifetimes::scalar::Probe::new(item))
+            .flatten();
         let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
         let reserved = match &item.kind {
             ItemKind::Aggregate(a) => a.name == "Option",
@@ -250,6 +272,13 @@ fn probe_inputs<'a, 'i, 'p: 'i>(
         }
         result?;
         if let Some(reuse) = reuse.as_deref_mut() {
+            if let Some(demand) = probe
+                .scalar
+                .take()
+                .and_then(|scalar| scalar.finish(&before, &probe.budget.remaining_limits()))
+            {
+                reuse.save_probed_lifetimes(item.span, demand);
+            }
             reuse.record(
                 crate::incremental::Stage::Prepare,
                 item.span,
@@ -596,3 +625,7 @@ mod namespace_budget {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "scalar_lifetime_tests.rs"]
+mod scalar_lifetime_tests;

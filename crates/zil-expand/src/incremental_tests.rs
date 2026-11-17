@@ -821,6 +821,7 @@ fn producer_lower_demands_fail_closed_before_reusing_a_local_product() {
     let mut reuse = Reuse {
         normalization_environment: Arc::new(session.environment.clone().unwrap()),
         normalized_environment_checks: BTreeMap::new(),
+        probed_lifetimes: BTreeMap::new(),
         scalar_inventory: &mut scalar_inventory,
         prior_entries: &session.entries,
         item_reuse: false,

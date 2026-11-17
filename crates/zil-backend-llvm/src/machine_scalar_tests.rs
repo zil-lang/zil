@@ -1295,3 +1295,92 @@ fn caller_gate_keeps_wrappers_unreachable_calls_and_fuel_order() {
         error
     );
 }
+
+#[test]
+fn shared_callers_replay_exact_fuel_and_keep_current_callee_inputs() {
+    let mut raw = checked_model(32, "sadd", 3, 4);
+    let caller = machine_function(&raw, 3).clone();
+    for index in 0..64 {
+        let mut shared = caller.clone();
+        shared.name = format!("wrapper.{index}");
+        raw.items.push(Item::Function(shared));
+    }
+    // Frozen original planner, including partial evaluation at EVERY nearby
+    // boundary: failed evaluations and the final partial caller are not cached.
+    for budget in (0..256).chain([MAX_EVALUATION_STEPS]) {
+        let (mut old, mut new) = (budget, budget);
+        let expected = plan_with_sources_v2(&raw, &sources(), &mut old);
+        let actual = plan_with_sources_and_fuel(&raw, &sources(), &mut new);
+        assert_eq!((actual, new), (expected, old), "fuel {budget}");
+    }
+    PLANNED_BODIES.with(|n| n.set(0));
+    let mut fuel = MAX_EVALUATION_STEPS;
+    let plan = plan_with_sources_and_fuel(&raw, &sources(), &mut fuel);
+    assert_eq!(plan.len(), 65);
+    assert_eq!(PLANNED_BODIES.with(std::cell::Cell::get), 2);
+    let mut actual = raw.clone();
+    let mut expected = raw.clone();
+    apply_leaf_replacements(&mut actual, plan);
+    assert_eq!(fold_with_sources_v1(&mut expected, &sources()), 65);
+    assert_eq!(actual, expected);
+    let first = machine_function(&actual, 3).blocks.as_ref().unwrap();
+    for index in 4..actual.items.len() {
+        assert!(first.ptr_eq(machine_function(&actual, index).blocks.as_ref().unwrap()));
+    }
+    zil_llvm_api::validate_module(&actual).unwrap();
+    // Keep all caller owners, change only the current callee. No plan from the
+    // previous invocation can lend an answer or bypass the original checks.
+    machine_function_mut(&mut raw, 2).attrs.push(Attr::NoInline);
+    let mut fuel = MAX_EVALUATION_STEPS;
+    assert!(plan_with_sources_and_fuel(&raw, &sources(), &mut fuel).is_empty());
+    let before = raw.clone();
+    assert_eq!(super::fold_with_sources(&mut raw, &sources()), 0);
+    assert_eq!(raw, before);
+}
+
+#[test]
+fn fused_scalar_edits_keep_different_plans_and_invalid_originals_separate() {
+    let mut raw = checked_model(32, "sadd", 3, 4);
+    let mut other = machine_function(&raw, 3).clone();
+    other.name = "other.wrapper".into();
+    raw.items.push(Item::Function(other));
+    let mut fuel = MAX_EVALUATION_STEPS;
+    let leaves = plan_with_sources_and_fuel(&raw, &sources(), &mut fuel);
+    assert_eq!(leaves.len(), 2);
+    let mut actual = raw.clone();
+    let mut expected = raw.clone();
+    let mut summary = summary::Plan::default();
+    summary.bodies.insert(3, Scalar::new(32, 7));
+    summary.apply_with_leaves(&mut actual, leaves.clone());
+    for (item, block, instruction, value) in leaves {
+        machine_function_mut(&mut expected, item)
+            .blocks
+            .as_mut()
+            .unwrap()[block]
+            .instructions[instruction]
+            .op = Op::Freeze(Arg::new(Ty::Int(value.bits), value.value()));
+    }
+    machine_function_mut(&mut expected, 3).blocks =
+        Some(vec![block("entry", vec![ret(Ty::Int(32), Val::Int(7))])].into());
+    assert_eq!(actual, expected);
+    assert!(
+        !machine_function(&actual, 3)
+            .blocks
+            .as_ref()
+            .unwrap()
+            .ptr_eq(machine_function(&actual, 4).blocks.as_ref().unwrap())
+    );
+    // A malformed body outside the source set still rejects the COMPLETE
+    // original model before any shared edit, even after planning succeeds.
+    machine_function_mut(&mut raw, 4).blocks.as_mut().unwrap()[0]
+        .instructions
+        .push(ret(Ty::Int(64), Val::Int(0)));
+    let before = raw.clone();
+    let error = zil_llvm_api::validate_module(&raw).unwrap_err().to_string();
+    assert_eq!(super::fold_with_sources(&mut raw, &sources()), 0);
+    assert_eq!(raw, before);
+    assert_eq!(
+        zil_llvm_api::validate_module(&raw).unwrap_err().to_string(),
+        error
+    );
+}

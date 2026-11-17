@@ -283,6 +283,8 @@ statistics!(
     classification_preflight_reuses,
     classification_preflight_nodes,
     fused_distributed_items,
+    fused_lifetime_items,
+    fused_lifetime_nodes,
     classified_modules,
     rebound_scalar_modules,
     rebound_frontend_modules,
@@ -1130,6 +1132,7 @@ impl ExpandSession {
         let mut reuse = Reuse {
             normalization_environment: normalization_environment.clone(),
             normalized_environment_checks: BTreeMap::new(),
+            probed_lifetimes: BTreeMap::new(),
             scalar_inventory: &mut scalar_inventory,
             prior_entries: &self.entries,
             item_reuse: same_function_inputs || same_scalar_products,
@@ -1604,6 +1607,8 @@ pub(crate) struct Reuse<'a> {
     // in this request. Keep a strong owner so pointer keys cannot be recycled.
     // The current complete environment is immutable for Reuse's whole lifetime.
     normalized_environment_checks: BTreeMap<usize, (Arc<Environment>, bool)>,
+    // Current normalized products only: never retained in an Entry/checkpoint.
+    probed_lifetimes: BTreeMap<Span, lifetimes::scalar::Demand>,
     scalar_inventory: &'a mut Option<Arc<modules::ScalarInventory>>,
     prior_entries: &'a BTreeMap<ModuleId, Entry>,
     item_reuse: bool,
@@ -1617,6 +1622,31 @@ fn nanos(start: Instant) -> u64 {
     start.elapsed().as_nanos().min(u64::MAX as u128) as u64
 }
 impl Reuse<'_> {
+    pub(crate) fn save_probed_lifetimes(&mut self, span: Span, demand: lifetimes::scalar::Demand) {
+        self.probed_lifetimes.insert(span, demand);
+    }
+    pub(crate) fn clear_probed_lifetimes(&mut self) {
+        self.probed_lifetimes.clear();
+    }
+    pub(crate) fn replay_probed_lifetimes(
+        &mut self,
+        item: &s::Item,
+        budget: &mut generics::Budget<'_>,
+    ) -> bool {
+        let span = item.span;
+        let Some((nodes, work)) = self
+            .probed_lifetimes
+            .remove(&span)
+            .and_then(|demand| demand.debit(item, budget))
+        else {
+            return false;
+        };
+        Arc::make_mut(&mut self.entry(span.file).receipts)
+            .insert((Stage::Lifetimes, span.start), Receipt { nodes, work });
+        self.stats.fused_lifetime_items += 1;
+        self.stats.fused_lifetime_nodes += nodes as u64;
+        true
+    }
     pub(super) fn fuse_distribution(&self) -> bool {
         self.normalization_environment.fused_distribution
     }

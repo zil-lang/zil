@@ -90,7 +90,36 @@ impl SpecializedModules {
 }
 
 type R<T> = Result<T, Diagnostic>;
-type Names = BTreeSet<String>;
+// Scope forks keep the same immutable names until a binding changes. Empty
+// scopes allocate nothing; the existing names() walk still pays every fee.
+#[derive(Clone, Default)]
+struct Names(Option<Arc<BTreeSet<String>>>);
+impl Names {
+    fn new() -> Self {
+        Self::default()
+    }
+    fn insert(&mut self, name: String) -> bool {
+        if self.contains(&name) {
+            return false;
+        }
+        Arc::make_mut(self.0.get_or_insert_with(Arc::default)).insert(name)
+    }
+}
+impl std::ops::Deref for Names {
+    type Target = BTreeSet<String>;
+    fn deref(&self) -> &Self::Target {
+        static EMPTY: BTreeSet<String> = BTreeSet::new();
+        self.0.as_deref().unwrap_or(&EMPTY)
+    }
+}
+impl<'a> IntoIterator for &'a Names {
+    type Item = &'a String;
+    type IntoIter = std::collections::btree_set::Iter<'a, String>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 // The flag distinguishes source declarations from actual specialization output;
 // a spelling prefix alone is not evidence of an instantiated function.
 type Functions = BTreeMap<String, (ModuleId, String, bool)>;
@@ -2502,5 +2531,61 @@ impl Visitor<'_, '_, '_> {
         }
         self.arrow(body, types, &scope, depth + 1)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod scope_tests {
+    use super::*;
+
+    #[test]
+    fn shared_scope_forks_preserve_shadowing_and_original_copy_fees() {
+        let mut parent = Names::new();
+        parent.insert("outer".into());
+        parent.insert("callee".into());
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let functions = Functions::new();
+        let mut edges = Vec::new();
+        let mut visitor = Visitor {
+            scalar_file: None,
+            default_nominal: None,
+            const_scope: Names::new(),
+            mode: Mode::Restore {
+                functions: &functions,
+                edges: &mut edges,
+            },
+            module: ModuleId(0),
+            budget: &mut budget,
+        };
+        let mut branch = visitor.names(&parent, Span::default()).unwrap();
+        let sibling = visitor.names(&parent, Span::default()).unwrap();
+        assert!(Arc::ptr_eq(
+            parent.0.as_ref().unwrap(),
+            branch.0.as_ref().unwrap()
+        ));
+        assert!(!branch.insert("callee".into()));
+        assert!(Arc::ptr_eq(
+            parent.0.as_ref().unwrap(),
+            branch.0.as_ref().unwrap()
+        ));
+        branch.insert("local".into());
+        assert!(branch.contains("local"));
+        assert!(!parent.contains("local") && !sibling.contains("local"));
+        let remaining = visitor.budget.remaining_limits();
+        assert_eq!(limits.max_nodes - remaining.max_nodes, 4);
+        assert_eq!(limits.max_analysis_steps - remaining.max_analysis_steps, 26);
+
+        let short = Limits {
+            max_analysis_steps: 12,
+            ..limits.clone()
+        };
+        let mut short_budget = Budget::new(&short);
+        let mut short_visitor = Visitor {
+            budget: &mut short_budget,
+            ..visitor
+        };
+        assert!(short_visitor.names(&parent, Span::default()).is_err());
+        assert_eq!(parent.len(), 2);
     }
 }

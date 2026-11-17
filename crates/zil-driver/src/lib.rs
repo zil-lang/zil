@@ -590,6 +590,9 @@ impl CompileReport {
                 total.reused_decoded_functions = total
                     .reused_decoded_functions
                     .saturating_add(work.reused_decoded_functions);
+                total.reused_result_projections = total
+                    .reused_result_projections
+                    .saturating_add(work.reused_result_projections);
                 total.relabeled_decoded_functions = total
                     .relabeled_decoded_functions
                     .saturating_add(work.relabeled_decoded_functions);
@@ -818,8 +821,8 @@ fn named_timings_json(timings: &BTreeMap<&'static str, u128>) -> String {
 }
 fn raw_function_decoding_json(stats: Option<&zil_ir::wire::RawFunctionDecodingStats>) -> String {
     stats.map_or_else(|| "null".into(), |s| format!(
-        "{{\"decode_attempts\":{},\"decoded_functions\":{},\"reused_decoded_functions\":{},\"relabeled_decoded_functions\":{}}}",
-        s.decode_attempts, s.decoded_functions, s.reused_decoded_functions, s.relabeled_decoded_functions))
+        "{{\"decode_attempts\":{},\"decoded_functions\":{},\"reused_decoded_functions\":{},\"relabeled_decoded_functions\":{},\"reused_result_projections\":{}}}",
+        s.decode_attempts, s.decoded_functions, s.reused_decoded_functions, s.relabeled_decoded_functions, s.reused_result_projections))
 }
 fn ct_plain_stats_json(stats: Option<&zil_ct::PlainSourceStats>) -> String {
     stats.map_or_else(|| "null".into(), |stats| format!(
@@ -1013,6 +1016,7 @@ mod report_attempt_tests {
             decoded_functions: 1,
             reused_decoded_functions: 3,
             relabeled_decoded_functions: 1,
+            reused_result_projections: 1,
         }));
         report.initialization_work = Some(zil_analyze::AnalysisStats {
             executed_functions: 3,
@@ -1049,6 +1053,7 @@ mod report_attempt_tests {
             decoded_functions: 1,
             reused_decoded_functions: 4,
             relabeled_decoded_functions: 2,
+            reused_result_projections: 2,
         }));
         report.initialization_work = Some(zil_analyze::AnalysisStats {
             executed_functions: 5,
@@ -1060,6 +1065,7 @@ mod report_attempt_tests {
         report.verification_runs += 1;
         report.finish_attempts();
         let decoding = report.function_cache_decoding.as_deref().unwrap();
+        assert_eq!(decoding.reused_result_projections, 3);
         assert_eq!(
             (
                 decoding.decode_attempts,

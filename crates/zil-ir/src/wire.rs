@@ -265,6 +265,36 @@ impl RawFunctionPlanEncoding {
     pub fn shared_bytes(&self) -> Arc<[u8]> {
         self.encoding.shared_bytes()
     }
+    // A request-local Writer can reuse a successful row's complete immutable
+    // columns while emitting the current outer ID. Neither hashes nor an old
+    // candidate certificate select this path. All aggregate fees still apply.
+    fn rebind_columns(&self, current: &Arc<FunctionPlan>) -> Option<Arc<Self>> {
+        let FunctionPlan {
+            function,
+            blocks,
+            holds,
+        } = current.as_ref();
+        if !blocks.ptr_eq(&self.function.blocks)
+            || !holds.ptr_eq(&self.function.holds)
+            || self.encoding.bytes.get(..4)? != self.function.function.0.to_le_bytes()
+        {
+            return None;
+        }
+        let mut bytes = Vec::new();
+        bytes.try_reserve_exact(self.encoding.bytes.len()).ok()?;
+        bytes.extend_from_slice(&self.encoding.bytes);
+        bytes[..4].copy_from_slice(&function.0.to_le_bytes());
+        Some(Arc::new(Self {
+            function: current.clone(),
+            encoding: RawFunctionEncoding {
+                bytes: bytes.into(),
+                fingerprint: OnceLock::new(),
+                decoded: None,
+                ..self.encoding.clone()
+            },
+        }))
+    }
+
     /// Bind transport bytes to a replacement immutable raw owner only after
     /// complete row equality. Neither this association nor the bytes certify
     /// the candidate. The caller may skip this work for shared input subtrees.
@@ -562,33 +592,65 @@ where
         writer.flush_segment();
         writer.plan_header(plan)?;
         writer.flush_segment();
+        // Only rows emitted successfully by this very Writer enter the table.
+        // Keep bounded aliases of existing slots, not another encoded body set.
+        let mut columns =
+            std::collections::BTreeMap::<(usize, usize), Arc<RawFunctionPlanEncoding>>::new();
         for (index, function) in plan.functions.iter().enumerate() {
-            let raw = plans.cached(index).filter(|raw| {
-                let same_owner = std::ptr::eq(raw.function.as_ref(), function);
-                if !same_owner {
-                    plan_stats.compared_function_plans += 1;
-                }
-                (same_owner || raw.function.as_ref() == function)
-                    && raw.encoding.limits == *limits
-                    && raw.encoding.nodes <= writer.nodes
-                    && writer
-                        .total_len()
-                        .checked_add(raw.encoding.bytes.len())
-                        .is_some_and(|length| length <= limits.max_source_bytes)
-            });
+            let raw = plans
+                .cached(index)
+                .filter(|raw| {
+                    let same_owner = std::ptr::eq(raw.function.as_ref(), function);
+                    if !same_owner {
+                        plan_stats.compared_function_plans += 1;
+                    }
+                    (same_owner || raw.function.as_ref() == function)
+                        && raw.encoding.limits == *limits
+                        && raw.encoding.nodes <= writer.nodes
+                        && writer
+                            .total_len()
+                            .checked_add(raw.encoding.bytes.len())
+                            .is_some_and(|length| length <= limits.max_source_bytes)
+                })
+                .cloned()
+                .or_else(|| {
+                    let key = (
+                        function.blocks.as_ptr() as usize,
+                        function.holds.as_ptr() as usize,
+                    );
+                    let prior = columns.get(&key)?;
+                    if prior.encoding.limits != *limits
+                        || prior.encoding.nodes > writer.nodes
+                        || writer.total_len().checked_add(prior.encoding.byte_len())?
+                            > limits.max_source_bytes
+                    {
+                        return None;
+                    }
+                    prior.rebind_columns(plan.functions.owner(index)?)
+                });
             if let Some(raw) = raw {
                 writer.charge(raw.encoding.nodes)?;
                 writer.shared_fragment(&raw.encoding)?;
                 plan_stats.reused_function_plans += 1;
                 plan_stats.reused_function_plan_bytes += raw.encoding.byte_len();
-                // An equal replacement row stops byte propagation. Bind its
-                // actual owner once so the next epoch need not compare it again.
-                if !std::ptr::eq(raw.function.as_ref(), function) {
-                    let rebound = Arc::new(RawFunctionPlanEncoding {
-                        function: plan.functions.owner(index).unwrap().clone(),
-                        encoding: raw.encoding.clone(),
-                    });
-                    plans.store(index, Some(rebound));
+                let same_slot = plans
+                    .cached(index)
+                    .is_some_and(|old| Arc::ptr_eq(old, &raw));
+                if !same_slot || !std::ptr::eq(raw.function.as_ref(), function) {
+                    let rebound = raw
+                        .bind_owner(plan.functions.owner(index).unwrap())
+                        .unwrap();
+                    if let Some(old) = plans.cached(index) {
+                        occupied = occupied.saturating_sub(old.encoding.byte_len());
+                    }
+                    plans.store(index, None);
+                    if occupied
+                        .checked_add(rebound.encoding.byte_len())
+                        .is_some_and(|n| n <= limits.max_source_bytes)
+                    {
+                        occupied += rebound.encoding.byte_len();
+                        plans.store(index, Some(rebound));
+                    }
                 }
             } else {
                 // A total receipt cannot reproduce the first check that fails
@@ -623,6 +685,16 @@ where
                     );
                     occupied += length;
                 }
+            }
+            if columns.len() < limits.max_functions.min(16_384)
+                && let Some(raw) = plans.cached(index)
+            {
+                columns
+                    .entry((
+                        function.blocks.as_ptr() as usize,
+                        function.holds.as_ptr() as usize,
+                    ))
+                    .or_insert_with(|| raw.clone());
             }
         }
         writer.plan_suffix(plan)?;

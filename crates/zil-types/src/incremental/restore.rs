@@ -117,7 +117,7 @@ fn decode_items(
     // At most one owner per accepted item, sharing its existing byte buffer.
     // descriptors() already bounded their aggregate bytes/nodes and item count.
     // This dictionary is discarded with the private entries on every failure.
-    let mut decoded = BTreeMap::<Fingerprint, RawFunctionEncoding>::new();
+    let mut decoded = BTreeMap::<Fingerprint, (RawFunctionEncoding, FingerprintBuilder)>::new();
     for item in descriptors {
         let data = load(item.checksum)?;
         if data.len() != item.bytes || Fingerprint::of(&data) != item.checksum {
@@ -133,13 +133,15 @@ fn decode_items(
             Some((function, current, relabeled))
         });
         let selector = RawFunctionEncoding::scalar_header_selector(&data, limits);
+        let mut shared_projection = None;
         let reused = reused.or_else(|| {
-            let encoding = decoded.get(&selector?)?;
+            let (encoding, projection) = decoded.get(&selector?)?;
             let (function, current) =
                 encoding.reuse_decoded_scalar_header(data.clone(), limits, remaining_nodes)?;
             let relabeled = encoding
                 .decoded_function()
                 .is_some_and(|prior| prior.id == function.id && prior.name != function.name);
+            shared_projection = Some(projection.clone());
             Some((function, current, relabeled))
         });
         let (function, raw_encoding) = if let Some((function, encoding, relabeled)) = reused {
@@ -158,23 +160,30 @@ fn decode_items(
         };
         let used_nodes = raw_encoding.node_cost();
         if used_nodes != item.nodes
-            || !scalar_typed(&function)
+            || (shared_projection.is_none() && !scalar_typed(&function))
             || function.span.file != FileId(0)
             || function.span.start != 0
         {
             return None;
         }
         remaining_nodes = remaining_nodes.checked_sub(used_nodes)?;
+        let projection = if let Some(projection) = shared_projection {
+            stats.reused_result_projections += 1;
+            projection
+        } else {
+            scalar_result_body(&function, function.span)?
+        };
+        let result_fingerprint = scalar_result_finish(projection.clone(), &function);
         if let Some(selector) = selector {
             decoded
                 .entry(selector)
-                .or_insert_with(|| raw_encoding.clone());
+                .or_insert_with(|| (raw_encoding.clone(), projection));
         }
         entries.insert(
             item.key,
             Arc::new(Entry {
                 restored: true,
-                result_fingerprint: scalar_result_fingerprint(&function, function.span)?,
+                result_fingerprint,
                 origin: function.span,
                 canonical: OnceLock::from(Some(function.clone())),
                 function,

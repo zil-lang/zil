@@ -1376,3 +1376,70 @@ fn persistent_plan_slots_preserve_exact_aggregate_wire_errors() {
         assert_eq!(actual, encode_module_candidate(&module, &plan, &limits));
     }
 }
+
+#[test]
+fn current_shared_plan_columns_rebind_ids_and_preserve_ordered_quotas() {
+    let (module, mut plan) = plans_fixture();
+    let first = plan.functions[0].clone();
+    for index in 1..plan.functions.len() {
+        plan.functions[index].blocks = first.blocks.clone();
+        plan.functions[index].holds = first.holds.clone();
+    }
+    let limits = Limits::default();
+    let functions = slots(&module, &limits);
+    let mut rows = vec![None; plan.functions.len()];
+    let (actual, stats) = cached_plans(&module, &plan, &limits, &functions, &mut rows);
+    let reference = encode_module_candidate(&module, &plan, &limits).unwrap();
+    assert_eq!(actual.unwrap(), reference);
+    assert_eq!(stats.serialized_function_plans, 1);
+    assert_eq!(stats.reused_function_plans, plan.functions.len() - 1);
+    for (function, row) in plan.functions.iter().zip(&rows) {
+        let raw = row.as_ref().unwrap();
+        assert_eq!(raw.function.as_ref(), function);
+        assert_eq!(&raw.encoding.bytes[..4], &function.function.0.to_le_bytes());
+    }
+    let retained = rows.clone();
+    plan.functions[1].function = FunctionId(912);
+    plan.functions[2].holds[0].roots.push(HoldRoot::Capture(97));
+    let (actual, stats) = cached_plans(&module, &plan, &limits, &functions, &mut rows);
+    assert_eq!(actual, encode_module_candidate(&module, &plan, &limits));
+    assert_eq!(
+        (stats.serialized_function_plans, stats.reused_function_plans),
+        (1, 2)
+    );
+    assert_ne!(
+        retained[1].as_ref().unwrap().function.function,
+        FunctionId(912)
+    );
+
+    // With insufficient aggregate allowance, run the original per-field writer
+    // so a byte failure cannot be reordered with a node/count failure.
+    let mut writer = Writer::new(&limits);
+    writer.header(MODULE_MAGIC).unwrap();
+    writer.module(&module).unwrap();
+    writer.plan(&plan).unwrap();
+    let used = limits.max_nodes - writer.nodes;
+    for nodes in 0..=used + 1 {
+        for maximum in [
+            1,
+            reference.len() / 2,
+            reference.len() - 1,
+            writer.output.len(),
+            writer.output.len() + 1,
+        ] {
+            let restricted = Limits {
+                max_nodes: nodes,
+                max_source_bytes: maximum,
+                ..limits.clone()
+            };
+            let functions: Vec<_> = module.functions.iter().map(|_| OnceLock::new()).collect();
+            let mut rows = vec![None; plan.functions.len()];
+            let (actual, _) = cached_plans(&module, &plan, &restricted, &functions, &mut rows);
+            assert_eq!(
+                actual,
+                encode_module_candidate(&module, &plan, &restricted),
+                "nodes={nodes}, bytes={maximum}"
+            );
+        }
+    }
+}

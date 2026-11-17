@@ -3,7 +3,7 @@
 //! It neither removes definitions nor changes argument evaluation or control flow.
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use zil_ir::{LirView, Type};
-use zil_llvm_api::model::{Arg, Function, Item, Module, Op, Ty, Val};
+use zil_llvm_api::model::{Arg, Block, Function, Item, Module, Op, SharedVec, Ty, Val};
 
 const MAX_LEAF_BLOCKS: usize = 32;
 const MAX_LEAF_INSTRUCTIONS: usize = 128;
@@ -503,88 +503,156 @@ fn plan_with_sources_and_fuel(
     if functions.is_empty() {
         return vec![];
     }
-    // Cache eligibility, never results at particular arguments. Every function
-    // body stays original until the entire plan has passed original preflight.
+    // All name resolution, callee headers and intrinsic declarations below
+    // belong to this immutable current module. The caller's own header is not
+    // read by plan_caller; its body owner is the complete remaining input.
+    // Retain only completed plans. Replaying their exact evaluation charge
+    // preserves the original partial-prefix behavior at the fuel boundary.
+    struct Planned<'a> {
+        blocks: &'a SharedVec<Block>,
+        replacements: Vec<BodyReplacement>,
+        cost: usize,
+    }
+    let mut callers = HashMap::<usize, Planned<'_>>::new();
+    let mut retained = 0usize;
     let mut leaves = BTreeMap::<&str, Option<Leaf<'_>>>::new();
     let mut replacements = vec![];
-    'callers: for (item_id, item) in module.items.iter().enumerate() {
+    for (item_id, item) in module.items.iter().enumerate() {
         let Item::Function(function) = item else {
             continue;
         };
         if *fuel == 0 {
-            break 'callers;
+            break;
         }
-        // A function without a named direct call to an original source callee
-        // cannot contribute a replacement, consume evaluation fuel or populate
-        // the leaf cache. Its caller-local known values have no other consumers.
-        // Keep wrappers and unreachable blocks in this conservative search.
-        if !function.blocks.iter().flatten().any(|block| {
-            block.instructions.iter().any(|instruction| {
-                instruction.result.is_some()
-                    && matches!(&instruction.op, Op::Call { callee: Val::Global(name), .. }
-                        if functions.contains_key(name.as_str()))
-            })
-        }) {
+        let Some(blocks) = &function.blocks else {
+            continue;
+        };
+        let key = std::ptr::from_ref(&**blocks) as usize;
+        if let Some(plan) = callers.get(&key)
+            && plan.blocks.ptr_eq(blocks)
+            && *fuel >= plan.cost
+        {
+            *fuel -= plan.cost;
+            replacements.extend(
+                plan.replacements
+                    .iter()
+                    .map(|&(b, i, v)| (item_id, b, i, v)),
+            );
             continue;
         }
-        let mut values = HashMap::new();
-        for (block_id, block) in function.blocks.iter().flatten().enumerate() {
-            for (instruction_id, instruction) in block.instructions.iter().enumerate() {
-                if *fuel == 0 {
-                    break 'callers;
-                }
-                let Some(result_name) = instruction.result.as_deref() else {
-                    continue;
-                };
-                let replacement = if let Op::Call {
-                    result,
-                    result_attrs,
-                    callee: Val::Global(name),
-                    args,
-                    vararg: None,
-                } = &instruction.op
-                {
-                    functions
-                        .get(name.as_str())
-                        .filter(|callee| {
-                            scalar_signature(callee)
-                                && width(result).is_some()
-                                && *result == callee.signature.result
-                                && result_attrs.is_empty()
-                                && args.len() <= MAX_LEAF_PARAMETERS
-                                && args.len() == callee.signature.params.len()
-                                && args.iter().zip(&callee.signature.params).all(|(a, p)| {
-                                    width(&a.ty).is_some() && a.ty == p.ty && a.attrs == p.attrs
-                                })
-                        })
-                        .and_then(|callee| {
-                            let arguments = args
-                                .iter()
-                                .map(|a| scalar(&a.value, &a.ty, &values))
-                                .collect::<Option<Vec<_>>>()?;
-                            let leaf = leaves
-                                .entry(name.as_str())
-                                .or_insert_with(|| leaf(callee, &intrinsics))
-                                .as_ref()?;
-                            evaluate(leaf, &arguments, &intrinsics, fuel)
-                        })
-                } else {
-                    None
-                };
-                let known = if let Some(value) = replacement {
-                    replacements.push((item_id, block_id, instruction_id, value));
-                    Some(Known::Scalar(value))
-                } else {
-                    // No caller CFG rewriting, speculative branches, phi, load or call effects.
-                    known_operation(&instruction.op, &values, &intrinsics)
-                };
-                if let Some(known) = known {
-                    values.insert(result_name, known);
-                }
-            }
+        let before = *fuel;
+        let (plan, complete) = plan_caller(function, &functions, &intrinsics, &mut leaves, fuel);
+        replacements.extend(plan.iter().map(|&(b, i, v)| (item_id, b, i, v)));
+        if !complete {
+            break;
+        }
+        // Optional retention only: exceeding either cap continues the original
+        // walker with its remaining fuel. No partial plan is restarted.
+        // Exhausted fuel may have cut off an evaluation in the last (even
+        // malformed) instruction, so that result is never retained.
+        if *fuel > 0 && callers.len() < 16_384 && retained + plan.len() <= 65_536 {
+            retained += plan.len();
+            callers.insert(
+                key,
+                Planned {
+                    blocks,
+                    replacements: plan,
+                    cost: before - *fuel,
+                },
+            );
         }
     }
     replacements
+}
+
+type BodyReplacement = (usize, usize, Scalar);
+#[cfg(test)]
+std::thread_local! {
+    static PLANNED_BODIES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+fn plan_caller<'a>(
+    function: &Function,
+    functions: &BTreeMap<&'a str, &'a Function>,
+    intrinsics: &Intrinsics<'_>,
+    leaves: &mut BTreeMap<&'a str, Option<Leaf<'a>>>,
+    fuel: &mut usize,
+) -> (Vec<BodyReplacement>, bool) {
+    #[cfg(test)]
+    PLANNED_BODIES.with(|n| n.set(n.get() + 1));
+    let mut replacements = Vec::new();
+    // A function without a named direct call to an original source callee
+    // cannot contribute a replacement, consume evaluation fuel or populate
+    // the leaf cache. Its caller-local known values have no other consumers.
+    // Keep wrappers and unreachable blocks in this conservative search.
+    if !function.blocks.iter().flatten().any(|block| {
+        block.instructions.iter().any(|instruction| {
+            instruction.result.is_some()
+                && matches!(&instruction.op, Op::Call { callee: Val::Global(name), .. }
+                        if functions.contains_key(name.as_str()))
+        })
+    }) {
+        return (replacements, true);
+    }
+    let mut values = HashMap::new();
+    for (block_id, block) in function.blocks.iter().flatten().enumerate() {
+        for (instruction_id, instruction) in block.instructions.iter().enumerate() {
+            if *fuel == 0 {
+                return (replacements, false);
+            }
+            let Some(result_name) = instruction.result.as_deref() else {
+                continue;
+            };
+            let replacement = if let Op::Call {
+                result,
+                result_attrs,
+                callee: Val::Global(name),
+                args,
+                vararg: None,
+            } = &instruction.op
+            {
+                functions
+                    .get(name.as_str())
+                    .filter(|callee| {
+                        scalar_signature(callee)
+                            && width(result).is_some()
+                            && *result == callee.signature.result
+                            && result_attrs.is_empty()
+                            && args.len() <= MAX_LEAF_PARAMETERS
+                            && args.len() == callee.signature.params.len()
+                            && args.iter().zip(&callee.signature.params).all(|(a, p)| {
+                                width(&a.ty).is_some() && a.ty == p.ty && a.attrs == p.attrs
+                            })
+                    })
+                    .and_then(|callee| {
+                        let callee = *callee;
+                        let arguments = args
+                            .iter()
+                            .map(|a| scalar(&a.value, &a.ty, &values))
+                            .collect::<Option<Vec<_>>>()?;
+                        let leaf = leaves
+                            .entry(callee.name.as_str())
+                            .or_insert_with(|| leaf(callee, intrinsics))
+                            .as_ref()?;
+                        evaluate(leaf, &arguments, intrinsics, fuel)
+                    })
+            } else {
+                None
+            };
+            let known = if let Some(value) = replacement {
+                replacements.push((block_id, instruction_id, value));
+                Some(Known::Scalar(value))
+            } else {
+                // No caller CFG rewriting, speculative branches, phi, load or call effects.
+                known_operation(&instruction.op, &values, intrinsics)
+            };
+            if let Some(known) = known {
+                values.insert(result_name, known);
+            }
+        }
+    }
+
+    (replacements, true)
 }
 
 #[cfg(test)]
@@ -608,19 +676,13 @@ fn fold_with_sources_and_preflight(
         return 0;
     }
     let count = replacements.len() + summaries.count();
-    apply_leaf_replacements(module, replacements);
-    summaries.apply(module);
+    summaries.apply_with_leaves(module, replacements);
     count
 }
 
+#[cfg(test)]
 fn apply_leaf_replacements(module: &mut Module, replacements: Vec<Replacement>) {
-    for (item, block, instruction, value) in replacements {
-        let Item::Function(function) = &mut module.items[item] else {
-            unreachable!()
-        };
-        function.blocks.as_mut().expect("original definition")[block].instructions[instruction]
-            .op = Op::Freeze(Arg::new(Ty::Int(value.bits), value.value()));
-    }
+    summary::Plan::default().apply_with_leaves(module, replacements);
 }
 
 #[cfg(test)]

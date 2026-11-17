@@ -1,6 +1,6 @@
 //! Private exact-input work products. These recipes are not validation evidence:
 //! current declaration and complete native-unit preflight remain in the caller.
-use super::{CallImportPolicy, distribute_item, rewrite_direct_calls};
+use super::{CallImportPolicy, CallRewrites, distribute_item};
 use crate::EntryPoint;
 use crate::object_cache::{BufferedHasher, installed_compiler_identity};
 use std::collections::{BTreeMap, BTreeSet};
@@ -811,6 +811,7 @@ impl Layout {
                     )
                 })
                 .collect::<BTreeMap<_, _>>();
+            let mut rewrites = CallRewrites::new(&clone_names);
             let needs_rewrite = |index| {
                 observed.is_none_or(|graph| {
                     graph
@@ -849,7 +850,7 @@ impl Layout {
                 function.linkage = Linkage::Internal;
                 function.name = clone_names[&function.name].clone();
                 if needs_rewrite(index) {
-                    rewrite_direct_calls(&mut function, &clone_names);
+                    rewrites.rewrite(&mut function);
                 }
                 items.push(Item::Function(function));
             }
@@ -865,7 +866,7 @@ impl Layout {
                 if let Item::Function(function) = &mut item
                     && needs_rewrite(index)
                 {
-                    rewrite_direct_calls(function, &clone_names);
+                    rewrites.rewrite(function);
                 }
                 items.push(item);
             }
@@ -1655,8 +1656,68 @@ fn action_key(
         items,
     } = module;
     triple.hash(&mut state);
-    items.hash(&mut state);
+    if imports == CallImportPolicy::BoundedClasses {
+        hash_shared_items(items, &mut state);
+    } else {
+        items.hash(&mut state);
+    }
     Some(state.digest())
+}
+
+// This research layout-key protocol hashes every current header and every
+// complete body, but digests a shared immutable body only once. The old flat
+// stream repeatedly visited the same instructions for thousands of wrappers.
+// Sharing affects work only: independently allocated equal bodies get the same
+// digest. This remains just a layout selector; current graph/roles, declaration
+// prelude and native-unit validation still decide whether replay is admissible.
+fn hash_shared_items(items: &[Item], state: &mut BufferedHasher) {
+    use zil_llvm_api::model::{Block, Function, SharedVec};
+    let mut bodies = std::collections::HashMap::<usize, (&SharedVec<Block>, Fingerprint)>::new();
+    b"ZIL-CGU-SHARED-BODY-KEY-v1".hash(state);
+    items.len().hash(state);
+    for item in items {
+        match item {
+            Item::Function(Function {
+                name,
+                linkage,
+                signature,
+                attrs,
+                blocks,
+            }) => {
+                0u8.hash(state);
+                name.hash(state);
+                linkage.hash(state);
+                signature.hash(state);
+                attrs.hash(state);
+                blocks.is_some().hash(state);
+                if let Some(blocks) = blocks {
+                    let key = std::ptr::from_ref(&**blocks) as usize;
+                    let cached = bodies.get(&key).filter(|(old, _)| old.ptr_eq(blocks));
+                    let digest = if let Some((_, digest)) = cached {
+                        *digest
+                    } else {
+                        let mut body = BufferedHasher::new();
+                        blocks.hash(&mut body);
+                        let digest = body.digest();
+                        if bodies.len() < MAX_ITEMS {
+                            bodies.insert(key, (blocks, digest));
+                        }
+                        digest
+                    };
+                    digest.hash(state);
+                }
+            }
+            Item::Global(global) => {
+                1u8.hash(state);
+                global.hash(state);
+            }
+            Item::NamedType(name, fields) => {
+                2u8.hash(state);
+                name.hash(state);
+                fields.hash(state);
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

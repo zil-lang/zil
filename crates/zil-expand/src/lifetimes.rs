@@ -1,6 +1,9 @@
 //! Explicit function life declarations survive address layout erasure.
 use super::*;
 
+#[path = "scalar_lifetimes.rs"]
+pub(crate) mod scalar;
+
 /// Walk every type position, including unused definitions, before generic
 /// removal. Header node identities are request-local traversal context only.
 #[cfg(test)]
@@ -32,13 +35,15 @@ pub(super) fn validate_scalar_products(
     budget: &mut generics::Budget<'_>,
     reuse: &mut crate::incremental::Reuse<'_>,
 ) -> CompileResult<()> {
-    validate_inputs(
+    let result = validate_inputs(
         items
             .iter_mut()
             .map(modules::scalar_products::Input::Product),
         budget,
-        Some(reuse),
-    )
+        Some(&mut *reuse),
+    );
+    reuse.clear_probed_lifetimes();
+    result
 }
 fn validate_inputs<'i, 'p: 'i>(
     items: impl IntoIterator<Item = modules::scalar_products::Input<'i, 'p>>,
@@ -400,6 +405,12 @@ fn validate_inputs<'i, 'p: 'i>(
         }
         let before = walk.budget.remaining_limits();
         let item = input.ensure(reuse.as_deref_mut())?;
+        if reuse
+            .as_deref_mut()
+            .is_some_and(|reuse| reuse.replay_probed_lifetimes(item, walk.budget))
+        {
+            continue;
+        }
         let clock = reuse.as_deref().and_then(|reuse| reuse.clock());
         let result = ct_selection::Visitor::item(&mut walk, item, 0);
         if let Some(reuse) = reuse.as_deref_mut() {

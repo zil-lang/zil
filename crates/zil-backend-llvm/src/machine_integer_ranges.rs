@@ -2,6 +2,7 @@
 //! return bounds never assume argument bounds or that a callee returns normally.
 //! Only an already-false overflow flag changes; calls/results/effects stay put.
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::sync::Arc;
 use zil_llvm_api::model::{Attr, Function, Item, Linkage, Module, Op, Ty, Val};
 
 const MAX_WORK: usize = 2_000_000;
@@ -211,7 +212,13 @@ struct Facts {
     flags: Vec<(usize, usize)>,
     calls: Vec<(String, Vec<Range>)>,
 }
+#[cfg(test)]
+std::thread_local! {
+    static FACT_EXECUTIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
 fn facts(f: &Function, world: &World<'_>, work: &mut usize, inputs: &[Range]) -> Option<Facts> {
+    #[cfg(test)]
+    FACT_EXECUTIONS.with(|n| n.set(n.get() + 1));
     let blocks = f.blocks.as_ref()?;
     let count = blocks.iter().try_fold(f.signature.params.len(), |n, b| {
         n.checked_add(b.instructions.len())
@@ -309,10 +316,19 @@ pub(crate) fn fold(
     protected: &BTreeSet<String>,
     preflight: &mut crate::machine_preflight::CurrentPreflight,
 ) -> usize {
+    fold_with_work(module, protected, preflight, MAX_WORK, true)
+}
+
+fn fold_with_work(
+    module: &mut Module,
+    protected: &BTreeSet<String>,
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
+    mut work: usize,
+    reuse_rounds: bool,
+) -> usize {
     if preflight.check(module).is_err() {
         return 0;
     }
-    let mut work = MAX_WORK;
     let mut excluded = protected.clone();
     let mut address_owners = HashMap::new();
     for item in &module.items {
@@ -411,51 +427,86 @@ pub(crate) fn fold(
                 .insert(&f.name, vec![Range::TOP; f.signature.params.len()]);
         }
     }
-    type InputCache<'a> = HashMap<usize, Vec<(&'a Function, Vec<Range>, Facts)>>;
+    // Returns, intrinsic declarations and the argument domain/arity are fixed
+    // from here through final planning. Only each function's input bounds move;
+    // facts() reads no other argument values. Keep results across rounds keyed
+    // by the exact body owner, signature and those bounds. A new round still
+    // pays the original computation fee once per input, including the final
+    // planning round; sharing never changes MAX_WORK's refusal boundary.
+    struct InputFacts<'a> {
+        function: &'a Function,
+        inputs: Vec<Range>,
+        facts: Arc<Facts>,
+        cost: usize,
+        round: usize,
+    }
+    type InputCache<'a> = HashMap<usize, Vec<InputFacts<'a>>>;
     fn cached_facts<'a>(
         f: &'a Function,
         world: &World<'_>,
         work: &mut usize,
         cache: &mut InputCache<'a>,
-    ) -> Option<Facts> {
+        round: usize,
+    ) -> Option<Arc<Facts>> {
         let blocks = f.blocks.as_ref()?;
         let inputs = world
             .arguments
             .get(f.name.as_str())
-            .cloned()
-            .unwrap_or_default();
-        let key = blocks.as_ptr() as usize;
-        if let Some(fs) = cache.get(&key).and_then(|xs| {
-            xs.iter().find(|(old, bound, _)| {
-                old.signature == f.signature
-                    && *bound == inputs
-                    && old.blocks.as_ref().unwrap().ptr_eq(blocks)
+            .map_or(&[][..], Vec::as_slice);
+        let key = std::ptr::from_ref(&**blocks) as usize;
+        if let Some(entry) = cache.get_mut(&key).and_then(|xs| {
+            xs.iter_mut().find(|entry| {
+                entry.function.signature == f.signature
+                    && entry.inputs == inputs
+                    && entry.function.blocks.as_ref().unwrap().ptr_eq(blocks)
             })
         }) {
-            return Some(fs.2.clone());
+            if entry.round != round {
+                *work = work.checked_sub(entry.cost)?;
+                entry.round = round;
+            }
+            return Some(entry.facts.clone());
         }
-        let fs = facts(f, world, work, &inputs)?;
-        cache.entry(key).or_default().push((f, inputs, fs.clone()));
+        let before = *work;
+        let fs = Arc::new(facts(f, world, work, inputs)?);
+        cache.entry(key).or_default().push(InputFacts {
+            function: f,
+            inputs: inputs.to_vec(),
+            facts: fs.clone(),
+            cost: before - *work,
+            round,
+        });
         Some(fs)
     }
-    for _ in 0..MAX_ROUNDS {
+    // At most MAX_ROUNDS + 1 versions of the already bounded original
+    // per-round cache. It owns facts, never another World or an older request.
+    let mut cache = InputCache::new();
+    for round in 0..MAX_ROUNDS {
+        if !reuse_rounds {
+            cache.clear();
+        }
         let mut incoming: BTreeMap<String, Vec<Range>> = BTreeMap::new();
-        let mut cache = InputCache::new();
+        let mut contributed = BTreeSet::new();
         for item in &module.items {
             if let Item::Function(f) = item
                 && f.blocks.is_some()
             {
-                let Some(fs) = cached_facts(f, &world, &mut work, &mut cache) else {
+                let Some(fs) = cached_facts(f, &world, &mut work, &mut cache, round) else {
                     return 0;
                 };
-                for (name, ranges) in fs.calls {
-                    match incoming.entry(name) {
+                // Repeated identical call contributions have the same hull.
+                // Every function above still pays its original round fee.
+                if !contributed.insert(Arc::as_ptr(&fs)) {
+                    continue;
+                }
+                for (name, ranges) in &fs.calls {
+                    match incoming.entry(name.clone()) {
                         std::collections::btree_map::Entry::Vacant(entry) => {
-                            entry.insert(ranges);
+                            entry.insert(ranges.clone());
                         }
                         std::collections::btree_map::Entry::Occupied(mut entry) => {
                             for (a, b) in entry.get_mut().iter_mut().zip(ranges) {
-                                *a = a.hull(b);
+                                *a = a.hull(*b);
                             }
                         }
                     }
@@ -483,7 +534,9 @@ pub(crate) fn fold(
         }
     }
     let mut plans = Vec::new();
-    let mut cache = InputCache::new();
+    if !reuse_rounds {
+        cache.clear();
+    }
     for (index, item) in module.items.iter().enumerate() {
         // Protected symbols retain their ABI and unknown entry arguments;
         // universally safe arithmetic inside their bodies can still simplify.
@@ -492,7 +545,7 @@ pub(crate) fn fold(
             && f.linkage != Linkage::AvailableExternally
             && !f.attrs.contains(&Attr::NoInline)
         {
-            let Some(fs) = cached_facts(f, &world, &mut work, &mut cache) else {
+            let Some(fs) = cached_facts(f, &world, &mut work, &mut cache, MAX_ROUNDS) else {
                 return 0;
             };
             if !fs.flags.is_empty() {
@@ -509,7 +562,7 @@ pub(crate) fn fold(
                     return 0;
                 };
                 work = left;
-                plans.push((index, fs.flags));
+                plans.push((index, fs.flags.clone()));
             }
         }
     }

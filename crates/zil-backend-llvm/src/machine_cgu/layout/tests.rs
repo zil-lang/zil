@@ -2293,3 +2293,132 @@ fn bounded_helpers_check_cost_headers_local_state_and_canonical_addresses() {
         "unused original headers still get preflight"
     );
 }
+
+#[test]
+fn current_partition_rewrites_shared_bodies_once_per_unit_mapping() {
+    let leaf = function("leaf", None);
+    let mut caller = function("caller", Some("leaf"));
+    caller.blocks.as_mut().unwrap()[0].instructions.insert(
+        0,
+        Inst::new(
+            Some("address".into()),
+            Op::Freeze(Arg::new(Ty::Ptr, Val::Global("leaf".into()))),
+        ),
+    );
+    let mut items = vec![Item::Function(leaf)];
+    for id in 0..64 {
+        let mut f = caller.clone();
+        f.name = format!("caller.{id}");
+        items.push(Item::Function(f));
+    }
+    let raw = Module {
+        triple: "x86_64-unknown-linux-gnu".into(),
+        fingerprint: "current".into(),
+        items: items.into(),
+    };
+    zil_llvm_api::validate_module(&raw).unwrap();
+    let mut layout = Layout {
+        units: vec![
+            Unit {
+                owner: 0,
+                prelude: vec![],
+                declarations: vec![],
+                imports: vec![0],
+                definitions: (1..65).collect(),
+            },
+            Unit {
+                owner: 1,
+                prelude: vec![],
+                declarations: vec![],
+                imports: vec![],
+                definitions: vec![0],
+            },
+        ],
+    };
+    for owner in [0, 7] {
+        layout.units[0].owner = owner;
+        // No previous Materialization, exactly the restart-first-request path.
+        let actual = layout.replay(raw.clone());
+        let mut expected = actual.clone();
+        let names = BTreeMap::from([("leaf".into(), format!("zil.import.{owner}.leaf"))]);
+        let mut first = None;
+        for (slot, original) in (2..66).zip(1..65) {
+            let Item::Function(mut ordinary) = raw.items[original].clone() else {
+                unreachable!()
+            };
+            crate::machine_cgu::rewrite_direct_calls(&mut ordinary, &names);
+            expected[0].items[slot] = Item::Function(ordinary);
+            let Item::Function(f) = &actual[0].items[slot] else {
+                unreachable!()
+            };
+            let blocks = f.blocks.as_ref().unwrap();
+            if let Some(first) = first {
+                assert!(blocks.ptr_eq(first));
+            } else {
+                first = Some(blocks);
+            }
+            assert!(
+                matches!(&blocks[0].instructions[0].op, Op::Freeze(Arg { value: Val::Global(n), .. }) if n == "leaf")
+            );
+        }
+        assert_eq!(actual, expected);
+        for unit in &actual {
+            zil_llvm_api::validate_module(unit).unwrap();
+        }
+    }
+    // Exhaust optional retention: the ordinary rewrite still runs in full.
+    let names = BTreeMap::from([("leaf".into(), "other".into())]);
+    let mut rewrites = CallRewrites::new(&names);
+    rewrites.remaining = 0;
+    let mut actual = caller.clone();
+    let mut expected = caller;
+    rewrites.rewrite(&mut actual);
+    crate::machine_cgu::rewrite_direct_calls(&mut expected, &names);
+    assert_eq!(actual, expected);
+    assert!(rewrites.bodies.is_empty());
+}
+
+#[test]
+fn shared_layout_digest_binds_complete_values_independent_of_allocation() {
+    let digest = |items: &[Item]| {
+        let mut state = BufferedHasher::new();
+        hash_shared_items(items, &mut state);
+        state.digest()
+    };
+    let first = function("first", Some("target"));
+    let mut second = first.clone();
+    second.name = "second".into();
+    let original = vec![Item::Function(first), Item::Function(second)];
+    let key = digest(&original);
+    let mut detached = original.clone();
+    if let Item::Function(f) = &mut detached[1] {
+        f.blocks = Some(f.blocks.as_ref().unwrap().to_vec().into());
+    }
+    assert_eq!(digest(&detached), key);
+    for variant in 0..7 {
+        let mut current = original.clone();
+        let Item::Function(f) = &mut current[1] else {
+            unreachable!()
+        };
+        match variant {
+            0 => f.name.push_str(".changed"),
+            1 => f.linkage = Linkage::Internal,
+            2 => f.signature.result = Ty::Int(64),
+            3 => f.attrs.push(Attr::NoInline),
+            4 => f.blocks = None,
+            5 => f.blocks = Some(vec![].into()),
+            6 => {
+                f.blocks.as_mut().unwrap()[0].instructions[0].op =
+                    Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(9))))
+            }
+            _ => unreachable!(),
+        }
+        assert_ne!(digest(&current), key, "current function field {variant}");
+    }
+    let mut types = original.clone();
+    types.push(Item::NamedType("record".into(), vec![Ty::Int(32)]));
+    assert_ne!(digest(&types), key);
+    let before = digest(&types);
+    *types.last_mut().unwrap() = Item::NamedType("record".into(), vec![Ty::Int(64)]);
+    assert_ne!(digest(&types), before);
+}

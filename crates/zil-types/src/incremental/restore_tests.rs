@@ -55,18 +55,24 @@ fn local_scalar_header_memo_shares_bodies_with_actual_current_ids_names_and_byte
             &mut stats,
         ));
         assert_eq!(hints, 2);
+        assert_eq!(stats.reused_result_projections, 1);
         assert_eq!((stats.decode_attempts, stats.decoded_functions), (1, 1));
         assert_eq!(stats.reused_decoded_functions, 1);
         assert_eq!(stats.relabeled_decoded_functions, usize::from(same_id));
         let first = &restored.entries[&items.items[0].input_key];
         let second = &restored.entries[&items.items[1].input_key];
         assert!(!Arc::ptr_eq(&first.function, &second.function));
+        assert_ne!(first.result_fingerprint, second.result_fingerprint);
         assert!(first.function.blocks.ptr_eq(&second.function.blocks));
         assert!(first.function.locals.ptr_eq(&second.function.locals));
         assert!(first.function.values.ptr_eq(&second.function.values));
         for (item, function) in items.items.iter().zip(&functions) {
             let entry = &restored.entries[&item.input_key];
             assert_eq!(entry.function.as_ref(), function);
+            assert_eq!(
+                entry.result_fingerprint,
+                scalar_result_fingerprint(function, function.span).unwrap()
+            );
             assert_eq!(entry.cost, item.cost);
             let encoding = entry.encoding.get().unwrap();
             assert!(Arc::ptr_eq(
@@ -129,6 +135,7 @@ fn local_scalar_header_memo_declines_body_callee_span_abi_and_target_neighbors()
         ));
         assert_eq!((stats.decode_attempts, stats.decoded_functions), (2, 2));
         assert_eq!(stats.reused_decoded_functions, 0);
+        assert_eq!(stats.reused_result_projections, 0);
         assert_eq!(
             restored.entries[&items.items[1].input_key]
                 .function

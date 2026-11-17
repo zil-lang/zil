@@ -121,6 +121,41 @@ fn fixture(prefix: &str) -> FixtureInputs {
 }
 
 #[test]
+fn first_request_after_edit_collects_current_lifetimes_without_a_prior_epoch() {
+    let (original, imports, aliases) = fixture("");
+    let inputs = vec![
+        original[0].clone(),
+        parsed(1, &original[1].source().text.replace("x+3", "x+333")),
+    ];
+    let limits = Limits::default();
+    // Model a restarted process whose first request already has edited bytes.
+    let mut session = ExpandSession::default();
+    let current = run(&mut session, &inputs, &imports, &aliases, &limits).unwrap();
+    assert_eq!(current, raw(&inputs, &imports, &limits).unwrap());
+    assert_eq!(session.last_stats().fused_lifetime_items, 3);
+    assert_eq!(session.last_stats().plain_lifetimes_modules, 0);
+    assert_eq!(session.last_stats().normalized_item_deep_clones, 3);
+    let fees = |session: &ExpandSession| {
+        session
+            .entries
+            .values()
+            .flat_map(|entry| entry.receipts.iter())
+            .filter(|((stage, _), _)| *stage == Stage::Lifetimes)
+            .fold((0, 0), |(nodes, work), (_, r)| {
+                (nodes + r.nodes, work + r.work)
+            })
+    };
+    let cold_fees = fees(&session);
+    assert!(cold_fees.0 > 0 && cold_fees.1 > cold_fees.0);
+    assert_eq!(
+        run(&mut session, &inputs, &imports, &aliases, &limits).unwrap(),
+        current
+    );
+    assert_eq!(session.last_stats().fused_lifetime_items, 0);
+    assert_eq!(fees(&session), cold_fees);
+}
+
+#[test]
 fn fused_scalar_chain_executes_less_work_and_preserves_full_outputs_and_maps() {
     let (inputs, imports, aliases) = fixture("");
     let limits = Limits::default();
@@ -136,6 +171,9 @@ fn fused_scalar_chain_executes_less_work_and_preserves_full_outputs_and_maps() {
         "classification already ran in parsed_scalar"
     );
     assert_eq!(session.last_stats().fused_distributed_items, 3);
+    assert_eq!(session.last_stats().fused_lifetime_items, 3);
+    assert_eq!(session.last_stats().plain_lifetimes_modules, 0);
+    assert!(session.last_stats().fused_lifetime_nodes > 0);
     let fused_nodes = session.last_stats().visited_nodes;
     for entry in session.entries.values() {
         assert!(

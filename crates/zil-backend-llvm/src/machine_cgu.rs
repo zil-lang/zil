@@ -1153,6 +1153,58 @@ fn rewrite_direct_calls(function: &mut Function, names: &BTreeMap<String, String
     }
 }
 
+/// A unit has one immutable direct-call substitution table. Current bodies
+/// shared by several definitions/imports therefore have one rewrite result,
+/// independent of their outer symbol, linkage or ABI. Retain the original
+/// owner while using its address; COW edits and later units cannot alias it.
+struct RewrittenCalls {
+    input: zil_llvm_api::model::SharedVec<zil_llvm_api::model::Block>,
+    output: zil_llvm_api::model::SharedVec<zil_llvm_api::model::Block>,
+}
+struct CallRewrites<'a> {
+    names: &'a BTreeMap<String, String>,
+    bodies: std::collections::HashMap<usize, RewrittenCalls>,
+    remaining: usize,
+}
+impl<'a> CallRewrites<'a> {
+    fn new(names: &'a BTreeMap<String, String>) -> Self {
+        Self {
+            names,
+            bodies: Default::default(),
+            remaining: 1_000_000,
+        }
+    }
+    fn rewrite(&mut self, function: &mut Function) {
+        if self.names.is_empty() {
+            return;
+        }
+        let Some(input) = &function.blocks else {
+            return;
+        };
+        let key = std::ptr::from_ref(&**input) as usize;
+        if let Some(body) = self.bodies.get(&key)
+            && body.input.ptr_eq(input)
+        {
+            function.blocks = Some(body.output.clone());
+            return;
+        }
+        let cost = function.cost();
+        let retain = self.bodies.len() < layout::MAX_ITEMS && cost <= self.remaining;
+        let original = retain.then(|| input.clone());
+        rewrite_direct_calls(function, self.names);
+        if let Some(original) = original {
+            self.remaining -= cost;
+            self.bodies.insert(
+                key,
+                RewrittenCalls {
+                    input: original,
+                    output: function.blocks.as_ref().unwrap().clone(),
+                },
+            );
+        }
+    }
+}
+
 /// Called only by the explicit closed Linux executable build path, after the
 /// ordinary partition. Changing linkage before partition would merge local
 /// call-graph edges and discard available codegen parallelism.

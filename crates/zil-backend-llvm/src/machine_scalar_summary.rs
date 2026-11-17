@@ -482,32 +482,82 @@ impl Plan {
     pub(super) fn count(&self) -> usize {
         self.bodies.len() + self.calls.len()
     }
-    pub(super) fn apply(self, module: &mut Module) {
-        for (item, block, instruction, value) in self.calls {
-            let Item::Function(function) = &mut module.items[item] else {
-                unreachable!()
-            };
-            function.blocks.as_mut().expect("preflighted original")[block].instructions
-                [instruction]
-                .op = Op::Freeze(Arg::new(Ty::Int(value.bits), value.value()));
+    pub(super) fn apply_with_leaves(self, module: &mut Module, leaves: Vec<Replacement>) {
+        // Stage the complete leaf/summary edit set before touching any body.
+        // Previously the two call passes split COW owners independently and
+        // then discarded some of those rewritten bodies for constant summaries.
+        let mut calls = BTreeMap::<usize, Vec<BodyReplacement>>::new();
+        for (item, block, instruction, value) in leaves.into_iter().chain(self.calls) {
+            if !self.bodies.contains_key(&item) {
+                calls
+                    .entry(item)
+                    .or_default()
+                    .push((block, instruction, value));
+            }
         }
-        for (item, value) in self.bodies {
+        let items: BTreeSet<_> = calls.keys().chain(self.bodies.keys()).copied().collect();
+        struct ChangedBody {
+            input: SharedVec<Block>,
+            calls: Vec<BodyReplacement>,
+            constant: Option<Scalar>,
+            output: SharedVec<Block>,
+        }
+        let mut changed = HashMap::<usize, Vec<ChangedBody>>::new();
+        let mut retained = 0usize;
+        let mut retained_work = 0usize;
+        for item in items {
             let Item::Function(function) = &mut module.items[item] else {
                 unreachable!()
             };
-            let name = function.blocks.as_ref().expect("preflighted original")[0]
-                .name
-                .clone();
-            function.blocks = Some(
-                (vec![Block {
-                    name,
-                    instructions: vec![Inst::new(
-                        None,
-                        Op::Return(Some(Arg::new(Ty::Int(value.bits), value.value()))),
-                    )],
-                }])
-                .into(),
-            );
+            let input = function.blocks.as_ref().expect("preflighted original");
+            let key = std::ptr::from_ref(&**input) as usize;
+            let edits = calls.remove(&item).unwrap_or_default();
+            let constant = self.bodies.get(&item).copied();
+            if let Some(body) = changed.get(&key).and_then(|entries| {
+                entries.iter().find(|body| {
+                    body.input.ptr_eq(input) && body.constant == constant && body.calls == edits
+                })
+            }) {
+                function.blocks = Some(body.output.clone());
+                continue;
+            }
+            let input = input.clone();
+            if let Some(value) = constant {
+                function.blocks = Some(
+                    vec![Block {
+                        name: input[0].name.clone(),
+                        instructions: vec![Inst::new(
+                            None,
+                            Op::Return(Some(Arg::new(Ty::Int(value.bits), value.value()))),
+                        )],
+                    }]
+                    .into(),
+                );
+            } else {
+                let blocks = function.blocks.as_mut().expect("preflighted original");
+                for &(block, instruction, value) in &edits {
+                    blocks[block].instructions[instruction].op =
+                        Op::Freeze(Arg::new(Ty::Int(value.bits), value.value()));
+                }
+            }
+            // Bound optional owners/coordinates retained during mutation;
+            // refusal still applies this function's ordinary complete edit set.
+            let cost = input
+                .iter()
+                .fold(input.len(), |n, b| n.saturating_add(b.instructions.len()));
+            if changed.len() < 16_384
+                && retained + edits.len() <= 65_536
+                && cost <= MAX_SUMMARY_WORK.saturating_sub(retained_work)
+            {
+                retained += edits.len();
+                retained_work += cost;
+                changed.entry(key).or_default().push(ChangedBody {
+                    input,
+                    calls: edits,
+                    constant,
+                    output: function.blocks.as_ref().unwrap().clone(),
+                });
+            }
         }
     }
 }

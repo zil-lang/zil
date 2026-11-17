@@ -119,6 +119,20 @@ fn raw_result_fingerprint(function: &TypedFunction) -> Fingerprint {
 // update this result identity. Spans are streamed relative to their actual
 // source function without copying or mutating shared locals/instructions.
 fn scalar_result_fingerprint(function: &TypedFunction, origin: Span) -> Option<Fingerprint> {
+    scalar_result_body(function, origin).map(|body| scalar_result_finish(body, function))
+}
+
+// Keep outer identity last so exact decoder-shared bodies can retain the
+// completed structural projection. This is raw result identity, not a proof.
+fn scalar_result_finish(body: FingerprintBuilder, function: &TypedFunction) -> Fingerprint {
+    use std::fmt::Write;
+    let mut writer = FingerprintWriter(body);
+    write!(&mut writer, "identity:{:?}", (function.id, &function.name))
+        .expect("infallible fingerprint sink");
+    writer.0.digest()
+}
+
+fn scalar_result_body(function: &TypedFunction, origin: Span) -> Option<FingerprintBuilder> {
     use std::fmt::Write;
     let TypedFunction {
         storage_life,
@@ -127,8 +141,8 @@ fn scalar_result_fingerprint(function: &TypedFunction, origin: Span) -> Option<F
         callable_return_contract,
         callable_contract,
         protocol_contract,
-        id,
-        name,
+        id: _,
+        name: _,
         foreign,
         environment,
         parameters,
@@ -157,7 +171,7 @@ fn scalar_result_fingerprint(function: &TypedFunction, origin: Span) -> Option<F
     let mut writer = FingerprintWriter(FingerprintBuilder::new());
     write!(
         &mut writer,
-        "scalar-cfg-result-v1:{:?}",
+        "scalar-cfg-result-v2:{:?}",
         (
             storage_life,
             call_kind,
@@ -165,8 +179,6 @@ fn scalar_result_fingerprint(function: &TypedFunction, origin: Span) -> Option<F
             callable_return_contract,
             callable_contract,
             protocol_contract,
-            id,
-            name,
             foreign,
             environment
         )
@@ -217,7 +229,7 @@ fn scalar_result_fingerprint(function: &TypedFunction, origin: Span) -> Option<F
             .ok()?;
         }
     }
-    Some(writer.0.digest())
+    Some(writer.0)
 }
 
 fn labeled_result_fingerprint(raw: Fingerprint, label: &str) -> Fingerprint {
