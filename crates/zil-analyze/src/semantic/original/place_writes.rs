@@ -246,14 +246,17 @@ impl Solver<'_, '_> {
         next: &Local,
         b: &mut Budget,
     ) -> CompileResult<()> {
+        // Inherited lexical entries include names which this closure never
+        // captures. An unchanged live place has no backedge cleanup debt and
+        // must not be asked for a nonexistent environment ordinal.
+        if !next.live || (old.live && old.vacant.is_empty()) {
+            return Ok(());
+        }
         let anchor = if index < frame.inherited { Some(self.environment_anchor(frame, &old.name, b)?) }
             else { old.anchor };
         let origin = cleanup::Origin::local(frame.definition, anchor, cleanup::Event::Backedge(statement));
         if !old.live && next.live {
             return self.cleanup_partial(old.ty, &[], &next.vacant, &origin, b, 0);
-        }
-        if !next.live {
-            return Ok(());
         }
         // The body was checked assuming these fields empty. If a back edge
         // makes any live again, their next overwrite must independently drop
