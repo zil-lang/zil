@@ -1744,6 +1744,14 @@ pub(super) fn preflight(
         for ty in anonymous {
             check_anonymous_sum(ty, limits, budget)?;
         }
+        // A compiler-owned failure may return a complete Closure input rather
+        // than a direct Managed leaf. Its ErrorUnion, product and input Tuple
+        // must all select the same actual Sum responsibility kernel.
+        if store_element.is_none() && capture_owner.is_none() && !resource_head
+            && super::stored_flow::plain_failure_input_carrier(module, ty, budget)?
+        {
+            new_sum = true;
+        }
         // A Task's result describes its separate frame/result storage. Its
         // nested owning Sum must not turn a Task head or payload metadata into
         // an ordinary materialized Sum root.

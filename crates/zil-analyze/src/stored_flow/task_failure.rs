@@ -63,6 +63,54 @@ pub(super) fn plain_instance(d: &LifeNominalDeclaration, i: &LifeNominalInstance
     }
     Ok(())
 }
+/// The plain failure product and its exact input Tuple are two physical
+/// views of the same complete compiler nominal instance. This recognizes only
+/// representation formation: the Task creator, input origins and cleanup
+/// remain obligations of the executable resource and stored-flow kernels.
+pub(super) fn plain_input_carrier(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let view = match ty {
+        Type::ErrorUnion { error, result }
+            if matches!(result.as_ref(), Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::Task { .. })) => error.as_ref(),
+        other => other,
+    };
+    if !matches!(view, Type::Package { name, .. }
+            if name.starts_with("@std.task:v1:TaskCreateFailure:"))
+        && !matches!(view, Type::Tuple(fields)
+            if fields.iter().any(|field| matches!(field, Type::Closure(_))))
+    {
+        return Ok(false);
+    }
+    let mut found = 0usize;
+    fee(b, module.life_instances.len())?;
+    for instance in &module.life_instances {
+        if instance.declaration != zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE {
+            continue;
+        }
+        let Type::Package { fields, .. } = &instance.ty else { continue; };
+        let [(_, _), (_, inputs @ Type::Tuple(_))] = fields.as_slice() else { continue; };
+        crate::dyn_metadata::ty(&instance.ty, b)?;
+        crate::dyn_metadata::ty(view, b)?;
+        crate::dyn_metadata::ty(inputs, b)?;
+        if view != &instance.ty && view != inputs {
+            continue;
+        }
+        fee(b, module.life_declarations.len())?;
+        let declaration = module.life_declarations.iter()
+            .find(|declaration| declaration.id == instance.declaration)
+            .ok_or_else(|| failure("plain input carrier original declaration is absent"))?;
+        plain_instance(declaration, instance, &instance.ty, b)?;
+        found += 1;
+    }
+    if found > 1 {
+        return Err(failure("plain input carrier has several complete original instances"));
+    }
+    Ok(found == 1)
+}
 fn complete_inputs(inputs: &[Type], b: &mut Budget) -> CompileResult<bool> {
     for t in inputs {
         if t.is_copy_value()

@@ -33,6 +33,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
         ty: &Type,
         budget: &mut Budget,
         scoped: bool,
+        closure_inputs: bool,
     ) -> CompileResult<(bool, bool)> {
         budget.spend(1, "ordinary Sum shape")?;
         // A fully checked anonymous boundary authorizes only this resource
@@ -64,7 +65,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
         if let Type::BorrowedStorage { storage, .. } = ty
             && crate::stored_flow::failure_shape(ty, budget)?
         {
-            return walk(module, storage, budget, true);
+            return walk(module, storage, budget, true, closure_inputs);
         }
         if scoped && matches!(ty, Type::Address { .. }) {
             return Ok((false, false));
@@ -86,12 +87,20 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                     Ok((false, true))
                 }
             }
+            Type::Closure(_) if closure_inputs => {
+                // The complete compiler instance authenticates this input
+                // position. All actual Closure definitions/constructors and
+                // their remaining-environment teardown are still checked by
+                // preflight and the independent executable resource kernel.
+                crate::budget::legacy_value(ty, zil_base::Span::default(), module)?;
+                Ok((false, true))
+            }
             Type::Tuple(fields) => {
                 budget.spend(fields.len(), "ordinary Tuple fields")?;
                 let mut store = false;
                 let mut owner = false;
                 for field in fields {
-                    let (s, o) = walk(module, field, budget, scoped)?;
+                    let (s, o) = walk(module, field, budget, scoped, closure_inputs)?;
                     store |= s;
                     owner |= o;
                 }
@@ -122,7 +131,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                     if n.is_empty() || !names.insert(n) {
                         return Err(error("duplicate Product field"));
                     }
-                    let (has_store, has_owner) = walk(module, t, budget, scoped)?;
+                    let (has_store, has_owner) = walk(module, t, budget, scoped, closure_inputs)?;
                     store |= has_store;
                     owner |= has_owner;
                 }
@@ -152,7 +161,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                         return Err(error("duplicate Enum variant"));
                     }
                     for t in fields {
-                        let (has_store, has_owner) = walk(module, t, budget, scoped)?;
+                        let (has_store, has_owner) = walk(module, t, budget, scoped, closure_inputs)?;
                         store |= has_store;
                         owner |= has_owner;
                     }
@@ -162,16 +171,16 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
             Type::ErrorUnion { error: e, result } => {
                 if crate::nested_store::protocol_payload(ty).is_some() {
                     crate::nested_store::protocol(module, ty, budget)?;
-                    let (a, ao) = walk(module, e, budget, scoped)?;
-                    let (b, bo) = walk(module, result, budget, scoped)?;
+                    let (a, ao) = walk(module, e, budget, scoped, closure_inputs)?;
+                    let (b, bo) = walk(module, result, budget, scoped, closure_inputs)?;
                     return Ok((a || b, ao || bo));
                 }
                 let qualified_failure = crate::stored_flow::failure_shape(e, budget)?;
                 let owning_failure = matches!(result.as_ref(),Type::Managed(t) if matches!(t.as_ref(),Type::Task{..}))
                     && matches!(e.as_ref(),Type::Package{name,fields} if name.starts_with("@std.task:v1:TaskCreateFailure:") && matches!(fields.as_slice(),[(reason,_),(inputs,Type::Tuple(_))] if reason=="reason" && inputs=="inputs"));
                 if owning_failure || qualified_failure {
-                    let (a, ao) = walk(module, e, budget, scoped)?;
-                    let (b, bo) = walk(module, result, budget, scoped)?;
+                    let (a, ao) = walk(module, e, budget, scoped, closure_inputs)?;
+                    let (b, bo) = walk(module, result, budget, scoped, closure_inputs)?;
                     return Ok((a || b, ao || bo));
                 }
                 // Direct Managed success keeps its existing Copy-error rule.
@@ -202,8 +211,8 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                         }
                     }
                 }
-                let (a, b) = walk(module, e, budget, scoped)?;
-                let (c, d) = walk(module, result, budget, scoped)?;
+                let (a, b) = walk(module, e, budget, scoped, closure_inputs)?;
+                let (c, d) = walk(module, result, budget, scoped, closure_inputs)?;
                 Ok((a | c, b | d))
             }
             t if t.is_copy_value() => Ok((false, false)),
@@ -212,7 +221,8 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
             )),
         }
     }
-    walk(module, ty, budget, false).map(|(store, _)| store)
+    let closure_inputs = crate::stored_flow::plain_failure_input_carrier(module, ty, budget)?;
+    walk(module, ty, budget, false, closure_inputs).map(|(store, _)| store)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

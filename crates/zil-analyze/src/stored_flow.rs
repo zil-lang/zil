@@ -76,6 +76,13 @@ pub(super) fn failure_shape(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     }
     task_failure::shape(ty, b)
 }
+pub(super) fn plain_failure_input_carrier(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    task_failure::plain_input_carrier(module, ty, b)
+}
 pub(super) fn failure_borrow_only_unpack(
     f: &TypedFunction,
     i: &Instruction,
