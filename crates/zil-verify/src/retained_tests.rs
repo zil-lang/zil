@@ -580,7 +580,7 @@ fn factory_envelope_can_promise_a_weaker_kind_without_changing_the_actual_entry(
         let at=main.blocks[0].instructions.iter().position(|row|matches!(row.kind,InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..})).unwrap();
         if wanted==CallableKind::FnOnce{
             let callee=main.blocks[0].instructions[at].result.unwrap();let result=ValueId(main.values.len()as u32);main.values.push(main.values[callee.0 as usize].clone());main.values[callee.0 as usize]=Type::Closure(ClosureId(0));let span=main.span;
-            main.blocks[0].instructions.insert(at,op(Some(callee),InstructionKind::TakeLocal(LocalId(0)),span));
+            main.blocks[0].instructions.insert(at,op(Some(callee),InstructionKind::TakeLocal{local:LocalId(0)},span));
             main.blocks[0].instructions[at+1]=op(Some(result),InstructionKind::CallClosureOnce{callee,arguments:vec![]},span);main.blocks[0].terminator=Terminator::Return(Some(result));
         }else{main.blocks[0].instructions[at].kind=InstructionKind::CallClosureMut{callee:LocalId(0),arguments:vec![]};}
 
