@@ -129,7 +129,7 @@ pub(super) struct Budget {
     // Complete zero-Task scope metadata in one bound immutable request:
     // module/resource ordinal, explicit metadata bounds, current raw bounds.
     // This caches no owner, phase, source class, cleanup or caller theorem.
-    pub(super) semantic_task_scopes: BTreeSet<(usize, usize, usize, usize, usize, usize)>,
+    pub(super) semantic_task_scopes: BTreeSet<(usize, usize, usize, usize, [usize; 5])>,
     // Exact constructor occurrences whose complete original class value and
     // actual header embedding have both been proved. No target/loan facts.
     pub(super) semantic_aggregate_classes:

@@ -73,7 +73,8 @@ pub(super) fn zero(
     let cache_key = if b.geometry_module == Some(module_key)
         && b.initialization.as_ref().is_some_and(|cache| cache.module == module_key) {
         Some((module_key, resource_ordinal.expect("unique complete Task resource"),
-            limits.max_nodes, limits.max_call_depth, b.helper_nodes, b.partial_depth))
+            limits.max_nodes, limits.max_call_depth,
+            [b.helper_nodes, b.helper_calls, b.helper_edges, b.helper_depth, b.partial_depth]))
     } else { None };
     if let Some(key) = cache_key {
         b.lookup(b.semantic_task_scopes.len(), "complete immutable Task scope lookup")?;
