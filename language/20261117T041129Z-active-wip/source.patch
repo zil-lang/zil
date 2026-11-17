@@ -1,0 +1,518 @@
+diff --git a/crates/zil-analyze/src/tasks/owned.rs b/crates/zil-analyze/src/tasks/owned.rs
+index fa01cc0d0..dc5e91e7a 100644
+--- a/crates/zil-analyze/src/tasks/owned.rs
++++ b/crates/zil-analyze/src/tasks/owned.rs
+@@ -259,6 +259,133 @@ fn frame_package_instruction(
+     Ok(true)
+ }
+ 
++fn frame_take_instruction(
++    module: &TypedModule,
++    f: &TypedFunction,
++    instruction: &Instruction,
++    budget: &mut Budget,
++) -> CompileResult<bool> {
++    let (local, path) = match &instruction.kind {
++        InstructionKind::TakeTupleField { local, path }
++        | InstructionKind::TakeVariantField { local, path } => (*local, path),
++        _ => return Ok(false),
++    };
++    let root = local_type(f, local, Some(instruction.span))?;
++    if path.is_empty() || !complete_aggregate(module, root, budget)? {
++        return Err(fail(instruction.span, "Task selective take needs its complete actual local and nonempty path"));
++    }
++    budget.spend(path.len().saturating_add(1), "Task actual selective field path")?;
++    let mut selected = root;
++    for step in path {
++        selected = match (step, selected) {
++            (zil_ir::PlaceProjection::Field(index), ty) => {
++                let physical = match ty {
++                    Type::BorrowedStorage { storage, .. } => storage.as_ref(),
++                    other => other,
++                };
++                match physical {
++                    Type::Tuple(fields) => fields.get(*index as usize),
++                    Type::Record { fields, .. } | Type::Package { fields, .. } => {
++                        fields.get(*index as usize).map(|(_, ty)| ty)
++                    }
++                    _ => None,
++                }
++            }
++            (zil_ir::PlaceProjection::Variant(selector), Type::Enum { variants, .. }) => variants
++                .get(selector.variant as usize)
++                .and_then(|(_, fields)| fields.get(selector.index as usize)),
++            (zil_ir::PlaceProjection::ErrorArm(error), Type::ErrorUnion { error: failure, result }) => {
++                Some(if *error { failure.as_ref() } else { result.as_ref() })
++            }
++            _ => None,
++        }.ok_or_else(|| fail(instruction.span, "Task selective take path differs from its actual local layout"))?;
++    }
++    let output = instruction.result
++        .ok_or_else(|| fail(instruction.span, "Task selective take lacks its actual result"))?;
++    let result = value_type(f, output, Some(instruction.span))?;
++    budget.type_work(selected, false, "Task complete selected field")?;
++    budget.type_work(result, false, "Task complete selective take result")?;
++    if selected != result {
++        return Err(fail(instruction.span, "Task selective take changes its complete actual field type or mode"));
++    }
++    // This is the same path followed by the native typed GEP/load and partial
++    // live flags. The ordinary Sum/resource kernels independently prove its
++    // current tag, initialization, unique move, source and no-later-use facts.
++    Ok(true)
++}
++
++fn frame_storage_instruction(
++    module: &TypedModule,
++    f: &TypedFunction,
++    instruction: &Instruction,
++    budget: &mut Budget,
++) -> CompileResult<bool> {
++    // Both helper graphs and persistent workers pay and consume this exact
++    // physical instruction inventory. Call/creation/protocol/root-specific
++    // qualifications remain in their callers; this grants no live owner,
++    // active Sum tag, access permission, source or synchronous Drop proof.
++    budget.spend(1, "actual Task frame operation")?;
++    if frame_store_instruction(module, f, instruction, budget)?
++        || frame_closure_instruction(module, f, instruction, budget)?
++        || frame_tag_local_instruction(module, f, instruction, budget)?
++        || frame_package_instruction(module, f, instruction, budget)?
++        || frame_take_instruction(module, f, instruction, budget)?
++        || frame_static_read_instruction(module, f, instruction, budget)?
++    {
++        return Ok(true);
++    }
++    Ok(matches!(&instruction.kind,
++                    InstructionKind::Constant(_)
++                    | InstructionKind::Load(_)
++                    | InstructionKind::Store { .. }
++                    | InstructionKind::StorageLive(_)
++                    | InstructionKind::StorageDead(_)
++                    | InstructionKind::ScopeEnter { .. }
++                    | InstructionKind::ScopeExit { .. }
++                    | InstructionKind::ReadDesc { .. }
++                    | InstructionKind::WriteDesc { .. }
++                    | InstructionKind::UnsafeEnter { .. }
++                    | InstructionKind::UnsafeExit { .. }
++                    | InstructionKind::MakeManaged { .. }
++                    | InstructionKind::DropManaged { .. }
++                    | InstructionKind::TakeLocal { .. }
++                    | InstructionKind::DescribeLocal { .. }
++                    | InstructionKind::Unary { .. }
++                    | InstructionKind::Binary { .. }
++                    | InstructionKind::ByteBufferNew
++                    | InstructionKind::ByteBufferReserve { .. }
++                    | InstructionKind::ByteBufferPush { .. }
++                    | InstructionKind::ByteBufferTruncate { .. }
++                    | InstructionKind::ByteBufferLen { .. }
++                    | InstructionKind::ByteBufferCapacity { .. }
++                    | InstructionKind::ByteBufferBorrow { .. }
++                    | InstructionKind::ConvertInteger { .. }
++                    | InstructionKind::MakeAggregate { .. }
++                    | InstructionKind::MakeVariant { .. }
++                    | InstructionKind::VariantTag { .. }
++                    | InstructionKind::ReadVariant { .. }
++                    | InstructionKind::MakeErrorUnion { .. }
++                    | InstructionKind::ErrorTag { .. }
++                    | InstructionKind::TakeErrorUnion { .. }
++                    | InstructionKind::UnpackTuple { .. }
++                    | InstructionKind::DropErrorUnion { .. }
++                    | InstructionKind::ConvertNumber { .. }
++                    | InstructionKind::MakeOwnedTuple { .. }
++                    | InstructionKind::DropTuple { .. }
++                    | InstructionKind::MakePackage { .. }
++                    | InstructionKind::DropPackage { .. }
++                    | InstructionKind::TakePackageField { .. }
++                    | InstructionKind::StorePackageField { .. }
++                    | InstructionKind::DropPackageField { .. }
++                    | InstructionKind::VariantTagLocal { .. }
++                    | InstructionKind::ReadVariantLocal { .. }
++                    | InstructionKind::UnpackVariant { .. }
++                    | InstructionKind::DropEnum { .. }
++                    | InstructionKind::BorrowPlaceLocal { .. }
++                    | InstructionKind::ReadErrorUnion { .. }
++    ))
++}
++
+ fn static_byte_view(t: &Type) -> bool {
+     matches!(t, Type::Address { mutable: false, inner }
+         if inner.as_ref() == &Type::U8
+@@ -1358,12 +1485,7 @@ fn helper_graph_uncached(
+         }
+         for b in &f.blocks {
+             for i in &b.instructions {
+-                budget.spend(1, "actual owning task profile")?;
+-                if frame_store_instruction(module, f, i, budget)?
+-                    || frame_closure_instruction(module, f, i, budget)?
+-                    || frame_tag_local_instruction(module, f, i, budget)?
+-                    || frame_package_instruction(module, f, i, budget)?
+-                    || frame_static_read_instruction(module, f, i, budget)?
++                if frame_storage_instruction(module, f, i, budget)?
+                 {
+                     continue;
+                 }
+@@ -1394,57 +1516,7 @@ fn helper_graph_uncached(
+                     InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
+                     | InstructionKind::AsyncRegistrationFinishDestroy { .. }
+                         if closed_retirement || task_factory => {}
+-                    InstructionKind::Constant(_)
+-                    | InstructionKind::Load(_)
+-                    | InstructionKind::Store { .. }
+-                    | InstructionKind::StorageLive(_)
+-                    | InstructionKind::StorageDead(_)
+-                    | InstructionKind::ScopeEnter { .. }
+-                    | InstructionKind::ScopeExit { .. }
+-                    | InstructionKind::ReadDesc { .. }
+-                    | InstructionKind::WriteDesc { .. }
+-                    | InstructionKind::UnsafeEnter { .. }
+-                    | InstructionKind::UnsafeExit { .. }
+-                    | InstructionKind::MakeManaged { .. }
+-                    | InstructionKind::DropManaged { .. }
+-                    | InstructionKind::TakeLocal { .. }
+-                    | InstructionKind::DescribeLocal { .. }
+-                    | InstructionKind::Unary { .. }
+-                    | InstructionKind::Binary { .. }
+-                    | InstructionKind::ByteBufferNew
+-                    | InstructionKind::ByteBufferReserve { .. }
+-                    | InstructionKind::ByteBufferPush { .. }
+-                    | InstructionKind::ByteBufferTruncate { .. }
+-                    | InstructionKind::ByteBufferLen { .. }
+-                    | InstructionKind::ByteBufferCapacity { .. }
+-                    | InstructionKind::ByteBufferBorrow { .. }
+-                    | InstructionKind::ConvertInteger { .. }
+-                    | InstructionKind::MakeAggregate { .. }
+-                    | InstructionKind::MakeVariant { .. }
+-                    | InstructionKind::VariantTag { .. }
+-                    | InstructionKind::ReadVariant { .. }
+-                    | InstructionKind::MakeErrorUnion { .. }
+-                    | InstructionKind::ErrorTag { .. }
+-                    | InstructionKind::TakeErrorUnion { .. }
+-                    | InstructionKind::TakeTupleField { .. }
+-                    | InstructionKind::TakeVariantField { .. }
+-                    | InstructionKind::UnpackTuple { .. }
+-                    | InstructionKind::DropErrorUnion { .. }
+-                    | InstructionKind::ConvertNumber { .. }
+-                    | InstructionKind::MakeOwnedTuple { .. }
+-                    | InstructionKind::DropTuple { .. }
+-                    | InstructionKind::MakePackage { .. }
+-                    | InstructionKind::DropPackage { .. }
+-                    | InstructionKind::TakePackageField { .. }
+-                    | InstructionKind::StorePackageField { .. }
+-                    | InstructionKind::DropPackageField { .. }
+-                    | InstructionKind::VariantTagLocal { .. }
+-                    | InstructionKind::ReadVariantLocal { .. }
+-                    | InstructionKind::UnpackVariant { .. }
+-                    | InstructionKind::DropEnum { .. }
+-                    | InstructionKind::PlaceTagLocal { .. }
+-                    | InstructionKind::BorrowPlaceLocal { .. }
+-                    | InstructionKind::ReadErrorUnion { .. } => {}
++
+                     _ => {
+                         return Err(reject(
+                             "E-VERIFY-TASK",
+@@ -1556,12 +1628,7 @@ pub(super) fn profile(
+     let mut children = vec![];
+     for b in &f.blocks {
+         for i in &b.instructions {
+-            budget.spend(1, "actual owning task profile")?;
+-            if frame_store_instruction(module, f, i, budget)?
+-                || frame_closure_instruction(module, f, i, budget)?
+-                || frame_tag_local_instruction(module, f, i, budget)?
+-                || frame_package_instruction(module, f, i, budget)?
+-                || frame_static_read_instruction(module, f, i, budget)?
++            if frame_storage_instruction(module, f, i, budget)?
+             {
+                 continue;
+             }
+@@ -1606,37 +1673,9 @@ pub(super) fn profile(
+                 | InstructionKind::AsyncRegistrationPollClose { .. }
+                 | InstructionKind::AsyncRegistrationFinishDestroy { .. }
+                 | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
+-                | InstructionKind::UnsafeEnter { .. }
+-                | InstructionKind::UnsafeExit { .. }
+-                | InstructionKind::Constant(_)
+-                | InstructionKind::Load(_)
+-                | InstructionKind::Store { .. }
+-                | InstructionKind::StorageLive(_)
+-                | InstructionKind::StorageDead(_)
+-                | InstructionKind::ScopeEnter { .. }
+-                | InstructionKind::ScopeExit { .. }
+-                | InstructionKind::Unary { .. }
+-                | InstructionKind::Binary { .. }
+-                | InstructionKind::ByteBufferNew
+-                | InstructionKind::ByteBufferReserve { .. }
+-                | InstructionKind::ByteBufferPush { .. }
+-                | InstructionKind::ByteBufferTruncate { .. }
+-                | InstructionKind::ByteBufferLen { .. }
+-                | InstructionKind::ByteBufferCapacity { .. }
+-                | InstructionKind::ByteBufferBorrow { .. }
+-                | InstructionKind::ConvertInteger { .. }
+                 | InstructionKind::TaskYield
+-                | InstructionKind::MakeManaged { .. }
+-                | InstructionKind::TakeLocal { .. }
+-                | InstructionKind::DescribeLocal { .. }
+-                | InstructionKind::ReadDesc { .. }
+-                | InstructionKind::WriteDesc { .. }
+-                | InstructionKind::DropManaged { .. }
+-                | InstructionKind::MakeOwnedTuple { .. }
+-                | InstructionKind::DropTuple { .. }
+                 | InstructionKind::ExtractField { .. }
+                 | InstructionKind::BorrowFieldLocal { .. }
+-                | InstructionKind::BorrowPlaceLocal { .. }
+                 | InstructionKind::ReadAddress { .. }
+                 | InstructionKind::WriteAddress { .. }
+                 | InstructionKind::BorrowLocal { .. }
+@@ -1644,28 +1683,7 @@ pub(super) fn profile(
+                 | InstructionKind::AddressField { .. }
+                 | InstructionKind::AddressIndex { .. }
+                 | InstructionKind::AddressSlice { .. }
+-                | InstructionKind::ReborrowAddress { .. }
+-                | InstructionKind::MakePackage { .. }
+-                | InstructionKind::DropPackage { .. }
+-                | InstructionKind::TakePackageField { .. }
+-                | InstructionKind::StorePackageField { .. }
+-                | InstructionKind::DropPackageField { .. }
+-                | InstructionKind::MakeAggregate { .. }
+-                | InstructionKind::MakeVariant { .. }
+-                | InstructionKind::VariantTag { .. }
+-                | InstructionKind::ReadVariant { .. }
+-                | InstructionKind::VariantTagLocal { .. }
+-                | InstructionKind::ReadVariantLocal { .. }
+-                | InstructionKind::UnpackVariant { .. }
+-                | InstructionKind::DropEnum { .. }
+-                | InstructionKind::MakeErrorUnion { .. }
+-                | InstructionKind::ErrorTag { .. }
+-                | InstructionKind::TakeErrorUnion { .. }
+-                | InstructionKind::TakeTupleField { .. }
+-                | InstructionKind::UnpackTuple { .. }
+-                | InstructionKind::DropErrorUnion { .. }
+-                | InstructionKind::ConvertNumber { .. }
+-                | InstructionKind::ReadErrorUnion { .. } => {}
++                | InstructionKind::ReborrowAddress { .. } => {}
+                 _ => {
+                     return Err(reject(
+                         "E-VERIFY-TASK",
+diff --git a/crates/zil-expand/src/source_semantic_static_results.rs b/crates/zil-expand/src/source_semantic_static_results.rs
+index 77f10bd61..9b424db1a 100644
+--- a/crates/zil-expand/src/source_semantic_static_results.rs
++++ b/crates/zil-expand/src/source_semantic_static_results.rs
+@@ -565,7 +565,7 @@ mod tests {
+             ("fn make(input:&[u8])->impl Fn()->&[u8]{let pair=(\"A\",7);return move()=>{return pair.0;return input;};}", true),
+             ("fn make()->impl Fn()->&[u8]{let text=\"A\";let pair=Pair{text,tag:7};let alias=pair;return move()=>alias.text;}", true),
+             ("fn make(input:&[u8])->impl Fn()->&[u8]{let pair=Pair{text:input,tag:7};return move()=>pair.text;}", false),
+-            ("fn make(input:&[u8])->impl Fn()->&[u8]{let pair=Pair{text:\"A\",tag:7};return move()=>{let Pair{text,tag:_}=pair;return text;};}", true),
++            ("fn make(input:&[u8])->impl Fn()->&[u8]{let pair=Pair{text:\"A\",tag:7};return move()=>{let Pair{text:text,tag:_}=pair;return text;};}", true),
+             ("fn make()->impl Fn()->&[u8]{let pair=(\"A\",7);return move()=>{match pair{(text,_)=>{return text;}}};}", true),
+             (
+                 "fn make(input:&[u8])->impl Fn()->&[u8]{return move()=>{return \"abc\";return input;};}",
+@@ -603,7 +603,7 @@ mod tests {
+             ),
+         ] {
+             let source = SourceUnit::new(FileId(0), ModuleId(0), "literal-origin.zil", text);
+-            let module = zil_syntax::parse(&source).into_result().unwrap();
++            let module = zil_syntax::parse(&source).into_result().unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+             let function = module
+                 .items
+                 .iter()
+diff --git a/crates/zil-types/src/inference.rs b/crates/zil-types/src/inference.rs
+index 5ce2ddd8e..7c14f7e9f 100644
+--- a/crates/zil-types/src/inference.rs
++++ b/crates/zil-types/src/inference.rs
+@@ -3225,6 +3225,18 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+             )),
+         }
+     }
++    /// A field of a product has its whole address type, unlike a scalar
++    /// operand. Keep the exact pointee variable and permission in the existing
++    /// graph; actual qualification, captures and loans remain Builder duties.
++    fn aggregate_field_variable(&mut self, term: &Term, span: Span) -> R<Variable> {
++        if let Term::Address(inner, mutable) = term {
++            let result = self.fresh(VALUE, false, span)?;
++            self.graph.address(result, *inner, Some(*mutable), span)?;
++            Ok(result)
++        } else {
++            self.scalar(term, span)
++        }
++    }
+     fn input_pattern(
+         &mut self,
+         pattern: &CorePattern,
+@@ -6447,7 +6459,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+             let result = self.fresh(VALUE, false, span)?;
+             self.graph
+                 .project(base, Projection::Field(member.clone()), result, span)?;
+-            return Ok(Term::Scalar(result));
++            return self.pattern_term(result, span);
+         };
+         let imports = self.imports.expect("module term has imports");
+         let signature = imports.signatures[&module].get(member).ok_or_else(|| {
+@@ -6537,7 +6549,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+                 self.bind(variable, &ty, item.span)?;
+                 variable
+             } else {
+-                self.scalar(&term, item.span)?
++                self.aggregate_field_variable(&term, item.span)?
+             };
+             fields.push(field);
+         }
+@@ -6597,7 +6609,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+             if let Some(id) = callback {
+                 self.unify(&Term::Closure(id), &term, item.span)?;
+             } else {
+-                self.unify(&Term::Scalar(element), &term, item.span)?;
++                let field = self.aggregate_field_variable(&term, item.span)?;
++                self.graph.unify(element, field, item.span)?;
+             }
+         }
+         if let Some(element) = callback {
+@@ -6643,7 +6656,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+                 .project(base, Projection::Field(name.clone()), result, value.span)?;
+             let hint = self.graph.ty(result)?;
+             let actual = self.expr_expected(value, hint.as_ref(), depth + 1, false)?;
+-            self.unify(&Term::Scalar(result), &actual, value.span)?;
++            let actual = self.aggregate_field_variable(&actual, value.span)?;
++            self.graph.unify(result, actual, value.span)?;
+         }
+         Ok(base)
+     }
+@@ -6667,7 +6681,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+         let base = self.projection_base(&base, span)?;
+         self.graph
+             .project(base, Projection::Element, result, span)?;
+-        Ok(Term::Scalar(result))
++        self.pattern_term(result, span)
+     }
+ 
+     #[inline(never)]
+@@ -7156,3 +7170,76 @@ pub(super) fn unconsumed_inventory(_core: &CoreModule) -> R<()> {
+     // project graph and runs after name/type resolution.
+     Ok(())
+ }
++
++#[cfg(test)]
++mod address_product_tests {
++    use super::*;
++    use zil_base::{FileId, ModuleId, SourceUnit};
++
++    fn inferred(text: &str) -> CoreModule {
++        let source = SourceUnit::new(FileId(0), ModuleId(0), "address-products.zil", text);
++        let parsed = zil_syntax::parse(&source).into_result()
++            .unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
++        let core = zil_expand::expand(&source, &parsed)
++            .unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
++        infer_source_closures(&core, &Limits::default())
++            .unwrap_or_else(|errors| panic!("{text}: {errors:?}"))
++    }
++
++    #[test]
++    fn address_product_inference_preserves_complete_pointee_and_permission() {
++        for (text, mutable, pointee) in [
++            (
++                "fn make()->impl FnOnce()->&[u8]{\n let pair=(\"A\",7i32)\n return move()=>{return pair.0}\n}\nfn main()->i32{\n let callback=make()\n let text=callback()\n return i32(text[0])-65\n}\n",
++                false,
++                Type::Slice { element: Box::new(Type::U8) },
++            ),
++            (
++                "fn main()->i32{let value=7;let pair=(&value,0);let callback=move()=>*pair.0;return callback();}",
++                false,
++                Type::I32,
++            ),
++            (
++                "fn main()->i32{var value=7;let pair=(&mut value,0);var callback=move()=>{*pair.0=9;return *pair.0;};return callback();}",
++                true,
++                Type::I32,
++            ),
++        ] {
++            let core = inferred(text);
++            let ty = core.functions.iter().flat_map(|function| &function.body.statements)
++                .find_map(|statement| match &statement.kind {
++                    CoreStatementKind::Binding { name, ty, .. } if name == "pair" => ty.as_ref(),
++                    _ => None,
++                }).expect("actual tuple binding must have its inferred whole type");
++            assert_eq!(ty, &Type::Tuple(vec![
++                Type::Address { mutable, inner: Box::new(pointee) }, Type::I32,
++            ]), "{text}");
++        }
++    }
++
++    #[test]
++    fn nested_address_array_projection_retains_its_whole_element() {
++        let core = inferred("fn main()->i32{let pair=([\"A\",\"B\"],7);let alias=pair;let callback=move()=>{let text=alias.0[0];return i32(text[0])-65;};return callback();}");
++        let main = core.functions.iter().find(|function| function.name == "main").unwrap();
++        let ty = main.body.statements.iter().find_map(|statement| match &statement.kind {
++            CoreStatementKind::Binding { name, ty, .. } if name == "pair" => ty.as_ref(),
++            _ => None,
++        }).unwrap();
++        assert_eq!(ty, &Type::Tuple(vec![Type::Array {
++            element: Box::new(utf8_literals::ty()), length: 2,
++        }, Type::I32]));
++    }
++
++    #[test]
++    fn address_projection_does_not_grant_exclusive_access() {
++        let text = "fn main()->i32{let value=7;let pair=(&value,0);var callback=move()=>{*pair.0=9;return *pair.0;};return callback();}";
++        let source = SourceUnit::new(FileId(0), ModuleId(0), "shared-product.zil", text);
++        let parsed = zil_syntax::parse(&source).into_result().unwrap();
++        let core = zil_expand::expand(&source, &parsed).unwrap();
++        let errors = infer_source_closures(&core, &Limits::default()).unwrap_err();
++        assert!(errors.iter().any(|error| error.phase == Phase::Types
++            && error.category == zil_base::ResultCategory::SafeReject
++            && error.code == "E-OPERATOR-TYPE"
++            && error.message == "dereference requires a shared address"), "{errors:?}");
++    }
++}
+diff --git a/crates/zil-verify/src/registration.rs b/crates/zil-verify/src/registration.rs
+index 33a662447..4e468969f 100644
+--- a/crates/zil-verify/src/registration.rs
++++ b/crates/zil-verify/src/registration.rs
+@@ -684,20 +684,20 @@ pub(crate) fn transfer_callback(
+ mod static_capture_tests{
+     use super::*;
+     #[test]
+-    fn closed_static_capture_keeps_exact_nested_slot_and_final_grounding_raw_wire(){
++    fn closed_static_capture_keeps_exact_slot_and_final_grounding_raw_wire(){
+         let limits=Limits::default();
+         let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
+         let leaf=Type::Address{mutable:false,inner:Box::new(Type::Slice{element:Box::new(Type::U8)})};
+-        let position=StoragePosition{base:StorageBase::Capture(0),path:vec![ContractProjection::Place(PlaceProjection::Field(0))]};
++        let position=StoragePosition{base:StorageBase::Capture(0),path:vec![]};
+         let header=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],static_bindings:vec![position.clone()],classes:vec![]};
+         let entry=&mut module.functions[0];entry.environment=Some(ClosureId(0));entry.storage_life=Some(header.clone());entry.parameters.clear();entry.locals.clear();entry.values=vec![Type::I32];entry.return_type=Type::I32;
+         entry.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::Constant(Constant::I32(0)),span}];entry.blocks[0].terminator=Terminator::Return(Some(ValueId(0)));
+-        module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![Type::Tuple(vec![leaf,Type::I32])],parameters:vec![],result:Type::I32,kind:CallableKind::Fn,storage_life:Some(header),lending_captures:vec![]});
++        module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![leaf,Type::I32],parameters:vec![],result:Type::I32,kind:CallableKind::Fn,storage_life:Some(header),lending_captures:vec![]});
+         for mutation in 0..5{
+             let mut proposed=module.clone();
+             match mutation{
+-                1=>proposed.closures[0].storage_life.as_mut().unwrap().static_bindings[0].path[0]=ContractProjection::Place(PlaceProjection::Field(1)),
+-                2=>{let Type::Tuple(fields)=&mut proposed.closures[0].captures[0]else{unreachable!()};let Type::Address{mutable,..}=&mut fields[0]else{unreachable!()};*mutable=true;},
++                1=>proposed.closures[0].storage_life.as_mut().unwrap().static_bindings[0].path.push(ContractProjection::Place(PlaceProjection::Field(0))),
++                2=>{let Type::Address{mutable,..}=&mut proposed.closures[0].captures[0]else{unreachable!()};*mutable=true;},
+                 3=>proposed.functions[0].call_kind=CallKind::Suspend,
+                 4=>proposed.closures[0].storage_life=None,
+                 _=>{},
+@@ -710,6 +710,25 @@ mod static_capture_tests{
+                 if mutation==0{
+                     result.unwrap();assert!(b.proven_static_occurrences.is_empty());assert!(b.static_borrow_occurrences);assert!(b.semantic_static_occurrences.contains(&(ClosureId(0),position.clone())));
+                     assert!(crate::semantic::callable_obligations::drain(current,&mut b).is_err(),"a structural Static row is no actual source proof, wire {wire}");
++                    // Projection is a separate obligation from complete signature
++                    // formation. This raw nested directory exercises the selector
++                    // without claiming that the Tuple is a checked CE signature.
++                    let mut nested=current.clone();
++                    let original=nested.closures[0].captures[0].clone();
++                    nested.closures[0].captures[0]=Type::Tuple(vec![original,Type::I32]);
++                    let mut nested_position=position.clone();
++                    nested_position.path.push(ContractProjection::Place(PlaceProjection::Field(0)));
++                    nested.closures[0].storage_life.as_mut().unwrap().static_bindings=vec![nested_position.clone()];
++                    nested.functions[0].storage_life=nested.closures[0].storage_life.clone();
++                    assert!(semantic_closed_environment(&nested,ClosureId(0),&mut Budget::new(&limits)).is_err(),"the original raw nested Tuple has no complete signature directory, wire {wire}");
++                    let mut pending=Budget::new(&limits);
++                    crate::semantic::task_domains::defer_static_capture(&nested,ClosureId(0),&nested_position,&mut pending).unwrap();
++                    assert!(pending.proven_static_occurrences.is_empty());
++                    assert!(pending.semantic_static_occurrences.contains(&(ClosureId(0),nested_position.clone())));
++                    nested_position.path[0]=ContractProjection::Place(PlaceProjection::Field(1));
++                    nested.closures[0].storage_life.as_mut().unwrap().static_bindings=vec![nested_position.clone()];
++                    nested.functions[0].storage_life=nested.closures[0].storage_life.clone();
++                    assert!(crate::semantic::task_domains::defer_static_capture(&nested,ClosureId(0),&nested_position,&mut pending).is_err(),"scalar sibling is no static borrow leaf, wire {wire}");
+                 }else{assert!(result.is_err(),"closed Static capture attack {mutation}, wire {wire}");}
+             }
+         }
