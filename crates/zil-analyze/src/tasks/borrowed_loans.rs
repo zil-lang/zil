@@ -218,8 +218,9 @@ fn returned_carrier(
             let mut path = owner.clone();
             path.push(ContractProjection::RetainedPort(u32::try_from(ordinal)
                 .map_err(|_| bad("returned Task port ordinal overflows"))?));
+            let port_count = b.task_retained_roots[f.id.0 as usize][output.0 as usize].len();
+            b.lookup(port_count, "returned Task exact actual port source")?;
             let ports = &b.task_retained_roots[f.id.0 as usize][output.0 as usize];
-            b.lookup(ports.len(), "returned Task exact actual port source")?;
             let roots = ports.get(&path).ok_or_else(|| fail(i.span,
                 "returned Task omits an actual physical retained port source"))?;
             fee(b, roots.len().saturating_mul(2))?;
