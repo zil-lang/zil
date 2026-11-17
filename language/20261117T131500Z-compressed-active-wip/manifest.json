@@ -1,0 +1,17 @@
+{
+  "source_base": "861fd762f28aec292dfed2341e6adbd250213308",
+  "status": "Unverified active WIP; no functional acceptance",
+  "snapshot_utc": "20261117T131500Z",
+  "scope": [
+    "crates",
+    "tests/language-readiness/task-owner-transport",
+    "spec/semantic-scopes.md",
+    "_zil_design.md"
+  ],
+  "changed_files": {
+    "crates/zil-expand/src/source_semantic_cleanup_candidates.rs": "91687dd3ec03f552f64fbf54b0bc4d9b67f48cb75b9aa786a032734d6afcb5b7"
+  },
+  "untracked_files": [],
+  "stable_double_read": true,
+  "restore": "Checkout source_base, apply source.patch, and copy untracked/ into that checkout. Evidence has its own candidate provenance; do not infer acceptance from archive."
+}
