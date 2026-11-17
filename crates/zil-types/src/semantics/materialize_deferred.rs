@@ -11,7 +11,13 @@ struct Pending<'a> {
 }
 
 impl Eval<'_, '_, '_> {
-    fn deferred_nominal(
+    fn deferred_logical_nominal(
+        &mut self, scope: SemanticInstanceId, recipe: &SemanticTypeRecipe,
+        hint: LogicalExpected<'_>, depth: usize, pending: &mut Pending<'_>,
+    ) -> R<()> {
+        hint.materialize(|ty| self.deferred_physical_nominal(scope, recipe, ty, depth, pending))
+    }
+    fn deferred_physical_nominal(
         &mut self,
         scope: SemanticInstanceId,
         recipe: &SemanticTypeRecipe,
@@ -29,7 +35,7 @@ impl Eval<'_, '_, '_> {
                 _,
             ) => {
                 let recipe = self.original_type_view(scope, *selector, source, depth + 1)?;
-                self.deferred_nominal(scope, &recipe, hint, depth + 1, pending)
+                self.deferred_physical_nominal(scope, &recipe, hint, depth + 1, pending)
             }
             (
                 SemanticTypeRecipe::Nominal {
@@ -151,14 +157,14 @@ impl Eval<'_, '_, '_> {
                 Type::Array {
                     element: actual, ..
                 },
-            ) => self.deferred_nominal(scope, recipe, actual, depth + 1, pending),
+            ) => self.deferred_physical_nominal(scope, recipe, actual, depth + 1, pending),
             (SemanticTypeRecipe::Tuple(recipes), Type::Tuple(actuals)) => {
                 self.fee(recipes.len().saturating_add(actuals.len()))?;
                 if recipes.len() != actuals.len() {
                     return Err(bad("pending tuple use changes its original arity"));
                 }
                 for (recipe, actual) in recipes.iter().zip(actuals) {
-                    self.deferred_nominal(scope, recipe, actual, depth + 1, pending)?;
+                    self.deferred_physical_nominal(scope, recipe, actual, depth + 1, pending)?;
                 }
                 Ok(())
             }
@@ -169,8 +175,8 @@ impl Eval<'_, '_, '_> {
                     result: actual_result,
                 },
             ) => {
-                self.deferred_nominal(scope, error, actual_error, depth + 1, pending)?;
-                self.deferred_nominal(scope, result, actual_result, depth + 1, pending)
+                self.deferred_physical_nominal(scope, error, actual_error, depth + 1, pending)?;
+                self.deferred_physical_nominal(scope, result, actual_result, depth + 1, pending)
             }
             _ => Ok(()),
         }
@@ -233,13 +239,13 @@ pub(crate) fn populate(
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Parameter(index as u32),
                 };
-                eval.deferred_nominal(instance.id, &recipe, ty, 0, &mut pending)?;
+                eval.deferred_physical_nominal(instance.id, &recipe, ty, 0, &mut pending)?;
             }
             let recipe = SemanticTypeRecipe::OriginalType {
                 scope: SemanticScopeRef::Ancestor(0),
                 source: SemanticOriginalTypeSource::Result,
             };
-            eval.deferred_nominal(instance.id, &recipe, function.result()?, 0, &mut pending)?;
+            eval.deferred_physical_nominal(instance.id, &recipe, function.result()?, 0, &mut pending)?;
         }
         for site in &program.sites {
             let function = eval.function(site.instance)?;
@@ -266,10 +272,8 @@ pub(crate) fn populate(
                 let Some(result) = operation.result else {
                     continue;
                 };
-                let hint = function
-                    .values
-                    .get(result.0 as usize)
-                    .ok_or_else(|| bad("pending call result has no actual whole type"))?;
+                let hint = logical_operand(eval.ledger, eval.module, function,
+                    &SemanticOperand::Value(result), eval.limits, eval.left)?;
                 let owner = eval.instance(site.instance)?.definition;
                 let original = eval.definition(owner)?;
                 let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body
@@ -291,46 +295,41 @@ pub(crate) fn populate(
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Expression(node),
                 };
-                eval.deferred_nominal(site.instance, &recipe, hint, 0, &mut pending)?;
+                eval.deferred_logical_nominal(site.instance, &recipe, hint, 0, &mut pending)?;
                 continue;
             }
             let (value, hint) = match &site.action {
                 SemanticSiteAction::Construct {
                     result: SemanticOperand::Value(result),
                     value,
-                } => (value, function.values.get(result.0 as usize)),
+                } => (value, logical_operand(eval.ledger, eval.module, function,
+                    &SemanticOperand::Value(*result), eval.limits, eval.left)?),
                 SemanticSiteAction::DeclareLocal {
                     local: SemanticLocalTarget::Typed(local),
                     expected,
                 } => (
                     expected,
-                    match eval.ledger.closure_slot_type(function, *local, eval.limits, eval.left)? {
-                        Some(logical) => Some(logical),
-                        None => function.locals.get(local.0 as usize).map(|local| &local.ty),
-                    },
+                    LogicalExpected::local(eval.ledger.logical_local_type(function, *local, eval.limits, eval.left)?),
                 ),
                 SemanticSiteAction::TypeUse {
                     subject: SemanticOperand::Value(value),
                     expected,
-                } => (expected, function.values.get(value.0 as usize)),
+                } => (expected, logical_operand(eval.ledger, eval.module, function,
+                    &SemanticOperand::Value(*value), eval.limits, eval.left)?),
                 SemanticSiteAction::TypeUse {
                     subject: SemanticOperand::Local(local),
                     expected,
                 } => (
                     expected,
-                    match eval.ledger.closure_slot_type(function, *local, eval.limits, eval.left)? {
-                        Some(logical) => Some(logical),
-                        None => function.locals.get(local.0 as usize).map(|local| &local.ty),
-                    },
+                    LogicalExpected::local(eval.ledger.logical_local_type(function, *local, eval.limits, eval.left)?),
                 ),
                 _ => continue,
             };
-            let hint = hint.ok_or_else(|| bad("pending nominal use has no actual emitted type"))?;
             if let SemanticTypeValue::Core { scope, source } = value {
                 match source {
                     SemanticCoreTypeSource::OriginalRecipe(recipe)
                     | SemanticCoreTypeSource::Expression { recipe, .. } => {
-                        eval.deferred_nominal(*scope, recipe, hint, 0, &mut pending)?;
+                        eval.deferred_logical_nominal(*scope, recipe, hint, 0, &mut pending)?;
                     }
                     SemanticCoreTypeSource::OriginalExpression { source, .. } => {
                         let recipe = eval.original_type_view(
@@ -339,7 +338,7 @@ pub(crate) fn populate(
                             source,
                             0,
                         )?;
-                        eval.deferred_nominal(*scope, &recipe, hint, 0, &mut pending)?;
+                        eval.deferred_logical_nominal(*scope, &recipe, hint, 0, &mut pending)?;
                     }
                 }
             }

@@ -44,6 +44,17 @@ pub(crate) struct ClosureSlot {
     pub construction: Point,
     pub initialization: Point,
 }
+/// A source local's logical type, selected from its exact emitted storage
+/// representation. Only Ledger can construct this view; a physical Array type
+/// by itself can never be used as a logical Closure hint.
+pub(crate) struct LogicalLocalType<'f> {
+    ty: &'f Type,
+    slot: Option<ClosureSlot>,
+}
+impl<'f> LogicalLocalType<'f> {
+    pub(crate) fn as_type(&self) -> &'f Type { self.ty }
+    pub(crate) fn is_persistent_closure(&self) -> bool { self.slot.is_some() }
+}
 pub(crate) struct Declaration {
     pub local: LocalId,
     pub at: Point,
@@ -660,9 +671,10 @@ impl Ledger {
     }
     /// This private emitter receipt locates a representation, not a type,
     /// lifetime or cleanup proof. Every consumer rechecks the actual operations.
-    pub(crate) fn closure_slot_type<'f>(
-        &self, function: &'f TypedFunction, local: LocalId, limits: &Limits, left: &mut usize,
-    ) -> R<Option<&'f Type>> {
+    fn persistent_closure_type<'f>(
+        &self, function: impl Into<crate::FunctionRef<'f>>, local: LocalId, limits: &Limits, left: &mut usize,
+    ) -> R<Option<LogicalLocalType<'f>>> {
+        let function = function.into();
         let span = function.span;
         pay(left, lookup_cost(self.frames.len()), span)?;
         let Some(frame) = self.frames.get(&function.id) else { return Ok(None); };
@@ -708,7 +720,16 @@ impl Ledger {
         if input != element.as_ref() || array != physical {
             return Err(invalid(span, "callback slot changes its exact original closure occurrence type"));
         }
-        Ok(Some(element))
+        Ok(Some(LogicalLocalType { ty: element, slot: Some(*slot) }))
+    }
+    pub(crate) fn logical_local_type<'f>(
+        &self, function: impl Into<crate::FunctionRef<'f>>, local: LocalId, limits: &Limits, left: &mut usize,
+    ) -> R<LogicalLocalType<'f>> {
+        let function = function.into();
+        let physical = &function.locals.get(local.0 as usize)
+            .ok_or_else(|| invalid(function.span, "logical local has no actual physical storage"))?.ty;
+        Ok(self.persistent_closure_type(function, local, limits, left)?
+            .unwrap_or(LogicalLocalType { ty: physical, slot: None }))
     }
     pub(crate) fn closure_slot_constructor(
         &self, function: &TypedFunction, point: Point, limits: &Limits, left: &mut usize,
@@ -725,7 +746,7 @@ impl Ledger {
             }
         }
         let Some((local, slot)) = selected else { return Ok(None); };
-        self.closure_slot_type(function, local, limits, left)?
+        self.persistent_closure_type(function, local, limits, left)?
             .ok_or_else(|| invalid(function.span, "callback slot constructor loses its local receipt"))?;
         Ok(Some(slot))
     }

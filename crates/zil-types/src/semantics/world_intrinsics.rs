@@ -130,7 +130,7 @@ pub(super) fn evaluate(
     let mut parameters = Vec::new();
     for (ordinal, (operand, parameter)) in operands.iter().zip(&call.parameters).enumerate() {
         let actual = world.get(values, *operand)?;
-        let expected = world.ty(instance.id, parameter, World::type_of(&actual)?)?;
+        let expected = world.physical_type(instance.id, parameter, World::type_of(&actual)?)?;
         arguments::satisfy(
             world, instance, None, site, ordinal, *operand, &actual, &expected, values, locals,
             implicit,
@@ -175,7 +175,7 @@ pub(super) fn evaluate(
         )?;
     }
     let ty = ty.ok_or_else(|| bad("sealed intrinsic omits its actual result type"))?;
-    let result = world.ty(instance.id, &call.result, ty)?;
+    let result = world.physical_type(instance.id, &call.result, ty)?;
     if matches!(&call.kind, IntrinsicKind::DynCall { .. }) {
         dynamic::call(
             world,

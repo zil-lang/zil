@@ -108,7 +108,7 @@ pub(super) fn reference(
         kind: value.kind,
         signature: Box::new(value.signature),
     };
-    let expected = world.ty(instance.id, &recipe, ty)?;
+    let expected = world.physical_type(instance.id, &recipe, ty)?;
     if World::type_of(&expected)? != ty {
         return Err(bad(
             "function address changes its complete original pointer type",
@@ -197,7 +197,7 @@ pub(super) fn indirect(
             scope: SemanticScopeRef::Ancestor(0),
             source: SemanticOriginalTypeSource::Expression(scheme.callee_node),
         };
-        let expected = world.ty(instance.id, &query, World::type_of(&callee_value)?)?;
+        let expected = world.physical_type(instance.id, &query, World::type_of(&callee_value)?)?;
         world.same(instance.id, &callee_value, &expected, implicit)?;
         world.pay(parameters.len())?;
         for ((argument, ty), parameter) in arguments
@@ -210,11 +210,11 @@ pub(super) fn indirect(
                     "indirect code pointer erases an original transfer mode",
                 ));
             }
-            let expected = world.ty(instance.id, &parameter.ty, ty)?;
+            let expected = world.physical_type(instance.id, &parameter.ty, ty)?;
             let actual = world.get(values, *argument)?;
             world.same(instance.id, &actual, &expected, implicit)?;
         }
-        selected = Some(world.ty(instance.id, &scheme.signature.result, ty)?);
+        selected = Some(world.physical_type(instance.id, &scheme.signature.result, ty)?);
     }
     selected.ok_or_else(|| bad("indirect code call lacks its exact original callable scheme"))
 }

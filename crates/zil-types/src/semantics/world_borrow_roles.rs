@@ -732,7 +732,7 @@ fn trace(
                         "pattern loan does not reach its complete actual projected declaration",
                     ));
                 }
-                let expected = world.ty(
+                let expected = world.physical_type(
                     instance.id,
                     &SemanticTypeRecipe::OriginalType {
                         scope: SemanticScopeRef::Ancestor(0),
@@ -941,7 +941,7 @@ fn trace(
                         ));
                     }
                 }
-                let expected = world.ty(
+                let expected = world.physical_type(
                     instance.id,
                     &SemanticTypeRecipe::OriginalType {
                         scope: SemanticScopeRef::Ancestor(0),
@@ -1016,7 +1016,7 @@ fn trace(
                         ));
                     }
                 }
-                let expected = world.ty(
+                let expected = world.physical_type(
                     instance.id,
                     &SemanticTypeRecipe::OriginalType {
                         scope: SemanticScopeRef::Ancestor(0),
@@ -1125,7 +1125,7 @@ pub(super) fn call_result(
         .and_then(|op| op.result)
         .ok_or_else(|| bad("call loan has no exact emitted result SSA"))?;
     let actual = world.get(values, operand)?;
-    let expected = world.ty(
+    let expected = world.physical_type(
         instance.id,
         &SemanticTypeRecipe::OriginalType {
             scope: SemanticScopeRef::Ancestor(0),
@@ -1508,7 +1508,7 @@ pub(super) fn return_view(
         }
         (node, role.clone())
     };
-    let source = world.ty(
+    let source = world.physical_type(
         instance.id,
         &SemanticTypeRecipe::OriginalType {
             scope: SemanticScopeRef::Ancestor(0),
@@ -1608,7 +1608,7 @@ fn shared_view_value(
             "shared input view loses its original exclusive read SSA",
         ));
     }
-    let source = world.ty(
+    let source = world.physical_type(
         instance.id,
         &SemanticTypeRecipe::OriginalType {
             scope: SemanticScopeRef::Ancestor(0),
@@ -1821,7 +1821,7 @@ pub(super) fn shared_binding_view(
                     | InstructionKind::StorageDead(id) | InstructionKind::TakeLocal { local: id } if id == local)) {
             continue;
         }
-        let expected = world.ty(
+        let expected = world.physical_type(
             instance.id,
             &SemanticTypeRecipe::OriginalType {
                 scope: SemanticScopeRef::Ancestor(0),

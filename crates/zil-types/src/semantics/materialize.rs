@@ -26,6 +26,48 @@ fn resolved(
 ) -> SemanticTypeValue {
     SemanticTypeValue::Resolved { ty, life, classes }
 }
+/// A logical whole-type hint has an explicit source. It cannot be created
+/// from an arbitrary physical Type (notably the storage of a callback slot).
+#[derive(Clone, Copy)]
+pub(super) struct LogicalExpected<'t> { ty: &'t Type }
+impl<'t> LogicalExpected<'t> {
+    pub(super) fn local(value: super::emission::LogicalLocalType<'t>) -> Self {
+        Self { ty: value.as_type() }
+    }
+    pub(super) fn whole(value: &'t SemanticTypeValue) -> R<Self> {
+        match value {
+            SemanticTypeValue::Resolved { ty, life, classes }
+                if life.binder_count as usize == classes.len() => Ok(Self { ty }),
+            _ => Err(bad("logical expected type lacks its complete whole-type value")),
+        }
+    }
+    // Only the checked logical entry may unwrap into the pure type evaluator.
+    pub(super) fn materialize<T>(
+        self, run: impl FnOnce(&'t Type) -> R<T>,
+    ) -> R<T> { run(self.ty) }
+}
+
+fn logical_operand<'t>(
+    ledger: &Ledger, directory: &'t ActualDirectory<'_>, function: crate::FunctionRef<'t>,
+    operand: &SemanticOperand, limits: &Limits, left: &mut usize,
+) -> R<LogicalExpected<'t>> {
+    let ty = match operand {
+        SemanticOperand::Value(value) => function.values.get(value.0 as usize),
+        SemanticOperand::Local(local) => return Ok(LogicalExpected::local(
+            ledger.logical_local_type(function, *local, limits, left)?)),
+        SemanticOperand::Parameter(ordinal) => {
+            let local = *function.parameters.get(*ordinal as usize)
+                .ok_or_else(|| bad("logical parameter has no exact actual input local"))?;
+            return Ok(LogicalExpected::local(ledger.logical_local_type(function, local, limits, left)?));
+        }
+        SemanticOperand::Capture(index) => function.environment
+            .and_then(|id| directory.closures.iter().find(|row| row.id == id))
+            .and_then(|row| row.captures.get(*index as usize)),
+        _ => None,
+    }.ok_or_else(|| bad("logical expected operand has no exact actual value/capture type"))?;
+    Ok(LogicalExpected { ty })
+}
+
 /// The existing persistent callback slot has one physical element. Its
 /// representation does not change the child's complete intrinsic domain.
 pub(super) fn closure_slot_array(
@@ -788,11 +830,20 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             .collect();
         Ok(resolved(ty, life, classes))
     }
+    fn logical_type(
+        &mut self, scope: SemanticInstanceId, recipe: &SemanticTypeRecipe,
+        hint: Option<LogicalExpected<'_>>, depth: usize,
+    ) -> R<SemanticTypeValue> {
+        match hint {
+            Some(hint) => hint.materialize(|ty| self.ty(scope, recipe, Some(ty), depth)),
+            None => self.ty(scope, recipe, None, depth),
+        }
+    }
     fn value(
         &mut self,
         owner: SemanticInstanceId,
         value: &SemanticTypeValue,
-        hint: Option<&Type>,
+        hint: Option<LogicalExpected<'_>>,
         depth: usize,
     ) -> R<SemanticTypeValue> {
         self.node(depth)?;
@@ -802,6 +853,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                     return Err(bad("whole-type class directory omits intrinsic classes"));
                 }
                 if let Some(hint) = hint {
+                    let hint = hint.ty;
                     inference::charge_type_snapshot(
                         ty,
                         Span::default(),
@@ -843,7 +895,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             }
             SemanticTypeValue::Core { scope, source } => match source {
                 SemanticCoreTypeSource::OriginalRecipe(recipe) => {
-                    self.ty(*scope, recipe, hint, depth + 1)
+                    self.logical_type(*scope, recipe, hint, depth + 1)
                 }
                 SemanticCoreTypeSource::Expression {
                     module,
@@ -897,7 +949,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         function: zil_base::NodeId,
         expression: zil_base::NodeId,
         recipe: &SemanticTypeRecipe,
-        hint: Option<&Type>,
+        hint: Option<LogicalExpected<'_>>,
         depth: usize,
     ) -> R<SemanticTypeValue> {
         let f = self.function(scope)?;
@@ -915,38 +967,29 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             .expressions
             .get(&expression)
             .ok_or_else(|| bad("inferred whole-type expression was not emitted"))?;
-        let actual = if let Some(value) = row.value {
-            f.values.get(value.0 as usize)
-        } else {
-            match row.place.as_ref() {
-                Some(SemanticOperand::Local(local)) => {
-                    f.locals.get(local.0 as usize).map(|l| &l.ty)
-                }
-                Some(SemanticOperand::Capture(index)) => f
-                    .environment
-                    .and_then(|id| self.module.closures.iter().find(|d| d.id == id))
-                    .and_then(|d| d.captures.get(*index as usize)),
-                _ => None,
-            }
-        }
-        .ok_or_else(|| bad("inferred type expression has no actual complete value/place type"))?;
+        let operand = row.value.map(SemanticOperand::Value)
+            .or_else(|| row.place.clone())
+            .ok_or_else(|| bad("inferred type expression has no actual complete value/place type"))?;
+        let actual = logical_operand(self.ledger, self.module, f, &operand, self.limits, self.left)?;
         if let Some(hint) = hint {
-            inference::charge_type_snapshot(actual, Span::default(), self.limits, self.left, 1)?;
-            inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
-            if actual != hint {
+            inference::charge_type_snapshot(actual.ty, Span::default(), self.limits, self.left, 1)?;
+            inference::charge_type_snapshot(hint.ty, Span::default(), self.limits, self.left, 1)?;
+            if actual.ty != hint.ty {
                 return Err(bad("inferred type and actual site type disagree"));
             }
         }
-        self.ty(scope, recipe, Some(actual), depth + 1)
+        self.logical_type(scope, recipe, Some(actual), depth + 1)
     }
     fn constructor_value(
         &mut self,
         owner: SemanticInstanceId,
         proposed: &SemanticTypeValue,
         result: ValueId,
-        hint: &Type,
         site: SemanticSiteId,
     ) -> R<SemanticTypeValue> {
+        let function = self.function(owner)?;
+        let expected = logical_operand(self.ledger, self.module, function,
+            &SemanticOperand::Value(result), self.limits, self.left)?;
         let definition = self.instance(owner)?.definition;
         let original = self.definition(definition)?;
         let original_node =
@@ -969,7 +1012,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 None
             };
         let SemanticTypeValue::Core { scope, source } = proposed else {
-            return self.value(owner, proposed, Some(hint), 0);
+            return self.value(owner, proposed, Some(expected), 0);
         };
         let (module, creator, expression, occurrence) = match source {
             SemanticCoreTypeSource::Expression {
@@ -1006,9 +1049,9 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                         ));
                     }
                     let recipe = self.original_constructor_type(*scope, *selector, source)?;
-                    return self.ty(*scope, &recipe, Some(hint), 0);
+                    return self.logical_type(*scope, &recipe, Some(expected), 0);
                 }
-                return self.value(owner, proposed, Some(hint), 0);
+                return self.value(owner, proposed, Some(expected), 0);
             }
         };
         if occurrence != 0 {
@@ -1037,7 +1080,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         }
         match source {
             SemanticCoreTypeSource::Expression { recipe, .. } => {
-                self.ty(*scope, recipe, Some(hint), 0)
+                self.logical_type(*scope, recipe, Some(expected), 0)
             }
             SemanticCoreTypeSource::OriginalExpression { source, .. } => {
                 if original_node.is_some_and(|node| {
@@ -1049,7 +1092,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 }
                 let recipe =
                     self.original_constructor_type(*scope, SemanticScopeRef::Ancestor(0), source)?;
-                self.ty(*scope, &recipe, Some(hint), 0)
+                self.logical_type(*scope, &recipe, Some(expected), 0)
             }
             SemanticCoreTypeSource::OriginalRecipe(_) => unreachable!(),
         }
@@ -2268,17 +2311,12 @@ pub(super) fn program(
                 result: SemanticOperand::Value(result),
                 value,
             } => {
-                let hint = f
-                    .values
-                    .get(result.0 as usize)
-                    .ok_or_else(|| bad("constructor type materialization lost its actual SSA"))?;
                 SemanticSiteAction::Construct {
                     result: SemanticOperand::Value(*result),
                     value: eval.constructor_value(
                         site.instance,
                         value,
                         *result,
-                        hint,
                         site.recipe,
                     )?,
                 }
@@ -2303,32 +2341,11 @@ pub(super) fn program(
                 }
             }
             SemanticSiteAction::TypeUse { subject, expected } => {
-                let hint = match subject {
-                    SemanticOperand::Value(value) => f.values.get(value.0 as usize),
-                    SemanticOperand::Local(local) => {
-                        match eval.ledger.closure_slot_type(f, *local, eval.limits, eval.left)? {
-                            Some(logical) => Some(logical),
-                            None => f.locals.get(local.0 as usize).map(|local| &local.ty),
-                        }
-                    }
-                    SemanticOperand::Capture(index) => f
-                        .environment
-                        .and_then(|id| eval.module.closures.iter().find(|d| d.id == id))
-                        .and_then(|d| d.captures.get(*index as usize)),
-                    SemanticOperand::Parameter(index) => f
-                        .parameters
-                        .get(*index as usize)
-                        .and_then(|local| f.locals.get(local.0 as usize))
-                        .map(|local| &local.ty),
-                    _ => None,
-                }
-                .ok_or_else(|| {
-                    unknown("type-use requires its actual value or declared local type")
-                })?;
+                let hint = logical_operand(eval.ledger, eval.module, f, subject, eval.limits, eval.left)?;
                 let value = eval.value(site.instance, expected, Some(hint), 0).map_err(|mut diagnostic| {
                     diagnostic.notes.push(format!(
                         "actual type-use: instance {:?}, recipe {:?}, subject {:?}, type constructor {:?}, function {:?}, return constructor {:?}",
-                        site.instance, site.recipe, subject, std::mem::discriminant(hint), f.id, std::mem::discriminant(&f.return_type)
+                        site.instance, site.recipe, subject, std::mem::discriminant(hint.ty), f.id, std::mem::discriminant(&f.return_type)
                     ));
                     diagnostic
                 })?;
@@ -2341,16 +2358,11 @@ pub(super) fn program(
                 local: SemanticLocalTarget::Typed(local),
                 expected,
             } => {
-                let hint = f
-                    .locals
-                    .get(local.0 as usize)
-                    .ok_or_else(|| bad("declaration constraint names an absent actual local"))?;
-                let logical = eval.ledger.closure_slot_type(f, *local, eval.limits, eval.left)?
-                    .unwrap_or(&hint.ty);
+                let logical = LogicalExpected::local(eval.ledger.logical_local_type(f, *local, eval.limits, eval.left)?);
                 let value = eval.value(site.instance, expected, Some(logical), 0).map_err(|mut diagnostic| {
                     diagnostic.notes.push(format!(
                         "actual local declaration: instance {:?}, recipe {:?}, local {:?}, type constructor {:?}",
-                        site.instance, site.recipe, local, std::mem::discriminant(&hint.ty)
+                        site.instance, site.recipe, local, std::mem::discriminant(logical.ty)
                     ));
                     diagnostic
                 })?;

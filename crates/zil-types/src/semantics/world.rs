@@ -441,7 +441,7 @@ impl<'a> World<'a, '_> {
                         "emitted result changes its original type-use operation",
                     ));
                 };
-                let value = self.ty(
+                let value = self.physical_type(
                     instance.id,
                     expected,
                     function
@@ -460,7 +460,13 @@ impl<'a> World<'a, '_> {
     fn field_value(&mut self, parent: &SemanticTypeValue, index: u32) -> R<SharedType> {
         projection::field(self, parent, index)
     }
-    fn ty(
+    fn logical_type(
+        &mut self, scope: SemanticInstanceId, recipe: &SemanticTypeRecipe,
+        expected: super::materialize::LogicalExpected<'_>,
+    ) -> R<SharedType> {
+        expected.materialize(|hint| self.physical_type(scope, recipe, hint))
+    }
+    fn physical_type(
         &mut self,
         scope: SemanticInstanceId,
         recipe: &SemanticTypeRecipe,
@@ -499,7 +505,7 @@ impl<'a> World<'a, '_> {
         ordinal: usize,
         hint: &Type,
     ) -> R<SharedType> {
-        self.ty(
+        self.physical_type(
             scope,
             &SemanticTypeRecipe::OriginalType {
                 scope: SemanticScopeRef::Ancestor(0),
@@ -509,7 +515,7 @@ impl<'a> World<'a, '_> {
         )
     }
     fn result_value(&mut self, scope: SemanticInstanceId, hint: &Type) -> R<SharedType> {
-        self.ty(
+        self.physical_type(
             scope,
             &SemanticTypeRecipe::OriginalType {
                 scope: SemanticScopeRef::Ancestor(0),
@@ -1285,15 +1291,11 @@ impl World<'_, '_> {
                     },
                     SemanticSiteRecipeKind::DeclareLocal { expected: recipe },
                 ) => {
-                    let ty = &function
-                        .locals
-                        .get(local.0 as usize)
-                        .ok_or_else(|| bad("declaration local is absent"))?
-                        .ty;
-                    let logical = self.ledger.closure_slot_type(function, *local, self.limits, self.left)?;
-                    let actual = self.ty(instance.id, recipe, logical.unwrap_or(ty))?;
+                    let logical = self.ledger.logical_local_type(function, *local, self.limits, self.left)?;
+                    let persistent = logical.is_persistent_closure();
+                    let actual = self.logical_type(instance.id, recipe, super::materialize::LogicalExpected::local(logical))?;
                     self.same(instance.id, expected, &actual, implicit)?;
-                    let storage = if logical.is_some() {
+                    let storage = if persistent {
                         persistent_slots::array(self, &actual)?
                     } else { actual };
                     if let Some(old) = declared.insert(*local, storage.clone()) {
@@ -1309,7 +1311,7 @@ impl World<'_, '_> {
                     let mut value = match subject {
                         SemanticOperand::Value(value) => self.get(values, *value)?,
                         SemanticOperand::Local(local) => {
-                            if self.ledger.closure_slot_type(function, *local, self.limits, self.left)?.is_some() {
+                            if self.ledger.logical_local_type(function, *local, self.limits, self.left)?.is_persistent_closure() {
                                 self.projected_local(locals, *local, &[PlaceProjection::Field(0)])?
                             } else { self.local(locals, *local)? }
                         },
@@ -1329,7 +1331,7 @@ impl World<'_, '_> {
                             ));
                         }
                     };
-                    let original_value = self.ty(instance.id, recipe_ty, Self::type_of(&value)?)?;
+                    let original_value = self.logical_type(instance.id, recipe_ty, super::materialize::LogicalExpected::whole(&value)?)?;
                     self.same(instance.id, expected, &original_value, implicit)?;
                     if let SemanticOperand::Value(operand) = subject
                         && let Some((adapted, source)) = borrow_roles::shared_expression_view(
@@ -1519,7 +1521,7 @@ impl World<'_, '_> {
                 return Err(bad("constructor changes its original recipe kind"));
             };
             let recipe = self.construction_recipe(original, site.recipe, recipe)?;
-            let expected = self.ty(instance.id, &recipe, ty)?;
+            let expected = self.physical_type(instance.id, &recipe, ty)?;
             self.same(instance.id, claimed, &expected, implicit)?;
             selected = Some(expected);
         }
@@ -1557,7 +1559,7 @@ impl World<'_, '_> {
                     return Err(bad("constructor changes original recipe kind"));
                 };
                 let recipe = self.construction_recipe(original, site.recipe, recipe)?;
-                let expected = self.ty(instance.id, &recipe, &f.values[result.0 as usize])?;
+                let expected = self.physical_type(instance.id, &recipe, &f.values[result.0 as usize])?;
                 self.same(instance.id, claimed, &expected, implicit)?;
                 let symbolic = self.symbolic(instance.id, &recipe)?;
                 let symbolic = match &symbolic {
@@ -1634,7 +1636,7 @@ impl World<'_, '_> {
                                     self.left,
                                 )?
                             };
-                            let expected_field = self.ty(instance.id, &recipe, ty)?;
+                            let expected_field = self.physical_type(instance.id, &recipe, ty)?;
                             let value = self.get(values, *field)?;
                             if matches!(Self::type_of(&expected_field)?, Type::Address { .. } | Type::Desc(_))
                                 && Self::type_of(&value)? == Self::type_of(&expected_field)?
@@ -1710,7 +1712,7 @@ impl World<'_, '_> {
                                     self.left,
                                 )?
                             };
-                            let expected_field = self.ty(instance.id, &recipe, ty)?;
+                            let expected_field = self.physical_type(instance.id, &recipe, ty)?;
                             let value = self.get(values, *field)?;
                             self.same(instance.id, &value, &expected_field, implicit)?;
                         }
@@ -2105,7 +2107,7 @@ impl World<'_, '_> {
                 let SemanticSiteRecipeKind::CallableCall { callee: expected } = &recipe.kind else {
                     return Err(bad("callable call changes original recipe kind"));
                 };
-                let expected = self.ty(instance.id, expected, Self::type_of(&value)?)?;
+                let expected = self.physical_type(instance.id, expected, Self::type_of(&value)?)?;
                 self.same(instance.id, &value, &expected, implicit)?;
                 selected = true;
             }
@@ -4733,7 +4735,7 @@ fn program_at(
                 }
                 (SemanticFormal::Type { .. }, SemanticActual::Type(actual)) => {
                     let ty = World::type_of(actual)?;
-                    let expected = world.ty(
+                    let expected = world.physical_type(
                         instance.id,
                         &SemanticTypeRecipe::Formal(SemanticFormalRef {
                             scope: SemanticScopeRef::Ancestor(0),
@@ -4758,7 +4760,7 @@ fn program_at(
                     }
                 }
                 (SemanticFormal::Const { carrier }, SemanticActual::Const { ty, value }) => {
-                    let expected = world.ty(instance.id, carrier, World::type_of(ty)?)?;
+                    let expected = world.physical_type(instance.id, carrier, World::type_of(ty)?)?;
                     world.equal(ty, &expected)?;
                     if value.ty() != *World::type_of(&expected)? {
                         return Err(bad("Const actual changes its complete original carrier"));
@@ -4800,7 +4802,7 @@ fn program_at(
                     .self_type
                     .as_ref()
                     .ok_or_else(|| bad("actual implementation scope omits its complete Self"))?;
-                let expected = world.ty(instance.id, recipe, World::type_of(actual)?)?;
+                let expected = world.physical_type(instance.id, recipe, World::type_of(actual)?)?;
                 world.equal(actual, &expected)?;
             }
         } else {
@@ -4842,7 +4844,7 @@ fn program_at(
                         ));
                     }
                 } else {
-                    let expected = world.ty(
+                    let expected = world.physical_type(
                         instance.id,
                         &SemanticTypeRecipe::SelfType {
                             scope: SemanticScopeRef::Ancestor(1),

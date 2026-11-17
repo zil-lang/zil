@@ -245,7 +245,7 @@ pub(super) fn store(
             "local outer role changes its actual access permission mode",
         ));
     }
-    let expected = world.ty(instance.id, &role.ty, World::type_of(value)?)?;
+    let expected = world.physical_type(instance.id, &role.ty, World::type_of(value)?)?;
     let actual_inner = world.pointee(value)?;
     let expected_inner = world.pointee(&expected)?;
     world.same(instance.id, &actual_inner, &expected_inner, implicit)?;

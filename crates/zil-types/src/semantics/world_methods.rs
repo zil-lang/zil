@@ -47,7 +47,7 @@ fn call_result(
         )
         .map(Rc::new)
     } else {
-        world.ty(instance.id, recipe, hint)
+        world.physical_type(instance.id, recipe, hint)
     }
 }
 fn parent_class(
@@ -481,7 +481,7 @@ pub(super) fn evaluate(
                 .get(local.0 as usize)
                 .ok_or_else(|| bad("method entry parameter local is absent"))?
                 .ty;
-            let expected = world.ty(instance.id, &parameter.ty, ty)?;
+            let expected = world.physical_type(instance.id, &parameter.ty, ty)?;
             let actual = world.get(values, *argument)?;
             arguments::satisfy(
                 world,
@@ -855,7 +855,7 @@ pub(super) fn callable(
             .get(local.0 as usize)
             .ok_or_else(|| bad("callable entry parameter local is absent"))?
             .ty;
-        let expected = world.ty(instance.id, &parameter.ty, ty)?;
+        let expected = world.physical_type(instance.id, &parameter.ty, ty)?;
         let actual = world.get(values, *argument)?;
         arguments::satisfy(
             world,
@@ -1127,7 +1127,7 @@ pub(super) fn direct(
                 .get(local.0 as usize)
                 .ok_or_else(|| bad("direct entry parameter local is absent"))?
                 .ty;
-            let expected = world.ty(instance.id, &parameter.ty, ty)?;
+            let expected = world.physical_type(instance.id, &parameter.ty, ty)?;
             let actual = world.get(values, *argument)?;
             arguments::satisfy(
                 world,
@@ -1255,7 +1255,7 @@ pub(super) fn sealed_worker(
             .get(local.0 as usize)
             .ok_or_else(|| bad("sealed worker parameter local is absent"))?
             .ty;
-        parameters.push(world.ty(caller.id, &parameter.ty, ty)?);
+        parameters.push(world.physical_type(caller.id, &parameter.ty, ty)?);
     }
     let invocation = match &function.storage_life {
         Some(header) => invocation_inputs(world, caller, callee, header, &parameters, implicit)?,
@@ -1271,7 +1271,7 @@ pub(super) fn sealed_worker(
         let target = invocation::map(world, &target, &actuals, None, &invocation)?;
         world.same(caller.id, &target, expected, implicit)?;
     }
-    let expected = world.ty(caller.id, &signature.result, &function.return_type)?;
+    let expected = world.physical_type(caller.id, &signature.result, &function.return_type)?;
     let target = world.result_value(callee.id, &function.return_type)?;
     let target = invocation::map(world, &target, &actuals, None, &invocation)?;
     world.same(caller.id, &target, &expected, implicit)

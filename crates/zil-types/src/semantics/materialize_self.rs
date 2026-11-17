@@ -53,10 +53,7 @@ impl Eval<'_, '_, '_> {
             None,
             0,
         )?;
-        let SemanticTypeValue::Resolved { ty, .. } = &expected else {
-            unreachable!()
-        };
-        let mut actual = self.value(scope, claim, Some(ty), 0)?;
+        let mut actual = self.value(scope, claim, Some(LogicalExpected::whole(&expected)?), 0)?;
         if let SemanticTypeValue::Core {
             scope: claimed_scope,
             ..
