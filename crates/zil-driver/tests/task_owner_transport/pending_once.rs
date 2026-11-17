@@ -1,10 +1,12 @@
 use super::*;
 
-fn inputs() -> [(u32, &'static str, &'static str); 3] {
+fn inputs() -> [(u32, &'static str, &'static str); 5] {
     [
         (0, "scalar", include_str!("../../../../tests/language-readiness/task-owner-transport/once-pending-callable-cleanup.zil")),
         (1, "packet", include_str!("../../../../tests/language-readiness/task-owner-transport/once-pending-owned-result-cleanup.zil")),
         (2, "task", include_str!("../../../../tests/language-readiness/task-owner-transport/once-pending-returned-task-cleanup.zil")),
+        (0, "scalar-declared-once", include_str!("../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/once-pending-callable-cleanup.zil")),
+        (1, "packet-declared-once", include_str!("../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/once-pending-owned-result-cleanup.zil")),
     ]
 }
 
@@ -24,7 +26,8 @@ fn pending_once_cleanup_keeps_its_environment_and_every_returned_owner_raw_and_w
             for block in &function.blocks {
                 for (index, instruction) in block.instructions.iter().enumerate() {
                     let zil_ir::InstructionKind::CallClosureOnce { callee, .. } = instruction.kind else { continue; };
-                    // The public FnMut kind stays true to the original body.
+                    // The actual natural FnMut kind stays true to the original body,
+                    // including a fresh environment returned as public FnOnce.
                     // Its one-shot caller must actually consume that same
                     // environment rather than relabel its code as FnOnce.
                     if mode != 2 {

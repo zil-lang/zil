@@ -92,24 +92,57 @@ fn rejects_consuming_contract_and_unused_cleanup(original: &str, unused: &str) {
     rejects(unused, "SyncDrop");
 }
 
-#[test]
-fn scalar_body_cannot_claim_once_kind() {
-    rejects(
-        include_str!(
-            "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/once-pending-callable-cleanup.zil"
-        ),
-        "opaque callable declaration differs",
+fn verifies_original(text: &str) {
+    let report = compile_source(
+        &source(text),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
     );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+fn inferred_once_requires_a_real_suspend_consumer(original: &str) {
+    // These original bytes were previously rejected by a natural-FnMut-only
+    // whitelist. The independently Suspend parent can infer its omitted
+    // FnOnce operation upper before publishing the original generic contract.
+    verifies_original(original);
+    let header = "(callback:F)->i32 {\n task_yield();let answer=callback();";
+    assert_eq!(original.matches(header).count(), 1);
+    // Remove the independent yield and explicitly require Direct, leaving
+    // the complete callback operation and its pending Task cleanup intact.
+    let direct = original.replacen(
+        header,
+        "(callback:F)->i32 contract{effects(io);}{\n let answer=callback();",
+        1,
+    );
+    rejects_matching(&direct, |diagnostic| {
+        diagnostic.code == "E-SEMANTIC-ORIGINAL"
+            && diagnostic.message == "original callable changes its complete scoped call scheme"
+            && diagnostic.notes.iter().any(|note| note ==
+                "original callable scheme: actual P=0 Bound=0 Invocation=0 ABI=Suspend resultMode=Infer; wanted P=0 Bound=0 Invocation=0 ABI=Direct resultMode=Infer")
+    });
 }
 
 #[test]
-fn packet_body_cannot_claim_once_kind() {
-    rejects(
-        include_str!(
-            "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/once-pending-owned-result-cleanup.zil"
-        ),
-        "opaque callable declaration differs",
-    );
+fn scalar_once_infers_complete_operation_but_preserves_direct_consumers() {
+    inferred_once_requires_a_real_suspend_consumer(include_str!(
+        "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/once-pending-callable-cleanup.zil"
+    ));
+}
+
+#[test]
+fn packet_once_infers_complete_operation_but_preserves_direct_consumers() {
+    inferred_once_requires_a_real_suspend_consumer(include_str!(
+        "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/once-pending-owned-result-cleanup.zil"
+    ));
 }
 
 #[test]
@@ -133,31 +166,42 @@ fn distinct_returned_task_classes_cannot_be_equal() {
 }
 
 #[test]
-fn unused_child_helper_cannot_claim_once_kind() {
-    // The complete source also has a Direct parent that drops an incoming
-    // Task without Closed or a known synchronous graph. Either independent
-    // obligation can be visited first; no other rejection establishes it.
-    rejects_matching(
-        include_str!(
-            "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/direct-child-cleanup.zil"
-        ),
-        |diagnostic| {
-            (diagnostic.code == "E-TYPE-MISMATCH"
-                && diagnostic.message
-                    == "opaque callable declaration differs from its actual environment invocation kind")
-                || (diagnostic.code == "E-ORIGINAL-CLEANUP"
-                    && diagnostic.message
-                        == "live original Task default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root")
-        },
+fn unused_once_factory_and_known_task_cleanup_infer_without_kind_restrictions() {
+    let original = include_str!(
+        "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/direct-child-cleanup.zil"
+    );
+    verifies_original(original);
+    let header = "fn parent(give callback:Task<i32>)->i32 {";
+    assert_eq!(original.matches(header).count(), 1);
+    let direct = original.replacen(
+        header,
+        "fn parent(give callback:Task<i32>)->i32 contract{effects(io);}{",
+        1,
+    );
+    rejects(
+        &direct,
+        "default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root",
     );
 }
 
 #[test]
-fn unused_incoming_task_requires_closed_or_synchronous_graph() {
+fn explicitly_direct_unused_incoming_task_requires_closed_or_synchronous_graph() {
+    let original = include_str!(
+        "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/mutable-frame-never-called.zil"
+    );
+    let direct = include_str!(
+        "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/explicit-direct-mutable-frame-cleanup.zil"
+    );
+    verifies_original(original);
+    // The original bytes now also run in the full native helper matrix.
+    // Only the declared execution upper differs in this negative identity.
+    assert_eq!(direct, original.replacen(
+        "fn drive_callback<life a>(give original:Task<i32,&'a mut i32>)->i32 {",
+        "fn drive_callback<life a>(give original:Task<i32,&'a mut i32>)->i32 contract{effects(io);}{",
+        1,
+    ));
     rejects(
-        include_str!(
-            "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/mutable-frame-never-called.zil"
-        ),
+        direct,
         "default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root",
     );
 }

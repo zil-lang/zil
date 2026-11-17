@@ -1095,8 +1095,10 @@ fn mutable_frame_cases() -> Vec<(&'static str, String)> {
             "var callback=keep(give original);callback();callback();return 0;",
         )
         .replace("return answer-42;", "return answer;");
-    // Default cleanup is proved from this body's actual Task creation graph.
-    // The old generic incoming-Task version is a separate fixed Γ negative.
+    // Preserve the local-creation control and the original incoming-Task
+    // program separately. The latter has no explicit Direct bound: its
+    // complete residual cleanup must select Suspend and retain the real frame.
+    // A separately identified explicit-Direct form remains a negative control.
     let uncalled = include_str!(
         "../../../tests/language-readiness/task-owner-transport/mutable-local-never-called.zil"
     ).to_owned();
@@ -1412,6 +1414,7 @@ fn retained_task_fnonce_keeps_original_pc_inputs_and_one_cleanup_native() {
         for optimization in [Optimization::O0, Optimization::O2] {
             for (name, text, expected, frames) in cases().into_iter().chain(returned_frame_cases()).chain(mutable_frame_cases()).chain(static_frame_cases())
                 .map(|(name, text)| (name, text, &b"A"[..],1))
+                .chain(std::iter::once(("mutable-frame-incoming-never-called", include_str!("../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/mutable-frame-never-called.zil").to_owned(), &b"A"[..],1)))
                 .chain(std::iter::once(("closed-owner", closed_owner(), &b""[..],1)))
                 .chain(std::iter::once(("returned-second-frame",include_str!("../../../tests/language-readiness/task-owner-transport/returned-second-task-fnonce.zil").to_owned(),&b""[..],2)))
                 .chain(std::iter::once(("equal-shared-task-classes",include_str!("../../../tests/language-readiness/task-owner-transport/equal-shared-task-classes.zil").to_owned(),&b""[..],2)))

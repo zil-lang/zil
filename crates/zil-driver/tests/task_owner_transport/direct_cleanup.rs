@@ -3,15 +3,17 @@ use super::*;
 #[test]
 fn actual_local_workers_keep_ordinary_and_task_adapter_default_cleanup_executable_native() {
     // The old universal Direct F input is retained as a semantic negative.
-    // These two additional controls expose the actual child creation graph to
-    // Direct cleanup while preserving a never-invoked callable and Quiet=7.
-    for (name, text, frames) in [
+    // The original two controls expose the actual child creation graph to
+    // Direct cleanup. The separately retained incoming-Task original instead
+    // infers Suspend; all three preserve an uncalled factory and Quiet=7.
+    for (name, text, frames, execution) in [
         (
             "ordinary-local",
             include_str!(
                 "../../../../tests/language-readiness/task-owner-transport/direct-default-local.zil"
             ),
             1,
+            zil_ir::CallKind::Direct,
         ),
         (
             "adapter-local",
@@ -19,6 +21,15 @@ fn actual_local_workers_keep_ordinary_and_task_adapter_default_cleanup_executabl
                 "../../../../tests/language-readiness/task-owner-transport/adapter-default-local.zil"
             ),
             2,
+            zil_ir::CallKind::Direct,
+        ),
+        (
+            "incoming-task-inferred-suspend",
+            include_str!(
+                "../../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/direct-child-cleanup.zil"
+            ),
+            2,
+            zil_ir::CallKind::Suspend,
         ),
     ] {
         let typed = typed_original(text);
@@ -27,7 +38,7 @@ fn actual_local_workers_keep_ordinary_and_task_adapter_default_cleanup_executabl
                 .functions
                 .iter()
                 .any(|function| function.name.starts_with("parent")
-                    && function.call_kind == zil_ir::CallKind::Direct)
+                    && function.call_kind == execution)
         );
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
             if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
