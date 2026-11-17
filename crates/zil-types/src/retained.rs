@@ -769,11 +769,11 @@ impl Builder<'_, '_> {
             (pending.callable_kind(), pending.function)
         };
         // An ordinary factory may explicitly expose a freshly constructed Fn
-        // environment through a consuming FnOnce interface. Its natural kind
+        // or FnMut environment through a consuming FnOnce interface. Its natural kind
         // is not rewritten. Generic-F opaque factories and existing opaque
         // values retain their exact declared mode; same ClosureId is no mint.
         let contextual_once = if !self.owning_factory_template
-            && actual_kind == CallableKind::Fn && bound.kind == CallableKind::FnOnce
+            && matches!(actual_kind, CallableKind::Fn | CallableKind::FnMut) && bound.kind == CallableKind::FnOnce
         {
             self.closures.snapshot(
                 self.closures.semantic_emission.frames.len().saturating_add(1).ilog2() as usize + 1,

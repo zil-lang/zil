@@ -1,12 +1,87 @@
-//! Untrusted complete-consuming uppers for original opaque FnOnce results.
-//! A Task still possibly owned at a normal exit requests Suspend. This is not
-//! a Closed/SyncDrop/NoExternal proof, and does not change the closure body ABI.
+//! Untrusted original cleanup and complete-consuming effect candidates.
+//! Known Task/registration residuals can select an implicit body Suspend upper;
+//! opaque FnOnce results also include the returned environment's retirement.
+//! These candidates grant no Closed, SyncDrop, frame or NoExternal proof.
 use super::*;
 
+// These are candidate effects over original ownership, not SyncDrop or Closed
+// theorems. An abstract type's missing cleanup premise is deliberately distinct
+// from a known Task/registration whose cleanup can require a continuation.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+struct Cleanup {
+    may: bool,
+    asynchronous: bool,
+}
+impl Cleanup {
+    const NONE: Self = Self {
+        may: false,
+        asynchronous: false,
+    };
+    const ABSTRACT: Self = Self {
+        may: true,
+        asynchronous: false,
+    };
+    const ASYNC: Self = Self {
+        may: true,
+        asynchronous: true,
+    };
+}
+impl std::ops::BitOr for Cleanup {
+    type Output = Self;
+    fn bitor(self, other: Self) -> Self {
+        Self {
+            may: self.may || other.may,
+            asynchronous: self.asynchronous || other.asynchronous,
+        }
+    }
+}
+impl std::ops::BitOrAssign for Cleanup {
+    fn bitor_assign(&mut self, other: Self) {
+        *self = *self | other;
+    }
+}
+#[derive(Clone, Copy)]
+enum ReadyCleanup {
+    NoReturn,
+    Unknown,
+    Known(Cleanup),
+}
+impl ReadyCleanup {
+    fn join(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::NoReturn, value) | (value, Self::NoReturn) => value,
+            (Self::Known(a), Self::Known(b)) => Self::Known(a | b),
+            _ => Self::Unknown,
+        }
+    }
+    fn known(self) -> Option<Cleanup> {
+        if let Self::Known(value) = self {
+            Some(value)
+        } else {
+            None
+        }
+    }
+}
+struct Place<'a> {
+    owner: usize,
+    index: usize,
+    fields: Vec<&'a str>,
+}
 enum Value<'a> {
     Plain,
     Task,
+    SettledTask,
     Unknown,
+    UnknownAsync,
+    View {
+        place: Place<'a>,
+        mutable: bool,
+    },
+    Poll(Place<'a>),
+    Error {
+        is_error: bool,
+        value: Box<Value<'a>>,
+    },
     Tuple(Vec<Value<'a>>),
     Alternatives(Vec<Value<'a>>),
     Record(Vec<(&'a str, Value<'a>)>),
@@ -16,15 +91,41 @@ enum Value<'a> {
         kind: CallableKind,
         signature: &'a SemanticSignatureRecipe,
         suspend: bool,
-        cleanup: bool,
+        known_suspend: bool,
+        cleanup: Cleanup,
+        initial: Cleanup,
+        after: Cleanup,
+        ready: Option<Cleanup>,
     },
     Function(usize),
 }
 struct Flow<'a> {
     value: Option<Value<'a>>,
     live: bool,
-    cleanup: bool,
+    cleanup: Cleanup,
+    body_cleanup: Cleanup,
+    ready: ReadyCleanup,
+    breaks: Vec<Env<'a>>,
+    continues: Vec<Env<'a>>,
     incomplete: bool,
+}
+impl<'a> Flow<'a> {
+    fn new() -> Self {
+        Self {
+            value: None,
+            live: true,
+            cleanup: Cleanup::NONE,
+            body_cleanup: Cleanup::NONE,
+            ready: ReadyCleanup::NoReturn,
+            breaks: Vec::new(),
+            continues: Vec::new(),
+            incomplete: false,
+        }
+    }
+    fn drop_value(&mut self, cleanup: Cleanup) {
+        self.cleanup |= cleanup;
+        self.body_cleanup |= cleanup;
+    }
 }
 struct TypeFrame<'a> {
     declaration: usize,
@@ -38,6 +139,14 @@ struct Walk<'a, 'b, 'l> {
     frames: Vec<TypeFrame<'a>>,
     context: Option<usize>,
     execution: bool,
+    known_execution: bool,
+    evidence: &'b mut super::Evidence,
+    seed_changed: &'b mut bool,
+    held_captures: usize,
+    early_cleanup: Cleanup,
+    early_body_cleanup: Cleanup,
+    prepared: Cleanup,
+    bodies: &'b mut [bool],
     budget: &'b mut Budget<'l>,
 }
 type Env<'a> = Vec<(&'a str, Value<'a>)>;
@@ -47,7 +156,23 @@ impl<'a> Walk<'a, '_, '_> {
         Ok(match value {
             Value::Plain => Value::Plain,
             Value::Task => Value::Task,
+            Value::SettledTask => Value::SettledTask,
             Value::Unknown => Value::Unknown,
+            Value::UnknownAsync => Value::UnknownAsync,
+            Value::View { place, mutable } => Value::View {
+                place: self.place_copy(place, depth + 1)?,
+                mutable: *mutable,
+            },
+            Value::Poll(place) => Value::Poll(self.place_copy(place, depth + 1)?),
+            Value::Error { is_error, value } => {
+                let value = self.copy(value, depth + 1)?;
+                self.budget
+                    .lineage_bytes(std::mem::size_of::<Value<'a>>(), Span::default())?;
+                Value::Error {
+                    is_error: *is_error,
+                    value: Box::new(value),
+                }
+            }
             Value::Function(owner) => Value::Function(*owner),
             Value::Callable {
                 definition,
@@ -55,14 +180,22 @@ impl<'a> Walk<'a, '_, '_> {
                 kind,
                 signature,
                 suspend,
+                known_suspend,
                 cleanup,
+                initial,
+                after,
+                ready,
             } => Value::Callable {
                 definition: *definition,
                 scope: *scope,
                 kind: *kind,
                 signature,
                 suspend: *suspend,
+                known_suspend: *known_suspend,
                 cleanup: *cleanup,
+                initial: *initial,
+                after: *after,
+                ready: *ready,
             },
             Value::Alternatives(fields) => {
                 let mut result = Vec::new();
@@ -102,19 +235,408 @@ impl<'a> Walk<'a, '_, '_> {
         }
         Ok(result)
     }
-    fn pending(&mut self, value: &Value<'a>, depth: usize) -> R<bool> {
+    fn place_copy(&mut self, place: &Place<'a>, depth: usize) -> R<Place<'a>> {
+        self.budget.node(Span::default(), depth)?;
+        let mut fields = Vec::new();
+        for field in &place.fields {
+            self.budget.text(field, Span::default())?;
+            self.budget
+                .lineage_push(&mut fields, *field, Span::default())?;
+        }
+        Ok(Place {
+            owner: place.owner,
+            index: place.index,
+            fields,
+        })
+    }
+    fn same_place(&mut self, a: &Place<'a>, b: &Place<'a>, depth: usize) -> R<bool> {
+        self.budget.node(Span::default(), depth)?;
+        if a.owner != b.owner || a.index != b.index || a.fields.len() != b.fields.len() {
+            return Ok(false);
+        }
+        for (a, b) in a.fields.iter().zip(&b.fields) {
+            self.budget.text(a, Span::default())?;
+            self.budget.text(b, Span::default())?;
+            if a != b {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+    fn place(
+        &mut self,
+        owner: usize,
+        env: &Env<'a>,
+        expr: &'a SemanticOriginalExpr,
+        depth: usize,
+    ) -> R<Option<Place<'a>>> {
+        self.budget.node(expr.span, depth)?;
+        Ok(match &expr.kind {
+            CoreExprKind::Group(inner)
+            | CoreExprKind::Ascribed { value: inner, .. }
+            | CoreExprKind::Unary {
+                op: UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Dereference,
+                operand: inner,
+            } => self.place(owner, env, inner, depth + 1)?,
+            CoreExprKind::Name(name) => {
+                let mut found = None;
+                for (index, (binding, value)) in env.iter().enumerate().rev() {
+                    self.budget.text(name, expr.span)?;
+                    if *binding == name {
+                        found = Some(if let Value::View { place, .. } = value {
+                            self.place_copy(place, depth + 1)?
+                        } else {
+                            Place {
+                                owner,
+                                index,
+                                fields: Vec::new(),
+                            }
+                        });
+                        break;
+                    }
+                }
+                found
+            }
+            CoreExprKind::Member { object, member, .. } => {
+                let Some(mut place) = self.place(owner, env, object, depth + 1)? else {
+                    return Ok(None);
+                };
+                self.budget
+                    .lineage_push(&mut place.fields, member.as_str(), expr.span)?;
+                Some(place)
+            }
+            _ => None,
+        })
+    }
+    fn place_value_mut<'c>(
+        &mut self,
+        owner: usize,
+        env: &'c mut Env<'a>,
+        place: &Place<'a>,
+        depth: usize,
+    ) -> R<Option<&'c mut Value<'a>>> {
+        self.budget.node(Span::default(), depth)?;
+        if place.owner != owner {
+            return Ok(None);
+        }
+        let Some(entry) = env.get_mut(place.index) else {
+            return Ok(None);
+        };
+        let mut value = &mut entry.1;
+        for field in &place.fields {
+            self.budget.text(field, Span::default())?;
+            value = match value {
+                Value::Tuple(values) => {
+                    let Some(value) = field
+                        .parse::<usize>()
+                        .ok()
+                        .and_then(|index| values.get_mut(index))
+                    else {
+                        return Ok(None);
+                    };
+                    value
+                }
+                Value::Record(values) => {
+                    self.budget.identity_work(values.len(), Span::default())?;
+                    let mut selected = None;
+                    for (name, value) in values {
+                        self.budget.text(name, Span::default())?;
+                        if name == field {
+                            selected = Some(value);
+                            break;
+                        }
+                    }
+                    let Some(value) = selected else {
+                        return Ok(None);
+                    };
+                    value
+                }
+                _ => return Ok(None),
+            };
+        }
+        Ok(Some(value))
+    }
+    fn invalidate_value(
+        &mut self,
+        value: &mut Value<'a>,
+        place: &Place<'a>,
+        depth: usize,
+    ) -> R<()> {
+        self.budget.node(Span::default(), depth)?;
+        match value {
+            Value::Poll(old) if old.owner == place.owner && old.index == place.index => {
+                let mut overlaps = true;
+                for (a, b) in old.fields.iter().zip(&place.fields) {
+                    self.budget.text(a, Span::default())?;
+                    self.budget.text(b, Span::default())?;
+                    overlaps &= a == b;
+                }
+                if overlaps {
+                    *value = Value::Plain;
+                }
+            }
+            Value::Tuple(values) | Value::Alternatives(values) => {
+                for value in values {
+                    self.invalidate_value(value, place, depth + 1)?;
+                }
+            }
+            Value::Record(values) => {
+                for (_, value) in values {
+                    self.invalidate_value(value, place, depth + 1)?;
+                }
+            }
+            Value::Error { value, .. } => self.invalidate_value(value, place, depth + 1)?,
+            _ => {}
+        }
+        Ok(())
+    }
+    fn invalidate(&mut self, env: &mut Env<'a>, place: &Place<'a>, depth: usize) -> R<()> {
+        for (_, value) in env {
+            self.invalidate_value(value, place, depth + 1)?;
+        }
+        Ok(())
+    }
+    fn refine_ready(
+        &mut self,
+        owner: usize,
+        env: &mut Env<'a>,
+        value: &Value<'a>,
+        depth: usize,
+    ) -> R<bool> {
+        let Value::Poll(place) = value else {
+            return Ok(false);
+        };
+        let Some(value) = self.place_value_mut(owner, env, place, depth + 1)? else {
+            return Ok(false);
+        };
+        match value {
+            Value::Task | Value::SettledTask => {
+                *value = Value::SettledTask;
+                Ok(true)
+            }
+            Value::Callable {
+                cleanup,
+                ready: Some(ready),
+                ..
+            } => {
+                *cleanup = *ready;
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+    fn ready_cleanup(
+        &mut self,
+        owner: usize,
+        env: &Env<'a>,
+        value: &Value<'a>,
+        depth: usize,
+    ) -> R<ReadyCleanup> {
+        let mut ready = self.env_copy(env, depth + 1)?;
+        if self.refine_ready(owner, &mut ready, value, depth + 1)? {
+            Ok(ReadyCleanup::Known(self.residual(&ready, depth + 1)?))
+        } else {
+            Ok(ReadyCleanup::Unknown)
+        }
+    }
+    fn same_value(&mut self, a: &Value<'a>, b: &Value<'a>, depth: usize) -> R<bool> {
+        self.budget.node(Span::default(), depth)?;
+        Ok(match (a, b) {
+            (Value::Plain, Value::Plain)
+            | (Value::Task, Value::Task)
+            | (Value::SettledTask, Value::SettledTask)
+            | (Value::Unknown, Value::Unknown)
+            | (Value::UnknownAsync, Value::UnknownAsync) => true,
+            (Value::Function(a), Value::Function(b)) => a == b,
+            (
+                Value::View {
+                    place: a,
+                    mutable: am,
+                },
+                Value::View {
+                    place: b,
+                    mutable: bm,
+                },
+            ) => am == bm && self.same_place(a, b, depth + 1)?,
+            (Value::Poll(a), Value::Poll(b)) => self.same_place(a, b, depth + 1)?,
+            (Value::Tuple(a), Value::Tuple(b))
+            | (Value::Alternatives(a), Value::Alternatives(b))
+                if a.len() == b.len() =>
+            {
+                for (a, b) in a.iter().zip(b) {
+                    if !self.same_value(a, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                true
+            }
+            (Value::Record(a), Value::Record(b)) if a.len() == b.len() => {
+                for ((an, a), (bn, b)) in a.iter().zip(b) {
+                    self.budget.text(an, Span::default())?;
+                    self.budget.text(bn, Span::default())?;
+                    if an != bn || !self.same_value(a, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                true
+            }
+            (
+                Value::Error {
+                    is_error: a,
+                    value: av,
+                },
+                Value::Error {
+                    is_error: b,
+                    value: bv,
+                },
+            ) => a == b && self.same_value(av, bv, depth + 1)?,
+            (
+                Value::Callable {
+                    definition: a,
+                    scope: ac,
+                    kind: ak,
+                    signature: asig,
+                    suspend: ae,
+                    known_suspend: ae_known,
+                    cleanup: ad,
+                    initial: ai,
+                    after: aa,
+                    ready: ar,
+                },
+                Value::Callable {
+                    definition: b,
+                    scope: bc,
+                    kind: bk,
+                    signature: bsig,
+                    suspend: be,
+                    known_suspend: be_known,
+                    cleanup: bd,
+                    initial: bi,
+                    after: ba,
+                    ready: br,
+                },
+            ) => {
+                a == b
+                    && ac == bc
+                    && ak == bk
+                    && std::ptr::eq(*asig, *bsig)
+                    && ae == be
+                    && ae_known == be_known
+                    && ad == bd
+                    && ai == bi
+                    && aa == ba
+                    && ar == br
+            }
+            _ => false,
+        })
+    }
+    fn same_env(&mut self, a: &Env<'a>, b: &Env<'a>, depth: usize) -> R<bool> {
+        if a.len() != b.len() {
+            return Ok(false);
+        }
+        for ((an, a), (bn, b)) in a.iter().zip(b) {
+            self.budget.text(an, Span::default())?;
+            self.budget.text(bn, Span::default())?;
+            if an != bn || !self.same_value(a, b, depth + 1)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+    fn alternatives(&mut self, values: Vec<Value<'a>>, depth: usize) -> R<Value<'a>> {
+        let mut pending = values;
+        let mut result = Vec::new();
+        while let Some(value) = pending.pop() {
+            self.budget.node(Span::default(), depth)?;
+            if let Value::Alternatives(values) = value {
+                for value in values {
+                    self.budget
+                        .lineage_push(&mut pending, value, Span::default())?;
+                }
+            } else {
+                let mut duplicate = false;
+                for old in &result {
+                    duplicate |= self.same_value(old, &value, depth + 1)?;
+                }
+                if !duplicate {
+                    self.budget
+                        .lineage_push(&mut result, value, Span::default())?;
+                }
+            }
+        }
+        result.reverse();
+        Ok(if result.len() == 1 {
+            result.pop().unwrap()
+        } else {
+            Value::Alternatives(result)
+        })
+    }
+    fn ok_value(&mut self, value: Value<'a>, depth: usize) -> R<Value<'a>> {
         self.budget.node(Span::default(), depth)?;
         Ok(match value {
-            Value::Task | Value::Unknown => true,
+            Value::Error {
+                is_error: false,
+                value,
+            } => *value,
+            Value::Error { is_error: true, .. } => Value::Unknown,
+            Value::Alternatives(values) => {
+                let mut good = Vec::new();
+                for value in values {
+                    if let Value::Error {
+                        is_error: false,
+                        value,
+                    } = value
+                    {
+                        self.budget
+                            .lineage_push(&mut good, *value, Span::default())?;
+                    }
+                }
+                if good.is_empty() {
+                    Value::Unknown
+                } else {
+                    self.alternatives(good, depth + 1)?
+                }
+            }
+            value => value,
+        })
+    }
+    fn select(
+        &mut self,
+        pattern: &SemanticOriginalPattern,
+        value: Value<'a>,
+        depth: usize,
+    ) -> R<Vec<Value<'a>>> {
+        self.budget.node(pattern.span, depth)?;
+        let mut selected = Vec::new();
+        if let Value::Alternatives(values) = value {
+            for value in values {
+                for value in self.select(pattern, value, depth + 1)? {
+                    self.budget
+                        .lineage_push(&mut selected, value, pattern.span)?;
+                }
+            }
+        } else if !matches!((&pattern.kind,&value),(CorePatternKind::ErrorArm{is_error:a,..},Value::Error{is_error:b,..}) if a!=b)
+        {
+            self.budget
+                .lineage_push(&mut selected, value, pattern.span)?;
+        }
+        Ok(selected)
+    }
+    fn pending(&mut self, value: &Value<'a>, depth: usize) -> R<Cleanup> {
+        self.budget.node(Span::default(), depth)?;
+        Ok(match value {
+            Value::Task | Value::UnknownAsync => Cleanup::ASYNC,
+            Value::Unknown => Cleanup::ABSTRACT,
+            Value::Error { value, .. } => self.pending(value, depth + 1)?,
             Value::Tuple(fields) | Value::Alternatives(fields) => {
-                let mut pending = false;
+                let mut pending = Cleanup::NONE;
                 for field in fields {
                     pending |= self.pending(field, depth + 1)?;
                 }
                 pending
             }
             Value::Record(fields) => {
-                let mut pending = false;
+                let mut pending = Cleanup::NONE;
                 for (_, field) in fields {
                     pending |= self.pending(field, depth + 1)?;
                 }
@@ -123,11 +645,15 @@ impl<'a> Walk<'a, '_, '_> {
             // Calling FnOnce may settle its remaining environment; merely
             // owning/ignoring any callable never establishes SyncDrop.
             Value::Callable { cleanup, .. } => *cleanup,
-            Value::Plain | Value::Function(_) => false,
+            Value::Plain
+            | Value::SettledTask
+            | Value::View { .. }
+            | Value::Poll(_)
+            | Value::Function(_) => Cleanup::NONE,
         })
     }
-    fn residual(&mut self, env: &Env<'a>, depth: usize) -> R<bool> {
-        let mut result = false;
+    fn residual(&mut self, env: &[(&'a str, Value<'a>)], depth: usize) -> R<Cleanup> {
+        let mut result = Cleanup::NONE;
         for (_, value) in env {
             result |= self.pending(value, depth + 1)?;
         }
@@ -138,6 +664,42 @@ impl<'a> Walk<'a, '_, '_> {
         Ok(match (left, right) {
             (Value::Plain, Value::Plain) => Value::Plain,
             (Value::Task, Value::Task) => Value::Task,
+            (Value::SettledTask, Value::SettledTask) => Value::SettledTask,
+            (Value::Task, Value::SettledTask) | (Value::SettledTask, Value::Task) => Value::Task,
+            (
+                Value::Error {
+                    is_error: a,
+                    value: av,
+                },
+                Value::Error {
+                    is_error: b,
+                    value: bv,
+                },
+            ) if a == b => {
+                let value = self.join(*av, *bv, depth + 1)?;
+                self.budget
+                    .lineage_bytes(std::mem::size_of::<Value<'a>>(), Span::default())?;
+                Value::Error {
+                    is_error: a,
+                    value: Box::new(value),
+                }
+            }
+            (
+                Value::View {
+                    place: a,
+                    mutable: am,
+                },
+                Value::View {
+                    place: b,
+                    mutable: bm,
+                },
+            ) if am == bm && self.same_place(&a, &b, depth + 1)? => Value::View {
+                place: a,
+                mutable: am,
+            },
+            (Value::Poll(a), Value::Poll(b)) if self.same_place(&a, &b, depth + 1)? => {
+                Value::Poll(a)
+            }
             (Value::Tuple(left), Value::Tuple(right)) if left.len() == right.len() => {
                 let mut result = Vec::new();
                 for (left, right) in left.into_iter().zip(right) {
@@ -168,7 +730,11 @@ impl<'a> Walk<'a, '_, '_> {
                     kind,
                     signature,
                     suspend: left,
+                    known_suspend: left_known,
                     cleanup: left_cleanup,
+                    initial: left_initial,
+                    after: left_after,
+                    ready: left_ready,
                 },
                 Value::Callable {
                     definition: b,
@@ -176,7 +742,11 @@ impl<'a> Walk<'a, '_, '_> {
                     kind: other,
                     signature: other_signature,
                     suspend: right,
+                    known_suspend: right_known,
                     cleanup: right_cleanup,
+                    initial: right_initial,
+                    after: right_after,
+                    ready: right_ready,
                 },
             ) if a == b
                 && scope == other_scope
@@ -189,12 +759,16 @@ impl<'a> Walk<'a, '_, '_> {
                     kind,
                     signature,
                     suspend: left || right,
-                    cleanup: left_cleanup || right_cleanup,
+                    known_suspend: left_known || right_known,
+                    cleanup: left_cleanup | right_cleanup,
+                    initial: left_initial | right_initial,
+                    after: left_after | right_after,
+                    ready: left_ready.zip(right_ready).map(|(a, b)| a | b),
                 }
             }
             (
-                left @ (Value::Callable { .. } | Value::Alternatives(_)),
-                right @ (Value::Callable { .. } | Value::Alternatives(_)),
+                left @ (Value::Callable { .. } | Value::Alternatives(_) | Value::Error { .. }),
+                right @ (Value::Callable { .. } | Value::Alternatives(_) | Value::Error { .. }),
             ) => {
                 // Preserve each original creator, not a common actual image.
                 // Only the operation upper is joined, never its types/classes.
@@ -203,9 +777,17 @@ impl<'a> Walk<'a, '_, '_> {
                     .lineage_push(&mut alternatives, left, Span::default())?;
                 self.budget
                     .lineage_push(&mut alternatives, right, Span::default())?;
-                Value::Alternatives(alternatives)
+                self.alternatives(alternatives, depth + 1)?
             }
-            _ => Value::Unknown,
+            (left, right) => {
+                if self.pending(&left, depth + 1)?.asynchronous
+                    || self.pending(&right, depth + 1)?.asynchronous
+                {
+                    Value::UnknownAsync
+                } else {
+                    Value::Unknown
+                }
+            }
         })
     }
     fn merge_env(&mut self, env: &mut Env<'a>, other: Env<'a>, depth: usize) -> R<()> {
@@ -240,14 +822,18 @@ impl<'a> Walk<'a, '_, '_> {
     }
     fn take(
         &mut self,
+        owner: usize,
         env: &mut Env<'a>,
-        expression: &SemanticOriginalExpr,
+        expression: &'a SemanticOriginalExpr,
         depth: usize,
     ) -> R<Value<'a>> {
         self.budget.node(expression.span, depth)?;
+        if let Some(place) = self.place(owner, env, expression, depth + 1)? {
+            self.invalidate(env, &place, depth + 1)?;
+        }
         match &expression.kind {
             CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
-                self.take(env, inner, depth + 1)
+                self.take(owner, env, inner, depth + 1)
             }
             CoreExprKind::Name(name) => {
                 for (binding, value) in env.iter_mut().rev() {
@@ -325,8 +911,9 @@ impl<'a> Walk<'a, '_, '_> {
     }
     fn transfer(
         &mut self,
+        owner: usize,
         env: &mut Env<'a>,
-        expression: &SemanticOriginalExpr,
+        expression: &'a SemanticOriginalExpr,
         value: &Value<'a>,
         depth: usize,
     ) -> R<()> {
@@ -338,8 +925,9 @@ impl<'a> Walk<'a, '_, '_> {
                 | Value::Record(_)
                 | Value::Alternatives(_)
                 | Value::Unknown
+                | Value::UnknownAsync
         ) {
-            self.take(env, expression, depth + 1)?;
+            self.take(owner, env, expression, depth + 1)?;
         }
         Ok(())
     }
@@ -365,11 +953,22 @@ impl<'a> Walk<'a, '_, '_> {
                     kind: *kind,
                     signature,
                     suspend: signature.call_kind == CallKind::Suspend,
-                    cleanup: true,
+                    known_suspend: self.evidence.fixed(signature, self.budget)?,
+                    cleanup: Cleanup::ABSTRACT,
+                    initial: Cleanup::ABSTRACT,
+                    after: Cleanup::ABSTRACT,
+                    ready: None,
                 }),
                 SemanticRequirementRecipe::Structural {
                     ty: subject,
                     bound: DynStructuralBound::Copy | DynStructuralBound::SyncDrop,
+                } if subject == ty => Some(Value::Plain),
+                SemanticRequirementRecipe::Builtin {
+                    ty: subject,
+                    trait_kind:
+                        SemanticBuiltinTrait::Copy
+                        | SemanticBuiltinTrait::SyncDrop
+                        | SemanticBuiltinTrait::StoreElement,
                 } if subject == ty => Some(Value::Plain),
                 SemanticRequirementRecipe::ForAll { requirements, .. } => {
                     self.bound(owner, requirements, ty, depth + 1)?
@@ -397,6 +996,7 @@ impl<'a> Walk<'a, '_, '_> {
                     kind,
                     signature,
                     suspend,
+                    known_suspend,
                     ..
                 },
             )
@@ -407,6 +1007,7 @@ impl<'a> Walk<'a, '_, '_> {
                     kind,
                     signature,
                     suspend,
+                    known_suspend,
                     ..
                 },
                 Value::Plain,
@@ -416,7 +1017,11 @@ impl<'a> Walk<'a, '_, '_> {
                 kind,
                 signature,
                 suspend,
-                cleanup: false,
+                known_suspend,
+                cleanup: Cleanup::NONE,
+                initial: Cleanup::NONE,
+                after: Cleanup::NONE,
+                ready: None,
             },
             (left, right) => self.join(left, right, depth + 1)?,
         })
@@ -440,7 +1045,11 @@ impl<'a> Walk<'a, '_, '_> {
                 kind: CallableKind::Fn,
                 signature,
                 suspend: signature.call_kind == CallKind::Suspend,
-                cleanup: false,
+                known_suspend: signature.call_kind == CallKind::Suspend,
+                cleanup: Cleanup::NONE,
+                initial: Cleanup::NONE,
+                after: Cleanup::NONE,
+                ready: None,
             },
             SemanticTypeRecipe::Tuple(fields) => {
                 let mut result = Vec::new();
@@ -451,9 +1060,29 @@ impl<'a> Walk<'a, '_, '_> {
                 }
                 Value::Tuple(result)
             }
-            SemanticTypeRecipe::Array { element, .. } | SemanticTypeRecipe::Slice(element) => {
+            SemanticTypeRecipe::ErrorUnion { error, result } => {
+                let mut values = Vec::new();
+                for (is_error, ty) in [(true, error.as_ref()), (false, result.as_ref())] {
+                    let value = self.ty(owner, ty, depth + 1)?;
+                    self.budget
+                        .lineage_bytes(std::mem::size_of::<Value<'a>>(), Span::default())?;
+                    self.budget.lineage_push(
+                        &mut values,
+                        Value::Error {
+                            is_error,
+                            value: Box::new(value),
+                        },
+                        Span::default(),
+                    )?;
+                }
+                Value::Alternatives(values)
+            }
+            SemanticTypeRecipe::Slice(_) => Value::Plain,
+            SemanticTypeRecipe::Array { element, .. } => {
                 let element = self.ty(owner, element, depth + 1)?;
-                if self.pending(&element, depth + 1)? {
+                if self.pending(&element, depth + 1)?.asynchronous {
+                    Value::UnknownAsync
+                } else if self.pending(&element, depth + 1)?.may {
                     Value::Unknown
                 } else {
                     Value::Plain
@@ -556,14 +1185,16 @@ impl<'a> Walk<'a, '_, '_> {
                         body: SemanticNominalBody::Enum { variants },
                         ..
                     } => {
-                        let mut pending = false;
+                        let mut pending = Cleanup::NONE;
                         for variant in variants {
                             for field in &variant.fields {
                                 let value = self.ty(index, field, depth + 1)?;
                                 pending |= self.pending(&value, depth + 1)?;
                             }
                         }
-                        if pending {
+                        if pending.asynchronous {
+                            Value::UnknownAsync
+                        } else if pending.may {
                             Value::Unknown
                         } else {
                             Value::Plain
@@ -647,40 +1278,148 @@ impl<'a> Walk<'a, '_, '_> {
         self.budget.drop_lineage_vec(path, expression.span)?;
         Ok(found)
     }
-    fn operation(&mut self, value: &Value<'a>, depth: usize) -> R<Option<(bool, bool)>> {
+    fn operation(
+        &mut self,
+        value: &Value<'a>,
+        depth: usize,
+    ) -> R<Option<(bool, bool, Cleanup, Cleanup, Option<Cleanup>)>> {
         self.budget.node(Span::default(), depth)?;
         Ok(match value {
             Value::Callable {
-                suspend, cleanup, ..
-            } => Some((*suspend, *cleanup)),
-            Value::Function(index) => signature(self.definitions[*index])
-                .map(|signature| (signature.call_kind == CallKind::Suspend, false)),
+                suspend,
+                known_suspend,
+                cleanup,
+                after,
+                ready,
+                ..
+            } => Some((*suspend, *known_suspend, *cleanup, *after, *ready)),
+            Value::Function(index) => signature(self.definitions[*index]).map(|signature| {
+                (
+                    signature.call_kind == CallKind::Suspend,
+                    self.evidence.rows[*index].function,
+                    Cleanup::NONE,
+                    Cleanup::NONE,
+                    None,
+                )
+            }),
             Value::Alternatives(values) => {
                 let mut suspend = false;
-                let mut cleanup = false;
+                let mut known = false;
+                let mut cleanup = Cleanup::NONE;
+                let mut after = Cleanup::NONE;
+                let mut ready = Some(Cleanup::NONE);
                 if values.is_empty() {
                     return Ok(None);
                 }
                 for value in values {
-                    let Some((next, remaining)) = self.operation(value, depth + 1)? else {
+                    let Some((next, next_known, remaining, next_after, next_ready)) =
+                        self.operation(value, depth + 1)?
+                    else {
                         return Ok(None);
                     };
                     suspend |= next;
+                    known |= next_known;
                     cleanup |= remaining;
+                    after |= next_after;
+                    ready = ready.zip(next_ready).map(|(a, b)| a | b);
                 }
-                Some((suspend, cleanup))
+                Some((suspend, known, cleanup, after, ready))
             }
             _ => None,
         })
     }
-    fn function_result(&mut self, owner: usize, depth: usize) -> R<Value<'a>> {
+    fn function_flow(&mut self, owner: usize, depth: usize) -> R<Flow<'a>> {
         self.budget.node(Span::default(), depth)?;
         self.budget
             .identity_work(self.active.len(), Span::default())?;
         if self.active.contains(&owner) {
-            return Ok(Value::Unknown);
+            let mut flow = Flow::new();
+            flow.incomplete = true;
+            return Ok(flow);
         }
         let definition = self.definitions[owner];
+        let SemanticDefinitionBody::FunctionWithBody {
+            signature,
+            parameters,
+            body: SemanticOriginalFunctionBody::Defined(body),
+            ..
+        } = &definition.body
+        else {
+            let mut flow = Flow::new();
+            flow.incomplete = true;
+            return Ok(flow);
+        };
+        self.budget
+            .lineage_push(&mut self.active, owner, Span::default())?;
+        // Every authored body is scanned in its complete declaration Gamma.
+        // A caller's actual worker or cleanup graph is never installed here.
+        let frames = std::mem::take(&mut self.frames);
+        let context = self.context.take();
+        let execution = std::mem::replace(&mut self.execution, false);
+        let known_execution = std::mem::replace(&mut self.known_execution, false);
+        let held = self.held_captures;
+        let early = std::mem::replace(&mut self.early_cleanup, Cleanup::NONE);
+        let early_body = std::mem::replace(&mut self.early_body_cleanup, Cleanup::NONE);
+        let prepared = std::mem::replace(&mut self.prepared, Cleanup::NONE);
+        let mut env = Vec::new();
+        for slot in &definition.environment {
+            if let SemanticActualRecipe::Type(
+                ty @ SemanticTypeRecipe::OriginalType {
+                    source: SemanticOriginalTypeSource::NameAt { name, .. },
+                    ..
+                },
+            ) = &slot.source
+            {
+                let value = self.ty(owner, ty, depth + 1)?;
+                self.budget
+                    .lineage_push(&mut env, (name.as_str(), value), Span::default())?;
+            }
+        }
+        self.held_captures = env.len();
+        for (parameter, ty) in parameters.iter().zip(&signature.parameters) {
+            let value = self.ty(owner, &ty.ty, depth + 1)?;
+            self.budget
+                .lineage_push(&mut env, (parameter.name.as_str(), value), parameter.span)?;
+        }
+        let mut flow = self.block(owner, &mut env, body, depth + 1)?;
+        flow.cleanup |= self.early_cleanup;
+        flow.body_cleanup |= self.early_body_cleanup;
+        if flow.live {
+            flow.cleanup |= self.residual(&env, depth + 1)?;
+            flow.body_cleanup |= self.residual(&env[self.held_captures..], depth + 1)?;
+        }
+        flow.incomplete |= !flow.breaks.is_empty() || !flow.continues.is_empty();
+        if flow.body_cleanup.asynchronous {
+            self.budget.node(Span::default(), depth)?;
+            self.bodies[owner] = true;
+        }
+        self.active.pop();
+        self.budget
+            .drop_lineage_vec(std::mem::replace(&mut self.frames, frames), Span::default())?;
+        self.context = context;
+        self.execution = execution;
+        self.known_execution = known_execution;
+        self.held_captures = held;
+        self.early_cleanup = early;
+        self.early_body_cleanup = early_body;
+        self.prepared = prepared;
+        Ok(flow)
+    }
+    fn function_result(&mut self, owner: usize, depth: usize) -> R<Value<'a>> {
+        self.budget.node(Span::default(), depth)?;
+        let definition = self.definitions[owner];
+        self.budget
+            .identity_work(self.active.len(), Span::default())?;
+        if self.active.contains(&owner) {
+            return match signature(definition) {
+                Some(signature)
+                    if !matches!(signature.result, SemanticTypeRecipe::Opaque { .. }) =>
+                {
+                    self.ty(owner, &signature.result, depth + 1)
+                }
+                _ => Ok(Value::Unknown),
+            };
+        }
         let mut bounds = Vec::new();
         opaque_bounds(
             &definition.requirements,
@@ -688,21 +1427,21 @@ impl<'a> Walk<'a, '_, '_> {
             self.budget,
             depth + 1,
         )?;
-        let (kind, bound) = match bounds.as_slice() {
-            [(kind, bound)] => (*kind, *bound),
-            [] => {
-                return match signature(definition) {
-                    Some(signature)
-                        if !matches!(signature.result, SemanticTypeRecipe::Opaque { .. }) =>
-                    {
-                        self.ty(owner, &signature.result, depth + 1)
-                    }
-                    _ => Ok(Value::Unknown),
-                };
-            }
-            _ => return Ok(Value::Unknown),
+        let selected = match bounds.as_slice() {
+            [(kind, bound)] => Some((*kind, *bound)),
+            _ => None,
         };
         self.budget.drop_lineage_vec(bounds, Span::default())?;
+        let Some((kind, bound)) = selected else {
+            return match signature(definition) {
+                Some(signature)
+                    if !matches!(signature.result, SemanticTypeRecipe::Opaque { .. }) =>
+                {
+                    self.ty(owner, &signature.result, depth + 1)
+                }
+                _ => Ok(Value::Unknown),
+            };
+        };
         if !matches!(
             definition.body,
             SemanticDefinitionBody::FunctionWithBody {
@@ -710,80 +1449,62 @@ impl<'a> Walk<'a, '_, '_> {
                 ..
             }
         ) {
-            // An abstract declaration's written interface is a conditional
-            // premise, not an authored creator whose cleanup we can infer.
             return Ok(Value::Callable {
                 definition: Some(owner),
                 scope: owner,
                 kind,
                 signature: bound,
                 suspend: bound.call_kind == CallKind::Suspend,
-                cleanup: true,
+                known_suspend: self.evidence.fixed(bound, self.budget)?,
+                cleanup: Cleanup::ABSTRACT,
+                initial: Cleanup::ABSTRACT,
+                after: Cleanup::ABSTRACT,
+                ready: None,
             });
         }
-        self.budget
-            .lineage_push(&mut self.active, owner, Span::default())?;
-        // A factory's exported operation is formed in its own complete Γ,
-        // never under a particular nominal caller's substitution frame.
-        let frames = std::mem::take(&mut self.frames);
-        let context = self.context.take();
-        let execution = std::mem::replace(&mut self.execution, false);
-        let mut env = Vec::new();
-        let flow = if let SemanticDefinitionBody::FunctionWithBody {
-            signature,
-            parameters,
-            body: SemanticOriginalFunctionBody::Defined(body),
-            ..
-        } = &definition.body
-        {
-            for (parameter, value) in parameters.iter().zip(&signature.parameters) {
-                let value = self.ty(owner, &value.ty, depth + 1)?;
-                self.budget.lineage_push(
-                    &mut env,
-                    (parameter.name.as_str(), value),
-                    parameter.span,
-                )?;
-            }
-            self.block(owner, &mut env, body, depth + 1)?
-        } else {
-            Flow {
-                value: None,
-                live: true,
-                cleanup: true,
-                incomplete: true,
-            }
-        };
-        self.active.pop();
-        self.budget
-            .drop_lineage_vec(std::mem::replace(&mut self.frames, frames), Span::default())?;
-        self.context = context;
-        self.execution = execution;
-        // The complete declared result remains the public operation interface;
-        // candidate creators are never substituted for its P/R or life domain.
-        let (suspend, cleanup) = if !flow.live && !flow.incomplete {
+        let flow = self.function_flow(owner, depth + 1)?;
+        let (suspend, known, cleanup, after, ready) = if !flow.live && !flow.incomplete {
             match flow.value {
-                Some(value) => self.operation(&value, depth + 1)?.unwrap_or((true, true)),
-                None => (true, true),
+                Some(value) => self.operation(&value, depth + 1)?.unwrap_or((
+                    true,
+                    false,
+                    Cleanup::ABSTRACT,
+                    Cleanup::ABSTRACT,
+                    None,
+                )),
+                None => (true, false, Cleanup::ABSTRACT, Cleanup::ABSTRACT, None),
             }
         } else {
-            (true, true)
+            (true, false, Cleanup::ABSTRACT, Cleanup::ABSTRACT, None)
         };
-        // Nonconsuming factories keep their declared operation upper. Their
-        // real capture cleanup candidate is still needed when a later FnOnce
-        // wrapper owns that returned value; a scalar-only Fn/FnMut environment
-        // must not be mistaken for an unknown asynchronous Task environment.
+        // Repeated invocation uses its declared entry contract. Remaining
+        // cleanup is separate, and a real Ready relation refines only this
+        // particular stored callback's later destruction candidate.
         let suspend = if kind == CallableKind::FnOnce {
-            suspend
+            suspend || bound.call_kind == CallKind::Suspend
         } else {
             bound.call_kind == CallKind::Suspend
         };
+        let known = if kind == CallableKind::FnOnce {
+            known || self.evidence.fixed(bound, self.budget)?
+        } else {
+            self.evidence.fixed(bound, self.budget)?
+        };
+        if kind == CallableKind::FnOnce && known && !self.evidence.rows[owner].operation {
+            self.evidence.rows[owner].operation = true;
+            *self.seed_changed = true;
+        }
         Ok(Value::Callable {
             definition: Some(owner),
             scope: owner,
             kind,
             signature: bound,
             suspend,
+            known_suspend: known,
             cleanup,
+            initial: cleanup,
+            after,
+            ready,
         })
     }
     fn expr(
@@ -804,17 +1525,31 @@ impl<'a> Walk<'a, '_, '_> {
                         .map_or(Value::Unknown, Value::Function)
                 }
             }
-            E::Group(value) | E::Ascribed { value, .. } | E::Try(value) | E::Spread(value) => {
+            E::Group(value) | E::Ascribed { value, .. } | E::Spread(value) => {
                 self.expr(owner, env, value, depth + 1)?
+            }
+            E::Try(value) => {
+                let value = self.expr(owner, env, value, depth + 1)?;
+                let all = self.residual(env, depth + 1)? | self.prepared;
+                let body = self.residual(&env[self.held_captures..], depth + 1)? | self.prepared;
+                self.early_cleanup |= all;
+                self.early_body_cleanup |= body;
+                self.ok_value(value, depth + 1)?
             }
             E::Unary {
                 op: UnaryOp::Give,
                 operand,
-            } => self.take(env, operand, depth + 1)?,
+            } => self.take(owner, env, operand, depth + 1)?,
             E::Unary {
-                op: UnaryOp::Borrow | UnaryOp::BorrowMut,
-                ..
-            } => Value::Plain,
+                op: op @ (UnaryOp::Borrow | UnaryOp::BorrowMut),
+                operand,
+            } => match self.place(owner, env, operand, depth + 1)? {
+                Some(place) => Value::View {
+                    place,
+                    mutable: *op == UnaryOp::BorrowMut,
+                },
+                None => Value::Plain,
+            },
             E::Unary { operand, .. }
             | E::NumericConvert { value: operand, .. }
             | E::IntegerConvert { value: operand, .. } => {
@@ -862,11 +1597,70 @@ impl<'a> Walk<'a, '_, '_> {
             E::Call { callee, arguments } => {
                 let target = self.target(owner, env, callee, depth + 1)?;
                 let callable = self.expr(owner, env, callee, depth + 1)?;
-                // Explicit give transfers the actual owner; observations do
-                // not. The independent callee check still proves every input
-                // mode, full type, result and cleanup obligation.
+                let position = self.place(owner, env, callee, depth + 1)?;
+                let mut head = callee.as_ref();
+                while let E::Group(inner)
+                | E::TypeApply { callee: inner, .. }
+                | E::GenericApply { callee: inner, .. } = &head.kind
+                {
+                    head = inner;
+                }
+                let primitive = match &head.kind {
+                    E::Name(name)
+                        if target.is_none()
+                            && self.lookup(env, name, depth + 1)?.is_none()
+                            && crate::primitive_name(name) =>
+                    {
+                        Some(name.as_str())
+                    }
+                    _ => None,
+                };
+                let primitive_place = if matches!(
+                    primitive,
+                    Some(
+                        "task_poll_close"
+                            | "task_poll"
+                            | "task_request_cancel"
+                            | "async_registration_poll_close"
+                            | "async_registration_request_close"
+                    )
+                ) {
+                    if let Some(argument) = arguments.first() {
+                        self.place(owner, env, argument, depth + 1)?
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                let saved_prepared = self.prepared;
+                if matches!(
+                    &callable,
+                    Value::Callable {
+                        kind: CallableKind::FnOnce,
+                        ..
+                    }
+                ) {
+                    self.take(owner, env, callee, depth + 1)?;
+                    let cleanup = self.pending(&callable, depth + 1)?;
+                    self.prepared |= cleanup;
+                } else if position.is_none() {
+                    let cleanup = self.pending(&callable, depth + 1)?;
+                    self.prepared |= cleanup;
+                }
+                let mut inputs = Vec::new();
+                let mut mutated = Vec::new();
                 for (ordinal, argument) in arguments.iter().enumerate() {
                     let value = self.expr(owner, env, argument, depth + 1)?;
+                    if let Value::View {
+                        place,
+                        mutable: true,
+                    } = &value
+                    {
+                        let place = self.place_copy(place, depth + 1)?;
+                        self.budget
+                            .lineage_push(&mut mutated, place, argument.span)?;
+                    }
                     let parameters = match &callable {
                         Value::Callable { signature, .. } => Some(signature.parameters.as_slice()),
                         Value::Function(index) => signature(self.definitions[*index])
@@ -875,16 +1669,52 @@ impl<'a> Walk<'a, '_, '_> {
                             .and_then(|index| signature(self.definitions[index]))
                             .map(|signature| signature.parameters.as_slice()),
                     };
-                    if let Some(parameter) =
-                        parameters.and_then(|parameters| parameters.get(ordinal))
-                    {
+                    let parameter =
+                        if matches!(primitive, Some("task_create" | "task_create_owned"))
+                            && ordinal != 0
+                        {
+                            match inputs.first() {
+                                Some(Value::Function(index)) => signature(self.definitions[*index])
+                                    .and_then(|signature| signature.parameters.get(ordinal - 1)),
+                                _ => None,
+                            }
+                        } else {
+                            parameters.and_then(|parameters| parameters.get(ordinal))
+                        };
+                    if let Some(parameter) = parameter {
                         if !matches!(
                             parameter.ty,
                             SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
                         ) {
-                            self.transfer(env, argument, &value, depth + 1)?;
+                            self.transfer(owner, env, argument, &value, depth + 1)?;
+                            let cleanup = self.pending(&value, depth + 1)?;
+                            self.prepared |= cleanup;
                         }
                     }
+                    self.budget
+                        .lineage_push(&mut inputs, value, argument.span)?;
+                }
+                self.prepared = saved_prepared;
+                for place in mutated {
+                    self.invalidate(env, &place, depth + 1)?;
+                    if primitive.is_none() {
+                        if let Some(value) = self.place_value_mut(owner, env, &place, depth + 1)? {
+                            match value {
+                                Value::SettledTask => *value = Value::Task,
+                                Value::Callable {
+                                    cleanup, initial, ..
+                                } => *cleanup |= *initial,
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                if let Some(place) = &primitive_place {
+                    self.invalidate(env, place, depth + 1)?;
+                }
+                if matches!(primitive, Some("task_yield" | "task_await")) {
+                    self.execution = true;
+                    self.known_execution = true;
                 }
                 match callable {
                     Value::Callable {
@@ -892,52 +1722,119 @@ impl<'a> Walk<'a, '_, '_> {
                         kind,
                         signature,
                         suspend,
+                        known_suspend,
+                        after,
+                        ready,
                         ..
                     } => {
                         self.execution |= suspend;
-                        if kind == CallableKind::FnOnce {
-                            self.take(env, callee, depth + 1)?;
+                        self.known_execution |= known_suspend;
+                        if kind != CallableKind::FnOnce {
+                            if let Some(place) = &position {
+                                self.invalidate(env, place, depth + 1)?;
+                                if let Some(Value::Callable { cleanup, .. }) =
+                                    self.place_value_mut(owner, env, place, depth + 1)?
+                                {
+                                    *cleanup = after;
+                                }
+                            } else {
+                                self.early_cleanup |= after;
+                                self.early_body_cleanup |= after;
+                            }
                         }
-                        self.ty(scope, &signature.result, depth + 1)?
+                        if ready.is_some() && kind != CallableKind::FnOnce {
+                            if let Some(place) = position {
+                                Value::Poll(place)
+                            } else {
+                                self.ty(scope, &signature.result, depth + 1)?
+                            }
+                        } else {
+                            self.ty(scope, &signature.result, depth + 1)?
+                        }
                     }
                     Value::Function(index) => {
                         self.execution |= signature(self.definitions[index])
                             .is_none_or(|signature| signature.call_kind == CallKind::Suspend);
+                        self.known_execution |= self.evidence.rows[index].function;
                         self.function_result(index, depth + 1)?
                     }
                     _ => {
                         if let Some(index) = target {
+                            self.known_execution |= self.evidence.rows[index].function;
                             self.function_result(index, depth + 1)?
-                        } else {
-                            let mut head = callee.as_ref();
-                            while let E::Group(inner)
-                            | E::TypeApply { callee: inner, .. }
-                            | E::GenericApply { callee: inner, .. } = &head.kind
-                            {
-                                head = inner;
-                            }
-                            match &head.kind {
-                                E::Name(name)
-                                    if self.lookup(env, name, depth + 1)?.is_none()
-                                        && crate::primitive_name(name) =>
-                                {
-                                    // These sealed operations return scalar observations
-                                    // or no owner. A view never retires its Task source.
-                                    if matches!(
-                                        name.as_str(),
-                                        "task_valid"
-                                            | "task_yield"
-                                            | "task_request_cancel"
-                                            | "task_finish_destroy"
-                                            | "task_finish_destroy_checked"
-                                    ) {
-                                        Value::Plain
-                                    } else {
-                                        Value::Unknown
-                                    }
+                        } else if matches!(
+                            primitive,
+                            Some("task_poll_close" | "async_registration_poll_close")
+                        ) {
+                            if let Some(place) = primitive_place {
+                                if matches!(
+                                    self.place_value_mut(owner, env, &place, depth + 1)?,
+                                    Some(Value::Task | Value::SettledTask)
+                                ) {
+                                    Value::Poll(place)
+                                } else {
+                                    Value::Plain
                                 }
-                                _ => Value::Unknown,
+                            } else {
+                                Value::Plain
                             }
+                        } else if matches!(primitive, Some("task_create" | "task_create_owned")) {
+                            let mut values = Vec::new();
+                            let mut error = Vec::new();
+                            if primitive == Some("task_create_owned") {
+                                let mut inputs = inputs.into_iter();
+                                inputs.next();
+                                let mut owned = Vec::new();
+                                for input in inputs {
+                                    self.budget
+                                        .lineage_push(&mut owned, input, expression.span)?;
+                                }
+                                self.budget.lineage_push(
+                                    &mut error,
+                                    ("inputs", Value::Tuple(owned)),
+                                    expression.span,
+                                )?;
+                                self.budget.lineage_push(
+                                    &mut error,
+                                    ("reason", Value::Plain),
+                                    expression.span,
+                                )?;
+                            }
+                            for (is_error, value) in
+                                [(true, Value::Record(error)), (false, Value::Task)]
+                            {
+                                self.budget.lineage_bytes(
+                                    std::mem::size_of::<Value<'a>>(),
+                                    expression.span,
+                                )?;
+                                self.budget.lineage_push(
+                                    &mut values,
+                                    Value::Error {
+                                        is_error,
+                                        value: Box::new(value),
+                                    },
+                                    expression.span,
+                                )?;
+                            }
+                            Value::Alternatives(values)
+                        } else if primitive == Some("c_register_async") {
+                            Value::Task
+                        } else if matches!(
+                            primitive,
+                            Some(
+                                "task_valid"
+                                    | "task_yield"
+                                    | "task_request_cancel"
+                                    | "async_registration_request_close"
+                                    | "async_registration_finish_destroy_checked"
+                                    | "task_finish_destroy"
+                                    | "task_finish_destroy_checked"
+                                    | "task_poll"
+                            )
+                        ) {
+                            Value::Plain
+                        } else {
+                            Value::Unknown
                         }
                     }
                 }
@@ -1024,6 +1921,21 @@ impl<'a> Walk<'a, '_, '_> {
                         expression.span,
                     )?;
                     if *move_capture {
+                        self.budget.identity_work(
+                            env.len().saturating_mul(name.len().saturating_add(1)),
+                            expression.span,
+                        )?;
+                        if let Some(index) = env.iter().rposition(|(binding, _)| *binding == name) {
+                            self.invalidate(
+                                env,
+                                &Place {
+                                    owner,
+                                    index,
+                                    fields: Vec::new(),
+                                },
+                                depth + 1,
+                            )?;
+                        }
                         for (binding, value) in env.iter_mut().rev() {
                             self.budget.text(name, expression.span)?;
                             if *binding == name {
@@ -1036,6 +1948,7 @@ impl<'a> Walk<'a, '_, '_> {
                 // Uncalled cleanup owns only captures, never hypothetical
                 // invocation inputs which have not been supplied.
                 let cleanup = self.residual(&captured, depth + 1)?;
+                let held = std::mem::replace(&mut self.held_captures, captured.len());
                 for (parameter, ty) in parameters.iter().zip(&child_signature.parameters) {
                     let value = self.ty(child, &ty.ty, depth + 1)?;
                     self.budget.lineage_push(
@@ -1045,19 +1958,43 @@ impl<'a> Walk<'a, '_, '_> {
                     )?;
                 }
                 let execution = std::mem::replace(&mut self.execution, false);
-                let flow = self.block(child, &mut captured, body, depth + 1)?;
-                let pending = self.execution
-                    || flow.cleanup
-                    || flow.incomplete
-                    || (flow.live && self.residual(&captured, depth + 1)?);
+                let known_execution = std::mem::replace(&mut self.known_execution, false);
+                let early = std::mem::replace(&mut self.early_cleanup, Cleanup::NONE);
+                let early_body = std::mem::replace(&mut self.early_body_cleanup, Cleanup::NONE);
+                let prepared = std::mem::replace(&mut self.prepared, Cleanup::NONE);
+                let mut flow = self.block(child, &mut captured, body, depth + 1)?;
+                flow.cleanup |= self.early_cleanup;
+                flow.body_cleanup |= self.early_body_cleanup;
+                if flow.live {
+                    flow.cleanup |= self.residual(&captured, depth + 1)?;
+                    flow.body_cleanup |=
+                        self.residual(&captured[self.held_captures..], depth + 1)?;
+                }
+                let pending = self.execution || flow.cleanup.may || flow.incomplete;
+                if flow.body_cleanup.asynchronous {
+                    self.budget.node(expression.span, depth)?;
+                    self.bodies[child] = true;
+                }
+                let known = self.known_execution
+                    || flow.cleanup.asynchronous
+                    || self.evidence.rows[child].function;
                 self.execution = execution;
+                self.known_execution = known_execution;
+                self.held_captures = held;
+                self.early_cleanup = early;
+                self.early_body_cleanup = early_body;
+                self.prepared = prepared;
                 Value::Callable {
                     definition: Some(child),
                     scope: child,
                     kind: CallableKind::FnMut,
                     signature: child_signature,
                     suspend: pending || child_signature.call_kind == CallKind::Suspend,
+                    known_suspend: known,
                     cleanup,
+                    initial: cleanup,
+                    after: flow.cleanup,
+                    ready: flow.ready.known(),
                 }
             }
             E::If {
@@ -1072,22 +2009,26 @@ impl<'a> Walk<'a, '_, '_> {
                 self.merge_env(env, other, depth + 1)?;
                 self.join(left, right, depth + 1)?
             }
-            E::Sequence { bindings, value } => {
+            E::Sequence {
+                bindings,
+                value: result,
+            } => {
                 let base = env.len();
                 for (name, expression) in bindings {
                     let value = self.expr(owner, env, expression, depth + 1)?;
+                    self.transfer(owner, env, expression, &value, depth + 1)?;
                     self.budget
                         .lineage_push(env, (name.as_str(), value), expression.span)?;
                 }
-                let value = self.expr(owner, env, value, depth + 1)?;
-                // Hygienic temporaries are real owners too; untransported
-                // responsibility cannot disappear at a lexical boundary.
-                let mut extra = false;
-                for (_, value) in &env[base..] {
-                    extra |= self.pending(value, depth + 1)?;
-                }
+                let value = self.expr(owner, env, result, depth + 1)?;
+                self.transfer(owner, env, result, &value, depth + 1)?;
+                // Hygienic temporaries have ordinary lexical cleanup. Keep
+                // the returned creator and its complete original signature.
+                let cleanup = self.residual(&env[base..], depth + 1)?;
+                self.early_cleanup |= cleanup;
+                self.early_body_cleanup |= cleanup;
                 env.truncate(base);
-                if extra { Value::Unknown } else { value }
+                value
             }
             E::Binary { left, right, .. }
             | E::Range {
@@ -1144,18 +2085,18 @@ impl<'a> Walk<'a, '_, '_> {
         pattern: &'a SemanticOriginalPattern,
         value: Value<'a>,
         depth: usize,
-    ) -> R<bool> {
+    ) -> R<Cleanup> {
         self.budget.node(pattern.span, depth)?;
         Ok(match (&pattern.kind, value) {
             (CorePatternKind::Name(name), value) => {
                 self.budget
                     .lineage_push(env, (name.as_str(), value), pattern.span)?;
-                false
+                Cleanup::NONE
             }
             (CorePatternKind::Tuple(patterns), Value::Tuple(values))
                 if patterns.len() == values.len() =>
             {
-                let mut dropped = false;
+                let mut dropped = Cleanup::NONE;
                 for (pattern, value) in patterns.iter().zip(values) {
                     dropped |= self.pattern(env, pattern, value, depth + 1)?;
                 }
@@ -1169,12 +2110,12 @@ impl<'a> Walk<'a, '_, '_> {
                 | CorePatternKind::Constructor {
                     fields: patterns, ..
                 },
-                Value::Plain,
+                Value::Plain | Value::Poll(_),
             ) => {
                 for pattern in patterns {
                     self.pattern(env, pattern, Value::Plain, depth + 1)?;
                 }
-                false
+                Cleanup::NONE
             }
             (
                 CorePatternKind::Record {
@@ -1185,7 +2126,7 @@ impl<'a> Walk<'a, '_, '_> {
                 },
                 Value::Record(fields),
             ) => {
-                let mut dropped = false;
+                let mut dropped = Cleanup::NONE;
                 for (name, value) in fields {
                     self.budget.identity_work(patterns.len(), pattern.span)?;
                     if let Some((_, field)) =
@@ -1202,6 +2143,9 @@ impl<'a> Walk<'a, '_, '_> {
                 let pending = self.pending(&value, depth + 1)?;
                 self.pattern(env, pattern, Value::Plain, depth + 1)?;
                 pending
+            }
+            (CorePatternKind::ErrorArm { pattern, .. }, Value::Error { value, .. }) => {
+                self.pattern(env, pattern, *value, depth + 1)?
             }
             (CorePatternKind::ErrorArm { pattern, .. }, value) => {
                 self.pattern(env, pattern, value, depth + 1)?
@@ -1223,6 +2167,114 @@ impl<'a> Walk<'a, '_, '_> {
         }
         Ok(())
     }
+    fn absorb(&mut self, output: &mut Flow<'a>, mut flow: Flow<'a>, depth: usize) -> R<()> {
+        output.cleanup |= flow.cleanup;
+        output.body_cleanup |= flow.body_cleanup;
+        output.incomplete |= flow.incomplete;
+        output.ready = output.ready.join(flow.ready);
+        self.result(&mut output.value, flow.value.take(), depth + 1)?;
+        for value in flow.breaks {
+            self.budget
+                .lineage_push(&mut output.breaks, value, Span::default())?;
+        }
+        for value in flow.continues {
+            self.budget
+                .lineage_push(&mut output.continues, value, Span::default())?;
+        }
+        Ok(())
+    }
+    fn pattern_ready(pattern: &SemanticOriginalPattern) -> Option<bool> {
+        match &pattern.kind {
+            CorePatternKind::Variant { variant, .. }
+            | CorePatternKind::Constructor { variant, .. } => match variant.as_str() {
+                "Ready" => Some(true),
+                "Pending" => Some(false),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+    fn join_exit_env(&mut self, output: &mut Option<Env<'a>>, env: Env<'a>, depth: usize) -> R<()> {
+        if let Some(previous) = output {
+            self.merge_env(previous, env, depth + 1)?;
+        } else {
+            *output = Some(env);
+        }
+        Ok(())
+    }
+    fn loop_flow(
+        &mut self,
+        owner: usize,
+        env: &mut Env<'a>,
+        body: &'a SemanticOriginalBlock,
+        condition: Option<&'a SemanticOriginalExpr>,
+        pattern: Option<&'a SemanticOriginalPattern>,
+        may_skip: bool,
+        depth: usize,
+    ) -> R<Flow<'a>> {
+        let initial = self.env_copy(env, depth + 1)?;
+        let mut entry = self.env_copy(env, depth + 1)?;
+        let mut exits = None;
+        let mut output = Flow::new();
+        loop {
+            self.budget.node(body.span, depth)?;
+            let mut iteration = self.env_copy(&entry, depth + 1)?;
+            let mut subject = None;
+            if let Some(condition) = condition {
+                let value = self.expr(owner, &mut iteration, condition, depth + 1)?;
+                if may_skip {
+                    let mut exit = self.env_copy(&iteration, depth + 1)?;
+                    if pattern.and_then(Self::pattern_ready) == Some(false) {
+                        self.refine_ready(owner, &mut exit, &value, depth + 1)?;
+                    }
+                    self.join_exit_env(&mut exits, exit, depth + 1)?;
+                }
+                if pattern.and_then(Self::pattern_ready) == Some(true) {
+                    self.refine_ready(owner, &mut iteration, &value, depth + 1)?;
+                }
+                subject = Some(value);
+            } else if may_skip {
+                let exit = self.env_copy(&iteration, depth + 1)?;
+                self.join_exit_env(&mut exits, exit, depth + 1)?;
+            }
+            let before = iteration.len();
+            if let (Some(pattern), Some(value)) = (pattern, subject) {
+                output.drop_value(self.pattern(&mut iteration, pattern, value, depth + 1)?);
+            }
+            let mut flow = self.block(owner, &mut iteration, body, depth + 1)?;
+            if flow.live {
+                flow.drop_value(self.residual(&iteration[before..], depth + 1)?);
+                iteration.truncate(before);
+            }
+            for mut exit in std::mem::take(&mut flow.breaks) {
+                exit.truncate(before);
+                self.join_exit_env(&mut exits, exit, depth + 1)?;
+            }
+            let mut back = None;
+            if flow.live {
+                self.join_exit_env(&mut back, iteration, depth + 1)?;
+            }
+            for mut next in std::mem::take(&mut flow.continues) {
+                next.truncate(before);
+                self.join_exit_env(&mut back, next, depth + 1)?;
+            }
+            self.absorb(&mut output, flow, depth + 1)?;
+            let Some(back) = back else {
+                break;
+            };
+            let mut next = self.env_copy(&initial, depth + 1)?;
+            self.merge_env(&mut next, back, depth + 1)?;
+            if self.same_env(&entry, &next, depth + 1)? {
+                break;
+            }
+            entry = next;
+        }
+        output.live = exits.is_some();
+        if let Some(exit) = exits {
+            *env = exit;
+        }
+        Ok(output)
+    }
     fn block(
         &mut self,
         owner: usize,
@@ -1232,12 +2284,7 @@ impl<'a> Walk<'a, '_, '_> {
     ) -> R<Flow<'a>> {
         self.budget.node(body.span, depth)?;
         let base = env.len();
-        let mut output = Flow {
-            value: None,
-            live: true,
-            cleanup: false,
-            incomplete: false,
-        };
+        let mut output = Flow::new();
         for statement in &body.statements {
             if !output.live {
                 break;
@@ -1251,11 +2298,11 @@ impl<'a> Walk<'a, '_, '_> {
                     ty,
                     ..
                 } => {
-                    let value = if let Some(expression) = initializer {
-                        let value = self.expr(owner, env, expression, depth + 1)?;
-                        self.transfer(env, expression, &value, depth + 1)?;
-                        if matches!(expression.kind, CoreExprKind::Name(_))
-                            && matches!(value, Value::Task)
+                    let mut value = if let Some(expr) = initializer {
+                        let value = self.expr(owner, env, expr, depth + 1)?;
+                        self.transfer(owner, env, expr, &value, depth + 1)?;
+                        if matches!(expr.kind, CoreExprKind::Name(_))
+                            && matches!(value, Value::Task | Value::SettledTask)
                         {
                             Value::Plain
                         } else {
@@ -1266,6 +2313,23 @@ impl<'a> Walk<'a, '_, '_> {
                     } else {
                         Value::Unknown
                     };
+                    if matches!(value, Value::Unknown) {
+                        if let Some(ty) = ty {
+                            let declared = self.ty(owner, ty, depth + 1)?;
+                            if self.pending(&declared, depth + 1)?.asynchronous {
+                                value = declared;
+                            }
+                        }
+                    }
+                    self.invalidate(
+                        env,
+                        &Place {
+                            owner,
+                            index: env.len(),
+                            fields: Vec::new(),
+                        },
+                        depth + 1,
+                    )?;
                     self.budget
                         .lineage_push(env, (name.as_str(), value), statement.span)?;
                 }
@@ -1276,43 +2340,51 @@ impl<'a> Walk<'a, '_, '_> {
                 } => {
                     let value = self.expr(owner, env, initializer, depth + 1)?;
                     if self.pattern_owns(pattern, depth + 1)? {
-                        self.transfer(env, initializer, &value, depth + 1)?;
+                        self.transfer(owner, env, initializer, &value, depth + 1)?;
                     }
-                    output.cleanup |= self.pattern(env, pattern, value, depth + 1)?;
+                    output.drop_value(self.pattern(env, pattern, value, depth + 1)?);
                 }
-                S::Return(value) => {
-                    let value = if let Some(expression) = value {
-                        let value = self.expr(owner, env, expression, depth + 1)?;
-                        self.transfer(env, expression, &value, depth + 1)?;
+                S::Return(expression) => {
+                    let value = if let Some(expr) = expression {
+                        let value = self.expr(owner, env, expr, depth + 1)?;
+                        self.transfer(owner, env, expr, &value, depth + 1)?;
                         value
                     } else {
                         Value::Plain
                     };
-                    // Returning an owned value transports its full responsibility.
                     output.cleanup |= self.residual(env, depth + 1)?;
+                    output.body_cleanup |= self.residual(&env[self.held_captures..], depth + 1)?;
+                    output.ready =
+                        output
+                            .ready
+                            .join(self.ready_cleanup(owner, env, &value, depth + 1)?);
                     self.result(&mut output.value, Some(value), depth + 1)?;
                     output.live = false;
                 }
-                S::Expression(value) | S::Yield(value) => {
-                    let value = self.expr(owner, env, value, depth + 1)?;
-                    output.cleanup |= self.pending(&value, depth + 1)?;
+                S::Expression(expr) | S::Yield(expr) => {
+                    let value = self.expr(owner, env, expr, depth + 1)?;
+                    output.drop_value(self.pending(&value, depth + 1)?);
                 }
                 S::CompoundAssign { value, .. } => {
                     self.expr(owner, env, value, depth + 1)?;
                 }
-                S::Assign { target, value } => {
-                    let value = self.expr(owner, env, value, depth + 1)?;
-                    if let CoreExprKind::Name(name) = &target.kind {
-                        for (binding, old) in env.iter_mut().rev() {
-                            self.budget.text(name, statement.span)?;
-                            if *binding == name {
-                                output.cleanup |= self.pending(old, depth + 1)?;
-                                *old = value;
-                                break;
-                            }
+                S::Assign {
+                    target,
+                    value: expression,
+                } => {
+                    let mut value = self.expr(owner, env, expression, depth + 1)?;
+                    self.transfer(owner, env, expression, &value, depth + 1)?;
+                    if let Some(place) = self.place(owner, env, target, depth + 1)? {
+                        self.invalidate(env, &place, depth + 1)?;
+                        self.invalidate_value(&mut value, &place, depth + 1)?;
+                        if let Some(old) = self.place_value_mut(owner, env, &place, depth + 1)? {
+                            output.drop_value(self.pending(old, depth + 1)?);
+                            *old = value;
+                        } else {
+                            output.drop_value(self.pending(&value, depth + 1)?);
                         }
                     } else {
-                        output.cleanup |= self.pending(&value, depth + 1)?;
+                        output.drop_value(self.pending(&value, depth + 1)?);
                     }
                 }
                 S::If {
@@ -1326,52 +2398,50 @@ impl<'a> Walk<'a, '_, '_> {
                     let right = if let Some(body) = else_body {
                         self.block(owner, &mut other, body, depth + 1)?
                     } else {
-                        Flow {
-                            value: None,
-                            live: true,
-                            cleanup: false,
-                            incomplete: false,
-                        }
+                        Flow::new()
                     };
-                    output.cleanup |= left.cleanup || right.cleanup;
-                    output.incomplete |= left.incomplete || right.incomplete;
-                    self.result(&mut output.value, left.value, depth + 1)?;
-                    self.result(&mut output.value, right.value, depth + 1)?;
+                    let live = left.live || right.live;
                     if left.live && right.live {
                         self.merge_env(env, other, depth + 1)?;
                     } else if right.live {
                         *env = other;
                     }
-                    output.live = left.live || right.live;
+                    self.absorb(&mut output, left, depth + 1)?;
+                    self.absorb(&mut output, right, depth + 1)?;
+                    output.live = live;
                 }
                 S::Match { value, arms } => {
                     let subject = self.expr(owner, env, value, depth + 1)?;
                     let mut continuing = None;
                     for arm in arms {
-                        let mut branch = self.env_copy(env, depth + 1)?;
-                        let before = branch.len();
-                        let subject = self.copy(&subject, depth + 1)?;
-                        if self.pattern_owns(&arm.pattern, depth + 1)? {
-                            self.transfer(&mut branch, value, &subject, depth + 1)?;
-                        }
-                        output.cleanup |=
-                            self.pattern(&mut branch, &arm.pattern, subject, depth + 1)?;
-                        let flow = self.block(owner, &mut branch, &arm.body, depth + 1)?;
-                        output.cleanup |= flow.cleanup;
-                        output.incomplete |= flow.incomplete;
-                        self.result(&mut output.value, flow.value, depth + 1)?;
-                        if flow.live {
-                            for (_, value) in &branch[before..] {
-                                output.cleanup |= self.pending(value, depth + 1)?;
+                        let copied = self.copy(&subject, depth + 1)?;
+                        for selected in self.select(&arm.pattern, copied, depth + 1)? {
+                            let mut branch = self.env_copy(env, depth + 1)?;
+                            let before = branch.len();
+                            if Self::pattern_ready(&arm.pattern) == Some(true) {
+                                self.refine_ready(owner, &mut branch, &selected, depth + 1)?;
                             }
-                        }
-                        branch.truncate(before);
-                        if flow.live {
-                            if let Some(previous) = continuing.as_mut() {
-                                self.merge_env(previous, branch, depth + 1)?;
-                            } else {
-                                continuing = Some(branch);
+                            if self.pattern_owns(&arm.pattern, depth + 1)? {
+                                self.transfer(owner, &mut branch, value, &selected, depth + 1)?;
                             }
+                            output.drop_value(self.pattern(
+                                &mut branch,
+                                &arm.pattern,
+                                selected,
+                                depth + 1,
+                            )?);
+                            let mut flow = self.block(owner, &mut branch, &arm.body, depth + 1)?;
+                            if flow.live {
+                                flow.drop_value(self.residual(&branch[before..], depth + 1)?);
+                            }
+                            branch.truncate(before);
+                            for exit in flow.breaks.iter_mut().chain(&mut flow.continues) {
+                                exit.truncate(before);
+                            }
+                            if flow.live {
+                                self.join_exit_env(&mut continuing, branch, depth + 1)?;
+                            }
+                            self.absorb(&mut output, flow, depth + 1)?;
                         }
                     }
                     output.live = continuing.is_some();
@@ -1379,36 +2449,67 @@ impl<'a> Walk<'a, '_, '_> {
                         *env = branch;
                     }
                     if arms.is_empty() {
-                        output.cleanup = true;
+                        output.drop_value(Cleanup::ABSTRACT);
                     }
                 }
                 S::Block(body) | S::Unsafe(body) => {
                     let flow = self.block(owner, env, body, depth + 1)?;
-                    output.cleanup |= flow.cleanup;
-                    output.incomplete |= flow.incomplete;
-                    self.result(&mut output.value, flow.value, depth + 1)?;
                     output.live = flow.live;
+                    self.absorb(&mut output, flow, depth + 1)?;
                 }
-                S::Loop(body)
-                | S::While { body, .. }
-                | S::ForRange { body, .. }
-                | S::WhileLet { body, .. }
-                | S::ForEach { body, .. } => {
-                    let mut iteration = self.env_copy(env, depth + 1)?;
-                    let flow = self.block(owner, &mut iteration, body, depth + 1)?;
-                    output.cleanup |= flow.cleanup;
-                    output.incomplete |= flow.incomplete;
-                    self.result(&mut output.value, flow.value, depth + 1)?;
-                    self.merge_env(env, iteration, depth + 1)?;
+                S::Loop(body) => {
+                    let flow = self.loop_flow(owner, env, body, None, None, false, depth + 1)?;
+                    output.live = flow.live;
+                    self.absorb(&mut output, flow, depth + 1)?;
+                }
+                S::While { condition, body } => {
+                    let skip = !matches!(condition.kind, CoreExprKind::Bool(true));
+                    let flow =
+                        self.loop_flow(owner, env, body, Some(condition), None, skip, depth + 1)?;
+                    output.live = flow.live;
+                    self.absorb(&mut output, flow, depth + 1)?;
+                }
+                S::WhileLet {
+                    pattern,
+                    value,
+                    body,
+                } => {
+                    let flow = self.loop_flow(
+                        owner,
+                        env,
+                        body,
+                        Some(value),
+                        Some(pattern),
+                        true,
+                        depth + 1,
+                    )?;
+                    output.live = flow.live;
+                    self.absorb(&mut output, flow, depth + 1)?;
+                }
+                S::ForRange {
+                    start, end, body, ..
+                } => {
+                    self.expr(owner, env, start, depth + 1)?;
+                    self.expr(owner, env, end, depth + 1)?;
+                    let flow = self.loop_flow(owner, env, body, None, None, true, depth + 1)?;
+                    output.live = flow.live;
+                    self.absorb(&mut output, flow, depth + 1)?;
+                }
+                S::ForEach { iterator, body, .. } => {
+                    self.expr(owner, env, iterator, depth + 1)?;
+                    let flow = self.loop_flow(owner, env, body, None, None, true, depth + 1)?;
+                    output.live = flow.live;
+                    self.absorb(&mut output, flow, depth + 1)?;
                 }
                 S::Defer(body) => {
                     let mut deferred = self.env_copy(env, depth + 1)?;
                     let flow = self.block(owner, &mut deferred, body, depth + 1)?;
                     output.cleanup |= flow.cleanup;
-                    output.incomplete |= flow.incomplete || flow.value.is_some();
-                    // Do not clear a current owner merely because a deferred
-                    // body might retire it: intervening exits/updates retain
-                    // that may-live responsibility until actual proof.
+                    output.body_cleanup |= flow.body_cleanup;
+                    output.incomplete |= flow.incomplete
+                        || flow.value.is_some()
+                        || !flow.breaks.is_empty()
+                        || !flow.continues.is_empty();
                 }
                 S::IfLet {
                     pattern,
@@ -1419,69 +2520,82 @@ impl<'a> Walk<'a, '_, '_> {
                     let subject = self.expr(owner, env, value, depth + 1)?;
                     let mut other = self.env_copy(env, depth + 1)?;
                     let before = env.len();
-                    if self.pattern_owns(pattern, depth + 1)? {
-                        self.transfer(env, value, &subject, depth + 1)?;
+                    if Self::pattern_ready(pattern) == Some(true) {
+                        self.refine_ready(owner, env, &subject, depth + 1)?;
                     }
-                    output.cleanup |= self.pattern(env, pattern, subject, depth + 1)?;
-                    let left = self.block(owner, env, then_body, depth + 1)?;
+                    if Self::pattern_ready(pattern) == Some(false) {
+                        self.refine_ready(owner, &mut other, &subject, depth + 1)?;
+                    }
+                    if self.pattern_owns(pattern, depth + 1)? {
+                        self.transfer(owner, env, value, &subject, depth + 1)?;
+                    }
+                    output.drop_value(self.pattern(env, pattern, subject, depth + 1)?);
+                    let mut left = self.block(owner, env, then_body, depth + 1)?;
                     if left.live {
-                        for (_, value) in &env[before..] {
-                            output.cleanup |= self.pending(value, depth + 1)?;
-                        }
+                        left.drop_value(self.residual(&env[before..], depth + 1)?);
                     }
                     env.truncate(before);
+                    for exit in left.breaks.iter_mut().chain(&mut left.continues) {
+                        exit.truncate(before);
+                    }
                     let right = if let Some(body) = else_body {
                         self.block(owner, &mut other, body, depth + 1)?
                     } else {
-                        Flow {
-                            value: None,
-                            live: true,
-                            cleanup: false,
-                            incomplete: false,
-                        }
+                        Flow::new()
                     };
-                    output.cleanup |= left.cleanup || right.cleanup;
-                    output.incomplete |= left.incomplete || right.incomplete;
-                    self.result(&mut output.value, left.value, depth + 1)?;
-                    self.result(&mut output.value, right.value, depth + 1)?;
+                    let live = left.live || right.live;
                     if left.live && right.live {
                         self.merge_env(env, other, depth + 1)?;
                     } else if right.live {
                         *env = other;
                     }
-                    output.live = left.live || right.live;
+                    self.absorb(&mut output, left, depth + 1)?;
+                    self.absorb(&mut output, right, depth + 1)?;
+                    output.live = live;
                 }
                 S::With { name, value, body } => {
                     let value = self.expr(owner, env, value, depth + 1)?;
                     let before = env.len();
                     self.budget
                         .lineage_push(env, (name.as_str(), value), statement.span)?;
-                    let flow = self.block(owner, env, body, depth + 1)?;
-                    output.cleanup |= flow.cleanup;
-                    output.incomplete |= flow.incomplete;
+                    let mut flow = self.block(owner, env, body, depth + 1)?;
                     if flow.live {
-                        for (_, value) in &env[before..] {
-                            output.cleanup |= self.pending(value, depth + 1)?;
-                        }
+                        flow.drop_value(self.residual(&env[before..], depth + 1)?);
                     }
                     env.truncate(before);
-                    self.result(&mut output.value, flow.value, depth + 1)?;
+                    for exit in flow.breaks.iter_mut().chain(&mut flow.continues) {
+                        exit.truncate(before);
+                    }
                     output.live = flow.live;
+                    self.absorb(&mut output, flow, depth + 1)?;
+                }
+                S::Break => {
+                    let exit = self.env_copy(env, depth + 1)?;
+                    self.budget
+                        .lineage_push(&mut output.breaks, exit, statement.span)?;
+                    output.live = false;
+                }
+                S::Continue => {
+                    let exit = self.env_copy(env, depth + 1)?;
+                    self.budget
+                        .lineage_push(&mut output.continues, exit, statement.span)?;
+                    output.live = false;
                 }
                 S::Unsupported(_) => {
-                    output.cleanup = true;
+                    output.drop_value(Cleanup::ABSTRACT);
                     output.incomplete = true;
-                }
-                S::Break | S::Continue => {
-                    break;
                 }
                 S::CompileTime(_) => {}
             }
         }
         if output.live {
-            for (_, value) in &env[base..] {
-                output.cleanup |= self.pending(value, depth + 1)?;
-            }
+            output.drop_value(self.residual(&env[base..], depth + 1)?);
+        }
+        for exit in output.breaks.iter_mut().chain(&mut output.continues) {
+            let cleanup = self.residual(&exit[base..], depth + 1)?;
+            output.cleanup |= cleanup;
+            output.body_cleanup |= cleanup;
+            exit.truncate(base);
         }
         env.truncate(base);
         Ok(output)
@@ -1513,14 +2627,24 @@ fn opaque_bounds<'a>(
     }
     Ok(())
 }
-fn propose_inner(modules: &mut [(ModuleId, SemanticModule)], budget: &mut Budget<'_>) -> R<bool> {
+fn propose_inner(
+    modules: &mut [(ModuleId, SemanticModule)],
+    originals: &SourceDeclarationInventory<'_>,
+    evidence: &mut super::Evidence,
+    budget: &mut Budget<'_>,
+) -> R<bool> {
     let mut definitions = Vec::new();
     for (_, module) in modules.iter() {
         for definition in &module.definitions {
             budget.lineage_push(&mut definitions, definition, Span::default())?;
         }
     }
+    let mut seed_changed = false;
     let mut selected = Vec::new();
+    let mut bodies = Vec::new();
+    for _ in &definitions {
+        budget.lineage_push(&mut bodies, false, Span::default())?;
+    }
     for (index, definition) in definitions.iter().enumerate() {
         budget.node(Span::default(), 0)?;
         if !matches!(
@@ -1543,18 +2667,29 @@ fn propose_inner(modules: &mut [(ModuleId, SemanticModule)], budget: &mut Budget
                 frames: Vec::new(),
                 context: None,
                 execution: false,
+                known_execution: false,
+                evidence: &mut *evidence,
+                seed_changed: &mut seed_changed,
+                held_captures: 0,
+                early_cleanup: Cleanup::NONE,
+                early_body_cleanup: Cleanup::NONE,
+                prepared: Cleanup::NONE,
+                bodies: &mut bodies,
                 budget: &mut *budget,
             };
             let mut bounds = Vec::new();
             opaque_bounds(&definition.requirements, &mut bounds, walk.budget, 0)?;
             walk.budget.identity_work(bounds.len(), Span::default())?;
-            if bounds.iter().any(|(kind, _)| *kind == CallableKind::FnOnce) {
-                matches!(
-                    walk.function_result(index, 0)?,
-                    Value::Callable { suspend: true, .. } | Value::Unknown
-                )
-            } else {
+            let once = bounds.iter().any(|(kind, _)| *kind == CallableKind::FnOnce);
+            if bounds.is_empty() {
+                walk.function_flow(index, 0)?;
                 false
+            } else {
+                let value = walk.function_result(index, 0)?;
+                once && matches!(
+                    value,
+                    Value::Callable { suspend: true, .. } | Value::Unknown | Value::UnknownAsync
+                )
             }
         };
         budget.discard_lineage(mark, (), Span::default())?;
@@ -1592,27 +2727,44 @@ fn propose_inner(modules: &mut [(ModuleId, SemanticModule)], budget: &mut Budget
         }
         Ok(changed)
     }
-    let mut changed = false;
+    let mut changed = seed_changed;
+    let mut index = 0;
     for (_, module) in modules {
         for definition in &mut module.definitions {
             budget.identity_work(selected.len(), Span::default())?;
             if selected.contains(&definition.id) {
                 changed |= publish(&mut definition.requirements, budget, 0)?;
             }
+            if bodies[index] && !evidence.rows[index].cleanup {
+                evidence.rows[index].cleanup = true;
+                changed = true;
+            }
+            if bodies[index] && super::explicit_kind(definition, originals, budget)?.is_none() {
+                if let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
+                    &mut definition.body
+                {
+                    changed |= signature.call_kind != CallKind::Suspend;
+                    signature.call_kind = CallKind::Suspend;
+                }
+            }
+            index += 1;
         }
     }
     budget.drop_lineage_vec(selected, Span::default())?;
+    budget.drop_lineage_vec(bodies, Span::default())?;
     Ok(changed)
 }
 
 pub(super) fn propose(
     modules: &mut [(ModuleId, SemanticModule)],
+    originals: &SourceDeclarationInventory<'_>,
+    evidence: &mut super::Evidence,
     budget: &mut Budget<'_>,
 ) -> R<bool> {
     let mark = budget.lineage_checkpoint();
-    let result = propose_inner(modules, budget);
-    // The only publication is CallKind on existing original signatures; all
-    // helper values are dropped on both success and error before this reset.
+    let result = propose_inner(modules, originals, evidence, budget);
+    // Only CallKind and preallocated private provenance bits survive; all
+    // candidate trees are dropped on both success and error before this reset.
     budget.discard_lineage(mark, (), Span::default())?;
     result
 }

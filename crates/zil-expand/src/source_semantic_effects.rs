@@ -46,7 +46,7 @@ struct Application<'a> {
 }
 #[derive(Clone, Copy)]
 enum Prototype<'a> {
-    Code { owner: usize, signature: &'a SemanticSignatureRecipe, context: Option<usize>, frames: Option<usize> },
+    Code { owner: usize, signature: &'a SemanticSignatureRecipe, context: Option<usize>, frames: Option<usize>, operation: Option<usize> },
     Formal { owner: usize, ordinal: u32 },
     Premises { owner: usize, ty: &'a SemanticTypeRecipe },
 }
@@ -56,9 +56,34 @@ struct InputRole { owner: usize, ordinal: u32 }
 struct Vertex {
     explicit: Option<CallKind>,
     suspend: bool,
+    known_suspend: bool,
     edges: Vec<usize>,
     consumes: Vec<InputRole>,
     forwards: Vec<(InputRole, InputRole)>,
+}
+// Private provenance for the same operation fixed point. A conservative ABI
+// candidate is not evidence for selecting an original consuming role's upper.
+#[derive(Clone, Copy, Default)]
+struct Seeds { cleanup: bool, function: bool, operation: bool }
+struct Evidence { rows: Vec<Seeds>, fixed_signatures: Vec<usize> }
+impl Evidence {
+    fn fixed(&self, signature: &SemanticSignatureRecipe, budget: &mut Budget<'_>) -> R<bool> {
+        budget.identity_work(self.fixed_signatures.len(), Span::default())?;
+        Ok(self.fixed_signatures.contains(&(signature as *const SemanticSignatureRecipe as usize)))
+    }
+}
+fn fixed_requirements(rows: &[SemanticRequirementRecipe], evidence: &mut Evidence,
+    budget: &mut Budget<'_>, depth: usize) -> R<()> {
+    for row in rows {
+        budget.node(Span::default(), depth)?;
+        match row {
+            SemanticRequirementRecipe::Callable { signature, .. } if signature.call_kind == CallKind::Suspend =>
+                budget.lineage_push(&mut evidence.fixed_signatures, signature.as_ref() as *const SemanticSignatureRecipe as usize, Span::default())?,
+            SemanticRequirementRecipe::ForAll { requirements, .. } => fixed_requirements(requirements, evidence, budget, depth + 1)?,
+            _ => {}
+        }
+    }
+    Ok(())
 }
 struct Scan<'a, 'd, 'b, 'l> {
     definitions: &'d [&'a SemanticDefinition],
@@ -68,6 +93,7 @@ struct Scan<'a, 'd, 'b, 'l> {
     applications: &'b mut Vec<Application<'a>>,
     store_elements: &'b mut Vec<Target>,
     vertex: &'b mut Vertex,
+    evidence: Option<&'b Evidence>,
     budget: &'b mut Budget<'l>,
     prototypes: &'b mut Vec<Prototype<'a>>,
     alternatives: &'b mut Vec<(Target, Target)>,
@@ -325,6 +351,35 @@ impl<'a> Scan<'a, '_, '_, '_> {
         }
         self.budget.drop_lineage_vec(pending, span)
     }
+    fn independently_suspend(&mut self, target: Target, span: Span) -> R<bool> {
+        let Some(evidence) = self.evidence else { return Ok(false); };
+        match target {
+            // Kind arises only from fixed Code or a canonical primitive.
+            Target::Kind(CallKind::Suspend) => Ok(true),
+            Target::Prototype(index, CallKind::Suspend) => match self.prototypes[index] {
+                Prototype::Code { operation: Some(owner), signature, .. } => {
+                    self.budget.node(span, 0)?;
+                    Ok(evidence.rows[owner].operation || evidence.fixed(signature, self.budget)?)
+                }
+                Prototype::Code { operation: None, .. } => Ok(true),
+                Prototype::Formal { owner, ordinal } => {
+                    let mut found = Vec::new();
+                    self.formal_prototypes(owner, ordinal, &mut found, 0, span)?;
+                    let mut fixed = false;
+                    for (signature, frames) in &mut found {
+                        fixed |= evidence.fixed(signature, self.budget)?;
+                        self.budget.drop_lineage_vec(std::mem::take(frames), span)?;
+                    }
+                    self.budget.drop_lineage_vec(found, span)?;
+                    Ok(fixed)
+                }
+                Prototype::Premises { .. } => Ok(false),
+            },
+            // Unknown receivers and unresolved conservative candidates are
+            // never seeds. Definition edges propagate provenance below.
+            _ => Ok(false),
+        }
+    }
     fn edge_one(&mut self, target: Target, span: Span) -> R<()> {
         if self.collect_targets { self.budget.lineage_push(&mut self.resolved_targets, target, span)?; }
         if let Some(call) = self.call {
@@ -335,6 +390,8 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 self.budget.lineage_push(&mut self.vertex.consumes, role, span)?;
             }
         }
+        let known = self.independently_suspend(target, span)?;
+        self.vertex.known_suspend |= known;
         match target {
             Target::Kind(CallKind::Direct) | Target::Prototype(_, CallKind::Direct) | Target::StoreBorrow | Target::OwnedDynFactory => {}
             Target::Kind(CallKind::Suspend)
@@ -481,7 +538,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
             SemanticTypeRecipe::Code { signature, .. } => {
                 if self.observations.is_some() {
                     let index = self.prototypes.len();
-                    self.budget.lineage_push(self.prototypes, Prototype::Code { owner, signature, context, frames: self.active_quantifiers }, span)?;
+                    self.budget.lineage_push(self.prototypes, Prototype::Code { owner, signature, context, frames: self.active_quantifiers, operation: None }, span)?;
                     Target::Prototype(index, signature.call_kind)
                 } else { Target::Kind(signature.call_kind) }
             },
@@ -533,6 +590,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
                                 signature: *signature,
                                 context: Some(application),
                                 frames: Some(frame),
+                                operation: Some(declaration),
                             },
                             span,
                         )?;
@@ -658,7 +716,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
                             SemanticTypeRecipe::Address { inner, .. } | SemanticTypeRecipe::Qualified { storage: inner, .. } => leaf = inner,
                             SemanticTypeRecipe::Code { signature, .. } => {
                                 let index = self.prototypes.len();
-                                self.budget.lineage_push(self.prototypes, Prototype::Code { owner, signature, context, frames: self.active_quantifiers }, span)?;
+                                self.budget.lineage_push(self.prototypes, Prototype::Code { owner, signature, context, frames: self.active_quantifiers, operation: None }, span)?;
                                 break Target::PrototypeSequence { index, dimensions, kind };
                             }
                             _ => break Target::LengthReceiver,
@@ -1064,7 +1122,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     Target::Definition(owner) => (owner, None),
                     Target::AppliedDefinition { owner, application } => (owner, Some(application)),
                     Target::Prototype(index, _) => {
-                        if let Prototype::Code { owner, signature, context, frames } = self.prototypes[index] {
+                        if let Prototype::Code { owner, signature, context, frames, .. } = self.prototypes[index] {
                             let mut outer = Vec::new();
                             if let Some(index) = frames {
                                 for count in &self.quantifiers[index] { self.budget.lineage_push(&mut outer, *count, expression.span)?; }
@@ -2048,10 +2106,10 @@ pub(super) fn observe_call_prototypes(
         if let Some((_, environment)) = captures.iter().find(|(owner, _)| *owner == index) {
             for entry in environment { budget.lineage_push(&mut locals, *entry, span)?; }
         }
-        let mut vertex = Vertex { explicit: None, suspend: false, edges: Vec::new(), consumes: Vec::new(), forwards: Vec::new() };
+        let mut vertex = Vertex { explicit: None, suspend: false, known_suspend: false, edges: Vec::new(), consumes: Vec::new(), forwards: Vec::new() };
         let mut scan = Scan { definitions: &definitions, owner: index, locals,
             captures: &mut captures, applications: &mut applications, store_elements: &mut store_elements,
-            vertex: &mut vertex, budget, prototypes: &mut prototypes, alternatives: &mut alternatives, quantifiers: &mut quantifiers, elements: &mut elements, active_quantifiers: None, observations: Some(&mut observations), call: None, collect_targets: false, resolved_targets: Vec::new() };
+            vertex: &mut vertex, evidence: None, budget, prototypes: &mut prototypes, alternatives: &mut alternatives, quantifiers: &mut quantifiers, elements: &mut elements, active_quantifiers: None, observations: Some(&mut observations), call: None, collect_targets: false, resolved_targets: Vec::new() };
         for (ordinal, parameter) in parameters.iter().enumerate() {
             let target = if let Some(parameter_type) = signature.parameters.get(ordinal) {
                 scan.callable_type(index, &parameter_type.ty, 0, parameter.span)?
@@ -2082,9 +2140,30 @@ pub(super) fn observe_call_prototypes(
     Ok(observations)
 }
 
+fn explicit_kind(
+    definition: &SemanticDefinition,
+    originals: &SourceDeclarationInventory<'_>,
+    budget: &mut Budget<'_>,
+) -> R<Option<CallKind>> {
+    budget.identity_work(originals.declarations.len(), Span::default())?;
+    if let Some(row) = originals
+        .declarations
+        .iter()
+        .find(|row| row.module == definition.id.module && row.declaration.0 == definition.id.index)
+        && let Some(function) = row.function()
+    {
+        let mut remaining = budget.remaining_limits();
+        let kind = crate::tasks::selection(function, &mut remaining.max_analysis_steps)?.0;
+        budget.adopt_remaining(&remaining);
+        Ok(kind)
+    } else {
+        Ok(None)
+    }
+}
 fn propose_round(
     modules: &mut [(ModuleId, SemanticModule)],
     originals: &SourceDeclarationInventory<'_>,
+    evidence: &mut Evidence,
     budget: &mut Budget<'_>,
 ) -> R<bool> {
     let mut changed = false;
@@ -2097,20 +2176,12 @@ fn propose_round(
     let mut vertices = Vec::new();
     let mut order = Vec::new();
     for (index, definition) in definitions.iter().enumerate() {
-        let mut explicit = None;
-        budget.identity_work(originals.declarations.len(), Span::default())?;
-        if let Some(row) = originals.declarations.iter().find(|row| {
-            row.module == definition.id.module && row.declaration.0 == definition.id.index
-        }) && let Some(function) = row.function()
-        {
-            let mut remaining = budget.remaining_limits();
-            explicit = crate::tasks::selection(function, &mut remaining.max_analysis_steps)?.0;
-            budget.adopt_remaining(&remaining);
-        }
+        let explicit = explicit_kind(definition, originals, budget)?;
         let vertex = Vertex {
             explicit,
             suspend: explicit == Some(CallKind::Suspend)
                 || (explicit.is_none() && signature(definition).is_some_and(|signature| signature.call_kind == CallKind::Suspend)),
+            known_suspend: explicit == Some(CallKind::Suspend) || (explicit.is_none() && evidence.rows[index].cleanup),
             edges: Vec::new(),
             consumes: Vec::new(),
             forwards: Vec::new(),
@@ -2166,6 +2237,7 @@ fn propose_round(
                 applications: &mut applications,
                 store_elements: &mut store_elements,
                 vertex: &mut vertices[index],
+                evidence: Some(evidence),
                 budget,
                 prototypes: &mut prototypes,
                 alternatives: &mut alternatives,
@@ -2211,26 +2283,28 @@ fn propose_round(
     budget.drop_lineage_vec(quantifiers, Span::default())?;
     for values in &mut elements { budget.drop_lineage_vec(std::mem::take(values), Span::default())?; }
     budget.drop_lineage_vec(elements, Span::default())?;
-    // Monotone propagation reaches a fixed point after at most one promotion
-    // per vertex. Closed recursive SCCs without a Suspend edge remain Direct.
+    // Both bits use the same original graph. Conservative Unknown can affect
+    // ABI selection, but cannot bootstrap an independently Suspend role.
     loop {
-        let mut changed = false;
+        let mut progress = false;
         for index in 0..vertices.len() {
             budget.node(Span::default(), 0)?;
-            if vertices[index].explicit.is_some() || vertices[index].suspend {
-                continue;
-            }
+            if vertices[index].explicit == Some(CallKind::Direct) { continue; }
             budget.identity_work(vertices[index].edges.len(), Span::default())?;
-            if vertices[index].edges.iter().any(|target| {
-                vertices[*target].explicit == Some(CallKind::Suspend)
-                    || (vertices[*target].explicit.is_none() && vertices[*target].suspend)
-            }) {
-                vertices[index].suspend = true;
-                changed = true;
-            }
+            let suspend = vertices[index].edges.iter().any(|target|
+                vertices[*target].explicit != Some(CallKind::Direct) && vertices[*target].suspend);
+            let known = vertices[index].edges.iter().any(|target|
+                vertices[*target].explicit != Some(CallKind::Direct) && vertices[*target].known_suspend);
+            if suspend && !vertices[index].suspend { vertices[index].suspend = true; progress = true; }
+            if known && !vertices[index].known_suspend { vertices[index].known_suspend = true; progress = true; }
         }
-        if !changed {
-            break;
+        if !progress { break; }
+    }
+    for (index, vertex) in vertices.iter().enumerate() {
+        budget.node(Span::default(), 0)?;
+        if vertex.explicit != Some(CallKind::Direct) && vertex.known_suspend && !evidence.rows[index].function {
+            evidence.rows[index].function = true;
+            changed = true;
         }
     }
     // Complete operation contexts, not actual closure instances, determine
@@ -2252,7 +2326,7 @@ fn propose_round(
             budget.identity_work(vertex.consumes.len(), Span::default())?;
             if vertex.consumes.contains(role) {
                 consume = true;
-                permits_suspend &= vertex.explicit.unwrap_or(if vertex.suspend { CallKind::Suspend } else { CallKind::Direct }) == CallKind::Suspend;
+                permits_suspend &= vertex.explicit != Some(CallKind::Direct) && vertex.known_suspend;
             }
         }
         budget.lineage_push(&mut eligible, permits_suspend, Span::default())?;
@@ -2335,6 +2409,18 @@ pub(super) fn propose(
     originals: &SourceDeclarationInventory<'_>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
+    let mut evidence = Evidence { rows: Vec::new(), fixed_signatures: Vec::new() };
+    for (_, module) in modules.iter() {
+        for definition in &module.definitions {
+            budget.lineage_push(&mut evidence.rows, Seeds::default(), Span::default())?;
+            fixed_requirements(&definition.requirements, &mut evidence, budget, 0)?;
+            for formal in &definition.parameters {
+                if let SemanticFormal::Type { requirements } = formal {
+                    fixed_requirements(requirements, &mut evidence, budget, 0)?;
+                }
+            }
+        }
+    }
     // A new opaque operation upper can affect an ordinary caller, whose new
     // body upper can in turn affect another returned callable. Use the same
     // bounded original graph to closure, not one extra scan or hidden-entry
@@ -2342,10 +2428,12 @@ pub(super) fn propose(
     // explicitly Direct bodies remain fixed by their original declaration.
     loop {
         budget.node(Span::default(), 0)?;
-        let effects_changed = propose_round(modules, originals, budget)?;
-        let cleanup_changed = cleanup_candidates::propose(modules, budget)?;
-        if !effects_changed && !cleanup_changed { return Ok(()); }
+        let effects_changed = propose_round(modules, originals, &mut evidence, budget)?;
+        let cleanup_changed = cleanup_candidates::propose(modules, originals, &mut evidence, budget)?;
+        if !effects_changed && !cleanup_changed { break; }
     }
+    budget.drop_lineage_vec(evidence.rows, Span::default())?;
+    budget.drop_lineage_vec(evidence.fixed_signatures, Span::default())
 }
 
 #[cfg(test)]
@@ -2680,4 +2768,74 @@ fn main(){}
         // Candidate formation does not establish the close helper's Closed
         // precondition, nor permit any actual Direct consume to suspend.
     }
+    #[test]
+    fn consuming_roles_require_independent_suspend_origins() {
+        let module = original_module(r#"
+fn unknown<F:FnOnce()->i32>(callback:F)->i32{unresolved();return callback();}
+fn receiver<F:FnOnce()->i32,T>(callback:F,value:T)->i32{value.unresolved();return callback();}
+fn cycle_a<F:FnOnce()->i32>(callback:F)->i32{return cycle_b(callback);}
+fn cycle_b<F:FnOnce()->i32>(callback:F)->i32{return cycle_a(callback);}
+fn residual<F:FnOnce()->i32>(callback:F,give task:Task<i32>)->i32{return callback();}
+fn direct<F:FnOnce()->i32>(callback:F,give task:Task<i32>)->i32 contract{effects(io);}{return callback();}
+fn unused<F:FnOnce()->i32>(callback:F,give task:Task<i32>)->i32{return 0;}
+fn main(){}
+"#);
+        for name in ["unknown", "receiver", "cycle_a", "cycle_b", "direct", "unused"] {
+            assert_input_upper(function(&module, name), 0, CallKind::Direct);
+        }
+        assert_input_upper(function(&module, "residual"), 0, CallKind::Suspend);
+        assert_eq!(signature(function(&module, "unknown")).unwrap().call_kind, CallKind::Suspend);
+        assert_eq!(signature(function(&module, "unused")).unwrap().call_kind, CallKind::Suspend);
+        assert_eq!(signature(function(&module, "direct")).unwrap().call_kind, CallKind::Direct);
+    }
+
+    #[test]
+    fn ordinary_cleanup_follows_original_reusable_environment_exits() {
+        let module = original_module(r#"
+fn keep(give original:Task<i32>)->impl FnMut()->i32 {
+ var task=give original;return move()->i32=>{task_poll(&mut task);return 0;};
+}
+fn close(give original:Task<i32>)->impl FnMut()->i32 {
+ var task=give original;return move()->i32=>{
+  loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}return 0;
+ };
+}
+fn observe(give original:Task<i32>)->i32{var callback=keep(give original);return callback();}
+fn uncalled(give original:Task<i32>)->i32{var callback=keep(give original);return 0;}
+fn complete(give original:Task<i32>)->i32{var callback=close(give original);callback();return 0;}
+fn direct(give original:Task<i32>)->i32 contract{effects(io);}{var callback=keep(give original);return callback();}
+fn main(){}
+"#);
+        for name in ["observe", "uncalled"] {
+            assert_eq!(signature(function(&module, name)).unwrap().call_kind, CallKind::Suspend, "{name}");
+        }
+        for name in ["keep", "close", "complete", "direct"] {
+            assert_eq!(signature(function(&module, name)).unwrap().call_kind, CallKind::Direct, "{name}");
+        }
+        for name in ["keep", "close"] {
+            let mut uppers=Vec::new();callable_uppers(&function(&module,name).requirements,&mut uppers);
+            assert_eq!(uppers, [CallKind::Direct]);
+        }
+    }
+
+    #[test]
+    fn close_poll_candidates_expire_on_actual_slot_mutation() {
+        let module = original_module(r#"
+fn alter(task:&mut Task<i32>){}
+fn closed(give task:Task<i32>)->i32{
+ loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}return 0;
+}
+fn stale(give task:Task<i32>)->i32{
+ let result=task_poll_close(&mut task);alter(&mut task);
+ match result{Poll.Pending()=>{return 0;},Poll.Ready(_)=>{return 1;}}
+}
+fn complete_only(give task:Task<i32>)->i32{task_poll(&mut task);return 0;}
+fn main(){}
+"#);
+        assert_eq!(signature(function(&module,"closed")).unwrap().call_kind, CallKind::Direct);
+        for name in ["stale", "complete_only"] {
+            assert_eq!(signature(function(&module,name)).unwrap().call_kind, CallKind::Suspend, "{name}");
+        }
+    }
+
 }
