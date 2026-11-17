@@ -1,0 +1,479 @@
+warning: unused import: `crate::receivers::substitute_self`
+ --> crates/zil-expand/src/static_traits.rs:6:5
+  |
+6 | use crate::receivers::substitute_self;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `name`
+   --> crates/zil-expand/src/semantic_nominal_lower.rs:365:22
+    |
+365 |                 let (name, ty, span) = if emission.enumeration {
+    |                      ^^^^ help: if this is intentional, prefix it with an underscore: `_name`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `borrowed_work` is never used
+   --> crates/zil-expand/src/generic_budget.rs:144:19
+    |
+ 33 | impl<'a> Budget<'a> {
+    | ------------------- method in this implementation
+...
+144 |     pub(crate) fn borrowed_work(
+    |                   ^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `scoped_callback_block` is never used
+   --> crates/zil-expand/src/generic_scoped.rs:331:19
+    |
+  3 | impl Check<'_, '_, '_> {
+    | ---------------------- method in this implementation
+...
+331 |     pub(super) fn scoped_callback_block(&mut self, block: &Block, depth: usize) -> R<bool> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^
+
+    Checking zil-verify v0.1.0 (/workspace/zil-alpha-candidate/crates/zil-verify)
+warning: unnecessary parentheses around pattern
+   --> crates/zil-analyze/src/helpers.rs:254:24
+    |
+254 |                 if let (InstructionKind::Call { function: callee, .. }
+    |                        ^
+255 |                     | InstructionKind::SuspendCall { function: callee, .. }) = instruction.kind
+    |                                                                            ^
+    |
+    = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+    |
+254 ~                 if let InstructionKind::Call { function: callee, .. }
+255 ~                     | InstructionKind::SuspendCall { function: callee, .. } = instruction.kind
+    |
+
+warning: unnecessary parentheses around pattern
+    --> crates/zil-analyze/src/helpers.rs:1117:24
+     |
+1117 |                 if let (InstructionKind::Call { function: callee, .. }
+     |                        ^
+1118 |                     | InstructionKind::SuspendCall { function: callee, .. }) = instruction.kind
+     |                                                                            ^
+     |
+help: remove these parentheses
+     |
+1117 ~                 if let InstructionKind::Call { function: callee, .. }
+1118 ~                     | InstructionKind::SuspendCall { function: callee, .. } = instruction.kind
+     |
+
+warning: unnecessary parentheses around pattern
+   --> crates/zil-analyze/src/stored_flow/byte_queries.rs:176:24
+    |
+176 |                 if let (InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. }) = i.kind
+    |                        ^                                                                                      ^
+    |
+help: remove these parentheses
+    |
+176 -                 if let (InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. }) = i.kind
+176 +                 if let InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. } = i.kind
+    |
+
+warning: unnecessary parentheses around pattern
+   --> crates/zil-analyze/src/stored_flow/byte_queries.rs:228:24
+    |
+228 |                 if let (InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. }) = i.kind
+    |                        ^                                                                                      ^
+    |
+help: remove these parentheses
+    |
+228 -                 if let (InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. }) = i.kind
+228 +                 if let InstructionKind::Call { function, .. } | InstructionKind::SuspendCall { function, .. } = i.kind
+    |
+
+warning: unreachable pattern
+    --> crates/zil-analyze/src/semantic/closed/operations.rs:1118:25
+     |
+1118 |                         _ => {
+     |                         ^ no value can reach this
+     |
+note: multiple earlier patterns match some of the same values
+    --> crates/zil-analyze/src/semantic/closed/operations.rs:1118:25
+     |
+ 819 |                           original::sealed::Intrinsic::OwnedDyn => {
+     |                           ------------------------------------- matches some of the same values
+...
+ 838 |                           original::sealed::Intrinsic::CCallback => {
+     |                           -------------------------------------- matches some of the same values
+...
+ 877 | /                         original::sealed::Intrinsic::StoreNew
+ 878 | |                         | original::sealed::Intrinsic::StoreReserve
+ 879 | |                         | original::sealed::Intrinsic::StorePush
+ 880 | |                         | original::sealed::Intrinsic::StorePop
+...    |
+ 883 | |                         | original::sealed::Intrinsic::StoreAt
+ 884 | |                         | original::sealed::Intrinsic::StoreAtMut => {
+     | |_________________________________________________________________- matches some of the same values
+...
+ 897 |                           original::sealed::Intrinsic::TaskYield => {
+     |                           -------------------------------------- matches some of the same values
+...
+1118 |                           _ => {
+     |                           ^ ...and 7 other patterns collectively make this unreachable
+     = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `kind`
+    --> crates/zil-analyze/src/semantic/original/nominal.rs:1052:43
+     |
+1052 |     let SemanticDefinitionBody::Nominal { kind, body, .. } = &declaration.body else {
+     |                                           ^^^^ help: try ignoring the field: `kind: _`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `exact_storage_sources_contain` is never used
+  --> crates/zil-analyze/src/lib.rs:73:15
+   |
+73 | pub(crate) fn exact_storage_sources_contain(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `borrow_root` is never used
+    --> crates/zil-analyze/src/semantic/closed/borrows.rs:1161:19
+     |
+   7 | impl Check<'_, '_> {
+     | ------------------ method in this implementation
+...
+1161 |     pub(super) fn borrow_root(
+     |                   ^^^^^^^^^^^
+
+warning: method `callable_signature` is never used
+   --> crates/zil-analyze/src/semantic/closed/callable_roles.rs:141:19
+    |
+  8 | impl Check<'_, '_> {
+    | ------------------ method in this implementation
+...
+141 |     pub(super) fn callable_signature(
+    |                   ^^^^^^^^^^^^^^^^^^
+
+warning: method `ty` is never used
+  --> crates/zil-analyze/src/semantic/original/constructors.rs:13:32
+   |
+12 | impl Wrapper {
+   | ------------ method in this implementation
+13 |     pub(in crate::semantic) fn ty(self, inner: Type) -> Type {
+   |                                ^^
+
+warning: function `actual` is never used
+    --> crates/zil-analyze/src/semantic/original/nominal.rs:1009:28
+     |
+1009 | pub(in crate::semantic) fn actual(
+     |                            ^^^^^^
+
+warning: function `requirements_actual` is never used
+    --> crates/zil-analyze/src/semantic/original/nominal.rs:1270:4
+     |
+1270 | fn requirements_actual(
+     |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `validate_actual_type` is never used
+    --> crates/zil-analyze/src/semantic/original/nominal.rs:1514:28
+     |
+1514 | pub(in crate::semantic) fn validate_actual_type(
+     |                            ^^^^^^^^^^^^^^^^^^^^
+
+warning: method `expose` is never used
+  --> crates/zil-analyze/src/semantic/original/protocol/sources.rs:21:19
+   |
+11 | impl OwnerSources {
+   | ----------------- method in this implementation
+...
+21 |     pub(super) fn expose(&self) -> Self { Self::opaque(self.has_any()) }
+   |                   ^^^^^^
+
+warning: function `closure_relation` is never used
+   --> crates/zil-analyze/src/signature_life.rs:265:15
+    |
+265 | pub(super) fn closure_relation(
+    |               ^^^^^^^^^^^^^^^^
+
+warning: unused import: `Domain`
+ --> crates/zil-types/src/semantics/materialize_emitter.rs:4:22
+  |
+4 | use super::domains::{Domain, Occurrence, OccurrenceRoot};
+  |                      ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ViewBorrowStep`
+  --> crates/zil-types/src/semantics/original.rs:69:52
+   |
+69 | pub(super) use views::{BorrowRole, ViewBorrowRoot, ViewBorrowStep, ViewBorrowStepKind};
+   |                                                    ^^^^^^^^^^^^^^
+
+warning: unused variable: `limits`
+   --> crates/zil-types/src/semantics/materialize_emitter.rs:412:5
+    |
+412 |     limits: &Limits,
+    |     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_limits`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `depth`
+   --> crates/zil-types/src/semantics/original_call_regions.rs:622:9
+    |
+622 |         depth: usize,
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_depth`
+
+warning: variable does not need to be mutable
+   --> crates/zil-types/src/semantics/original_dyn.rs:145:13
+    |
+145 |         let mut template = substitute::signature(&template, &substitution, self.limits, self.left)?;
+    |             ----^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `limits`
+   --> crates/zil-types/src/semantics/original_task_bridge.rs:112:9
+    |
+112 |         limits: &Limits,
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_limits`
+
+warning: variable does not need to be mutable
+   --> crates/zil-types/src/semantics/original_task_results.rs:592:13
+    |
+592 |         let mut sources = self.task_value_sources(owner, expression, variables, depth + 1)?;
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: multiple fields are never read
+   --> crates/zil-types/src/function_draft.rs:100:16
+    |
+ 99 | pub(crate) struct FunctionRef<'a> {
+    |                   ----------- fields in this struct
+100 |     pub(crate) dyn_instance: &'a Option<DynFunctionInstance>,
+    |                ^^^^^^^^^^^^
+101 |     pub(crate) retained_return_sources: &'a Option<Vec<StorageSourceBinding>>,
+    |                ^^^^^^^^^^^^^^^^^^^^^^^
+102 |     pub(crate) storage_life: &'a Option<StorageLifeContract>,
+103 |     pub(crate) call_kind: CallKind,
+    |                ^^^^^^^^^
+104 |     pub(crate) resume_bound: TaskResumeBound,
+    |                ^^^^^^^^^^^^
+105 |     pub(crate) reference_return_bound: &'a Option<Vec<u32>>,
+    |                ^^^^^^^^^^^^^^^^^^^^^^
+106 |     pub(crate) callable_return_contract: &'a Option<CallableReturnContract>,
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+107 |     pub(crate) callable_contract: &'a Option<CallableParameterContract>,
+    |                ^^^^^^^^^^^^^^^^^
+108 |     pub(crate) protocol_contracts: &'a Vec<FunctionProtocolContract>,
+    |                ^^^^^^^^^^^^^^^^^^
+109 |     pub(crate) id: FunctionId,
+110 |     pub(crate) name: &'a String,
+    |                ^^^^
+...
+115 |     pub(crate) result_mode: PassingMode,
+    |                ^^^^^^^^^^^
+...
+119 |     pub(crate) entry: BlockId,
+    |                ^^^^^
+    |
+    = note: `FunctionRef` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `requirement` is never used
+   --> crates/zil-types/src/semantics/instantiate.rs:181:15
+    |
+181 | pub(super) fn requirement(
+    |               ^^^^^^^^^^^
+
+warning: function `class_at` is never used
+    --> crates/zil-types/src/semantics/materialize.rs:2556:15
+     |
+2556 | pub(super) fn class_at(
+     |               ^^^^^^^^
+
+warning: function `check` is never used
+    --> crates/zil-types/src/semantics/original.rs:6033:15
+     |
+6033 | pub(super) fn check(program: &SemanticModule, limits: &Limits, left: &mut usize) -> R<Proof> {
+     |               ^^^^^
+
+warning: function `check_at` is never used
+    --> crates/zil-types/src/semantics/original.rs:6044:15
+     |
+6044 | pub(super) fn check_at(
+     |               ^^^^^^^^
+
+warning: method `type_recipe` is never used
+    --> crates/zil-types/src/semantics/original.rs:6256:19
+     |
+6205 | impl Proof {
+     | ---------- method in this implementation
+...
+6256 |     pub(super) fn type_recipe(
+     |                   ^^^^^^^^^^^
+
+warning: methods `static_call_input` and `solve_static_call_region` are never used
+  --> crates/zil-types/src/semantics/original_static_regions.rs:7:19
+   |
+ 6 | impl Check<'_, '_> {
+   | ------------------ methods in this implementation
+ 7 |     pub(super) fn static_call_input<'a, 'e>(
+   |                   ^^^^^^^^^^^^^^^^^
+...
+42 |     pub(super) fn solve_static_call_region(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `caller`, `call`, `result`, `actuals`, and `caller_actuals` are never read
+  --> crates/zil-types/src/semantics/original_task_bridge.rs:7:9
+   |
+ 6 | pub(crate) struct TaskWorkerScheme {
+   |                   ---------------- fields in this struct
+ 7 |     pub caller: SemanticDefinitionId,
+   |         ^^^^^^
+ 8 |     pub instance: SemanticInstanceId,
+ 9 |     pub call: SemanticSiteId,
+   |         ^^^^
+...
+12 |     pub result: SemanticTypeRecipe,
+   |         ^^^^^^
+13 |     pub actuals: Vec<SemanticActualRecipe>,
+   |         ^^^^^^^
+14 |     pub caller_actuals: Vec<SemanticActual>,
+   |         ^^^^^^^^^^^^^^
+
+warning: function `aggregate` is never used
+  --> crates/zil-types/src/stored.rs:38:15
+   |
+38 | pub(super) fn aggregate<'a>(
+   |               ^^^^^^^^^
+
+warning: function `ordinary_zero_type` is never used
+    --> crates/zil-types/src/stored.rs:1342:15
+     |
+1342 | pub(super) fn ordinary_zero_type(
+     |               ^^^^^^^^^^^^^^^^^^
+
+warning: associated function `new` is never used
+   --> crates/zil-types/src/stored/ordinary_nominal.rs:118:19
+    |
+117 | impl<'a> Context<'a> {
+    | -------------------- associated function in this implementation
+118 |     pub(crate) fn new(module: &'a TypedModule) -> Self {
+    |                   ^^^
+
+warning: function `zero_type` is never used
+    --> crates/zil-types/src/stored/ordinary_nominal.rs:1295:15
+     |
+1295 | pub(super) fn zero_type(
+     |               ^^^^^^^^^
+
+warning: the `life:` in this pattern is redundant
+    --> crates/zil-types/src/semantics/materialize_emitter.rs:1225:39
+     |
+1225 |     let SemanticTypeValue::Resolved { life: mut life, .. } = eval.compose_tuple(vec![child])?.value
+     |                                       ^^^^^^^^^^^^^^ help: use shorthand field pattern: `mut life`
+     |
+     = note: `#[warn(non_shorthand_field_patterns)]` on by default
+
+warning: `zil-expand` (lib) generated 4 warnings (run `cargo fix --lib -p zil-expand` to apply 2 suggestions)
+warning: `zil-analyze` (lib) generated 15 warnings (run `cargo fix --lib -p zil-analyze` to apply 5 suggestions)
+warning: `zil-types` (lib) generated 20 warnings (run `cargo fix --lib -p zil-types` to apply 8 suggestions)
+warning: `zil-types` (lib test) generated 18 warnings (18 duplicates)
+warning: method `scoped_callback_block` is never used
+   --> crates/zil-expand/src/generic_scoped.rs:331:19
+    |
+  3 | impl Check<'_, '_, '_> {
+    | ---------------------- method in this implementation
+...
+331 |     pub(super) fn scoped_callback_block(&mut self, block: &Block, depth: usize) -> R<bool> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `zil-expand` (lib test) generated 3 warnings (2 duplicates)
+warning: `zil-analyze` (lib test) generated 14 warnings (14 duplicates)
+warning: unused variable: `result`
+    --> crates/zil-verify/src/semantic/task_domains.rs:1265:9
+     |
+1265 |         result,
+     |         ^^^^^^ help: try ignoring the field: `result: _`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `target`
+   --> crates/zil-verify/src/semantic/flow/owner_sources.rs:420:37
+    |
+420 |                         for(ordinal,target)in fields.iter().enumerate().filter(|(_,target)|target.0==index){
+    |                                     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_target`
+
+warning: unused variable: `module`
+  --> crates/zil-verify/src/semantic/call_results.rs:60:44
+   |
+60 |     pub(crate) fn return_borrow_view(&self,module:&TypedModule,function:&TypedFunction,instance:&SemanticInstance,block:BlockId,valu...
+   |                                            ^^^^^^ help: if this is intentional, prefix it with an underscore: `_module`
+
+warning: unreachable pattern
+   --> crates/zil-verify/src/semantic/original/lifetimes.rs:273:25
+    |
+273 |                         _=>{},
+    |                         ^ no value can reach this
+    |
+note: multiple earlier patterns match some of the same values
+   --> crates/zil-verify/src/semantic/original/lifetimes.rs:273:25
+    |
+271 | ...   SemanticNominalBody::Product{fields}=>for field in fields{pending.push((self.ty(module,context,&field.ty,&selected,active,b)?...
+    |       ------------------------------------ matches some of the same values
+272 | ...   SemanticNominalBody::Enum{variants}=>for variant in variants{for field in &variant.fields{pending.push((self.ty(module,contex...
+    |       ----------------------------------- matches some of the same values
+273 | ...   _=>{},
+    |       ^ collectively making this unreachable
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `index`
+  --> crates/zil-verify/src/semantic/original/capabilities.rs:19:71
+   |
+19 |                     (ContractProjection::Place(PlaceProjection::Field(index)),Ty::Array(child,_))=>Some(*child),
+   |                                                                       ^^^^^ help: if this is intentional, prefix it with an underscore: `_index`
+
+error[E0004]: non-exhaustive patterns: `zil_ir::ProtocolExit::ErrorOk` and `zil_ir::ProtocolExit::ErrorErr` not covered
+    --> crates/zil-verify/src/semantic/original/protocol/tasks.rs:1004:23
+     |
+1004 | ...   match exit.exit{ProtocolExit::Return=>{},ProtocolExit::PollPending=>{poll=true;pending|=phase;},ProtocolExit::PollReady=>{po...
+     |             ^^^^^^^^^ patterns `zil_ir::ProtocolExit::ErrorOk` and `zil_ir::ProtocolExit::ErrorErr` not covered
+     |
+note: `zil_ir::ProtocolExit` defined here
+    --> crates/zil-ir/src/lib.rs:1168:1
+     |
+1168 | pub enum ProtocolExit {
+     | ^^^^^^^^^^^^^^^^^^^^^
+1169 |     Return,
+1170 |     ErrorOk,
+     |     ------- not covered
+1171 |     ErrorErr,
+     |     -------- not covered
+     = note: the matched value is of type `zil_ir::ProtocolExit`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern, a match arm with multiple or-patterns as shown, or multiple match arms
+     |
+1004 |                 match exit.exit{ProtocolExit::Return=>{},ProtocolExit::PollPending=>{poll=true;pending|=phase;},ProtocolExit::PollReady=>{poll=true;ready|=phase;}, zil_ir::ProtocolExit::ErrorOk | zil_ir::ProtocolExit::ErrorErr => todo!()}
+     |                                                                                                                                                                   +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+warning: unused variable: `context`
+ --> crates/zil-verify/src/semantic/original/trait_methods.rs:7:65
+  |
+7 | ... self,module:&TypedModule,context:&CheckedContext,definition:&SemanticDefinition,prototype:&Prototype,_active:&mut ActiveQueries,b...
+  |                              ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_context`
+
+warning: unused variable: `module`
+   --> crates/zil-verify/src/tasks/owned/driver.rs:171:5
+    |
+171 |     module:&'a TypedModule,f:&'a TypedFunction,i:&Instruction,
+    |     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_module`
+
+For more information about this error, try `rustc --explain E0004`.
+warning: `zil-verify` (lib) generated 7 warnings
+error: could not compile `zil-verify` (lib) due to 1 previous error; 7 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+warning: `zil-verify` (lib test) generated 7 warnings (7 duplicates)
+error: could not compile `zil-verify` (lib test) due to 1 previous error; 7 warnings emitted

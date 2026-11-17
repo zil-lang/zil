@@ -1,0 +1,65 @@
+{
+  "source_head": "b6b8ff3027735c07911be166ec76f729c6c039c6",
+  "candidate": "9c33e99a358b7e60f71a737414061661f42c34d3",
+  "tree": "e980296881c1d89d6c1a5c93239fa985bb52c2e1",
+  "excluded_saved_checkpoint": "39bd2510593e9adb1c68cb9f8b657754b247ab82",
+  "excluded_patch_sha256": "3a40720d2e4fb097bca0ea13e68720a803238778c1a944b2a97a62acb2573394",
+  "files": [
+    {
+      "path": "crates/zil-analyze/src/semantic/closed/abstract_calls.rs",
+      "before_sha256": "f7df7be55ee02a8447e87515142bb887642fde46fa48b877d054fd83bbcdb2b6",
+      "ready_sha256": "09b39ac5b7ad26a55f0c0cf4a4339c1786f064259e33bd0226115304768c03a3"
+    },
+    {
+      "path": "crates/zil-analyze/src/semantic/closed/callable_roles.rs",
+      "before_sha256": "7f59055e9ef6414354a67dfc8f076841d8f05ced8cb71f009c553c30c55bb339",
+      "ready_sha256": "df423fdba63d9a16c30caa1cec238550463221cc04a260b8ca34983e662f2e23"
+    },
+    {
+      "path": "crates/zil-analyze/src/semantic/closed/classes.rs",
+      "before_sha256": "1730ea1f6527c2334b5fbc989c77b6e33759cfca8f0226b7d333faafd51eb1d4",
+      "ready_sha256": "3b1452cf4fda9a0642833e0f7e73984bd7dfb53460cedda8befa8b56d5b41d11"
+    },
+    {
+      "path": "crates/zil-analyze/src/semantic/original/abstract_calls.rs",
+      "before_sha256": "37939ec42ef1173456742e4e5c37009abe785821adaa77d36b03dc0f14ab240f",
+      "ready_sha256": "ed7c170c2e1f05de4a2516aa51f99574e26e217319cb45646a86f4e21d69b726"
+    },
+    {
+      "path": "crates/zil-analyze/src/semantic/original/captures.rs",
+      "before_sha256": "0ccfd3e0176d3db366e47db457c7fa3f0c35a49b87ed45947e96cb0f6b959c45",
+      "ready_sha256": "a036a1881d5a985b98d56f19618a45c40914f62001e7e9dba11d19fd92a15d29"
+    },
+    {
+      "path": "crates/zil-analyze/src/semantic/original/mixed.rs",
+      "before_sha256": "87aee16e1544fd1b51fa0a1a222ae440f5589069eaf214a39d19f81b3f527b8f",
+      "ready_sha256": "32d61ca142724438a2288dc4b70710753227217be1825815455c4f6534a83951"
+    },
+    {
+      "path": "crates/zil-analyze/src/semantic/original/roles.rs",
+      "before_sha256": "4947bd3b7e46229facf720d026afb8c1f86b3b80a6003e7309f90d39e18cfad3",
+      "ready_sha256": "8fae67f783dbfb68d910329f8b1b1119b3fa00776533350b4dac0bba7a2cf9ae"
+    },
+    {
+      "path": "crates/zil-analyze/src/semantic/original/traits/conformance.rs",
+      "before_sha256": "448ac2251564adfff2a140567959c63a935be9a6447ee0d58effa6ece656fbd0",
+      "ready_sha256": "83bf7cc428f9cf249f07810ecce39f13964a134db08f097041953be1b5cb3c20"
+    },
+    {
+      "path": "crates/zil-analyze/src/semantic/original/traits/methods.rs",
+      "before_sha256": "9a55585e5cb83e4a791559fb3fb294a376ec9344e8de18c1e866017fb9f14242",
+      "ready_sha256": "e9904266ee055622c5d4d00a7b8aa0aed3e91b2d845192fb9651202f14133784"
+    },
+    {
+      "path": "crates/zil-analyze/src/semantic/original/values.rs",
+      "before_sha256": "7c93c5299a061b41dc37ea92800440aae1914af5ea4504bb6f0a66acb12e85e0",
+      "ready_sha256": "f0f9c09f49f3f460b215eeb0024e016e7738c81182266469b57191d79b6c4fe0"
+    },
+    {
+      "path": "crates/zil-analyze/src/semantic/original.rs",
+      "before_sha256": "4540271ef5e0e4a22b08109e57e323f6e2f69bc032955e26c4f497db1579a0f9",
+      "ready_sha256": "920ae5304977482b342993f9007f16401abe269eab498a1f27514a3ff458bacb"
+    }
+  ],
+  "reason": "Root-authorized exact previous-interface Task cohort; shared HEAD/index/WIP unchanged; complete Exit mechanical fix included."
+}
