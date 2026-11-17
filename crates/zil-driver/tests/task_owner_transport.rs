@@ -706,6 +706,8 @@ fn static_task_callback_requires_every_actual_constructor_even_outside_main_raw_
     // genuinely accepted control, so Wire cannot reject on a stale plan size.
     let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
     zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let baseline = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&baseline, &target, &limits).unwrap();
     raw.functions[function.0 as usize].blocks[block].instructions[instruction].kind =
         zil_ir::InstructionKind::MakeClosure {
             closure,
@@ -719,12 +721,24 @@ fn static_task_callback_requires_every_actual_constructor_even_outside_main_raw_
     plan.module_fingerprint = raw.fingerprint();
     let rejected =
         zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap_err();
+    // The complete original Source still requires a Call at this occurrence.
+    // Verify rejects the replacement before the independent constant-source
+    // solver; preserving that earlier semantic boundary is part of the attack.
+    let source_mismatch = |diagnostics: &[zil_base::Diagnostic]| {
+        diagnostics.iter().any(|d| {
+            d.phase == zil_base::Phase::Verify
+                && d.category == ResultCategory::SafeReject
+                && d.code == "E-VERIFY-SEMANTIC"
+                && d.message == "original body Call selects another actual operation"
+        })
+    };
     assert!(
-        rejected.iter().any(|d| d.message.contains("constant")),
+        source_mismatch(&rejected),
         "{rejected:?}"
     );
     let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
-    assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+    let rejected = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+    assert!(source_mismatch(&rejected), "{rejected:?}");
 }
 
 #[test]
