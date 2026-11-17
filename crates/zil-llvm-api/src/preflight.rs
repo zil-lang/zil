@@ -5,6 +5,53 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 type Result<T> = std::result::Result<T, String>;
+/// Optional request-local work sink. Existing standalone/native validation uses
+/// the same algorithm without a caller ledger; preparation supplies its ledger.
+#[derive(Clone, Copy, Default)]
+struct Meter<'a>(Option<&'a dyn Fn(usize) -> Result<()>>);
+impl Meter<'_> {
+    fn pay(self, work: usize) -> Result<()> {
+        if let Some(charge) = self.0 {
+            charge(work)?;
+        }
+        Ok(())
+    }
+    fn sort(self, count: usize) -> Result<()> {
+        self.pay(count.saturating_mul(count.max(1).ilog2() as usize + 1))
+    }
+    fn local_uses<'a>(self, value: &'a Val, output: &mut Vec<&'a str>) -> Result<()> {
+        self.pay(1)?;
+        match value {
+            Val::Local(name) => {
+                self.pay(name.len())?;
+                output.push(name);
+            }
+            Val::Array(args) => {
+                for arg in args {
+                    self.local_uses(&arg.value, output)?;
+                }
+            }
+            Val::Gep { ptr, indices, .. } => {
+                self.local_uses(ptr, output)?;
+                for arg in indices {
+                    self.local_uses(&arg.value, output)?;
+                }
+            }
+            Val::Global(_)
+            | Val::Int(_)
+            | Val::F32(_)
+            | Val::F64(_)
+            | Val::Bool(_)
+            | Val::Null
+            | Val::Zero
+            | Val::Undef
+            | Val::Poison
+            | Val::Bytes(_)
+            | Val::Invalid(_) => {}
+        }
+        Ok(())
+    }
+}
 #[derive(Clone, Debug)]
 pub(crate) struct Schedule {
     /// Per-function positions in dependency order, preserving each block's order.
@@ -114,6 +161,7 @@ fn alignment(a: u32) -> Result<()> {
     }
 }
 struct World<'a> {
+    meter: Meter<'a>,
     named: BTreeMap<&'a str, &'a Vec<Ty>>,
     symbols: BTreeMap<&'a str, &'a Item>,
     // Request-local successful DAG summaries, including maximum nesting height.
@@ -128,6 +176,7 @@ impl<'a> World<'a> {
         stack: &mut BTreeSet<String>,
         depth: usize,
     ) -> Result<usize> {
+        self.meter.pay(1)?;
         if depth > 128 {
             return fail("machine type nesting exceeds supported limit");
         }
@@ -153,6 +202,7 @@ impl<'a> World<'a> {
                 height
             }
             Ty::Named(name) => {
+                self.meter.pay(name.len())?;
                 if !identifier(name) {
                     return fail("invalid named machine type");
                 }
@@ -186,6 +236,7 @@ impl<'a> World<'a> {
         self.ty(t, void, &mut BTreeSet::new(), 0).map(|_| ())
     }
     fn fields<'b>(&'b self, t: &'b Ty) -> Result<&'b [Ty]> {
+        self.meter.pay(1)?;
         match t {
             Ty::Struct(fields) => Ok(fields),
             Ty::Named(name) => self
@@ -219,6 +270,7 @@ impl<'a> World<'a> {
         }
         let mut current = t;
         for (i, a) in indices.iter().enumerate() {
+            self.meter.pay(1)?;
             if !matches!(a.ty, Ty::Int(_)) {
                 return fail("GEP index is not integer");
             }
@@ -247,6 +299,7 @@ impl<'a> World<'a> {
     }
     fn arg(&self, a: &Arg, defs: &HashMap<&str, Definition<'_>>, constant: bool) -> Result<()> {
         self.check_ty(&a.ty, false)?;
+        self.meter.pay(a.attrs.len())?;
         attrs(&a.attrs, Some(&a.ty))?;
         self.value(&a.value, &a.ty, defs, constant, 0)
     }
@@ -258,11 +311,13 @@ impl<'a> World<'a> {
         constant: bool,
         depth: usize,
     ) -> Result<()> {
+        self.meter.pay(1)?;
         if depth > 128 {
             return fail("constant nesting exceeds supported limit");
         }
         match v {
             Val::Local(name) => {
+                self.meter.pay(name.len())?;
                 if constant {
                     return fail("local reference in global/constant initializer");
                 }
@@ -274,6 +329,7 @@ impl<'a> World<'a> {
                 }
             }
             Val::Global(name) => {
+                self.meter.pay(name.len())?;
                 if *t != Ty::Ptr {
                     return fail("global address requires ptr type");
                 }
@@ -320,6 +376,7 @@ impl<'a> World<'a> {
                 }
             }
             Val::Bytes(bytes) => {
+                self.meter.pay(bytes.len())?;
                 if *t != Ty::array(bytes.len() as u64, Ty::Int(8)) {
                     return fail("byte initializer type mismatch");
                 }
@@ -336,6 +393,7 @@ impl<'a> World<'a> {
         Ok(())
     }
     fn result<'b>(&'b self, op: &'b Op) -> Result<Option<&'b Ty>> {
+        self.meter.pay(1)?;
         Ok(match op {
             Op::Alloca { .. } | Op::Gep { .. } => Some(&POINTER_RESULT),
             Op::Load { ty, .. }
@@ -361,6 +419,7 @@ impl<'a> World<'a> {
         defs: &HashMap<&str, Definition<'_>>,
         signature: &Signature,
     ) -> Result<()> {
+        self.meter.pay(1)?;
         let value = |v: &Val, t: &Ty| self.value(v, t, defs, false, 0);
         match op {
             Op::Alloca { ty, align } => {
@@ -546,6 +605,7 @@ impl<'a> World<'a> {
                 vararg,
             } => {
                 self.check_ty(result, true)?;
+                self.meter.pay(result_attrs.len())?;
                 attrs(result_attrs, Some(result))?;
                 value(callee, &Ty::Ptr)?;
                 if args.len() > u32::MAX as usize {
@@ -575,6 +635,7 @@ impl<'a> World<'a> {
                         return fail("variadic fixed parameter mismatch");
                     }
                     for (p, a) in sig.params.iter().zip(args) {
+                        self.meter.pay(1 + p.attrs.len() + a.attrs.len())?;
                         if p.ty != a.ty || p.attrs != a.attrs {
                             return fail(format!("call parameter ABI mismatch for @{name}"));
                         }
@@ -620,8 +681,10 @@ fn dominators_in<'a>(
     succ: &[Vec<usize>],
     pred: &[Vec<usize>],
     scratch: &'a mut DominatorScratch,
-) -> (&'a [bool], &'a [usize]) {
+    meter: Meter<'_>,
+) -> Result<(&'a [bool], &'a [usize])> {
     let n = succ.len();
+    meter.pay(n.saturating_mul(5).saturating_add(scratch.stack.len()))?;
     scratch.clear();
     let DominatorScratch {
         seen,
@@ -633,6 +696,7 @@ fn dominators_in<'a>(
     seen.resize(n, false);
     stack.push((0usize, false));
     while let Some((b, exit)) = stack.pop() {
+        meter.pay(1)?;
         if exit {
             post.push(b);
             continue;
@@ -643,6 +707,7 @@ fn dominators_in<'a>(
         seen[b] = true;
         stack.push((b, true));
         for &next in succ[b].iter().rev() {
+            meter.pay(1)?;
             if !seen[next] {
                 stack.push((next, false));
             }
@@ -655,30 +720,35 @@ fn dominators_in<'a>(
     }
     idom.resize(n, usize::MAX);
     idom[0] = 0;
-    let intersect = |mut a: usize, mut b: usize, idom: &[usize]| {
+    let intersect = |mut a: usize, mut b: usize, idom: &[usize]| -> Result<usize> {
         while a != b {
+            meter.pay(1)?;
             while rank[a] > rank[b] {
+                meter.pay(1)?;
                 a = idom[a];
             }
             while rank[b] > rank[a] {
+                meter.pay(1)?;
                 b = idom[b];
             }
         }
-        a
+        Ok(a)
     };
     let mut changed = true;
     while changed {
+        meter.pay(1)?;
         changed = false;
         for &b in post.iter().skip(1) {
+            meter.pay(1 + pred[b].len())?;
             let mut p = pred[b].iter().copied().filter(|&p| idom[p] != usize::MAX);
             let Some(mut next) = p.next() else { continue };
             // Pay O(n) setup only when the current block has enough edges to
             // cover it. Many small joins in a large CFG keep the old walk.
             if pred[b].len() >= 32 && pred[b].len() >= n.div_ceil(4) {
-                next = intersect_many(next, p, rank, idom);
+                next = intersect_many(next, p, rank, idom, meter)?;
             } else {
                 for p in p {
-                    next = intersect(next, p, idom);
+                    next = intersect(next, p, idom)?;
                 }
             }
             if next != idom[b] {
@@ -687,12 +757,12 @@ fn dominators_in<'a>(
             }
         }
     }
-    (seen, idom)
+    Ok((seen, idom))
 }
 #[cfg(test)]
 fn dominators(succ: &[Vec<usize>], pred: &[Vec<usize>]) -> (Vec<bool>, Vec<usize>) {
     let mut scratch = DominatorScratch::default();
-    dominators_in(succ, pred, &mut scratch);
+    dominators_in(succ, pred, &mut scratch, Meter::default()).unwrap();
     (scratch.seen, scratch.idom)
 }
 // The current idom tree does not change during one predecessor merge. Project
@@ -705,13 +775,16 @@ fn intersect_many(
     predecessors: impl Iterator<Item = usize>,
     rank: &[usize],
     idom: &[usize],
-) -> usize {
+    meter: Meter<'_>,
+) -> Result<usize> {
     if first == 0 {
-        return 0;
+        return Ok(0);
     }
+    meter.pay(idom.len())?;
     let mut projected = vec![usize::MAX; idom.len()];
     let mut ancestor = first;
     loop {
+        meter.pay(1)?;
         projected[ancestor] = ancestor;
         if ancestor == 0 {
             break;
@@ -721,13 +794,16 @@ fn intersect_many(
     let mut common = first;
     let mut trail = Vec::new();
     for mut p in predecessors {
+        meter.pay(1)?;
         trail.clear();
         while projected[p] == usize::MAX {
+            meter.pay(1)?;
             trail.push(p);
             p = idom[p];
         }
         let meet = projected[p];
         for &node in &trail {
+            meter.pay(1)?;
             projected[node] = meet;
         }
         if rank[meet] < rank[common] {
@@ -737,13 +813,18 @@ fn intersect_many(
             break;
         }
     }
-    common
+    Ok(common)
 }
 // DFS intervals on the current dominator tree turn repeated ancestor walks
 // into constant-time tests. Iterative traversal also handles deep CFGs without
 // growing the Rust call stack. Unreachable blocks retain sentinel intervals.
-fn dominator_intervals(reachable: &[bool], idom: &[usize]) -> Vec<(usize, usize)> {
+fn dominator_intervals_charged(
+    reachable: &[bool],
+    idom: &[usize],
+    meter: Meter<'_>,
+) -> Result<Vec<(usize, usize)>> {
     let n = idom.len();
+    meter.pay(n.saturating_mul(4))?;
     let mut child = vec![usize::MAX; n];
     let mut sibling = vec![usize::MAX; n];
     for b in 1..n {
@@ -757,6 +838,7 @@ fn dominator_intervals(reachable: &[bool], idom: &[usize]) -> Vec<(usize, usize)
     let mut stack = vec![(0usize, false)];
     let mut clock = 0;
     while let Some((b, exit)) = stack.pop() {
+        meter.pay(1)?;
         if exit {
             intervals[b].1 = clock;
         } else {
@@ -765,47 +847,66 @@ fn dominator_intervals(reachable: &[bool], idom: &[usize]) -> Vec<(usize, usize)
             stack.push((b, true));
             let mut next = child[b];
             while next != usize::MAX {
+                meter.pay(1)?;
                 stack.push((next, false));
                 next = sibling[next];
             }
         }
     }
-    intervals
+    Ok(intervals)
 }
-fn dominates(
+fn dominates_charged(
     reachable: &[bool],
     idom: &[usize],
     intervals: Option<&[(usize, usize)]>,
     a: usize,
     mut b: usize,
-) -> bool {
+    meter: Meter<'_>,
+) -> Result<bool> {
+    meter.pay(1)?;
     if !reachable[b] {
-        return true;
+        return Ok(true);
     }
     if !reachable[a] {
-        return false;
+        return Ok(false);
     }
     if a == 0 || a == b {
-        return true;
+        return Ok(true);
     }
     if let Some(spans) = intervals {
-        return spans[a].0 <= spans[b].0 && spans[b].0 < spans[a].1;
+        return Ok(spans[a].0 <= spans[b].0 && spans[b].0 < spans[a].1);
     }
     loop {
+        meter.pay(1)?;
         if a == b {
-            return true;
+            return Ok(true);
         }
         if b == 0 {
-            return false;
+            return Ok(false);
         }
         b = idom[b];
     }
+}
+#[cfg(test)]
+fn dominator_intervals(reachable: &[bool], idom: &[usize]) -> Vec<(usize, usize)> {
+    dominator_intervals_charged(reachable, idom, Meter::default()).unwrap()
+}
+#[cfg(test)]
+fn dominates(
+    reachable: &[bool],
+    idom: &[usize],
+    intervals: Option<&[(usize, usize)]>,
+    a: usize,
+    b: usize,
+) -> bool {
+    dominates_charged(reachable, idom, intervals, a, b, Meter::default()).unwrap()
 }
 fn function<'a, const COLLECT_SCHEDULE: bool>(
     world: &'a World<'_>,
     f: &'a Function,
     reusable: &mut FunctionScratch<'a>,
 ) -> Result<Vec<(usize, usize)>> {
+    world.meter.pay(1 + f.signature.params.len())?;
     if f.blocks.is_none() {
         return Ok(Vec::new());
     }
@@ -828,6 +929,14 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
     f: &'a Function,
     scratch: &mut FunctionScratch<'a>,
 ) -> Result<Vec<(usize, usize)>> {
+    world.meter.pay(
+        scratch
+            .succ
+            .len()
+            .saturating_add(scratch.pred.len())
+            .saturating_add(scratch.defs.len())
+            .saturating_add(scratch.labels.len()),
+    )?;
     scratch.clear();
     let Some(blocks) = &f.blocks else {
         return Ok(vec![]);
@@ -849,8 +958,12 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
         uses,
         dominators,
     } = scratch;
+    world.meter.pay(n.saturating_mul(4))?;
     labels.reserve(n);
     for p in &f.signature.params {
+        world
+            .meter
+            .pay(1 + p.name.as_ref().map_or(0, String::len))?;
         let name = p
             .name
             .as_deref()
@@ -870,6 +983,7 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
         }
     }
     for (b, block) in blocks.iter().enumerate() {
+        world.meter.pay(1 + block.name.len())?;
         if !identifier(&block.name)
             || labels.insert(block.name.as_str(), b).is_some()
             || defs.contains_key(block.name.as_str())
@@ -881,6 +995,9 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
         }
         let mut non_phi = false;
         for (j, i) in block.instructions.iter().enumerate() {
+            world
+                .meter
+                .pay(1 + i.result.as_ref().map_or(0, String::len))?;
             if j + 1 != block.instructions.len() && i.op.terminator() {
                 return fail("instruction after terminator");
             }
@@ -911,6 +1028,7 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
         }
     }
     // Block labels and named SSA values share the same LLVM local namespace.
+    world.meter.pay(labels.len())?;
     if labels.keys().any(|label| defs.contains_key(*label)) {
         return fail("block label collides with SSA name");
     }
@@ -923,7 +1041,9 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
     let succ = &mut succ[..n];
     let pred = &mut pred[..n];
     for (b, block) in blocks.iter().enumerate() {
+        world.meter.pay(1 + block.name.len())?;
         for next in successors(&block.instructions.last().unwrap().op) {
+            world.meter.pay(1 + next.len())?;
             let id = *labels
                 .get(next)
                 .ok_or_else(|| format!("unknown block %{next}"))?;
@@ -934,11 +1054,20 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
     if !pred[0].is_empty() {
         return fail("entry block has a predecessor");
     }
-    let (reachable, idom) = dominators_in(succ, pred, dominators);
-    let intervals = (n >= 32).then(|| dominator_intervals(reachable, idom));
-    let dominates = |a, b| dominates(reachable, idom, intervals.as_deref(), a, b);
+    let (reachable, idom) = dominators_in(succ, pred, dominators, world.meter)?;
+    let intervals = if n >= 32 {
+        Some(dominator_intervals_charged(reachable, idom, world.meter)?)
+    } else {
+        None
+    };
+    let dominates =
+        |a, b| dominates_charged(reachable, idom, intervals.as_deref(), a, b, world.meter);
     for (b, block) in blocks.iter().enumerate() {
+        world.meter.pay(1 + block.name.len())?;
         for (j, i) in block.instructions.iter().enumerate() {
+            world
+                .meter
+                .pay(1 + i.result.as_ref().map_or(0, String::len))?;
             world
                 .op(&i.op, defs, &f.signature)
                 .map_err(|s| format!("@{} / {} / {}: {s}", f.name, block.name, j))?;
@@ -948,10 +1077,10 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
                     let p = *labels.get(p.as_str()).ok_or("phi incoming block missing")?;
                     incoming_ids.push(p);
                     uses.clear();
-                    v.local_uses(uses);
+                    world.meter.local_uses(v, uses)?;
                     for &name in uses.iter() {
                         if let Some((d, _)) = defs[name].place
-                            && !dominates(d, p)
+                            && !dominates(d, p)?
                         {
                             return fail(format!(
                                 "phi source %{name} does not dominate predecessor"
@@ -959,13 +1088,17 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
                         }
                     }
                 }
+                world.meter.sort(incoming_ids.len())?;
                 incoming_ids.sort_unstable();
+                world.meter.pay(pred[b].len())?;
+                world.meter.sort(pred[b].len())?;
                 let mut expected = pred[b].clone();
                 expected.sort_unstable();
                 if incoming_ids != expected {
                     return fail("phi incoming edges do not match CFG predecessor multiset");
                 }
                 for (idx, (v, p)) in incoming.iter().enumerate() {
+                    world.meter.pay(idx.saturating_add(1))?;
                     if incoming[..idx]
                         .iter()
                         .any(|(old, block)| block == p && old != v)
@@ -978,10 +1111,10 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
             } else {
                 for value in i.op.values() {
                     uses.clear();
-                    value.local_uses(uses);
+                    world.meter.local_uses(value, uses)?;
                     for &name in uses.iter() {
                         if let Some((d, pos)) = defs[name].place
-                            && ((d == b && pos >= j) || (d != b && !dominates(d, b)))
+                            && ((d == b && pos >= j) || (d != b && !dominates(d, b)?))
                         {
                             return fail(format!(
                                 "SSA definition %{name} does not dominate its use"
@@ -1000,6 +1133,7 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
     // every scheduling edge. Phi definitions are precreated and excluded from
     // this graph. Unreachable blocks have weaker dominance rules, so they must
     // retain the complete original scheduling/cycle check below.
+    world.meter.pay(reachable.len())?;
     if !COLLECT_SCHEDULE && reachable.iter().all(|&block| block) {
         return Ok(Vec::new());
     }
@@ -1010,27 +1144,36 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
     // Positions are dense within each block; do not allocate a tree node per instruction.
     let mut ids = blocks
         .iter()
-        .map(|b| vec![usize::MAX; b.instructions.len()])
-        .collect::<Vec<_>>();
+        .map(|b| {
+            world.meter.pay(b.instructions.len())?;
+            Ok(vec![usize::MAX; b.instructions.len()])
+        })
+        .collect::<Result<Vec<_>>>()?;
     for (b, block) in blocks.iter().enumerate() {
+        world.meter.pay(1 + block.name.len())?;
         for (j, i) in block.instructions.iter().enumerate() {
+            world
+                .meter
+                .pay(1 + i.result.as_ref().map_or(0, String::len))?;
             if !matches!(i.op, Op::Phi { .. }) {
                 ids[b][j] = positions.len();
                 positions.push((b, j));
             }
         }
     }
+    world.meter.pay(positions.len().saturating_mul(2))?;
     let mut counts = vec![0; positions.len()];
     let mut users = vec![vec![]; positions.len()];
     let mut dependencies = Vec::new();
     for (id, &(b, j)) in positions.iter().enumerate() {
+        world.meter.pay(1)?;
         dependencies.clear();
         if j > 0 && ids[b][j - 1] != usize::MAX {
             dependencies.push(ids[b][j - 1]);
         }
         for v in blocks[b].instructions[j].op.values() {
             uses.clear();
-            v.local_uses(uses);
+            world.meter.local_uses(v, uses)?;
             for &name in uses.iter() {
                 if let Some((block, instruction)) = defs[name].place {
                     let source = ids[block][instruction];
@@ -1041,6 +1184,8 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
             }
         }
         // Match the previous ordered set, including repeated operands/sequence edges.
+        world.meter.sort(dependencies.len())?;
+        world.meter.pay(dependencies.len().saturating_mul(2))?;
         dependencies.sort_unstable();
         dependencies.dedup();
         counts[id] = dependencies.len();
@@ -1050,12 +1195,14 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
     }
     let mut ready = VecDeque::new();
     for (id, &count) in counts.iter().enumerate() {
+        world.meter.pay(1)?;
         if count == 0 {
             ready.push_back(id);
         }
     }
     let mut schedule = vec![];
     while let Some(id) = ready.pop_front() {
+        world.meter.pay(1 + users[id].len())?;
         schedule.push(positions[id]);
         for &user in &users[id] {
             counts[user] -= 1;
@@ -1080,6 +1227,23 @@ pub(crate) fn validate_only(module: &Module) -> Result<()> {
 }
 
 fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedule> {
+    validate_metered::<COLLECT_SCHEDULE>(module, Meter::default())
+}
+
+pub(crate) fn validate_charged(
+    module: &Module,
+    mut charge: impl FnMut(usize) -> Result<()>,
+) -> Result<()> {
+    let charge = RefCell::new(&mut charge);
+    let pay = |work| (charge.borrow_mut())(work);
+    validate_metered::<false>(module, Meter(Some(&pay))).map(|_| ())
+}
+
+fn validate_metered<const COLLECT_SCHEDULE: bool>(
+    module: &Module,
+    meter: Meter<'_>,
+) -> Result<Schedule> {
+    meter.pay(1 + module.triple.len() + module.fingerprint.len())?;
     if !matches!(
         module.triple.as_str(),
         "x86_64-unknown-linux-gnu" | "x86_64-pc-windows-msvc"
@@ -1087,18 +1251,22 @@ fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedu
         return fail("machine module target is not supported");
     }
     let mut world = World {
+        meter,
         named: BTreeMap::new(),
         symbols: BTreeMap::new(),
         valid_named: RefCell::new(BTreeMap::new()),
     };
     for item in &module.items {
+        meter.pay(1)?;
         match item {
             Item::NamedType(n, fields) => {
+                meter.pay(n.len())?;
                 if !identifier(n) || world.named.insert(n, fields).is_some() {
                     return fail("duplicate/invalid type name");
                 }
             }
             Item::Global(Global { name, .. }) | Item::Function(Function { name, .. }) => {
+                meter.pay(name.len())?;
                 if !identifier(name) || world.symbols.insert(name, item).is_some() {
                     return fail(format!("duplicate/invalid global symbol {name}"));
                 }
@@ -1108,6 +1276,7 @@ fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedu
     let mut functions = BTreeMap::new();
     let mut scratch = FunctionScratch::default();
     for item in &module.items {
+        meter.pay(1)?;
         match item {
             Item::NamedType(n, _) => world.check_ty(&Ty::Named(n.clone()), false)?,
             Item::Global(g) => {
@@ -1124,6 +1293,7 @@ fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedu
             }
             Item::Function(f) => {
                 world.check_ty(&f.signature.result, true)?;
+                meter.pay(f.signature.result_attrs.len() + f.attrs.len())?;
                 attrs(&f.signature.result_attrs, Some(&f.signature.result))?;
                 attrs(&f.attrs, None)?;
                 if f.signature.params.len() > u32::MAX as usize {
@@ -1131,6 +1301,7 @@ fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedu
                 }
                 for p in &f.signature.params {
                     world.check_ty(&p.ty, false)?;
+                    meter.pay(1 + p.attrs.len())?;
                     attrs(&p.attrs, Some(&p.ty))?;
                 }
                 if f.blocks.is_none()
@@ -1152,6 +1323,10 @@ fn validate_impl<const COLLECT_SCHEDULE: bool>(module: &Module) -> Result<Schedu
 #[cfg(test)]
 #[path = "preflight_validate_only_tests.rs"]
 mod validate_only_tests;
+
+#[cfg(test)]
+#[path = "complete_preparation_tests.rs"]
+mod complete_preparation_tests;
 
 #[cfg(test)]
 mod named_layout_tests {
@@ -1208,6 +1383,7 @@ mod named_layout_tests {
     }
     fn world(definitions: &[(String, Vec<Ty>)]) -> World<'_> {
         World {
+            meter: Meter::default(),
             named: definitions
                 .iter()
                 .map(|(name, fields)| (name.as_str(), fields))
