@@ -172,8 +172,28 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
         ],
         ..function(0, None)
     };
-    let register = function(3, Some("test_register"));
-    let close = function(4, Some("test_close"));
+    // The actual directory must describe the same entries as the machine
+    // helper calls, rather than relying on separately hard-coded prototypes.
+    let callback_entry=TypedFunction {
+        environment:Some(ClosureId(0)),parameters:vec![LocalId(0)],
+        locals:vec![local(0,Type::I32)],return_type:Type::I32,values:vec![Type::I32],
+        blocks:vec![zil_ir::BasicBlock{id:zil_ir::BlockId(0),instructions:vec![instruction(Some(0),InstructionKind::Load(LocalId(0)))],terminator:Terminator::Return(Some(ValueId(0)))}],
+        ..function(1,None)
+    };
+    let body_entry=TypedFunction {
+        environment:Some(ClosureId(1)),return_type:Type::I32,values:vec![Type::I32],
+        blocks:vec![zil_ir::BasicBlock{id:zil_ir::BlockId(0),instructions:vec![instruction(Some(0),InstructionKind::Constant(Constant::I32(0)))],terminator:Terminator::Return(Some(ValueId(0)))}],
+        ..function(2,None)
+    };
+    let register=TypedFunction {
+        parameters:vec![LocalId(0),LocalId(1)],
+        locals:vec![local(0,Type::ForeignCallback{parameters:vec![Type::ForeignHandle,Type::I32],result:Box::new(Type::I32)}),local(1,Type::ForeignHandle)],
+        return_type:Type::ForeignHandle,..function(3,Some("test_register"))
+    };
+    let close=TypedFunction {
+        parameters:vec![LocalId(0)],locals:vec![local(0,Type::ForeignHandle)],
+        ..function(4,Some("test_close"))
+    };
     let closures = [
         ClosureDefinition {
             storage_life: None,
@@ -198,8 +218,8 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
     ];
     let definitions = [
         source,
-        function(1, None),
-        function(2, None),
+        callback_entry,
+        body_entry,
         register,
         close,
     ];
@@ -217,8 +237,8 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
     let layouts=&LayoutContext::for_test_module(&dyn_module,&zil_base::Limits::default()).unwrap();
     let mut intrinsics = BTreeSet::new();
     let mut code = m::Code::from(vec![
-        m::Event::NamedType("zil_env_0".into(), vec![]),
-        m::Event::NamedType("zil_env_1".into(), vec![]),
+        m::Event::NamedType("zil_env_0".into(), layouts.environment_fields(ClosureId(0)).unwrap()),
+        m::Event::NamedType("zil_env_1".into(), layouts.environment_fields(ClosureId(1)).unwrap()),
         m::Event::Declare(m::Function {
             name: "llvm.trap".into(),
             linkage: m::Linkage::External,
@@ -226,52 +246,19 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
             attrs: vec![],
             blocks: None,
         }),
-        m::Event::Declare(m::Function {
-            name: "test_register".into(),
-            linkage: m::Linkage::External,
-            signature: m::Signature::new(
-                m::Ty::Ptr,
-                vec![m::Param::unnamed(m::Ty::Ptr), m::Param::unnamed(m::Ty::Ptr)],
-            ),
-            attrs: vec![],
-            blocks: None,
-        }),
-        m::Event::Declare(m::Function {
-            name: "test_close".into(),
-            linkage: m::Linkage::External,
-            signature: m::Signature::new(m::Ty::Void, vec![m::Param::unnamed(m::Ty::Ptr)]),
-            attrs: vec![],
-            blocks: None,
-        }),
-        m::Event::Declare(m::Function {
-            name: "zil.fn.1".into(),
-            linkage: m::Linkage::External,
-            signature: m::Signature::new(
-                m::Ty::Int(32),
-                vec![
-                    m::Param::unnamed(m::Ty::Ptr),
-                    m::Param::unnamed(m::Ty::Int(32)),
-                ],
-            ),
-            attrs: vec![],
-            blocks: None,
-        }),
-        m::Event::Declare(m::Function {
-            name: "zil.fn.2".into(),
-            linkage: m::Linkage::External,
-            signature: m::Signature::new(m::Ty::Int(32), vec![m::Param::unnamed(m::Ty::Ptr)]),
-            attrs: vec![],
-            blocks: None,
-        }),
     ]);
+    for actual in definitions.iter().filter(|actual|actual.foreign.is_some()) {
+        code.append(foreign::declaration(layouts,actual,&target).expect("actual foreign model signature"));
+    }
+    for actual in definitions.iter().filter(|actual|actual.foreign.is_none()) {
     code.append(
         FunctionEmitter {
             layouts,
             dyn_module: &dyn_module,
             task_ownership: None,
-                current_instruction: None,
+            current_instruction: None,
             vacated_pollable_drops: BTreeSet::new(),
-            function: &definitions[0],
+            function: actual,
             target: &target,
             functions: &functions,
             scalar_summaries: None,
@@ -294,6 +281,11 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
         .emit()
         .expect("raw machine lowering"),
     );
+    }
+    for(operation,bits)in intrinsics {
+        code.push(m::Event::Declare(m::Function{name:format!("llvm.{operation}.with.overflow.i{bits}"),linkage:m::Linkage::External,
+            signature:m::Signature::new(m::Ty::Struct(vec![m::Ty::Int(bits),m::Ty::Int(1)]),vec![m::Param::unnamed(m::Ty::Int(bits)),m::Param::unnamed(m::Ty::Int(bits))]),attrs:vec![],blocks:None}));
+    }
     let mut module = m::Module::from_code(target.triple, "raw-callback-llvm-shape".into(), code)
         .expect("machine model");
     for item in &mut module.items {
@@ -303,6 +295,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
             scalar_locals::promote(&definitions[0], machine);
         }
     }
+    module.validate_complete(|_|Ok(())).expect("complete raw callback machine model");
     let ir = module.to_text();
     assert!(ir.contains("call { i1, i32 } @zil.scoped.with.0.2"));
     assert!(ir.contains("br i1 %v.6, label %bb.1, label %bb.2"));
