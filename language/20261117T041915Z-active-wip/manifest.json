@@ -1,0 +1,34 @@
+{
+  "source_base": "ca9f3bcaa0c7ba39d0b912ebeb47b4bc8bb58aa6",
+  "state": "UNVERIFIED ACTIVE WIP; not an accepted candidate",
+  "snapshot_utc": "20261117T041915Z",
+  "stable_read_check": true,
+  "changed_files": {
+    "crates/zil-verify/src/registration.rs": "98197e7ba445a4ec531470b09b623b27b0fe2c1f55ffb2870497fe843829c2a2"
+  },
+  "artifacts": {
+    "source.patch": "5f34995297c2958450c7470b193ae3bbaf1c50676c332b8537a95bb0e56c96bc",
+    "supporting-tools/run-alpha-candidate.sh": "31fadc4b40984808371f8446781fad8888d738ab25850ae505f9180ff0f33f70",
+    "supporting-tools/check-alpha-core-chain.py": "b6794b9aee82f5c577c8665cfffef1a8c402be5ecbd433099be70904903157ec",
+    "supporting-tools/run-native-alpha.py": "666bb3245e60f9299bca022cc87f727525bf5364c30fe4d2a133688304e6e0f8",
+    "supporting-tools/run-native-alpha-plan.json": "eacd70077354e42d48f7632c4ad88b1d303f76980a7f64bee035ba233d8d328e",
+    "supporting-tools/run-native-alpha-manual.txt": "1fd5960890c6fe1157fafafabf0252d25591b920c55c49ea3ff39df9e489ba4a",
+    "supporting-tools/backup-language-wip.py": "2de441f892b835ad88aa5035842f7f5262e0180d533a1a3656e092460848ddf8",
+    "supporting-tools/check-all-task-helper-sources.py": "fb6110dd85a9fe355036b8390bab8fe3de1cc4c73f19cdbb196066cee1fe7982",
+    "supporting-tools/check-task-helper-native-cases.py": "33cd68b42337d6807591c2767fca631e8a4bdadbb84cec2fb65685baffdf3c54",
+    "supporting-tools/check-task-frame-observer.py": "9f2eada808d337839a78ac7f0e2e0a1af20b21c7c8df661588fcbbf15a1892fa",
+    "supporting-tools/check-extra-originals.py": "b84d34aeaad8dead1fc3f1d93e319f3b4fdc944cf1a25821801dda1920932879",
+    "supporting-tools/check-alpha-nearest-complete.py": "df2a1d02e36ea066d27752073440a1be81956f800a20f0af493ca8ccf923ce44",
+    "supporting-tools/run-core-alpha-units.py": "964e56e67f6dbe5deebc655ca21c18418131339704c5a559c6bdf56e02b83ffe",
+    "supporting-tools/summarize-alpha-run.py": "7da153cb98d712d204d1e6256df22695e15db67b59afa33ee2548c54f758a110",
+    "supporting-tools/check-static-callable-original.py": "5b9b997cc26d1edb23917b322845446ee30758e788149ce82d61a2efc7ef89dd",
+    "supporting-tools/check-task-positive-fixtures.py": "a534e311c61522ae3247bbf44428f2aafda4eb2eeb43499572c3e68f339df22e",
+    "review-and-handoff/a-persistent-slot-consumer-audit-9d27.md": "9c81b3ab6c9d0137336cf2e49c224126e234b7ffd5a59ada5833c5415d2b90ec",
+    "review-and-handoff/alpha-live-handoff-root.json": "f6d863964b6d5a5e9dca29b76f07895969a79b1d0b170f10c6d2381ff6103132",
+    "focused-generic-native-evidence/source.zil": "8aae2fe82df068484af4d9a3fc38f97b869195934dc211318194377d7f1bf529",
+    "focused-generic-native-evidence/receipt.json": "ca31d22b36178943997601799c29345e542708ea0e35822cb758c5482fa4683e",
+    "focused-generic-native-evidence/native/receipt.json": "2fb46df8c7bd4ba1ae679fdae3c8ddc9e5f53f796d936c7180b0121e5ef71fed",
+    "focused-generic-native-evidence/native/clang-observer.sh": "2ba4032536b4294fbd540f46a01484c9ea11413ed82de9f1ee330e7ba9647bef"
+  },
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ contents into the same checkout."
+}

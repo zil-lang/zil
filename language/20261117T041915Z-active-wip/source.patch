@@ -1,0 +1,56 @@
+diff --git a/crates/zil-verify/src/registration.rs b/crates/zil-verify/src/registration.rs
+index 33a662447..4e468969f 100644
+--- a/crates/zil-verify/src/registration.rs
++++ b/crates/zil-verify/src/registration.rs
+@@ -684,20 +684,20 @@ pub(crate) fn transfer_callback(
+ mod static_capture_tests{
+     use super::*;
+     #[test]
+-    fn closed_static_capture_keeps_exact_nested_slot_and_final_grounding_raw_wire(){
++    fn closed_static_capture_keeps_exact_slot_and_final_grounding_raw_wire(){
+         let limits=Limits::default();
+         let(mut module,_)=crate::tests::baseline();let span=module.functions[0].span;
+         let leaf=Type::Address{mutable:false,inner:Box::new(Type::Slice{element:Box::new(Type::U8)})};
+-        let position=StoragePosition{base:StorageBase::Capture(0),path:vec![ContractProjection::Place(PlaceProjection::Field(0))]};
++        let position=StoragePosition{base:StorageBase::Capture(0),path:vec![]};
+         let header=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],static_bindings:vec![position.clone()],classes:vec![]};
+         let entry=&mut module.functions[0];entry.environment=Some(ClosureId(0));entry.storage_life=Some(header.clone());entry.parameters.clear();entry.locals.clear();entry.values=vec![Type::I32];entry.return_type=Type::I32;
+         entry.blocks[0].instructions=vec![Instruction{result:Some(ValueId(0)),kind:InstructionKind::Constant(Constant::I32(0)),span}];entry.blocks[0].terminator=Terminator::Return(Some(ValueId(0)));
+-        module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![Type::Tuple(vec![leaf,Type::I32])],parameters:vec![],result:Type::I32,kind:CallableKind::Fn,storage_life:Some(header),lending_captures:vec![]});
++        module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![leaf,Type::I32],parameters:vec![],result:Type::I32,kind:CallableKind::Fn,storage_life:Some(header),lending_captures:vec![]});
+         for mutation in 0..5{
+             let mut proposed=module.clone();
+             match mutation{
+-                1=>proposed.closures[0].storage_life.as_mut().unwrap().static_bindings[0].path[0]=ContractProjection::Place(PlaceProjection::Field(1)),
+-                2=>{let Type::Tuple(fields)=&mut proposed.closures[0].captures[0]else{unreachable!()};let Type::Address{mutable,..}=&mut fields[0]else{unreachable!()};*mutable=true;},
++                1=>proposed.closures[0].storage_life.as_mut().unwrap().static_bindings[0].path.push(ContractProjection::Place(PlaceProjection::Field(0))),
++                2=>{let Type::Address{mutable,..}=&mut proposed.closures[0].captures[0]else{unreachable!()};*mutable=true;},
+                 3=>proposed.functions[0].call_kind=CallKind::Suspend,
+                 4=>proposed.closures[0].storage_life=None,
+                 _=>{},
+@@ -710,6 +710,25 @@ mod static_capture_tests{
+                 if mutation==0{
+                     result.unwrap();assert!(b.proven_static_occurrences.is_empty());assert!(b.static_borrow_occurrences);assert!(b.semantic_static_occurrences.contains(&(ClosureId(0),position.clone())));
+                     assert!(crate::semantic::callable_obligations::drain(current,&mut b).is_err(),"a structural Static row is no actual source proof, wire {wire}");
++                    // Projection is a separate obligation from complete signature
++                    // formation. This raw nested directory exercises the selector
++                    // without claiming that the Tuple is a checked CE signature.
++                    let mut nested=current.clone();
++                    let original=nested.closures[0].captures[0].clone();
++                    nested.closures[0].captures[0]=Type::Tuple(vec![original,Type::I32]);
++                    let mut nested_position=position.clone();
++                    nested_position.path.push(ContractProjection::Place(PlaceProjection::Field(0)));
++                    nested.closures[0].storage_life.as_mut().unwrap().static_bindings=vec![nested_position.clone()];
++                    nested.functions[0].storage_life=nested.closures[0].storage_life.clone();
++                    assert!(semantic_closed_environment(&nested,ClosureId(0),&mut Budget::new(&limits)).is_err(),"the original raw nested Tuple has no complete signature directory, wire {wire}");
++                    let mut pending=Budget::new(&limits);
++                    crate::semantic::task_domains::defer_static_capture(&nested,ClosureId(0),&nested_position,&mut pending).unwrap();
++                    assert!(pending.proven_static_occurrences.is_empty());
++                    assert!(pending.semantic_static_occurrences.contains(&(ClosureId(0),nested_position.clone())));
++                    nested_position.path[0]=ContractProjection::Place(PlaceProjection::Field(1));
++                    nested.closures[0].storage_life.as_mut().unwrap().static_bindings=vec![nested_position.clone()];
++                    nested.functions[0].storage_life=nested.closures[0].storage_life.clone();
++                    assert!(crate::semantic::task_domains::defer_static_capture(&nested,ClosureId(0),&nested_position,&mut pending).is_err(),"scalar sibling is no static borrow leaf, wire {wire}");
+                 }else{assert!(result.is_err(),"closed Static capture attack {mutation}, wire {wire}");}
+             }
+         }
