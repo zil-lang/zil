@@ -272,7 +272,7 @@ impl CheckedOriginal {
                     return Err(bad("original protocol control exits outside its loop"));
                 }
                 if let Some(state) = outcome.fall {
-                    engine.record_result_sources(&state,&Value::Plain,b)?;
+                    engine.record_result_sources(&state,&Value::Plain,None,b)?;
                     engine.check_exit(state, Value::Plain, b)?;
                 }
             }
