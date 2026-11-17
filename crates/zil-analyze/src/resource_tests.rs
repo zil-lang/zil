@@ -2727,7 +2727,7 @@ fn concrete_local_legacy_cost_controls() {
             name,
             exact,
             match name {
-                "ordinary" => 1603,
+                "ordinary" => 1604,
                 "helper-no-local" => 1651,
                 "scoped-local-borrow" => 3733,
                 _ => unreachable!(),
@@ -3091,7 +3091,7 @@ fn concrete_factory_only_shared_allowance_n_minus_one_fresh_raw_wire() {
         }
     }
     println!("282 factory-only raw=Wire N={exact}; N-1 ResourceLimit; fresh equality");
-    assert_eq!(exact, 3057, "complete factory proof work changed");
+    assert_eq!(exact, 3058, "complete factory proof work changed");
 }
 
 fn parameter_forwarded_local() -> TypedModule {

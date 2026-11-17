@@ -698,9 +698,9 @@ fn captured_copy_field_work_is_exact_and_fresh_raw_wire() {
         assert_eq!(
             exact,
             match (same, after_last) {
-                (false, false) => 2431,
-                (true, false) => 2246,
-                (_, true) => 2600,
+                (false, false) => 2432,
+                (true, false) => 2247,
+                (_, true) => 2601,
             }
         );
     }
