@@ -1,0 +1,16 @@
+{
+  "status": "Pass",
+  "exit_code": 0,
+  "git_status": "",
+  "source_commit": "73c74d0c1965b531c5b242cae96fafc75e38920d",
+  "cli_sha256": "a60dfbe18ccf8a77b14473b8d85a27dd8651e17c94b3f6e06cc9644d7ad1a972",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "zil-cli"
+  ],
+  "build_log": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-checked-cleanup-routes-exact-return-ports-and-owned-products/build.log",
+  "completed_at_utc": "2026-11-17T04:52:52.001955+00:00"
+}

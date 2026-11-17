@@ -1,0 +1,69 @@
+{
+  "updated_utc": "2026-11-17T07:26:09.744098+00:00",
+  "source_head": "647e425eeb76fe4628f8a1663cb1ec1dfca2d177",
+  "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+  "candidate_run": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation",
+  "candidate_cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+  "build_or_test_active": false,
+  "next_action": "Exact-save first complete READY chain, then immutable freeze/check/build. Static6 can run independently of Task hot WIP. Do not rerun diagnostic candidate for isolated pins.",
+  "core_results": {
+    "IR": [
+      103,
+      0
+    ],
+    "Expand": [
+      181,
+      0
+    ],
+    "Types": [
+      101,
+      1
+    ],
+    "Analyze": [
+      322,
+      1
+    ],
+    "Verify": [
+      902,
+      1
+    ],
+    "ignored": 0
+  },
+  "saved_corrections": {
+    "ae672c50a753c66b89165ec6b89a94501c7a5e1b": "Types affine package unit uses actual Original semantic check_program setup",
+    "2850d186f422e48468c3c4ef271e6a6af17f4ae3": "Actual measured exact A work boundary12630; all existing N-1/fresh/warm assertions retained",
+    "647e425eeb76fe4628f8a1663cb1ec1dfca2d177": "V complete Task signature occurrence relation; Task other consumers pending"
+  },
+  "remaining_core_test_fix": "Dynamic V owner correcting canonical Fixed first-occurrence order in added fixture; production strictness unchanged; not READY yet",
+  "source16_standard_success": 8,
+  "source16_alpha_success": 8,
+  "preserved_union8": true,
+  "SDK36": {
+    "passed": 25,
+    "failed": 11,
+    "phase": "Verify"
+  },
+  "native_groups": [
+    {
+      "suite": "direct_adapter",
+      "builds_passed": 8,
+      "builds_total": 8,
+      "execution_passed": 20,
+      "execution_total": 20
+    },
+    {
+      "suite": "two_exact_original_sources",
+      "builds_passed": 8,
+      "builds_total": 8,
+      "execution_passed": 16,
+      "execution_total": 16
+    }
+  ],
+  "alpha_accepted": false,
+  "goal_remote": "6740fd315cf7dc84c360397106b4ab2788809db3",
+  "latest_fixed_archive": "14b01acee1fcd1f3b81f95f96543ca1a5f47dbe8",
+  "archive_prefix": "language/20261117T071855Z-active-wip",
+  "archive_remote_readback_equal": true,
+  "isolation": "Integrator has read A, must not read V algorithm. Exact V hash/patch/manifest integration only. Task is Root chain; Static is Types chain. No hot WIP in candidate.",
+  "git_status_at_checkpoint": " M crates/zil-expand/src/source_semantic_effects.rs\n M crates/zil-types/src/lending.rs\n M crates/zil-types/src/lib.rs\n M crates/zil-types/src/program.rs\n M crates/zil-types/src/retained.rs\n M crates/zil-types/src/retained/sources.rs\n M crates/zil-types/src/retained/static_closed.rs\n M crates/zil-verify/src/dynamic_witness/semantic_patterns.rs\n M crates/zil-verify/src/semantic/callable_obligations.rs\n M crates/zil-verify/src/semantic/evaluate.rs\n M crates/zil-verify/src/semantic/flow.rs\n M crates/zil-verify/src/semantic/original/cleanup.rs\n M crates/zil-verify/src/semantic/original/mod.rs\n M crates/zil-verify/src/semantic/original/protocol.rs\n M crates/zil-verify/src/semantic/original/protocol/state.rs\n M crates/zil-verify/src/semantic/original/protocol/tasks.rs\n M crates/zil-verify/src/semantic/original/protocol/walk.rs\n M crates/zil-verify/src/tasks.rs\n M crates/zil-verify/src/tasks/drop_sync.rs\n M crates/zil-verify/src/tasks/owned.rs\n?? crates/zil-verify/src/tasks/owned/\n"
+}

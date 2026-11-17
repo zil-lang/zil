@@ -1,0 +1,332 @@
+warning: unused import: `crate::receivers::substitute_self`
+ --> crates/zil-expand/src/static_traits.rs:6:5
+  |
+6 | use crate::receivers::substitute_self;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `name`
+   --> crates/zil-expand/src/semantic_nominal_lower.rs:365:22
+    |
+365 |                 let (name, ty, span) = if emission.enumeration {
+    |                      ^^^^ help: if this is intentional, prefix it with an underscore: `_name`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `borrowed_work` is never used
+   --> crates/zil-expand/src/generic_budget.rs:144:19
+    |
+ 33 | impl<'a> Budget<'a> {
+    | ------------------- method in this implementation
+...
+144 |     pub(crate) fn borrowed_work(
+    |                   ^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `scoped_callback_block` is never used
+   --> crates/zil-expand/src/generic_scoped.rs:331:19
+    |
+  3 | impl Check<'_, '_, '_> {
+    | ---------------------- method in this implementation
+...
+331 |     pub(super) fn scoped_callback_block(&mut self, block: &Block, depth: usize) -> R<bool> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^
+
+warning: `zil-expand` (lib) generated 4 warnings (run `cargo fix --lib -p zil-expand` to apply 2 suggestions)
+   Compiling zil-types v0.1.0 (/workspace/zil-alpha-candidate/crates/zil-types)
+warning: unused import: `Domain`
+ --> crates/zil-types/src/semantics/materialize_emitter.rs:4:22
+  |
+4 | use super::domains::{Domain, Occurrence, OccurrenceRoot};
+  |                      ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ViewBorrowStep`
+  --> crates/zil-types/src/semantics/original.rs:69:52
+   |
+69 | pub(super) use views::{BorrowRole, ViewBorrowRoot, ViewBorrowStep, ViewBorrowStepKind};
+   |                                                    ^^^^^^^^^^^^^^
+
+warning: unused variable: `limits`
+   --> crates/zil-types/src/semantics/materialize_emitter.rs:412:5
+    |
+412 |     limits: &Limits,
+    |     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_limits`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `depth`
+   --> crates/zil-types/src/semantics/original_call_regions.rs:622:9
+    |
+622 |         depth: usize,
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_depth`
+
+warning: variable does not need to be mutable
+   --> crates/zil-types/src/semantics/original_dyn.rs:145:13
+    |
+145 |         let mut template = substitute::signature(&template, &substitution, self.limits, self.left)?;
+    |             ----^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `limits`
+   --> crates/zil-types/src/semantics/original_task_bridge.rs:112:9
+    |
+112 |         limits: &Limits,
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_limits`
+
+warning: variable does not need to be mutable
+   --> crates/zil-types/src/semantics/original_task_results.rs:592:13
+    |
+592 |         let mut sources = self.task_value_sources(owner, expression, variables, depth + 1)?;
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: multiple fields are never read
+   --> crates/zil-types/src/function_draft.rs:100:16
+    |
+ 99 | pub(crate) struct FunctionRef<'a> {
+    |                   ----------- fields in this struct
+100 |     pub(crate) dyn_instance: &'a Option<DynFunctionInstance>,
+    |                ^^^^^^^^^^^^
+101 |     pub(crate) retained_return_sources: &'a Option<Vec<StorageSourceBinding>>,
+    |                ^^^^^^^^^^^^^^^^^^^^^^^
+102 |     pub(crate) storage_life: &'a Option<StorageLifeContract>,
+103 |     pub(crate) call_kind: CallKind,
+    |                ^^^^^^^^^
+104 |     pub(crate) resume_bound: TaskResumeBound,
+    |                ^^^^^^^^^^^^
+105 |     pub(crate) reference_return_bound: &'a Option<Vec<u32>>,
+    |                ^^^^^^^^^^^^^^^^^^^^^^
+106 |     pub(crate) callable_return_contract: &'a Option<CallableReturnContract>,
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+107 |     pub(crate) callable_contract: &'a Option<CallableParameterContract>,
+    |                ^^^^^^^^^^^^^^^^^
+108 |     pub(crate) protocol_contracts: &'a Vec<FunctionProtocolContract>,
+    |                ^^^^^^^^^^^^^^^^^^
+109 |     pub(crate) id: FunctionId,
+110 |     pub(crate) name: &'a String,
+    |                ^^^^
+...
+115 |     pub(crate) result_mode: PassingMode,
+    |                ^^^^^^^^^^^
+...
+119 |     pub(crate) entry: BlockId,
+    |                ^^^^^
+    |
+    = note: `FunctionRef` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `class_at` is never used
+    --> crates/zil-types/src/semantics/materialize.rs:2556:15
+     |
+2556 | pub(super) fn class_at(
+     |               ^^^^^^^^
+
+warning: function `check` is never used
+    --> crates/zil-types/src/semantics/original.rs:6055:15
+     |
+6055 | pub(super) fn check(program: &SemanticModule, limits: &Limits, left: &mut usize) -> R<Proof> {
+     |               ^^^^^
+
+warning: function `check_at` is never used
+    --> crates/zil-types/src/semantics/original.rs:6066:15
+     |
+6066 | pub(super) fn check_at(
+     |               ^^^^^^^^
+
+warning: methods `static_call_input` and `solve_static_call_region` are never used
+  --> crates/zil-types/src/semantics/original_static_regions.rs:7:19
+   |
+ 6 | impl Check<'_, '_> {
+   | ------------------ methods in this implementation
+ 7 |     pub(super) fn static_call_input<'a, 'e>(
+   |                   ^^^^^^^^^^^^^^^^^
+...
+42 |     pub(super) fn solve_static_call_region(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `caller`, `call`, `result`, `actuals`, and `caller_actuals` are never read
+  --> crates/zil-types/src/semantics/original_task_bridge.rs:7:9
+   |
+ 6 | pub(crate) struct TaskWorkerScheme {
+   |                   ---------------- fields in this struct
+ 7 |     pub caller: SemanticDefinitionId,
+   |         ^^^^^^
+ 8 |     pub instance: SemanticInstanceId,
+ 9 |     pub call: SemanticSiteId,
+   |         ^^^^
+...
+12 |     pub result: SemanticTypeRecipe,
+   |         ^^^^^^
+13 |     pub actuals: Vec<SemanticActualRecipe>,
+   |         ^^^^^^^
+14 |     pub caller_actuals: Vec<SemanticActual>,
+   |         ^^^^^^^^^^^^^^
+
+warning: function `aggregate` is never used
+  --> crates/zil-types/src/stored.rs:38:15
+   |
+38 | pub(super) fn aggregate<'a>(
+   |               ^^^^^^^^^
+
+warning: function `ordinary_zero_type` is never used
+    --> crates/zil-types/src/stored.rs:1342:15
+     |
+1342 | pub(super) fn ordinary_zero_type(
+     |               ^^^^^^^^^^^^^^^^^^
+
+warning: associated function `new` is never used
+   --> crates/zil-types/src/stored/ordinary_nominal.rs:118:19
+    |
+117 | impl<'a> Context<'a> {
+    | -------------------- associated function in this implementation
+118 |     pub(crate) fn new(module: &'a TypedModule) -> Self {
+    |                   ^^^
+
+warning: function `zero_type` is never used
+    --> crates/zil-types/src/stored/ordinary_nominal.rs:1295:15
+     |
+1295 | pub(super) fn zero_type(
+     |               ^^^^^^^^^
+
+warning: the `life:` in this pattern is redundant
+    --> crates/zil-types/src/semantics/materialize_emitter.rs:1225:39
+     |
+1225 |     let SemanticTypeValue::Resolved { life: mut life, .. } = eval.compose_tuple(vec![child])?.value
+     |                                       ^^^^^^^^^^^^^^ help: use shorthand field pattern: `mut life`
+     |
+     = note: `#[warn(non_shorthand_field_patterns)]` on by default
+
+warning: `zil-types` (lib test) generated 18 warnings (run `cargo fix --lib -p zil-types --tests` to apply 8 suggestions)
+    Finished `test` profile [unoptimized] target(s) in 56.38s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-language-alpha/debug/deps/zil_types-0b59acc52379c858)
+
+running 102 tests
+test addresses::prepared::tests::borrowed_inline_capture_and_immutable_index_keep_their_actual_bindings ... ok
+test addresses::prepared::tests::nested_rhs_reads_share_target_and_preserve_one_call_in_order ... ok
+test borrowed_fp::rich_contract_tests::complete_class_metadata_is_reserved_from_the_same_remaining_balance ... ok
+test addresses::prepared::tests::shadows_dynamic_indices_and_failure_cannot_reuse_another_preparation ... ok
+test borrowed_fp::rich_contract_tests::flat_only_consumer_preserves_order_and_rejects_rich_class_erasure ... ok
+test borrowed_fp_qualified::tests::capture_relation_is_joint_and_cannot_invent_or_freshen_fixed ... ok
+test borrowed_fp_qualified::tests::qualified_phantom_class_is_distinct_from_the_outer_address_relation ... ok
+test closures::prepared_owner_budget::complete_owner_comparison_preserves_exact_n_and_fresh_retry ... ok
+test borrowed_fp_qualified::tests::static_function_abstraction_keeps_distinct_domains_and_joint_occurrence_order ... ok
+test closures::thread_lease_regressions::actual_pending_signature_clone_receipt_has_exact_n_and_failed_n_minus_one ... ok
+test closures::thread_lease_regressions::mutable_pending_expectation_debits_the_same_graph_work_once_even_on_failure ... ok
+test closures::prepared_owner_budget::remaining_allowance_stops_owner_planning_before_deep_tail_and_is_not_refunded ... ok
+test closures::thread_lease_regressions::two_pending_graphs_share_the_current_remainder_and_cannot_renew_it ... ok
+test dyn_recipe::tests::missing_occurrence_duplicate_instance_and_budget_exhaustion_are_not_empty ... ok
+test dyn_recipe::tests::phantom_trait_life_cannot_be_relabelled_by_matching_method_shape ... ok
+test closures::thread_lease_regressions::qualified_pending_snapshots_pay_storage_and_metadata_before_copying ... ok
+test dynamic_store::pod_tests::composite_root_registration_has_exact_fresh_budget ... ok
+test dyn_recipe::tests::reordered_formals_and_equal_actuals_keep_all_occurrences ... ok
+test dynamic_store::pod_tests::ordinary_capture_does_not_grant_callback_store_element_qualification ... ok
+test dynamic_store::pod_tests::pod_definition_registration_borrows_current_request_work ... ok
+test dynamic_store::pod_tests::pod_qualification_work_has_exact_failure_and_fresh_retry ... ok
+test dynamic_store::pod_tests::pod_store_enters_ordinary_ownership_but_not_container_qualification ... ok
+test dynamic_store::pod_tests::pod_store_requires_complete_nonzero_numeric_records ... ok
+test dynamic_store::pod_tests::scalar_store_keeps_exact_identity_and_owning_boundary ... ok
+test helpers::capture_tests::a_single_element_parameter_bridge_does_not_authorize_an_aggregate_call ... ok
+test helpers::capture_tests::ordinary_aggregates_cannot_launder_a_supplied_role_into_a_local_body ... ok
+test helpers::capture_tests::reading_a_role_address_preserves_its_actual_capture_origin ... ok
+test helpers::capture_tests::disjoint_borrowed_local_capture_keeps_exact_fresh_work_boundaries ... ok
+test helpers::capture_tests::same_identity_fresh_and_supplied_values_cannot_mix_inside_a_capture ... ok
+test helpers::capture_tests::with_and_ordinary_local_captures_cannot_hide_either_supplied_role ... ok
+test helpers::origin_classification_tests::legacy_masks_match_actual_callback_and_capture_classifiers ... ok
+test helpers::plan::result_shape_tests::binding_a_whole_union_preserves_both_sides_and_try_selects_only_success ... ok
+test helpers::origin_classification_tests::later_roles_never_overlap_local_producer_classifications ... ok
+test inference::address_product_tests::address_projection_does_not_grant_exclusive_access ... ok
+test inference::address_product_tests::address_product_inference_preserves_complete_pointee_and_permission ... ok
+test interface_identity::tests::dyn_export_uses_stable_declaration_and_complete_admitted_slot ... ok
+test interface_identity::tests::invalid_or_cyclic_exported_closure_reference_is_a_bounded_error ... ok
+test inference::address_product_tests::nested_address_array_projection_retains_its_whole_element ... ok
+test member_owner::tests::compares_full_nominal_instances_without_changing_the_receiver ... ok
+test names::tests::leading_dot_does_not_fallback_to_other_names ... ok
+test names::tests::local_self_cannot_shadow_receiver ... ok
+test owned_shapes::tests::closure_products_are_affine_without_a_copy_or_empty_domain_assumption ... ok
+test interface_identity::tests::nested_actual_closure_export_has_exact_occurrence_budget_and_context_identity ... ok
+test owning_place_replace::tests::long_prefix_field_selection_and_lexical_lookup_have_exact_fresh_boundaries ... ok
+test owning_place_replace::tests::field_planner_stops_before_a_wide_scan_when_caller_work_is_low ... ok
+test resource_effects::worklist_tests::direct_byte_primitives_foreign_and_unknown_calls_remain_seeds ... ok
+test resource_effects::worklist_tests::disabled_dependency_collection_is_zero_sized ... ok
+test resource_effects::worklist_tests::empty_worklist_and_seedless_cycles_have_no_effects ... ok
+test packages::field_transfer_tests::original_task_failure_moves_callable_inputs_and_reads_copy_reason ... ok
+test resource_effects::worklist_tests::every_two_node_transfer_and_summary_assignment_matches_local_relation ... ok
+functions=16 reverse=false old_work=608 new_work=460
+functions=16 reverse=true old_work=5065 new_work=767
+functions=32 reverse=false old_work=1248 new_work=940
+functions=32 reverse=true old_work=20129 new_work=1583
+functions=64 reverse=false old_work=2528 new_work=1900
+test resource_effects::worklist_tests::exhaustive_three_node_graphs_and_seeds_match_sweeps ... ok
+functions=64 reverse=true old_work=80209 new_work=3215
+functions=128 reverse=false old_work=5142 new_work=3847
+test resource_effects::worklist_tests::larger_mixed_graphs_and_function_order_permutations_match ... ok
+test resource_effects::worklist_tests::retained_core_variants_preserve_origin_support_and_transfer ... ok
+test resource_effects::worklist_tests::shadowed_calls_remain_conservative_and_imports_register_real_ids ... ok
+test resource_effects::worklist_tests::small_dispatch_preserves_every_old_budget_boundary ... ok
+test resource_effects::worklist_tests::worklist_every_failure_prefix_and_recovery ... ok
+test scalar_shapes::tests::scalar_shapes_borrow_the_complete_current_input ... ok
+test scalar_shapes::tests::scalar_shapes_do_not_skip_current_type_errors ... ok
+test scalar_shapes::tests::scalar_shapes_preserve_exact_work_depth_and_error_spans ... ok
+test scalar_shapes::tests::scalar_shapes_restart_original_resolution_for_nearby_shapes ... ok
+test semantics::creator_headers::rows::static_physical_tests::compound_statics_remain_distinct_from_variable_and_exclusive_slots ... ok
+test semantics::creator_headers::rows::tasks::tests::task_ports_preserve_occurrences_phantom_classes_and_parent_images ... ok
+test semantics::emission::tests::actual_creation_receipt_survives_a_distinct_contextual_result ... ok
+test semantics::headers::captures::first_use::tests::nested_parameter_shadow_and_ct_stage_do_not_hide_the_later_outer_use ... ok
+test semantics::headers::captures::first_use::tests::sequence_initializer_precedes_its_shadowing_binding ... ok
+test semantics::instantiate::mapping_tests::batched_obligations_keep_full_mixed_and_protected_domains ... ok
+test semantics::instantiate::mapping_tests::declaration_index_rejects_wrong_row_and_ancestry_cycle ... ok
+test semantics::materialize::domains::tests::a_frozen_domain_keeps_two_indices_with_one_outside_image ... ok
+test semantics::materialize::domains::tests::fresh_tuple_shares_original_outer_life_and_keeps_both_places ... ok
+test semantics::materialize::domains::tests::sibling_pointee_boundaries_keep_their_complete_occurrences ... ok
+test semantics::original::associated::completed_query_tests::associated_hits_require_final_owner_full_projection_and_no_active_cycle ... ok
+test semantics::original::nominal_where::request_tests::all_nominal_collection_preserves_code_and_opaque_owner_boundaries ... ok
+test semantics::original::nominal_where::request_tests::request_directory_keeps_callers_and_full_mixed_arguments ... ok
+test semantics::original::protocol::plain_layout_tests::reusable_plain_shapes_never_replace_active_values_or_unresolved_domains ... ok
+test semantics::original::protocol::type_cache::tests::colliding_bucket_does_not_supply_another_recipes_cleanup_fact ... ok
+test semantics::original::protocol::type_cache::tests::complete_integer_keys_keep_high_bits_sign_and_actual_byte_cost ... ok
+test semantics::original::protocol::type_cache::tests::same_ordinal_in_another_definition_cannot_reuse_a_capability ... ok
+test semantics::original::query_view_tests::borrowed_constructor_still_requires_a_unique_complete_payload_equation ... ok
+test semantics::original::query_view_tests::borrowed_query_keeps_exact_owner_and_checked_environment ... ok
+test semantics::original::source_cache::tests::colliding_source_query_keeps_complete_type_identity ... ok
+test semantics::original::source_cache::tests::declared_premises_require_their_own_phase_and_reset_on_delta_clone ... ok
+test semantics::original::source_cache::tests::same_local_ordinal_in_another_module_cannot_reuse_source_theorem ... ok
+test semantics::original_context::tests::immutable_input_lease_keeps_exact_live_context_and_core ... ok
+test semantics::original_context::tests::lease_does_not_authorize_modified_publication_definitions ... ok
+test semantics::original_context::tests::pending_lease_cannot_be_spliced_onto_another_snapshot ... ok
+test semantics::source_probe::original_generic_definitions_reject_independent_binders_and_missing_copy ... ok
+test semantics::source_probe::original_source_semantics_reach_typed_materialization_and_the_complete_proof_gate ... ok
+test semantics::world::capture::first_use::tests::nested_parameter_shadow_and_ct_stage_do_not_hide_the_later_outer_use ... ok
+test semantics::world::capture::first_use::tests::sequence_initializer_precedes_its_shadowing_binding ... ok
+test tasks::context_ports::tests::borrowed_opaque_head_and_data_keep_distinct_occurrences ... ok
+test tasks::context_ports::tests::physical_ports_do_not_complete_a_missing_phantom_child_class ... ok
+hint exact case=0 prefix=1 N=7837
+hint exact case=0 prefix=32 N=7837
+hint exact case=1 prefix=1 N=9334
+hint exact case=1 prefix=32 N=216073
+hint exact case=2 prefix=1 N=9174
+hint exact case=2 prefix=32 N=208845
+test tasks::hint::hint_budget::scoped_imported_long_prefix_lookups_have_exact_live_budget_boundaries ... ok
+test tasks::snapshot_budget::remaining_work_stops_task_definition_and_result_before_deep_tail ... ok
+exact task definition ledger N=16
+test tasks::snapshot_budget::task_definition_and_result_exact_remaining_boundary ... ok
+test tests::minimum_signed_integer_supported ... ok
+test tests::scalar_arithmetic_builds_cfg ... ok
+test tests::unknown_name_rejected ... ok
+test tests::utf8_runtime_core_produces_static_bytes_and_rejects_forged_spelling ... ok
+UTF8 Types exact N=60, N-1 ResourceLimit, fresh N identical
+test tests::utf8_runtime_types_exact_work_boundary_and_fresh_retry ... ok
+test tests::wrong_return_type_rejected ... ok
+test utf8_literals::tests::scalar_decoding_preserves_utf8_empty_zero_and_escapes ... ok
+functions=128 reverse=true old_work=323789 new_work=6535
+test resource_effects::worklist_tests::forward_and_reverse_chain_growth_is_measured_without_time_claims ... ok
+
+test result: ok. 102 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.59s
+

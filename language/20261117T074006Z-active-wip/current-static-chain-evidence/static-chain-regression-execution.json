@@ -1,0 +1,164 @@
+{
+  "scope": "Static chain impact and preserved Task success set; not full Task/SDK/native acceptance",
+  "rows": [
+    {
+      "step": "original-16-standard",
+      "candidate": "16e8788cab34c19fad8adc83b3d565eac27ad5b9",
+      "cli_sha256": "e4a1450eb3a0348bdece18e8e14b13ccb175b932badf0203d3847477c0f920dd",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/check-task-positive-fixtures.py",
+        "--repo",
+        "/workspace/zil-alpha-candidate",
+        "--run",
+        "alpha-resume-complete-static-origin-before-lending",
+        "--cli",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/frozen-cli/zil",
+        "--work-profile",
+        "standard",
+        "--jobs",
+        "2"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": true,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 6.282989025115967
+    },
+    {
+      "step": "original-16-alpha",
+      "candidate": "16e8788cab34c19fad8adc83b3d565eac27ad5b9",
+      "cli_sha256": "e4a1450eb3a0348bdece18e8e14b13ccb175b932badf0203d3847477c0f920dd",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/check-task-positive-fixtures.py",
+        "--repo",
+        "/workspace/zil-alpha-candidate",
+        "--run",
+        "alpha-resume-complete-static-origin-before-lending",
+        "--cli",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/frozen-cli/zil",
+        "--work-profile",
+        "alpha",
+        "--jobs",
+        "2"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": true,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 7.047241926193237
+    },
+    {
+      "step": "foundation",
+      "candidate": "16e8788cab34c19fad8adc83b3d565eac27ad5b9",
+      "cli_sha256": "e4a1450eb3a0348bdece18e8e14b13ccb175b932badf0203d3847477c0f920dd",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/check-foundation-compressed.py",
+        "--repo",
+        "/workspace/zil-alpha-candidate",
+        "--cli",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/frozen-cli/zil",
+        "--out",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/alpha-coverage",
+        "--work-profile",
+        "alpha",
+        "--jobs",
+        "2"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 18.145081520080566
+    },
+    {
+      "step": "all-helper-sources",
+      "candidate": "16e8788cab34c19fad8adc83b3d565eac27ad5b9",
+      "cli_sha256": "e4a1450eb3a0348bdece18e8e14b13ccb175b932badf0203d3847477c0f920dd",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/check-all-task-helper-sources.py",
+        "--repo",
+        "/workspace/zil-alpha-candidate",
+        "--cli",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/frozen-cli/zil",
+        "--build-receipt",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/compiler-build-receipt.json",
+        "--out",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/all-task-helper-sources",
+        "--work-profile",
+        "standard",
+        "--jobs",
+        "2"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": true,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 9.74549388885498
+    },
+    {
+      "step": "types-core",
+      "candidate": "16e8788cab34c19fad8adc83b3d565eac27ad5b9",
+      "cli_sha256": "e4a1450eb3a0348bdece18e8e14b13ccb175b932badf0203d3847477c0f920dd",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-types",
+        "--lib",
+        "--",
+        "--nocapture",
+        "--test-threads=2"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 62.26755499839783
+    },
+    {
+      "step": "source-integrations",
+      "candidate": "16e8788cab34c19fad8adc83b3d565eac27ad5b9",
+      "cli_sha256": "e4a1450eb3a0348bdece18e8e14b13ccb175b932badf0203d3847477c0f920dd",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--no-fail-fast",
+        "-p",
+        "zil-expand",
+        "--test",
+        "option_borrowed_input",
+        "--test",
+        "task_callable_source",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 0.7851812839508057
+    },
+    {
+      "step": "source-static-controls",
+      "candidate": "16e8788cab34c19fad8adc83b3d565eac27ad5b9",
+      "cli_sha256": "e4a1450eb3a0348bdece18e8e14b13ccb175b932badf0203d3847477c0f920dd",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-expand",
+        "--lib",
+        "static_result",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 0.20234990119934082
+    }
+  ],
+  "diagnostic_only": true,
+  "command_exit_is_not_acceptance": true
+}

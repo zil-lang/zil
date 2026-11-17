@@ -1,0 +1,19 @@
+{
+  "candidate": "16e8788cab34c19fad8adc83b3d565eac27ad5b9",
+  "cli_sha256": "e4a1450eb3a0348bdece18e8e14b13ccb175b932badf0203d3847477c0f920dd",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "zil-expand",
+    "--lib",
+    "static_result",
+    "--",
+    "--nocapture"
+  ],
+  "exit_code": 0,
+  "diagnostic_only": false,
+  "command_exit_is_not_acceptance": true,
+  "seconds": 0.20234990119934082
+}

@@ -1,0 +1,223 @@
+{
+  "candidate": "16e8788cab34c19fad8adc83b3d565eac27ad5b9",
+  "diagnostic_only": true,
+  "all_required_positive_baselines_verified": false,
+  "rows": [
+    {
+      "case": "tuple-once",
+      "candidate": "16e8788cab34c19fad8adc83b3d565eac27ad5b9",
+      "source_sha256": "2907278c61bd01a2775c15f67baeeb56d0d78c56cfb7252691f0111ae4c9438b",
+      "expected": "Verify/native0 when whole finite pipeline available",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "ct",
+        "diagnostics": [
+          {
+            "phase": "ct",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "closure values cannot escape through scalar signatures, captures or scalar operations",
+            "span": {
+              "file": 0,
+              "start": 129,
+              "end": 130
+            },
+            "notes": [
+              "while compiling a pure #(...) query"
+            ]
+          }
+        ],
+        "artifacts": {
+          "core": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/whole-static-call-mode-controls/tuple-once/phases/core.txt",
+          "source-map": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/whole-static-call-mode-controls/tuple-once/phases/source-map.txt",
+          "syntax": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/whole-static-call-mode-controls/tuple-once/phases/syntax.txt"
+        },
+        "input_fingerprint": "823bb4f6f0d5ec3e608aa88f0892c42c54d374d19566cddbdc5e6bd7e39f8673",
+        "seconds": 0.051537273,
+        "cache_hit": false,
+        "commands": [],
+        "native_codegen": null,
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/whole-static-call-mode-controls/tuple-once/source.zil"
+        },
+        "scalar_interfaces": [],
+        "work_profile": "standard",
+        "work_profile_revision": "standard-10m-v1",
+        "effective_limits": {
+          "max_source_bytes": 16777216,
+          "max_tokens": 1000000,
+          "max_nodes": 1000000,
+          "max_functions": 10000,
+          "max_blocks": 100000,
+          "max_instructions": 1000000,
+          "max_locals": 100000,
+          "max_values": 1000000,
+          "max_analysis_steps": 10000000,
+          "max_ct_steps": 1000000,
+          "max_call_depth": 256
+        }
+      }
+    },
+    {
+      "case": "captured-grouped-pattern-once",
+      "candidate": "16e8788cab34c19fad8adc83b3d565eac27ad5b9",
+      "source_sha256": "c006bc6825f1350a710a0679001953d3584ec19445a43842eb5164c120cfc129",
+      "expected": "Verify/native0 when whole finite pipeline available",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "ct",
+        "diagnostics": [
+          {
+            "phase": "ct",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "closure values cannot escape through scalar signatures, captures or scalar operations",
+            "span": {
+              "file": 0,
+              "start": 115,
+              "end": 121
+            },
+            "notes": [
+              "while compiling a pure #(...) query"
+            ]
+          }
+        ],
+        "artifacts": {
+          "core": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/whole-static-call-mode-controls/captured-grouped-pattern-once/phases/core.txt",
+          "source-map": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/whole-static-call-mode-controls/captured-grouped-pattern-once/phases/source-map.txt",
+          "syntax": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/whole-static-call-mode-controls/captured-grouped-pattern-once/phases/syntax.txt"
+        },
+        "input_fingerprint": "261222506a7492b34ec11af9958a8f634c73a27816e00772c44e63e74c0ee217",
+        "seconds": 0.030688441,
+        "cache_hit": false,
+        "commands": [],
+        "native_codegen": null,
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/whole-static-call-mode-controls/captured-grouped-pattern-once/source.zil"
+        },
+        "scalar_interfaces": [],
+        "work_profile": "standard",
+        "work_profile_revision": "standard-10m-v1",
+        "effective_limits": {
+          "max_source_bytes": 16777216,
+          "max_tokens": 1000000,
+          "max_nodes": 1000000,
+          "max_functions": 10000,
+          "max_blocks": 100000,
+          "max_instructions": 1000000,
+          "max_locals": 100000,
+          "max_values": 1000000,
+          "max_analysis_steps": 10000000,
+          "max_ct_steps": 1000000,
+          "max_call_depth": 256
+        }
+      }
+    },
+    {
+      "case": "tuple-once-repeated-negative",
+      "candidate": "16e8788cab34c19fad8adc83b3d565eac27ad5b9",
+      "source_sha256": "0db6aaf587fdffaf5093d64adccd3d1fab1cc9f3e27e55f8708145331cf50cea",
+      "expected": "SafeReject original consuming use",
+      "exit_code": 3,
+      "report": {
+        "status": "Unsupported",
+        "phase": "ct",
+        "diagnostics": [
+          {
+            "phase": "ct",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "closure values cannot escape through scalar signatures, captures or scalar operations",
+            "span": {
+              "file": 0,
+              "start": 129,
+              "end": 130
+            },
+            "notes": [
+              "while compiling a pure #(...) query"
+            ]
+          }
+        ],
+        "artifacts": {
+          "core": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/whole-static-call-mode-controls/tuple-once-repeated-negative/phases/core.txt",
+          "source-map": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/whole-static-call-mode-controls/tuple-once-repeated-negative/phases/source-map.txt",
+          "syntax": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/whole-static-call-mode-controls/tuple-once-repeated-negative/phases/syntax.txt"
+        },
+        "input_fingerprint": "bba1a6f755387b69e4eabb8e2b3b68abf9d3f0142b0269ae630dc01e777a2dc7",
+        "seconds": 0.025492415,
+        "cache_hit": false,
+        "commands": [],
+        "native_codegen": null,
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/whole-static-call-mode-controls/tuple-once-repeated-negative/source.zil"
+        },
+        "scalar_interfaces": [],
+        "work_profile": "standard",
+        "work_profile_revision": "standard-10m-v1",
+        "effective_limits": {
+          "max_source_bytes": 16777216,
+          "max_tokens": 1000000,
+          "max_nodes": 1000000,
+          "max_functions": 10000,
+          "max_blocks": 100000,
+          "max_instructions": 1000000,
+          "max_locals": 100000,
+          "max_values": 1000000,
+          "max_analysis_steps": 10000000,
+          "max_ct_steps": 1000000,
+          "max_call_depth": 256
+        }
+      }
+    }
+  ]
+}
