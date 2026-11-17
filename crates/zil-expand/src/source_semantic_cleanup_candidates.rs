@@ -70,6 +70,9 @@ struct Place<'a> {
 enum Value<'a> {
     Plain,
     Task,
+    // A real created worker plus its complete input graph has a synchronous
+    // shutdown candidate. This is distinct from a Closed observation.
+    SyncTask,
     SettledTask,
     Unknown,
     UnknownAsync,
@@ -92,6 +95,7 @@ enum Value<'a> {
         signature: &'a SemanticSignatureRecipe,
         suspend: bool,
         known_suspend: bool,
+        shutdown: bool,
         cleanup: Cleanup,
         initial: Cleanup,
         after: Cleanup,
@@ -108,6 +112,7 @@ struct Flow<'a> {
     breaks: Vec<Env<'a>>,
     continues: Vec<Env<'a>>,
     incomplete: bool,
+    shutdown: bool,
 }
 impl<'a> Flow<'a> {
     fn new() -> Self {
@@ -120,6 +125,7 @@ impl<'a> Flow<'a> {
             breaks: Vec::new(),
             continues: Vec::new(),
             incomplete: false,
+            shutdown: true,
         }
     }
     fn drop_value(&mut self, cleanup: Cleanup) {
@@ -140,6 +146,8 @@ struct Walk<'a, 'b, 'l> {
     context: Option<usize>,
     execution: bool,
     known_execution: bool,
+    publish: bool,
+    shutdown: bool,
     evidence: &'b mut super::Evidence,
     seed_changed: &'b mut bool,
     held_captures: usize,
@@ -157,6 +165,7 @@ impl<'a> Walk<'a, '_, '_> {
         Ok(match value {
             Value::Plain => Value::Plain,
             Value::Task => Value::Task,
+            Value::SyncTask => Value::SyncTask,
             Value::SettledTask => Value::SettledTask,
             Value::Unknown => Value::Unknown,
             Value::UnknownAsync => Value::UnknownAsync,
@@ -182,6 +191,7 @@ impl<'a> Walk<'a, '_, '_> {
                 signature,
                 suspend,
                 known_suspend,
+                shutdown,
                 cleanup,
                 initial,
                 after,
@@ -193,6 +203,7 @@ impl<'a> Walk<'a, '_, '_> {
                 signature,
                 suspend: *suspend,
                 known_suspend: *known_suspend,
+                shutdown: *shutdown,
                 cleanup: *cleanup,
                 initial: *initial,
                 after: *after,
@@ -433,7 +444,7 @@ impl<'a> Walk<'a, '_, '_> {
     fn forget_mutated(budget: &mut Budget<'_>, value: &mut Value<'a>, depth: usize) -> R<()> {
         budget.node(Span::default(), depth)?;
         match value {
-            Value::SettledTask => *value = Value::Task,
+            Value::SettledTask | Value::SyncTask => *value = Value::Task,
             Value::Callable {
                 cleanup, initial, ..
             } => *cleanup |= *initial,
@@ -488,7 +499,7 @@ impl<'a> Walk<'a, '_, '_> {
             return Ok(false);
         };
         match value {
-            Value::Task | Value::SettledTask => {
+            Value::Task | Value::SyncTask | Value::SettledTask => {
                 *value = Value::SettledTask;
                 Ok(true)
             }
@@ -522,6 +533,7 @@ impl<'a> Walk<'a, '_, '_> {
         Ok(match (a, b) {
             (Value::Plain, Value::Plain)
             | (Value::Task, Value::Task)
+            | (Value::SyncTask, Value::SyncTask)
             | (Value::SettledTask, Value::SettledTask)
             | (Value::Unknown, Value::Unknown)
             | (Value::UnknownAsync, Value::UnknownAsync) => true,
@@ -576,6 +588,7 @@ impl<'a> Walk<'a, '_, '_> {
                     signature: asig,
                     suspend: ae,
                     known_suspend: ae_known,
+                    shutdown: ash,
                     cleanup: ad,
                     initial: ai,
                     after: aa,
@@ -588,6 +601,7 @@ impl<'a> Walk<'a, '_, '_> {
                     signature: bsig,
                     suspend: be,
                     known_suspend: be_known,
+                    shutdown: bsh,
                     cleanup: bd,
                     initial: bi,
                     after: ba,
@@ -600,6 +614,7 @@ impl<'a> Walk<'a, '_, '_> {
                     && std::ptr::eq(*asig, *bsig)
                     && ae == be
                     && ae_known == be_known
+                    && ash == bsh
                     && ad == bd
                     && ai == bi
                     && aa == ba
@@ -724,6 +739,7 @@ impl<'a> Walk<'a, '_, '_> {
             // owning/ignoring any callable never establishes SyncDrop.
             Value::Callable { cleanup, .. } => *cleanup,
             Value::Plain
+            | Value::SyncTask
             | Value::SettledTask
             | Value::View { .. }
             | Value::Poll(_)
@@ -742,6 +758,11 @@ impl<'a> Walk<'a, '_, '_> {
         Ok(match (left, right) {
             (Value::Plain, Value::Plain) => Value::Plain,
             (Value::Task, Value::Task) => Value::Task,
+            (Value::SyncTask, Value::SyncTask) => Value::SyncTask,
+            (Value::Task, Value::SyncTask) | (Value::SyncTask, Value::Task) => Value::Task,
+            (Value::SettledTask, Value::SyncTask) | (Value::SyncTask, Value::SettledTask) => {
+                Value::SyncTask
+            }
             (Value::SettledTask, Value::SettledTask) => Value::SettledTask,
             (Value::Task, Value::SettledTask) | (Value::SettledTask, Value::Task) => Value::Task,
             (
@@ -809,6 +830,7 @@ impl<'a> Walk<'a, '_, '_> {
                     signature,
                     suspend: left,
                     known_suspend: left_known,
+                    shutdown: left_shutdown,
                     cleanup: left_cleanup,
                     initial: left_initial,
                     after: left_after,
@@ -821,6 +843,7 @@ impl<'a> Walk<'a, '_, '_> {
                     signature: other_signature,
                     suspend: right,
                     known_suspend: right_known,
+                    shutdown: right_shutdown,
                     cleanup: right_cleanup,
                     initial: right_initial,
                     after: right_after,
@@ -838,6 +861,7 @@ impl<'a> Walk<'a, '_, '_> {
                     signature,
                     suspend: left || right,
                     known_suspend: left_known || right_known,
+                    shutdown: left_shutdown && right_shutdown,
                     cleanup: left_cleanup | right_cleanup,
                     initial: left_initial | right_initial,
                     after: left_after | right_after,
@@ -1032,6 +1056,7 @@ impl<'a> Walk<'a, '_, '_> {
                     signature,
                     suspend: signature.call_kind == CallKind::Suspend,
                     known_suspend: self.evidence.fixed(signature, self.budget)?,
+                    shutdown: false,
                     cleanup: Cleanup::ABSTRACT,
                     initial: Cleanup::ABSTRACT,
                     after: Cleanup::ABSTRACT,
@@ -1075,6 +1100,7 @@ impl<'a> Walk<'a, '_, '_> {
                     signature,
                     suspend,
                     known_suspend,
+                    shutdown,
                     ..
                 },
             )
@@ -1086,6 +1112,7 @@ impl<'a> Walk<'a, '_, '_> {
                     signature,
                     suspend,
                     known_suspend,
+                    shutdown,
                     ..
                 },
                 Value::Plain,
@@ -1096,6 +1123,7 @@ impl<'a> Walk<'a, '_, '_> {
                 signature,
                 suspend,
                 known_suspend,
+                shutdown,
                 cleanup: Cleanup::NONE,
                 initial: Cleanup::NONE,
                 after: Cleanup::NONE,
@@ -1124,6 +1152,7 @@ impl<'a> Walk<'a, '_, '_> {
                 signature,
                 suspend: signature.call_kind == CallKind::Suspend,
                 known_suspend: signature.call_kind == CallKind::Suspend,
+                shutdown: false,
                 cleanup: Cleanup::NONE,
                 initial: Cleanup::NONE,
                 after: Cleanup::NONE,
@@ -1407,6 +1436,14 @@ impl<'a> Walk<'a, '_, '_> {
         })
     }
     fn function_flow(&mut self, owner: usize, depth: usize) -> R<Flow<'a>> {
+        self.function_flow_inputs(owner, None, depth)
+    }
+    fn function_flow_inputs(
+        &mut self,
+        owner: usize,
+        inputs: Option<&[Value<'a>]>,
+        depth: usize,
+    ) -> R<Flow<'a>> {
         self.budget.node(Span::default(), depth)?;
         self.budget
             .identity_work(self.active.len(), Span::default())?;
@@ -1427,10 +1464,21 @@ impl<'a> Walk<'a, '_, '_> {
             flow.incomplete = true;
             return Ok(flow);
         };
+        if inputs.is_some_and(|values| values.len() != parameters.len()) {
+            let mut flow = Flow::new();
+            flow.incomplete = true;
+            return Ok(flow);
+        }
         self.budget
             .lineage_push(&mut self.active, owner, Span::default())?;
-        // Every authored body is scanned in its complete declaration Gamma.
-        // A caller's actual worker or cleanup graph is never installed here.
+        let publish = self.publish;
+        if inputs.is_some() {
+            self.publish = false;
+        }
+        let shutdown = std::mem::replace(&mut self.shutdown, true);
+        // Publication always uses the declaration Gamma. A separate replay
+        // of the same original return/capture operations may transport actual
+        // birth candidates, but its publish flag is sealed off above.
         let frames = std::mem::take(&mut self.frames);
         let context = self.context.take();
         let execution = std::mem::replace(&mut self.execution, false);
@@ -1455,8 +1503,14 @@ impl<'a> Walk<'a, '_, '_> {
             }
         }
         self.held_captures = env.len();
-        for (parameter, ty) in parameters.iter().zip(&signature.parameters) {
-            let value = self.ty(owner, &ty.ty, depth + 1)?;
+        for (ordinal, (parameter, ty)) in parameters.iter().zip(&signature.parameters).enumerate() {
+            let value = if let Some(inputs) = inputs {
+                self.copy(&inputs[ordinal], depth + 1)?
+            } else {
+                self.ty(owner, &ty.ty, depth + 1)?
+            };
+            let cleanup = self.pending(&value, depth + 1)?;
+            self.shutdown &= !cleanup.may;
             self.budget
                 .lineage_push(&mut env, (parameter.name.as_str(), value), parameter.span)?;
         }
@@ -1468,11 +1522,14 @@ impl<'a> Walk<'a, '_, '_> {
             flow.body_cleanup |= self.residual(&env[self.held_captures..], depth + 1)?;
         }
         flow.incomplete |= !flow.breaks.is_empty() || !flow.continues.is_empty();
-        if flow.body_cleanup.asynchronous {
+        flow.shutdown = self.shutdown;
+        if self.publish && flow.body_cleanup.asynchronous {
             self.budget.node(Span::default(), depth)?;
             self.bodies[owner] = true;
         }
         self.active.pop();
+        self.publish = publish;
+        self.shutdown = shutdown;
         self.budget
             .drop_lineage_vec(std::mem::replace(&mut self.frames, frames), Span::default())?;
         self.context = context;
@@ -1539,6 +1596,7 @@ impl<'a> Walk<'a, '_, '_> {
                 signature: bound,
                 suspend: bound.call_kind == CallKind::Suspend,
                 known_suspend: self.evidence.fixed(bound, self.budget)?,
+                shutdown: false,
                 cleanup: Cleanup::ABSTRACT,
                 initial: Cleanup::ABSTRACT,
                 after: Cleanup::ABSTRACT,
@@ -1573,7 +1631,11 @@ impl<'a> Walk<'a, '_, '_> {
         } else {
             self.evidence.fixed(bound, self.budget)?
         };
-        if kind == CallableKind::FnOnce && known && !self.evidence.rows[owner].operation {
+        if self.publish
+            && kind == CallableKind::FnOnce
+            && known
+            && !self.evidence.rows[owner].operation
+        {
             self.evidence.rows[owner].operation = true;
             *self.seed_changed = true;
         }
@@ -1584,11 +1646,178 @@ impl<'a> Walk<'a, '_, '_> {
             signature: bound,
             suspend,
             known_suspend: known,
+            shutdown: false,
             cleanup,
             initial: cleanup,
             after,
             ready,
         })
+    }
+    fn call_result(&mut self, owner: usize, inputs: &[Value<'a>], depth: usize) -> R<Value<'a>> {
+        self.budget.node(Span::default(), depth)?;
+        let declared = self.function_result(owner, depth + 1)?;
+        let definition = self.definitions[owner];
+        if !matches!(
+            definition.body,
+            SemanticDefinitionBody::FunctionWithBody {
+                body: SemanticOriginalFunctionBody::Defined(_),
+                ..
+            }
+        ) {
+            let leaf = self.scalar_foreign(definition)?;
+            self.shutdown &= leaf;
+            return Ok(declared);
+        }
+        let flow = self.function_flow_inputs(owner, Some(inputs), depth + 1)?;
+        self.shutdown &= flow.shutdown && !flow.incomplete;
+        let Some(value) = flow.value.filter(|_| !flow.live && !flow.incomplete) else {
+            return Ok(declared);
+        };
+        if let Value::Callable {
+            definition,
+            scope,
+            kind,
+            signature,
+            suspend,
+            known_suspend,
+            ..
+        } = declared
+        {
+            let Some((_, _, cleanup, after, ready)) = self.operation(&value, depth + 1)? else {
+                return Ok(Value::Unknown);
+            };
+            let shutdown = self.callable_shutdown(&value, depth + 1)?;
+            Ok(Value::Callable {
+                definition,
+                scope,
+                kind,
+                signature,
+                suspend,
+                known_suspend,
+                shutdown,
+                cleanup,
+                initial: cleanup,
+                after,
+                ready,
+            })
+        } else {
+            Ok(value)
+        }
+    }
+    fn callable_shutdown(&mut self, value: &Value<'a>, depth: usize) -> R<bool> {
+        self.budget.node(Span::default(), depth)?;
+        match value {
+            Value::Callable { shutdown, .. } => Ok(*shutdown),
+            Value::Alternatives(values) if !values.is_empty() => {
+                let mut complete = true;
+                for value in values {
+                    complete &= self.callable_shutdown(value, depth + 1)?;
+                }
+                Ok(complete)
+            }
+            _ => Ok(false),
+        }
+    }
+    fn scalar_foreign(&mut self, definition: &SemanticDefinition) -> R<bool> {
+        self.budget.node(Span::default(), 0)?;
+        let SemanticDefinitionBody::FunctionWithBody {
+            signature,
+            foreign: Some(foreign),
+            body: SemanticOriginalFunctionBody::External,
+            ..
+        } = &definition.body
+        else {
+            return Ok(false);
+        };
+        self.budget
+            .identity_work(signature.parameters.len(), Span::default())?;
+        self.budget.text(&foreign.abi, Span::default())?;
+        let scalar = |ty: &SemanticTypeRecipe| {
+            matches!(
+                ty,
+                SemanticTypeRecipe::Atom(
+                    Type::Unit
+                        | Type::Bool
+                        | Type::I8
+                        | Type::I16
+                        | Type::I32
+                        | Type::I64
+                        | Type::U8
+                        | Type::U16
+                        | Type::U32
+                        | Type::U64
+                        | Type::Isize
+                        | Type::Usize
+                        | Type::F32
+                        | Type::F64
+                )
+            )
+        };
+        Ok(signature.call_kind == CallKind::Direct
+            && signature.bound_lifetimes == 0
+            && signature.invocation_lifetimes == 0
+            && foreign.abi == "C"
+            && !foreign.symbol.is_empty()
+            && scalar(&signature.result)
+            && signature
+                .parameters
+                .iter()
+                .all(|parameter| scalar(&parameter.ty)))
+    }
+    fn shutdown_input(&mut self, value: &Value<'a>, depth: usize) -> R<bool> {
+        self.budget.node(Span::default(), depth)?;
+        match value {
+            Value::Plain | Value::SyncTask | Value::SettledTask => Ok(true),
+            Value::Tuple(values) | Value::Alternatives(values) => {
+                for value in values {
+                    if !self.shutdown_input(value, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Value::Record(values) => {
+                for (_, value) in values {
+                    if !self.shutdown_input(value, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Value::Error { value, .. } => self.shutdown_input(value, depth + 1),
+            // Copying a borrowed pointer, code or an abstract callable is not
+            // an independently known complete shutdown graph for a new Task.
+            _ => Ok(false),
+        }
+    }
+    fn worker_shutdown(&mut self, owner: usize, inputs: &[Value<'a>], depth: usize) -> R<bool> {
+        self.budget.node(Span::default(), depth)?;
+        let definition = self.definitions[owner];
+        let Some(signature) = signature(definition) else {
+            return Ok(false);
+        };
+        if signature.parameters.len() != inputs.len() {
+            return Ok(false);
+        }
+        for input in inputs {
+            if !self.shutdown_input(input, depth + 1)? {
+                return Ok(false);
+            }
+        }
+        if self.scalar_foreign(definition)? {
+            for input in inputs {
+                if self.pending(input, depth + 1)?.may {
+                    return Ok(false);
+                }
+            }
+            return Ok(true);
+        }
+        let flow = self.function_flow_inputs(owner, Some(inputs), depth + 1)?;
+        let returned = match &flow.value {
+            Some(value) => self.pending(value, depth + 1)?,
+            None => Cleanup::NONE,
+        };
+        Ok(flow.shutdown && !flow.incomplete && !flow.cleanup.may && !returned.may)
     }
     fn expr(
         &mut self,
@@ -1599,7 +1828,7 @@ impl<'a> Walk<'a, '_, '_> {
     ) -> R<Value<'a>> {
         self.budget.node(expression.span, depth)?;
         use CoreExprKind as E;
-        Ok(match &expression.kind {
+        let value = match &expression.kind {
             E::Name(name) => {
                 if let Some(value) = self.lookup(env, name, depth + 1)? {
                     value
@@ -1817,6 +2046,11 @@ impl<'a> Walk<'a, '_, '_> {
                         }
                     }
                 }
+                if primitive.is_some_and(|name| {
+                    name.starts_with("async_registration_") || name == "c_register_async"
+                }) {
+                    self.shutdown = false;
+                }
                 if matches!(primitive, Some("task_yield" | "task_await")) {
                     self.execution = true;
                     self.known_execution = true;
@@ -1828,10 +2062,12 @@ impl<'a> Walk<'a, '_, '_> {
                         signature,
                         suspend,
                         known_suspend,
+                        shutdown,
                         after,
                         ready,
                         ..
                     } => {
+                        self.shutdown &= shutdown;
                         self.execution |= suspend;
                         self.known_execution |= known_suspend;
                         if kind != CallableKind::FnOnce {
@@ -1861,12 +2097,12 @@ impl<'a> Walk<'a, '_, '_> {
                         self.execution |= signature(self.definitions[index])
                             .is_none_or(|signature| signature.call_kind == CallKind::Suspend);
                         self.known_execution |= self.evidence.rows[index].function;
-                        self.function_result(index, depth + 1)?
+                        self.call_result(index, &inputs, depth + 1)?
                     }
                     _ => {
                         if let Some(index) = target {
                             self.known_execution |= self.evidence.rows[index].function;
-                            self.function_result(index, depth + 1)?
+                            self.call_result(index, &inputs, depth + 1)?
                         } else if matches!(
                             primitive,
                             Some("task_poll_close" | "async_registration_poll_close")
@@ -1874,7 +2110,7 @@ impl<'a> Walk<'a, '_, '_> {
                             if let Some(place) = primitive_place {
                                 if matches!(
                                     self.place_value_mut(owner, env, &place, depth + 1)?,
-                                    Some(Value::Task | Value::SettledTask)
+                                    Some(Value::Task | Value::SyncTask | Value::SettledTask)
                                 ) {
                                     Value::Poll(place)
                                 } else {
@@ -1884,6 +2120,15 @@ impl<'a> Walk<'a, '_, '_> {
                                 Value::Plain
                             }
                         } else if matches!(primitive, Some("task_create" | "task_create_owned")) {
+                            let task = if let Some(Value::Function(worker)) = inputs.first() {
+                                if self.worker_shutdown(*worker, &inputs[1..], depth + 1)? {
+                                    Value::SyncTask
+                                } else {
+                                    Value::Task
+                                }
+                            } else {
+                                Value::Task
+                            };
                             let mut values = Vec::new();
                             let mut error = Vec::new();
                             if primitive == Some("task_create_owned") {
@@ -1905,9 +2150,7 @@ impl<'a> Walk<'a, '_, '_> {
                                     expression.span,
                                 )?;
                             }
-                            for (is_error, value) in
-                                [(true, Value::Record(error)), (false, Value::Task)]
-                            {
+                            for (is_error, value) in [(true, Value::Record(error)), (false, task)] {
                                 self.budget.lineage_bytes(
                                     std::mem::size_of::<Value<'a>>(),
                                     expression.span,
@@ -1939,6 +2182,7 @@ impl<'a> Walk<'a, '_, '_> {
                         ) {
                             Value::Plain
                         } else {
+                            self.shutdown = false;
                             Value::Unknown
                         }
                     }
@@ -2062,6 +2306,7 @@ impl<'a> Walk<'a, '_, '_> {
                         parameter.span,
                     )?;
                 }
+                let shutdown = std::mem::replace(&mut self.shutdown, true);
                 let execution = std::mem::replace(&mut self.execution, false);
                 let known_execution = std::mem::replace(&mut self.known_execution, false);
                 let early = std::mem::replace(&mut self.early_cleanup, Cleanup::NONE);
@@ -2077,13 +2322,15 @@ impl<'a> Walk<'a, '_, '_> {
                         self.residual(&captured[self.held_captures..], depth + 1)?;
                 }
                 let pending = self.execution || flow.cleanup.may || flow.incomplete;
-                if flow.body_cleanup.asynchronous {
+                flow.shutdown = self.shutdown;
+                if self.publish && flow.body_cleanup.asynchronous {
                     self.budget.node(expression.span, depth)?;
                     self.bodies[child] = true;
                 }
                 let known = self.known_execution
                     || flow.cleanup.asynchronous
                     || self.evidence.rows[child].function;
+                self.shutdown = shutdown;
                 self.execution = execution;
                 self.known_execution = known_execution;
                 self.held_captures = held;
@@ -2101,6 +2348,7 @@ impl<'a> Walk<'a, '_, '_> {
                     signature: child_signature,
                     suspend: pending || child_signature.call_kind == CallKind::Suspend,
                     known_suspend: known,
+                    shutdown: flow.shutdown,
                     cleanup,
                     initial: cleanup,
                     after: flow.cleanup,
@@ -2162,7 +2410,10 @@ impl<'a> Walk<'a, '_, '_> {
             // No unsupported projection/control is treated as evidence that
             // a previously owned Task was transferred or synchronously closed.
             _ => Value::Unknown,
-        })
+        };
+        let cleanup = self.pending(&value, depth + 1)?;
+        self.shutdown &= !cleanup.may;
+        Ok(value)
     }
     fn pattern_owns(&mut self, pattern: &SemanticOriginalPattern, depth: usize) -> R<bool> {
         self.budget.node(pattern.span, depth)?;
@@ -2412,7 +2663,7 @@ impl<'a> Walk<'a, '_, '_> {
                         let value = self.expr(owner, env, expr, depth + 1)?;
                         self.transfer(owner, env, expr, &value, depth + 1)?;
                         if matches!(expr.kind, CoreExprKind::Name(_))
-                            && matches!(value, Value::Task | Value::SettledTask)
+                            && matches!(value, Value::Task | Value::SyncTask | Value::SettledTask)
                         {
                             Value::Plain
                         } else {
@@ -2778,6 +3029,8 @@ fn propose_inner(
                 context: None,
                 execution: false,
                 known_execution: false,
+                publish: true,
+                shutdown: true,
                 evidence: &mut *evidence,
                 seed_changed: &mut seed_changed,
                 held_captures: 0,

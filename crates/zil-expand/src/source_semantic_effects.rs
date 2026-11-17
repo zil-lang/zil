@@ -2862,4 +2862,21 @@ fn main(){}
         assert_eq!(uppers,[CallKind::Direct]);
     }
 
+    #[test]
+    fn actual_sync_birth_survives_returned_factory_captures() {
+        for text in [
+            include_str!("../../../tests/language-readiness/task-owner-transport/direct-default-local.zil"),
+            include_str!("../../../tests/language-readiness/task-owner-transport/adapter-default-local.zil"),
+        ] {
+            let module = original_module(text);
+            assert_eq!(signature(function(&module,"child")).unwrap().call_kind,CallKind::Suspend);
+            assert_eq!(signature(function(&module,"parent")).unwrap().call_kind,CallKind::Direct);
+            assert_eq!(signature(function(&module,"keep")).unwrap().call_kind,CallKind::Direct);
+        }
+        let module = original_module(include_str!("../../../tests/language-readiness/task-owner-transport/invalid-source-contracts/mutable-frame-never-called.zil"));
+        // This definition still owns an arbitrary incoming Task in its own
+        // Gamma. A concrete caller's worker birth cannot repair that ABI.
+        assert_eq!(signature(function(&module,"drive_callback")).unwrap().call_kind,CallKind::Suspend);
+    }
+
 }
