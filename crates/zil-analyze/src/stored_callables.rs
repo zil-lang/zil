@@ -698,15 +698,23 @@ pub(super) fn types(
         && let Some(d) = module.closures.get(id.0 as usize)
         && d.storage_life.is_some()
         && d.kind != CallableKind::FnOnce
-        && (!matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
-            || !(scalar(&d.result) || super::tasks::is_close_poll(&d.result) || fixed_result(d) || invocation_result(d))
-            || !d.lending_captures.is_empty() && !fixed_result(d))
     {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "captured Fixed Once adaptation requires an actual nonlending scalar entry",
-            Some(i.span),
-        )]);
+        if borrowed_owned_candidate(d) {
+            // Consuming a reusable entry does not change its result ownership.
+            // Reuse the complete ordinary owned-result proof: actual entry,
+            // full P/R, no lending/receiver bound and every resource child.
+            // Actual invocation/debt/remaining-capture cleanup stay separate.
+            borrowed_owned_definition(module, d, b)?;
+        } else if !matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
+            || !(scalar(&d.result) || super::tasks::is_close_poll(&d.result) || fixed_result(d) || invocation_result(d))
+            || !d.lending_captures.is_empty() && !fixed_result(d)
+        {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "captured Fixed Once adaptation needs its complete nonlending result and actual entry",
+                Some(i.span),
+            )]);
+        }
     }
     if let InstructionKind::MakeClosure { closure, captures } = &i.kind {
         let d = module
