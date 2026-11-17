@@ -70,9 +70,16 @@ pub(super) fn zero(
         definitions += 1;
     }
     if definitions != 1 {
-        return Err(bad(
-            "semantic Task scope has no exact unique sealed resource definition",
-        ));
+        b.type_work(payload, true, "semantic Task scope missing payload diagnostic")?;
+        b.spend(module.resources.len().saturating_mul(160).saturating_add(512),
+            "semantic Task scope complete identity diagnostic")?;
+        let mut errors = bad("semantic Task scope has no exact unique sealed resource definition");
+        errors[0].notes.push(format!("requested complete Task payload {payload:?}; exact matching definitions {definitions}"));
+        for resource in &module.resources {
+            b.type_work(&resource.payload, true, "semantic Task actual resource diagnostic")?;
+            errors[0].notes.push(format!("actual sealed resource {} payload {:?}", resource.name, resource.payload));
+        }
+        return Err(errors);
     }
     let mut constructors = 0usize;
     for function in &module.functions {
