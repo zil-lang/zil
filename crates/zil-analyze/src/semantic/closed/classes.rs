@@ -751,6 +751,9 @@ impl Check<'_, '_> {
             .filter(|definition| definition.id == id)
             .ok_or_else(|| fail("capture transport has no actual closure definition"))?;
         b.spend(definition.captures.len(), WORK)?;
+        // The explicit head/result relation schedules the stronger original
+        // all-creators/all-returns theorem below; it supplies no source fact.
+        if crate::stored_callables::result_is_receiver(definition) { return Ok(true); }
         if definition.captures.iter().any(|ty| {
             !ty.is_b0_scalar()
                 && !matches!(ty, Type::Address { mutable: false, inner } if inner.is_b0_scalar())
@@ -837,10 +840,9 @@ impl Check<'_, '_> {
             || contract.bindings.iter().any(|row| {
                 !matches!(
                     row.position.base,
-                    StorageBase::Parameter(_) | StorageBase::Result | StorageBase::Capture(_)
+                    StorageBase::Parameter(_) | StorageBase::Result | StorageBase::Capture(_) | StorageBase::Receiver
                 )
             })
-            || !closure.lending_captures.is_empty() && closure.kind != CallableKind::FnOnce
         {
             return Err(unknown(
                 "ghost capture needs its complete retained data and actual head relation",
@@ -933,16 +935,31 @@ impl Check<'_, '_> {
                 }
             }
         }
-        if !closure.lending_captures.is_empty() {
-            if !static_result
-                || !closure
-                    .lending_captures
-                    .windows(2)
-                    .all(|pair| pair[0] < pair[1])
-            {
-                return Err(unknown(
-                    "consuming Static result needs its whole original capture and return relation",
-                ));
+        let receiver_result = crate::stored_callables::result_is_receiver(closure);
+        if receiver_result {
+            if !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                || !matches!(&closure.result, Type::Address { mutable: false, .. })
+                || !closure.lending_captures.windows(2).all(|pair| pair[0] < pair[1]) {
+                return Err(fail("Receiver result changes its actual reusable shared return mode"));
+            }
+            let original = self.original.receiver_sources(instance.definition, self.inventory, b)?
+                .ok_or_else(|| fail("Receiver header has no independent original captured return proof"))?;
+            let mut physical = BTreeSet::new();
+            for ordinal in original {
+                b.lookup(creator_bindings.len(), WORK)?;
+                let binding = creator_bindings.get(&ordinal)
+                    .ok_or_else(|| fail("Receiver source has no exact creator-to-capture binding"))?;
+                physical.insert(binding.capture);
+            }
+            b.spend(physical.len().saturating_add(closure.lending_captures.len()), WORK)?;
+            if physical.iter().copied().ne(closure.lending_captures.iter().copied()) {
+                return Err(fail("Receiver lending directory changes the complete original capture sources"));
+            }
+        }
+        if !closure.lending_captures.is_empty() && !receiver_result {
+            if !static_result || closure.kind != CallableKind::FnOnce
+                || !closure.lending_captures.windows(2).all(|pair| pair[0] < pair[1]) {
+                return Err(unknown("consuming Static result needs its whole original capture and return relation"));
             }
             for capture in &closure.lending_captures {
                 b.spend(creator_bindings.len(), WORK)?;
@@ -1325,6 +1342,30 @@ impl Check<'_, '_> {
         }
         let expression = selected
             .ok_or_else(|| fail("actual header binder has no complete original embedding"))?;
+        if matches!(expression, SemanticClassExpr::OuterOccurrence {
+            operand: SemanticOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
+        } if path.is_empty()) {
+            let SemanticInstanceTarget::Function(target) = &instance.target else {
+                return Err(fail("Receiver header class has no executing function"));
+            };
+            let function = self.inventory.function(target, b)?;
+            let closure = function.environment.and_then(|id| self.module.closures.get(id.0 as usize))
+                .filter(|row| row.function == function.id)
+                .ok_or_else(|| fail("Receiver header class is outside a real closure entry"))?;
+            let header = function.storage_life.as_ref()
+                .ok_or_else(|| fail("Receiver class omits its actual entry header"))?;
+            let StorageBinder::Invocation(index) = binder else {
+                return Err(fail("Receiver class cannot replace a captured Fixed identity"));
+            };
+            if !crate::stored_callables::result_is_receiver(closure)
+                || crate::signature_life::outer(header, StorageBase::Receiver) != Some(binder)
+                || index >= header.invocation_binder_count {
+                return Err(fail("Receiver class changes its explicit actual head/result relation"));
+            }
+            self.original.receiver_sources(instance.definition, self.inventory, b)?
+                .ok_or_else(|| fail("Receiver class lacks its original captured return proof"))?;
+            return Ok(Class::Invocation(instance.id, index));
+        }
         if let SemanticClassExpr::Implicit {
             scope: SemanticScopeRef::Ancestor(0),
             ordinal,
@@ -3068,6 +3109,45 @@ impl Check<'_, '_> {
             .filter(|row| row.id == *id)
             .ok_or_else(|| fail("concrete closure result has no actual closure definition"))?;
         let output = self.static_call_result(instance, block, index, b)?;
+        if crate::stored_callables::result_is_receiver(closure) {
+            self.capture_directory(*id, b)?;
+            let SemanticInstanceTarget::Function(target) = &instance.target else {
+                return Err(fail("Receiver result has no actual caller function"));
+            };
+            let function = self.inventory.function(target, b)?;
+            let instruction = function.blocks.get(block.0 as usize).filter(|row| row.id == block)
+                .and_then(|row| row.instructions.get(index))
+                .ok_or_else(|| fail("Receiver result has no actual call operation"))?;
+            let mut checked = false;
+            for site in self.inventory.sites_at(self.program, instance.id, block, index, SemanticSiteEdge::After, b)? {
+                if !matches!(site.action, SemanticSiteAction::BodyCall { .. }) { continue; }
+                let source = self.original.borrowed_closure_receiver(instance, site.recipe,
+                    self.program, self.inventory, b)?;
+                self.known_receiver_place(instance, function, (block, index), instruction, &source, b)?;
+                if checked { return Err(fail("Receiver result has competing original call subjects")); }
+                checked = true;
+            }
+            if !checked { return Err(fail("Receiver result lacks its original actual subject binding")); }
+            if !geometry::same_type(&output.ty, ty, b)? || closure.result != *ty
+                || !matches!(ty, Type::Address { mutable: false, .. }) {
+                return Err(fail("Receiver call result changes its complete shared type"));
+            }
+            let [slot] = output.life.slots.as_slice() else {
+                return Err(fail("Receiver call result loses its complete outer view domain"));
+            };
+            if !slot.path.is_empty() || slot.mode != StoredBorrowMode::SharedAddress
+                || !output.life.retained.is_empty() || !output.life.nominal_arguments.is_empty()
+                || output.classes.len() != 1 {
+                return Err(unknown("Receiver call result needs its full retained inner domain proof"));
+            }
+            // Source/result role and actual head ancestry are separate. The
+            // explicit header and original call receipt are checked here;
+            // receiver_results retains the current environment loan and epoch.
+            let target = self.inventory.function(&SemanticFunctionTarget::Typed(closure.function), b)?;
+            crate::stored_callables::check_role_relation(self.module, closure,
+                target.storage_life.as_ref().ok_or_else(|| fail("Receiver entry has no actual complete header"))?, b)?;
+            return Ok(output);
+        }
         if self.task_domain(ty, b)?.is_some() {
             if !geometry::same_type(&output.ty, ty, b)?
                 || !geometry::same_type(&closure.result, ty, b)?
@@ -3517,9 +3597,16 @@ impl Check<'_, '_> {
                     fail("actual header omits an original outer borrow occurrence")
                 })?;
                 if self.header_class(instance, binder, b)? != *expected {
-                    return Err(fail(
-                        "actual outer header class differs from its original declaration domain",
-                    ));
+                    let receiver_view = base == StorageBase::Result && slot.path.is_empty()
+                        && slot.mode == StoredBorrowMode::SharedAddress
+                        && function.environment.and_then(|id| self.module.closures.get(id.0 as usize))
+                            .is_some_and(crate::stored_callables::result_is_receiver)
+                        && crate::signature_life::outer(contract, StorageBase::Receiver) == Some(binder);
+                    if !receiver_view || self.original.receiver_sources(instance.definition, self.inventory, b)?.is_none() {
+                        return Err(fail("actual outer header class differs from its original declaration domain"));
+                    }
+                    // Only this returned view is shortened. Its original
+                    // occurrence and retained/inner classes are not equated.
                 }
                 used_bindings += 1;
             }
@@ -3630,6 +3717,18 @@ impl Check<'_, '_> {
             }
         }
         for row in &contract.bindings {
+            if row.position.base == StorageBase::Receiver {
+                let closure = function.environment.and_then(|id| self.module.closures.get(id.0 as usize))
+                    .ok_or_else(|| fail("ordinary header invents a callable Receiver"))?;
+                if !row.position.path.is_empty() || !crate::stored_callables::result_is_receiver(closure)
+                    || !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                    || !matches!(row.binder, StorageBinder::Invocation(_)) {
+                    return Err(fail("Receiver header has no exact reusable head/result relation"));
+                }
+                self.original.receiver_sources(instance.definition, self.inventory, b)?
+                    .ok_or_else(|| fail("Receiver header lacks its original captured return theorem"))?;
+                used_bindings += 1;
+            }
             if matches!(row.position.base, StorageBase::Capture(_)) {
                 if !captures {
                     return Err(fail("ordinary function invents a capture header"));
@@ -3637,13 +3736,27 @@ impl Check<'_, '_> {
                 used_bindings += 1;
             }
         }
+        let mut receiver_classes = BTreeSet::new();
         for row in &contract.classes {
+            if row.position.base == StorageBase::Receiver {
+                if !captures || row.position.path.as_slice() != [LifeTypeProjection::Pointee]
+                    || row.position.class >= contract.fixed_binder_count
+                    || row.binder != StorageBinder::Fixed(row.position.class)
+                    || !receiver_classes.insert(row.position.class) {
+                    return Err(fail("Receiver header changes a complete retained environment class"));
+                }
+                used_classes += 1;
+            }
             if matches!(row.position.base, StorageBase::Capture(_)) {
                 if !captures {
                     return Err(fail("ordinary function invents a capture class"));
                 }
                 used_classes += 1;
             }
+        }
+        if crate::signature_life::outer(contract, StorageBase::Receiver).is_some()
+            && receiver_classes.len() != contract.fixed_binder_count as usize {
+            return Err(fail("Receiver header omits its full retained environment domain"));
         }
         if used_bindings != contract.bindings.len() || used_classes != contract.classes.len() {
             return Err(fail(

@@ -398,3 +398,68 @@ impl Check<'_, '_> {
         Ok(selected)
     }
 }
+
+impl Check<'_, '_> {
+    /// A zero-class callable still has an exact current owner. The original
+    /// temporary's emitted SSA and the final initialization of its actual
+    /// receiver local must agree; equal closure types do not choose an owner.
+    pub(super) fn known_receiver_place(
+        &self, instance: &SemanticInstance, function: &TypedFunction,
+        at: (BlockId, usize), instruction: &Instruction,
+        source: &original::borrow_places::Source, b: &mut Budget,
+    ) -> CompileResult<()> {
+        let local = match instruction.kind {
+            InstructionKind::CallClosureShared { callee, .. }
+            | InstructionKind::CallClosureMut { callee, .. } => callee,
+            InstructionKind::CallClosureBorrowed { callee, .. } => {
+                if source.expression.is_none() {
+                    return self.checked_borrow_place(instance, function, callee, source, false, false, b, 0);
+                }
+                self.receiver_local(function, callee, b, 0)?
+            }
+            _ => return Err(fail("Receiver view cannot escape a copied or consuming environment")),
+        };
+        operations::initialized_local_before(function, at, local, b)?;
+        let actual = function.locals.get(local.0 as usize).filter(|row| row.id == local)
+            .ok_or_else(|| fail("Receiver place has no actual local declaration"))?;
+        if actual.ty != source.root.ty || !source.path.is_empty() || source.indirect
+            || source.index.is_some() {
+            return Err(fail("Receiver place changes its complete original owning subject"));
+        }
+        if let Some(anchor) = source.anchor {
+            if self.anchored_local(instance, function, anchor, b)? != local {
+                return Err(fail("Receiver call selects another original lexical owner"));
+            }
+        } else {
+            let node = source.expression.ok_or_else(|| fail("temporary Receiver omits its original expression"))?;
+            let expected = self.original_subject_value(instance, function, node, b)?
+                .ok_or_else(|| fail("temporary Receiver has no exact emitted original SSA"))?;
+            let block = function.blocks.get(at.0.0 as usize).filter(|row| row.id == at.0)
+                .ok_or_else(|| fail("temporary Receiver has no actual call block"))?;
+            let mut initialized = false;
+            for operation in block.instructions.iter().take(at.1).rev() {
+                b.spend(1, WORK)?;
+                match operation.kind {
+                    InstructionKind::Store { local: target, value } if target == local => {
+                        if value != expected { return Err(fail("temporary Receiver replaces its original producer")); }
+                        initialized = true;
+                        break;
+                    }
+                    InstructionKind::StorageLive(target) | InstructionKind::StorageDead(target)
+                    | InstructionKind::TakeLocal { local: target }
+                    | InstructionKind::DropClosure { local: target } if target == local =>
+                        return Err(fail("temporary Receiver crosses a retired or uninitialized epoch")),
+                    InstructionKind::CommitPlaceReplace { .. } | InstructionKind::WriteAddress { .. } =>
+                        return Err(unknown("temporary Receiver needs its complete intervening replacement identity")),
+                    _ => {}
+                }
+            }
+            if !initialized { return Err(unknown("temporary Receiver needs its exact same-block initialization")); }
+        }
+        let current = self.local_value(instance, function, local, at, b, 0)?;
+        if !self.capture_values_equal(&current, &source.root, b)? {
+            return Err(fail("Receiver call changes its complete original subject classes"));
+        }
+        Ok(())
+    }
+}

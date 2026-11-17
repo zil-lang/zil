@@ -223,9 +223,22 @@ impl Checked {
             }
             Kind::Life(Life::Receiver(owner, node)) => {
                 let scope = self.context(*owner, context, inventory, b)?;
-                // The source-only universe has a distinct call-local symbol.
-                // An executable world binds it only to that exact original
-                // call's actual receiver; no other caller image is a premise.
+                b.lookup(self.calls.len().saturating_add(self.abstract_calls.len()), WORK)?;
+                let callable = self.calls.get(&(*owner, *node)).is_some_and(|call| call.closure)
+                    || self.abstract_calls.get(&(*owner, *node)).is_some_and(|call|
+                        roles::receiver_result(&call.signature, call.kind));
+                if callable {
+                    // Source reserves this exact genuine Call occurrence.
+                    // Naming its class grants no source or receiver-head loan;
+                    // the actual call consumer separately checks that identity.
+                    let ordinal = self.callable_receiver_ordinal(*owner, *node, inventory, b)?;
+                    if inventory.source.is_none() {
+                        self.callable_receiver_operation(scope, *node, inventory, b)?;
+                    }
+                    return Ok(Class::Implicit(scope.id, ordinal));
+                }
+                // Trait receivers keep their existing independently checked
+                // call-local role and actual borrowed-head mapping.
                 if inventory.source.is_some() {
                     return Ok(Class::Role(scope.id, node.0));
                 }
@@ -942,5 +955,91 @@ impl Checked {
         } else {
             Ok(Argument::Type(value))
         }
+    }
+}
+
+impl Checked {
+    fn callable_receiver_ordinal(
+        &self, owner: SemanticDefinitionId, node: NodeId,
+        inventory: &Inventory<'_>, b: &mut Budget,
+    ) -> CompileResult<u32> {
+        let definition = inventory.definition(owner, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { sites, site_nodes, .. } = &definition.body
+            else { return Err(fail("callable Receiver has no original body")); };
+        let mut selected = None;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.node != SemanticOriginalNode::Expression(node) { continue; }
+            for site in sites {
+                b.spend(site.occurrence_path.len().saturating_add(1), WORK)?;
+                if site.id != link.site || !matches!(site.kind,
+                    SemanticSiteRecipeKind::OriginalCall | SemanticSiteRecipeKind::Call { .. }) { continue; }
+                for row in &definition.implicit_lifetimes {
+                    b.spend(row.occurrence_path.len().saturating_add(site.occurrence_path.len() + 1), WORK)?;
+                    if row.occurrence_path == site.occurrence_path
+                        && selected.replace(row.ordinal).is_some() {
+                        return Err(fail("callable Receiver repeats its exact original call occurrence"));
+                    }
+                }
+            }
+        }
+        selected.ok_or_else(|| fail("callable Receiver lacks its genuine original Call occurrence"))
+    }
+
+    fn callable_receiver_operation(
+        &self, scope: &SemanticInstance, node: NodeId, inventory: &Inventory<'_>, b: &mut Budget,
+    ) -> CompileResult<()> {
+        let program = inventory.module.semantic.as_ref()
+            .ok_or_else(|| fail("callable Receiver has no actual semantic module"))?;
+        let SemanticInstanceTarget::Function(target) = &scope.target else {
+            return Err(fail("callable Receiver has no actual function world"));
+        };
+        let function = inventory.function(target, b)?;
+        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } =
+            &inventory.definition(scope.definition, b)?.body else {
+                return Err(fail("callable Receiver has no complete original body"));
+            };
+        let mut selected = false;
+        for link in site_nodes {
+            b.spend(1, WORK)?;
+            if link.node != SemanticOriginalNode::Expression(node) { continue; }
+            for site in &program.sites {
+                b.spend(1, WORK)?;
+                if site.instance != scope.id || site.recipe != link.site
+                    || !matches!(site.action, SemanticSiteAction::BodyCall { .. }) { continue; }
+                let SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After } = site.at else {
+                    return Err(fail("callable Receiver has another actual call boundary"));
+                };
+                let operation = function.blocks.get(block.0 as usize).filter(|row| row.id == block)
+                    .and_then(|row| row.instructions.get(instruction as usize))
+                    .ok_or_else(|| fail("callable Receiver has no actual operation"))?;
+                let id = match operation.kind {
+                    InstructionKind::CallClosureShared { callee, .. }
+                    | InstructionKind::CallClosureMut { callee, .. } => match function.locals.get(callee.0 as usize).map(|row| &row.ty) {
+                        Some(Type::Closure(id)) => *id,
+                        _ => return Err(fail("callable Receiver local loses its complete closure type")),
+                    },
+                    InstructionKind::CallClosureBorrowed { callee, kind, .. }
+                        if matches!(kind, CallableKind::Fn | CallableKind::FnMut) =>
+                        match function.values.get(callee.0 as usize) {
+                            Some(Type::Address { mutable, inner }) if kind == CallableKind::Fn || *mutable =>
+                                match inner.as_ref() { Type::Closure(id) => *id,
+                                    _ => return Err(fail("callable Receiver address changes its pointee")) },
+                            _ => return Err(fail("callable Receiver has no actual borrow authority")),
+                        },
+                    _ => return Err(fail("callable Receiver requires a real reusable receiver operation")),
+                };
+                let closure = inventory.module.closures.get(id.0 as usize).filter(|row| row.id == id)
+                    .ok_or_else(|| fail("callable Receiver has no exact actual closure"))?;
+                if !crate::stored_callables::result_is_receiver(closure) || operation.result.is_none()
+                    || !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut) {
+                    return Err(fail("callable Receiver lacks its explicit actual head/result relation"));
+                }
+                if selected { return Err(fail("callable Receiver has competing actual call operations")); }
+                selected = true;
+            }
+        }
+        if !selected { return Err(fail("callable Receiver lacks an actual call binding")); }
+        Ok(())
     }
 }

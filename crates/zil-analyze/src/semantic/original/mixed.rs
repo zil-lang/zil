@@ -205,6 +205,16 @@ impl Solver<'_, '_> {
                 }
                 self.term(Kind::Life(Life::Invocation(frame.definition, *ordinal)), b)
             }
+            SemanticLifeRecipe::OuterOccurrence {
+                operand: SemanticRecipeOperand::Receiver, path,
+                mode: StoredBorrowMode::SharedAddress,
+            } if path.is_empty() => {
+                self.role_frames.last().filter(|role| role.owner == frame.definition)
+                    .and_then(|role| role.receiver)
+                    .filter(|(_, outer_depth)| *outer_depth == depth)
+                    .map(|(term, _)| term)
+                    .ok_or_else(|| fail("Receiver lifetime is outside its exact callable root result"))
+            }
             SemanticLifeRecipe::Environment { scope, ordinal } => {
                 let owner = self.original_scope(frame.definition, scope, b)?;
                 let declaration = self.inventory.definition(owner, b)?;

@@ -12,7 +12,7 @@ pub(super) struct AbstractCall {
     pub(super) signature: SemanticSignatureRecipe,
     pub(super) bounds: Vec<u32>,
     protected: Vec<Term>,
-    kind: CallableKind,
+    pub(super) kind: CallableKind,
     parameters: Vec<Term>,
     result: Term,
 }
@@ -104,6 +104,7 @@ impl Solver<'_, '_> {
         context: &Frame,
         signature: &SemanticSignatureRecipe,
         bounds: &[u32],
+        receiver: Option<Term>,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<(Vec<Term>, Term, Vec<Term>)> {
@@ -157,6 +158,7 @@ impl Solver<'_, '_> {
                 owner: context.definition,
                 lifetimes,
                 implicits,
+                receiver: None,
             },
             b,
         )?;
@@ -171,6 +173,9 @@ impl Solver<'_, '_> {
                 let term = self.recipe(context, &parameter.ty, b, depth + 1)?;
                 self.mark_call_parameter(term, &parameter.ty, b)?;
                 Self::push(&mut parameters, term, b)?;
+            }
+            if let Some(role) = self.role_frames.last_mut() {
+                role.receiver = receiver.map(|term| (term, depth + 2));
             }
             let result = self.recipe(context, &signature.result, b, depth + 1)?;
             Ok((parameters, result))
@@ -248,8 +253,11 @@ impl Solver<'_, '_> {
                 self.consume_place(frame, &place, b)?;
             }
             let context = self.premise_frame(frame, owner, b)?;
+            let receiver = if roles::receiver_result(&signature, kind) {
+                Some(self.term(Kind::Life(Life::Receiver(frame.definition, call)), b)?)
+            } else { None };
             let (parameters, result, protected) =
-                self.invocation_scheme(&context, &signature, &bounds, b, depth + 1)?;
+                self.invocation_scheme(&context, &signature, &bounds, receiver, b, depth + 1)?;
             b.spend(parameters.len().saturating_add(place.path.len() + 1), WORK)?;
             let saved = AbstractCall {
                 parameter: 0,
@@ -354,14 +362,17 @@ impl Solver<'_, '_> {
                 ));
             }
         }
+        let receiver = if roles::receiver_result(&signature, kind) {
+            Some(self.term(Kind::Life(Life::Receiver(frame.definition, call)), b)?)
+        } else { None };
         let (parameters, result, protected) = if owner == frame.definition {
-            self.invocation_scheme(frame, &signature, &bounds, b, depth + 1)?
+            self.invocation_scheme(frame, &signature, &bounds, receiver, b, depth + 1)?
         } else {
             let parent =
                 self.state.frames.remove(&owner).ok_or_else(|| {
                     fail("abstract callable premise has no checked lexical owner")
                 })?;
-            let answer = self.invocation_scheme(&parent, &signature, &bounds, b, depth + 1);
+            let answer = self.invocation_scheme(&parent, &signature, &bounds, receiver, b, depth + 1);
             b.lookup(self.state.frames.len(), WORK)?;
             self.state.frames.insert(owner, parent);
             answer?
