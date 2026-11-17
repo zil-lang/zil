@@ -99,22 +99,7 @@ impl Check<'_, '_> {
                 .ok_or_else(|| fail("original parameter anchor has no actual local")),
             original::LocalAnchor::Environment(ordinal) => {
                 let capture = self.environment_capture(instance, function, ordinal, b)?;
-                let mut selected = None;
-                for block in &function.blocks {
-                    for instruction in &block.instructions {
-                        b.spend(1, WORK)?;
-                        if let InstructionKind::BindPackageCapture { local, index } =
-                            instruction.kind
-                            && index == capture
-                            && selected.replace(local).is_some()
-                        {
-                            return Err(fail(
-                                "original captured Package has several actual bound lexical heads",
-                            ));
-                        }
-                    }
-                }
-                selected.ok_or_else(|| {
+                self.bound_capture_local(function, capture, b)?.ok_or_else(|| {
                     unknown("original environment place needs its actual bound owning head")
                 })
             }
@@ -136,6 +121,29 @@ impl Check<'_, '_> {
                 Ok(local)
             }
         }
+    }
+
+    pub(super) fn bound_capture_local(
+        &self,
+        function: &TypedFunction,
+        capture: u32,
+        b: &mut Budget,
+    ) -> CompileResult<Option<LocalId>> {
+        let mut selected = None;
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                b.spend(1, WORK)?;
+                if let InstructionKind::BindPackageCapture { local, index } = instruction.kind
+                    && index == capture
+                    && selected.replace(local).is_some()
+                {
+                    return Err(fail(
+                        "original captured Package has several actual bound lexical heads",
+                    ));
+                }
+            }
+        }
+        Ok(selected)
     }
 
     // Bind a whole original Name to this actual operand without inventing a

@@ -15,6 +15,12 @@ struct Origin {
     fresh: bool,
 }
 
+#[derive(Clone, Copy)]
+enum OwnedRoot {
+    Local(LocalId),
+    Capture(u32),
+}
+
 impl Check<'_, '_> {
     pub(super) fn checked_owned_place(
         &self,
@@ -29,19 +35,24 @@ impl Check<'_, '_> {
                 "owning callable cannot move through an indirect original place",
             ));
         }
-        let local = self.anchored_local(
-            instance,
-            function,
-            source
-                .anchor
-                .ok_or_else(|| fail("owning callable has no original anchor"))?,
-            b,
-        )?;
+        let anchor = source
+            .anchor
+            .ok_or_else(|| fail("owning callable has no original anchor"))?;
+        let root = match anchor {
+            original::LocalAnchor::Environment(ordinal) => {
+                let capture = self.environment_capture(instance, function, ordinal, b)?;
+                match self.bound_capture_local(function, capture, b)? {
+                    Some(local) => OwnedRoot::Local(local),
+                    None => OwnedRoot::Capture(capture),
+                }
+            }
+            _ => OwnedRoot::Local(self.anchored_local(instance, function, anchor, b)?),
+        };
         self.owned_place_value(
             instance,
             function,
             id,
-            local,
+            root,
             source,
             &mut BTreeSet::new(),
             b,
@@ -59,7 +70,7 @@ impl Check<'_, '_> {
         instance: &SemanticInstance,
         function: &TypedFunction,
         id: ValueId,
-        local: LocalId,
+        root: OwnedRoot,
         source: &original::borrow_places::Source,
         active: &mut BTreeSet<(LocalId, BlockId, usize)>,
         b: &mut Budget,
@@ -78,11 +89,30 @@ impl Check<'_, '_> {
             ));
         }
         b.spend(source.path.len().saturating_add(1), WORK)?;
-        if let InstructionKind::TakeOwnedArrayElement {
+        if let (OwnedRoot::Capture(expected), InstructionKind::TakeCapture { index: actual }) =
+            (root, &instruction.kind)
+            && expected == *actual
+            && source.path.is_empty()
+        {
+            let whole = self.capture_whole_value(instance, function, expected, b, depth + 1)?;
+            if !self.capture_values_equal(&whole, &source.root, b)?
+                || !self.capture_values_equal(&whole, &source.inner, b)?
+            {
+                return Err(fail(
+                    "owning callable changes its exact captured whole source domain",
+                ));
+            }
+            return Ok(());
+        }
+        let local = match root {
+            OwnedRoot::Local(local) => Some(local),
+            OwnedRoot::Capture(_) => None,
+        };
+        if let (Some(local), InstructionKind::TakeOwnedArrayElement {
             local: actual,
             index: 0,
-        } = instruction.kind
-            && actual == local
+        }) = (local, &instruction.kind)
+            && *actual == local
             && source.path.is_empty()
         {
             let slot = self
@@ -109,17 +139,17 @@ impl Check<'_, '_> {
         }
         let matches = match &instruction.kind {
             InstructionKind::TakeLocal { local: actual } => {
-                *actual == local && source.path.is_empty()
+                Some(*actual) == local && source.path.is_empty()
             }
             InstructionKind::TakePackageField {
                 local: actual,
                 index: field,
-            } => *actual == local && source.path.as_slice() == [*field],
+            } => Some(*actual) == local && source.path.as_slice() == [*field],
             InstructionKind::TakeTupleField {
                 local: actual,
                 path,
             } => {
-                *actual == local
+                Some(*actual) == local
                     && path.iter().copied().eq(source
                         .path
                         .iter()
@@ -129,6 +159,7 @@ impl Check<'_, '_> {
             _ => false,
         };
         if matches {
+            let local = local.ok_or_else(|| fail("owning local has no exact lexical root"))?;
             let root = self.local_value(instance, function, local, (block, index), b, 0)?;
             if !self.capture_values_equal(&root, &source.root, b)?
                 || self.borrow_field_type(&root.ty, &source.path, b)? != &source.inner.ty
@@ -149,7 +180,7 @@ impl Check<'_, '_> {
             function,
             temporary,
             (block, index),
-            local,
+            root,
             source,
             active,
             b,
@@ -164,7 +195,7 @@ impl Check<'_, '_> {
         function: &TypedFunction,
         temporary: LocalId,
         at: (BlockId, usize),
-        local: LocalId,
+        root: OwnedRoot,
         source: &original::borrow_places::Source,
         active: &mut BTreeSet<(LocalId, BlockId, usize)>,
         b: &mut Budget,
@@ -216,7 +247,7 @@ impl Check<'_, '_> {
                     instance,
                     function,
                     value,
-                    local,
+                    root,
                     source,
                     active,
                     b,
@@ -262,7 +293,7 @@ impl Check<'_, '_> {
                 function,
                 temporary,
                 (previous.id, previous.instructions.len()),
-                local,
+                root,
                 source,
                 active,
                 b,
