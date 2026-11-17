@@ -75,18 +75,6 @@ fn validate_inputs<'i, 'p: 'i>(
             let name = self.view.as_ref().map_or(name, |view| view.name.as_str());
             self.budget.text(name, span).map_err(|error| vec![error])
         }
-        fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
-            if let Some(replacement) = self
-                .view
-                .as_ref()
-                .and_then(|view| view.replacement(expression))
-                .cloned()
-            {
-                ct_selection::walk_expression(self, &replacement, depth)
-            } else {
-                ct_selection::walk_expression(self, expression, depth)
-            }
-        }
         fn type_binder(&mut self, name: &str, span: Span) -> CompileResult<()> {
             self.budget
                 .note_type_binder(name, span)
@@ -235,6 +223,12 @@ fn validate_inputs<'i, 'p: 'i>(
             result
         }
         fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
+            let replacement = self
+                .view
+                .as_ref()
+                .and_then(|view| view.replacement(expression))
+                .cloned();
+            let expression = replacement.as_ref().unwrap_or(expression);
             let old_type_argument = self.direct_type_argument;
             self.direct_type_argument = matches!(expression.kind, s::ExprKind::TypeApply { .. });
             let result = ct_selection::walk_expression(self, expression, depth);
