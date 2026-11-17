@@ -931,6 +931,7 @@ pub(in crate::semantic) fn original_associated(
         original,
         scope_queries: std::cell::RefCell::new(BTreeSet::new()),
         value_queries: std::cell::RefCell::new(BTreeSet::new()),
+        slot_queries: Default::default(),
         trait_queries: std::cell::RefCell::new(Vec::new()),
         nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),
     };
@@ -957,6 +958,7 @@ pub(in crate::semantic) fn original_self(
                 original,
                 scope_queries: std::cell::RefCell::new(BTreeSet::new()),
         value_queries: std::cell::RefCell::new(BTreeSet::new()),
+        slot_queries: Default::default(),
                 trait_queries: std::cell::RefCell::new(Vec::new()),
                 nominal_definitions: std::cell::RefCell::new(BTreeMap::new()),
             };

@@ -334,6 +334,9 @@ impl Check<'_, '_> {
                     None,
                 )]);
             }
+            // Prepay removal now: cleanup must preserve the original error
+            // even when the transfer proof exhausts its remaining budget.
+            b.lookup(active.len().saturating_add(1), WORK)?;
             active.insert(key, None);
         }
         let result = (|| {
