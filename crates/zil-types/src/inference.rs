@@ -3225,6 +3225,18 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             )),
         }
     }
+    /// A field of a product has its whole address type, unlike a scalar
+    /// operand. Keep the exact pointee variable and permission in the existing
+    /// graph; actual qualification, captures and loans remain Builder duties.
+    fn aggregate_field_variable(&mut self, term: &Term, span: Span) -> R<Variable> {
+        if let Term::Address(inner, mutable) = term {
+            let result = self.fresh(VALUE, false, span)?;
+            self.graph.address(result, *inner, Some(*mutable), span)?;
+            Ok(result)
+        } else {
+            self.scalar(term, span)
+        }
+    }
     fn input_pattern(
         &mut self,
         pattern: &CorePattern,
@@ -6447,7 +6459,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             let result = self.fresh(VALUE, false, span)?;
             self.graph
                 .project(base, Projection::Field(member.clone()), result, span)?;
-            return Ok(Term::Scalar(result));
+            return self.pattern_term(result, span);
         };
         let imports = self.imports.expect("module term has imports");
         let signature = imports.signatures[&module].get(member).ok_or_else(|| {
@@ -6537,7 +6549,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 self.bind(variable, &ty, item.span)?;
                 variable
             } else {
-                self.scalar(&term, item.span)?
+                self.aggregate_field_variable(&term, item.span)?
             };
             fields.push(field);
         }
@@ -6597,7 +6609,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             if let Some(id) = callback {
                 self.unify(&Term::Closure(id), &term, item.span)?;
             } else {
-                self.unify(&Term::Scalar(element), &term, item.span)?;
+                let field = self.aggregate_field_variable(&term, item.span)?;
+                self.graph.unify(element, field, item.span)?;
             }
         }
         if let Some(element) = callback {
@@ -6643,7 +6656,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 .project(base, Projection::Field(name.clone()), result, value.span)?;
             let hint = self.graph.ty(result)?;
             let actual = self.expr_expected(value, hint.as_ref(), depth + 1, false)?;
-            self.unify(&Term::Scalar(result), &actual, value.span)?;
+            let actual = self.aggregate_field_variable(&actual, value.span)?;
+            self.graph.unify(result, actual, value.span)?;
         }
         Ok(base)
     }
@@ -6667,7 +6681,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         let base = self.projection_base(&base, span)?;
         self.graph
             .project(base, Projection::Element, result, span)?;
-        Ok(Term::Scalar(result))
+        self.pattern_term(result, span)
     }
 
     #[inline(never)]
@@ -7155,4 +7169,77 @@ pub(super) fn unconsumed_inventory(_core: &CoreModule) -> R<()> {
     // provider table in different modules. Admission needs the complete
     // project graph and runs after name/type resolution.
     Ok(())
+}
+
+#[cfg(test)]
+mod address_product_tests {
+    use super::*;
+    use zil_base::{FileId, ModuleId, SourceUnit};
+
+    fn inferred(text: &str) -> CoreModule {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "address-products.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result()
+            .unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+        let core = zil_expand::expand(&source, &parsed)
+            .unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+        infer_source_closures(&core, &Limits::default())
+            .unwrap_or_else(|errors| panic!("{text}: {errors:?}"))
+    }
+
+    #[test]
+    fn address_product_inference_preserves_complete_pointee_and_permission() {
+        for (text, mutable, pointee) in [
+            (
+                "fn make()->impl FnOnce()->&[u8]{\n let pair=(\"A\",7i32)\n return move()=>{return pair.0}\n}\nfn main()->i32{\n let callback=make()\n let text=callback()\n return i32(text[0])-65\n}\n",
+                false,
+                Type::Slice { element: Box::new(Type::U8) },
+            ),
+            (
+                "fn main()->i32{let value=7;let pair=(&value,0);let callback=move()=>*pair.0;return callback();}",
+                false,
+                Type::I32,
+            ),
+            (
+                "fn main()->i32{var value=7;let pair=(&mut value,0);var callback=move()=>{*pair.0=9;return *pair.0;};return callback();}",
+                true,
+                Type::I32,
+            ),
+        ] {
+            let core = inferred(text);
+            let ty = core.functions.iter().flat_map(|function| &function.body.statements)
+                .find_map(|statement| match &statement.kind {
+                    CoreStatementKind::Binding { name, ty, .. } if name == "pair" => ty.as_ref(),
+                    _ => None,
+                }).expect("actual tuple binding must have its inferred whole type");
+            assert_eq!(ty, &Type::Tuple(vec![
+                Type::Address { mutable, inner: Box::new(pointee) }, Type::I32,
+            ]), "{text}");
+        }
+    }
+
+    #[test]
+    fn nested_address_array_projection_retains_its_whole_element() {
+        let core = inferred("fn main()->i32{let pair=([\"A\",\"B\"],7);let alias=pair;let callback=move()=>{let text=alias.0[0];return i32(text[0])-65;};return callback();}");
+        let main = core.functions.iter().find(|function| function.name == "main").unwrap();
+        let ty = main.body.statements.iter().find_map(|statement| match &statement.kind {
+            CoreStatementKind::Binding { name, ty, .. } if name == "pair" => ty.as_ref(),
+            _ => None,
+        }).unwrap();
+        assert_eq!(ty, &Type::Tuple(vec![Type::Array {
+            element: Box::new(utf8_literals::ty()), length: 2,
+        }, Type::I32]));
+    }
+
+    #[test]
+    fn address_projection_does_not_grant_exclusive_access() {
+        let text = "fn main()->i32{let value=7;let pair=(&value,0);var callback=move()=>{*pair.0=9;return *pair.0;};return callback();}";
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "shared-product.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let core = zil_expand::expand(&source, &parsed).unwrap();
+        let errors = infer_source_closures(&core, &Limits::default()).unwrap_err();
+        assert!(errors.iter().any(|error| error.phase == Phase::Types
+            && error.category == zil_base::ResultCategory::SafeReject
+            && error.code == "E-OPERATOR-TYPE"
+            && error.message == "dereference requires a shared address"), "{errors:?}");
+    }
 }

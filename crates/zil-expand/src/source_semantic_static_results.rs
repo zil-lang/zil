@@ -565,7 +565,7 @@ mod tests {
             ("fn make(input:&[u8])->impl Fn()->&[u8]{let pair=(\"A\",7);return move()=>{return pair.0;return input;};}", true),
             ("fn make()->impl Fn()->&[u8]{let text=\"A\";let pair=Pair{text,tag:7};let alias=pair;return move()=>alias.text;}", true),
             ("fn make(input:&[u8])->impl Fn()->&[u8]{let pair=Pair{text:input,tag:7};return move()=>pair.text;}", false),
-            ("fn make(input:&[u8])->impl Fn()->&[u8]{let pair=Pair{text:\"A\",tag:7};return move()=>{let Pair{text,tag:_}=pair;return text;};}", true),
+            ("fn make(input:&[u8])->impl Fn()->&[u8]{let pair=Pair{text:\"A\",tag:7};return move()=>{let Pair{text:text,tag:_}=pair;return text;};}", true),
             ("fn make()->impl Fn()->&[u8]{let pair=(\"A\",7);return move()=>{match pair{(text,_)=>{return text;}}};}", true),
             (
                 "fn make(input:&[u8])->impl Fn()->&[u8]{return move()=>{return \"abc\";return input;};}",
@@ -603,7 +603,7 @@ mod tests {
             ),
         ] {
             let source = SourceUnit::new(FileId(0), ModuleId(0), "literal-origin.zil", text);
-            let module = zil_syntax::parse(&source).into_result().unwrap();
+            let module = zil_syntax::parse(&source).into_result().unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
             let function = module
                 .items
                 .iter()
