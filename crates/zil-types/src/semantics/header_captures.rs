@@ -1220,7 +1220,7 @@ pub(in crate::semantics) fn complete_invocation_embeddings(
                 "invocation embedding changes the actual closure entry directory",
             ));
         }
-        let values = emitted_operands(
+        let values = match emitted_operands(
             program,
             &view,
             ledger,
@@ -1229,8 +1229,19 @@ pub(in crate::semantics) fn complete_invocation_embeddings(
             crate::FunctionRef::from(entry),
             limits,
             left,
-        )?
-        .ok_or_else(|| bad("invocation embedding lacks complete original P/C/R operands"))?;
+        )? {
+            Formation::Complete(values) => values,
+            Formation::NotReady { dependencies } => {
+                // This reader runs after complete_emitted_headers has sealed
+                // every actual closure directory inside finish. It cannot
+                // consume pending P/C/R operands or invent an empty domain.
+                let detail = format!("invocation embedding for original instance {:?}, actual closure {id:?} still requires complete headers {dependencies:?}", instance.id);
+                pay(left, detail.len())?;
+                let mut diagnostic = bad("invocation embedding reads unsealed original P/C/R operands");
+                diagnostic.notes.push(detail);
+                return Err(diagnostic);
+            }
+        };
         let mut bindings = Vec::new();
         let mut classes = Vec::new();
         let mut statics = Vec::new();

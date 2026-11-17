@@ -4321,7 +4321,16 @@ impl World<'_, '_> {
                                     },
                                 ) if !*mutable || *available => {
                                     let inner = self.pointee(&selected)?;
-                                    propagated_role = Some(roles::outer(self, &selected)?);
+                                    // This is the stored leaf's actual outer
+                                    // source, not the storage address's source.
+                                    // Selecting a different referent invalidates
+                                    // any parent original-expression receipt;
+                                    // record_source forms this leaf's own full
+                                    // field trace at its real expression boundary.
+                                    propagated_role = Some(roles::Incoming {
+                                        source: roles::outer(self, &selected)?,
+                                        origin: None,
+                                    });
                                     places::borrow_mode(ty, *mutable)?;
                                     let result = instruction.result.ok_or_else(|| {
                                         bad("stored reborrow has no actual result")
