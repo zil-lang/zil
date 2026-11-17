@@ -1,0 +1,40 @@
+{
+  "source_base": "d1e6752f6b62b357dc3185d155b43d209e875f07",
+  "status": "Unverified active WIP; no functional acceptance",
+  "snapshot_utc": "20261117T122520Z",
+  "scope": [
+    "crates",
+    "tests/language-readiness/task-owner-transport",
+    "spec/semantic-scopes.md",
+    "_zil_design.md"
+  ],
+  "changed_files": {
+    "crates/zil-analyze/src/budget.rs": "0838695a416de73082f88ec9b8aa3adf5793be92a82fbeca2ad2ce6dfea90583",
+    "crates/zil-analyze/src/lib.rs": "f454c960d4c7bbffde3c817207521c433e16bbbf4738a7f2990e2907a470d550",
+    "crates/zil-analyze/src/semantic/closed/abstract_calls.rs": "385a26e0af02f777ca9b172933628c8e93f8de0dded1cf1189d7b0fd65cb7bdd",
+    "crates/zil-analyze/src/semantic/closed/capture_origins.rs": "36fdd082728b91dce387066935a1b950d2173620f6b6671ecd688442e9edfa3d",
+    "crates/zil-analyze/src/semantic/closed/classes.rs": "25d5cd354ea58c71fa1877fb400c85978e8f71a976486e51c59867fe359a078f",
+    "crates/zil-analyze/src/semantic/closed/cleanup.rs": "d261497da1ff9641beee72c8a47380fa7aeb83862a30b4e3a709368a5c13ff65",
+    "crates/zil-analyze/src/semantic/closed/operations.rs": "0a8b3bb6572cd7ceffe211852354a7691ed476c3514c1d0f453261d3cfc599bc",
+    "crates/zil-analyze/src/semantic/original.rs": "f2bb5317f6d30042e714b42074e09f586bc2a15b5ed8e9ec28d3cb091dc9abac",
+    "crates/zil-analyze/src/semantic/original/abstract_calls.rs": "fe2de3c5bbfaf4cf1e8c7f19140f7847defa31f073086be9eaceb4e8f9cb4da7",
+    "crates/zil-analyze/src/semantic/original/borrow_roles.rs": "8f56119db38fd17a6436cee3ffd9d50128cd9f572730f6c911e8ecff36ec6242",
+    "crates/zil-analyze/src/semantic/original/captures.rs": "2df793111ac0319c29587da59f7686dba232254ec325fe95baa8970b57521eb3",
+    "crates/zil-analyze/src/semantic/original/cleanup.rs": "4db44c9c72d9e3808ba74868bb16bb6b7dcc214680f1ca613e2763e8a46cadaa",
+    "crates/zil-analyze/src/semantic/original/enums.rs": "1fecda5aabe46e2cc80c98f837d3a3bb9c3c4decfc868c11de7d7a8fbec5f993",
+    "crates/zil-analyze/src/semantic/original/invocations.rs": "5a3943d7ce13f407e25cb3d37c827bbda38f1929b3b08b3d68d62a1fd54345b6",
+    "crates/zil-analyze/src/semantic/original/mixed.rs": "59ad2766ff676a7f1caf4f28251005f4e4ad173ab28947dcc39e6d6589b7c43f",
+    "crates/zil-analyze/src/semantic/original/mutex.rs": "e86b6ea53c3eea72a4da9bec8079ebcce5903091136491e338229ff903300905",
+    "crates/zil-analyze/src/semantic/original/nominal.rs": "c1370eb22ba5f7755dba8f5912f4eecdc96610d42752bdbdbc18483042087859",
+    "crates/zil-analyze/src/semantic/original/registration_start.rs": "a4b1debc5c13e7a71c1c0d6cb8ad08b8e40fec38a571eef2b3cd96c2e952a8ba",
+    "crates/zil-analyze/src/semantic/original/roles.rs": "534824d4b1ebd04dd7c3b043723298b7e2842e8fe99a8965509f4dac46e2f488",
+    "crates/zil-analyze/src/semantic/original/values.rs": "5938c77056cc082b94db0b61e43ed97fbb400294ed895a9c35c14768de57a852",
+    "crates/zil-analyze/src/stored_callables.rs": "27a650e55d15e7682cda22676750b7ad5f10e56c1f49f971b42bf78b940fc9b2",
+    "crates/zil-analyze/src/stored_flow.rs": "7c3f6a411512599cead39c8ab3a095ce56f95db15dc45dceae7d0c9b0a950c1c",
+    "crates/zil-analyze/src/stored_flow/receiver_results.rs": "c27a059e7b7348fcb32e5f8ddbe6c914db075bf8c12c66bcbfbba27cb4f7958f",
+    "crates/zil-types/src/semantics/original_views.rs": "1f65e7b995d0c9c8641d0b26a74d4ad0dc1096a92ce603807e3da01dc0da4271"
+  },
+  "untracked_files": [],
+  "stable_double_read": true,
+  "restore": "Checkout source_base, apply source.patch, and copy untracked/ into that checkout. Evidence has its own candidate provenance; do not infer acceptance from archive."
+}
