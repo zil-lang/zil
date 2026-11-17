@@ -235,6 +235,9 @@ struct Literal {
     negative_context: bool,
 }
 struct Call {
+    // Complete original consuming-operation upper, independent of the
+    // concrete closure entry body ABI. None denotes an ordinary static call.
+    operation: Option<CallKind>,
     target: SemanticDefinitionId,
     actuals: Vec<Term>,
     parameters: Vec<Term>,
@@ -2200,7 +2203,8 @@ impl Solver<'_, '_> {
                                     frame.captured.insert(index, callee_value);
                                 }
                             }
-                            self.known_capture_call(frame, head, target, b)?;
+                            let (requested_once, operation) = self.known_call_operation(callee_value, target, b)?;
+                            self.known_capture_call(frame, head, target, requested_once, operation, b)?;
                             let declaration = self.inventory.definition(target, b)?;
                             let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
                                 &declaration.body
@@ -2234,6 +2238,7 @@ impl Solver<'_, '_> {
                             self.state.calls.insert(
                                 (frame.definition, value.id),
                                 Call {
+                                    operation: Some(operation),
                                     target,
                                     actuals: Vec::new(),
                                     parameters: parameters.clone(),
@@ -2547,6 +2552,7 @@ impl Solver<'_, '_> {
                                 self.state.calls.insert(
                                     (frame.definition, value.id),
                                     Call {
+                                        operation: None,
                                         target,
                                         actuals,
                                         parameters: parameters.clone(),
@@ -5511,6 +5517,7 @@ impl Checked {
         SemanticDefinitionId,
         bool,
         Vec<crate::semantic::value::Argument>,
+        Option<CallKind>,
     )> {
         let definition = inventory.definition(context.definition, b)?;
         let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
@@ -5542,7 +5549,7 @@ impl Checked {
             let actual = self.argument(*actual, context, program, inventory, b, 0)?;
             Solver::push(&mut actuals, actual, b)?;
         }
-        Ok((call.target, call.closure, actuals))
+        Ok((call.target, call.closure, actuals, call.operation))
     }
 }
 

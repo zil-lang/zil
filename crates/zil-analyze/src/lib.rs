@@ -153,6 +153,7 @@ fn analyze_budgeted_context(
     budget.semantic_cleanup_sites.clear();
     budget.semantic_cleanup_proofs.clear();
     budget.semantic_capture_cleanups.clear();
+    budget.semantic_consuming_operations.clear();
     budget.semantic_consuming_cleanups.clear();
     budget.semantic_task_scopes.clear();
     budget.stored_synchronous_abis.clear();
@@ -272,7 +273,8 @@ fn analyze_budgeted_context(
                 }
             }
             stored_holds = Some(stored_flow::infer(module, &hold_graphs, budget)?);
-        } else if task_frame_calls || !budget.semantic_cleanup_sites.is_empty() || !budget.semantic_capture_cleanups.is_empty() {
+        } else if task_frame_calls || !budget.semantic_cleanup_sites.is_empty() || !budget.semantic_capture_cleanups.is_empty()
+            || !budget.semantic_consuming_operations.is_empty() {
             // A concrete original cleanup is not a structural SyncDrop
             // theorem. Keep the stored source proof and continue through the
             // ordinary Task graph and resource ledger before discharging it.
@@ -517,7 +519,8 @@ fn publish_holds(
     budget: &mut Budget,
 ) -> CompileResult<()> {
     if !budget.semantic_cleanup_sites.is_empty() || !budget.semantic_cleanup_proofs.is_empty()
-        || !budget.semantic_capture_cleanups.is_empty() || !budget.semantic_consuming_cleanups.is_empty() {
+        || !budget.semantic_capture_cleanups.is_empty() || !budget.semantic_consuming_operations.is_empty()
+        || !budget.semantic_consuming_cleanups.is_empty() {
         return Err(bad("original concrete cleanup obligations remain undischarged at publication"));
     }
     if budget.stored_task_frame_pending {

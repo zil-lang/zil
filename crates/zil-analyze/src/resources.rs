@@ -4171,12 +4171,31 @@ impl Flow<'_> {
                     if let InstructionKind::CallClosureOnce { callee, .. } = i.kind {
                         if check {
                             budget.spend(budget.semantic_capture_cleanups.len(), "original consuming cleanup occurrence")?;
-                            let original = budget.semantic_capture_cleanups.iter()
-                                .any(|(closure, _, _)| *closure == definition.id);
-                            if !tasks::once_cleanup_resumable(self.module, f, callee, budget)?
-                                && !tasks::once_cleanup_has_no_task(self.module, definition.id, budget)?
+                            let mut original_capture = false;
+                            let mut direct_capture = false;
+                            for (closure, _, _, upper) in &budget.semantic_capture_cleanups {
+                                if *closure == definition.id {
+                                    original_capture = true;
+                                    direct_capture |= *upper == CallKind::Direct;
+                                }
+                            }
+                            let point = (f.id, f.blocks[b].id, position, definition.id);
+                            budget.lookup(budget.semantic_consuming_operations.len(), "original consuming operation upper")?;
+                            let operation = budget.semantic_consuming_operations.get(&point).copied();
+                            let original = original_capture || operation.is_some();
+                            // An outer Suspend body cannot redeem an original
+                            // Direct FnOnce promise. Only the independently
+                            // checked exact Suspend operation may request the
+                            // real frame theorem below. Raw IR keeps its own
+                            // whole-program frame contract.
+                            let frame_allowed = !direct_capture && (operation == Some(CallKind::Suspend)
+                                || !original && self.module.semantic.is_none());
+                            let mut proof = CallKind::Direct;
+                            if !tasks::once_cleanup_has_no_task(self.module, definition.id, budget)?
                                 && !tasks::once_cleanup_closed(self.module, definition.id, budget)? {
-                                if original {
+                                if frame_allowed && tasks::once_cleanup_resumable(self.module, f, callee, budget)? {
+                                    proof = CallKind::Suspend;
+                                } else if original {
                                     tasks::require_original_synchronous_value(
                                         self.module, f, callee, budget, Some(i.span))?;
                                 } else {
@@ -4186,7 +4205,8 @@ impl Flow<'_> {
                             }
                             if original {
                                 budget.lookup(budget.semantic_consuming_cleanups.len(), "complete actual consuming cleanup proof")?;
-                                budget.semantic_consuming_cleanups.insert((f.id, f.blocks[b].id, position, definition.id));
+                                let previous = budget.semantic_consuming_cleanups.entry(point).or_insert(proof);
+                                if proof == CallKind::Direct { *previous = CallKind::Direct; }
                             }
                         }
                         self.consume(state, callee, check, budget)?;

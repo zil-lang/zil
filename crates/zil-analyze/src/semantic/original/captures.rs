@@ -115,6 +115,7 @@ impl Solver<'_, '_> {
         &mut self,
         definition: SemanticDefinitionId,
         kind: CallableKind,
+        operation: CallKind,
         b: &mut Budget,
     ) -> CompileResult<()> {
         if !self.owns_captures(definition, b)? {
@@ -182,7 +183,7 @@ impl Solver<'_, '_> {
                 }
             }
             for (term, vacant, anchor) in remaining {
-                let origin = cleanup::Origin::local(definition, Some(anchor), cleanup::Event::CaptureExit);
+                let origin = cleanup::Origin::local(definition, Some(anchor), cleanup::Event::CaptureExit(operation));
                 self.cleanup_partial(term, &[], &vacant, &origin, b, 0)?;
             }
         }
@@ -193,6 +194,8 @@ impl Solver<'_, '_> {
         frame: &mut Frame,
         callee: &SemanticOriginalExpr,
         definition: SemanticDefinitionId,
+        requested_once: bool,
+        operation: CallKind,
         b: &mut Budget,
     ) -> CompileResult<()> {
         let CoreExprKind::Name(name) = &callee.kind else {
@@ -200,7 +203,7 @@ impl Solver<'_, '_> {
                 "owned original callable invocation needs its exact lexical head",
             ));
         };
-        let mut once = false;
+        let mut once = requested_once;
         if let Some(reads) = self.capture_state.reads.get(&definition) {
             let body =
                 self.state.frames.get(&definition).ok_or_else(|| {
@@ -257,6 +260,7 @@ impl Solver<'_, '_> {
             } else {
                 CallableKind::Fn
             },
+            operation,
             b,
         )
     }

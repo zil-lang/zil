@@ -1122,7 +1122,7 @@ impl Check<'_, '_> {
                         }
                     }
                 }
-                let (original, closure, expected_actuals) =
+                let (original, closure, expected_actuals, operation) =
                     self.original
                         .call(instance, site.recipe, self.program, self.inventory, b)?;
                 let instruction = instruction
@@ -1357,6 +1357,17 @@ impl Check<'_, '_> {
                     }
                 }
                 self.result(instruction, point.function, result)?;
+                if closure && let InstructionKind::CallClosureOnce { callee, .. } = instruction.kind {
+                    let Some(Type::Closure(id)) = point.function.values.get(callee.0 as usize) else {
+                        return Err(fail("known consuming operation loses its complete receiver"));
+                    };
+                    let upper = operation.ok_or_else(|| fail("known consuming operation loses its original execution upper"))?;
+                    if upper == CallKind::Suspend && point.function.call_kind != CallKind::Suspend {
+                        return Err(fail("known Suspend consuming operation has no original Suspend caller"));
+                    }
+                    record_consuming_operation(point.function.id, point.block.id,
+                        point.instruction, *id, upper, b)?;
+                }
             }
             (
                 SemanticSiteRecipeKind::Call {

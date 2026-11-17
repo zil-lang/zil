@@ -149,7 +149,10 @@ impl Check<'_, '_> {
                     ));
                 }
             };
-            if kind != boundary.kind || boundary.signature.call_kind != CallKind::Direct {
+            if kind != boundary.kind
+                || boundary.signature.call_kind == CallKind::Suspend
+                    && !(kind == CallableKind::FnOnce && function.call_kind == CallKind::Suspend
+                        && matches!(instruction.kind, InstructionKind::CallClosureOnce { .. })) {
                 return Err(unknown(
                     "abstract callable needs its complete requested invocation ABI and receiver mode",
                 ));
@@ -386,6 +389,10 @@ impl Check<'_, '_> {
             // actual receiver/entry/full signature. Actual roots, retained
             // parents, loans, effects and cleanup are still independently
             // reconstructed by the memory/callable kernels before publication.
+            if kind == CallableKind::FnOnce {
+                record_consuming_operation(function.id, block, index, id,
+                    boundary.signature.call_kind, b)?;
+            }
             selected = Some(boundary.result);
         }
         Ok(selected)

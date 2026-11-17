@@ -229,6 +229,46 @@ impl Solver<'_, '_> {
         Ok(())
     }
 
+    // Preserve a published opaque FnOnce operation contract before revealing
+    // its concrete body. A Direct entry does not overwrite a Suspend operation
+    // bound, nor does the caller's own ABI manufacture such a bound.
+    pub(super) fn known_call_operation(&self, term: Term,
+        definition: SemanticDefinitionId, b: &mut Budget) -> CompileResult<(bool, CallKind)> {
+        let mut term = self.root(term, b)?;
+        for _ in 0..=b.partial_depth {
+            b.spend(1, WORK)?;
+            let Kind::CallResult { caller, node, hidden } = self.state.arena[term] else {
+                let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
+                    &self.inventory.definition(definition, b)?.body else {
+                        return Err(fail("known callable has no complete original declaration"));
+                    };
+                return Ok((false, signature.call_kind));
+            };
+            b.lookup(self.state.calls.len(), WORK)?;
+            let call = self.state.calls.get(&(caller, node))
+                .ok_or_else(|| fail("opaque callable operation has no exact original factory source"))?;
+            let factory = self.inventory.definition(call.target, b)?;
+            let mut roles = Vec::new();
+            declared_roles(&factory.requirements, &mut Vec::new(), &mut roles, b, 0)?;
+            let mut upper = None;
+            for role in roles {
+                if role.kind != CallableKind::FnOnce
+                    || !matches!(role.ty, SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result }) {
+                    continue;
+                }
+                // All requirements were independently checked in the original
+                // factory domain; their execution uppers intersect here.
+                if upper.is_none() || role.signature.call_kind == CallKind::Direct {
+                    upper = Some(role.signature.call_kind);
+                }
+            }
+            if let Some(upper) = upper { return Ok((true, upper)); }
+            term = self.root(hidden, b)?;
+        }
+        Err(resource("known callable operation provenance exceeds its finite depth"))
+    }
+
     fn parameter_lifetime(
         &self,
         owner: SemanticDefinitionId,
@@ -431,7 +471,7 @@ impl Solver<'_, '_> {
                     ));
                 };
                 let declaration = self.inventory.definition(definition, b)?;
-                self.capture_role(definition, need.kind, b)?;
+                self.capture_role(definition, need.kind, need.call_kind, b)?;
                 let SemanticDefinitionBody::FunctionWithBody {
                     signature,
                     parameters: originals,
@@ -442,7 +482,7 @@ impl Solver<'_, '_> {
                         "original callable omits its complete declared signature",
                     ));
                 };
-                if signature.call_kind != need.call_kind
+                if !callable_entry_matches(need.kind, signature.call_kind, need.call_kind)
                     || signature.result_mode != need.result_mode
                     || parameters.len() != need.parameters.len()
                     || originals.len() != parameters.len()
@@ -535,7 +575,12 @@ impl Solver<'_, '_> {
                         && matches!(need.kind, CallableKind::FnMut | CallableKind::FnOnce))
                     || (kind == CallableKind::FnMut && need.kind == CallableKind::FnOnce);
                 if !supports
-                    || signature.call_kind != need.call_kind
+                    || (signature.call_kind != need.call_kind
+                        // A declared FnOnce Direct premise already covers the
+                        // complete operation. A reusable Fn/FnMut premise only
+                        // describes its entry and cannot supply this theorem.
+                        && !(kind == CallableKind::FnOnce && need.kind == CallableKind::FnOnce
+                            && signature.call_kind == CallKind::Direct && need.call_kind == CallKind::Suspend))
                     || signature.parameters.len() != need.parameters.len()
                     || signature.result_mode != need.result_mode
                 {

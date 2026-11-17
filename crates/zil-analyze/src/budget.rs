@@ -121,11 +121,15 @@ pub(super) struct Budget {
     // Exact owning Task DropManaged sites discharged by the complete actual
     // resource fixed point. This is never a structural SyncDrop theorem.
     pub(super) semantic_cleanup_proofs: BTreeSet<(FunctionId, zil_ir::BlockId, usize, LocalId)>,
-    pub(super) semantic_capture_cleanups: BTreeSet<(zil_ir::ClosureId, u32, Vec<u32>)>,
-    // Exact consuming calls whose actual remaining-environment cleanup passed
-    // the resource/frame or unconditional post-body proof in this request.
+    pub(super) semantic_capture_cleanups: BTreeSet<(zil_ir::ClosureId, u32, Vec<u32>, zil_ir::CallKind)>,
+    // Exact independently checked original consuming-operation upper bounds.
+    // These are obligations, not frame/cleanup permission.
+    pub(super) semantic_consuming_operations:
+        BTreeMap<(FunctionId, zil_ir::BlockId, usize, zil_ir::ClosureId), zil_ir::CallKind>,
+    // Exact actual remaining-environment proofs. Direct proves synchronous
+    // retirement; Suspend additionally consumed a real frame-backed proof.
     pub(super) semantic_consuming_cleanups:
-        BTreeSet<(FunctionId, zil_ir::BlockId, usize, zil_ir::ClosureId)>,
+        BTreeMap<(FunctionId, zil_ir::BlockId, usize, zil_ir::ClosureId), zil_ir::CallKind>,
     // Complete zero-Task scope metadata in one bound immutable request:
     // module/resource ordinal, explicit metadata bounds, current raw bounds.
     // This caches no owner, phase, source class, cleanup or caller theorem.
@@ -328,7 +332,8 @@ impl Budget {
             semantic_cleanup_sites: BTreeSet::new(),
             semantic_cleanup_proofs: BTreeSet::new(),
             semantic_capture_cleanups: BTreeSet::new(),
-            semantic_consuming_cleanups: BTreeSet::new(),
+            semantic_consuming_operations: BTreeMap::new(),
+            semantic_consuming_cleanups: BTreeMap::new(),
             semantic_task_scopes: BTreeSet::new(),
             semantic_aggregate_classes: BTreeMap::new(),
             stored_synchronous_abis: BTreeSet::new(),

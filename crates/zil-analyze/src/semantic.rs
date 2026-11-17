@@ -17,6 +17,24 @@ pub(super) fn source_value_available(function: &TypedFunction, at: (BlockId, usi
     closed::source_value_available(function, at, value, b)
 }
 
+// An entry ABI is distinct from the complete consuming operation. Only a
+// requested FnOnce Suspend operation can adapt a Direct closure entry; its
+// remaining environment still needs the independent actual frame proof.
+fn callable_entry_matches(kind: CallableKind, entry: CallKind, operation: CallKind) -> bool {
+    entry == operation || kind == CallableKind::FnOnce
+        && entry == CallKind::Direct && operation == CallKind::Suspend
+}
+
+fn record_consuming_operation(function: FunctionId, block: BlockId, position: usize,
+    closure: ClosureId, upper: CallKind, b: &mut Budget) -> CompileResult<()> {
+    b.lookup(b.semantic_consuming_operations.len(), WORK)?;
+    let previous = b.semantic_consuming_operations.entry((function, block, position, closure)).or_insert(upper);
+    // Several original worlds may visit the same opcode. Their obligations
+    // intersect: one Direct premise cannot be paid by another Suspend world.
+    if upper == CallKind::Direct { *previous = CallKind::Direct; }
+    Ok(())
+}
+
 const WORK: &str = "original semantic program inventory";
 fn fail(message: &str) -> Vec<zil_base::Diagnostic> {
     bad(format!("semantic program: {message}"))

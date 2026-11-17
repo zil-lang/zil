@@ -180,7 +180,7 @@ impl Check<'_, '_> {
         let entry = self
             .inventory
             .function(&SemanticFunctionTarget::Typed(definition.function), b)?;
-        if entry.call_kind != signature.call_kind {
+        if !callable_entry_matches(kind, entry.call_kind, signature.call_kind) {
             return Err(fail(
                 "actual callable changes its original fixed execution kind",
             ));

@@ -516,7 +516,8 @@ impl Pending {
             else {
                 return Err(fail("original effect edge has no caller signature"));
             };
-            if caller.call_kind == CallKind::Direct && callee.call_kind == CallKind::Suspend {
+            if caller.call_kind == CallKind::Direct
+                && call.operation.unwrap_or(callee.call_kind) == CallKind::Suspend {
                 return Err(fail("original Direct body invokes a Suspend callable"));
             }
         }

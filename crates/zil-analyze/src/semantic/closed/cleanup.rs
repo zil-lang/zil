@@ -16,7 +16,7 @@ impl Check<'_, '_> {
                 };
                 let function = self.inventory.function(target, b)?;
                 let expected = self.original.cleanup_value(ordinal, instance, self.program, self.inventory, b)?;
-                if matches!(pending.event, original::CleanupEvent::CaptureExit)
+                if let original::CleanupEvent::CaptureExit(operation) = pending.event
                     && let original::CleanupSource::Local(original::LocalAnchor::Environment(ordinal)) = pending.source {
                     let capture = self.environment_capture(instance, function, ordinal, b)?;
                     let id = function.environment.ok_or_else(|| fail("original capture cleanup loses its actual entry"))?;
@@ -36,7 +36,7 @@ impl Check<'_, '_> {
                     self.capture_directory(id, b)?;
                     b.spend(pending.path.len(), WORK)?;
                     b.lookup(b.semantic_capture_cleanups.len(), WORK)?;
-                    b.semantic_capture_cleanups.insert((id, capture, pending.path.clone()));
+                    b.semantic_capture_cleanups.insert((id, capture, pending.path.clone(), operation));
                     instances += 1;
                     continue;
                 }
@@ -387,7 +387,7 @@ impl Check<'_, '_> {
                 }
                 Ok(false)
             }
-            original::CleanupEvent::CaptureExit => Err(fail("remaining capture cleanup lost its exact environment source")),
+            original::CleanupEvent::CaptureExit(_) => Err(fail("remaining capture cleanup lost its exact environment source")),
         }
     }
 

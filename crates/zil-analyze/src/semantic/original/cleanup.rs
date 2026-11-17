@@ -4,7 +4,7 @@
 use super::*;
 
 #[derive(Clone, Copy, Debug)]
-pub(in crate::semantic) enum Event { Scope, Replace(NodeId), Backedge(NodeId), CaptureExit, Discard(NodeId) }
+pub(in crate::semantic) enum Event { Scope, Replace(NodeId), Backedge(NodeId), CaptureExit(CallKind), Discard(NodeId) }
 impl Event {
     fn node(self) -> Option<NodeId> {
         match self { Self::Replace(node) | Self::Discard(node) | Self::Backedge(node) => Some(node), _ => None }
@@ -142,7 +142,10 @@ impl Solver<'_, '_> {
                 &self.inventory.definition(origin.definition, b)?.body else {
                     return Err(fail("original cleanup occurrence has no complete declaration ABI"));
                 };
-            let suspend = signature.call_kind == CallKind::Suspend;
+            let suspend = match origin.event {
+                Event::CaptureExit(operation) => operation == CallKind::Suspend,
+                _ => signature.call_kind == CallKind::Suspend,
+            };
             if !matches!(origin.source, Source::Unknown)
                 && (self.task_cleanup_environment(term, b, 0)?
                     || suspend && self.satisfies(term,
@@ -166,8 +169,10 @@ impl Solver<'_, '_> {
 }
 
 pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+    finish_consuming_operations(module, b)?;
     if b.semantic_cleanup_sites.is_empty() && b.semantic_capture_cleanups.is_empty() {
-        return if b.semantic_cleanup_proofs.is_empty() && b.semantic_consuming_cleanups.is_empty() { Ok(()) }
+        b.semantic_consuming_cleanups.clear();
+        return if b.semantic_cleanup_proofs.is_empty() { Ok(()) }
             else { Err(fail("actual Task cleanup proof has no original pending occurrence")) };
     }
     if b.task_input_scopes.is_none() {
@@ -232,16 +237,44 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
     Ok(())
 }
 
+fn finish_consuming_operations(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
+    b.spend(b.semantic_consuming_operations.len().saturating_mul(5), WORK)?;
+    let pending: Vec<_> = b.semantic_consuming_operations.iter().map(|(point, upper)| (*point, *upper)).collect();
+    for ((function, block, position, closure), upper) in pending {
+        let function = module.functions.get(function.0 as usize).filter(|actual| actual.id == function)
+            .ok_or_else(|| fail("original consuming operation loses its actual caller"))?;
+        let instruction = function.blocks.get(block.0 as usize).filter(|actual| actual.id == block)
+            .and_then(|block| block.instructions.get(position))
+            .ok_or_else(|| fail("original consuming operation loses its exact actual opcode"))?;
+        let InstructionKind::CallClosureOnce { callee, .. } = instruction.kind else {
+            return Err(fail("original consuming operation changes its actual receiver mode"));
+        };
+        if function.values.get(callee.0 as usize) != Some(&Type::Closure(closure))
+            || upper == CallKind::Suspend && function.call_kind != CallKind::Suspend {
+            return Err(fail("original consuming operation changes its receiver or execution upper"));
+        }
+        b.lookup(b.semantic_consuming_cleanups.len(), WORK)?;
+        let proof = b.semantic_consuming_cleanups.get(&(function.id, block, position, closure))
+            .ok_or_else(|| fail("original consuming operation lacks complete actual remaining-environment cleanup"))?;
+        if *proof == CallKind::Suspend && (upper != CallKind::Suspend || !b.task_origin_roots || !b.tasks) {
+            return Err(fail("Direct consuming operation cannot use a resumable cleanup theorem"));
+        }
+    }
+    // Called only after the complete actual resource fixed point succeeded.
+    b.semantic_consuming_operations.clear();
+    Ok(())
+}
+
 fn finish_capture_cleanups(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     if b.semantic_capture_cleanups.is_empty() { return Ok(()); }
     if !b.task_origin_roots || !b.tasks {
         return Err(fail("original remaining capture cleanup reached no complete actual Task proof"));
     }
     let work = b.semantic_capture_cleanups.iter().fold(0usize,
-        |work, (_, _, path)| work.saturating_add(path.len().saturating_add(1)));
+        |work, (_, _, path, _)| work.saturating_add(path.len().saturating_add(1)));
     b.spend(work, WORK)?;
     let pending: Vec<_> = b.semantic_capture_cleanups.iter().cloned().collect();
-    for (id, capture, path) in pending {
+    for (id, capture, path, upper) in pending {
         let closure = module.closures.get(id.0 as usize).filter(|closure| closure.id == id
             && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce))
             .ok_or_else(|| fail("original remaining capture cleanup changes its actual entry"))?;
@@ -260,8 +293,9 @@ fn finish_capture_cleanups(module: &TypedModule, b: &mut Budget) -> CompileResul
                     let InstructionKind::CallClosureOnce { callee, .. } = instruction.kind else { continue; };
                     if function.values.get(callee.0 as usize) != Some(&Type::Closure(id)) { continue; }
                     b.lookup(b.semantic_consuming_cleanups.len(), WORK)?;
-                    if !b.semantic_consuming_cleanups.contains(&(function.id, block.id, position, id)) {
-                        return Err(fail("original remaining capture cleanup lacks its complete actual consuming-call proof"));
+                    let proof = b.semantic_consuming_cleanups.get(&(function.id, block.id, position, id));
+                    if proof.is_none() || upper == CallKind::Direct && proof != Some(&CallKind::Direct) {
+                        return Err(fail("original remaining capture cleanup lacks its complete actual consuming-call proof at the promised execution upper"));
                     }
                     calls += 1;
                 }
