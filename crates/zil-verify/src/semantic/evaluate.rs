@@ -793,9 +793,11 @@ mod constructed_task_descendant_tests {
             }}));
             let projection=if tuple{PlaceProjection::Field(0)}else{PlaceProjection::ErrorArm(false)};
             let capture=if tuple{Type::Tuple(vec![owner])}else{Type::ErrorUnion{error:Box::new(Type::Unit),result:Box::new(owner)}};
+            // The first physical port introduces Fixed0. The ghost child
+            // class is still κ0 but appears as Fixed1 in this canonical header.
             let header=StorageLifeContract{fixed_binder_count:2,invocation_binder_count:0,
-                bindings:vec![StorageLifeBinding{position:StoragePosition{base:StorageBase::Capture(0),path:vec![ContractProjection::Place(projection),ContractProjection::RetainedPort(0)]},binder:StorageBinder::Fixed(1)}],
-                classes:(0..2).map(|class|SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Capture(0),path:vec![LifeTypeProjection::Place(projection),LifeTypeProjection::Pointee],class},binder:StorageBinder::Fixed(class)}).collect(),static_bindings:vec![],
+                bindings:vec![StorageLifeBinding{position:StoragePosition{base:StorageBase::Capture(0),path:vec![ContractProjection::Place(projection),ContractProjection::RetainedPort(0)]},binder:StorageBinder::Fixed(0)}],
+                classes:(0..2).map(|class|SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Capture(0),path:vec![LifeTypeProjection::Place(projection),LifeTypeProjection::Pointee],class},binder:StorageBinder::Fixed(1-class)}).collect(),static_bindings:vec![],
             };
             module.functions[0].environment=Some(ClosureId(0));module.functions[0].storage_life=Some(header.clone());
             module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![capture],parameters:vec![],result:Type::I32,kind:CallableKind::FnOnce,storage_life:Some(header),lending_captures:vec![]});
@@ -803,19 +805,19 @@ mod constructed_task_descendant_tests {
             for actual in [&module,&wire]{
                 let life=StorageLifeShape{binder_count:2,slots:vec![],retained:vec![],nominal_arguments:vec![]};let ty=Type::Closure(ClosureId(0));
                 let ports=task_domains::raw_input_ports(actual,&ty,&life,&mut Budget::new(&limits)).unwrap();
-                assert_eq!(ports,vec![(leaf.clone(),StoredBorrowMode::SharedAddress,1,vec![ContractProjection::Capture(0),ContractProjection::Place(projection),ContractProjection::RetainedPort(0)])]);
+                assert_eq!(ports,vec![(leaf.clone(),StoredBorrowMode::SharedAddress,0,vec![ContractProjection::Capture(0),ContractProjection::Place(projection),ContractProjection::RetainedPort(0)])]);
                 for attack in 0..2{
                     let mut forged=actual.clone();let header=forged.closures[0].storage_life.as_mut().unwrap();
-                    if attack==0{header.classes.pop();}else{header.classes[1].binder=StorageBinder::Fixed(0);}
+                    if attack==0{header.classes.pop();}else{header.classes[1].binder=header.classes[0].binder;}
                     forged.functions[0].storage_life=forged.closures[0].storage_life.clone();
                     assert!(task_domains::raw_input_ports(&forged,&ty,&life,&mut Budget::new(&limits)).is_err(),"a true opaque child cannot omit or coalesce an intrinsic class");
                 }
-                let mut swapped=actual.clone();let header=swapped.closures[0].storage_life.as_mut().unwrap();header.classes[0].binder=StorageBinder::Fixed(1);header.classes[1].binder=StorageBinder::Fixed(0);
+                let mut swapped=actual.clone();let header=swapped.closures[0].storage_life.as_mut().unwrap();header.classes[0].binder=StorageBinder::Fixed(0);header.classes[1].binder=StorageBinder::Fixed(1);
                 swapped.functions[0].storage_life=swapped.closures[0].storage_life.clone();
                 let changed=task_domains::raw_input_ports(&swapped,&ty,&life,&mut Budget::new(&limits)).unwrap();
-                assert_eq!(changed[0].2,0);
+                assert_eq!(changed[0].2,1);
                 // A bare map may permute a child's images. It must report
-                // that distinct original index, never silently use κ1. The
+                // that distinct original index, never silently use κ0. The
                 // exact original header/Fixed contract separately rejects a
                 // permutation inconsistent with its unchanged port binding.
                 if !tuple {

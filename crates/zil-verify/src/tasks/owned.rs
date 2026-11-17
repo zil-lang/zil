@@ -2,6 +2,7 @@
 //! input storage AND every ordinary teardown's reachable code before allowing
 //! synchronous close. A result-only Task type never proves either fact.
 use super::*;
+mod driver;
 fn scalar(t: &Type) -> bool {
     matches!(
         t,
@@ -549,10 +550,10 @@ fn helper_graph(
         )?;
         let continuation_result=if driving{pollable_storage(module,&f.return_type,budget)?}else{record(&f.return_type,budget)?||result_type(module,&f.return_type,budget)?};
         let environment=if let Some(id)=f.environment{
-            if !driving{false}else{
-                let closure=crate::closures::definition(module,id,span)?;
-                closure.function==f.id&&closure.storage_life.is_some()&&closure.storage_life==f.storage_life&&pollable_storage(module,&Type::Closure(id),budget)?
-            }
+            let closure=crate::closures::definition(module,id,span)?;
+            if closure.function!=f.id||closure.storage_life.is_none()||closure.storage_life!=f.storage_life{false}
+            else if driving{pollable_storage(module,&Type::Closure(id),budget)?}
+            else{crate::dynamic_witness::structural_actual(module,&Type::Closure(id),DynStructuralBound::SyncDrop,budget)?;true}
         }else{true};
         if f.call_kind != CallKind::Direct
             || !environment
@@ -658,120 +659,67 @@ fn helper_graph(
                 }
             }
         }
-        for b in &f.blocks {
-            for i in &b.instructions {
+        let live=super::drop_sync::live_blocks(f,budget)?;
+        let mut has_replacements=false;
+        for block in &f.blocks{budget.spend(block.instructions.len().saturating_add(1))?;has_replacements|=block.instructions.iter().any(|i|matches!(i.kind,InstructionKind::CommitPlaceReplace{..}));}
+        let places=if has_replacements{Some(crate::place_replacements::Inventory::reconstruct(module,f,budget)?)}else{None};
+        for (block_index,block) in f.blocks.iter().enumerate() {
+            for i in &block.instructions {
                 budget.spend(1)?;
-                // This is ordinary execution reached from a Task driver,
-                // not synchronous destruction of the captured environment.
-                // Task creation references a worker without executing it.
-                // All Task/registration providers, callbacks, input/frame ports,
-                // actual heads and results pass the complete opcode contract;
-                // lifecycle and
-                // retirement remain in the resource/protocol kernels.
-                if driving&&matches!(i.kind,
-                    InstructionKind::TaskStart{..}|InstructionKind::TaskCreate{..}|InstructionKind::TaskCreateOwned{..}
-                    |InstructionKind::TaskPoll{..}|InstructionKind::TaskValid{..}|InstructionKind::TaskRequestCancel{..}
-                    |InstructionKind::TaskPollClose{..}|InstructionKind::TaskFinishDestroy{..}
-                    |InstructionKind::RegistrationStart{..}|InstructionKind::RegistrationValid{..}|InstructionKind::RegistrationClose{..}
-                    |InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}
-                    |InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}
-                    |InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}){
-                    crate::check_instruction(module,f,i,budget)?;
-                    continue;
+                let kind=driver::kind(&i.kind);
+                if kind==driver::Kind::Forbidden
+                    ||kind==driver::Kind::Lifecycle&&!driving
+                    ||kind==driver::Kind::ClosedFinish&&!(driving||closed_retirement){
+                    let detail=format!("actual helper graph root {first:?}; current {:?} ({}) driving={driving}, borrowed_driver={borrowed_driver}, closed_retirement={closed_retirement}; family {kind:?}, actual operation {:?}",f.id,f.name,i.kind);
+                    budget.spend(detail.len())?;
+                    return Err(reject("E-VERIFY-TASK",Some(i.span),"task cleanup contains an asynchronous or external-user operation").with_note(detail));
                 }
-                match &i.kind {
-                    InstructionKind::CallDynSlot{interface,slot,..}=>{
-                        let(kind,targets)=dyn_callees(module,*interface,*slot,budget)?;
-                        if kind!=CallKind::Direct{return Err(reject("E-VERIFY-TASK",Some(i.span),"Task synchronous cleanup calls a suspending dynamic slot"));}
-                        pending.extend(targets.into_iter().map(|target|(target,driving)));
-                    }
-                    InstructionKind::Call { function, .. }
-                    | InstructionKind::ForeignCall { function, .. } => {
-                        pending.push((*function, driving))
-                    }
-                    InstructionKind::MakeClosure{..}|InstructionKind::DropClosure{..}|InstructionKind::ReadCapture{..}|InstructionKind::TakeCapture{..}|InstructionKind::DescribeCapture{..}|InstructionKind::BorrowCapture{..}|InstructionKind::WriteCapture{..}|InstructionKind::BindPackageCapture{..}|InstructionKind::EndPackageCapture{..}if driving=>{},
-                    InstructionKind::CallClosure{..}|InstructionKind::CallClosureOnce{..}|InstructionKind::CallClosureBorrowed{..}|InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..}if driving=>{
-                        let(definition,_)=crate::stored_callables::called(module,f,&i.kind).ok_or_else(||reject("E-VERIFY-TASK",Some(i.span),"Task helper invocation has no exact actual closure target"))?;
-                        if !pollable_storage(module,&Type::Closure(definition.id),budget)?{return Err(reject("E-VERIFY-TASK",Some(i.span),"Task helper invocation has no complete retained environment layout"));}
-                        pending.push((definition.function,true));
+                // Reuse the complete independent actual opcode contract, not
+                // a Copy/layout flag or an analyzer admission. Destruction and
+                // replacement additionally select real user-code edges below.
+                crate::check_instruction(module,f,i,budget)?;
+                match kind{
+                    driver::Kind::DirectCall=>{
+                        let target=match i.kind{InstructionKind::Call{function,..}|InstructionKind::ForeignCall{function,..}=>function,_=>unreachable!()};
+                        budget.spend(pending.len().saturating_add(1))?;pending.push((target,driving));
                     },
-                    InstructionKind::AsyncRegistrationRequestClose { .. }
-                    | InstructionKind::AsyncRegistrationPollClose { .. }
-                    | InstructionKind::AsyncRegistrationValid { .. }
-                    | InstructionKind::BorrowLocal { .. }
-                    | InstructionKind::BorrowLocalMut { .. }
-                    | InstructionKind::ReborrowAddress { .. }
-                    | InstructionKind::ReadAddress { .. }
-                    | InstructionKind::WriteAddress { .. }
-                        if borrowed_driver => {}
-                    InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
-                    | InstructionKind::AsyncRegistrationFinishDestroy { .. }
-                        if closed_retirement => {}
-                    InstructionKind::Constant(_)
-                    | InstructionKind::MakeDynBorrow{..}
-                    | InstructionKind::MakeDynOwned{..}
-                    | InstructionKind::BorrowDynOwned{..}
-                    | InstructionKind::DropDynOwned{..}
-                    | InstructionKind::Load(_)
-                    | InstructionKind::Store { .. }
-                    | InstructionKind::StorageLive(_)
-                    | InstructionKind::StorageDead(_)
-                    | InstructionKind::ScopeEnter { .. }
-                    | InstructionKind::ScopeExit { .. }
-                    | InstructionKind::ReadDesc { .. }
-                    | InstructionKind::WriteDesc { .. }
-                    | InstructionKind::UnsafeEnter { .. }
-                    | InstructionKind::UnsafeExit { .. }
-                    | InstructionKind::MakeManaged { .. }
-                    | InstructionKind::DropManaged { .. }
-                    | InstructionKind::TakeLocal { .. }
-                    | InstructionKind::DescribeLocal { .. }
-                    | InstructionKind::Unary { .. }
-                    | InstructionKind::Binary { .. }
-                    | InstructionKind::ByteBufferNew
-                    | InstructionKind::ByteBufferReserve { .. }
-                    | InstructionKind::ByteBufferPush { .. }
-                    | InstructionKind::ByteBufferTruncate { .. }
-                    | InstructionKind::ByteBufferLen { .. }
-                    | InstructionKind::ByteBufferCapacity { .. }
-                    | InstructionKind::ByteBufferBorrow { .. }
-                    | InstructionKind::ConvertInteger { .. }
-                    | InstructionKind::MakeAggregate { .. }
-                    | InstructionKind::MakeVariant { .. }
-                    | InstructionKind::VariantTag { .. }
-                    | InstructionKind::ReadVariant { .. }
-                    | InstructionKind::MakeErrorUnion { .. }
-                    | InstructionKind::ErrorTag { .. }
-                    | InstructionKind::TakeErrorUnion { .. }
-                    | InstructionKind::TakeTupleField { .. }
-                    | InstructionKind::UnpackTuple { .. }
-                    | InstructionKind::DropErrorUnion { .. }
-                    | InstructionKind::ConvertNumber { .. }
-                    | InstructionKind::MakeOwnedTuple { .. }
-                    | InstructionKind::DropTuple { .. }
-                    | InstructionKind::MakePackage { .. }
-                    | InstructionKind::DropPackage { .. }
-                    | InstructionKind::TakePackageField { .. }
-                    | InstructionKind::StorePackageField { .. }
-                    | InstructionKind::DropPackageField { .. }
-                    | InstructionKind::VariantTagLocal { .. }
-                    | InstructionKind::ReadVariantLocal { .. }
-                    | InstructionKind::UnpackVariant { .. }
-                    | InstructionKind::DropEnum { .. }
-                    | InstructionKind::PlaceTagLocal { .. }
-                    | InstructionKind::BorrowPlaceLocal { .. }
-                    | InstructionKind::ReadErrorUnion { .. } => {}
-                    _ => {
-                        let detail=format!("actual helper graph root {first:?}; current {:?} ({}) driving={driving}, borrowed_driver={borrowed_driver}, closed_retirement={closed_retirement}; actual operation {:?}",f.id,f.name,i.kind);
-                        budget.spend(detail.len())?;
-                        return Err(reject(
-                            "E-VERIFY-TASK",
-                            Some(i.span),
-                            "task cleanup contains an asynchronous or external-user operation",
-                        ).with_note(detail));
-                    }
+                    driver::Kind::DynamicCall=>{
+                        let InstructionKind::CallDynSlot{interface,slot,..}=i.kind else{unreachable!()};
+                        let(call_kind,targets)=dyn_callees(module,interface,slot,budget)?;
+                        if call_kind!=CallKind::Direct{return Err(reject("E-VERIFY-TASK",Some(i.span),"Task synchronous cleanup calls a suspending dynamic slot"));}
+                        budget.spend(targets.len().saturating_add(pending.len()))?;
+                        pending.extend(targets.into_iter().map(|target|(target,driving)));
+                    },
+                    driver::Kind::ClosureCall=>{
+                        let(definition,_)=crate::stored_callables::called(module,f,&i.kind).ok_or_else(||reject("E-VERIFY-TASK",Some(i.span),"Task helper invocation has no exact actual closure target"))?;
+                        if driving{
+                            if !pollable_storage(module,&Type::Closure(definition.id),budget)?{return Err(reject("E-VERIFY-TASK",Some(i.span),"Task helper invocation has no complete retained environment layout"));}
+                        }else{crate::dynamic_witness::structural_actual(module,&Type::Closure(definition.id),DynStructuralBound::SyncDrop,budget)?;}
+                        budget.spend(pending.len().saturating_add(1))?;pending.push((definition.function,driving));
+                    },
+                    driver::Kind::Lifecycle=>{
+                        // Approved registration providers have their own exact
+                        // scoped ABI consumer. Their concrete user callback is
+                        // still real executable code in this same driver graph.
+                        if let InstructionKind::RegistrationStart{callback,..}|InstructionKind::AsyncRegistrationStart{callback,..}=i.kind{
+                            let Type::Closure(id)=value_type(f,callback,Some(i.span))?else{return Err(reject("E-VERIFY-TASK",Some(i.span),"Task registration has no exact concrete callback"));};
+                            let callback=crate::closures::definition(module,*id,Some(i.span))?;
+                            budget.spend(pending.len().saturating_add(1))?;pending.push((callback.function,true));
+                        }
+                    },
+                    driver::Kind::Physical|driver::Kind::Cleanup|driver::Kind::Replacement|driver::Kind::ClosedFinish=>{},
+                    driver::Kind::Forbidden=>unreachable!(),
+                }
+                // Layout validation does not prove an operation has no user
+                // effects. Queue every concrete default destructor separately;
+                // each one must pass the synchronous graph role on its own.
+                for root in driver::cleanup_roots(module,f,i,places.as_ref(),budget)?{
+                    let targets=driver::cleanup_dependencies(module,root,driving,closed_retirement,budget)?;
+                    budget.spend(targets.len().saturating_add(pending.len()))?;
+                    pending.extend(targets.into_iter().map(|target|(target,false)));
                 }
             }
+            driver::terminator(f,block,live.get(block_index).copied().unwrap_or(false),budget)?;
         }
     }
     Ok(())
