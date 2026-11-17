@@ -325,6 +325,7 @@ fn resolve(
     if depth > b.partial_depth {
         return Err(err("actual source traversal exceeds depth bound"));
     }
+    c.mutations.check_value(v, path, b)?;
     let key = (c.f.id, v, path.to_vec());
     if !active.insert(key.clone()) {
         // Revisit the finite CFG equation at bottom, not as an established

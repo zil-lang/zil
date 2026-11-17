@@ -6,6 +6,7 @@ use super::*;
 pub(super) enum Root {
     Local(LocalId),
     Capture(u32),
+    Value(ValueId),
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Place {
@@ -52,6 +53,30 @@ impl Writes {
                             "literal source crosses an intersecting field or indirect replacement",
                         ));
                     }
+                }
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn check_value(
+        &self,
+        value: ValueId,
+        path: &[ContractProjection],
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        // An unknown memory write cannot change an immutable SSA snapshot.
+        // A mutably invoked SSA environment is different: its exact receiver
+        // state must not be reread from the original constructor afterward.
+        for mutation in &self.0 {
+            pay(b, path.len().saturating_add(1))?;
+            if let Mutation::Place(place) = mutation {
+                pay(b, place.path.len())?;
+                if place.root == Root::Value(value)
+                    && (path.starts_with(&place.path) || place.path.starts_with(path))
+                {
+                    return Err(err(
+                        "literal source crosses a mutably invoked actual environment",
+                    ));
                 }
             }
         }
@@ -554,6 +579,48 @@ pub(super) fn collect(
         for instruction in &block.instructions {
             pay(b, 1)?;
             let kind = &instruction.kind;
+            match kind {
+                InstructionKind::CallClosureMut { callee, .. } => {
+                    writes.local(c, *callee, vec![], b)?
+                }
+                InstructionKind::CallClosureBorrowed {
+                    callee,
+                    kind: CallableKind::FnMut,
+                    ..
+                } => {
+                    // Preserve both the actual SSA receiver and any proved
+                    // address/local/capture storage identity. Unknown aliases
+                    // cannot recover an environment's initial literal state.
+                    writes.place(
+                        Place {
+                            root: Root::Value(*callee),
+                            path: vec![],
+                        },
+                        b,
+                    )?;
+                    match type_of(c, *callee)? {
+                        Type::Address { .. } => writes.address(c, *callee, vec![], b)?,
+                        _ => match c.defs.get(callee.0 as usize).copied().flatten() {
+                            Some(
+                                InstructionKind::Load(local) | InstructionKind::TakeLocal { local },
+                            ) => writes.local(c, *local, vec![], b)?,
+                            Some(
+                                InstructionKind::ReadCapture { index }
+                                | InstructionKind::TakeCapture { index },
+                            ) => writes.place(
+                                Place {
+                                    root: Root::Capture(*index),
+                                    path: vec![],
+                                },
+                                b,
+                            )?,
+                            Some(InstructionKind::MakeClosure { .. }) => {}
+                            _ => writes.unknown(b)?,
+                        },
+                    }
+                }
+                _ => {}
+            }
             // An indirectly replaced pointer-to-storage cell could reroute a
             // later alias Load. Its initial Store is not an address witness.
             let written = match kind {
