@@ -4391,8 +4391,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             None
         };
         if let Some(address) = borrowed_callee {
-            self.closures.semantic_emission.callee_place(self.function.id, callee.id,
-                address, &mut self.closures.work_left, callee.span)?;
+            self.closures.semantic_callee_place(self.function.id, callee, address)?;
         }
         // A consumed callee has not entered its body while arguments are
         // being evaluated. Park its ownership so a later ? can release it.

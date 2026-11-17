@@ -545,6 +545,12 @@ impl State {
             expression.span,
         )
     }
+    pub(super) fn semantic_callee_place(
+        &mut self, function: FunctionId, expression: &CoreExpr, address: ValueId,
+    ) -> R<()> {
+        self.semantic_emission.callee_place(function, expression.id, address,
+            &mut self.work_left, expression.span)
+    }
     pub(super) fn semantic_place(
         &mut self,
         function: FunctionId,
