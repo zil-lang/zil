@@ -45,7 +45,14 @@ impl Expander<'_> {
     }
     pub(super) fn push_function(&mut self, function: CoreFunction) {
         if let Some(index) = &mut self.function_cursor {
-            self.functions.set_owner(*index, Arc::new(function));
+            // Recovery retains raw Core but no per-item Lower receipt. After
+            // actual current lowering (and its original fees), preserve an
+            // installed immutable leaf only when every output field is equal.
+            // Plain CT consumes these owners; replacing an equal sibling here
+            // needlessly discards its successful current-process body receipt.
+            if self.functions.get(*index) != Some(&function) {
+                self.functions.set_owner(*index, Arc::new(function));
+            }
             *index += 1;
         } else {
             self.functions.push(function);

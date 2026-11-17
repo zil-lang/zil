@@ -115,6 +115,123 @@ fn restart_before_first_edit_avoids_unchanged_normalize_restore_and_core() {
 }
 
 #[test]
+fn recovered_continuation_keeps_305_raw_function_owners_after_parser_eviction() {
+    const MODULE: &str =
+        "fn private(x:i32)->i32=>x+1; fn other(x:i32)->i32=>x+2; pub fn f(x:i32)->i32=>x+3;";
+    let fixture = |edited| {
+        (0..102)
+            .map(|id| {
+                if edited && id == 0 {
+                    parsed(id, &MODULE.replace("x+1", "x+7"))
+                } else {
+                    parsed(id, MODULE)
+                }
+            })
+            .collect::<Vec<_>>()
+    };
+    for fused in [false, true] {
+        let limits = Limits::default();
+        let mut writer = ExpandSession::default();
+        run(&mut writer, &fixture(false), &limits, fused)
+            .unwrap()
+            .unwrap();
+        let products = writer.encode_frontend_products(&limits).unwrap();
+        assert_eq!(products.modules.len(), 102);
+        drop(writer);
+        let mut session = ExpandSession::default();
+        assert!(session.restore_frontend_products(products, &limits));
+        let before = run(&mut session, &fixture(false), &limits, fused)
+            .unwrap()
+            .unwrap();
+        assert_eq!(session.last_stats().recovered_frontend_modules, 102);
+        assert_eq!(session.last_stats().lower_modules, 0);
+        // Reparse every module to force the real parser-retention boundary.
+        // Pointer inequality must not invalidate exact source/parser equality.
+        let current = fixture(true);
+        assert!(current.iter().all(|p| {
+            !session.entries[&p.source().module_id]
+                .parsed
+                .same_revision(p)
+        }));
+        let after = run(&mut session, &current, &limits, fused)
+            .unwrap()
+            .unwrap();
+        let reference = run(&mut ExpandSession::default(), &current, &limits, fused)
+            .unwrap()
+            .unwrap();
+        assert_eq!(after, reference);
+        assert_eq!(session.last_stats().lower_modules, 1);
+        assert_eq!(session.last_stats().reused_lower_modules, 101);
+        assert_eq!(session.last_stats().normalize_modules, 1);
+        let mut retained = 0;
+        for (index, ((before, _), (after, _))) in before.iter().zip(&after).enumerate() {
+            assert_eq!(Arc::ptr_eq(&before.core, &after.core), index != 0);
+            for function in 0..3 {
+                let same = Arc::ptr_eq(
+                    before.core.functions.owner(function).unwrap(),
+                    after.core.functions.owner(function).unwrap(),
+                );
+                assert_eq!(same, index != 0 || function != 0);
+                retained += usize::from(same);
+            }
+        }
+        assert_eq!(retained, 305);
+        // The successful continuation remains usable on a second edit, after
+        // normal Lower has installed its real item receipts for that module.
+        let mut next = fixture(true);
+        next[0] = parsed(0, &MODULE.replace("x+1", "x+8"));
+        let next = run(&mut session, &next, &limits, fused).unwrap().unwrap();
+        let retained = after
+            .iter()
+            .zip(&next)
+            .map(|((before, _), (after, _))| {
+                (0..3)
+                    .filter(|&i| {
+                        Arc::ptr_eq(
+                            before.core.functions.owner(i).unwrap(),
+                            after.core.functions.owner(i).unwrap(),
+                        )
+                    })
+                    .count()
+            })
+            .sum::<usize>();
+        assert_eq!(retained, 305);
+    }
+}
+
+#[test]
+fn recovered_continuation_rechecks_changed_parser_context_with_identical_source() {
+    let limits = Limits::default();
+    let mut session = ExpandSession::default();
+    assert!(session.restore_frontend_products(seed(false), &limits));
+    let before = run(&mut session, &inputs("fn main()->i32=>1;"), &limits, false)
+        .unwrap()
+        .unwrap();
+    let mut current = inputs("fn main()->i32=>1;");
+    let mut context = AttributeContext::default();
+    context.configuration.insert(
+        "unused".into(),
+        zil_syntax::attributes::ConfigValue::Bool(true),
+    );
+    current[1] = ParsedSource::parse(Arc::new(current[1].source().clone()), &limits, &context);
+    assert_eq!(
+        current[1].source(),
+        session.entries[&ModuleId(1)].parsed.source()
+    );
+    let after = run(&mut session, &current, &limits, false)
+        .unwrap()
+        .unwrap();
+    let reference = run(&mut ExpandSession::default(), &current, &limits, false)
+        .unwrap()
+        .unwrap();
+    assert_eq!(after, reference);
+    assert!(Arc::ptr_eq(&before[0].0.core, &after[0].0.core));
+    assert!(!Arc::ptr_eq(&before[1].0.core, &after[1].0.core));
+    assert_eq!(session.last_stats().lower_modules, 1);
+    assert_eq!(session.last_stats().reused_lower_modules, 1);
+}
+
+#[test]
 fn body_growth_before_later_declaration_keeps_other_modules_recoverable() {
     for fused in [false, true] {
         let original = inputs("fn main()->i32=>1; fn later()->i32=>7;");

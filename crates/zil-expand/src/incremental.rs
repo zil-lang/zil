@@ -862,12 +862,22 @@ impl ExpandSession {
             {
                 return Ok(None);
             }
-            let old = self
-                .entries
-                .get(&module.id)
-                .filter(|entry| entry.parsed.same_revision(parsed));
+            let old = self.entries.get(&module.id).filter(|entry| {
+                entry.parsed.same_revision(parsed)
+                    || (entry.recovered_lower
+                        && entry.parsed.same_parse_configuration(parsed)
+                        && entry.parsed.source() == parsed.source()
+                        && parsed.parsed().fits_limits(limits))
+            });
             let entry = if let Some(old) = old {
-                old.clone()
+                // A parser-LRU eviction may reparse identical current input.
+                // Recovered Core has no restored AST for Placement to move.
+                // Keep its immutable outputs and revisions only for exact source
+                // and parser settings; the complete environment comparison and
+                // ordered stage/Lower allowances below still admit their reuse.
+                let mut entry = old.clone();
+                entry.parsed = parsed.clone();
+                entry
             } else {
                 let placement = self
                     .entries

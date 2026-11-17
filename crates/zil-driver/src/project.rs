@@ -474,12 +474,13 @@ impl CompilationSession {
                 .producer_work
                 .as_ref()
                 .is_some_and(|work| work.recovered_frontend_modules > 0);
+            let function_reused = report
+                .function_type_work
+                .as_deref()
+                .is_some_and(|work| work.restored_reused_functions > 0)
+                && matches!(report.phase, Phase::Types | Phase::Analyze);
             let retry = !options.cancellation.is_cancelled()
-                && ((report
-                    .function_type_work
-                    .as_deref()
-                    .is_some_and(|work| work.restored_reused_functions > 0)
-                    && matches!(report.phase, Phase::Types | Phase::Analyze))
+                && (function_reused
                     || (frontend_reused
                         && matches!(
                             report.phase,
@@ -499,10 +500,10 @@ impl CompilationSession {
             if retry {
                 report.restart_attempt(
                     CompileReport::new(root),
-                    if frontend_reused {
-                        "rejected_frontend_work_product"
-                    } else {
+                    if function_reused {
                         "rejected_function_work_product"
+                    } else {
+                        "rejected_frontend_work_product"
                     },
                     errors,
                 );
