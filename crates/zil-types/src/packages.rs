@@ -823,8 +823,36 @@ mod field_transfer_tests {
         );
         let source = SourceUnit::new(FileId(0), ModuleId(0), "task-fields.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
-        let core = zil_expand::expand(&source, &parsed).unwrap();
-        let typed = check(&core, &TargetProfile::default(), &Limits::default()).unwrap();
+        let limits = Limits::default();
+        let target = TargetProfile::default();
+        let aliases = BTreeMap::new();
+        // Task worker preparation requires the original declaration/call
+        // context. The scalar module convenience entry deliberately does not
+        // manufacture that context from an already-specialized worker.
+        let modules = zil_expand::expand_program_with_semantics(
+            std::slice::from_ref(&source),
+            &[&parsed],
+            &[Vec::new()],
+            &limits,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &aliases,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .into_iter()
+        .map(|(module, _)| module)
+        .collect::<Vec<_>>();
+        assert!(modules.iter().all(|module| module.core.semantic.is_some()));
+        let program = CoreProgram {
+            root: source.module_id,
+            source_fingerprint: source.fingerprint(),
+            modules,
+        };
+        let typed = check_program(&program, &target, &limits).unwrap().module;
+        assert!(typed.semantic.is_some());
         let mut read_reason = false;
         let mut take_callbacks = false;
         let mut unpack_callbacks = false;
