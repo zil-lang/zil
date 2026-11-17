@@ -8,8 +8,154 @@ const CLOSED_TASK: u32 = u32::MAX;
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Token {
     Parameter(u32),
+    ParameterElement(u32, u32),
     Value(ValueId),
     Capture(u32),
+}
+
+// Whole owners and aggregate children share one private selector directory.
+// Vacant is an actual removal; an absent/unmodelled source remains Unknown.
+#[derive(Clone, PartialEq, Eq)]
+enum ElementAlias {
+    Unknown,
+    Vacant,
+    Owner(Token),
+    // This selector is vacant or contains this exact owner with these Closed
+    // leaves. This is not a global Closed fact or an initialized receiver.
+    ConditionalOwner(Token, BTreeSet<u32>),
+}
+#[derive(Clone, Default, PartialEq, Eq)]
+struct OwnerAliases { paths: BTreeMap<Vec<PlaceProjection>, ElementAlias> }
+impl OwnerAliases {
+    fn owner(root: Token) -> Self {
+        Self { paths: BTreeMap::from([(Vec::new(), ElementAlias::Owner(root))]) }
+    }
+    fn root(&self) -> Option<Token> {
+        if self.paths.len() != 1 { return None; }
+        match self.paths.get(&[][..]) { Some(ElementAlias::Owner(token)) => Some(*token), _ => None }
+    }
+    fn element(&self, index: u32, b: &mut Budget) -> CompileResult<&ElementAlias> {
+        b.lookup(self.paths.len(), "closed exact element alias lookup")?;
+        Ok(self.paths.get(&[PlaceProjection::Field(index)][..]).unwrap_or(&ElementAlias::Unknown))
+    }
+    fn work(&self) -> usize {
+        self.paths.iter().map(|(path, value)| path.len().saturating_add(1)
+            .saturating_add(match value { ElementAlias::ConditionalOwner(_, leaves) => leaves.len(), _ => 0 }))
+            .sum::<usize>().saturating_add(1)
+    }
+    fn copy(&self, b: &mut Budget) -> CompileResult<Self> {
+        b.spend(self.work(), "closed whole/child aliases snapshot")?;
+        Ok(self.clone())
+    }
+    fn set_element(&mut self, index: u32, value: ElementAlias, b: &mut Budget) -> CompileResult<()> {
+        b.spend(1, "closed element selector allocation")?;
+        b.lookup(self.paths.len(), "closed element alias update")?;
+        self.paths.insert(vec![PlaceProjection::Field(index)], value);
+        Ok(())
+    }
+    fn append_under(&mut self, prefix: &[PlaceProjection], source: &Self, b: &mut Budget) -> CompileResult<()> {
+        for (path, alias) in &source.paths {
+            b.spend(prefix.len().saturating_add(path.len()).saturating_add(
+                match alias { ElementAlias::ConditionalOwner(_, leaves) => leaves.len(), _ => 0 }),
+                "closed aggregate source selector and conditional proof")?;
+            let mut full = prefix.to_vec(); full.extend_from_slice(path);
+            b.lookup(self.paths.len(), "closed aggregate source insertion")?;
+            self.paths.insert(full, alias.clone());
+        }
+        Ok(())
+    }
+    fn project(&self, prefix: &[PlaceProjection], b: &mut Budget) -> CompileResult<Self> {
+        let mut result = Self::default();
+        for (path, alias) in &self.paths {
+            b.spend(path.len().saturating_add(prefix.len()).saturating_add(
+                match alias { ElementAlias::ConditionalOwner(_, leaves) => leaves.len(), _ => 0 }),
+                "closed actual child selection and conditional proof")?;
+            if path.starts_with(prefix) {
+                b.lookup(result.paths.len(), "closed child source insertion")?;
+                result.paths.insert(path[prefix.len()..].to_vec(), alias.clone());
+            }
+        }
+        Ok(result)
+    }
+    fn remove_under(&mut self, prefix: &[PlaceProjection], b: &mut Budget) -> CompileResult<()> {
+        for (path, alias) in &mut self.paths {
+            b.spend(path.len().saturating_add(prefix.len()), "closed actual child removal")?;
+            if path.starts_with(prefix) { *alias = ElementAlias::Vacant; }
+        }
+        Ok(())
+    }
+    fn retire(&mut self, token: Token) {
+        for value in self.paths.values_mut() {
+            if matches!(value, ElementAlias::Owner(owner) | ElementAlias::ConditionalOwner(owner, _) if *owner == token) {
+                *value = ElementAlias::Unknown;
+            }
+        }
+    }
+    fn forget_effects(&mut self, token: Option<Token>) {
+        for value in self.paths.values_mut() {
+            if let ElementAlias::ConditionalOwner(owner, leaves) = value
+                && token.is_none_or(|token| token == *owner) { leaves.clear(); }
+        }
+    }
+    fn contains(&self, token: Token, b: &mut Budget) -> CompileResult<bool> {
+        b.spend(self.work(), "closed complete source identity membership")?;
+        Ok(self.paths.values().any(|value| matches!(value,
+            ElementAlias::Owner(owner) | ElementAlias::ConditionalOwner(owner, _) if *owner == token)))
+    }
+    fn tokens(&self, b: &mut Budget) -> CompileResult<Vec<Token>> {
+        b.spend(self.work(), "closed complete alias retirement inventory")?;
+        Ok(self.paths.values().filter_map(|value|
+            match value { ElementAlias::Owner(token) | ElementAlias::ConditionalOwner(token, _) => Some(*token),
+                _ => None }).collect())
+    }
+    fn intersect(&mut self, other: &Self,
+        closed: &BTreeMap<Token, BTreeSet<u32>>, incoming: &BTreeMap<Token, BTreeSet<u32>>,
+        b: &mut Budget) -> CompileResult<()> {
+        for (path, value) in &mut self.paths {
+            b.spend(path.len().saturating_add(1), "closed conditional selector join")?;
+            b.lookup(other.paths.len(), "closed incoming selector lookup")?;
+            let right = other.paths.get(path).unwrap_or(&ElementAlias::Unknown);
+            let owner = |value: &ElementAlias| match value {
+                ElementAlias::Owner(token) | ElementAlias::ConditionalOwner(token, _) => Some(*token), _ => None,
+            };
+            if matches!((&*value, right), (ElementAlias::Vacant, ElementAlias::Vacant)) { continue; }
+            if let (ElementAlias::Owner(left), ElementAlias::Owner(right)) = (&*value, right)
+                && left == right { continue; }
+            let token = match (owner(value), owner(right)) {
+                (Some(left), Some(right)) if left == right => Some(left),
+                (Some(token), None) if matches!(right, ElementAlias::Vacant) => Some(token),
+                (None, Some(token)) if matches!(value, ElementAlias::Vacant) => Some(token),
+                _ => None,
+            };
+            let Some(token) = token else { *value = ElementAlias::Unknown; continue; };
+            let leaves = |alias: &ElementAlias, facts: &BTreeMap<Token, BTreeSet<u32>>, b: &mut Budget|
+                -> CompileResult<Option<BTreeSet<u32>>> {
+                let selected = match alias {
+                    ElementAlias::Owner(owner) => {
+                        b.lookup(facts.len(), "closed occupied branch proof")?;
+                        facts.get(owner)
+                    }
+                    ElementAlias::ConditionalOwner(_, leaves) => Some(leaves),
+                    ElementAlias::Vacant => return Ok(None),
+                    ElementAlias::Unknown => return Err(fail(Default::default(), "unknown conditional owner join")),
+                };
+                b.spend(selected.map_or(1, |leaves| leaves.len().saturating_add(1)), "closed occupied branch proof copy")?;
+                Ok(Some(selected.cloned().unwrap_or_default()))
+            };
+            let left = leaves(value, closed, b)?;
+            let right = leaves(right, incoming, b)?;
+            let proof = match (left, right) {
+                (Some(mut left), Some(right)) => {
+                    for _ in &left { b.lookup(right.len(), "closed conditional live-branch intersection")?; }
+                    left.retain(|leaf| right.contains(leaf)); left
+                }
+                (Some(proof), None) | (None, Some(proof)) => proof,
+                (None, None) => unreachable!("at least one occupied branch"),
+            };
+            *value = ElementAlias::ConditionalOwner(token, proof);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -26,8 +172,8 @@ struct Condition {
 
 #[derive(Clone, PartialEq, Eq)]
 struct Flow {
-    aliases: Vec<Option<Token>>,
-    local_aliases: Vec<Option<Token>>,
+    aliases: Vec<OwnerAliases>,
+    local_aliases: Vec<OwnerAliases>,
     queries: Vec<Option<Query>>,
     local_queries: Vec<Option<Query>>,
     tags: Vec<Option<Query>>,
@@ -45,6 +191,8 @@ impl Flow {
             .len()
             .saturating_add(self.local_aliases.len())
             .saturating_mul(12)
+            .saturating_add(self.aliases.iter().chain(&self.local_aliases)
+                .map(OwnerAliases::work).sum::<usize>())
             .saturating_add(
                 self.queries
                     .iter()
@@ -83,8 +231,8 @@ impl Flow {
             "closed occupant tables",
         )?;
         let mut result = Self {
-            aliases: vec![None; f.values.len()],
-            local_aliases: vec![None; f.locals.len()],
+            aliases: vec![OwnerAliases::default(); f.values.len()],
+            local_aliases: vec![OwnerAliases::default(); f.locals.len()],
             queries: vec![None; f.values.len()],
             local_queries: vec![None; f.locals.len()],
             tags: vec![None; f.values.len()],
@@ -102,7 +250,13 @@ impl Flow {
                 .get(local.0 as usize)
                 .ok_or_else(|| fail(f.span, "closed parameter local absent"))?;
             if matches!(ty.ty, Type::Closure(_)) || task_owner(&ty.ty) {
-                result.local_aliases[local.0 as usize] = Some(Token::Parameter(position as u32));
+                result.local_aliases[local.0 as usize] = OwnerAliases::owner(Token::Parameter(position as u32));
+            } else if let Type::Array { element, length } = &ty.ty
+                && matches!(element.as_ref(), Type::Closure(_)) {
+                for index in 0..*length {
+                    result.local_aliases[local.0 as usize].set_element(index,
+                        ElementAlias::Owner(Token::ParameterElement(position as u32, index)), b)?;
+                }
             }
         }
         Ok(result)
@@ -135,9 +289,7 @@ impl Flow {
             "closed replacement invalidates old occupant queries",
         )?;
         for alias in self.aliases.iter_mut().chain(&mut self.local_aliases) {
-            if *alias == Some(token) {
-                *alias = None;
-            }
+            alias.retire(token);
         }
         for query in self
             .queries
@@ -167,6 +319,7 @@ impl Flow {
             "unproved mutable execution invalidates closed facts",
         )?;
         self.closed.clear();
+        for alias in self.aliases.iter_mut().chain(&mut self.local_aliases) { alias.forget_effects(None); }
         self.queries.fill(None);
         self.local_queries.fill(None);
         self.tags.fill(None);
@@ -183,11 +336,14 @@ impl Flow {
             self.work().saturating_mul(2),
             "closed mutable head exposure",
         )?;
-        let owners = self.aliases.clone();
-        let locals = self.local_aliases.clone();
-        self.retire(token, b)?;
-        self.aliases = owners;
-        self.local_aliases = locals;
+        self.closed.remove(&token);
+        for alias in self.aliases.iter_mut().chain(&mut self.local_aliases) { alias.forget_effects(Some(token)); }
+        for query in self.queries.iter_mut().chain(&mut self.local_queries).chain(&mut self.tags).chain(&mut self.local_tags) {
+            if query.as_ref().is_some_and(|query| query.occupant == token) { *query = None; }
+        }
+        for condition in self.conditions.iter_mut().chain(&mut self.local_conditions) {
+            if condition.as_ref().is_some_and(|condition| condition.query.occupant == token) { *condition = None; }
+        }
         Ok(())
     }
     fn merge(&mut self, incoming: &Self, b: &mut Budget) -> CompileResult<bool> {
@@ -205,8 +361,12 @@ impl Flow {
                 }
             }
         }
-        intersect(&mut self.aliases, &incoming.aliases);
-        intersect(&mut self.local_aliases, &incoming.local_aliases);
+        for (alias, other) in self.aliases.iter_mut().zip(&incoming.aliases) {
+            alias.intersect(other, &self.closed, &incoming.closed, b)?;
+        }
+        for (alias, other) in self.local_aliases.iter_mut().zip(&incoming.local_aliases) {
+            alias.intersect(other, &self.closed, &incoming.closed, b)?;
+        }
         intersect(&mut self.queries, &incoming.queries);
         intersect(&mut self.local_queries, &incoming.local_queries);
         intersect(&mut self.tags, &incoming.tags);
@@ -340,6 +500,9 @@ fn entry_is_stable(
                     return Ok(false);
                 }
                 InstructionKind::Call { .. }
+                | InstructionKind::SuspendCall { .. }
+                | InstructionKind::CommitPlaceReplace { .. }
+                | InstructionKind::StoreStoredBorrow { .. }
                 | InstructionKind::CallIndirect { .. }
                 | InstructionKind::ForeignCall { .. }
                 | InstructionKind::CallClosure { .. }
@@ -382,7 +545,7 @@ fn step(
         if out >= state.aliases.len() {
             return Err(fail(i.span, "closed result outside actual SSA arena"));
         }
-        state.aliases[out] = None;
+        state.aliases[out] = OwnerAliases::default();
         state.queries[out] = None;
         state.tags[out] = None;
         state.conditions[out] = None;
@@ -400,7 +563,7 @@ fn step(
             if ty.is_some_and(task_owner)
                 && let Some(out) = result
             {
-                state.aliases[out] = Some(Token::Capture(*index));
+                state.aliases[out] = OwnerAliases::owner(Token::Capture(*index));
             }
         }
         InstructionKind::BorrowLocalMut { local } | InstructionKind::BorrowLocal { local } => {
@@ -408,12 +571,13 @@ fn step(
                 && f.locals
                     .get(local.0 as usize)
                     .is_some_and(|l| matches!(l.ty, Type::Closure(_)))
-                && let Some(token) = state.local_aliases.get(local.0 as usize).copied().flatten()
+                && let Some(token) = state.local_aliases.get(local.0 as usize).and_then(OwnerAliases::root)
             {
                 state.expose_mutable_head(token, b)?;
             }
             if let Some(out) = result {
-                state.aliases[out] = state.local_aliases.get(local.0 as usize).copied().flatten();
+                state.aliases[out] = state.local_aliases.get(local.0 as usize)
+                    .map(|alias| alias.copy(b)).transpose()?.unwrap_or_default();
             }
         }
         InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
@@ -422,7 +586,7 @@ fn step(
                 return Err(fail(i.span, "closed source local absent"));
             }
             if let Some(out) = result {
-                state.aliases[out] = state.local_aliases[local];
+                state.aliases[out] = state.local_aliases[local].copy(b)?;
                 state.queries[out] = clone_query(&state.local_queries[local], b)?;
                 state.tags[out] = clone_query(&state.local_tags[local], b)?;
                 state.integers[out] = state.local_integers[local];
@@ -435,12 +599,131 @@ fn step(
                 state.conditions[out] = state.local_conditions[local].clone();
             }
             if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
-                state.local_aliases[local] = None;
+                state.local_aliases[local] = OwnerAliases::default();
                 state.local_queries[local] = None;
                 state.local_tags[local] = None;
                 state.local_conditions[local] = None;
                 state.local_integers[local] = None;
             }
+        }
+        InstructionKind::MakeOwnedArray { elements } => {
+            if let Some(out) = result
+                && let Some(Type::Array { element, length }) = f.values.get(out)
+                && matches!(element.as_ref(), Type::Closure(_)) && *length as usize == elements.len() {
+                for (index, value) in elements.iter().enumerate() {
+                    b.type_work(element, false, "closed array actual child type")?;
+                    if f.values.get(value.0 as usize) != Some(element.as_ref()) {
+                        return Err(fail(i.span, "closed array initializer changes its exact child type"));
+                    }
+                    let source = state.aliases.get(value.0 as usize)
+                        .ok_or_else(|| fail(i.span, "closed array initializer has no actual SSA"))?.copy(b)?;
+                    state.aliases[out].append_under(&[PlaceProjection::Field(index as u32)], &source, b)?;
+                }
+            }
+        }
+        InstructionKind::TakeOwnedArrayElement { local, index }
+        | InstructionKind::BorrowOwnedArrayElement { local, index, .. } => {
+            let Some(Type::Array { element, length }) = f.locals.get(local.0 as usize).map(|local| &local.ty) else {
+                return Err(fail(i.span, "closed element read loses its actual array local"));
+            };
+            if !matches!(element.as_ref(), Type::Closure(_)) { return Ok(()); }
+            if *index >= *length {
+                return Err(fail(i.span, "closed element read changes its child ordinal"));
+            }
+            let source = state.local_aliases[local.0 as usize].project(&[PlaceProjection::Field(*index)], b)?;
+            if matches!(i.kind, InstructionKind::BorrowOwnedArrayElement { mutable: true, .. })
+                && let Some(token) = source.root() { state.expose_mutable_head(token, b)?; }
+            if let Some(out) = result { state.aliases[out] = source; }
+            if matches!(i.kind, InstructionKind::TakeOwnedArrayElement { .. }) {
+                state.local_aliases[local.0 as usize].set_element(*index, ElementAlias::Vacant, b)?;
+            }
+        }
+        InstructionKind::StoreOwnedArrayElement { local, index, value } => {
+            let Some(Type::Array { element, length }) = f.locals.get(local.0 as usize).map(|local| &local.ty) else {
+                return Err(fail(i.span, "closed element refill loses its actual array local"));
+            };
+            b.type_work(element, false, "closed array refill actual type")?;
+            if !matches!(element.as_ref(), Type::Closure(_)) { return Ok(()); }
+            if *index >= *length || f.values.get(value.0 as usize) != Some(element.as_ref()) {
+                return Err(fail(i.span, "closed element refill changes its exact type or selector"));
+            }
+            let token = state.aliases.get(value.0 as usize).and_then(OwnerAliases::root);
+            if let ElementAlias::Owner(previous) = state.local_aliases[local.0 as usize].element(*index, b)?
+                && token != Some(*previous) { state.retire(*previous, b)?; }
+            state.local_aliases[local.0 as usize].set_element(*index,
+                token.map_or(ElementAlias::Unknown, ElementAlias::Owner), b)?;
+        }
+        InstructionKind::DropOwnedArrayElement { local, index } => {
+            if !matches!(f.locals.get(local.0 as usize).map(|local| &local.ty),
+                Some(Type::Array { element, length }) if *index < *length && matches!(element.as_ref(), Type::Closure(_))) {
+                return Ok(());
+            }
+            let aliases = state.local_aliases.get(local.0 as usize)
+                .ok_or_else(|| fail(i.span, "closed element cleanup has no actual local"))?;
+            if let ElementAlias::Owner(token) | ElementAlias::ConditionalOwner(token, _) = aliases.element(*index, b)? {
+                state.retire(*token, b)?;
+            }
+            state.local_aliases[local.0 as usize].set_element(*index, ElementAlias::Vacant, b)?;
+        }
+        InstructionKind::TaskCreateOwned { arguments, .. } => {
+            // Only the actual failure arm returns these precise operands.
+            // No success Task alias or Closed fact is manufactured here.
+            if let Some(out) = result
+                && let Some(Type::ErrorUnion { error, .. }) = f.values.get(out)
+                && crate::stored_flow::failure_shape(error, b)? {
+                let fields = match error.as_ref() {
+                    Type::Package { fields, .. } | Type::Record { fields, .. } => fields,
+                    _ => return Err(fail(i.span, "closed failure carrier has no canonical actual fields")),
+                };
+                let Some((_, Type::Tuple(inputs))) = fields.get(1) else {
+                    return Err(fail(i.span, "closed failure carrier loses its full actual input tuple"));
+                };
+                if inputs.len() != arguments.len() { return Err(fail(i.span, "closed failure inputs change actual arity")); }
+                for (index, (input, value)) in inputs.iter().zip(arguments).enumerate() {
+                    b.type_work(input, false, "closed failure complete actual input type")?;
+                    if f.values.get(value.0 as usize) != Some(input) {
+                        return Err(fail(i.span, "closed failure input changes its actual constructor source"));
+                    }
+                    let aliases = state.aliases.get(value.0 as usize)
+                        .ok_or_else(|| fail(i.span, "closed failure input SSA absent"))?.copy(b)?;
+                    state.aliases[out].append_under(&[PlaceProjection::ErrorArm(true),
+                        PlaceProjection::Field(1), PlaceProjection::Field(index as u32)], &aliases, b)?;
+                }
+            } else { state.forget_effects(b)?; }
+        }
+        InstructionKind::ExtractField { aggregate, index } => {
+            if let Some(out) = result {
+                state.aliases[out] = state.aliases.get(aggregate.0 as usize)
+                    .ok_or_else(|| fail(i.span, "closed aggregate source SSA absent"))?
+                    .project(&[PlaceProjection::Field(*index)], b)?;
+            }
+        }
+        InstructionKind::ReadErrorUnion { value, is_error }
+        | InstructionKind::TakeErrorUnion { value, is_error } => {
+            if let Some(out) = result {
+                state.aliases[out] = state.aliases.get(value.0 as usize)
+                    .ok_or_else(|| fail(i.span, "closed error source SSA absent"))?
+                    .project(&[PlaceProjection::ErrorArm(*is_error)], b)?;
+            }
+        }
+        InstructionKind::ReadPackageField { local, index }
+        | InstructionKind::TakePackageField { local, index } => {
+            let prefix = [PlaceProjection::Field(*index)];
+            if let Some(out) = result {
+                state.aliases[out] = state.local_aliases.get(local.0 as usize)
+                    .ok_or_else(|| fail(i.span, "closed field source local absent"))?.project(&prefix, b)?;
+            }
+            if matches!(i.kind, InstructionKind::TakePackageField { .. }) {
+                state.local_aliases[local.0 as usize].remove_under(&prefix, b)?;
+            }
+        }
+        InstructionKind::TakeTupleField { local, path }
+        | InstructionKind::TakeVariantField { local, path } => {
+            if let Some(out) = result {
+                state.aliases[out] = state.local_aliases.get(local.0 as usize)
+                    .ok_or_else(|| fail(i.span, "closed projected source local absent"))?.project(path, b)?;
+            }
+            state.local_aliases[local.0 as usize].remove_under(path, b)?;
         }
         InstructionKind::Store { local, value } => {
             let target = local.0 as usize;
@@ -448,11 +731,9 @@ fn step(
             if target >= state.local_aliases.len() || source >= state.aliases.len() {
                 return Err(fail(i.span, "closed store arena mismatch"));
             }
-            let alias = state.aliases[source];
-            if let Some(previous) = state.local_aliases[target]
-                && alias != Some(previous)
-            {
-                state.retire(previous, b)?;
+            let alias = state.aliases[source].copy(b)?;
+            for previous in state.local_aliases[target].tokens(b)? {
+                if !alias.contains(previous, b)? { state.retire(previous, b)?; }
             }
             state.local_aliases[target] = alias;
             state.local_queries[target] = clone_query(&state.queries[source], b)?;
@@ -468,13 +749,14 @@ fn step(
         }
         InstructionKind::ReborrowAddress { address, .. } => {
             if let Some(out) = result {
-                state.aliases[out] = state.aliases.get(address.0 as usize).copied().flatten();
+                state.aliases[out] = state.aliases.get(address.0 as usize)
+                    .map(|alias| alias.copy(b)).transpose()?.unwrap_or_default();
             }
         }
         InstructionKind::TaskPollClose { task } => {
             if let Some(out) = result
                 && f.values.get(out) == Some(&super::super::task_poll_type(&Type::Unit))
-                && let Some(token) = state.aliases.get(task.0 as usize).copied().flatten()
+                && let Some(token) = state.aliases.get(task.0 as usize).and_then(OwnerAliases::root)
             {
                 b.spend(1, "canonical close result actual occupant")?;
                 state.queries[out] = Some(Query {
@@ -529,11 +811,7 @@ fn step(
             }
         }
         InstructionKind::CallClosureMut { callee, .. } if !body => {
-            let token = state
-                .local_aliases
-                .get(callee.0 as usize)
-                .copied()
-                .flatten();
+            let token = state.local_aliases.get(callee.0 as usize).and_then(OwnerAliases::root);
             let id = f.locals.get(callee.0 as usize).and_then(|l| {
                 if let Type::Closure(id) = l.ty {
                     Some(id)
@@ -559,20 +837,32 @@ fn step(
                 state.forget_effects(b)?;
             }
         }
+        InstructionKind::CallClosureBorrowed { callee, kind, .. } if !body => {
+            let token = state.aliases.get(callee.0 as usize).and_then(OwnerAliases::root);
+            let id = match f.values.get(callee.0 as usize) {
+                Some(Type::Address { mutable, inner }) if *kind == CallableKind::Fn
+                    || (*kind == CallableKind::FnMut && *mutable) => match inner.as_ref() {
+                        Type::Closure(id) => Some(*id), _ => None,
+                    },
+                _ => None,
+            };
+            if let (Some(token), Some(id)) = (token, id)
+                && let Some(proof) = exits(module, id, b)? {
+                state.add_closed(token, &proof.always, b)?;
+                if let Some(out) = result && !proof.ready.is_empty() {
+                    state.queries[out] = Some(Query { occupant: token, leaves: proof.ready });
+                }
+            } else { state.forget_effects(b)?; }
+        }
         InstructionKind::DropClosure { local }
+        | InstructionKind::DropOwnedArray { local }
         | InstructionKind::StorageDead(local)
         | InstructionKind::StorageLive(local) => {
-            let owner = f
-                .locals
-                .get(local.0 as usize)
-                .is_some_and(|local| matches!(local.ty, Type::Closure(_)) || task_owner(&local.ty));
-            if owner
-                && let Some(token) = state.local_aliases.get(local.0 as usize).copied().flatten()
-            {
-                state.retire(token, b)?;
+            if let Some(alias) = state.local_aliases.get(local.0 as usize) {
+                for token in alias.tokens(b)? { state.retire(token, b)?; }
             }
             if let Some(alias) = state.local_aliases.get_mut(local.0 as usize) {
-                *alias = None;
+                *alias = OwnerAliases::default();
             }
             if let Some(query) = state.local_queries.get_mut(local.0 as usize) {
                 *query = None;
@@ -587,7 +877,18 @@ fn step(
                 *integer = None;
             }
         }
+        InstructionKind::CommitPlaceReplace { .. }
+        | InstructionKind::WriteAddress { .. }
+        | InstructionKind::StoreStoredBorrow { .. }
+        | InstructionKind::StorePackageField { .. } => {
+            state.forget_effects(b)?;
+            b.spend(state.work(), "unmodelled replacement invalidates whole and child occupant identities")?;
+            for alias in state.aliases.iter_mut().chain(&mut state.local_aliases) {
+                *alias = OwnerAliases::default();
+            }
+        }
         InstructionKind::Call { .. }
+        | InstructionKind::SuspendCall { .. }
         | InstructionKind::CallIndirect { .. }
         | InstructionKind::ForeignCall { .. }
         | InstructionKind::CallClosure { .. }
@@ -595,7 +896,6 @@ fn step(
         | InstructionKind::CallClosureShared { .. }
         | InstructionKind::CallClosureOnce { .. }
         | InstructionKind::CallClosureBorrowed { .. }
-        | InstructionKind::WriteAddress { .. }
         | InstructionKind::WithForeignCallback { .. }
         | InstructionKind::WithScopedThread { .. }
         | InstructionKind::WithSyncCell { .. } => {
@@ -605,14 +905,14 @@ fn step(
             {
                 let token = Token::Value(i.result.expect("checked result"));
                 state.retire(token, b)?;
-                state.aliases[out] = Some(token);
+                state.aliases[out] = OwnerAliases::owner(token);
             }
         }
         InstructionKind::MakeClosure { .. } => {
             if let Some(out) = result {
                 let token = Token::Value(i.result.expect("checked result"));
                 state.retire(token, b)?;
-                state.aliases[out] = Some(token);
+                state.aliases[out] = OwnerAliases::owner(token);
             }
         }
         _ => {}
@@ -762,12 +1062,27 @@ pub(super) fn allow_at(
     at: Point,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    let Some(Type::Closure(id)) = f.locals.get(local.0 as usize).map(|l| &l.ty) else {
+    let Some(declaration) = f.locals.get(local.0 as usize).filter(|entry| entry.id == local) else {
         return Ok(false);
     };
-    let Some(tasks) = inventory(module, *id, b)? else {
-        return Ok(false);
+    let (closure, elements) = match &declaration.ty {
+        Type::Closure(id) => (*id, None),
+        Type::Array { element, length } => {
+            let Type::Closure(id) = element.as_ref() else { return Ok(false); };
+            let Some(operation) = f.blocks.get(at.0).and_then(|block| block.instructions.get(at.1)) else {
+                return Ok(false);
+            };
+            let range = match operation.kind {
+                InstructionKind::DropOwnedArrayElement { local: actual, index } if actual == local && index < *length =>
+                    index..index + 1,
+                InstructionKind::DropOwnedArray { local: actual } if actual == local => 0..*length,
+                _ => return Ok(false),
+            };
+            (*id, Some(range))
+        }
+        _ => return Ok(false),
     };
+    let Some(tasks) = inventory(module, closure, b)? else { return Ok(false); };
     let incoming = run(module, f, false, b)?;
     let Some(before) = incoming.get(at.0).and_then(Option::as_ref) else {
         return Ok(false);
@@ -782,18 +1097,36 @@ pub(super) fn allow_at(
     for instruction in &row.instructions[..at.1] {
         step(module, f, &mut state, instruction, false, b)?;
     }
-    let Some(token) = state.local_aliases.get(local.0 as usize).copied().flatten() else {
-        return Ok(false);
+    let Some(aliases) = state.local_aliases.get(local.0 as usize) else { return Ok(false); };
+    let mut proved_owner = false;
+    let mut prove = |alias: &ElementAlias, b: &mut Budget| -> CompileResult<bool> {
+        b.spend(tasks.len().saturating_add(state.closed.len()).saturating_add(1),
+            "closed drop retains every actual selected child's task leaf obligation")?;
+        match alias {
+            ElementAlias::Unknown => Ok(false),
+            ElementAlias::Vacant => Ok(true),
+            ElementAlias::Owner(token) => {
+                proved_owner = true;
+                Ok(tasks.is_empty() || state.closed.get(token)
+                    .is_some_and(|leaves| tasks.iter().all(|capture| leaves.contains(capture))))
+            }
+            ElementAlias::ConditionalOwner(_, leaves) => {
+                proved_owner = true;
+                Ok(tasks.iter().all(|capture| leaves.contains(capture)))
+            }
+        }
     };
-    b.spend(
-        tasks.len().saturating_add(state.closed.len()),
-        "closed drop retains every actual task leaf obligation",
-    )?;
-    Ok(tasks.is_empty()
-        || state
-            .closed
-            .get(&token)
-            .is_some_and(|leaves| tasks.iter().all(|capture| leaves.contains(capture))))
+    if let Some(elements) = elements {
+        for index in elements {
+            let alias = aliases.element(index, b)?;
+            if !prove(alias, b)? { return Ok(false); }
+        }
+    } else if !prove(&aliases.root().map_or(ElementAlias::Unknown, ElementAlias::Owner), b)? {
+        return Ok(false);
+    }
+    // A completely vacant shell is decided by the actual resource ledger,
+    // never promoted here into a Closed theorem for a missing occupant.
+    Ok(proved_owner)
 }
 
 /// Applied only after this actual Direct entry has returned normally to a
