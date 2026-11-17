@@ -44,25 +44,6 @@ impl<'a> Eval<'a, '_, '_> {
         let row = self.scope_source_instance(holder)?;
         self.fee(row.actuals.len().saturating_add(arguments.len()))?;
         if row.actuals.len() != arguments.len() { return Ok(false); }
-        if let SemanticInstanceTarget::Function(SemanticFunctionTarget::Core { module, function }) = row.target {
-            self.fee(self.ledger.templates.len().saturating_add(1).ilog2() as usize + 1)?;
-            if self.ledger.templates.contains(&super::super::emission::Origin {
-                module, creator: function, closure: None,
-            }) && row.actuals.iter().enumerate().any(|(ordinal, actual)| {
-                matches!(actual, SemanticActual::CoreRecipe { scope, recipe }
-                    if *scope == holder && match recipe.as_ref() {
-                        SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference)) =>
-                            reference.scope == SemanticScopeRef::Ancestor(0) && reference.ordinal as usize == ordinal,
-                        SemanticActualRecipe::Const { value: SemanticConstRecipe::Formal(reference), .. } =>
-                            reference.scope == SemanticScopeRef::Ancestor(0) && reference.ordinal as usize == ordinal,
-                        _ => false,
-                    })
-            }) {
-                // This is an explicitly retained unspecialized source header,
-                // not an actual generic application with recoverable identity.
-                return Ok(false);
-            }
-        }
         for (ordinal, expected) in arguments.iter().enumerate() {
             let original: SourceResult<bool> = (|| {
                 let expected = self.source_specialize(caller, expected, &mut BTreeSet::new(), depth + 1)?;
@@ -246,6 +227,25 @@ impl<'a> Eval<'a, '_, '_> {
                 .actuals
                 .get(ordinal as usize)
                 .ok_or_else(|| bad("parent argument has no full original ordinal")).map_err(SourceFailure::Invalid)?;
+            if let SemanticInstanceTarget::Function(SemanticFunctionTarget::Core { module, function }) = row.target {
+                self.fee(self.ledger.templates.len().saturating_add(1).ilog2() as usize + 1)
+                    .map_err(SourceFailure::Invalid)?;
+                if self.ledger.templates.contains(&super::super::emission::Origin {
+                    module, creator: function, closure: None,
+                }) && matches!(value, SemanticActual::CoreRecipe { scope, recipe }
+                    if *scope == holder && match recipe.as_ref() {
+                        SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference)) =>
+                            reference.scope == SemanticScopeRef::Ancestor(0) && reference.ordinal == ordinal,
+                        SemanticActualRecipe::Const { value: SemanticConstRecipe::Formal(reference), .. } =>
+                            reference.scope == SemanticScopeRef::Ancestor(0) && reference.ordinal == ordinal,
+                        _ => false,
+                    })
+                {
+                    // A retained source template is not an application. Only
+                    // its exact emitted request can supply this full actual.
+                    return self.source_requested_actual(holder, original.id, ordinal, active, depth + 1);
+                }
+            }
             match value {
                 SemanticActual::CoreRecipe { scope, recipe } => {
                     self.source_specialize(*scope, recipe, active, depth + 1)
@@ -321,9 +321,7 @@ impl<'a> Eval<'a, '_, '_> {
                             }
                         }
                         _ => {
-                            return Err(SourceFailure::Unavailable(unknown(
-                                "parent source needs a complete original type recipe",
-                            )));
+                            return self.source_requested_actual(holder, original.id, ordinal, active, depth + 1);
                         }
                     };
                     self.source_specialize(
@@ -333,13 +331,56 @@ impl<'a> Eval<'a, '_, '_> {
                         depth + 1,
                     )
                 }
-                _ => Err(SourceFailure::Unavailable(unknown(
-                    "parent inference cannot reconstruct original arguments from resolved runtime images",
-                ))),
+                _ => self.source_requested_actual(holder, original.id, ordinal, active, depth + 1),
             }
         })();
         active.remove(&(holder, ordinal));
         result
+    }
+    /// Recover a newly emitted world's source application only from the
+    /// emitter's exact request. A resolved Type is never reverse engineered.
+    fn source_requested_actual(
+        &mut self, holder: SemanticInstanceId, definition: SemanticDefinitionId,
+        ordinal: u32, active: &mut BTreeSet<(SemanticInstanceId, u32)>, depth: usize,
+    ) -> SourceResult<SourceActual> {
+        self.node(depth).map_err(SourceFailure::Invalid)?;
+        let ledger = self.ledger;
+        let request = {
+            let requests = ledger.instance_requests.borrow();
+            self.fee(requests.len().saturating_add(1).ilog2() as usize + 1)
+                .map_err(SourceFailure::Invalid)?;
+            requests.get(&holder).copied()
+        };
+        let Some((caller, call, function)) = request else {
+            return Err(SourceFailure::Unavailable(unknown(
+                "original argument has neither a source recipe nor an exact emitted call request",
+            )));
+        };
+        let actual = self.instance(holder).map_err(SourceFailure::Invalid)?;
+        if actual.definition != definition
+            || actual.target != SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))
+        {
+            return Err(SourceFailure::Invalid(bad(
+                "original argument request changes its actual callee identity",
+            )));
+        }
+        let owner = self.scope_source_instance(caller).map_err(SourceFailure::Invalid)?.definition;
+        let recipe = {
+            let proof = ledger.original.borrow();
+            let proof = proof.as_ref().ok_or_else(||
+                SourceFailure::Invalid(bad("original argument request has no checked source proof")))?;
+            let target = proof.inferred_call_target(owner, call, self.limits, self.left)
+                .map_err(SourceFailure::Invalid)?
+                .ok_or_else(|| SourceFailure::Invalid(bad("original argument request has no original call target")))?;
+            if target != definition && proof.providers.get(&definition) != Some(&target) {
+                return Err(SourceFailure::Invalid(bad(
+                    "original argument request changes its original callee definition",
+                )));
+            }
+            proof.call_actual(owner, call, ordinal, self.limits, self.left)
+                .map_err(SourceFailure::Invalid)?
+        };
+        self.source_specialize(caller, &recipe, active, depth + 1)
     }
     fn source_specialize(
         &mut self,
