@@ -181,13 +181,19 @@ fn canonical_ready_cannot_be_replaced_by_an_equal_shaped_ready_raw_and_wire() {
     let rejected =
         zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap_err();
     assert!(
-        rejected.iter().any(|d| d.code == "E-VERIFY-TASK"),
+        rejected.iter().any(|d| d.phase == zil_base::Phase::Verify
+            && d.category == ResultCategory::SafeReject
+            && d.code == "E-VERIFY-SEMANTIC"
+            && d.message == "actual enum construction has no independently checked original constructor"),
         "{rejected:?}"
     );
     let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
     let rejected = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
     assert!(
-        rejected.iter().any(|d| d.code == "E-VERIFY-TASK"),
+        rejected.iter().any(|d| d.phase == zil_base::Phase::Verify
+            && d.category == ResultCategory::SafeReject
+            && d.code == "E-VERIFY-SEMANTIC"
+            && d.message == "actual enum construction has no independently checked original constructor"),
         "{rejected:?}"
     );
 }
@@ -251,6 +257,45 @@ fn closed_phase_keeps_both_same_type_capture_leaves_and_replacement_epochs() {
     }).unwrap();
     let entry = definition.function;
     assert_eq!(definition.captures[0], definition.captures[1]);
+    // A capture address can be prepared once, stored, then reborrowed at
+    // both operations. Count actual consumers of the sibling, not repeated
+    // BorrowCapture instructions in one particular lowering representation.
+    fn capture_root(function: &zil_ir::TypedFunction, value: zil_ir::ValueId,
+        remaining: usize) -> Option<u32> {
+        use zil_ir::InstructionKind as I;
+        if remaining == 0 { return None; }
+        let definition = function.blocks.iter().flat_map(|block| &block.instructions)
+            .find(|instruction| instruction.result == Some(value))?;
+        match definition.kind {
+            I::BorrowCapture { index, .. } => Some(index),
+            I::ReborrowAddress { address, .. } => capture_root(function, address, remaining - 1),
+            I::Load(local) => {
+                let mut stores = function.blocks.iter().flat_map(|block| &block.instructions)
+                    .filter_map(|instruction| match instruction.kind {
+                        I::Store { local: target, value } if target == local => Some(value),
+                        _ => None,
+                    });
+                let source = stores.next()?;
+                if stores.next().is_some() { return None; }
+                capture_root(function, source, remaining - 1)
+            }
+            _ => None,
+        }
+    }
+    let function = &raw.functions[entry.0 as usize];
+    let mut sibling_consumers = Vec::new();
+    for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+        let (task, closes) = match instruction.kind {
+            zil_ir::InstructionKind::TaskRequestCancel { task } => (task, false),
+            zil_ir::InstructionKind::TaskPollClose { task } => (task, true),
+            _ => continue,
+        };
+        if capture_root(function, task, function.values.len()) == Some(1) {
+            sibling_consumers.push((task, closes));
+        }
+    }
+    assert_eq!(sibling_consumers.iter().filter(|(_, closes)| !closes).count(), 1);
+    assert_eq!(sibling_consumers.iter().filter(|(_, closes)| *closes).count(), 1);
     let mut changed = 0;
     for instruction in raw.functions[entry.0 as usize]
         .blocks.iter_mut().flat_map(|block| &mut block.instructions)
@@ -262,12 +307,23 @@ fn closed_phase_keeps_both_same_type_capture_leaves_and_replacement_epochs() {
             changed += 1;
         }
     }
-    assert!(changed >= 2, "request and close must both select the real sibling");
+    assert!(changed > 0, "the real second capture must be retargeted");
+    let function = &raw.functions[entry.0 as usize];
+    for (task, _) in sibling_consumers {
+        assert_eq!(capture_root(function, task, function.values.len()), Some(0),
+            "request and close must both select the real sibling");
+    }
     let rejected = zil_analyze::analyze(&raw, &limits).unwrap_err();
-    assert!(rejected.iter().any(|d| d.code == "E-TASK-ABI"), "{rejected:?}");
+    assert!(rejected.iter().any(|d| d.code == "E-TASK-ABI"
+        || (d.phase == zil_base::Phase::Analyze
+            && d.category == ResultCategory::SafeReject
+            && d.code == "E-ANALYZE-IR"
+            && d.message == "semantic program: actual field borrow selects another captured root")),
+        "{rejected:?}");
     claim.module_fingerprint = raw.fingerprint();
     // Keep the untrusted public Hold claim honest about the changed physical
-    // capture; the independent per-occupant close proof must still reject.
+    // capture. The independent original-source/actual-occupant binding must
+    // reject even when the untrusted physical Hold claim follows the forgery.
     for row in &mut claim.functions[entry.0 as usize].holds {
         for root in &mut row.roots {
             if *root == zil_ir::HoldRoot::Capture(1) {
@@ -278,26 +334,50 @@ fn closed_phase_keeps_both_same_type_capture_leaves_and_replacement_epochs() {
         row.roots.dedup();
     }
     let rejected = zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
-    assert!(rejected.iter().any(|d| d.code == "E-VERIFY-TASK"), "{rejected:?}");
+    assert!(rejected.iter().any(|d| d.code == "E-VERIFY-TASK"
+        || (d.phase == zil_base::Phase::Verify
+            && d.category == ResultCategory::SafeReject
+            && d.code == "E-VERIFY-SEMANTIC"
+            && d.message == "buffer projection substitutes another same-typed original free binder")), "{rejected:?}");
     let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
     let rejected = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
-    assert!(rejected.iter().any(|d| d.code == "E-VERIFY-TASK"), "{rejected:?}");
+    assert!(rejected.iter().any(|d| d.code == "E-VERIFY-TASK"
+        || (d.phase == zil_base::Phase::Verify
+            && d.category == ResultCategory::SafeReject
+            && d.code == "E-VERIFY-SEMANTIC"
+            && d.message == "buffer projection substitutes another same-typed original free binder")), "{rejected:?}");
     let only_one = pair.replace("  loop{match task_poll_close(&mut two){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}\n", "");
     let report = compile_source(&source(&only_one), &options);
-    assert_ne!(
+    // The implicit endpoint can suspend to clean up the second owner. It
+    // must not mistake the first owner's Closed proof for the second's.
+    assert_ne!(only_one, pair);
+    assert_eq!(
         report.status,
         ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "E-TASK-ABI" || d.code == "E-VERIFY-TASK"),
-        "{}",
-        report.to_json()
-    );
+    assert_eq!(report.verification_runs, 1);
+    let header = "fn main()->TaskCreateError!i32{";
+    assert_eq!(only_one.matches(header).count(), 1);
+    let only_one_direct = only_one.replacen(header,
+        "fn main()->TaskCreateError!i32 contract{effects(io);}{", 1);
+    let rejected = compile_source(&source(&only_one_direct), &options);
+    assert_eq!(rejected.status, ResultCategory::SafeReject, "{}", rejected.to_json());
+    assert!(rejected.diagnostics.iter().any(|d|
+        d.phase == zil_base::Phase::Analyze && d.category == ResultCategory::SafeReject
+        && d.code == "E-TASK-ABI"
+        && d.message == "pollable Task automatic Drop requires asynchronous continuation"),
+        "{}", rejected.to_json());
+
+    // The matching control prevents a blanket refusal of Direct cleanup from
+    // satisfying the negative: closing both actual occupants permits it.
+    assert_eq!(pair.matches(header).count(), 1);
+    let both_direct = pair.replacen(header,
+        "fn main()->TaskCreateError!i32 contract{effects(io);}{", 1);
+    let report = compile_source(&source(&both_direct), &options);
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
 
     let prefix = &polling[..polling.find("fn main(").unwrap()];
     let before = r#" var callback=keep(give first);let replacement=keep(give second);
@@ -321,20 +401,27 @@ fn closed_phase_keeps_both_same_type_capture_leaves_and_replacement_epochs() {
     );
     let stale = positive.replace(close_new, "");
     let report = compile_source(&source(&stale), &options);
-    assert_ne!(
+    // The old Ready cannot close the replacement epoch. An implicit endpoint
+    // can still suspend to dispose of it; only a Direct endpoint requires the
+    // missing proof before leaving this scope.
+    assert_ne!(stale, positive);
+    assert_eq!(
         report.status,
         ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "E-TASK-ABI" || d.code == "E-VERIFY-TASK"),
-        "{}",
-        report.to_json()
-    );
+    assert_eq!(report.verification_runs, 1);
+    assert_eq!(stale.matches(header).count(), 1);
+    let stale_direct = stale.replacen(header,
+        "fn main()->TaskCreateError!i32 contract{effects(io);}{", 1);
+    let rejected = compile_source(&source(&stale_direct), &options);
+    assert_eq!(rejected.status, ResultCategory::SafeReject, "{}", rejected.to_json());
+    assert!(rejected.diagnostics.iter().any(|d|
+        d.phase == zil_base::Phase::Analyze && d.category == ResultCategory::SafeReject
+        && d.code == "E-TASK-ABI"
+        && d.message == "pollable Task automatic Drop requires asynchronous continuation"),
+        "{}", rejected.to_json());
 }
 #[test]
 fn closed_callable_drop_is_drained_before_destruction_native() {
