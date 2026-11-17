@@ -39,6 +39,17 @@ fn ordinary_capture(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
     {
         return Ok(());
     }
+    if let Type::Managed(payload) = ty
+        && matches!(payload.as_ref(), Type::Task { .. })
+    {
+        // This independently proves the complete physical Task scope, all
+        // creators and original worker inputs/results. It classifies a finite
+        // closed capture; it does not supply synchronous destruction or make
+        // a live child Closed. Actual source, affine and consuming cleanup
+        // proofs still run for the factory and every nested environment.
+        return tasks::closed_environment_task(module, payload, budget,
+            zil_base::Span::default());
+    }
     // This is formation shape only. retained::sources checks every actual
     // nested external leaf before check() is called; no closed capability is
     // inferred from this branch or from a shared signature binder.
