@@ -1,14 +1,6 @@
 {
   "schema": "zil.native-direct-firstedit-result.v10",
-  "source": "5fe48bda9bfd4d541d26580f12e2681eb03a9659",
-  "binary_sha256": "4e472f597524e44766680ef1ff1f9617f18a5f870721f59e7208c496afe9f594",
-  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "result": "NoGo: first-edit target unmet; ordinaryCLI C1767.598/Rust1217.055ms; all6pairsfaster=False; comprehensive goal remains open.",
   "scope": "5105functions/102files; actualmain/candidate/Rust; fullO2/CGU16/compilerjobs1; SDK18/native-link reused, noLLVMrebuild; explicit default-off research flags and host-jemalloc.",
-  "execution_complete": true,
-  "functional_quality_valid": true,
-  "runtime_candidate_rust_accepted": true,
-  "accepted": false,
   "counts": {
     "formal_requests": 30,
     "functional_cells": 10,
@@ -17,22 +9,30 @@
     "ordinary_cli_builds": 36,
     "ordinary_cli_balanced_blocks": 6
   },
+  "disk_accounting": "Peak of simultaneous per-arm totals in original globally inode-deduplicated snapshots; physical=st_blocks*512; excludes SDK, host build and research evidence; boundary peaks not transient peak.",
+  "source": "4e3b48bfd3d5cffe9b54c94f512e27806813e113",
+  "binary_sha256": "30ef1deda6e2b2296fe3037e89c7b2cd61e6369c6b19b19bb12e6b46cdc824bf",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "execution_complete": true,
+  "functional_quality_valid": true,
+  "runtime_candidate_rust_accepted": true,
+  "accepted": false,
   "compile_median_ms": {
     "cold": {
-      "candidate": 3281.4339035000003,
-      "rust": 6656.112501
+      "candidate": 3247.3065205000003,
+      "rust": 6170.266745
     },
     "unchanged": {
-      "candidate": 59.020408,
-      "rust": 18.882817
+      "candidate": 61.887197,
+      "rust": 27.532123
     },
     "private-001": {
-      "candidate": 1583.3301784999999,
-      "rust": 1222.0435630000002
+      "candidate": 1578.1744560000002,
+      "rust": 1169.1187795
     },
     "recovery": {
-      "candidate": 1711.5902145,
-      "rust": 5842.9416615
+      "candidate": 1541.877067,
+      "rust": 6266.5036935
     }
   },
   "ordinary_cli": {
@@ -41,41 +41,41 @@
     "blocks": 6,
     "first_edit_pairs_ms": [
       {
-        "candidate": 1907.637116,
-        "rust": 1028.682649
+        "candidate": 2125.071043,
+        "rust": 1365.401162
       },
       {
-        "candidate": 1620.783113,
-        "rust": 1080.683364
+        "candidate": 2010.610896,
+        "rust": 1264.059374
       },
       {
-        "candidate": 1627.558539,
-        "rust": 1162.432997
+        "candidate": 1587.587686,
+        "rust": 1557.511135
       },
       {
-        "candidate": 1963.301214,
-        "rust": 1271.676706
+        "candidate": 1284.157024,
+        "rust": 1227.753571
       },
       {
-        "candidate": 2198.837224,
-        "rust": 1524.925729
+        "candidate": 2198.510519,
+        "rust": 1990.461255
       },
       {
-        "candidate": 1216.397703,
-        "rust": 1540.190158
+        "candidate": 1226.914726,
+        "rust": 1533.276144
       }
     ],
     "candidate_faster_in_every_first_edit_pair": false,
     "median_ms": {
       "cold": {
-        "baseline": 513.7018395,
-        "candidate": 2655.6484325,
-        "rust": 6357.395417
+        "baseline": 495.5383565,
+        "candidate": 2881.9490315000003,
+        "rust": 7924.4697195
       },
       "private-001": {
-        "baseline": 642.723937,
-        "candidate": 1767.5978275000002,
-        "rust": 1217.0548515
+        "baseline": 736.324166,
+        "candidate": 1799.099291,
+        "rust": 1449.338653
       }
     },
     "clock": "ordinary CLI launch through process exit; default session capacity; no diagnostic flags",
@@ -85,29 +85,28 @@
   },
   "runtime_ms": {
     "5105/cold": {
-      "candidate": 34.3607545,
-      "rust": 203.085214
+      "candidate": 37.528411500000004,
+      "rust": 218.1391375
     },
     "5105/unchanged": {
-      "candidate": 51.23949,
-      "rust": 202.23254450000002
+      "candidate": 33.165608500000005,
+      "rust": 212.475479
     },
     "5105/private-001": {
-      "candidate": 36.881517,
-      "rust": 215.27065449999998
+      "candidate": 35.8869265,
+      "rust": 212.53565049999997
     },
     "5105/recovery": {
-      "candidate": 32.413520000000005,
-      "rust": 186.5351395
+      "candidate": 34.7352695,
+      "rust": 192.3296195
     }
   },
-  "disk_accounting": "Peak of simultaneous per-arm totals in original globally inode-deduplicated snapshots; physical=st_blocks*512; excludes SDK, host build and research evidence; boundary peaks not transient peak.",
   "user_disk_boundaries": [
     {
       "block": 0,
       "candidate": {
-        "logical_bytes": 28703393,
-        "physical_bytes": 29204480
+        "logical_bytes": 28668786,
+        "physical_bytes": 29167616
       },
       "rust": {
         "logical_bytes": 76553667,
@@ -117,12 +116,12 @@
     {
       "block": 1,
       "candidate": {
-        "logical_bytes": 28668255,
-        "physical_bytes": 29171712
+        "logical_bytes": 28630653,
+        "physical_bytes": 29134848
       },
       "rust": {
-        "logical_bytes": 61371066,
-        "physical_bytes": 61550592
+        "logical_bytes": 61371068,
+        "physical_bytes": 61546496
       }
     }
   ],
@@ -130,574 +129,395 @@
     {
       "block": 0,
       "candidate": {
-        "logical_bytes": 27155997,
-        "physical_bytes": 27631616
+        "logical_bytes": 27149185,
+        "physical_bytes": 27623424
       },
       "rust": {
-        "logical_bytes": 60994484,
-        "physical_bytes": 61153280
+        "logical_bytes": 60994275,
+        "physical_bytes": 61149184
       }
     },
     {
       "block": 1,
       "candidate": {
-        "logical_bytes": 27151503,
-        "physical_bytes": 27627520
+        "logical_bytes": 27147875,
+        "physical_bytes": 27623424
       },
       "rust": {
-        "logical_bytes": 60994484,
-        "physical_bytes": 61153280
+        "logical_bytes": 60994275,
+        "physical_bytes": 61149184
       }
     },
     {
       "block": 2,
       "candidate": {
-        "logical_bytes": 27140943,
-        "physical_bytes": 27623424
+        "logical_bytes": 27175030,
+        "physical_bytes": 27652096
       },
       "rust": {
-        "logical_bytes": 60994485,
-        "physical_bytes": 61153280
+        "logical_bytes": 60994275,
+        "physical_bytes": 61149184
       }
     },
     {
       "block": 3,
       "candidate": {
-        "logical_bytes": 27179676,
-        "physical_bytes": 27660288
+        "logical_bytes": 27161353,
+        "physical_bytes": 27639808
       },
       "rust": {
-        "logical_bytes": 60994485,
-        "physical_bytes": 61153280
+        "logical_bytes": 60994275,
+        "physical_bytes": 61149184
       }
     },
     {
       "block": 4,
       "candidate": {
-        "logical_bytes": 27153524,
-        "physical_bytes": 27627520
+        "logical_bytes": 27156666,
+        "physical_bytes": 27639808
       },
       "rust": {
-        "logical_bytes": 60994484,
+        "logical_bytes": 60994274,
         "physical_bytes": 61153280
       }
     },
     {
       "block": 5,
       "candidate": {
-        "logical_bytes": 27142248,
-        "physical_bytes": 27615232
+        "logical_bytes": 27142984,
+        "physical_bytes": 27623424
       },
       "rust": {
-        "logical_bytes": 60994485,
-        "physical_bytes": 61149184
+        "logical_bytes": 60994274,
+        "physical_bytes": 61153280
       }
     }
   ],
   "gates": {
-    "publication": {
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "zil-driver",
-        "--features",
-        "native-products",
-        "--test",
-        "retained_native_publication",
-        "--",
-        "--ignored"
-      ],
-      "exit_code": 0,
-      "valid": true,
-      "test_results": [
-        [
-          "ok",
-          "4",
-          "0",
-          "0"
-        ]
-      ]
-    },
-    "fmt": {
-      "command": [
-        "cargo",
-        "fmt",
-        "--all",
-        "--",
-        "--check"
-      ],
-      "exit_code": 0,
-      "valid": true,
-      "test_results": []
-    },
-    "expand": {
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "zil-expand",
-        "--lib"
-      ],
-      "exit_code": 0,
-      "valid": true,
-      "test_results": [
-        [
-          "ok",
-          "153",
-          "0",
-          "0"
-        ]
-      ]
-    },
-    "syntax": {
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "zil-syntax"
-      ],
-      "exit_code": 0,
-      "valid": true,
-      "test_results": [
-        [
-          "ok",
-          "38",
-          "0",
-          "0"
-        ],
-        [
-          "ok",
-          "11",
-          "0",
-          "0"
-        ],
-        [
-          "ok",
-          "4",
-          "0",
-          "0"
-        ],
-        [
-          "ok",
-          "2",
-          "0",
-          "0"
-        ],
-        [
-          "ok",
-          "5",
-          "0",
-          "0"
-        ],
-        [
-          "ok",
-          "4",
-          "0",
-          "0"
-        ],
-        [
-          "ok",
-          "2",
-          "0",
-          "0"
-        ],
-        [
-          "ok",
-          "11",
-          "0",
-          "0"
-        ],
-        [
-          "ok",
-          "2",
-          "0",
-          "0"
-        ],
-        [
-          "ok",
-          "0",
-          "0",
-          "0"
-        ]
-      ]
-    },
-    "backend": {
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "zil-backend-llvm",
-        "--features",
-        "native-products",
-        "--lib",
-        "--",
-        "--include-ignored"
-      ],
-      "exit_code": 0,
-      "valid": true,
-      "test_results": [
-        [
-          "ok",
-          "402",
-          "0",
-          "0"
-        ]
-      ]
-    },
-    "release": {
-      "command": [
-        "cargo",
-        "build",
-        "--locked",
-        "--offline",
-        "--release",
-        "-p",
-        "zil-cli",
-        "--features",
-        "native-products,host-jemalloc"
-      ],
-      "exit_code": 0,
-      "valid": true,
-      "test_results": []
-    },
-    "types": {
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "zil-types",
-        "--lib"
-      ],
-      "exit_code": 0,
-      "valid": true,
-      "test_results": [
-        [
-          "ok",
-          "136",
-          "0",
-          "0"
-        ]
-      ]
-    },
-    "strict": {
-      "command": [
-        "cargo",
-        "clippy",
-        "--locked",
-        "--offline",
-        "-p",
-        "zil-expand",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
-      ],
-      "exit_code": 0,
-      "valid": true,
-      "test_results": [],
-      "unaffected_targets_receipt": "out/runs/restart-frontend-gates-32-77da85578ad8/strict.json"
-    },
-    "driver": {
-      "command": [
-        "cargo",
-        "test",
-        "--locked",
-        "--offline",
-        "-p",
-        "zil-driver",
-        "--features",
-        "native-products",
-        "--lib",
-        "--",
-        "--include-ignored"
-      ],
-      "exit_code": 0,
-      "valid": true,
-      "test_results": [
-        [
-          "ok",
-          "267",
-          "0",
-          "0"
-        ]
-      ]
-    }
+    "strict": true,
+    "api": 117,
+    "backend": 415,
+    "driver": 267,
+    "native_publication": 4,
+    "fmt": true,
+    "release": true,
+    "receipt": "out/runs/demand-machine-gates-33-4e3b48bfd3d5-profile",
+    "original_receipt": "out/runs/demand-machine-gates-33-4e3b48bfd3d5"
   },
   "source_review": {
-    "source": "5fe48bda9bfd4d541d26580f12e2681eb03a9659",
-    "reviewer": "Astra (Huygens), independent read-only source review",
-    "result": "PASS",
-    "scope": "Full input/Expand/Types/frontend transport diff from b51a365c8; final one-line fixture f32 -> f_32 change checked; production identical to 77da85578.",
-    "tests_by_reviewer": false,
-    "performance_claim": false
+    "source": "4e3b48bfd3d5cffe9b54c94f512e27806813e113",
+    "reviewer": "gpt-6-astra",
+    "scope": "17-file exact frozen source independent architecture/security review; no blocker. Current Verify/LIR, original fee consumers, full alias World/preflight, current callee/normalization relation, dead-body/pre-delete checks, original range/CGU/O2 retained. No test/performance assertion.",
+    "verdict": "PASS"
   },
-  "raw": "out/runs/direct-firstedit-performance-direct-32",
+  "raw": "out/runs/direct-firstedit-performance-direct-33",
+  "previous_result": "window32.json",
   "changes": [
-    "Lexer uses ASCII XID classification, maximal-munch byte dispatch and one UTF-8 iterator per scan; exact Unicode17/token/trivia/diagnostic budgets retained.",
-    "Expand recovery validates current source/context/placement then retains grouped stage totals instead of per-function fee maps, recipes and header wrappers; original separate ledgers and full fallback preserved.",
-    "Types dictionary rows share real bounded decoded owners and defer outer identity/encoding wrappers; publication retains original logical byte/node charges and exact wire bytes.",
-    "Types producer consumes actual current inference body projections and rebinds current signature dependencies rather than visiting the same body again.",
-    "Semantic publication consumes current canonical owner and encoding in one binding operation.",
-    "Frontend manifest factors CT receipt source text from exact checksummed stored frontend bytes. Reconstructs original CT bytes before unchanged admission; original logical aggregate cap remains. No new full cache or persistent Verify authority."
+    "Raw emission first compares complete current input/facts; only matching values demand bounded machine-output decoding. Alias-specific mismatch does not poison another unchanged alias.",
+    "Closed scalar emission retains shared machine templates and outer aliases, preserving per-function current reservations and source identity. It avoids expanding all original Function wrappers.",
+    "Class recovery indexes raw rows, waits for current dependency resolution, then decodes only a requested normalized value and validates its complete current relation. It no longer constructs a full previous analysis cache before current canonicalization.",
+    "Original and classed machine preflight consume the complete current alias World through the same validation core, including headers/ABI and dead bodies. No persisted checker authority.",
+    "Closed reachability and full diagnostic witness consume aliases directly; only live definitions are materialized. Existing current range/scalar/purity/CGU/full-O2/native consumers remain.",
+    "Machine cache format and original byte/node bounds remain; no additional persistent complete-machine cache or default-on research feature."
   ],
-  "remaining": [
-    "OrdinaryCLI firstedit still fails target. Do not claim success based on cache reductions or local counters.",
-    "All conclusions limited to measured5105function102file directrestartfirstedit chain; original budgets/Verify/fullO2 remain.",
-    "Actualmain originalResourceLimit, industrial multicrate/procmacro/build.rs/minute-scale and comprehensive compile goal remain unproven.",
-    "The first-edit goal is still unmet: new CLI1.768s/Rust1.217s versus previous1.796s/1.238s; this window does not establish a meaningful whole-chain improvement.",
-    "Machine generation/transforms still reconstruct the whole logical inventory before object reuse; this batch does not claim a completed Rust-style whole-machine dependency-first path."
-  ],
-  "previous_result": "window31.json",
   "ordinary_cli_phase_samples": [
     {
       "block": 0,
-      "wall_ms": 1907.637116,
-      "reported_ms": 1777.763612,
+      "wall_ms": 2125.071043,
+      "reported_ms": 2006.547712,
       "phase_ms": {
-        "parse": 0.120384,
-        "expand": 84.391871,
-        "types": 245.232953,
-        "analyze": 29.880602,
-        "verify": 72.691243,
-        "lower": 7.317685,
-        "codegen": 924.68425,
-        "ct": 50.957311
+        "parse": 0.130598,
+        "expand": 93.37753,
+        "types": 87.271228,
+        "analyze": 38.1453,
+        "verify": 66.196304,
+        "lower": 4.624259,
+        "codegen": 672.250529,
+        "ct": 666.51272
       },
       "backend_ms": {
-        "machine_ns": 547.331328,
-        "machine_emit_ns": 165.166123,
-        "machine_transform_ns": 380.241835,
-        "transform_ranges_ns": 96.422068,
-        "transform_checked_add_ns": 9.719239,
-        "transform_scalar_ns": 41.338533,
-        "transform_call_classes_ns": 228.575078,
-        "transform_purity_ns": 1.583076,
-        "machine_preflight_ns": 53.476426,
-        "partition_ns": 48.193567,
-        "diagnostic_ns": 9.043246,
-        "object_ns": 172.033887,
-        "link_key_ns": 65.030694,
-        "link_execution_ns": 31.37603,
-        "other_ns": 50.61924,
-        "total_ns": 923.627992
+        "machine_ns": 414.43655,
+        "machine_emit_ns": 198.546455,
+        "machine_transform_ns": 214.435974,
+        "transform_ranges_ns": 23.935013,
+        "transform_checked_add_ns": 1.566932,
+        "transform_scalar_ns": 1.858352,
+        "transform_call_classes_ns": 185.758713,
+        "transform_purity_ns": 0.521118,
+        "machine_preflight_ns": 39.211504,
+        "partition_ns": 21.753974,
+        "diagnostic_ns": 8.977266,
+        "object_ns": 124.451489,
+        "link_key_ns": 35.494774,
+        "link_execution_ns": 40.683431,
+        "other_ns": 25.290055,
+        "total_ns": 671.087539
+      },
+      "machine_counts": {
+        "factored_machine_items": 5266,
+        "factored_live_items": 166,
+        "raw_models_decoded": 423,
+        "raw_models_encoded": 5,
+        "raw_model_encodings_reused": 568,
+        "current_class_bodies_checked": 242,
+        "class_equivalence_comparisons": 86,
+        "class_equivalence_reuses": 4857
       }
     },
     {
       "block": 1,
-      "wall_ms": 1620.783113,
-      "reported_ms": 1509.7407,
+      "wall_ms": 2010.610896,
+      "reported_ms": 1892.628594,
       "phase_ms": {
-        "parse": 0.12607,
-        "expand": 83.507271,
-        "types": 101.687596,
-        "analyze": 37.932208,
-        "verify": 79.049815,
-        "lower": 2.838716,
-        "codegen": 644.98168,
-        "ct": 62.114605
+        "parse": 0.144202,
+        "expand": 241.431678,
+        "types": 260.747211,
+        "analyze": 39.422132,
+        "verify": 90.400734,
+        "lower": 3.074272,
+        "codegen": 592.108176,
+        "ct": 83.206448
       },
       "backend_ms": {
-        "machine_ns": 425.164944,
-        "machine_emit_ns": 241.996903,
-        "machine_transform_ns": 181.725216,
-        "transform_ranges_ns": 12.537435,
-        "transform_checked_add_ns": 1.278575,
-        "transform_scalar_ns": 1.357104,
-        "transform_call_classes_ns": 165.381622,
-        "transform_purity_ns": 0.381999,
-        "machine_preflight_ns": 32.649175,
-        "partition_ns": 10.742508,
-        "diagnostic_ns": 5.401255,
-        "object_ns": 126.734792,
-        "link_key_ns": 30.505208,
-        "link_execution_ns": 25.30636,
-        "other_ns": 20.040258,
-        "total_ns": 643.895325
+        "machine_ns": 393.9679,
+        "machine_emit_ns": 231.125055,
+        "machine_transform_ns": 161.501816,
+        "transform_ranges_ns": 14.328395,
+        "transform_checked_add_ns": 1.319076,
+        "transform_scalar_ns": 1.536836,
+        "transform_call_classes_ns": 143.354781,
+        "transform_purity_ns": 0.475049,
+        "machine_preflight_ns": 38.139621,
+        "partition_ns": 13.54559,
+        "diagnostic_ns": 10.521935,
+        "object_ns": 115.488378,
+        "link_key_ns": 26.924758,
+        "link_execution_ns": 22.206267,
+        "other_ns": 8.635731,
+        "total_ns": 591.290559
+      },
+      "machine_counts": {
+        "factored_machine_items": 5266,
+        "factored_live_items": 166,
+        "raw_models_decoded": 423,
+        "raw_models_encoded": 5,
+        "raw_model_encodings_reused": 568,
+        "current_class_bodies_checked": 242,
+        "class_equivalence_comparisons": 86,
+        "class_equivalence_reuses": 4857
       }
     },
     {
       "block": 2,
-      "wall_ms": 1627.558539,
-      "reported_ms": 1504.638314,
+      "wall_ms": 1587.587686,
+      "reported_ms": 1413.686316,
       "phase_ms": {
-        "parse": 0.176275,
-        "expand": 178.107352,
-        "types": 145.247231,
-        "analyze": 41.194054,
-        "verify": 75.493644,
-        "lower": 6.945312,
-        "codegen": 651.903337,
-        "ct": 67.955044
+        "parse": 0.137489,
+        "expand": 100.118723,
+        "types": 84.689863,
+        "analyze": 40.166439,
+        "verify": 68.761585,
+        "lower": 3.256178,
+        "codegen": 711.698626,
+        "ct": 48.975772
       },
       "backend_ms": {
-        "machine_ns": 435.758468,
-        "machine_emit_ns": 267.289123,
-        "machine_transform_ns": 167.123038,
-        "transform_ranges_ns": 12.505176,
-        "transform_checked_add_ns": 1.395252,
-        "transform_scalar_ns": 1.174627,
-        "transform_call_classes_ns": 150.59876,
-        "transform_purity_ns": 0.436791,
-        "machine_preflight_ns": 34.852658,
-        "partition_ns": 12.146953,
-        "diagnostic_ns": 9.453246,
-        "object_ns": 122.997367,
-        "link_key_ns": 30.266436,
-        "link_execution_ns": 25.312778,
-        "other_ns": 15.167708,
-        "total_ns": 651.102956
+        "machine_ns": 427.347703,
+        "machine_emit_ns": 216.416425,
+        "machine_transform_ns": 209.099005,
+        "transform_ranges_ns": 27.931903,
+        "transform_checked_add_ns": 2.271508,
+        "transform_scalar_ns": 2.089683,
+        "transform_call_classes_ns": 175.376929,
+        "transform_purity_ns": 1.004761,
+        "machine_preflight_ns": 41.643315,
+        "partition_ns": 31.752406,
+        "diagnostic_ns": 9.823356,
+        "object_ns": 147.529204,
+        "link_key_ns": 32.487117,
+        "link_execution_ns": 32.198791,
+        "other_ns": 29.553055,
+        "total_ns": 710.691632
+      },
+      "machine_counts": {
+        "factored_machine_items": 5266,
+        "factored_live_items": 166,
+        "raw_models_decoded": 423,
+        "raw_models_encoded": 5,
+        "raw_model_encodings_reused": 568,
+        "current_class_bodies_checked": 242,
+        "class_equivalence_comparisons": 86,
+        "class_equivalence_reuses": 4857
       }
     },
     {
       "block": 3,
-      "wall_ms": 1963.301214,
-      "reported_ms": 1824.708401,
+      "wall_ms": 1284.157024,
+      "reported_ms": 1166.898282,
       "phase_ms": {
-        "parse": 0.123618,
-        "expand": 134.151997,
-        "types": 180.440701,
-        "analyze": 43.599964,
-        "verify": 82.902385,
-        "lower": 2.750823,
-        "codegen": 694.823284,
-        "ct": 86.952675
+        "parse": 0.179794,
+        "expand": 87.861983,
+        "types": 83.558891,
+        "analyze": 46.158634,
+        "verify": 75.02199,
+        "lower": 4.509505,
+        "codegen": 457.766983,
+        "ct": 52.687669
       },
       "backend_ms": {
-        "machine_ns": 489.293843,
-        "machine_emit_ns": 267.32944,
-        "machine_transform_ns": 220.56127,
-        "transform_ranges_ns": 13.751241,
-        "transform_checked_add_ns": 1.562345,
-        "transform_scalar_ns": 1.624248,
-        "transform_call_classes_ns": 202.11231,
-        "transform_purity_ns": 0.507548,
-        "machine_preflight_ns": 37.283417,
-        "partition_ns": 12.321327,
-        "diagnostic_ns": 8.378401,
-        "object_ns": 126.491754,
-        "link_key_ns": 27.578167,
-        "link_execution_ns": 20.411251,
-        "other_ns": 9.394968,
-        "total_ns": 693.869711
+        "machine_ns": 249.131823,
+        "machine_emit_ns": 105.444182,
+        "machine_transform_ns": 142.00229,
+        "transform_ranges_ns": 14.443208,
+        "transform_checked_add_ns": 2.004063,
+        "transform_scalar_ns": 1.706552,
+        "transform_call_classes_ns": 122.789142,
+        "transform_purity_ns": 0.546256,
+        "machine_preflight_ns": 41.035401,
+        "partition_ns": 14.00112,
+        "diagnostic_ns": 5.522768,
+        "object_ns": 129.494706,
+        "link_key_ns": 26.071316,
+        "link_execution_ns": 23.809073,
+        "other_ns": 8.76069,
+        "total_ns": 456.791496
+      },
+      "machine_counts": {
+        "factored_machine_items": 5266,
+        "factored_live_items": 166,
+        "raw_models_decoded": 423,
+        "raw_models_encoded": 5,
+        "raw_model_encodings_reused": 568,
+        "current_class_bodies_checked": 242,
+        "class_equivalence_comparisons": 86,
+        "class_equivalence_reuses": 4857
       }
     },
     {
       "block": 4,
-      "wall_ms": 2198.837224,
-      "reported_ms": 1966.5119849999999,
+      "wall_ms": 2198.510519,
+      "reported_ms": 2009.193937,
       "phase_ms": {
-        "parse": 0.171569,
-        "expand": 190.0045,
-        "types": 249.254195,
-        "analyze": 41.285903,
-        "verify": 54.420548,
-        "lower": 2.396336,
-        "codegen": 621.35009,
-        "ct": 43.224425
+        "parse": 0.176904,
+        "expand": 89.197703,
+        "types": 93.275614,
+        "analyze": 34.266044,
+        "verify": 61.678075,
+        "lower": 3.425544,
+        "codegen": 1059.50411,
+        "ct": 52.688169
       },
       "backend_ms": {
-        "machine_ns": 394.541948,
-        "machine_emit_ns": 220.006077,
-        "machine_transform_ns": 173.10703,
-        "transform_ranges_ns": 12.816493,
-        "transform_checked_add_ns": 1.155057,
-        "transform_scalar_ns": 1.063589,
-        "transform_call_classes_ns": 156.888079,
-        "transform_purity_ns": 0.375368,
-        "machine_preflight_ns": 32.815709,
-        "partition_ns": 10.461751,
-        "diagnostic_ns": 14.601704,
-        "object_ns": 117.134423,
-        "link_key_ns": 33.222701,
-        "link_execution_ns": 32.643075,
-        "other_ns": 17.937766,
-        "total_ns": 620.543368
+        "machine_ns": 407.259285,
+        "machine_emit_ns": 195.869953,
+        "machine_transform_ns": 209.490549,
+        "transform_ranges_ns": 15.740582,
+        "transform_checked_add_ns": 1.396283,
+        "transform_scalar_ns": 1.59206,
+        "transform_call_classes_ns": 189.646676,
+        "transform_purity_ns": 0.415188,
+        "machine_preflight_ns": 36.506462,
+        "partition_ns": 25.600945,
+        "diagnostic_ns": 9.27062,
+        "object_ns": 457.47742,
+        "link_key_ns": 32.868394,
+        "link_execution_ns": 78.090384,
+        "other_ns": 47.424994,
+        "total_ns": 1057.992042
+      },
+      "machine_counts": {
+        "factored_machine_items": 5266,
+        "factored_live_items": 166,
+        "raw_models_decoded": 423,
+        "raw_models_encoded": 5,
+        "raw_model_encodings_reused": 568,
+        "current_class_bodies_checked": 242,
+        "class_equivalence_comparisons": 86,
+        "class_equivalence_reuses": 4857
       }
     },
     {
       "block": 5,
-      "wall_ms": 1216.397703,
-      "reported_ms": 1094.67581,
+      "wall_ms": 1226.914726,
+      "reported_ms": 1096.2828339999999,
       "phase_ms": {
-        "parse": 0.118106,
-        "expand": 79.432604,
-        "types": 112.856083,
-        "analyze": 31.344418,
-        "verify": 52.412336,
-        "lower": 3.665857,
-        "codegen": 474.371295,
-        "ct": 46.009812
+        "parse": 0.130018,
+        "expand": 88.406256,
+        "types": 89.905375,
+        "analyze": 32.770556,
+        "verify": 62.703387,
+        "lower": 4.119484,
+        "codegen": 426.882653,
+        "ct": 53.843417
       },
       "backend_ms": {
-        "machine_ns": 302.447182,
-        "machine_emit_ns": 164.592821,
-        "machine_transform_ns": 136.446291,
-        "transform_ranges_ns": 11.739813,
-        "transform_checked_add_ns": 1.10386,
-        "transform_scalar_ns": 1.172965,
-        "transform_call_classes_ns": 121.224188,
-        "transform_purity_ns": 0.402699,
-        "machine_preflight_ns": 30.903401,
-        "partition_ns": 9.961984,
-        "diagnostic_ns": 5.444158,
-        "object_ns": 105.43016,
-        "link_key_ns": 25.117857,
-        "link_execution_ns": 18.485951,
-        "other_ns": 6.742421,
-        "total_ns": 473.629713
+        "machine_ns": 246.334717,
+        "machine_emit_ns": 139.8097,
+        "machine_transform_ns": 104.893088,
+        "transform_ranges_ns": 13.258185,
+        "transform_checked_add_ns": 1.399588,
+        "transform_scalar_ns": 1.389403,
+        "transform_call_classes_ns": 87.690423,
+        "transform_purity_ns": 0.466706,
+        "machine_preflight_ns": 34.066766,
+        "partition_ns": 13.687155,
+        "diagnostic_ns": 6.351422,
+        "object_ns": 104.886916,
+        "link_key_ns": 27.339546,
+        "link_execution_ns": 19.456445,
+        "other_ns": 7.95999,
+        "total_ns": 426.016191
+      },
+      "machine_counts": {
+        "factored_machine_items": 5266,
+        "factored_live_items": 166,
+        "raw_models_decoded": 423,
+        "raw_models_encoded": 5,
+        "raw_model_encodings_reused": 568,
+        "current_class_bodies_checked": 242,
+        "class_equivalence_comparisons": 86,
+        "class_equivalence_reuses": 4857
       }
     }
   ],
   "ordinary_cli_phase_median_ms": {
-    "note": "Separate medians, nested backend fields are not additive or direct Rust equivalents. parse excludes source ingress parser work.",
-    "phases": {
-      "parse": 0.124844,
-      "expand": 109.27193399999999,
-      "types": 162.843966,
-      "analyze": 39.563131,
-      "verify": 74.0924435,
-      "lower": 3.2522865,
-      "codegen": 648.4425085,
-      "ct": 56.535957999999994
+    "phase_ms": {
+      "parse": 0.1408455,
+      "expand": 91.2876165,
+      "types": 88.5883015,
+      "analyze": 38.783716,
+      "verify": 67.4789445,
+      "lower": 3.772514,
+      "codegen": 632.1793525,
+      "ct": 53.265793
     },
-    "backend": {
-      "machine_ns": 430.461706,
-      "machine_emit_ns": 231.00149,
-      "machine_transform_ns": 177.416123,
-      "transform_ranges_ns": 12.676964,
-      "transform_checked_add_ns": 1.3369135,
-      "transform_scalar_ns": 1.2658655,
-      "transform_call_classes_ns": 161.1348505,
-      "transform_purity_ns": 0.419745,
-      "machine_preflight_ns": 33.834183499999995,
-      "partition_ns": 11.4447305,
-      "diagnostic_ns": 8.7108235,
-      "object_ns": 124.7445605,
-      "link_key_ns": 30.385821999999997,
-      "link_execution_ns": 25.309569000000003,
-      "other_ns": 16.552737,
-      "total_ns": 647.4991405
-    },
-    "process_minus_report": 126.3968645000001
+    "backend_ms": {
+      "machine_ns": 400.6135925,
+      "machine_emit_ns": 197.20820400000002,
+      "machine_transform_ns": 185.3004105,
+      "transform_ranges_ns": 15.091895000000001,
+      "transform_checked_add_ns": 1.48326,
+      "transform_scalar_ns": 1.6493060000000002,
+      "transform_call_classes_ns": 159.365855,
+      "transform_purity_ns": 0.4980835,
+      "machine_preflight_ns": 38.6755625,
+      "partition_ns": 17.877547,
+      "diagnostic_ns": 9.123943,
+      "object_ns": 126.9730975,
+      "link_key_ns": 29.913331499999998,
+      "link_execution_ns": 28.003932,
+      "other_ns": 17.0253725,
+      "total_ns": 631.1890490000001
+    }
   },
+  "result": "NoGo: first-edit target unmet; ordinaryCLI C1799.099/Rust1449.339ms; all6pairsfaster=False; comprehensive goal remains open.",
   "paired_phase_diagnostic": {
-    "source": "5fe48bda9bfd4d541d26580f12e2681eb03a9659",
+    "source": "4e3b48bfd3d5cffe9b54c94f512e27806813e113",
     "diagnostic_only": true,
     "formal_ratio": false,
     "process_wall_ms": {
-      "candidate": 1894.413771,
-      "rust": 1185.446902
+      "candidate": 1411.322748,
+      "rust": 1628.520139
     },
     "source_ingress": {
       "source_files_read": 102,
@@ -711,99 +531,215 @@
       "resident_frontend_hits": 0,
       "discovery_receipt_probes": 1,
       "discovery_receipt_complete": 0,
-      "source_read_ns": 1669597,
-      "discovery_receipt_ns": 4353467,
+      "source_read_ns": 2081995,
+      "discovery_receipt_ns": 5838266,
       "semantic_probe_ns": 0,
-      "parser_ns": 58667072
+      "parser_ns": 67168598
     },
     "phase_timings_ns": {
-      "parse": 121074,
-      "expand": 106366789,
-      "types": 79872896,
-      "analyze": 30049666,
-      "verify": 56283255,
-      "lower": 4654334,
-      "codegen": 1033034644,
-      "ct": 81363172
+      "parse": 174798,
+      "expand": 118947848,
+      "types": 115144543,
+      "analyze": 31451259,
+      "verify": 69852736,
+      "lower": 3536402,
+      "codegen": 480355870,
+      "ct": 60201160
     },
     "exclusive_costs": {
-      "total_ns": 1744168955,
-      "classified_ns": 1648547056,
-      "unassigned_ns": 95621899,
+      "total_ns": 1270058201,
+      "classified_ns": 1204157257,
+      "unassigned_ns": 65900944,
       "overlap_ns": 0,
       "overlap_errors_ns": {},
       "segments_ns": {
-        "analyze": 30049666,
-        "codegen": 1033034644,
-        "ct": 81363172,
-        "discovery_receipt_publication": 4584127,
-        "expand_assembly": 1430458,
-        "expand_context": 3001162,
-        "expand_materialization": 19516463,
-        "expand_other": 69769469,
-        "expand_production": 12553281,
-        "expand_reuse": 95956,
-        "frontend_product_publication": 13023288,
-        "frontend_product_read": 16503213,
-        "function_cache_publication": 12495852,
-        "function_cache_read": 45385310,
-        "function_checkpoint": 120892,
-        "lower": 4654334,
-        "owner_binding": 19740,
-        "parse": 121074,
-        "producer_checkpoint": 31818,
-        "project_setup": 1252085,
-        "semantic_cache_read": 11063733,
-        "semantic_candidate_publication": 86744074,
-        "semantic_publication_wait": 3756,
-        "source_ingress": 65573338,
-        "types_cfg_execute": 74962,
-        "types_cfg_reuse": 25942165,
-        "types_cfg_store": 28143,
-        "types_context": 6136808,
+        "analyze": 31451259,
+        "codegen": 480355870,
+        "ct": 60201160,
+        "discovery_receipt_publication": 3338042,
+        "expand_assembly": 1570597,
+        "expand_context": 8137876,
+        "expand_materialization": 21465817,
+        "expand_other": 68367707,
+        "expand_production": 19302395,
+        "expand_reuse": 103456,
+        "frontend_product_publication": 81237386,
+        "frontend_product_read": 20941514,
+        "function_cache_publication": 11625725,
+        "function_cache_read": 33266004,
+        "function_checkpoint": 18007,
+        "lower": 3536402,
+        "owner_binding": 20531,
+        "parse": 174798,
+        "producer_checkpoint": 25358,
+        "project_setup": 1719753,
+        "semantic_cache_read": 12371193,
+        "semantic_candidate_publication": 84236304,
+        "semantic_publication_wait": 2734,
+        "source_ingress": 75690090,
+        "types_cfg_execute": 77256,
+        "types_cfg_reuse": 45924228,
+        "types_cfg_store": 27703,
+        "types_context": 6734392,
         "types_core_comparison": 0,
         "types_graph_maintenance": 0,
-        "types_input_inventory": 1657289,
-        "types_other": 38133434,
-        "types_projection_context": 2591893,
-        "types_query_evaluation": 4004319,
-        "types_shape": 1303883,
-        "verify": 56283255
+        "types_input_inventory": 1762265,
+        "types_other": 52231434,
+        "types_projection_context": 2642489,
+        "types_query_evaluation": 4143022,
+        "types_shape": 1601754,
+        "verify": 69852736
       }
     },
-    "raw": "out/runs/paired-firstedit-phases-32",
-    "rust_incremental_explicit_and_argv_verified": true,
-    "rust_pass_ms": {
-      "parse_crate": 0.516853,
-      "macro_expand_crate": 95.102043,
-      "resolve_crate": 58.374601,
-      "type_check_crate": 22.08307,
-      "MIR_borrow_checking": 26.043874000000002,
-      "misc_checking_3": 49.161228,
-      "codegen_crate": 78.750547,
-      "finish_ongoing_codegen": 380.49830499999996,
-      "link_crate": 44.638563999999995,
-      "serialize_dep_graph": 61.476755000000004,
-      "LLVM_passes": 34.019869,
-      "LLVM_thinlto": 457.216998,
-      "total": 1108.269718
+    "backend": {
+      "machine_ns": 287703436,
+      "factored_machine_items": 5266,
+      "factored_live_items": 166,
+      "raw_models_decoded": 423,
+      "raw_models_encoded": 5,
+      "raw_model_encodings_reused": 568,
+      "current_class_bodies_checked": 242,
+      "class_equivalence_comparisons": 86,
+      "class_equivalence_reuses": 4857,
+      "machine_emit_ns": 164363892,
+      "machine_transform_ns": 122020829,
+      "transform_ranges_ns": 13605441,
+      "transform_checked_add_ns": 1225354,
+      "transform_scalar_ns": 1150031,
+      "transform_call_classes_ns": 105381607,
+      "transform_purity_ns": 405444,
+      "machine_preflight_ns": 34816231,
+      "partition_ns": 10584168,
+      "diagnostic_ns": 1143250,
+      "object_ns": 124082558,
+      "link_key_ns": 27298554,
+      "link_execution_ns": 21648474,
+      "other_ns": 7100567,
+      "total_ns": 479561007
     },
-    "rust_note": "Rust parse_crate is the root only; module parsing occurs in macro expansion. Nested/overlapping LLVM fields cannot be added to codegen/finish. A single diagnostic run does not replace six-block CLI results."
+    "raw": "out/runs/paired-firstedit-phases-33",
+    "rust_incremental_explicit_and_argv_verified": true
   },
+  "validation_corrections": [
+    {
+      "source": "4e3b48bfd3d5cffe9b54c94f512e27806813e113",
+      "failure": "Initial gate process omitted ZIL_TEST_NATIVE_LINK_PROFILE: backend414pass1fail, driver266pass1fail, publication0pass4fail. All failed in explicit environment lookup before target operation.",
+      "correction": "Same source, installed SDK18/native-link path explicitly set: reran exact two failed tests and publication4 successfully. Preserved initial failures; strict/API117/remainingbackend414/driver266/fmt receipts reused.",
+      "source_changed": false
+    }
+  ],
   "rust_reference": {
     "repository": "https://github.com/rust-lang/rust",
     "commit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
     "paths": [
-      "compiler/rustc_lexer/src/lib.rs",
-      "compiler/rustc_interface/src/passes.rs",
+      "compiler/rustc_codegen_ssa/src/base.rs",
       "compiler/rustc_query_impl/src/incremental.rs",
       "compiler/rustc_middle/src/query/on_disk_cache.rs"
     ],
-    "lesson": "Direct lexical dispatch and current-input-bound demand recovery/shared raw owners; Rust frontend parsing is not wholly skipped on edited crates. No wholesale transfer of persistent query authority into ZIL Verify."
+    "lesson": "Decide current dependency reuse before importing a result or compiling a CGU. ZIL moves current dependency decisions before normalized-value decode and keeps machine aliases until reachability, with independent current Verify/preflight retained. Rust does not skip all parsing/front-end work after a crate edit."
   },
-  "validation_corrections": [
-    "c2d89ff60 strict rejected missing &[u8] inference and a byte-slice lint; corrected in77da85578.",
-    "77da85578 new wide Expand fixture used f32, colliding with a primitive type on the cold path; corrected only that name in5fe48bda9. Expand153 rechecked; other passed gates reused by exact one-line diff.",
-    "Syntax79 tests all passed; the initial controller incorrectly rejected an extra zero-test rustdoc result. Corrected interpretation retains original receipt."
-  ]
+  "remaining": [
+    "OrdinaryCLI firstedit still fails target. Do not claim success based on cache or materialization counters.",
+    "All conclusions limited to measured5105function102file directrestartfirstedit chain; original budgets/Verify/fullO2 remain.",
+    "Actualmain originalResourceLimit, industrial multicrate/procmacro/build.rs/minute-scale and comprehensive compile goal remain unproven.",
+    "Current header inventories, required body checks and witness still consume the full logical program; this is not a claim that only changed source must be inspected.",
+    "Large system CPU variation is evidenced by wait4 but not assigned to a compiler phase or cause; retain as unresolved rather than attributing500ms to Types or external scheduling."
+  ],
+  "cpu_memory_observation": {
+    "scope": "whole process tree wait4; not phase-attributed; peak includes compiler subprocesses; no causal allocator/kernel conclusion",
+    "firstedit_samples": [
+      {
+        "block": 0,
+        "candidate": {
+          "wall_ms": 2125.071043,
+          "tree_user_seconds_wait4": 1.596682,
+          "tree_system_seconds_wait4": 0.5273599999999999,
+          "wait4_maxrss_kib": 466104
+        },
+        "rust": {
+          "wall_ms": 1365.401162,
+          "tree_user_seconds_wait4": 1.200244,
+          "tree_system_seconds_wait4": 0.25041399999999997,
+          "wait4_maxrss_kib": 248864
+        }
+      },
+      {
+        "block": 1,
+        "candidate": {
+          "wall_ms": 2010.610896,
+          "tree_user_seconds_wait4": 1.056405,
+          "tree_system_seconds_wait4": 1.015378,
+          "wait4_maxrss_kib": 466168
+        },
+        "rust": {
+          "wall_ms": 1264.059374,
+          "tree_user_seconds_wait4": 1.250019,
+          "tree_system_seconds_wait4": 0.33157,
+          "wait4_maxrss_kib": 249116
+        }
+      },
+      {
+        "block": 2,
+        "candidate": {
+          "wall_ms": 1587.587686,
+          "tree_user_seconds_wait4": 1.041155,
+          "tree_system_seconds_wait4": 0.583923,
+          "wait4_maxrss_kib": 466800
+        },
+        "rust": {
+          "wall_ms": 1557.511135,
+          "tree_user_seconds_wait4": 1.26817,
+          "tree_system_seconds_wait4": 0.36188899999999996,
+          "wait4_maxrss_kib": 247740
+        }
+      },
+      {
+        "block": 3,
+        "candidate": {
+          "wall_ms": 1284.157024,
+          "tree_user_seconds_wait4": 1.084809,
+          "tree_system_seconds_wait4": 0.208171,
+          "wait4_maxrss_kib": 466328
+        },
+        "rust": {
+          "wall_ms": 1227.753571,
+          "tree_user_seconds_wait4": 1.108651,
+          "tree_system_seconds_wait4": 0.206924,
+          "wait4_maxrss_kib": 248416
+        }
+      },
+      {
+        "block": 4,
+        "candidate": {
+          "wall_ms": 2198.510519,
+          "tree_user_seconds_wait4": 1.506351,
+          "tree_system_seconds_wait4": 0.6637919999999999,
+          "wait4_maxrss_kib": 465408
+        },
+        "rust": {
+          "wall_ms": 1990.461255,
+          "tree_user_seconds_wait4": 1.6132900000000001,
+          "tree_system_seconds_wait4": 0.464734,
+          "wait4_maxrss_kib": 249072
+        }
+      },
+      {
+        "block": 5,
+        "candidate": {
+          "wall_ms": 1226.914726,
+          "tree_user_seconds_wait4": 0.899133,
+          "tree_system_seconds_wait4": 0.336118,
+          "wait4_maxrss_kib": 465720
+        },
+        "rust": {
+          "wall_ms": 1533.276144,
+          "tree_user_seconds_wait4": 1.246296,
+          "tree_system_seconds_wait4": 0.348985,
+          "wait4_maxrss_kib": 248272
+        }
+      }
+    ],
+    "finding": "Candidate system CPU spans208-1015ms, Rust207-465ms. Peak RSS candidate454-456MiB/Rust242-244MiB (wait4 KiB /1024). High cost migrates between Types/CT/backend. Not established as descheduling, worker join, or any particular syscall.",
+    "unresolved": "Phase-level user/system/fault deltas and stacks during spikes are missing. Async publication worker starts after Types and explicit join is separately measured after backend; it cannot explain preceding CT/Types spikes."
+  }
 }

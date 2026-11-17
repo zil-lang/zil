@@ -1,0 +1,745 @@
+{
+  "schema": "zil.native-direct-firstedit-result.v10",
+  "scope": "5105functions/102files; actualmain/candidate/Rust; fullO2/CGU16/compilerjobs1; SDK18/native-link reused, noLLVMrebuild; explicit default-off research flags and host-jemalloc.",
+  "counts": {
+    "formal_requests": 30,
+    "functional_cells": 10,
+    "runtime_builds": 12,
+    "runtime_cases": 4,
+    "ordinary_cli_builds": 36,
+    "ordinary_cli_balanced_blocks": 6
+  },
+  "disk_accounting": "Peak of simultaneous per-arm totals in original globally inode-deduplicated snapshots; physical=st_blocks*512; excludes SDK, host build and research evidence; boundary peaks not transient peak.",
+  "source": "4e3b48bfd3d5cffe9b54c94f512e27806813e113",
+  "binary_sha256": "30ef1deda6e2b2296fe3037e89c7b2cd61e6369c6b19b19bb12e6b46cdc824bf",
+  "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
+  "execution_complete": true,
+  "functional_quality_valid": true,
+  "runtime_candidate_rust_accepted": true,
+  "accepted": false,
+  "compile_median_ms": {
+    "cold": {
+      "candidate": 3247.3065205000003,
+      "rust": 6170.266745
+    },
+    "unchanged": {
+      "candidate": 61.887197,
+      "rust": 27.532123
+    },
+    "private-001": {
+      "candidate": 1578.1744560000002,
+      "rust": 1169.1187795
+    },
+    "recovery": {
+      "candidate": 1541.877067,
+      "rust": 6266.5036935
+    }
+  },
+  "ordinary_cli": {
+    "execution_complete": true,
+    "rows": 36,
+    "blocks": 6,
+    "first_edit_pairs_ms": [
+      {
+        "candidate": 2125.071043,
+        "rust": 1365.401162
+      },
+      {
+        "candidate": 2010.610896,
+        "rust": 1264.059374
+      },
+      {
+        "candidate": 1587.587686,
+        "rust": 1557.511135
+      },
+      {
+        "candidate": 1284.157024,
+        "rust": 1227.753571
+      },
+      {
+        "candidate": 2198.510519,
+        "rust": 1990.461255
+      },
+      {
+        "candidate": 1226.914726,
+        "rust": 1533.276144
+      }
+    ],
+    "candidate_faster_in_every_first_edit_pair": false,
+    "median_ms": {
+      "cold": {
+        "baseline": 495.5383565,
+        "candidate": 2881.9490315000003,
+        "rust": 7924.4697195
+      },
+      "private-001": {
+        "baseline": 736.324166,
+        "candidate": 1799.099291,
+        "rust": 1449.338653
+      }
+    },
+    "clock": "ordinary CLI launch through process exit; default session capacity; no diagnostic flags",
+    "profile": "O2/CGU16/compiler jobs1; original budgets; explicit research options from parent",
+    "history": "empty per-block user caches -> cold -> process exit -> edit -> fresh process first build",
+    "full_runtime_gate": "parent matrix; three output controls per successful CLI build only"
+  },
+  "runtime_ms": {
+    "5105/cold": {
+      "candidate": 37.528411500000004,
+      "rust": 218.1391375
+    },
+    "5105/unchanged": {
+      "candidate": 33.165608500000005,
+      "rust": 212.475479
+    },
+    "5105/private-001": {
+      "candidate": 35.8869265,
+      "rust": 212.53565049999997
+    },
+    "5105/recovery": {
+      "candidate": 34.7352695,
+      "rust": 192.3296195
+    }
+  },
+  "user_disk_boundaries": [
+    {
+      "block": 0,
+      "candidate": {
+        "logical_bytes": 28668786,
+        "physical_bytes": 29167616
+      },
+      "rust": {
+        "logical_bytes": 76553667,
+        "physical_bytes": 76734464
+      }
+    },
+    {
+      "block": 1,
+      "candidate": {
+        "logical_bytes": 28630653,
+        "physical_bytes": 29134848
+      },
+      "rust": {
+        "logical_bytes": 61371068,
+        "physical_bytes": 61546496
+      }
+    }
+  ],
+  "ordinary_cli_disk_boundaries": [
+    {
+      "block": 0,
+      "candidate": {
+        "logical_bytes": 27149185,
+        "physical_bytes": 27623424
+      },
+      "rust": {
+        "logical_bytes": 60994275,
+        "physical_bytes": 61149184
+      }
+    },
+    {
+      "block": 1,
+      "candidate": {
+        "logical_bytes": 27147875,
+        "physical_bytes": 27623424
+      },
+      "rust": {
+        "logical_bytes": 60994275,
+        "physical_bytes": 61149184
+      }
+    },
+    {
+      "block": 2,
+      "candidate": {
+        "logical_bytes": 27175030,
+        "physical_bytes": 27652096
+      },
+      "rust": {
+        "logical_bytes": 60994275,
+        "physical_bytes": 61149184
+      }
+    },
+    {
+      "block": 3,
+      "candidate": {
+        "logical_bytes": 27161353,
+        "physical_bytes": 27639808
+      },
+      "rust": {
+        "logical_bytes": 60994275,
+        "physical_bytes": 61149184
+      }
+    },
+    {
+      "block": 4,
+      "candidate": {
+        "logical_bytes": 27156666,
+        "physical_bytes": 27639808
+      },
+      "rust": {
+        "logical_bytes": 60994274,
+        "physical_bytes": 61153280
+      }
+    },
+    {
+      "block": 5,
+      "candidate": {
+        "logical_bytes": 27142984,
+        "physical_bytes": 27623424
+      },
+      "rust": {
+        "logical_bytes": 60994274,
+        "physical_bytes": 61153280
+      }
+    }
+  ],
+  "gates": {
+    "strict": true,
+    "api": 117,
+    "backend": 415,
+    "driver": 267,
+    "native_publication": 4,
+    "fmt": true,
+    "release": true,
+    "receipt": "out/runs/demand-machine-gates-33-4e3b48bfd3d5-profile",
+    "original_receipt": "out/runs/demand-machine-gates-33-4e3b48bfd3d5"
+  },
+  "source_review": {
+    "source": "4e3b48bfd3d5cffe9b54c94f512e27806813e113",
+    "reviewer": "gpt-6-astra",
+    "scope": "17-file exact frozen source independent architecture/security review; no blocker. Current Verify/LIR, original fee consumers, full alias World/preflight, current callee/normalization relation, dead-body/pre-delete checks, original range/CGU/O2 retained. No test/performance assertion.",
+    "verdict": "PASS"
+  },
+  "raw": "out/runs/direct-firstedit-performance-direct-33",
+  "previous_result": "window32.json",
+  "changes": [
+    "Raw emission first compares complete current input/facts; only matching values demand bounded machine-output decoding. Alias-specific mismatch does not poison another unchanged alias.",
+    "Closed scalar emission retains shared machine templates and outer aliases, preserving per-function current reservations and source identity. It avoids expanding all original Function wrappers.",
+    "Class recovery indexes raw rows, waits for current dependency resolution, then decodes only a requested normalized value and validates its complete current relation. It no longer constructs a full previous analysis cache before current canonicalization.",
+    "Original and classed machine preflight consume the complete current alias World through the same validation core, including headers/ABI and dead bodies. No persisted checker authority.",
+    "Closed reachability and full diagnostic witness consume aliases directly; only live definitions are materialized. Existing current range/scalar/purity/CGU/full-O2/native consumers remain.",
+    "Machine cache format and original byte/node bounds remain; no additional persistent complete-machine cache or default-on research feature."
+  ],
+  "ordinary_cli_phase_samples": [
+    {
+      "block": 0,
+      "wall_ms": 2125.071043,
+      "reported_ms": 2006.547712,
+      "phase_ms": {
+        "parse": 0.130598,
+        "expand": 93.37753,
+        "types": 87.271228,
+        "analyze": 38.1453,
+        "verify": 66.196304,
+        "lower": 4.624259,
+        "codegen": 672.250529,
+        "ct": 666.51272
+      },
+      "backend_ms": {
+        "machine_ns": 414.43655,
+        "machine_emit_ns": 198.546455,
+        "machine_transform_ns": 214.435974,
+        "transform_ranges_ns": 23.935013,
+        "transform_checked_add_ns": 1.566932,
+        "transform_scalar_ns": 1.858352,
+        "transform_call_classes_ns": 185.758713,
+        "transform_purity_ns": 0.521118,
+        "machine_preflight_ns": 39.211504,
+        "partition_ns": 21.753974,
+        "diagnostic_ns": 8.977266,
+        "object_ns": 124.451489,
+        "link_key_ns": 35.494774,
+        "link_execution_ns": 40.683431,
+        "other_ns": 25.290055,
+        "total_ns": 671.087539
+      },
+      "machine_counts": {
+        "factored_machine_items": 5266,
+        "factored_live_items": 166,
+        "raw_models_decoded": 423,
+        "raw_models_encoded": 5,
+        "raw_model_encodings_reused": 568,
+        "current_class_bodies_checked": 242,
+        "class_equivalence_comparisons": 86,
+        "class_equivalence_reuses": 4857
+      }
+    },
+    {
+      "block": 1,
+      "wall_ms": 2010.610896,
+      "reported_ms": 1892.628594,
+      "phase_ms": {
+        "parse": 0.144202,
+        "expand": 241.431678,
+        "types": 260.747211,
+        "analyze": 39.422132,
+        "verify": 90.400734,
+        "lower": 3.074272,
+        "codegen": 592.108176,
+        "ct": 83.206448
+      },
+      "backend_ms": {
+        "machine_ns": 393.9679,
+        "machine_emit_ns": 231.125055,
+        "machine_transform_ns": 161.501816,
+        "transform_ranges_ns": 14.328395,
+        "transform_checked_add_ns": 1.319076,
+        "transform_scalar_ns": 1.536836,
+        "transform_call_classes_ns": 143.354781,
+        "transform_purity_ns": 0.475049,
+        "machine_preflight_ns": 38.139621,
+        "partition_ns": 13.54559,
+        "diagnostic_ns": 10.521935,
+        "object_ns": 115.488378,
+        "link_key_ns": 26.924758,
+        "link_execution_ns": 22.206267,
+        "other_ns": 8.635731,
+        "total_ns": 591.290559
+      },
+      "machine_counts": {
+        "factored_machine_items": 5266,
+        "factored_live_items": 166,
+        "raw_models_decoded": 423,
+        "raw_models_encoded": 5,
+        "raw_model_encodings_reused": 568,
+        "current_class_bodies_checked": 242,
+        "class_equivalence_comparisons": 86,
+        "class_equivalence_reuses": 4857
+      }
+    },
+    {
+      "block": 2,
+      "wall_ms": 1587.587686,
+      "reported_ms": 1413.686316,
+      "phase_ms": {
+        "parse": 0.137489,
+        "expand": 100.118723,
+        "types": 84.689863,
+        "analyze": 40.166439,
+        "verify": 68.761585,
+        "lower": 3.256178,
+        "codegen": 711.698626,
+        "ct": 48.975772
+      },
+      "backend_ms": {
+        "machine_ns": 427.347703,
+        "machine_emit_ns": 216.416425,
+        "machine_transform_ns": 209.099005,
+        "transform_ranges_ns": 27.931903,
+        "transform_checked_add_ns": 2.271508,
+        "transform_scalar_ns": 2.089683,
+        "transform_call_classes_ns": 175.376929,
+        "transform_purity_ns": 1.004761,
+        "machine_preflight_ns": 41.643315,
+        "partition_ns": 31.752406,
+        "diagnostic_ns": 9.823356,
+        "object_ns": 147.529204,
+        "link_key_ns": 32.487117,
+        "link_execution_ns": 32.198791,
+        "other_ns": 29.553055,
+        "total_ns": 710.691632
+      },
+      "machine_counts": {
+        "factored_machine_items": 5266,
+        "factored_live_items": 166,
+        "raw_models_decoded": 423,
+        "raw_models_encoded": 5,
+        "raw_model_encodings_reused": 568,
+        "current_class_bodies_checked": 242,
+        "class_equivalence_comparisons": 86,
+        "class_equivalence_reuses": 4857
+      }
+    },
+    {
+      "block": 3,
+      "wall_ms": 1284.157024,
+      "reported_ms": 1166.898282,
+      "phase_ms": {
+        "parse": 0.179794,
+        "expand": 87.861983,
+        "types": 83.558891,
+        "analyze": 46.158634,
+        "verify": 75.02199,
+        "lower": 4.509505,
+        "codegen": 457.766983,
+        "ct": 52.687669
+      },
+      "backend_ms": {
+        "machine_ns": 249.131823,
+        "machine_emit_ns": 105.444182,
+        "machine_transform_ns": 142.00229,
+        "transform_ranges_ns": 14.443208,
+        "transform_checked_add_ns": 2.004063,
+        "transform_scalar_ns": 1.706552,
+        "transform_call_classes_ns": 122.789142,
+        "transform_purity_ns": 0.546256,
+        "machine_preflight_ns": 41.035401,
+        "partition_ns": 14.00112,
+        "diagnostic_ns": 5.522768,
+        "object_ns": 129.494706,
+        "link_key_ns": 26.071316,
+        "link_execution_ns": 23.809073,
+        "other_ns": 8.76069,
+        "total_ns": 456.791496
+      },
+      "machine_counts": {
+        "factored_machine_items": 5266,
+        "factored_live_items": 166,
+        "raw_models_decoded": 423,
+        "raw_models_encoded": 5,
+        "raw_model_encodings_reused": 568,
+        "current_class_bodies_checked": 242,
+        "class_equivalence_comparisons": 86,
+        "class_equivalence_reuses": 4857
+      }
+    },
+    {
+      "block": 4,
+      "wall_ms": 2198.510519,
+      "reported_ms": 2009.193937,
+      "phase_ms": {
+        "parse": 0.176904,
+        "expand": 89.197703,
+        "types": 93.275614,
+        "analyze": 34.266044,
+        "verify": 61.678075,
+        "lower": 3.425544,
+        "codegen": 1059.50411,
+        "ct": 52.688169
+      },
+      "backend_ms": {
+        "machine_ns": 407.259285,
+        "machine_emit_ns": 195.869953,
+        "machine_transform_ns": 209.490549,
+        "transform_ranges_ns": 15.740582,
+        "transform_checked_add_ns": 1.396283,
+        "transform_scalar_ns": 1.59206,
+        "transform_call_classes_ns": 189.646676,
+        "transform_purity_ns": 0.415188,
+        "machine_preflight_ns": 36.506462,
+        "partition_ns": 25.600945,
+        "diagnostic_ns": 9.27062,
+        "object_ns": 457.47742,
+        "link_key_ns": 32.868394,
+        "link_execution_ns": 78.090384,
+        "other_ns": 47.424994,
+        "total_ns": 1057.992042
+      },
+      "machine_counts": {
+        "factored_machine_items": 5266,
+        "factored_live_items": 166,
+        "raw_models_decoded": 423,
+        "raw_models_encoded": 5,
+        "raw_model_encodings_reused": 568,
+        "current_class_bodies_checked": 242,
+        "class_equivalence_comparisons": 86,
+        "class_equivalence_reuses": 4857
+      }
+    },
+    {
+      "block": 5,
+      "wall_ms": 1226.914726,
+      "reported_ms": 1096.2828339999999,
+      "phase_ms": {
+        "parse": 0.130018,
+        "expand": 88.406256,
+        "types": 89.905375,
+        "analyze": 32.770556,
+        "verify": 62.703387,
+        "lower": 4.119484,
+        "codegen": 426.882653,
+        "ct": 53.843417
+      },
+      "backend_ms": {
+        "machine_ns": 246.334717,
+        "machine_emit_ns": 139.8097,
+        "machine_transform_ns": 104.893088,
+        "transform_ranges_ns": 13.258185,
+        "transform_checked_add_ns": 1.399588,
+        "transform_scalar_ns": 1.389403,
+        "transform_call_classes_ns": 87.690423,
+        "transform_purity_ns": 0.466706,
+        "machine_preflight_ns": 34.066766,
+        "partition_ns": 13.687155,
+        "diagnostic_ns": 6.351422,
+        "object_ns": 104.886916,
+        "link_key_ns": 27.339546,
+        "link_execution_ns": 19.456445,
+        "other_ns": 7.95999,
+        "total_ns": 426.016191
+      },
+      "machine_counts": {
+        "factored_machine_items": 5266,
+        "factored_live_items": 166,
+        "raw_models_decoded": 423,
+        "raw_models_encoded": 5,
+        "raw_model_encodings_reused": 568,
+        "current_class_bodies_checked": 242,
+        "class_equivalence_comparisons": 86,
+        "class_equivalence_reuses": 4857
+      }
+    }
+  ],
+  "ordinary_cli_phase_median_ms": {
+    "phase_ms": {
+      "parse": 0.1408455,
+      "expand": 91.2876165,
+      "types": 88.5883015,
+      "analyze": 38.783716,
+      "verify": 67.4789445,
+      "lower": 3.772514,
+      "codegen": 632.1793525,
+      "ct": 53.265793
+    },
+    "backend_ms": {
+      "machine_ns": 400.6135925,
+      "machine_emit_ns": 197.20820400000002,
+      "machine_transform_ns": 185.3004105,
+      "transform_ranges_ns": 15.091895000000001,
+      "transform_checked_add_ns": 1.48326,
+      "transform_scalar_ns": 1.6493060000000002,
+      "transform_call_classes_ns": 159.365855,
+      "transform_purity_ns": 0.4980835,
+      "machine_preflight_ns": 38.6755625,
+      "partition_ns": 17.877547,
+      "diagnostic_ns": 9.123943,
+      "object_ns": 126.9730975,
+      "link_key_ns": 29.913331499999998,
+      "link_execution_ns": 28.003932,
+      "other_ns": 17.0253725,
+      "total_ns": 631.1890490000001
+    }
+  },
+  "result": "NoGo: first-edit target unmet; ordinaryCLI C1799.099/Rust1449.339ms; all6pairsfaster=False; comprehensive goal remains open.",
+  "paired_phase_diagnostic": {
+    "source": "4e3b48bfd3d5cffe9b54c94f512e27806813e113",
+    "diagnostic_only": true,
+    "formal_ratio": false,
+    "process_wall_ms": {
+      "candidate": 1411.322748,
+      "rust": 1628.520139
+    },
+    "source_ingress": {
+      "source_files_read": 102,
+      "source_bytes_read": 843875,
+      "source_clone_bytes": 849518,
+      "parser_executions": 102,
+      "parser_reuses": 0,
+      "semantic_load_attempts": 0,
+      "semantic_restored_functions": 0,
+      "resident_routes": 0,
+      "resident_frontend_hits": 0,
+      "discovery_receipt_probes": 1,
+      "discovery_receipt_complete": 0,
+      "source_read_ns": 2081995,
+      "discovery_receipt_ns": 5838266,
+      "semantic_probe_ns": 0,
+      "parser_ns": 67168598
+    },
+    "phase_timings_ns": {
+      "parse": 174798,
+      "expand": 118947848,
+      "types": 115144543,
+      "analyze": 31451259,
+      "verify": 69852736,
+      "lower": 3536402,
+      "codegen": 480355870,
+      "ct": 60201160
+    },
+    "exclusive_costs": {
+      "total_ns": 1270058201,
+      "classified_ns": 1204157257,
+      "unassigned_ns": 65900944,
+      "overlap_ns": 0,
+      "overlap_errors_ns": {},
+      "segments_ns": {
+        "analyze": 31451259,
+        "codegen": 480355870,
+        "ct": 60201160,
+        "discovery_receipt_publication": 3338042,
+        "expand_assembly": 1570597,
+        "expand_context": 8137876,
+        "expand_materialization": 21465817,
+        "expand_other": 68367707,
+        "expand_production": 19302395,
+        "expand_reuse": 103456,
+        "frontend_product_publication": 81237386,
+        "frontend_product_read": 20941514,
+        "function_cache_publication": 11625725,
+        "function_cache_read": 33266004,
+        "function_checkpoint": 18007,
+        "lower": 3536402,
+        "owner_binding": 20531,
+        "parse": 174798,
+        "producer_checkpoint": 25358,
+        "project_setup": 1719753,
+        "semantic_cache_read": 12371193,
+        "semantic_candidate_publication": 84236304,
+        "semantic_publication_wait": 2734,
+        "source_ingress": 75690090,
+        "types_cfg_execute": 77256,
+        "types_cfg_reuse": 45924228,
+        "types_cfg_store": 27703,
+        "types_context": 6734392,
+        "types_core_comparison": 0,
+        "types_graph_maintenance": 0,
+        "types_input_inventory": 1762265,
+        "types_other": 52231434,
+        "types_projection_context": 2642489,
+        "types_query_evaluation": 4143022,
+        "types_shape": 1601754,
+        "verify": 69852736
+      }
+    },
+    "backend": {
+      "machine_ns": 287703436,
+      "factored_machine_items": 5266,
+      "factored_live_items": 166,
+      "raw_models_decoded": 423,
+      "raw_models_encoded": 5,
+      "raw_model_encodings_reused": 568,
+      "current_class_bodies_checked": 242,
+      "class_equivalence_comparisons": 86,
+      "class_equivalence_reuses": 4857,
+      "machine_emit_ns": 164363892,
+      "machine_transform_ns": 122020829,
+      "transform_ranges_ns": 13605441,
+      "transform_checked_add_ns": 1225354,
+      "transform_scalar_ns": 1150031,
+      "transform_call_classes_ns": 105381607,
+      "transform_purity_ns": 405444,
+      "machine_preflight_ns": 34816231,
+      "partition_ns": 10584168,
+      "diagnostic_ns": 1143250,
+      "object_ns": 124082558,
+      "link_key_ns": 27298554,
+      "link_execution_ns": 21648474,
+      "other_ns": 7100567,
+      "total_ns": 479561007
+    },
+    "raw": "out/runs/paired-firstedit-phases-33",
+    "rust_incremental_explicit_and_argv_verified": true
+  },
+  "validation_corrections": [
+    {
+      "source": "4e3b48bfd3d5cffe9b54c94f512e27806813e113",
+      "failure": "Initial gate process omitted ZIL_TEST_NATIVE_LINK_PROFILE: backend414pass1fail, driver266pass1fail, publication0pass4fail. All failed in explicit environment lookup before target operation.",
+      "correction": "Same source, installed SDK18/native-link path explicitly set: reran exact two failed tests and publication4 successfully. Preserved initial failures; strict/API117/remainingbackend414/driver266/fmt receipts reused.",
+      "source_changed": false
+    }
+  ],
+  "rust_reference": {
+    "repository": "https://github.com/rust-lang/rust",
+    "commit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+    "paths": [
+      "compiler/rustc_codegen_ssa/src/base.rs",
+      "compiler/rustc_query_impl/src/incremental.rs",
+      "compiler/rustc_middle/src/query/on_disk_cache.rs"
+    ],
+    "lesson": "Decide current dependency reuse before importing a result or compiling a CGU. ZIL moves current dependency decisions before normalized-value decode and keeps machine aliases until reachability, with independent current Verify/preflight retained. Rust does not skip all parsing/front-end work after a crate edit."
+  },
+  "remaining": [
+    "OrdinaryCLI firstedit still fails target. Do not claim success based on cache or materialization counters.",
+    "All conclusions limited to measured5105function102file directrestartfirstedit chain; original budgets/Verify/fullO2 remain.",
+    "Actualmain originalResourceLimit, industrial multicrate/procmacro/build.rs/minute-scale and comprehensive compile goal remain unproven.",
+    "Current header inventories, required body checks and witness still consume the full logical program; this is not a claim that only changed source must be inspected.",
+    "Large system CPU variation is evidenced by wait4 but not assigned to a compiler phase or cause; retain as unresolved rather than attributing500ms to Types or external scheduling."
+  ],
+  "cpu_memory_observation": {
+    "scope": "whole process tree wait4; not phase-attributed; peak includes compiler subprocesses; no causal allocator/kernel conclusion",
+    "firstedit_samples": [
+      {
+        "block": 0,
+        "candidate": {
+          "wall_ms": 2125.071043,
+          "tree_user_seconds_wait4": 1.596682,
+          "tree_system_seconds_wait4": 0.5273599999999999,
+          "wait4_maxrss_kib": 466104
+        },
+        "rust": {
+          "wall_ms": 1365.401162,
+          "tree_user_seconds_wait4": 1.200244,
+          "tree_system_seconds_wait4": 0.25041399999999997,
+          "wait4_maxrss_kib": 248864
+        }
+      },
+      {
+        "block": 1,
+        "candidate": {
+          "wall_ms": 2010.610896,
+          "tree_user_seconds_wait4": 1.056405,
+          "tree_system_seconds_wait4": 1.015378,
+          "wait4_maxrss_kib": 466168
+        },
+        "rust": {
+          "wall_ms": 1264.059374,
+          "tree_user_seconds_wait4": 1.250019,
+          "tree_system_seconds_wait4": 0.33157,
+          "wait4_maxrss_kib": 249116
+        }
+      },
+      {
+        "block": 2,
+        "candidate": {
+          "wall_ms": 1587.587686,
+          "tree_user_seconds_wait4": 1.041155,
+          "tree_system_seconds_wait4": 0.583923,
+          "wait4_maxrss_kib": 466800
+        },
+        "rust": {
+          "wall_ms": 1557.511135,
+          "tree_user_seconds_wait4": 1.26817,
+          "tree_system_seconds_wait4": 0.36188899999999996,
+          "wait4_maxrss_kib": 247740
+        }
+      },
+      {
+        "block": 3,
+        "candidate": {
+          "wall_ms": 1284.157024,
+          "tree_user_seconds_wait4": 1.084809,
+          "tree_system_seconds_wait4": 0.208171,
+          "wait4_maxrss_kib": 466328
+        },
+        "rust": {
+          "wall_ms": 1227.753571,
+          "tree_user_seconds_wait4": 1.108651,
+          "tree_system_seconds_wait4": 0.206924,
+          "wait4_maxrss_kib": 248416
+        }
+      },
+      {
+        "block": 4,
+        "candidate": {
+          "wall_ms": 2198.510519,
+          "tree_user_seconds_wait4": 1.506351,
+          "tree_system_seconds_wait4": 0.6637919999999999,
+          "wait4_maxrss_kib": 465408
+        },
+        "rust": {
+          "wall_ms": 1990.461255,
+          "tree_user_seconds_wait4": 1.6132900000000001,
+          "tree_system_seconds_wait4": 0.464734,
+          "wait4_maxrss_kib": 249072
+        }
+      },
+      {
+        "block": 5,
+        "candidate": {
+          "wall_ms": 1226.914726,
+          "tree_user_seconds_wait4": 0.899133,
+          "tree_system_seconds_wait4": 0.336118,
+          "wait4_maxrss_kib": 465720
+        },
+        "rust": {
+          "wall_ms": 1533.276144,
+          "tree_user_seconds_wait4": 1.246296,
+          "tree_system_seconds_wait4": 0.348985,
+          "wait4_maxrss_kib": 248272
+        }
+      }
+    ],
+    "finding": "Candidate system CPU spans208-1015ms, Rust207-465ms. Peak RSS candidate454-456MiB/Rust242-244MiB (wait4 KiB /1024). High cost migrates between Types/CT/backend. Not established as descheduling, worker join, or any particular syscall.",
+    "unresolved": "Phase-level user/system/fault deltas and stacks during spikes are missing. Async publication worker starts after Types and explicit join is separately measured after backend; it cannot explain preceding CT/Types spikes."
+  }
+}
