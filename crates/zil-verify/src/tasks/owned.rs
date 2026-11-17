@@ -663,11 +663,16 @@ fn helper_graph(
                 budget.spend(1)?;
                 // This is ordinary execution reached from a Task driver,
                 // not synchronous destruction of the captured environment.
-                // Registration providers/callbacks, actual heads and results
-                // still pass their complete opcode contract; lifecycle and
+                // Task creation references a worker without executing it.
+                // All Task/registration providers, callbacks, input/frame ports,
+                // actual heads and results pass the complete opcode contract;
+                // lifecycle and
                 // retirement remain in the resource/protocol kernels.
                 if driving&&matches!(i.kind,
-                    InstructionKind::RegistrationStart{..}|InstructionKind::RegistrationValid{..}|InstructionKind::RegistrationClose{..}
+                    InstructionKind::TaskStart{..}|InstructionKind::TaskCreate{..}|InstructionKind::TaskCreateOwned{..}
+                    |InstructionKind::TaskPoll{..}|InstructionKind::TaskValid{..}|InstructionKind::TaskRequestCancel{..}
+                    |InstructionKind::TaskPollClose{..}|InstructionKind::TaskFinishDestroy{..}
+                    |InstructionKind::RegistrationStart{..}|InstructionKind::RegistrationValid{..}|InstructionKind::RegistrationClose{..}
                     |InstructionKind::AsyncRegistrationStart{..}|InstructionKind::AsyncRegistrationValid{..}
                     |InstructionKind::AsyncRegistrationRequestClose{..}|InstructionKind::AsyncRegistrationPollClose{..}
                     |InstructionKind::AsyncRegistrationFinishDestroy{..}|InstructionKind::AsyncRegistrationFinishDestroyChecked{..}){
@@ -680,12 +685,6 @@ fn helper_graph(
                         if kind!=CallKind::Direct{return Err(reject("E-VERIFY-TASK",Some(i.span),"Task synchronous cleanup calls a suspending dynamic slot"));}
                         pending.extend(targets.into_iter().map(|target|(target,driving)));
                     }
-                    InstructionKind::TaskPoll { .. }
-                    | InstructionKind::TaskValid { .. }
-                    | InstructionKind::TaskRequestCancel { .. }
-                    | InstructionKind::TaskPollClose { .. }
-                    | InstructionKind::TaskFinishDestroy { .. }
-                        if driving => {}
                     InstructionKind::Call { function, .. }
                     | InstructionKind::ForeignCall { function, .. } => {
                         pending.push((*function, driving))

@@ -107,17 +107,32 @@ impl CheckedOriginal {
         let selected=self.synchronous_environment(module,context,worker,&actuals,&[caller],active,b)?;
         let mut shapes=Vec::new();
         for(ordinal,argument)in arguments.iter().enumerate(){
+            if ordinal==0{
+                // task_worker resolves the code selector's base, not an
+                // executable value at its written generic-application shell.
+                // Reconfirm that exact static role; this proves no capture
+                // dependency and does not erase any runtime input Closure.
+                let base=match &argument.kind{
+                    CoreExprKind::TypeApply{callee,..}|CoreExprKind::GenericApply{callee,..}=>callee.as_ref(),
+                    _=>argument,
+                };
+                let source=self.expressions.get(&(owner,base.id)).ok_or_else(||bad("Task worker selector has no complete original static base type"))?;
+                if !matches!(self.resolved(source,b)?,Ty::Function(id)if id==worker)
+                    ||self.call_targets.get(&(owner,site))!=Some(&worker)
+                    ||!context.definition(module,worker,b)?.environment.is_empty(){
+                    return Err(bad("Task worker source differs from its independently selected static code role"));
+                }
+                shapes.push(Shape::Plain);continue;
+            }
             let actual=self.expressions.get(&(owner,argument.id)).ok_or_else(||bad("Task creation has no complete original worker/input expression type"))?.clone();
             let mut shape=self.task_shape(module,context,&actual,false,active,b,0)?;
-            if ordinal!=0{
-                if let Some(selected)=&selected{
+            if let Some(selected)=&selected{
                     let parameter=self.prototypes.get(&worker).and_then(|prototype|prototype.parameters.get(ordinal-1)).ok_or_else(||bad("Task dependency shape changes its original worker arity"))?;
                     let parameter=self.apply_type(parameter,selected,b)?;
                     let required=self.task_shape(module,context,&parameter,false,active,b,0)?;
                     // A source Type variable/equality cannot erase a Task slot
                     // required by the independently selected worker prototype.
                     if required.has_task(){shape=required;}
-                }
             }
             shapes.push(shape);
         }Ok(shapes)
