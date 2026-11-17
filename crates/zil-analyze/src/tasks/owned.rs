@@ -259,6 +259,163 @@ fn frame_package_instruction(
     Ok(true)
 }
 
+fn frame_take_instruction(
+    module: &TypedModule,
+    f: &TypedFunction,
+    instruction: &Instruction,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let (local, path) = match &instruction.kind {
+        InstructionKind::TakeTupleField { local, path }
+        | InstructionKind::TakeVariantField { local, path } => (*local, path),
+        _ => return Ok(false),
+    };
+    let root = local_type(f, local, Some(instruction.span))?;
+    if path.is_empty()
+        || !pollable_storage(module, root, budget)? && !complete_aggregate(module, root, budget)?
+    {
+        return Err(fail(
+            instruction.span,
+            "Task selective take needs its complete actual local and nonempty path",
+        ));
+    }
+    budget.spend(
+        path.len().saturating_add(1),
+        "Task actual selective field path",
+    )?;
+    let mut selected = root;
+    for step in path {
+        selected = match (step, selected) {
+            (zil_ir::PlaceProjection::Field(index), ty) => {
+                let physical = match ty {
+                    Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                    other => other,
+                };
+                match physical {
+                    Type::Tuple(fields) => fields.get(*index as usize),
+                    Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                        fields.get(*index as usize).map(|(_, ty)| ty)
+                    }
+                    _ => None,
+                }
+            }
+            (zil_ir::PlaceProjection::Variant(selector), Type::Enum { variants, .. }) => variants
+                .get(selector.variant as usize)
+                .and_then(|(_, fields)| fields.get(selector.index as usize)),
+            (
+                zil_ir::PlaceProjection::ErrorArm(error),
+                Type::ErrorUnion {
+                    error: failure,
+                    result,
+                },
+            ) => Some(if *error {
+                failure.as_ref()
+            } else {
+                result.as_ref()
+            }),
+            _ => None,
+        }
+        .ok_or_else(|| {
+            fail(
+                instruction.span,
+                "Task selective take path differs from its actual local layout",
+            )
+        })?;
+    }
+    let output = instruction.result.ok_or_else(|| {
+        fail(
+            instruction.span,
+            "Task selective take lacks its actual result",
+        )
+    })?;
+    let result = value_type(f, output, Some(instruction.span))?;
+    budget.type_work(selected, false, "Task complete selected field")?;
+    budget.type_work(result, false, "Task complete selective take result")?;
+    if selected != result {
+        return Err(fail(
+            instruction.span,
+            "Task selective take changes its complete actual field type or mode",
+        ));
+    }
+    // This is the same path followed by the native typed GEP/load and partial
+    // live flags. The ordinary Sum/resource kernels independently prove its
+    // current tag, initialization, unique move, source and no-later-use facts.
+    Ok(true)
+}
+
+fn frame_storage_instruction(
+    module: &TypedModule,
+    f: &TypedFunction,
+    instruction: &Instruction,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    // Both helper graphs and persistent workers pay and consume this exact
+    // physical instruction inventory. Call/creation/protocol/root-specific
+    // qualifications remain in their callers; this grants no live owner,
+    // active Sum tag, access permission, source or synchronous Drop proof.
+    budget.spend(1, "actual Task frame operation")?;
+    if frame_store_instruction(module, f, instruction, budget)?
+        || frame_closure_instruction(module, f, instruction, budget)?
+        || frame_tag_local_instruction(module, f, instruction, budget)?
+        || frame_package_instruction(module, f, instruction, budget)?
+        || frame_take_instruction(module, f, instruction, budget)?
+        || frame_static_read_instruction(module, f, instruction, budget)?
+    {
+        return Ok(true);
+    }
+    Ok(matches!(
+        &instruction.kind,
+        InstructionKind::Constant(_)
+            | InstructionKind::Load(_)
+            | InstructionKind::Store { .. }
+            | InstructionKind::StorageLive(_)
+            | InstructionKind::StorageDead(_)
+            | InstructionKind::ScopeEnter { .. }
+            | InstructionKind::ScopeExit { .. }
+            | InstructionKind::ReadDesc { .. }
+            | InstructionKind::WriteDesc { .. }
+            | InstructionKind::UnsafeEnter { .. }
+            | InstructionKind::UnsafeExit { .. }
+            | InstructionKind::MakeManaged { .. }
+            | InstructionKind::DropManaged { .. }
+            | InstructionKind::TakeLocal { .. }
+            | InstructionKind::DescribeLocal { .. }
+            | InstructionKind::Unary { .. }
+            | InstructionKind::Binary { .. }
+            | InstructionKind::ByteBufferNew
+            | InstructionKind::ByteBufferReserve { .. }
+            | InstructionKind::ByteBufferPush { .. }
+            | InstructionKind::ByteBufferTruncate { .. }
+            | InstructionKind::ByteBufferLen { .. }
+            | InstructionKind::ByteBufferCapacity { .. }
+            | InstructionKind::ByteBufferBorrow { .. }
+            | InstructionKind::ConvertInteger { .. }
+            | InstructionKind::MakeAggregate { .. }
+            | InstructionKind::MakeVariant { .. }
+            | InstructionKind::VariantTag { .. }
+            | InstructionKind::ReadVariant { .. }
+            | InstructionKind::MakeErrorUnion { .. }
+            | InstructionKind::ErrorTag { .. }
+            | InstructionKind::TakeErrorUnion { .. }
+            | InstructionKind::UnpackTuple { .. }
+            | InstructionKind::DropErrorUnion { .. }
+            | InstructionKind::ConvertNumber { .. }
+            | InstructionKind::MakeOwnedTuple { .. }
+            | InstructionKind::DropTuple { .. }
+            | InstructionKind::MakePackage { .. }
+            | InstructionKind::DropPackage { .. }
+            | InstructionKind::TakePackageField { .. }
+            | InstructionKind::StorePackageField { .. }
+            | InstructionKind::DropPackageField { .. }
+            | InstructionKind::VariantTagLocal { .. }
+            | InstructionKind::ReadVariantLocal { .. }
+            | InstructionKind::UnpackVariant { .. }
+            | InstructionKind::DropEnum { .. }
+            | InstructionKind::BorrowPlaceLocal { .. }
+            | InstructionKind::ReadErrorUnion { .. }
+    ))
+}
+
 fn static_byte_view(t: &Type) -> bool {
     matches!(t, Type::Address { mutable: false, inner }
         if inner.as_ref() == &Type::U8
@@ -1358,13 +1515,7 @@ fn helper_graph_uncached(
         }
         for b in &f.blocks {
             for i in &b.instructions {
-                budget.spend(1, "actual owning task profile")?;
-                if frame_store_instruction(module, f, i, budget)?
-                    || frame_closure_instruction(module, f, i, budget)?
-                    || frame_tag_local_instruction(module, f, i, budget)?
-                    || frame_package_instruction(module, f, i, budget)?
-                    || frame_static_read_instruction(module, f, i, budget)?
-                {
+                if frame_storage_instruction(module, f, i, budget)? {
                     continue;
                 }
                 match &i.kind {
@@ -1394,57 +1545,6 @@ fn helper_graph_uncached(
                     InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
                     | InstructionKind::AsyncRegistrationFinishDestroy { .. }
                         if closed_retirement || task_factory => {}
-                    InstructionKind::Constant(_)
-                    | InstructionKind::Load(_)
-                    | InstructionKind::Store { .. }
-                    | InstructionKind::StorageLive(_)
-                    | InstructionKind::StorageDead(_)
-                    | InstructionKind::ScopeEnter { .. }
-                    | InstructionKind::ScopeExit { .. }
-                    | InstructionKind::ReadDesc { .. }
-                    | InstructionKind::WriteDesc { .. }
-                    | InstructionKind::UnsafeEnter { .. }
-                    | InstructionKind::UnsafeExit { .. }
-                    | InstructionKind::MakeManaged { .. }
-                    | InstructionKind::DropManaged { .. }
-                    | InstructionKind::TakeLocal { .. }
-                    | InstructionKind::DescribeLocal { .. }
-                    | InstructionKind::Unary { .. }
-                    | InstructionKind::Binary { .. }
-                    | InstructionKind::ByteBufferNew
-                    | InstructionKind::ByteBufferReserve { .. }
-                    | InstructionKind::ByteBufferPush { .. }
-                    | InstructionKind::ByteBufferTruncate { .. }
-                    | InstructionKind::ByteBufferLen { .. }
-                    | InstructionKind::ByteBufferCapacity { .. }
-                    | InstructionKind::ByteBufferBorrow { .. }
-                    | InstructionKind::ConvertInteger { .. }
-                    | InstructionKind::MakeAggregate { .. }
-                    | InstructionKind::MakeVariant { .. }
-                    | InstructionKind::VariantTag { .. }
-                    | InstructionKind::ReadVariant { .. }
-                    | InstructionKind::MakeErrorUnion { .. }
-                    | InstructionKind::ErrorTag { .. }
-                    | InstructionKind::TakeErrorUnion { .. }
-                    | InstructionKind::TakeTupleField { .. }
-                    | InstructionKind::TakeVariantField { .. }
-                    | InstructionKind::UnpackTuple { .. }
-                    | InstructionKind::DropErrorUnion { .. }
-                    | InstructionKind::ConvertNumber { .. }
-                    | InstructionKind::MakeOwnedTuple { .. }
-                    | InstructionKind::DropTuple { .. }
-                    | InstructionKind::MakePackage { .. }
-                    | InstructionKind::DropPackage { .. }
-                    | InstructionKind::TakePackageField { .. }
-                    | InstructionKind::StorePackageField { .. }
-                    | InstructionKind::DropPackageField { .. }
-                    | InstructionKind::VariantTagLocal { .. }
-                    | InstructionKind::ReadVariantLocal { .. }
-                    | InstructionKind::UnpackVariant { .. }
-                    | InstructionKind::DropEnum { .. }
-                    | InstructionKind::PlaceTagLocal { .. }
-                    | InstructionKind::BorrowPlaceLocal { .. }
-                    | InstructionKind::ReadErrorUnion { .. } => {}
                     _ => {
                         return Err(reject(
                             "E-VERIFY-TASK",
@@ -1556,13 +1656,7 @@ pub(super) fn profile(
     let mut children = vec![];
     for b in &f.blocks {
         for i in &b.instructions {
-            budget.spend(1, "actual owning task profile")?;
-            if frame_store_instruction(module, f, i, budget)?
-                || frame_closure_instruction(module, f, i, budget)?
-                || frame_tag_local_instruction(module, f, i, budget)?
-                || frame_package_instruction(module, f, i, budget)?
-                || frame_static_read_instruction(module, f, i, budget)?
-            {
+            if frame_storage_instruction(module, f, i, budget)? {
                 continue;
             }
             match &i.kind {
@@ -1606,37 +1700,9 @@ pub(super) fn profile(
                 | InstructionKind::AsyncRegistrationPollClose { .. }
                 | InstructionKind::AsyncRegistrationFinishDestroy { .. }
                 | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
-                | InstructionKind::UnsafeEnter { .. }
-                | InstructionKind::UnsafeExit { .. }
-                | InstructionKind::Constant(_)
-                | InstructionKind::Load(_)
-                | InstructionKind::Store { .. }
-                | InstructionKind::StorageLive(_)
-                | InstructionKind::StorageDead(_)
-                | InstructionKind::ScopeEnter { .. }
-                | InstructionKind::ScopeExit { .. }
-                | InstructionKind::Unary { .. }
-                | InstructionKind::Binary { .. }
-                | InstructionKind::ByteBufferNew
-                | InstructionKind::ByteBufferReserve { .. }
-                | InstructionKind::ByteBufferPush { .. }
-                | InstructionKind::ByteBufferTruncate { .. }
-                | InstructionKind::ByteBufferLen { .. }
-                | InstructionKind::ByteBufferCapacity { .. }
-                | InstructionKind::ByteBufferBorrow { .. }
-                | InstructionKind::ConvertInteger { .. }
                 | InstructionKind::TaskYield
-                | InstructionKind::MakeManaged { .. }
-                | InstructionKind::TakeLocal { .. }
-                | InstructionKind::DescribeLocal { .. }
-                | InstructionKind::ReadDesc { .. }
-                | InstructionKind::WriteDesc { .. }
-                | InstructionKind::DropManaged { .. }
-                | InstructionKind::MakeOwnedTuple { .. }
-                | InstructionKind::DropTuple { .. }
                 | InstructionKind::ExtractField { .. }
                 | InstructionKind::BorrowFieldLocal { .. }
-                | InstructionKind::BorrowPlaceLocal { .. }
                 | InstructionKind::ReadAddress { .. }
                 | InstructionKind::WriteAddress { .. }
                 | InstructionKind::BorrowLocal { .. }
@@ -1644,28 +1710,7 @@ pub(super) fn profile(
                 | InstructionKind::AddressField { .. }
                 | InstructionKind::AddressIndex { .. }
                 | InstructionKind::AddressSlice { .. }
-                | InstructionKind::ReborrowAddress { .. }
-                | InstructionKind::MakePackage { .. }
-                | InstructionKind::DropPackage { .. }
-                | InstructionKind::TakePackageField { .. }
-                | InstructionKind::StorePackageField { .. }
-                | InstructionKind::DropPackageField { .. }
-                | InstructionKind::MakeAggregate { .. }
-                | InstructionKind::MakeVariant { .. }
-                | InstructionKind::VariantTag { .. }
-                | InstructionKind::ReadVariant { .. }
-                | InstructionKind::VariantTagLocal { .. }
-                | InstructionKind::ReadVariantLocal { .. }
-                | InstructionKind::UnpackVariant { .. }
-                | InstructionKind::DropEnum { .. }
-                | InstructionKind::MakeErrorUnion { .. }
-                | InstructionKind::ErrorTag { .. }
-                | InstructionKind::TakeErrorUnion { .. }
-                | InstructionKind::TakeTupleField { .. }
-                | InstructionKind::UnpackTuple { .. }
-                | InstructionKind::DropErrorUnion { .. }
-                | InstructionKind::ConvertNumber { .. }
-                | InstructionKind::ReadErrorUnion { .. } => {}
+                | InstructionKind::ReborrowAddress { .. } => {}
                 _ => {
                     return Err(reject(
                         "E-VERIFY-TASK",
@@ -1711,6 +1756,73 @@ mod frame_consumer_tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
+    }
+
+    #[test]
+    fn actual_main_profile_consumes_selected_task_success_arm() {
+        // Exercise the production entry that rejected the real adapter. This
+        // is frame eligibility only; ordinary branch/move proofs remain separate.
+        let mut module = fixture::module();
+        module.functions.truncate(1);
+        module.closures.clear();
+        let task = Type::Task {
+            result: Box::new(Type::I32),
+            retained_life: zil_ir::RetainedLifeShape {
+                binder_count: 0,
+                ports: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        };
+        let owner = Type::Managed(Box::new(task.clone()));
+        module.resources = vec![zil_ir::ResourceDefinition {
+            name: format!("{TASK_RESOURCE_NAME_PREFIX}{}", task.fingerprint()),
+            payload: task.clone(),
+            teardown: None,
+        }];
+        let f = &mut module.functions[0];
+        f.call_kind = CallKind::Suspend;
+        f.storage_life = None;
+        f.parameters.clear();
+        f.return_type = Type::I32;
+        f.locals.truncate(1);
+        f.locals[0].id = LocalId(0);
+        f.locals[0].ty = Type::ErrorUnion {
+            error: Box::new(Type::I32),
+            result: Box::new(owner.clone()),
+        };
+        f.values = vec![owner];
+        f.blocks.truncate(1);
+        f.blocks[0].instructions = vec![fixture::instruction(
+            Some(0),
+            InstructionKind::TakeVariantField {
+                local: LocalId(0),
+                path: vec![zil_ir::PlaceProjection::ErrorArm(false)],
+            },
+        )];
+        assert!(
+            profile(
+                &module,
+                &module.functions[0],
+                &mut Budget::new(&Limits::default()),
+                None
+            )
+            .unwrap()
+            .is_empty()
+        );
+        module.functions[0].values[0] = Type::Desc(Box::new(task));
+        let errors = profile(
+            &module,
+            &module.functions[0],
+            &mut Budget::new(&Limits::default()),
+            None,
+        )
+        .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("complete actual field type or mode"))
+        );
     }
 
     #[test]
