@@ -93,7 +93,7 @@ impl CheckedContext {
             }
             SemanticRequirementRecipe::Callable{ty,kind,signature}=>{
                 let receiver=self.evaluate_type(module,ty,environment,external,active,b)?;
-                let mut signature=self.evaluate_signature(module,signature,environment,external,active,b)?;
+                let mut signature=self.evaluate_callable_signature(module,signature,*kind,environment,external,active,b)?;
                 // These are only the fresh universal goals introduced while
                 // descending this original requirement. Existing caller Bound
                 // classes and retained κ stay rigid in the request domain.

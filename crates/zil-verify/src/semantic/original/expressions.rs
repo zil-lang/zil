@@ -50,7 +50,10 @@ impl CheckedOriginal {
                     let mutable=matches!(expression.kind,CoreExprKind::Unary{op:UnaryOp::BorrowMut,..});
                     let(child,place)=self.place(module,context,operand,env,bindings,active,b)?;
                     if mutable{self.mutable_place(module,context,operand,env,bindings,active,b)?;}
-                    if let Some(place)=place{self.read_original(module,context,&place,&child,env,false,active,b)?;}
+                    if let Some(place)=place{
+                        if !mutable&&matches!(place.binder,Binder::Capture{definition,..}if definition==id)&&self.inline_capture_place(id,operand,b)?{b.spend(1)?;self.receiver_borrows.insert((id,expression.id));}
+                        self.read_original(module,context,&place,&child,env,false,active,b)?;
+                    }
                     let mut source=operand.as_ref();
                     while let CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}=&source.kind{b.spend(1)?;source=inner;}
                     self.remember_borrow_parent(module,id,expression.id,source.id,b)?;

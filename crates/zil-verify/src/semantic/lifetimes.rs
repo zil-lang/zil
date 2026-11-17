@@ -30,6 +30,7 @@ impl CheckedContext {
             }
             SemanticLifeRecipe::Bound{depth,index} => environment.bounds.get(*depth as usize).and_then(|frame|frame.classes.get(*index as usize)).cloned().ok_or_else(||bad("Bound lifetime escapes the real nonzero quantifier frames")),
             SemanticLifeRecipe::Invocation(index) => environment.invocations.get(*index as usize).cloned().ok_or_else(||bad("Invocation lifetime has no current code scope")),
+            SemanticLifeRecipe::OuterOccurrence{operand:SemanticRecipeOperand::Receiver,path,mode:StoredBorrowMode::SharedAddress}if path.is_empty()=>self.receiver_entry_head(module,environment,b),
             SemanticLifeRecipe::OuterOccurrence{operand,path,mode} => {
                 let (scope,operand) = self.recipe_operand(environment,operand,b)?;
                 self.occurrence(module,environment,scope,operand,path,Some(*mode),None,b)
@@ -65,6 +66,7 @@ impl CheckedContext {
             SemanticClassExpr::Environment{scope,ordinal}=>self.life(module,&SemanticLifeRecipe::Environment{scope:*scope,ordinal:*ordinal},environment,b),
             SemanticClassExpr::Implicit{scope,ordinal}=>self.life(module,&SemanticLifeRecipe::Implicit{scope:*scope,ordinal:*ordinal},environment,b),
             SemanticClassExpr::Bound{depth,index}=>self.life(module,&SemanticLifeRecipe::Bound{depth:*depth,index:*index},environment,b),
+            SemanticClassExpr::OuterOccurrence{operand:SemanticOperand::Receiver,path,mode:StoredBorrowMode::SharedAddress}if path.is_empty()=>self.receiver_entry_head(module,environment,b),
             SemanticClassExpr::OuterOccurrence{operand,path,..}|SemanticClassExpr::IntrinsicClass{operand,path,..}=> {
                 let current=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;
                 let (scope,key)=match operand {

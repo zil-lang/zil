@@ -691,6 +691,10 @@ impl CheckedContext {
         active: &mut ActiveQueries,
         b: &mut Budget,
     ) -> Check<CheckedSignature> {
+        self.evaluate_signature_receiver(module,recipe,environment,None,external,active,b)
+    }
+    pub(super) fn evaluate_signature_receiver(&self,module:&TypedModule,recipe:&SemanticSignatureRecipe,environment:&EvalEnv,receiver:Option<ClassKey>,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedSignature>{
+        if receiver.is_some()&&!original::CheckedOriginal::receiver_signature_recipe(recipe){return Err(bad("Receiver subject role is not this signature's root shared-result occurrence"));}
         dynamic_metadata::recipe(recipe, b)?;
         let mut environment = environment.clone();
         let mut bound = Vec::new();
@@ -730,8 +734,11 @@ impl CheckedContext {
             )?;
             parameters.push((value, parameter.mode));
         }
-        let result =
-            self.evaluate_type(module, &recipe.result, &environment, external, active, b)?;
+        let result = if let Some(receiver)=receiver{
+            let SemanticTypeRecipe::Address{mutable:false,inner,..}=&recipe.result else{return Err(bad("Callable Receiver role escapes its root shared result"));};
+            let child=self.evaluate_type(module,inner,&environment,external,active,b)?;
+            dynamic_witness::semantic_external::construct(self,&environment,dynamic_witness::semantic_external::Constructor::Address{mode:StoredBorrowMode::SharedAddress,outer:Some(receiver)},&[child],active,b)?
+        }else{self.evaluate_type(module, &recipe.result, &environment, external, active, b)?};
         let result = self.signature_mode_type(
             module,
             &recipe.result,

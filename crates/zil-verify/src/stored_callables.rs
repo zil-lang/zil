@@ -597,6 +597,7 @@ pub(super) fn definitions(
             }
         }
         if let Some(c) = &d.storage_life {
+            if signature_life::outer(c,StorageBase::Receiver).is_some()&&f.call_kind!=CallKind::Direct{return Err(bad("a suspension contract cannot introduce a closure Receiver access head"));}
             captured_profile(module, d, b)?;
             super::signature_life::charge(c, b)?;
             super::borrowed_fp::signature_work(&d.captures, &Type::Unit, b)?;

@@ -167,8 +167,32 @@ impl CheckedContext {
                 self.register_closure_cursor(instance.id,&parent,&world.lexical[0].actuals,&world.lexical[0].environment,&owner,b)?;
             }
             boundary.value(self,environment,&owner,receiver,b)?;
+            if crate::signature_life::outer(header,StorageBase::Receiver).is_some(){
+                let node=self.original.borrow().as_ref().ok_or_else(||bad("Receiver call has no original whole caller"))?.original_call_node(module,caller.definition,site.recipe,b)?;
+                let recipe=self.original.borrow().as_ref().ok_or_else(||bad("Receiver call loses its original callee occurrence"))?.receiver_role(module,caller.definition,node,StoredBorrowMode::SharedAddress,environment,b)?;
+                let target=self.class(module,&recipe,environment,b)?;
+                let source=self.receiver_entry_head(module,&world,b)?;
+                boundary.class(self,environment,&source,&target,b)?;
+            }
             for(parameter,_)in &mut signature.parameters{*parameter=boundary.project_type(self,environment,parameter,b)?;}
             signature.result=boundary.project_type(self,environment,&signature.result,b)?;
+            if crate::signature_life::outer(header,StorageBase::Receiver).is_some(){
+                let node=self.original.borrow().as_ref().ok_or_else(||bad("Receiver result has no original caller"))?.original_call_node(module,caller.definition,site.recipe,b)?;
+                let recipe=self.original.borrow().as_ref().ok_or_else(||bad("Receiver result has no exact call access role"))?.receiver_role(module,caller.definition,node,StoredBorrowMode::SharedAddress,environment,b)?;
+                let target=self.class(module,&recipe,environment,b)?;
+                if let Some(slot)=signature.result.life.slots.iter().find(|slot|slot.path.is_empty()){
+                let source=signature.result.classes.get(slot.binder as usize).ok_or_else(||bad("Receiver operation result loses its real source σ"))?.clone();
+                if !self.same(environment,&source,&target,b)?{
+                    // Reconstruct only the shared outer view. Its complete
+                    // actual child/κ and pointer parents are never substituted.
+                    let child=self.child_value(module,&signature.result,&[LifeTypeProjection::Pointee],b)?;
+                    signature.result=dynamic_witness::semantic_external::construct(self,environment,dynamic_witness::semantic_external::Constructor::Address{mode:StoredBorrowMode::SharedAddress,outer:Some(target.clone())},&[child],active,b)?;
+                    let scope=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?.key;
+                    let mut graph=self.premises.borrow_mut();let rows=graph.entry(scope).or_default();b.spend(rows.relations.outlives.len().saturating_add(1))?;
+                    if !rows.relations.outlives.contains(&(source.clone(),target.clone())){rows.relations.outlives.push((source,target));drop(graph);self.invalidate_closed_frames();}
+                }
+                }else if !signature.result.statics.iter().any(|row|matches!(row,StaticOccurrence::Direct{path,mode:StoredBorrowMode::SharedAddress,..}if path.is_empty())||matches!(row,StaticOccurrence::Logical{position,mode:StoredBorrowMode::SharedAddress,..}if position.base==StorageBase::Result&&position.path.is_empty())){return Err(bad("Receiver result has neither its exact variable source nor complete Static obligation"));}
+            }
             let(source_inputs,source_checks)=self.original_call_inputs(module,caller,site,&signature,call_key,arguments,values,environment,external,active,b)?;
             let inputs=source_inputs.iter().collect::<Vec<_>>();
             self.instantiate_original_call_heads(module,caller,site,&mut signature,&inputs,call_key,environment,b)?;

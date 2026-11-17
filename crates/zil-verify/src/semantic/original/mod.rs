@@ -39,6 +39,7 @@ mod invocation;
 mod operations;
 mod elements;
 mod heads;
+mod receiver_signatures;
 mod protocol;
 mod constructors;
 mod record_constructors;
@@ -63,6 +64,9 @@ pub(super) struct CheckedOriginal {
     // immutable source snapshot. They cannot inherit a recycled view address.
     source_grammar:Option<index::SourceIndex>,
     expressions:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,
+    receiver_borrows:BTreeSet<(SemanticDefinitionId,NodeId)>,
+    receiver_results:BTreeSet<SemanticDefinitionId>,
+    receiver_call_roles:BTreeMap<(SemanticDefinitionId,NodeId),Life>,
     // Category of the evaluated Place before a later field observation
     // publishes an effective Desc type for that same original expression.
     place_types:BTreeMap<(SemanticDefinitionId,NodeId),Ty>,

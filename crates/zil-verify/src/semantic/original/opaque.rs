@@ -73,7 +73,7 @@ impl CheckedOriginal {
             if let SemanticRequirementRecipe::Callable { ty: SemanticTypeRecipe::OriginalType { scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result }, kind, signature } = row {
                 if result.is_some() { return Err(unsupported("opaque Callable overload requires its exact original role selection", None)); }
                 let rigid = self.environment(module, context, owner, active, b)?;
-                let mut prototype = self.signature(module, context, signature, &rigid, active, b)?;
+                let mut prototype = self.callable_signature(module, context, signature, *kind, &rigid, active, b)?;
                 prototype.callable_kind = Some(*kind);
                 result = Some(self.specialize_code_prototype(&prototype, &selected, b)?);
             }

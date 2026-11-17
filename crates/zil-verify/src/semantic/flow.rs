@@ -653,6 +653,12 @@ impl CheckedContext {
             }
         };
         for row in &header.bindings {
+            if row.position.base==StorageBase::Receiver{
+                let expected=self.receiver_entry_head(module,environment,b)?;
+                let actual=&images.iter().find(|(binder,_)|*binder==row.binder).ok_or_else(||bad("Receiver header loses its exact lexical embedding"))?.1;
+                if !row.position.path.is_empty()||!self.same(environment,actual,&expected,b)?{return Err(bad("Receiver header changes its exact invocation access window"));}
+                continue;
+            }
             let value=base(row.position.base)?;
             let binder=if row.position.path.iter().any(|part|!matches!(part,ContractProjection::Place(_))){
                 // Opaque Task/closure/Context ports are logical selectors, not

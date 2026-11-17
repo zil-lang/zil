@@ -576,12 +576,14 @@ impl ExternalProofs for Proofs {
                     result_mode: signature.result_mode,
                     call_kind: signature.call_kind,
                 };
+                let receiver_head=context.callable_receiver_key(signature,b)?.map(|key|domain.symbols.class(key,b)).transpose()?;
                 let proof = callables::check_shape_with_source(
                     module,
                     &receiver,
                     *kind,
                     &shape,
                     source.as_ref(),
+                    receiver_head,
                     domain.scope,
                     true,
                     b,

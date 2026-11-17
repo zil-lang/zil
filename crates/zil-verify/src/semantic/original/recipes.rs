@@ -100,19 +100,23 @@ impl CheckedOriginal {
         let owner=env.current()?;
         let previous=self.current.replace(owner);
         let previous_premises=self.premise_environment.take();
-        let result=self.signature_inner(module,context,signature,env,active,b);
+        let result=self.signature_inner(module,context,signature,env,None,active,b);
         self.premise_environment=previous_premises;
         self.current=previous;
         result
     }
-    fn signature_inner(&mut self,module:&TypedModule,context:&CheckedContext,signature:&SemanticSignatureRecipe,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Prototype>{
+    pub(super) fn signature_inner(&mut self,module:&TypedModule,context:&CheckedContext,signature:&SemanticSignatureRecipe,env:&Env,receiver:Option<Life>,active:&mut ActiveQueries,b:&mut Budget)->Check<Prototype>{
         let mut env=env.clone();let token=active.fresh(b)?;
         b.spend(signature.bound_lifetimes as usize+signature.invocation_lifetimes as usize)?;
         if signature.bound_lifetimes!=0{env.bounds.insert(0,(0..signature.bound_lifetimes).map(|index|Life::Bound(token,index)).collect());}
         env.invocation=(0..signature.invocation_lifetimes).map(|index|Life::Invocation(token,index)).collect();
         self.premise_environment=Some(self.copy_environment(&env,b)?);
         let mut parameters=Vec::new();for(ordinal,parameter)in signature.parameters.iter().enumerate(){let ty=self.ty(module,context,&parameter.ty,&env,active,b)?;parameters.push(self.mode_type(module,context,ty,parameter.mode,Some(ordinal as u32),&env,b)?);}
-        let result=self.ty(module,context,&signature.result,&env,active,b)?;let result=self.mode_type(module,context,result,signature.result_mode,None,&env,b)?;
+        let result=if Self::receiver_signature_recipe(signature){
+            let life=receiver.ok_or_else(||bad("signature-local Receiver result has no checked Callable/closure subject"))?;
+            let SemanticTypeRecipe::Address{inner,..}=&signature.result else{unreachable!()};
+            Ty::Address{mutable:false,life,inner:Box::new(self.ty(module,context,inner,&env,active,b)?)}
+        }else{self.ty(module,context,&signature.result,&env,active,b)?};let result=self.mode_type(module,context,result,signature.result_mode,None,&env,b)?;
         Ok(Prototype{parameters,result,environment:env,modes:signature.parameters.iter().map(|parameter|parameter.mode).collect(),result_mode:signature.result_mode,call_kind:signature.call_kind,bound_lifetimes:signature.bound_lifetimes,invocation_lifetimes:signature.invocation_lifetimes,premise_bounds:vec![],callable_kind:None})
     }
 }

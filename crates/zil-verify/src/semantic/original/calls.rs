@@ -101,6 +101,7 @@ impl CheckedOriginal {
                 let original=context.definition(module,definition,b)?;let SemanticDefinitionBody::FunctionWithBody{signature,..}=&original.body else{return Err(bad("original Closure has no complete signature/body"));};
                 let selected=self.closure_creator_environment(module,context,definition,&actuals,&sealed,env,active,b)?;
                 let rigid=if let Some(prototype)=self.prototypes.get(&definition){prototype.clone()}else{let rigid=self.environment(module,context,definition,active,b)?;self.signature(module,context,signature,&rigid,active,b)?};let outer_floor=self.next_inference;let prototype=self.instantiate_prototype(&rigid,Some(definition),&selected,b)?;
+                let prototype=self.bind_receiver_call(module,context,prototype,call.id,env,b)?;
                 if prototype.callable_kind==Some(CallableKind::FnOnce){if let Some(place)=&callee_place{self.read_original(module,context,place,&callee_type,env,true,active,b)?;}}
                 if prototype.callable_kind==Some(CallableKind::FnMut){if let Some(place)=&callee_place{self.written.entry(env.current()?).or_default().insert(place.binder.clone());}}
                 self.invoke(module,context,call.id,outer_floor,&prototype,arguments,env,bindings,active,b)
@@ -119,6 +120,7 @@ impl CheckedOriginal {
                     },
                     _=>{let prototype=self.callable_premise(module,context,&target,env,active,b)?.ok_or_else(||bad("original borrowed indirect Call has no complete Callable premise"))?;self.freshen_code_prototype(&prototype,None,b)?},
                 };
+                let prototype=self.bind_receiver_call(module,context,prototype,call.id,env,b)?;
                 match prototype.callable_kind{
                     Some(CallableKind::Fn|CallableKind::FunctionPointer)=>{},
                     Some(CallableKind::FnMut)if mutable=>{if let Some(place)=&callee_place{self.written.entry(env.current()?).or_default().insert(place.binder.clone());}},
@@ -134,6 +136,7 @@ impl CheckedOriginal {
                 // call gets fresh roles; caller input heads and retained
                 // domains are not among those code binders (owner is None).
                 let outer_floor=self.next_inference;let prototype=self.freshen_code_prototype(&prototype,None,b)?;
+                let prototype=self.bind_receiver_call(module,context,prototype,call.id,env,b)?;
                 if prototype.callable_kind==Some(CallableKind::FnOnce){if let Some(place)=&callee_place{self.read_original(module,context,place,&variable,env,true,active,b)?;}}
                 if prototype.callable_kind==Some(CallableKind::FnMut){if let Some(place)=&callee_place{self.written.entry(env.current()?).or_default().insert(place.binder.clone());}}
                 self.invoke(module,context,call.id,outer_floor,&prototype,arguments,env,bindings,active,b)
@@ -175,7 +178,7 @@ impl CheckedOriginal {
                 SemanticRequirementRecipe::Callable{ty:receiver,signature,kind}=>{
                     let receiver=self.ty(module,context,receiver,env,active,b)?;
                     if !self.same(&receiver,ty,b)?{return Ok(());}
-                    let mut prototype=self.signature(module,context,signature,env,active,b)?;
+                    let mut prototype=self.callable_signature(module,context,signature,*kind,env,active,b)?;
                     b.spend(quantifiers.iter().fold(quantifiers.len(),|n,frame|n.saturating_add(frame.len())))?;
                     prototype.premise_bounds=quantifiers.to_vec();prototype.callable_kind=Some(*kind);
                     if let Some(previous)=result.as_ref(){
@@ -289,7 +292,7 @@ impl CheckedOriginal{
     fn callable_goal(&mut self,module:&TypedModule,context:&CheckedContext,receiver:&SemanticTypeRecipe,signature:&SemanticSignatureRecipe,kind:CallableKind,target:&Env,caller:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{
         let receiver_recipe=receiver;
         let receiver=self.ty(module,context,receiver_recipe,target,active,b)?;let receiver=self.resolved(&receiver,b)?;
-        let wanted=self.signature(module,context,signature,target,active,b)?;
+        let wanted=self.callable_signature(module,context,signature,kind,target,active,b)?;
         let (mut actual,owner,selected)=match &receiver{
             Ty::Closure(id,actuals,sealed)=>{
                 if !self.checked.contains(id){return Err(bad("original Callable source body is not independently complete"));}
@@ -329,7 +332,8 @@ impl CheckedOriginal{
             let wanted=self.normalize_original_type(module,context,wanted,caller,active,b)?;
             self.callable_goal_type(&actual,&wanted,&flexible,b)?;
         }
-        let actual=self.normalize_original_type(module,context,&actual.result,caller,active,b)?;
+        let mut actual=self.normalize_original_type(module,context,&actual.result,caller,active,b)?;
+        self.adapt_receiver_result_goal(module,context,&receiver,kind,&wanted,&mut actual,active,b)?;
         let wanted=self.normalize_original_type(module,context,&wanted.result,caller,active,b)?;
         self.callable_goal_type(&actual,&wanted,&flexible,b).map_err(|error|error.with_note(format!("Callable source receiver {:?}; target lexical frames {:?}; caller lexical frames {:?}",receiver,target.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>(),caller.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>())))?;
         if kind==CallableKind::FnOnce&&signature.call_kind==CallKind::Direct{
@@ -434,6 +438,7 @@ impl CheckedOriginal {
             if a.len()!=actual.bound_lifetimes as usize||z.len()!=wanted.bound_lifetimes as usize{return Err(bad("original Callable comparison changes a protected binder frame"));}
             for(a,z)in a.iter().zip(z){mapping.push((a.clone(),z.clone()));}
         }
+        if let(Ty::Address{mutable:false,life:a@Life::ReceiverSignature(_),..},Ty::Address{mutable:false,life:z@Life::ReceiverSignature(_),..})=(&actual.result,&wanted.result){mapping.push((a.clone(),z.clone()));}
         b.spend(mapping.len().saturating_mul(3).saturating_add(1))?;
         let mut sources=BTreeSet::new();let mut targets=BTreeSet::new();
         for(a,z)in &mapping{if !sources.insert(a)||!targets.insert(z){return Err(bad("original Callable code-role alignment is not bijective"));}}

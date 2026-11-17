@@ -61,6 +61,10 @@ impl CheckedOriginal {
     pub(super) fn relate_outer(&mut self,actual:&Life,expected:&Life,b:&mut Budget)->Check<()> {
         let actual=self.resolved_life(actual,b)?;let expected=self.resolved_life(expected,b)?;
         if self.same_life(&actual,&expected,b)?{return Ok(());}
+        if let Life::ReceiverHead(owner)=&expected{
+            if Some(*owner)!=self.current||!self.receiver_source_life(*owner,&actual,&mut BTreeSet::new(),b)?{return Err(bad("original return does not derive from this closure's complete Receiver window"));}
+            b.spend(1)?;self.outer_flows.entry(*owner).or_default().push((actual,expected));return Ok(());
+        }
         if let Life::Infer(id)=expected{if let Some(sources)=self.outer_inferences.get_mut(&id){b.spend(sources.len().saturating_add(1))?;if !sources.contains(&actual){sources.push(actual);}return Ok(());}}
         if matches!(actual,Life::Infer(_))||matches!(expected,Life::Infer(_)){return self.unify_life(&actual,&expected,b);}
         if let Life::CallRegion(id)=expected {
@@ -76,6 +80,10 @@ impl CheckedOriginal {
     }
     pub(super) fn outer_outlives(&self,actual:&Life,expected:&Life,seen:&mut BTreeSet<Life>,b:&mut Budget)->Check<bool> {
         let expected=self.resolved_life(expected,b)?;
+        if let Life::ReceiverHead(owner)=expected{return Ok(Some(owner)==self.current&&self.receiver_source_life(owner,actual,&mut BTreeSet::new(),b)?);}
+        if let Life::ReceiverRole(owner,node,StoredBorrowMode::SharedAddress)=self.resolved_life(actual,b)?{
+            if Some(owner)==self.current&&self.receiver_call_roles.get(&(owner,node))==Some(&expected){return Ok(true);}
+        }
         if matches!(&expected,Life::Local(owner,_)if Some(*owner)==self.current){return Ok(true);}
         let mut pending=vec![self.resolved_life(actual,b)?];let mut graph=BTreeMap::<Life,Vec<Life>>::new();let mut grounded=BTreeSet::new();
         while let Some(source)=pending.pop(){

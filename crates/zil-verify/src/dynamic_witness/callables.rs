@@ -146,7 +146,7 @@ pub(super) fn check_shape(
     fixed_relations_allowed: bool,
     b: &mut Budget,
 ) -> Check<ShapeObligation> {
-    check_shape_inner(module,receiver,kind,signature,None,scope,fixed_relations_allowed,false,b)
+    check_shape_inner(module,receiver,kind,signature,None,None,scope,fixed_relations_allowed,false,b)
 }
 
 /// Only semantic callers with an exact pending creator cursor can supply this
@@ -154,15 +154,15 @@ pub(super) fn check_shape(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn check_shape_with_source(
     module:&TypedModule,receiver:&terms::Value,kind:CallableKind,signature:&Shape,
-    source:Option<&Shape>,scope:DynInstantiationScope,fixed_relations_allowed:bool,b:&mut Budget,
+    source:Option<&Shape>,receiver_head:Option<terms::LifeTerm>,scope:DynInstantiationScope,fixed_relations_allowed:bool,b:&mut Budget,
 )->Check<ShapeObligation>{
-    check_shape_inner(module,receiver,kind,signature,source,scope,fixed_relations_allowed,true,b)
+    check_shape_inner(module,receiver,kind,signature,source,receiver_head,scope,fixed_relations_allowed,true,b)
 }
 pub(super) fn consuming_upper_compatible(kind:CallableKind,actual:CallKind,required:CallKind)->bool{
     actual==required||kind==CallableKind::FnOnce&&actual==CallKind::Direct&&required==CallKind::Suspend
 }
 #[allow(clippy::too_many_arguments)]
-fn check_shape_inner(module:&TypedModule,receiver:&terms::Value,kind:CallableKind,signature:&Shape,source:Option<&Shape>,scope:DynInstantiationScope,fixed_relations_allowed:bool,semantic_consumption:bool,b:&mut Budget)->Check<ShapeObligation>{
+fn check_shape_inner(module:&TypedModule,receiver:&terms::Value,kind:CallableKind,signature:&Shape,source:Option<&Shape>,receiver_head:Option<terms::LifeTerm>,scope:DynInstantiationScope,fixed_relations_allowed:bool,semantic_consumption:bool,b:&mut Budget)->Check<ShapeObligation>{
     let Type::Closure(id) = receiver.raw.ty else {
         return Err(bad(
             "callable premise requires a complete actual closure definition",
@@ -215,13 +215,30 @@ fn check_shape_inner(module:&TypedModule,receiver:&terms::Value,kind:CallableKin
             "callable omits free Fixed classes from its whole actual type",
         ));
     }
-    let expected = headers::expected(module, &signature.parameters, &signature.result, b)?;
+    let mut expected = headers::expected(module, &signature.parameters, &signature.result, b)?;
+    if let Some(head)=receiver_head{
+        if !semantic_consumption||signature.call_kind!=CallKind::Direct||actual.call_kind!=CallKind::Direct||!matches!(kind,CallableKind::Fn|CallableKind::FnMut)||!matches!(definition.kind,CallableKind::Fn|CallableKind::FnMut)||!matches!(signature.result.raw.ty,Type::Address{mutable:false,..})||!matches!(head.image,StorageBinder::Invocation(_)){
+            return Err(bad("Callable Receiver demand has no exact Direct nonconsuming shared-result subject"));
+        }
+        let position=StoragePosition{base:StorageBase::Receiver,path:vec![]};
+        // A genuinely Static result is a stronger promise. Preserve its old
+        // least-root obligation; no environment access head is then required.
+        let static_result=actual_header.static_bindings.contains(&StoragePosition{base:StorageBase::Result,path:vec![]});
+        if !static_result||actual_header.bindings.iter().any(|row|row.position==position){
+        b.spend(expected.bindings.len().saturating_add(1))?;
+        let at=expected.bindings.iter().position(|row|row.position.base==StorageBase::Result).unwrap_or(expected.bindings.len());
+        expected.bindings.insert(at,StorageLifeBinding{position:position.clone(),binder:head.image});
+        expected.origins.push(requests::Occurrence::Borrow{position,binder:head.image,origin:headers::symbol(head)});
+        }
+    }
     let source_header=if let Some(source)=source{
         if source.parameters.len()!=signature.parameters.len()||source.parameter_modes!=signature.parameter_modes||source.result_mode!=signature.result_mode||!consuming_upper_compatible(kind,source.call_kind,signature.call_kind){return Err(bad("Callable original source changes its complete ABI or modes"));}
-        for(a,z)in source.parameters.iter().chain(std::iter::once(&source.result)).zip(signature.parameters.iter().chain(std::iter::once(&signature.result))){
+        for(a,z)in source.parameters.iter().zip(&signature.parameters){
             dynamic_metadata::recipe(&a.raw,b)?;dynamic_metadata::recipe(&z.raw,b)?;
-            if a.raw.ty!=z.raw.ty||a.raw.life!=z.raw.life{return Err(bad("Callable original source changes its whole type or intrinsic geometry"));}
+            if a.raw.ty!=z.raw.ty||a.raw.life!=z.raw.life{return Err(bad("Callable original source changes its whole parameter type or intrinsic geometry"));}
         }
+        dynamic_metadata::recipe(&source.result.raw,b)?;dynamic_metadata::recipe(&signature.result.raw,b)?;
+        if source.result.raw.ty!=signature.result.raw.ty||if receiver_head.is_some(){!receiver_view_geometry(&source.result,&signature.result,b)?}else{source.result.raw.life!=signature.result.raw.life}{return Err(bad("Callable original source changes its whole result type or complete child geometry"));}
         Some(headers::expected(module,&source.parameters,&source.result,b)?)
     }else{None};
     for parameter in signature
@@ -246,6 +263,12 @@ fn check_shape_inner(module:&TypedModule,receiver:&terms::Value,kind:CallableKin
         rigid: vec![],
         fixed_relations: vec![],
     };
+    // Original constant occurrences have no variable binder or origin term.
+    // Preserve their exact pending obligations until actual final grounding.
+    for position in &expected.static_bindings {
+        b.spend(actual_header.static_bindings.len().saturating_add(actual_header.bindings.len()).saturating_add(position.path.len()))?;
+        if actual_header.static_bindings.iter().filter(|row|*row==position).count()!=1||actual_header.bindings.iter().any(|row|row.position==*position){return Err(bad("callable loses or replaces an original constant borrow occurrence"));}
+    }
     // Inputs establish rigid relations first. Results cannot seed a fresh
     // quantified class, and equal Context images never seed such a relation.
     for is_input in [true, false] {
@@ -335,7 +358,17 @@ fn check_shape_inner(module:&TypedModule,receiver:&terms::Value,kind:CallableKin
                 })
                 .ok_or_else(|| bad("callable borrow lacks its original scoped relation"))?;
             if let (StorageBinder::Fixed(class),Some(source))=(actual.binder,&source_header){
-                source_relation(receiver,class,&requests::Occurrence::Borrow{position:row.position.clone(),binder:row.binder,origin:required},source,b)?;
+                if receiver_head.is_some_and(|head|row.position.base==StorageBase::Result&&row.position.path.is_empty()&&head.image==row.binder&&headers::symbol(head)==required){
+                    // The original signature/body supplies the stronger σ.
+                    // Its exact source is checked separately from the demanded
+                    // current-subject head. This is only a root upper view;
+                    // no child κ or source permission is equated with µ.
+                    b.spend(source.origins.len())?;
+                    let mut rows=source.origins.iter().filter(|source|matches!(source,requests::Occurrence::Borrow{position,..}if *position==row.position));
+                    let stronger=rows.next().ok_or_else(||bad("Receiver view loses its exact original Fixed result source"))?;
+                    if rows.next().is_some(){return Err(bad("Receiver view has ambiguous original Fixed result sources"));}
+                    source_relation(receiver,class,stronger,source,b)?;
+                }else{source_relation(receiver,class,&requests::Occurrence::Borrow{position:row.position.clone(),binder:row.binder,origin:required},source,b)?;}
                 continue;
             }
             if let StorageBinder::Fixed(class) = actual.binder {
@@ -365,7 +398,8 @@ fn check_shape_inner(module:&TypedModule,receiver:&terms::Value,kind:CallableKin
             ).map_err(|error|error.with_note(format!("Callable outer borrow occurrence {:?}; actual binder {:?}, required binder {:?}, input {}",row.position,actual.binder,row.binder,is_input)))?;
         }
     }
-    let public_base = |base| matches!(base, StorageBase::Parameter(_) | StorageBase::Result);
+    b.spend(expected.static_bindings.len().saturating_mul(actual_header.static_bindings.len()).saturating_mul(2).saturating_add(expected.static_bindings.len()))?;
+    let public_base = |base| matches!(base, StorageBase::Parameter(_) | StorageBase::Receiver | StorageBase::Result);
     if actual_header
         .classes
         .iter()
@@ -386,13 +420,27 @@ fn check_shape_inner(module:&TypedModule,receiver:&terms::Value,kind:CallableKin
             .static_bindings
             .iter()
             .filter(|p| public_base(p.base))
-            .any(|p| !expected.bindings.iter().any(|r| r.position == *p))
+            .any(|p| !expected.static_bindings.contains(p)&&!expected.bindings.iter().any(|r| r.position == *p))
+        || actual_header.static_bindings.iter().filter(|p|expected.static_bindings.contains(p)).ne(expected.static_bindings.iter())
     {
         return Err(bad(
             "callable P/R directory has missing, extra or reordered occurrences",
         ));
     }
     Ok(proof)
+}
+/// A new outer view may split a root formerly sharing its child's σ. Full
+/// child occurrence inventories and the raw complete child Type stay exact;
+/// each nonroot term is compared through source_relation in the main walker.
+fn receiver_view_geometry(source:&terms::Value,expected:&terms::Value,b:&mut Budget)->Check<bool>{
+    if !matches!(source.raw.ty,Type::Address{mutable:false,..})||source.raw.ty!=expected.raw.ty{return Ok(false);}
+    let a=&source.raw.life;let z=&expected.raw.life;
+    b.spend(a.slots.len().saturating_add(z.slots.len()).saturating_add(a.retained.len()).saturating_add(z.retained.len()).saturating_add(a.nominal_arguments.len()).saturating_add(z.nominal_arguments.len()))?;
+    if a.slots.len()!=z.slots.len()||a.retained.len()!=z.retained.len()||a.nominal_arguments.len()!=z.nominal_arguments.len(){return Ok(false);}
+    for(a,z)in a.slots.iter().zip(&z.slots){b.spend(a.path.len().saturating_add(z.path.len()))?;if a.path!=z.path||a.mode!=z.mode{return Ok(false);}}
+    for(a,z)in a.retained.iter().zip(&z.retained){b.spend(a.path.len().saturating_add(z.path.len()))?;if a.path!=z.path||a.class!=z.class{return Ok(false);}}
+    for(a,z)in a.nominal_arguments.iter().zip(&z.nominal_arguments){b.spend(a.path.len().saturating_add(z.path.len()))?;if a.path!=z.path||a.declaration!=z.declaration||a.argument!=z.argument{return Ok(false);}}
+    Ok(true)
 }
 /// Keep the receiver partition independent. Both the actual header's outside
 /// image and the exact original source occurrence must agree; equal images
@@ -502,11 +550,11 @@ pub(super) mod tests {
         let mut shape=Shape{parameters:vec![],parameter_modes:vec![],result:blank(Type::I32),result_mode:PassingMode::Infer,call_kind:CallKind::Suspend};
         let scope=DynInstantiationScope{fixed_binder_count:0,invocation_binder_count:0};
         assert!(check_shape(&module,&receiver,CallableKind::FnOnce,&shape,scope,false,&mut Budget::new(&limits)).is_err(),"raw ABI metadata alone cannot invent the semantic consuming adapter");
-        let mut b=Budget::new(&limits);let request=check_shape_with_source(&module,&receiver,CallableKind::FnOnce,&shape,None,scope,false,&mut b).unwrap().request(&module,&mut b).unwrap();
+        let mut b=Budget::new(&limits);let request=check_shape_with_source(&module,&receiver,CallableKind::FnOnce,&shape,None,None,scope,false,&mut b).unwrap().request(&module,&mut b).unwrap();
         assert_eq!(request.call_kind,CallKind::Suspend);assert_eq!(module.functions[0].call_kind,CallKind::Direct);assert!(b.semantic_callables.is_empty(),"structural adaptation is still no sealed/final executable permission");
-        assert!(check_shape_with_source(&module,&receiver,CallableKind::FnMut,&shape,None,scope,false,&mut Budget::new(&limits)).is_err(),"nonconsuming invocation has no environment-retirement adapter");
+        assert!(check_shape_with_source(&module,&receiver,CallableKind::FnMut,&shape,None,None,scope,false,&mut Budget::new(&limits)).is_err(),"nonconsuming invocation has no environment-retirement adapter");
         shape.call_kind=CallKind::Direct;module.functions[0].call_kind=CallKind::Suspend;
-        assert!(check_shape_with_source(&module,&receiver,CallableKind::FnOnce,&shape,None,scope,false,&mut Budget::new(&limits)).is_err(),"a Suspend body/retirement cannot satisfy the complete Direct upper");
+        assert!(check_shape_with_source(&module,&receiver,CallableKind::FnOnce,&shape,None,None,scope,false,&mut Budget::new(&limits)).is_err(),"a Suspend body/retirement cannot satisfy the complete Direct upper");
     }
     #[test]
     fn original_occurrence_bridge_preserves_independent_receiver_and_child_origins(){
@@ -564,11 +612,36 @@ pub(super) mod tests {
                 // The original P/R source can differ from the receiver's own
                 // domain even when both receiver classes have one image. This
                 // structural request never substitutes for actual entry proof.
-                check_shape_with_source(current,&receiver,CallableKind::Fn,&shape,Some(&shape),scope,true,&mut Budget::new(&limits)).unwrap();
+                check_shape_with_source(current,&receiver,CallableKind::Fn,&shape,Some(&shape),None,scope,true,&mut Budget::new(&limits)).unwrap();
                 let result=crate::class_flow::check(current,&current.functions[0],&[true],&mut Budget::new(&limits));
                 if swap{assert!(result.is_err(),"same-image header swap, wire {wire}");}else{result.unwrap();}
             }
         }
+    }
+    #[test]
+    fn receiver_demand_needs_explicit_direct_head_and_preserves_source_identity(){
+        let limits=Limits::default();let(mut module,_)=crate::tests::baseline();let address=Type::Address{mutable:false,inner:Box::new(Type::I32)};
+        let header=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:1,bindings:vec![StorageLifeBinding{position:StoragePosition{base:StorageBase::Receiver,path:vec![]},binder:StorageBinder::Invocation(0)},StorageLifeBinding{position:StoragePosition{base:StorageBase::Result,path:vec![]},binder:StorageBinder::Invocation(0)}],classes:vec![],static_bindings:vec![]};
+        module.functions[0].environment=Some(ClosureId(0));module.functions[0].parameters.clear();module.functions[0].return_type=address.clone();module.functions[0].storage_life=Some(header.clone());module.functions[0].result_mode=PassingMode::Infer;
+        module.closures=vec![ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![Type::I32],parameters:vec![],result:address.clone(),kind:CallableKind::Fn,lending_captures:vec![0],storage_life:Some(header)}];
+        let receiver=blank(Type::Closure(ClosureId(0)));let head=term(0,StorageBinder::Invocation(0),true);
+        let mut result=blank(address);result.raw.life.binder_count=1;result.raw.life.slots.push(StorageLifeSlot{path:vec![],mode:StoredBorrowMode::SharedAddress,binder:0});result.raw.classes.push(head.image);result.terms.push(head);
+        let shape=Shape{parameters:vec![],parameter_modes:vec![],result,result_mode:PassingMode::Infer,call_kind:CallKind::Direct};let scope=DynInstantiationScope{fixed_binder_count:0,invocation_binder_count:1};
+        assert!(check_shape(&module,&receiver,CallableKind::Fn,&shape,scope,false,&mut Budget::new(&limits)).is_err(),"no raw shape or missing parameter invents a Receiver demand");
+        let proof=check_shape_with_source(&module,&receiver,CallableKind::Fn,&shape,None,Some(head),scope,false,&mut Budget::new(&limits)).unwrap();
+        assert!(proof.expected_header.bindings.iter().any(|row|row.position.base==StorageBase::Receiver));assert_eq!(proof.rigid.len(),1);assert!(proof.expected_header.classes.iter().all(|row|row.position.base!=StorageBase::Receiver));
+        let mut wrong=head;wrong.origin.class=1;assert!(check_shape_with_source(&module,&receiver,CallableKind::Fn,&shape,None,Some(wrong),scope,false,&mut Budget::new(&limits)).is_err(),"equal numeric Invocation images do not merge subject identities");
+        assert!(check_shape_with_source(&module,&receiver,CallableKind::FnOnce,&shape,None,Some(head),scope,false,&mut Budget::new(&limits)).is_err(),"consuming adaptation cannot export a Receiver view");
+        let mut suspended=module.clone();suspended.functions[0].call_kind=CallKind::Suspend;assert!(check_shape_with_source(&suspended,&receiver,CallableKind::Fn,&shape,None,Some(head),scope,false,&mut Budget::new(&limits)).is_err());
+        let mut absent=module.clone();absent.closures[0].storage_life.as_mut().unwrap().bindings.remove(0);absent.functions[0].storage_life=absent.closures[0].storage_life.clone();assert!(check_shape_with_source(&absent,&receiver,CallableKind::Fn,&shape,None,Some(head),scope,false,&mut Budget::new(&limits)).is_err());
+        let mut stronger_module=module.clone();let strong=term(0,StorageBinder::Fixed(0),false);
+        let stronger_header=stronger_module.closures[0].storage_life.as_mut().unwrap();stronger_header.fixed_binder_count=1;stronger_header.bindings.insert(0,StorageLifeBinding{position:StoragePosition{base:StorageBase::Capture(0),path:vec![]},binder:StorageBinder::Fixed(0)});stronger_header.bindings.last_mut().unwrap().binder=StorageBinder::Fixed(0);
+        stronger_module.closures[0].captures=vec![shape.result.raw.ty.clone()];stronger_module.functions[0].storage_life=stronger_module.closures[0].storage_life.clone();
+        let mut stronger_receiver=blank(Type::Closure(ClosureId(0)));stronger_receiver.raw.life.binder_count=1;stronger_receiver.raw.classes=vec![strong.image];stronger_receiver.terms=vec![strong];
+        let mut stronger_shape=shape.clone();stronger_shape.result.raw.classes=vec![strong.image];stronger_shape.result.terms=vec![strong];let scope=DynInstantiationScope{fixed_binder_count:1,invocation_binder_count:1};
+        let proof=check_shape_with_source(&stronger_module,&stronger_receiver,CallableKind::Fn,&shape,Some(&stronger_shape),Some(head),scope,false,&mut Budget::new(&limits)).unwrap();
+        assert_eq!(crate::signature_life::outer(&proof.actual_header,StorageBase::Result),Some(StorageBinder::Fixed(0)),"the actual stronger σ is preserved");assert_eq!(crate::signature_life::outer(&proof.expected_header,StorageBase::Result),Some(StorageBinder::Invocation(0)),"only the public output view uses this subject's head");assert_ne!(head.origin,strong.origin);
+        assert!(check_shape_with_source(&stronger_module,&stronger_receiver,CallableKind::Fn,&shape,None,Some(head),scope,false,&mut Budget::new(&limits)).is_err(),"a numeric Fixed/Invocation pair without the exact original result source is not a view proof");
     }
     fn signature(result: terms::Value) -> signatures::Resolved {
         signatures::Resolved {

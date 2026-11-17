@@ -41,7 +41,10 @@ impl CheckedOriginal {
         if kind==SemanticCodeKind::ForeignCallback{return Err(bad("ordinary indirect call cannot select a foreign callback ABI"));}Ok(*signature)
     }
     pub(in crate::semantic) fn type_recipe(&self,module:&TypedModule,definition:SemanticDefinitionId,source:&SemanticOriginalTypeSource,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
-        let value=self.original_type(definition,source,b)?;
+        let mut value=self.original_type(definition,source,b)?;
+        if matches!(source,SemanticOriginalTypeSource::Result)&&self.receiver_results.contains(&definition){
+            if let Ty::Address{mutable:false,life,..}=&mut value{if self.resolved_life(life,b)?!=Life::Static&&!self.receiver_physical_source(definition,life,b)?{*life=Life::ReceiverHead(definition);}}else{return Err(bad("proved Receiver result loses its shared root Address"));}
+        }
         if let Ty::Address{mutable,life,inner}=&value{if !matches!(inner.as_ref(),Ty::Atom(_)){
             if let Some(operand)=self.borrow_operand_source(module,definition,source,b)?{
                 let child=self.original_type(definition,&SemanticOriginalTypeSource::Expression(operand),b)?;
@@ -148,6 +151,8 @@ impl CheckedOriginal {
             SemanticLifeRecipe::Implicit{scope:self.scope(*owner,env,b)?,ordinal:row.ordinal}
         },
         Life::Head(definition,ordinal)=>{if env.lexical.first().is_none_or(|frame|frame.definition!=*definition){return Err(bad("original description head was not instantiated at its true call boundary"));}SemanticLifeRecipe::OuterOccurrence{operand:SemanticRecipeOperand::Parameter(*ordinal),path:vec![],mode:StoredBorrowMode::WritableDescription}},
+        Life::ReceiverHead(owner)=>{if env.lexical.first().is_none_or(|frame|frame.definition!=*owner)||!self.receiver_results.contains(owner){return Err(bad("original Receiver head has no complete same-definition lending proof"));}SemanticLifeRecipe::OuterOccurrence{operand:SemanticRecipeOperand::Receiver,path:vec![],mode:StoredBorrowMode::SharedAddress}},
+        Life::ReceiverSignature(_)=>return Err(bad("signature-local Receiver subject escapes its actual callable boundary")),
         Life::ReceiverRole(..)=>return Err(unsupported("receiver role requires the private exact actual-call value bridge",None)),
         Life::Formal(definition,ordinal)=>SemanticLifeRecipe::Formal(SemanticFormalRef{scope:self.scope(*definition,env,b)?,ordinal:*ordinal}),
         Life::Implicit(definition,ordinal)=>SemanticLifeRecipe::Implicit{scope:self.scope(*definition,env,b)?,ordinal:*ordinal},
