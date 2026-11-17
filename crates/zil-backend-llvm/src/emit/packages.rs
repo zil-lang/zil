@@ -35,7 +35,7 @@ pub(super) fn supported_value_type(ty: &Type, resources: &[ResourceDefinition]) 
         || drop_plan::value_type(ty, resources)
 }
 
-/// Return admission and the new captured Package-with-Sum helper requirement.
+/// Complete captured Product/Sum layouts and their existing cleanup helpers.
 pub(super) fn capture_admission(
     ty: &Type,
     resources: &[ResourceDefinition],
@@ -45,7 +45,8 @@ pub(super) fn capture_admission(
     if supported_type(ty, resources) || product_type(ty, resources) {
         return Ok((true, false));
     }
-    if !matches!(ty, Type::Package { .. }) {
+    if !matches!(ty, Type::Package { .. } | Type::Record { .. } | Type::Tuple(_)
+        | Type::Enum { .. } | Type::ErrorUnion { .. } | Type::BorrowedStorage { .. }) {
         return Ok((false, false));
     }
     let before = *work;
@@ -65,37 +66,14 @@ pub(super) fn capture_admission(
     *work = work.checked_sub(fee).ok_or_else(|| {
         vec![Diagnostic::limit(
             Phase::Codegen,
-            "captured inline Store Product Sum scan budget exceeded",
+            "captured complete Product/Sum layout scan budget exceeded",
             None,
         )]
     })?;
-    if !has_inline_store_owner(ty) || !drop_plan::value_type(ty, resources) {
+    if !drop_plan::value_type(ty, resources) {
         return Ok((false, false));
     }
     Ok((true, drop_plan::new_shape(ty)))
-}
-
-fn has_inline_store_owner(ty: &Type) -> bool {
-    match ty {
-        Type::BorrowedStorage { storage, .. }
-            if matches!(storage.as_ref(), Type::Package { .. }) =>
-        {
-            has_inline_store_owner(storage)
-        }
-        Type::Managed(payload) => matches!(payload.as_ref(), Type::OwnedStore { element }
-            if dynamic_store::inline_protocol_element(element)),
-        Type::Package { fields, .. } => fields
-            .iter()
-            .any(|(_, field)| has_inline_store_owner(field)),
-        Type::Tuple(fields) => fields.iter().any(has_inline_store_owner),
-        Type::Enum { variants, .. } => variants
-            .iter()
-            .any(|(_, fields)| fields.iter().any(has_inline_store_owner)),
-        Type::ErrorUnion { error, result } => {
-            has_inline_store_owner(error) || has_inline_store_owner(result)
-        }
-        _ => false,
-    }
 }
 
 fn product_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {

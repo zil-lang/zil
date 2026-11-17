@@ -69,8 +69,7 @@ fn lower_view_with_budget(
             None,
         )]);
     }
-    let use_sum_extension = verified.uses_owned_sum_extension();
-    let mut sum_budget = owned_sums::Budget::new(verified.limits());
+    let mut sum_budget = owned_sums::Budget::with_closures(verified.limits(), &module.closures);
     // Reserve the complete new callable relation before LIR retains/clones it.
     // This budget is also consumed by ordinary owning/stored lowering below.
     sum_budget.callable_metadata(module)?;
@@ -301,6 +300,7 @@ fn lower_view_with_budget(
             if !legacy_capture
                 && !plain_capture
                 && !sum_budget.inline_store_capture(ty, &module.resources)?
+                && !sum_budget.admits(ty, &module.resources, 0)?
             {
                 complete_captures = false;
                 break;
@@ -356,12 +356,11 @@ fn lower_view_with_budget(
                 && function.callable_return_contract.is_some());
         let extra_return = if old_return {
             false
-        } else if use_sum_extension
-            || matches!(&function.return_type, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }))
-        {
-            sum_budget.admits(&function.return_type, &module.resources, 0)?
         } else {
-            false
+            // A module profile flag is not a layout inventory. The same
+            // complete paid representation walk covers every verified value,
+            // including callable inputs returned by failed Task creation.
+            sum_budget.admits(&function.return_type, &module.resources, 0)?
         };
         if !old_return && !extra_return && !sum_budget.pure_composite(&function.return_type, 0)? {
             return Err(vec![Diagnostic::unsupported(
@@ -385,12 +384,8 @@ fn lower_view_with_budget(
                 || callable_parameter_type(ty, &module.closures);
             let extra = if old {
                 false
-            } else if use_sum_extension
-                || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }))
-            {
-                sum_budget.admits(ty, &module.resources, 0)?
             } else {
-                false
+                sum_budget.admits(ty, &module.resources, 0)?
             };
             if !old && !extra && !sum_budget.pure_composite(ty, 0)? {
                 return Err(vec![Diagnostic::unsupported(
@@ -422,13 +417,7 @@ fn lower_view_with_budget(
                 && !package_value_type(ty, &module.resources)
                 && !error_type(ty, &module.resources)
                 && !owned_array_type(ty, &module.resources)
-                && !if use_sum_extension
-                    || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }))
-                {
-                    sum_budget.admits(ty, &module.resources, 0)?
-                } else {
-                    false
-                }
+                && !sum_budget.admits(ty, &module.resources, 0)?
                 && !sum_budget.pure_value_or_address(ty, 0)?
             {
                 return Err(vec![Diagnostic::unsupported(

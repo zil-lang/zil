@@ -22,6 +22,7 @@ fn shared_sum(ty: &Type) -> bool {
 }
 pub(super) struct Budget<'a> {
     limits: &'a zil_base::Limits,
+    closures: &'a [zil_ir::ClosureDefinition],
     nodes: usize,
     work: usize,
 }
@@ -29,9 +30,16 @@ impl<'a> Budget<'a> {
     pub(super) fn new(limits: &'a zil_base::Limits) -> Self {
         Self {
             limits,
+            closures: &[],
             nodes: 0,
             work: 0,
         }
+    }
+    pub(super) fn with_closures(
+        limits: &'a zil_base::Limits,
+        closures: &'a [zil_ir::ClosureDefinition],
+    ) -> Self {
+        Self { closures, ..Self::new(limits) }
     }
     pub(super) fn static_bytes(&mut self, count: usize) -> CompileResult<()> {
         self.work = self
@@ -475,6 +483,18 @@ impl<'a> Budget<'a> {
         self.pay(ty, depth)?;
         match ty {
             Type::BorrowedStorage { .. } => self.borrowed(ty, depth + 1),
+            // The immutable module supplies the real environment directory.
+            // Closure data uses that existing inline ABI even when nested in
+            // a returned failure Tuple. This grants no Copy or cleanup right.
+            Type::Closure(id) => {
+                self.metadata(1)?;
+                Ok(self.closures.get(id.0 as usize).is_some_and(|row| row.id == *id))
+            }
+            Type::OwnedDyn { .. } => Ok(true),
+            Type::Address { inner, .. } if inner.is_address_pointee() => {
+                self.copy_work(inner, depth + 1)?;
+                Ok(true)
+            }
             Type::Address { inner, .. }
                 if matches!(
                     inner.as_ref(),
@@ -498,7 +518,7 @@ impl<'a> Budget<'a> {
                 }
                 Ok(true)
             }
-            Type::Package { fields, .. } => {
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 for (_, t) in fields {
                     if !self.admits(t, resources, depth + 1)? {
                         return Ok(false);
@@ -649,6 +669,39 @@ impl zil_ir::DynRecipeVisitor for Budget<'_> {
 
 #[cfg(test)]
 mod owned_sum_tests {
+    #[test]
+    fn callable_payload_layout_uses_the_actual_directory_and_one_budget() {
+        // Private representation probe. Raw types cannot call public Lower;
+        // the real Task failure/return matrix still enters through Verify.
+        let limits = zil_base::Limits::default();
+        let closures = [zil_ir::ClosureDefinition {
+            storage_life: None,
+            id: zil_ir::ClosureId(0),
+            function: zil_ir::FunctionId(0),
+            captures: vec![Type::I32],
+            parameters: vec![],
+            result: Type::I32,
+            kind: zil_ir::CallableKind::FnMut,
+            lending_captures: vec![],
+        }];
+        let payload = Type::Package {
+            name: "FailedInputs".into(),
+            fields: vec![("inputs".into(), Type::Tuple(vec![Type::Closure(zil_ir::ClosureId(0))]))],
+        };
+        let result = Type::ErrorUnion { error: Box::new(payload), result: Box::new(Type::Unit) };
+        let mut measured = Budget::with_closures(&limits, &closures);
+        assert!(measured.admits(&result, &[], 0).unwrap());
+        assert!(!Budget::new(&limits).admits(&result, &[], 0).unwrap());
+        let mut wrong = closures.clone();
+        wrong[0].id = zil_ir::ClosureId(1);
+        assert!(!Budget::with_closures(&limits, &wrong).admits(&result, &[], 0).unwrap());
+        let exact = zil_base::Limits { max_analysis_steps: measured.work, ..limits.clone() };
+        assert!(Budget::with_closures(&exact, &closures).admits(&result, &[], 0).unwrap());
+        let short = zil_base::Limits { max_analysis_steps: measured.work - 1, ..limits };
+        assert_eq!(Budget::with_closures(&short, &closures).admits(&result, &[], 0).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit);
+    }
+
     fn pure_leaf() -> Type {
         Type::BorrowedStorage {
             storage: Box::new(Type::Record {

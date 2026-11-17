@@ -60,6 +60,12 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     }
     match ty {
         Type::BorrowedStorage { storage, .. } => scoped_value_type(storage, resources),
+        // bind_lir has already checked the actual immutable closure directory
+        // and every physical source. These are existing machine leaves, not
+        // structural Copy capabilities: link/plan retain callable destruction
+        // and treat an address as a non-owning pointer.
+        Type::Closure(_) | Type::OwnedDyn { .. } => true,
+        Type::Address { inner, .. } if inner.is_address_pointee() => true,
         Type::Managed(_) => resources::supported_type(ty, resources),
         Type::Array { element, length }
             if *length > 0 && matches!(element.as_ref(), Type::Package { .. }) =>
@@ -67,7 +73,8 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
             value_type(element, resources)
         }
         Type::Tuple(fields) => fields.iter().all(|t| value_type(t, resources)),
-        Type::Package { fields, .. } => fields.iter().all(|(_, t)| value_type(t, resources)),
+        Type::Record { fields, .. } | Type::Package { fields, .. } =>
+            fields.iter().all(|(_, t)| value_type(t, resources)),
         Type::Enum { variants, .. } => variants
             .iter()
             .all(|(_, fs)| fs.iter().all(|t| value_type(t, resources))),
@@ -1104,6 +1111,10 @@ mod owned_sum_drop_plan_tests {
         };
         let enumeration = Type::Enum { name: "ContinuationChoice".into(), variants: vec![("Empty".into(), vec![]), ("Full".into(), vec![qualified.clone()])] };
         let roots = [legacy, tuple, qualified, enumeration];
+        for root in &roots {
+            assert!(value_type(root, &resources()),
+                "an existing complete cleanup recipe must survive machine admission");
+        }
         fn references(plan: &DropPlan, out: &mut std::collections::BTreeSet<String>) {
             match plan {
                 DropPlan::Empty => {},
