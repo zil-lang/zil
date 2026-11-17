@@ -260,6 +260,20 @@ pub(crate) fn header_life(module:&TypedModule,ty:&Type,header:&StorageLifeContra
     if positions.is_empty(){return declared_life(module,ty,b);}
     header_node(module,ty,&positions,&mut vec![],b,0)
 }
+/// Reuse the same contextual shape interpretation for a checked semantic
+/// child's pending Direct occurrences. This creates no signature or source
+/// receipt. Opaque Logical occurrences keep their own unchanged scope.
+pub(crate) fn static_child_life(module:&TypedModule,ty:&Type,statics:&[crate::semantic::StaticOccurrence],b:&mut Budget)->Check<StorageLifeShape>{
+    dynamic_metadata::bounds_type(ty,b)?;
+    let mut positions=Vec::new();
+    for row in statics{
+        let crate::semantic::StaticOccurrence::Direct{path,..}=row else{continue;};
+        b.spend(path.len().saturating_add(1))?;
+        let physical=path.iter().map(|step|match step{LifeTypeProjection::Place(step)=>Some(*step),_=>None}).collect::<Option<Vec<_>>>().ok_or_else(||unsupported("static child needs its complete logical occurrence context",None))?;
+        positions.push(physical);
+    }
+    if positions.is_empty(){declared_life(module,ty,b)}else{header_node(module,ty,&positions,&mut vec![],b,0)}
+}
 fn header_node(module:&TypedModule,ty:&Type,statics:&[Vec<PlaceProjection>],path:&mut Vec<PlaceProjection>,b:&mut Budget,depth:usize)->Check<StorageLifeShape>{
     b.spend(1)?;
     if depth>b.limits.max_call_depth.min(128){return Err(limit("contextual header child domain depth exceeded"));}

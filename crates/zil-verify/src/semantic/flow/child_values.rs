@@ -35,8 +35,15 @@ impl CheckedContext {
         // has no variable outer κ, while its pointee/phantom domain survives.
         b.spend(parent.life.retained.len().saturating_mul(path.len().saturating_add(1)))?;
         let opaque=matches!(ty,Type::BorrowedStorage{..}|Type::Closure(_)|Type::Task{..}|Type::MutexGuard{..}|Type::Dyn{..}|Type::OwnedDyn{..});
-        let mut life=if !opaque&&(statics.iter().any(|row|matches!(row,StaticOccurrence::Direct{..}))||parent.life.retained.iter().any(|row|row.path==path)){
+        // Parent physical slots only describe inline children. A Pointee
+        // starts its own local slot directory, even when its whole κ map is
+        // present in the enclosing logical directory. Raw products need not
+        // have a redundant whole-product row: rebuild their local context
+        // and use the exact occurrence lookup below for every class.
+        let mut life=if !opaque&&physical.is_some()&&parent.life.retained.iter().any(|row|row.path==path){
             projected_life(parent,path,physical.as_deref(),b)?
+        }else if !opaque&&statics.iter().any(|row|matches!(row,StaticOccurrence::Direct{..})){
+            crate::tasks::frame_shape::static_child_life(module,ty,&statics,b)?
         }else{crate::tasks::frame_shape::declared_life(module,ty,b)?};
         if let Some(mode)=outer_mode{
             if !matches!((ty,mode),(Type::Address{mutable:false,..},StoredBorrowMode::SharedAddress)|(Type::Address{mutable:true,..},StoredBorrowMode::ExclusiveAddress)|(Type::Desc(_),StoredBorrowMode::ReadOnlyDescription|StoredBorrowMode::WritableDescription)){return Err(bad("stored child mode changes its complete actual Address/Desc kind"));}
@@ -143,5 +150,104 @@ mod projected_scope_tests {
         let mut missing=parent.clone();missing.life.retained.remove(1);assert!(query(&missing).is_err());
         let mut coalesced=parent.clone();coalesced.life.retained[1].binder=2;assert!(query(&coalesced).is_err());
         let mut escaped=parent.clone();escaped.life.nominal_arguments[0].binder=3;assert!(query(&escaped).is_err());
+    }
+}
+
+#[cfg(test)]
+mod checked_child_scope_tests {
+    use super::*;
+    fn context()->(TypedModule,CheckedContext,ScopeKey){
+        let limits=Limits::default();
+        let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let scope=ScopeKey::Instance(module.semantic.as_ref().unwrap().instances[0].id);
+        let context=CheckedContext::catalogue(&module,&mut Budget::new(&limits)).unwrap();
+        (module,context,scope)
+    }
+    fn keys(scope:ScopeKey,count:u32)->Vec<ClassKey>{(0..count).map(|ordinal|ClassKey::Formal{scope,ordinal}).collect()}
+    fn wire(module:&TypedModule)->TypedModule{
+        let limits=Limits::default();let bytes=zil_ir::wire::encode_module_candidate(module,&CandidatePlan::empty_for(module),&limits).unwrap();zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0
+    }
+    fn environment()->EvalEnv{EvalEnv{lexical:vec![],assumptions:vec![],images:vec![],bounds:vec![],invocations:vec![],at:None}}
+    #[test]
+    fn checked_pointee_projection_rebuilds_its_local_physical_slots_raw_wire(){
+        let(mut module,context,scope)=context();
+        let inner=Type::Address{mutable:false,inner:Box::new(Type::I32)};
+        let outer=Type::Address{mutable:false,inner:Box::new(inner.clone())};
+        module.functions[0].values.push(outer);
+        for module in [&module,&wire(&module)]{
+            let limits=Limits::default();let mut b=Budget::new(&limits);
+            let ty=module.functions[0].values.last().unwrap();
+            let life=crate::tasks::frame_shape::declared_life(module,ty,&mut b).unwrap();
+            let parent=context.checked_value(module,ty,&life,keys(scope,life.binder_count),&mut b).unwrap();
+            let child=context.child_value(module,&parent,&[LifeTypeProjection::Pointee],&mut b).unwrap();
+            assert_eq!(child.ty,inner);assert_eq!(child.life.binder_count,1);
+            assert_eq!(child.life.slots,vec![StorageLifeSlot{path:vec![],binder:0,mode:StoredBorrowMode::SharedAddress}]);
+            assert_eq!(child.classes,vec![parent.classes[1].clone()]);assert_eq!(child.origins,vec![parent.origins[1].clone()]);
+            let rebuilt=crate::dynamic_witness::semantic_external::construct(&context,&environment(),crate::dynamic_witness::semantic_external::Constructor::Address{mode:StoredBorrowMode::SharedAddress,outer:Some(parent.classes[0].clone())},&[child],&mut ActiveQueries::new(),&mut b).unwrap();
+            assert_eq!(rebuilt.ty,parent.ty);assert_eq!(rebuilt.life,parent.life);assert_eq!(rebuilt.classes,parent.classes);assert_eq!(rebuilt.origins,parent.origins);
+            let mut missing=life.clone();missing.retained.clear();
+            assert!(context.checked_value(module,ty,&missing,keys(scope,life.binder_count),&mut b).is_err());
+            let mut coalesced=life.clone();coalesced.retained[0].binder=0;
+            assert!(context.checked_value(module,ty,&coalesced,keys(scope,life.binder_count),&mut b).is_err());
+        }
+    }
+    #[test]
+    fn checked_nested_static_products_preserve_nonzero_child_and_phantom_maps_raw_wire(){
+        let(mut module,context,scope)=context();
+        let task=Type::Task{result:Box::new(Type::I32),retained_life:RetainedLifeShape{binder_count:2,ports:vec![],retained:(0..2).map(|class|StorageRetainedBinding{path:vec![LifeTypeProjection::Parameter(0)],class,binder:class}).collect(),nominal_arguments:vec![]}};
+        let head=Type::Address{mutable:false,inner:Box::new(task)};
+        let child_ty=Type::Tuple(vec![head.clone()]);
+        let outer_types=[Type::Tuple(vec![child_ty.clone()]),Type::Record{name:"static_child_scope".into(),fields:vec![("value".into(),child_ty.clone())]},Type::ErrorUnion{error:Box::new(Type::I32),result:Box::new(child_ty.clone())}];
+        module.functions[0].values.extend(outer_types);
+        for module in [&module,&wire(&module)]{
+            for(ordinal,ty)in module.functions[0].values.iter().rev().take(3).rev().enumerate(){
+                let limits=Limits::default();let mut b=Budget::new(&limits);
+                let selected=if ordinal==2{PlaceProjection::ErrorArm(false)}else{PlaceProjection::Field(0)};
+                let path=vec![LifeTypeProjection::Place(selected),LifeTypeProjection::Place(PlaceProjection::Field(0))];
+                let statics=vec![StaticOccurrence::Direct{path:path.clone(),leaf:head.clone(),mode:StoredBorrowMode::SharedAddress}];
+                let life=crate::tasks::frame_shape::static_child_life(module,ty,&statics,&mut b).unwrap();
+                assert_eq!(life.binder_count,2);assert!(life.slots.is_empty());
+                assert!(!life.retained.iter().any(|row|row.path==[LifeTypeProjection::Place(selected)]),"raw product carries descendants without a redundant whole-product row");
+                let mut parent=context.checked_value(module,ty,&life,keys(scope,2),&mut b).unwrap();parent.statics=statics;
+                let child=context.child_value(module,&parent,&[LifeTypeProjection::Place(selected)],&mut b).unwrap();
+                assert_eq!(child.ty,child_ty);assert_eq!(child.life.binder_count,2);assert_eq!(child.classes,parent.classes);assert_eq!(child.origins,parent.origins);
+                assert_eq!(child.statics,vec![StaticOccurrence::Direct{path:vec![LifeTypeProjection::Place(PlaceProjection::Field(0))],leaf:head.clone(),mode:StoredBorrowMode::SharedAddress}]);
+                let pointer=context.child_value(module,&child,&[LifeTypeProjection::Place(PlaceProjection::Field(0))],&mut b).unwrap();
+                assert_eq!(pointer.life.binder_count,2);assert!(pointer.life.slots.is_empty());assert_eq!(pointer.classes,child.classes);
+                let pointee=context.child_value(module,&pointer,&[LifeTypeProjection::Pointee],&mut b).unwrap();assert_eq!(pointee.life.binder_count,2);assert_eq!(pointee.classes,pointer.classes);assert_eq!(pointee.origins,pointer.origins);
+                for attack in 0..3{
+                    let mut forged=life.clone();
+                    match attack{0=>{forged.retained.pop();},1=>{forged.retained[1].binder=forged.retained[0].binder;},_=>{forged.binder_count=1;}}
+                    assert!(context.checked_value(module,ty,&forged,keys(scope,forged.binder_count),&mut b).is_err(),"phantom map attack {attack}");
+                }
+                if ordinal==0{
+                    let rebuilt=crate::dynamic_witness::semantic_external::construct(&context,&environment(),crate::dynamic_witness::semantic_external::Constructor::Tuple,&[child],&mut ActiveQueries::new(),&mut b).unwrap();
+                    // The existing fresh Tuple constructor explicitly stores
+                    // its nonzero scope. Validate it before projecting again.
+                    let mut checked=context.checked_value(module,&rebuilt.ty,&rebuilt.life,rebuilt.classes.clone(),&mut b).unwrap();checked.origins=rebuilt.origins;checked.statics=rebuilt.statics;
+                    let again=context.child_value(module,&checked,&[LifeTypeProjection::Place(PlaceProjection::Field(0))],&mut b).unwrap();
+                    assert_eq!(again.ty,child_ty);assert_eq!(again.classes,parent.classes);assert_eq!(again.origins,parent.origins);assert_eq!(again.life.binder_count,2);
+                }
+                assert!(b.proven_static_occurrences.is_empty(),"scope context is no actual Static source proof");
+            }
+        }
+    }
+    #[test]
+    fn checked_existing_callback_array_element_scope_roundtrips_without_losing_opaque_classes(){
+        let limits=Limits::default();
+        let(mut module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/local-closure-complete-head.wire"),&limits).unwrap();
+        let context=CheckedContext::catalogue(&module,&mut Budget::new(&limits)).unwrap();
+        let scope=ScopeKey::Instance(module.semantic.as_ref().unwrap().instances[0].id);
+        let closure=module.closures[0].id;let count=module.closures[0].storage_life.as_ref().unwrap().fixed_binder_count;assert!(count>0);
+        module.functions[0].values.push(Type::Array{element:Box::new(Type::Closure(closure)),length:1});
+        for module in [&module,&wire(&module)]{
+            let mut b=Budget::new(&limits);let ty=module.functions[0].values.last().unwrap();let life=crate::tasks::frame_shape::declared_life(module,ty,&mut b).unwrap();
+            let parent=context.checked_value(module,ty,&life,keys(scope,count),&mut b).unwrap();
+            let child=context.child_value(module,&parent,&[LifeTypeProjection::Element],&mut b).unwrap();
+            assert_eq!(child.ty,Type::Closure(closure));assert_eq!(child.life.binder_count,count);assert_eq!(child.classes,parent.classes);assert_eq!(child.origins,parent.origins);
+            let rebuilt=crate::dynamic_witness::semantic_external::construct(&context,&environment(),crate::dynamic_witness::semantic_external::Constructor::Tuple,&[parent.clone()],&mut ActiveQueries::new(),&mut b).unwrap();
+            let mut checked=context.checked_value(module,&rebuilt.ty,&rebuilt.life,rebuilt.classes.clone(),&mut b).unwrap();checked.origins=rebuilt.origins;checked.statics=rebuilt.statics;
+            let again=context.child_value(module,&checked,&[LifeTypeProjection::Place(PlaceProjection::Field(0))],&mut b).unwrap();assert_eq!(again.ty,parent.ty);assert_eq!(again.life,parent.life);assert_eq!(again.classes,parent.classes);assert_eq!(again.origins,parent.origins);
+        }
     }
 }
