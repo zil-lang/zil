@@ -11,6 +11,78 @@ struct ClosedContext {
 }
 
 impl Eval<'_, '_, '_> {
+    /// Evidence for an already rejected boundary, never a source of Type or
+    /// runtime facts. Charge every complete recipe before allocating Debug.
+    pub(super) fn opaque_boundary_evidence(
+        &mut self, caller: SemanticInstanceId, recipe: &SemanticTypeRecipe,
+        mut diagnostic: Diagnostic, depth: usize,
+    ) -> R<Diagnostic> {
+        self.node(depth)?;
+        let SemanticTypeRecipe::Opaque { definition, .. } = recipe else {
+            return Ok(diagnostic);
+        };
+        crate::dyn_metadata::semantic_operand_snapshot(recipe, self.limits, self.left, 1)?;
+        diagnostic.notes.push(format!("rejected original opaque application in {caller:?}: {recipe:?}"));
+        self.fee(self.input.instances.len())?;
+        let ledger = self.ledger;
+        for original in &self.input.instances {
+            if original.definition != *definition { continue; }
+            let actual = self.instance(original.id)?;
+            self.fee(actual.actuals.len().saturating_add(8))?;
+            for argument in &actual.actuals {
+                crate::dyn_metadata::semantic_operand_snapshot(argument, self.limits, self.left, 1)?;
+            }
+            diagnostic.notes.push(format!(
+                "opaque defining candidate {:?}: definition {:?}, parent {:?}, target {:?}, lifetime {:?}, actuals {:?}",
+                actual.id, actual.definition, actual.parent, actual.target,
+                actual.lifetime_instantiation, actual.actuals,
+            ));
+            if let Some(context) = ledger.original.context() {
+                match context.instance(actual.id, self.left) {
+                    Ok(source) => {
+                        self.fee(source.actuals.len().saturating_add(4))?;
+                        for argument in &source.actuals {
+                            crate::dyn_metadata::semantic_operand_snapshot(argument, self.limits, self.left, 1)?;
+                        }
+                        diagnostic.notes.push(format!(
+                            "immutable candidate source {:?}: target {:?}, actuals {:?}",
+                            source.id, source.target, source.actuals,
+                        ));
+                    }
+                    Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => return Err(error),
+                    Err(error) => diagnostic.notes.push(format!(
+                        "immutable candidate source {:?} unavailable: {}", actual.id, error.message,
+                    )),
+                }
+            }
+            let request = {
+                let requests = ledger.instance_requests.borrow();
+                self.fee(requests.len().saturating_add(1).ilog2() as usize + 1)?;
+                requests.get(&actual.id).copied()
+            };
+            diagnostic.notes.push(format!("exact emitted candidate request {:?}: {request:?}", actual.id));
+            if let Some((source, call, _)) = request {
+                let owner = self.instance(source)?.definition;
+                let proof = ledger.original.borrow();
+                let proof = proof.as_ref().ok_or_else(|| bad("opaque boundary evidence has no original proof"))?;
+                for ordinal in 0..actual.actuals.len() {
+                    match proof.call_actual(owner, call, ordinal as u32, self.limits, self.left) {
+                        Ok(argument) => {
+                            crate::dyn_metadata::semantic_operand_snapshot(&argument, self.limits, self.left, 1)?;
+                            diagnostic.notes.push(format!(
+                                "candidate original actual {owner:?}/{call:?}/full ordinal {ordinal}: {argument:?}",
+                            ));
+                        }
+                        Err(error) if error.category == zil_base::ResultCategory::ResourceLimit => return Err(error),
+                        Err(error) => diagnostic.notes.push(format!(
+                            "candidate original actual {owner:?}/{call:?}/full ordinal {ordinal} unavailable: {}", error.message,
+                        )),
+                    }
+                }
+            }
+        }
+        Ok(diagnostic)
+    }
     /// An independently proved closed original Type application is separate
     /// from runtime value provenance. Interpret every exact defining world;
     /// the physical hint never chooses a creator or an actual argument.

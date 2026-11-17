@@ -1218,9 +1218,10 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                     {
                         return Ok(value);
                     }
-                    return Err(unknown(&format!(
+                    let diagnostic = unknown(&format!(
                         "opaque original Query has no actual call-result boundary: instance {scope:?}, selector {selector:?}, source {source:?}, opaque definition {definition:?}"
-                    )));
+                    ));
+                    return Err(self.opaque_boundary_evidence(scope, &recipe, diagnostic, depth + 1)?);
                 }
                 return self.ty(scope, &recipe, hint, depth + 1);
             }
@@ -2010,10 +2011,11 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                     {
                         return Ok(value);
                     }
-                    return Err(unknown(&format!(
+                    let diagnostic = unknown(&format!(
                         "opaque hidden type requires its actual original call-result boundary: instance {scope:?}, actual definition {:?}, opaque definition {definition:?}",
                         self.instance(scope)?.definition
-                    )));
+                    ));
+                    return Err(self.opaque_boundary_evidence(scope, recipe, diagnostic, depth + 1)?);
                 }
                 let value = self.ty(scope, hidden, hint, depth + 1)?;
                 let SemanticTypeValue::Resolved { classes, .. } = &value else {
