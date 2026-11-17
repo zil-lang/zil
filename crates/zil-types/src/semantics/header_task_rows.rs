@@ -11,6 +11,34 @@ fn domain(ty: &Type, depth: usize, limits: &Limits, left: &mut usize) -> R<Optio
         _ => Ok(None),
     }
 }
+// A transparent Managed child has a complete whole-Type domain, but is not
+// a second signature boundary. Its exact child->parent forest rows transport
+// the domain down Pointee; only the actual Task's local class directory emits.
+fn transport_managed_rows(
+    intrinsic: &[LifeTypeProjection], images: &[usize], life: &StorageLifeShape,
+    transported: &mut [bool], limits: &Limits, left: &mut usize,
+) -> R<()> {
+    if images.len() > limits.max_nodes {
+        return Err(Diagnostic::limit(Phase::Types, "Managed Task domain exceeds node limit", None));
+    }
+    pay(left, images.len().saturating_add(life.retained.len()))?;
+    let mut seen = vec![false; images.len()];
+    for (ordinal, row) in life.retained.iter().enumerate() {
+        path(left, limits, row.path.len())?;
+        if row.path.as_slice() != intrinsic { continue; }
+        let class = row.class as usize;
+        let image = images.get(class)
+            .ok_or_else(|| bad("Managed Task transport exceeds its complete child ordinal"))?;
+        if row.binder as usize != *image || seen[class] {
+            return Err(bad("Managed Task transport changes one exact child-to-parent mapping"));
+        }
+        seen[class] = true;
+        let represented = transported.get_mut(ordinal)
+            .ok_or_else(|| bad("Managed Task transport loses its original forest coordinate"))?;
+        *represented = true;
+    }
+    Ok(())
+}
 #[allow(clippy::too_many_arguments)]
 fn leaf(
     ty: &Type,
@@ -30,6 +58,7 @@ fn leaf(
 ) -> R<()> {
     path(left, limits, depth)?;
     if let Type::Managed(inner) = ty {
+        transport_managed_rows(intrinsic, images, life, expanded, limits, left)?;
         intrinsic.push(LifeTypeProjection::Pointee);
         let result = leaf(
             inner,
@@ -99,9 +128,9 @@ fn leaf(
             image.clone(),
         ));
         covered[index] = true;
-        // The complete child forest may already name this exact Task class.
-        // Mark only the identical selector/ordinal/parent coordinate as
-        // represented. Whole Managed and inner Task paths remain distinct.
+        // Preserve this exact Task boundary. Transparent Managed rows were
+        // independently checked while descending; they remain in the full
+        // value forest, but are not additional signature boundary rows.
         pay(left, life.retained.len())?;
         let mut represented = None;
         for (ordinal, row) in life.retained.iter().enumerate() {
@@ -398,25 +427,30 @@ mod tests {
                     },
                     classes[0].clone()
                 ),
-                (
-                    SignatureLifeClass {
-                        base: StorageBase::Parameter(0),
-                        path: vec![LifeTypeProjection::Pointee],
-                        class: 0
-                    },
-                    classes[1].clone()
-                ),
-                (
-                    SignatureLifeClass {
-                        base: StorageBase::Parameter(0),
-                        path: vec![LifeTypeProjection::Pointee],
-                        class: 1
-                    },
-                    classes[0].clone()
-                ),
             ]
         );
         assert!(statics.is_empty());
+        // A repeated transparent selector is not a second permitted row.
+        let mut repeated = value.clone();
+        let SemanticTypeValue::Resolved { life, .. } = &mut repeated else { unreachable!() };
+        life.retained.push(life.retained[0].clone());
+        assert!(super::super::append(
+            &repeated, StorageBase::Parameter(0), &mut Vec::new(), &mut Vec::new(),
+            &mut Vec::new(), &limits, &mut left,
+        ).is_err());
+        // Even equal outside images cannot authorize a contradictory mapping
+        // between the complete Managed domain and the actual Task child.
+        let mut conflict = value.clone();
+        let SemanticTypeValue::Resolved { life, classes, .. } = &mut conflict else { unreachable!() };
+        classes[0] = classes[1].clone();
+        life.retained.push(StorageRetainedBinding {
+            path: vec![LifeTypeProjection::Pointee, LifeTypeProjection::Pointee],
+            class: 0, binder: 0,
+        });
+        assert!(super::super::append(
+            &conflict, StorageBase::Parameter(0), &mut Vec::new(), &mut Vec::new(),
+            &mut Vec::new(), &limits, &mut left,
+        ).is_err());
         let mut omitted = value;
         let SemanticTypeValue::Resolved { life, .. } = &mut omitted else {
             unreachable!()
