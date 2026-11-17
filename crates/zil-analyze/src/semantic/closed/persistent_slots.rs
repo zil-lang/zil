@@ -292,6 +292,7 @@ impl Check<'_, '_> {
             let mut source = None;
             for (index, instruction) in actual.instructions.iter().enumerate().take(end).rev() {
                 b.spend(1, WORK)?;
+                self.head_projection_barrier(function, slot.local, &[], &instruction.kind, b)?;
                 match &instruction.kind {
                     InstructionKind::StoreOwnedArrayElement {
                         local,

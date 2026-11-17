@@ -798,7 +798,7 @@ impl Check<'_, '_> {
         Ok(out)
     }
 
-    fn head_projection_barrier(
+    pub(super) fn head_projection_barrier(
         &self,
         function: &TypedFunction,
         local: LocalId,
@@ -809,6 +809,67 @@ impl Check<'_, '_> {
         let overlaps =
             |changed: &[PlaceProjection]| path.starts_with(changed) || changed.starts_with(path);
         match instruction {
+            InstructionKind::BorrowLocalMut { local: target } if *target == local => {
+                return Err(unknown(
+                    "implicit projected head crosses an unproved whole mutable alias",
+                ));
+            }
+            InstructionKind::BorrowPlaceLocal {
+                local: target,
+                path: changed,
+                mutable: true,
+            } if *target == local => {
+                b.spend(path.len().saturating_add(changed.len()), WORK)?;
+                if overlaps(changed) {
+                    return Err(unknown(
+                        "implicit projected head crosses an unproved overlapping mutable alias",
+                    ));
+                }
+            }
+            InstructionKind::BorrowPackageField {
+                local: target,
+                index,
+                mutable: true,
+            } if *target == local => {
+                b.spend(path.len().saturating_add(1), WORK)?;
+                if overlaps(&[PlaceProjection::Field(*index)]) {
+                    return Err(unknown(
+                        "implicit projected head crosses an unproved mutable field alias",
+                    ));
+                }
+            }
+            InstructionKind::BorrowFieldLocal {
+                local: target,
+                path: changed,
+                mutable: true,
+            } if *target == local => {
+                b.spend(path.len().saturating_add(changed.len()), WORK)?;
+                if path
+                    .iter()
+                    .zip(changed)
+                    .all(|(actual, field)| *actual == PlaceProjection::Field(*field))
+                {
+                    return Err(unknown(
+                        "implicit projected head crosses an unproved mutable inline field alias",
+                    ));
+                }
+            }
+            InstructionKind::BorrowVariantLocal {
+                local: target,
+                path: changed,
+                mutable: true,
+            } if *target == local => {
+                b.spend(path.len().saturating_add(changed.len()), WORK)?;
+                if path
+                    .iter()
+                    .zip(changed)
+                    .all(|(actual, field)| *actual == PlaceProjection::Variant(*field))
+                {
+                    return Err(unknown(
+                        "implicit projected head crosses an unproved mutable variant alias",
+                    ));
+                }
+            }
             InstructionKind::StorePackageField {
                 local: target,
                 index,
@@ -914,7 +975,7 @@ impl Check<'_, '_> {
                     ));
                 }
             }
-            InstructionKind::WriteAddress { .. } => {
+            InstructionKind::WriteAddress { .. } | InstructionKind::StoreStoredBorrow { .. } => {
                 return Err(unknown(
                     "implicit projected head needs a complete overlapping address-write effect",
                 ));
