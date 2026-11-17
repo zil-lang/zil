@@ -121,7 +121,8 @@ impl Check<'_, '_> {
         if matches!(
             ty,
             Type::Address { .. } | Type::Desc(_) | Type::BorrowedStorage { .. } | Type::Closure(_)
-        ) || self.task_domain(ty, b)?.is_some() {
+        ) || self.task_domain(ty, b)?.is_some()
+            || !self.physical_byte_paths(ty, b)?.is_empty() {
             let creators = self.capture_creator_bindings(instance, closure, b)?;
             let mut selected = None;
             for binding in creators.values() {

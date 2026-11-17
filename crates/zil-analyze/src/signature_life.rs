@@ -755,6 +755,35 @@ fn relation_inner(
                         path.pop();
                     }
                 }
+                Type::Address { inner, mutable }
+                    if matches!(inner.as_ref(), Type::Slice { element } if **element == Type::U8) =>
+                {
+                    let position = StoragePosition {
+                        base,
+                        path: path.iter().map(|step| match step {
+                            LifeTypeProjection::Place(selector) => Ok(zil_ir::ContractProjection::Place(*selector)),
+                            _ => Err(bad("compound address has a nonphysical occurrence path")),
+                        }).collect::<CompileResult<Vec<_>>>()?,
+                    };
+                    if self.c.static_bindings.get(self.constant) == Some(&position) {
+                        if *mutable {
+                            return Err(bad("static compound occurrence must be an immutable address"));
+                        }
+                        self.constant += 1;
+                    } else {
+                        let row = self.c.bindings.get(self.borrow)
+                            .ok_or_else(|| bad("compound signature omits its actual address occurrence"))?;
+                        if row.position != position
+                            || matches!(base, StorageBase::Capture(_))
+                                && !matches!(row.binder, StorageBinder::Fixed(_))
+                        {
+                            return Err(bad("compound address changes its exact physical path or persistence"));
+                        }
+                        let binder = row.binder;
+                        self.borrow += 1;
+                        self.binder(binder, matches!(base, StorageBase::Capture(_)))?;
+                    }
+                }
                 Type::BorrowedStorage { life, .. } => {
                     self.qualified_slots(life, base, path)?;
                     if life.binder_count as usize > self.c.classes.len().saturating_sub(self.class)

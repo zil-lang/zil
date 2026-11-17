@@ -1132,6 +1132,76 @@ pub(super) fn check_dyn_static_return(
 mod static_grounding_tests {
     use super::*;
     #[test]
+    fn nested_static_capture_requires_every_actual_constructor_to_retain_literal_sources() {
+        // Source-independent trust-boundary control: an unused constructor with
+        // the same complete physical Types must not inherit another literal's
+        // Static proof. No semantic/source or native execution is claimed.
+        let limits = Limits::default();
+        let mut module = crate::static_utf8_tests::module();
+        let leaf = module.functions[0].return_type.clone();
+        let inner = Type::Tuple(vec![leaf.clone(), Type::I32]);
+        let outer = Type::Tuple(vec![inner.clone(), Type::I32]);
+        let path = vec![ContractProjection::Place(PlaceProjection::Field(0)),
+            ContractProjection::Place(PlaceProjection::Field(0))];
+        let span = module.functions[0].span;
+        let instruction = |result, kind| Instruction { result: Some(ValueId(result)), kind, span };
+        let mut entry = module.functions[0].clone();
+        entry.id = FunctionId(1);
+        entry.name = "nested_capture_entry".into();
+        entry.environment = Some(ClosureId(0));
+        entry.values = vec![outer.clone(), inner.clone(), leaf.clone()];
+        let header = StorageLifeContract { fixed_binder_count: 0, invocation_binder_count: 0,
+            bindings: vec![], classes: vec![], static_bindings: vec![
+                StoragePosition { base: StorageBase::Capture(0), path: path.clone() },
+                StoragePosition { base: StorageBase::Result, path: vec![] },
+            ] };
+        entry.storage_life = Some(header.clone());
+        entry.blocks[0].instructions = vec![
+            instruction(0, InstructionKind::ReadCapture { index: 0 }),
+            instruction(1, InstructionKind::ExtractField { aggregate: ValueId(0), index: 0 }),
+            instruction(2, InstructionKind::ExtractField { aggregate: ValueId(1), index: 0 }),
+        ];
+        entry.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
+        let maker = &mut module.functions[0];
+        maker.return_type = Type::Closure(ClosureId(0));
+        maker.locals.push(LocalDecl { id: LocalId(0), name: "unproved_other_source".into(),
+            ty: leaf.clone(), mutable: false, span });
+        maker.parameters.push(LocalId(0));
+        maker.values = vec![leaf.clone(), Type::I32, inner.clone(), outer.clone(),
+            Type::Closure(ClosureId(0))];
+        maker.blocks[0].instructions.extend([
+            instruction(1, InstructionKind::Constant(Constant::I32(7))),
+            instruction(2, InstructionKind::MakeAggregate { fields: vec![ValueId(0), ValueId(1)] }),
+            instruction(3, InstructionKind::MakeAggregate { fields: vec![ValueId(2), ValueId(1)] }),
+            instruction(4, InstructionKind::MakeClosure { closure: ClosureId(0), captures: vec![ValueId(3)] }),
+        ]);
+        maker.blocks[0].terminator = Terminator::Return(Some(ValueId(4)));
+        module.functions.push(entry);
+        module.closures.push(ClosureDefinition { id: ClosureId(0), function: FunctionId(1),
+            captures: vec![outer.clone()], parameters: vec![], result: leaf.clone(),
+            kind: CallableKind::FnOnce, lending_captures: vec![0], storage_life: Some(header) });
+        let mut forged = module.clone();
+        let maker = &mut forged.functions[0];
+        maker.values.extend([leaf, inner, outer, Type::Closure(ClosureId(0))]);
+        maker.blocks[0].instructions.extend([
+            instruction(5, InstructionKind::Load(LocalId(0))),
+            instruction(6, InstructionKind::MakeAggregate { fields: vec![ValueId(5), ValueId(1)] }),
+            instruction(7, InstructionKind::MakeAggregate { fields: vec![ValueId(6), ValueId(1)] }),
+            instruction(8, InstructionKind::MakeClosure { closure: ClosureId(0), captures: vec![ValueId(7)] }),
+        ]);
+        for (module, accepted) in [(module, true), (forged, false)] {
+            let check = |module: &TypedModule|
+                check_static_occurrences(module, &mut Budget::new(&limits)).is_ok();
+            assert_eq!(check(&module), accepted,
+                "complete Static paths require all real constructors, including unused ones");
+            let bytes = zil_ir::wire::encode_module_candidate(&module,
+                &CandidatePlan::empty_for(&module), &limits).unwrap();
+            let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+            assert_eq!(check(&decoded), accepted,
+                "Wire must preserve nested source selectors and the unproved constructor");
+        }
+    }
+    #[test]
     fn static_uppers_do_not_ground_a_return_cycle_without_an_actual_literal() {
         let limits = Limits::default();
         let mut literal = crate::static_utf8_tests::module();

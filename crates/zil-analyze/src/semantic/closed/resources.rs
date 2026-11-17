@@ -127,14 +127,34 @@ impl Check<'_, '_> {
                     ));
                 }
                 for (index, capture) in closure.captures.iter().enumerate() {
-                    // capture_directory above independently checked every real
-                    // creator. Only that proved whole Static occurrence can
-                    // make this literal view class-free; raw Address cannot.
-                    let static_literal = original::strings::is_byte_type(capture)
-                        && life.static_bindings.iter().any(|position| position.base == StorageBase::Capture(index as u32)
-                            && position.path.is_empty());
-                    b.spend(life.static_bindings.len().saturating_add(1), WORK)?;
-                    if !static_literal { self.zero_data(capture, b, depth + 1)?; }
+                    // The directory has already checked the original full
+                    // value and every actual creator's literal leaves. Reuse
+                    // those complete values, never the proposed Static header
+                    // or an omitted raw Address slot, for nested captures.
+                    if !self.physical_byte_paths(capture, b)?.is_empty() {
+                        let worlds = self.function_worlds(closure.function, b)?;
+                        if worlds.is_empty() {
+                            return Err(fail("Static captured aggregate has no original world"));
+                        }
+                        for world in worlds {
+                            let bindings = self.capture_creator_bindings(world, closure, b)?;
+                            let mut selected = None;
+                            for binding in bindings.values() {
+                                b.spend(1, WORK)?;
+                                if binding.capture == index as u32
+                                    && selected.replace(&binding.stored).is_some() {
+                                    return Err(fail("Static captured aggregate repeats its original creator"));
+                                }
+                            }
+                            let stored = selected.ok_or_else(|| fail("Static captured aggregate lacks its complete creator"))?;
+                            if !geometry::same_type(&stored.ty, capture, b)?
+                                || !empty(&stored.life) || !stored.classes.is_empty() {
+                                return Err(fail("Static captured aggregate retains an original variable domain"));
+                            }
+                        }
+                    } else {
+                        self.zero_data(capture, b, depth + 1)?;
+                    }
                 }
                 Ok(())
             }

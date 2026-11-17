@@ -164,7 +164,6 @@ impl Check<'_, '_> {
         // Sealed shared projections retain one precise outer occurrence and
         // independently prove the complete pointee domain is zero. No tag,
         // access, live loan or initialized prefix is established by this map.
-        self.zero_data(inner, b, depth + 1)?;
         let mut selected = None;
         for slot in &parent.life.slots {
             b.spend(slot.path.len().saturating_add(1), WORK)?;
@@ -178,6 +177,15 @@ impl Check<'_, '_> {
                 }
             }
         }
+        if selected.is_none() && original::strings::is_byte_type(child)
+            && self.has_original_static_byte_path(&parent,
+                &[ContractProjection::Place(selector)], b)?
+        {
+            crate::retained::check_dyn_static_return(self.module, function, result, &[], b)?;
+            crate::dyn_metadata::ty(child, b)?;
+            return Ok(value::scalar(child.clone()));
+        }
+        self.zero_data(inner, b, depth + 1)?;
         let binder = selected.ok_or_else(|| {
             fail("actual shared projection has no complete parent class occurrence")
         })?;

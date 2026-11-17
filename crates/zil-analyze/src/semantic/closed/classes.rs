@@ -904,40 +904,32 @@ impl Check<'_, '_> {
                     "Static closure header needs its complete noncapture original occurrence",
                 ));
             };
-            if !position.path.is_empty() || !static_captures.insert(capture) {
-                return Err(fail(
-                    "Static capture repeats or projects its whole literal occurrence",
-                ));
+            b.lookup(static_captures.len(), WORK)?;
+            if !static_captures.insert(position.clone()) {
+                return Err(fail("Static capture repeats an exact physical occurrence"));
             }
             let mut stored = None;
             for binding in creator_bindings.values() {
                 b.spend(1, WORK)?;
                 if binding.capture == capture && stored.replace(&binding.stored).is_some() {
-                    return Err(fail(
-                        "Static capture has competing original creator bindings",
-                    ));
+                    return Err(fail("Static capture has competing original creator bindings"));
                 }
             }
-            let stored = stored.ok_or_else(|| {
-                fail("Static capture lacks its independently proved original creator")
-            })?;
-            if !original::strings::is_byte_type(&stored.ty)
-                || !empty(&stored.life)
-                || !stored.classes.is_empty()
-                || closure.captures.get(capture as usize) != Some(&stored.ty)
+            let stored = stored.ok_or_else(||
+                fail("Static capture lacks its independently proved original creator"))?;
+            if closure.captures.get(capture as usize) != Some(&stored.ty)
+                || !self.has_original_static_byte_path(stored, &position.path, b)?
             {
-                return Err(fail(
-                    "Static capture changes its complete creator-proved literal view",
-                ));
+                return Err(fail("Static capture changes its complete creator-proved physical leaf"));
             }
         }
-        for (index, ty) in closure.captures.iter().enumerate() {
-            if original::strings::is_byte_type(ty) {
+        for binding in creator_bindings.values() {
+            for path in self.original_static_byte_paths(&binding.stored, b)? {
                 b.lookup(static_captures.len(), WORK)?;
-                if !static_captures.contains(&(index as u32)) {
-                    return Err(fail(
-                        "literal byte-view capture omits its whole Static header occurrence",
-                    ));
+                if !static_captures.contains(&StoragePosition {
+                    base: StorageBase::Capture(binding.capture), path,
+                }) {
+                    return Err(fail("literal capture omits a complete physical Static occurrence"));
                 }
             }
         }
@@ -953,11 +945,18 @@ impl Check<'_, '_> {
                 ));
             }
             for capture in &closure.lending_captures {
-                b.lookup(static_captures.len(), WORK)?;
-                if !static_captures.contains(capture) {
-                    return Err(unknown(
-                        "consuming result retains a non-Static captured head",
-                    ));
+                let binding = creator_bindings.values().find(|binding| binding.capture == *capture)
+                    .ok_or_else(|| fail("lending capture omits its independently bound original source"))?;
+                let paths = self.original_static_byte_paths(&binding.stored, b)?;
+                if paths.is_empty() || !empty(&binding.stored.life)
+                    || !binding.stored.classes.is_empty() {
+                    return Err(unknown("consuming result retains a non-Static captured head"));
+                }
+                for path in paths {
+                    b.lookup(static_captures.len(), WORK)?;
+                    if !static_captures.contains(&StoragePosition {
+                        base: StorageBase::Capture(*capture), path,
+                    }) { return Err(fail("lending capture omits a proved Static field occurrence")); }
                 }
             }
             // Every listed capture is creator-grounded literal storage and
@@ -1587,6 +1586,12 @@ impl Check<'_, '_> {
         .ok_or_else(|| {
             unknown("closure child projection needs its complete original structural source")
         })?;
+        if let PlaceProjection::Field(field) = selector
+            && matches!(storage, Type::Tuple(_)) && empty(&parent.life)
+            && parent.classes.is_empty() && !self.physical_byte_paths(child, b)?.is_empty()
+        {
+            return parent.empty_tuple_child(field, b);
+        }
         let prefix = LifeTypeProjection::Place(selector);
         let template = match child {
             Type::Record { .. } | Type::Package { .. } | Type::BorrowedStorage { .. } => {
@@ -1785,6 +1790,7 @@ impl Check<'_, '_> {
                 .task_domain(ty, b)?
                 .is_none_or(|life| life.binder_count == 0)
             && !self.contains_nonzero_closure(ty, b, 0)?
+            && self.physical_byte_paths(ty, b)?.is_empty()
         {
             // A complete independent zero-domain reconstruction needs no
             // predecessor SSA class equation. Actual initialization, source,
@@ -1953,7 +1959,8 @@ impl Check<'_, '_> {
             | InstructionKind::TakePackageField {
                 local,
                 index: field,
-            } if self.contains_nonzero_closure(ty, b, 0)? => {
+            } if self.contains_nonzero_closure(ty, b, 0)?
+                || !self.physical_byte_paths(ty, b)?.is_empty() => {
                 let parent =
                     self.local_value(instance, function, *local, (block, index), b, depth + 1)?;
                 let selected =
@@ -1963,11 +1970,13 @@ impl Check<'_, '_> {
                         "actual closure field projection changes its complete child type",
                     ));
                 }
+                self.check_static_value_sources(&selected, function, id, b)?;
                 Ok(selected)
             }
             InstructionKind::TakeTupleField { local, path }
             | InstructionKind::TakeVariantField { local, path }
-                if self.contains_nonzero_closure(ty, b, 0)? =>
+                if self.contains_nonzero_closure(ty, b, 0)?
+                    || !self.physical_byte_paths(ty, b)?.is_empty() =>
             {
                 let mut selected =
                     self.local_value(instance, function, *local, (block, index), b, depth + 1)?;
@@ -1980,6 +1989,7 @@ impl Check<'_, '_> {
                         "actual owning closure projection changes its whole selected child",
                     ));
                 }
+                self.check_static_value_sources(&selected, function, id, b)?;
                 Ok(selected)
             }
             InstructionKind::TakeOwnedArrayElement {
@@ -2270,6 +2280,20 @@ impl Check<'_, '_> {
                 aggregate,
                 index: field,
             } => {
+                if !self.physical_byte_paths(ty, b)?.is_empty() {
+                    operations::available_before(function,
+                        (block, index, SemanticSiteEdge::Before), *aggregate, b)?;
+                    let parent = self.ssa_value(instance, function, *aggregate, b, depth + 1)?;
+                    if empty(&parent.life) && parent.classes.is_empty()
+                        && matches!(parent.ty, Type::Tuple(_)) {
+                        let selected = self.static_structural_child(&parent, *field, b)?;
+                        if !geometry::same_type(&selected.ty, ty, b)? {
+                            return Err(fail("Static Tuple extraction changes its exact child type"));
+                        }
+                        self.check_static_value_sources(&selected, function, id, b)?;
+                        return Ok(selected);
+                    }
+                }
                 if self.contains_nonzero_closure(ty, b, 0)? {
                     operations::available_before(
                         function,
@@ -2544,12 +2568,20 @@ impl Check<'_, '_> {
                             Type::Array { element, .. } => element.as_ref(),
                             _ => unreachable!(),
                         };
-                        // Class-bearing structural tuples/arrays require their
-                        // own original embedding, rather than invented rows.
-                        self.zero_data(field, b, depth + 1)?;
-                        value::borrowed_scalar(field, self.inventory, b)?
+                        if matches!(storage, Type::Tuple(_))
+                            && !self.physical_byte_paths(field, b)?.is_empty()
+                        {
+                            self.static_structural_child(&expected,
+                                u32::try_from(ordinal).map_err(|_| fail("Static field ordinal overflow"))?, b)?
+                        } else {
+                            // Class-bearing structural tuples/arrays require
+                            // their own original embedding, never invented rows.
+                            self.zero_data(field, b, depth + 1)?;
+                            value::borrowed_scalar(field, self.inventory, b)?
+                        }
                     };
                     let actual = self.ssa_value(instance, function, *operand, b, depth + 1)?;
+                    self.check_static_value_sources(&field, function, *operand, b)?;
                     if !actual.equal_paid(&field, b)? {
                         if !self.outer_call_role(
                             instance,
@@ -2839,6 +2871,7 @@ impl Check<'_, '_> {
                     .task_domain(ty, b)?
                     .is_none_or(|life| life.binder_count == 0)
                 && !self.contains_nonzero_closure(ty, b, 0)?
+            && self.physical_byte_paths(ty, b)?.is_empty()
         {
             // A zero-class fact does not depend on which loop iteration last
             // initialized the occupant. Actual initialization and resources
@@ -3115,6 +3148,100 @@ impl Check<'_, '_> {
         Ok(output)
     }
 
+    /// Physical byte leaves only: a closure or owning head does not expose its
+    /// hidden environment/retained children as fields of this value.
+    pub(super) fn physical_byte_paths(
+        &self, ty: &Type, b: &mut Budget,
+    ) -> CompileResult<BTreeSet<Vec<ContractProjection>>> {
+        fn visit(ty: &Type, path: &mut Vec<ContractProjection>,
+            out: &mut BTreeSet<Vec<ContractProjection>>, b: &mut Budget, depth: usize)
+            -> CompileResult<()> {
+            b.spend(path.len().saturating_add(1), WORK)?;
+            if depth > b.partial_depth {
+                return Err(unknown("physical Static occurrence traversal exceeds its finite depth"));
+            }
+            if original::strings::is_byte_type(ty) {
+                b.product(out.len().saturating_add(1), path.len().saturating_add(1), 1, WORK)?;
+                b.spend(path.len().saturating_add(1), WORK)?;
+                out.insert(path.clone());
+                return Ok(());
+            }
+            match ty {
+                Type::Tuple(fields) => {
+                    for (index, child) in fields.iter().enumerate() {
+                        b.spend(1, WORK)?;
+                        path.push(ContractProjection::Place(PlaceProjection::Field(
+                            u32::try_from(index).map_err(|_| fail("Static field ordinal overflow"))?)));
+                        visit(child, path, out, b, depth + 1)?;
+                        path.pop();
+                    }
+                }
+                Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                    for (index, (_, child)) in fields.iter().enumerate() {
+                        b.spend(1, WORK)?;
+                        path.push(ContractProjection::Place(PlaceProjection::Field(
+                            u32::try_from(index).map_err(|_| fail("Static field ordinal overflow"))?)));
+                        visit(child, path, out, b, depth + 1)?;
+                        path.pop();
+                    }
+                }
+                Type::BorrowedStorage { storage, .. } => visit(storage, path, out, b, depth + 1)?,
+                _ => {}
+            }
+            Ok(())
+        }
+        let mut out = BTreeSet::new();
+        visit(ty, &mut Vec::new(), &mut out, b, 0)?;
+        Ok(out)
+    }
+
+    /// The input is a complete independently reconstructed original/creator
+    /// value. An omitted variable slot selects a Static obligation, never a
+    /// literal fact; each actual operand/return still proves that obligation.
+    pub(super) fn original_static_byte_paths(
+        &self, value: &Value, b: &mut Budget,
+    ) -> CompileResult<BTreeSet<Vec<ContractProjection>>> {
+        let mut out = BTreeSet::new();
+        for path in self.physical_byte_paths(&value.ty, b)? {
+            let mut variable = false;
+            for slot in &value.life.slots {
+                b.spend(slot.path.len().saturating_add(path.len() + 1), WORK)?;
+                if slot.path.len() == path.len() && slot.path.iter().zip(&path)
+                    .all(|(selector, actual)| *actual == ContractProjection::Place(*selector)) {
+                    variable = true;
+                }
+            }
+            if !variable {
+                b.product(out.len().saturating_add(1), path.len().saturating_add(1), 1, WORK)?;
+                out.insert(path);
+            }
+        }
+        Ok(out)
+    }
+
+    pub(super) fn has_original_static_byte_path(
+        &self, value: &Value, path: &[ContractProjection], b: &mut Budget,
+    ) -> CompileResult<bool> {
+        let paths = self.original_static_byte_paths(value, b)?;
+        b.product(paths.len().saturating_add(1), path.len().saturating_add(1), 1, WORK)?;
+        Ok(paths.contains(path))
+    }
+
+    pub(super) fn check_static_value_sources(
+        &self, value: &Value, function: &TypedFunction, actual: ValueId, b: &mut Budget,
+    ) -> CompileResult<()> {
+        for path in self.original_static_byte_paths(value, b)? {
+            crate::retained::check_dyn_static_return(self.module, function, actual, &path, b)?;
+        }
+        Ok(())
+    }
+
+    fn static_structural_child(
+        &self, parent: &Value, field: u32, b: &mut Budget,
+    ) -> CompileResult<Value> {
+        parent.empty_tuple_child(field, b)
+    }
+
     pub(super) fn static_byte_returns(
         &self,
         target: &TypedFunction,
@@ -3211,15 +3338,9 @@ impl Check<'_, '_> {
             .map(|(index, value)| (StorageBase::Parameter(index as u32), value))
             .chain(std::iter::once((StorageBase::Result, result)))
         {
-            if original::strings::is_byte_type(&value.ty)
-                && empty(&value.life)
-                && value.classes.is_empty()
-            {
+            for path in self.original_static_byte_paths(value, b)? {
                 b.lookup(static_positions.len(), WORK)?;
-                static_positions.insert(StoragePosition {
-                    base,
-                    path: Vec::new(),
-                });
+                static_positions.insert(StoragePosition { base, path });
             }
         }
         if let Some(id) = captures {
@@ -3233,24 +3354,19 @@ impl Check<'_, '_> {
             // and every real MakeClosure operand, including literal-source
             // proof. A factory's returned envelope is a different header.
             b.spend(closure.captures.len(), WORK)?;
-            if closure.captures.iter().any(original::strings::is_byte_type) {
-                for binding in self
-                    .capture_creator_bindings(instance, closure, b)?
-                    .values()
-                {
-                    if original::strings::is_byte_type(&binding.stored.ty)
-                        && empty(&binding.stored.life)
-                        && binding.stored.classes.is_empty()
-                    {
+            let mut physical_bytes = false;
+            for ty in &closure.captures {
+                physical_bytes |= !self.physical_byte_paths(ty, b)?.is_empty();
+            }
+            if physical_bytes {
+                for binding in self.capture_creator_bindings(instance, closure, b)?.values() {
+                    for path in self.original_static_byte_paths(&binding.stored, b)? {
                         let position = StoragePosition {
-                            base: StorageBase::Capture(binding.capture),
-                            path: Vec::new(),
+                            base: StorageBase::Capture(binding.capture), path,
                         };
                         b.lookup(static_positions.len(), WORK)?;
                         if !static_positions.insert(position) {
-                            return Err(fail(
-                                "Static capture header repeats an original creator occurrence",
-                            ));
+                            return Err(fail("Static capture header repeats an original physical creator occurrence"));
                         }
                     }
                 }
@@ -3689,6 +3805,7 @@ impl Check<'_, '_> {
         Ok(actual)
     }
     pub(super) fn uses_full_value(&self, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+        if !self.physical_byte_paths(ty, b)?.is_empty() { return Ok(true); }
         match ty {
             Type::BorrowedStorage { life, .. } => Ok(life.binder_count != 0),
             Type::Address { .. } | Type::Desc(_) => Ok(true),

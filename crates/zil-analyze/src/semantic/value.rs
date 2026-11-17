@@ -46,6 +46,17 @@ impl std::ops::Deref for Value {
     }
 }
 impl Value {
+    /// Select the exact original child geometry from a fully reconstructed
+    /// class-free Tuple. No source, initialization or permission is produced.
+    pub(super) fn empty_tuple_child(&self, field: u32, b: &mut Budget) -> CompileResult<Self> {
+        if !empty_shape(&self.life) || !self.classes.is_empty()
+            || !matches!(self.ty, Type::Tuple(_)) {
+            return Err(fail("structural child requires its complete zero-domain Tuple"));
+        }
+        let child = geometry::project(&self.geometry,
+            geometry::Child::Field(None, field as usize), &empty(), b)?;
+        Ok(Self::from_geometry(child, Vec::new()))
+    }
     pub(super) fn check_geometry(&self, b: &mut Budget) -> CompileResult<()> {
         geometry::check_geometry(&self.geometry, b)
     }
