@@ -723,7 +723,18 @@ impl CheckedOriginal {
                     }
                 }
                 let hidden = self.opaque_hidden(module, context, owner, &args, active, b)?;
-                self.task_zero_domain(module, context, &hidden, env, active, b, depth + 1)?
+                // The checked opaque Result role supplies its actual creator;
+                // an ambient caller with the same type shape does not. Only a
+                // raw original Result that is itself this child Closure may
+                // select that owner domain (not a Closure injected through T).
+                let mut creator=self.environment(module,context,owner,active,b)?;
+                creator.lexical[0].actuals=self.resolve_arguments(&args,0,b)?;
+                let result_role=SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Result};
+                if self.closure_source_creator(module,context,&result_role,&hidden,&creator,b)?{
+                    self.task_zero_domain(module,context,&hidden,&creator,active,b,depth+1)?
+                }else{
+                    self.task_zero_domain(module, context, &hidden, env, active, b, depth + 1)?
+                }
             }
             Ty::Carrier {
                 child, retained, ..
