@@ -2038,6 +2038,18 @@ impl Graph {
         self.nodes[root].domain = narrowed;
         Ok(())
     }
+    // Lease the existing Graph remainder, including partial work on failure.
+    // This is finite aggregate shape admission, never Copy or a zero domain.
+    fn shared_compound(&self, ty: &Type, span: Span) -> R<bool> {
+        let mut remaining = self.work_left.get();
+        let limits = Limits {
+            max_analysis_steps: remaining, max_call_depth: self.depth_limit,
+            max_nodes: self.node_limit, ..Limits::default()
+        };
+        let result = stored::shared_compound(ty, &mut remaining, &limits, span);
+        self.work_left.set(remaining);
+        result
+    }
     pub(super) fn bind(&mut self, variable: Variable, ty: &Type, span: Span) -> R<()> {
         self.bind_source(variable, ty, None, span)
     }
@@ -2109,6 +2121,7 @@ impl Graph {
             {
                 AGGREGATE
             }
+            ty if self.shared_compound(ty, span)? => AGGREGATE,
             _ => {
                 if let Some(callbacks) = source_callbacks {
                     // Only the new unresolved shell pays for this extra walk.
@@ -2928,6 +2941,16 @@ impl LocalType {
             )),
         }
     }
+    fn aggregate_component(self, graph: &mut Graph, span: Span) -> R<Variable> {
+        match self {
+            Self::Address(inner, mutable) => {
+                let whole = graph.fresh(VALUE, false);
+                graph.address(whole, inner, Some(mutable), span)?;
+                Ok(whole)
+            }
+            value => value.scalar(span),
+        }
+    }
     fn bind(self, graph: &mut Graph, ty: &Type, span: Span) -> R<()> {
         match (self, ty) {
             (Self::Closure(actual, None, _), Type::Closure(expected)) if actual == *expected => {
@@ -3301,8 +3324,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             self.captured_variables.insert(*local, value);
             return Ok(value);
         }
+        let shared_compound = stored::shared_compound(ty, self.work_left, self.limits, span)?;
         let (inner, address) = match ty {
-            ty if ty.is_copy_value() => (ty, None),
+            ty if ty.is_copy_value() || shared_compound => (ty, None),
             ty @ Type::OwnedDyn { .. } if self.move_capture || nested_owned => (ty, None),
             ty @ Type::BorrowedStorage { storage, .. }
                 if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)) =>
@@ -3423,7 +3447,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             ty: ty.clone(),
             borrowed: !self.move_capture
                 && address.is_none()
-                && (ty.is_copy_value()
+                && (ty.is_copy_value() || shared_compound
                     || matches!(ty, Type::BorrowedStorage { storage, .. }
                         if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)))),
             written: write,
@@ -3471,6 +3495,18 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             _ => Ok(false),
         }
     }
+    fn address_local(&mut self, variable: Variable, span: Span) -> R<Option<LocalType>> {
+        if let Some((inner, Some(mutable))) = self.graph.address_shape(variable, span)? {
+            return Ok(Some(LocalType::Address(inner, mutable)));
+        }
+        if let Some(Type::Address { mutable, inner }) = self.graph.ty(variable)? {
+            let pointee = self.graph.fresh(VALUE, false);
+            self.graph.bind(pointee, &inner, span)?;
+            self.graph.address(variable, pointee, Some(mutable), span)?;
+            return Ok(Some(LocalType::Address(pointee, mutable)));
+        }
+        Ok(None)
+    }
     fn pattern_local(&mut self, variable: Variable, span: Span) -> R<LocalType> {
         if let Some(task_pending::Pending::Managed(payload)) = self.graph.pending(variable, span)? {
             return Ok(LocalType::Resource(payload, true));
@@ -3488,8 +3524,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         if let Some(Type::Closure(id)) = self.graph.ty(variable)? {
             return Ok(LocalType::Closure(id, None, None));
         }
-        if let Some((inner, Some(mutable))) = self.graph.address_shape(variable, span)? {
-            return Ok(LocalType::Address(inner, mutable));
+        if let Some(address) = self.address_local(variable, span)? {
+            return Ok(address);
         }
         // Pattern matching takes an owned Sum, but an ordinary use of a bound
         // resource name describes its leaf. Keep that distinction in closure
@@ -4037,7 +4073,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             return Ok(projected);
         }
         self.graph.project(base, projection, result, span)?;
-        Ok(LocalType::Scalar(result))
+        Ok(self.address_local(result, span)?.unwrap_or(LocalType::Scalar(result)))
     }
     fn give(&mut self, operand: &CoreExpr, value: LocalType, span: Span) -> R<LocalType> {
         if let CoreExprKind::Member { object, member, .. } = &operand.kind
@@ -5994,7 +6030,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     ));
                 }
             } else {
-                value.scalar(item.span)?
+                value.aggregate_component(&mut self.graph, item.span)?
             };
             fields.push(field);
         }
@@ -6011,7 +6047,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         };
         let element = self.graph.fresh(VALUE, false);
         for item in items {
-            let value = self.expr(item, depth + 1)?.scalar(item.span)?;
+            let value = self.expr(item, depth + 1)?
+                .aggregate_component(&mut self.graph, item.span)?;
             self.graph.unify(element, value, item.span)?;
         }
         let result = self.graph.fresh(VALUE, false);

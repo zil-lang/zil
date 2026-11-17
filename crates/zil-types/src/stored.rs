@@ -1315,6 +1315,16 @@ pub(super) fn shared_compound(ty: &Type, left: &mut usize, limits: &Limits, span
                     .iter()
                     .all(|slot| slot.mode == StoredBorrowMode::SharedAddress))
             }
+            Type::Address { mutable: false, inner } => {
+                // Preserve the complete shared leaf. This only admits its
+                // finite carrier shape; its lifetime/Static/parent loan must
+                // still be reconstructed from the actual source occurrence.
+                let pointee = match inner.as_ref() {
+                    Type::Slice { element } => element.as_ref(),
+                    inner => inner,
+                };
+                closed_copy(pointee, left, depth + 1, limits.max_call_depth, span)
+            }
             other => closed_copy(other, left, depth + 1, limits.max_call_depth, span),
         }
     }
