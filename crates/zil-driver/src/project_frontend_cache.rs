@@ -4,6 +4,8 @@ use super::*;
 use zil_db::{ArtifactCache, CacheRead};
 use zil_expand::FrontendProducts;
 
+type LoadedProducts = (FrontendProducts, BTreeMap<ModuleId, Arc<[u8]>>);
+
 pub(super) struct Store {
     root: PathBuf,
     key: Fingerprint,
@@ -58,7 +60,7 @@ impl Store {
         if !producer.needs_frontend_recovery() {
             return;
         }
-        let load = || -> Option<(FrontendProducts, BTreeMap<ModuleId, Arc<[u8]>>)> {
+        let load = || -> Option<LoadedProducts> {
             if !private_directory(&self.root, false) || options.cancellation.is_cancelled() {
                 return None;
             }

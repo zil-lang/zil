@@ -206,15 +206,15 @@ impl Reduction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zil_base::{FileId, Fingerprint, Span, TargetProfile};
-    use zil_ir::{BlockId, CallKind, FunctionId, LirModule, ModuleId, PassingMode, Type};
+    use zil_base::{FileId, Fingerprint, ModuleId, Span, TargetProfile};
+    use zil_ir::{BlockId, CallKind, FunctionId, LirModule, PassingMode, Type};
     use zil_llvm_api::model::{
         Arg, Block, Function, Global, Inst, Linkage, Op, Signature, Ty, Val,
     };
 
     fn source() -> LirModule {
         LirModule {
-            schema_version: zil_ir::SCHEMA_VERSION,
+            schema_version: zil_base::SCHEMA_VERSION,
             module_id: ModuleId(0),
             verified_fingerprint: Fingerprint::ZERO,
             target: TargetProfile::host_llvm(),

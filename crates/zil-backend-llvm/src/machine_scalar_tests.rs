@@ -1388,8 +1388,8 @@ fn fused_scalar_edits_keep_different_plans_and_invalid_originals_separate() {
 #[test]
 fn minted_class_candidates_reach_scalar_folding_without_source_aliases() {
     let lir = zil_ir::LirModule {
-        schema_version: zil_ir::SCHEMA_VERSION,
-        module_id: zil_ir::ModuleId(0),
+        schema_version: zil_base::SCHEMA_VERSION,
+        module_id: zil_base::ModuleId(0),
         verified_fingerprint: zil_base::Fingerprint::ZERO,
         target: zil_base::TargetProfile::host_llvm(),
         functions: Default::default(),
