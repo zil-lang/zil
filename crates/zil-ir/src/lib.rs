@@ -2867,8 +2867,9 @@ pub enum ResponsibilityState {
     Moved,
 }
 
-/// B0 lowering retains the checked scalar CFG exactly. Backends must receive the
-/// matching VerifiedModule and compare these public fields before code emission.
+/// Retained checked CFG data, not a machine-ready representation or authority.
+/// Backends must bind these public fields to the matching VerifiedModule, then
+/// complete target layout, ABI, operation and cleanup preparation before emission.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LirModule {
     pub schema_version: u32,

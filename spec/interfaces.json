@@ -917,7 +917,7 @@
         "T07",
         "T09"
       ],
-      "trust": "Backend obeys the checked target profile; no default noalias or host Rust reference semantics for Desc. C/LLVM profiles cannot exchange assumptions."
+      "trust": "Backend obeys the checked target profile; no default noalias or host Rust reference semantics for Desc. C/LLVM profiles cannot exchange assumptions. Public LirModule/LirView retain verified CFG data, not machine-readiness authority. Backend first binds every retained field to the immutable VerifiedModule, then prepares actual layouts, ABI, helper dependencies and every operation into the existing shared machine representation. Preparation publishes only a complete result; neither a layout nor a ready flag grants new source permissions. The two LLVM paths consume the same prepared decisions without separate high-level shape admission."
     },
     {
       "id": "QueryResult",
