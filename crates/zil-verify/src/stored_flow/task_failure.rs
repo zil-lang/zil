@@ -492,8 +492,15 @@ pub(super) fn take_view(
     Ok(())
 }
 
+fn failure_name(t: &Type) -> bool {
+    matches!(t, Type::Record { name, .. } | Type::Package { name, .. }
+        if name.starts_with("@std.task:v1:TaskCreateFailure:"))
+}
 fn error_carrier(t: &Type) -> bool {
-    matches!(t,Type::ErrorUnion{error,..}if matches!(error.as_ref(),Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{name,..}|Type::Package{name,..}if name.starts_with("@std.task:v1:TaskCreateFailure:"))))
+    let Type::ErrorUnion { error, .. } = t else { return false; };
+    // Plain and qualified shells share the sealed original Inputs product.
+    // Full declaration/actuals/type qualification remains independently checked.
+    failure_name(error) || matches!(error.as_ref(), Type::BorrowedStorage { storage, .. } if failure_name(storage))
 }
 pub(super) fn wrapper(
     f: &TypedFunction,

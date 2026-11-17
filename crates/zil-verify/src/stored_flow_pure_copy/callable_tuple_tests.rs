@@ -209,6 +209,43 @@ fn plain_failed_creation_returns_the_actual_callback_capture_permissions() {
         Some(&p)
     );
     assert!(result.address.sources.is_empty());
+    // Follow the actual allocation-error route all the way back to its
+    // callback local, with the original parents and Static category intact.
+    let mut failure_function = f.clone();
+    failure_function.locals[0].ty = f.values[2].clone();
+    let mut state = Frame {
+        locals: vec![result, Payload::default()],
+        ..Frame::default()
+    };
+    b.task_failure_carriers = true;
+    let take_error = instruction(
+        &failure_function,
+        Some(0),
+        InstructionKind::TakeVariantField {
+            local: LocalId(0),
+            path: vec![PlaceProjection::ErrorArm(true)],
+        },
+    );
+    let mut failed = task_failure::wrapper(&failure_function, &take_error, &mut state, &[], &mut b)
+        .unwrap()
+        .unwrap();
+    assert!(state.locals[0].leaves.is_empty());
+    let inputs = take_package_field_leaves(&mut failed, 1, &mut b).unwrap();
+    state.locals[0] = inputs;
+    let unpack = instruction(
+        f,
+        None,
+        InstructionKind::UnpackTuple {
+            local: LocalId(0),
+            fields: vec![LocalId(1)],
+        },
+    );
+    ordinary_tuple_transfer(f, &unpack, &mut state, &[], &mut Payload::default(), &mut b).unwrap();
+    assert_eq!(
+        leaf(&state.locals[1], &[PlaceProjection::Field(1)], &mut b).unwrap(),
+        Some(&p)
+    );
+    assert!(state.locals[0].leaves.is_empty());
     let mut wrong = m.clone();
     let Type::ErrorUnion { error, .. } = &mut wrong.functions[0].values[2] else {
         unreachable!()
