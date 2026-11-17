@@ -1970,7 +1970,9 @@ impl World<'_, '_> {
             }
             return Err(bad("actual nonempty header class directory is unknown"));
         };
-        if super::headers::receiver_binding(&mut expected_bindings, self.limits, self.left)? {
+        let receiver_head = super::headers::receiver_head(
+            self.program, self.ledger, instance.definition, self.limits, self.left)?;
+        if super::headers::receiver_binding(&mut expected_bindings, receiver_head, self.limits, self.left)? {
             let closure = f.environment.ok_or_else(|| bad("receiver header is outside a real closure entry"))?;
             let (definition, _) = self.child(closure)?;
             if !matches!(definition.kind, CallableKind::Fn | CallableKind::FnMut) {
@@ -2070,6 +2072,7 @@ impl World<'_, '_> {
             // A repeated CFG visit must not reuse the previous invocation's
             // receiver occupant. The actual operation may install fresh roots.
             self.value_roots.remove(&output);
+            self.value_role_sources.remove(&output);
         }
         let raw_value = self.copy(value)?;
         let value = if matches!(Self::type_of(value)?, Type::Address { .. }) {
@@ -4507,6 +4510,14 @@ impl World<'_, '_> {
                         && let Some(roots) = self.value_roots.remove(&result)
                     {
                         propagated_roots = roots;
+                    }
+                    if matches!(instruction.kind,
+                        InstructionKind::CallClosure { .. } | InstructionKind::CallClosureOnce { .. }
+                        | InstructionKind::CallClosureShared { .. } | InstructionKind::CallClosureMut { .. }
+                        | InstructionKind::CallClosureBorrowed { .. })
+                        && let Some(source) = self.value_role_sources.remove(&result)
+                    {
+                        propagated_role = Some(source);
                     }
                     let value = self.normalize(instance.id, &value, &implicit)?;
                     if Self::type_of(&value)?

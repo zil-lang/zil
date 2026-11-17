@@ -945,15 +945,15 @@ pub(super) fn callable(
         call_result(world, instance, site, &signature.result, &function.return_type)?
     };
     let target = world.result_value(child.id, &function.return_type)?;
-    if receiver {
+    let directed = if receiver {
         if signature.call_kind != CallKind::Direct || function.call_kind != CallKind::Direct {
             return Err(bad("suspending operation cannot return a receiver loan"));
         }
         receiver_result(
             world, instance, site, operand, raw_value, definition, child,
             requested, header, &target, &expected, values, locals, &mut invocation, implicit,
-        )?;
-    }
+        )?
+    } else { None };
     result_invocation(
         world,
         instance,
@@ -971,7 +971,22 @@ pub(super) fn callable(
         Some((header, child, closure_value)),
         &invocation,
     )?;
-    world.same(instance.id, &target, &expected, implicit)?;
+    if let Some(output) = directed {
+        // The entry keeps its stronger Fixed/Static result. Only the actual
+        // call's result view has the receiver upper; no Fixed is unified with
+        // its invocation axis, and every complete child class is unchanged.
+        if !matches!(World::type_of(&target)?, Type::Address { mutable: false, .. })
+            || World::type_of(&target)? != World::type_of(&expected)?
+        { return Err(bad("receiver result adapter changes the complete shared result constructor")); }
+        let inner = world.pointee(&target)?;
+        let expected_inner = world.pointee(&expected)?;
+        world.same(instance.id, &inner, &expected_inner, implicit)?;
+        let source = roles::outer(world, &target)?;
+        let source = roles::copy_source(world, &source)?;
+        world.value_role_sources.insert(output, source);
+    } else {
+        world.same(instance.id, &target, &expected, implicit)?;
+    }
     Ok(Some(expected))
 }
 
@@ -983,30 +998,55 @@ fn receiver_result(
     header: &StorageLifeContract, target: &SemanticTypeValue, expected: &SemanticTypeValue,
     values: &[Option<SharedType>], locals: &[Option<SharedType>],
     mapping: &mut invocation::Inputs, implicit: &BTreeMap<u32, SemanticClassExpr>,
-) -> R<()> {
+) -> R<Option<ValueId>> {
     if !matches!(requested, CallableKind::Fn | CallableKind::FnMut)
         || !matches!(definition.kind, CallableKind::Fn | CallableKind::FnMut)
     { return Err(bad("consuming invocation cannot return a receiver loan")); }
     world.pay(header.bindings.len().saturating_mul(2))?;
     let mut rows = header.bindings.iter().filter(|row|
         row.position.base == StorageBase::Receiver && row.position.path.is_empty());
-    let receiver = rows.next().ok_or_else(|| bad("lending call omits its explicit Receiver input"))?;
-    if rows.next().is_some() || !matches!(receiver.binder, StorageBinder::Invocation(_))
-        || header.bindings.iter().filter(|row| row.position.base == StorageBase::Result
-            && row.position.path.is_empty() && row.binder == receiver.binder).count() != 1
-    { return Err(bad("receiver result changes its complete explicit access relation")); }
-    let source = world.binding(child, receiver.binder)?;
-    if !matches!(&source, SemanticClassExpr::OuterOccurrence {
-        operand: SemanticOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
-    } if path.is_empty()) { return Err(bad("receiver header lacks its original signature-local source")); }
-    let roles::Source::Class(target_source) = roles::outer(world, target)? else {
-        return Err(bad("receiver result unexpectedly changes to Static"));
-    };
-    world.same_class(child.id, &source, &target_source, &BTreeMap::new())?;
-    let roles::Source::Class(image) = roles::outer(world, expected)? else {
-        return Err(bad("receiver result lacks its real caller access occurrence"));
-    };
-    insert_invocation(world, caller, &mut mapping.classes, source, &image, implicit)?;
+    let receiver = rows.next();
+    if rows.next().is_some() { return Err(bad("receiver call repeats its actual access head")); }
+    let target_source = roles::outer(world, target)?;
+    let directed = if let Some(receiver) = receiver {
+        if !matches!(receiver.binder, StorageBinder::Invocation(_)) {
+            return Err(bad("receiver head is not its independent invocation axis"));
+        }
+        let source = world.binding(child, receiver.binder)?;
+        if !matches!(&source, SemanticClassExpr::OuterOccurrence {
+            operand: SemanticOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
+        } if path.is_empty()) { return Err(bad("receiver header lacks its original signature-local source")); }
+        let mut results = header.bindings.iter().filter(|row|
+            row.position.base == StorageBase::Result && row.position.path.is_empty());
+        let result = results.next().ok_or_else(|| bad("receiver result omits its complete entry occurrence"))?;
+        if results.next().is_some() { return Err(bad("receiver result repeats its entry occurrence")); }
+        if result.binder == receiver.binder {
+            let roles::Source::Class(target_source) = &target_source else {
+                return Err(bad("receiver result changes its exact entry invocation axis"));
+            };
+            world.same_class(child.id, &source, target_source, &BTreeMap::new())?;
+            let roles::Source::Class(image) = roles::outer(world, expected)? else {
+                return Err(bad("receiver result lacks its real caller access occurrence"));
+            };
+            insert_invocation(world, caller, &mut mapping.classes, source, &image, implicit)?;
+            false
+        } else {
+            if !matches!(result.binder, StorageBinder::Fixed(_))
+                || !super::headers::receiver_head(world.program, world.ledger,
+                    child.definition, world.limits, world.left)?
+            { return Err(bad("receiver view lacks a complete captured Fixed result upper")); }
+            let roles::Source::Class(target_source) = &target_source else {
+                return Err(bad("captured Fixed result unexpectedly changes to Static"));
+            };
+            let fixed = world.binding(child, result.binder)?;
+            world.same_class(child.id, &fixed, target_source, &BTreeMap::new())?;
+            true
+        }
+    } else if matches!(target_source, roles::Source::Static) {
+        // Independently checked actual Static satisfies a shared upper. It
+        // does not acquire an entry Receiver or a persistent class by N=0.
+        true
+    } else { return Err(bad("lending call omits its explicit Receiver input")); };
     let SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After } = site.at else {
         return Err(bad("receiver result has no exact post-call boundary"));
     };
@@ -1041,7 +1081,8 @@ fn receiver_result(
         _ => return Err(bad("receiver result has no real stored or borrowed callee access")),
     };
     for root in &roots {
-        world.pay(root.path.len().saturating_add(world.vacant.len()).saturating_add(1))?;
+        world.pay(world.vacant.len().saturating_mul(root.path.len().saturating_add(1))
+            .saturating_add(root.path.len()).saturating_add(1))?;
         if world.stale_locals.contains(&root.local)
             || locals.get(root.local.0 as usize).and_then(Option::as_ref).is_none()
             || world.vacant.iter().any(|(local, path)| *local == root.local
@@ -1049,7 +1090,7 @@ fn receiver_result(
         { return Err(bad("receiver result refers to stale or vacant actual storage")); }
     }
     if !roots.is_empty() { world.value_roots.insert(output, roots); }
-    Ok(())
+    Ok(directed.then_some(output))
 }
 
 fn result_invocation(

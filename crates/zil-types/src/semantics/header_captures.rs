@@ -1187,7 +1187,8 @@ pub(in crate::semantics) fn complete_invocation_embeddings(
                 left,
             )?;
         }
-        receiver_binding(&mut bindings, limits, left)?;
+        let head = receiver_head(program, ledger, instance.definition, limits, left)?;
+        receiver_binding(&mut bindings, head, limits, left)?;
         if bindings.len() != header.bindings.len()
             || classes.len() != header.classes.len()
             || statics.len() != header.static_bindings.len()
@@ -1463,7 +1464,8 @@ pub(in crate::semantics) fn form_emitted_header(
     let mut equal = |a: &SemanticClassExpr, b: &SemanticClassExpr, left: &mut usize| {
         equal_capture_image(program, ledger, instance.definition, &coordinates, a, b, limits, left)
     };
-    let (directory, mut mapping) = complete_rows(bindings, classes, statics, &mut equal, limits, left)?;
+    let head = receiver_head(program, ledger, instance.definition, limits, left)?;
+    let (directory, mut mapping) = complete_rows(bindings, classes, statics, head, &mut equal, limits, left)?;
     if !instance.header_embedding.is_empty() {
         pay(left, 1)?;
         if instance.header_embedding.len() != mapping.len() {
@@ -1589,11 +1591,12 @@ fn complete_rows<F: FnMut(&SemanticClassExpr, &SemanticClassExpr, &mut usize) ->
     mut bindings: Vec<(StoragePosition, SemanticClassExpr)>,
     classes: Vec<(SignatureLifeClass, SemanticClassExpr)>,
     statics: Vec<StoragePosition>,
+    receiver_head: bool,
     equal: &mut F,
     limits: &Limits,
     left: &mut usize,
 ) -> R<(StorageLifeContract, Vec<SemanticHeaderBinding>)> {
-    receiver_binding(&mut bindings, limits, left)?;
+    receiver_binding(&mut bindings, receiver_head, limits, left)?;
     let mut directory = StorageLifeContract {
         fixed_binder_count: 0,
         invocation_binder_count: 0,
@@ -1659,11 +1662,23 @@ fn complete_rows<F: FnMut(&SemanticClassExpr, &SemanticClassExpr, &mut usize) ->
     Ok((directory, mapping))
 }
 
+/// Whether this exact completed original entry proves a receiver result
+/// upper, even when its actual result retains a stronger captured Fixed.
+pub(in crate::semantics) fn receiver_head(
+    program: &SemanticModule, ledger: &super::super::emission::Ledger,
+    owner: SemanticDefinitionId, limits: &Limits, left: &mut usize,
+) -> R<bool> {
+    let proof = ledger.original.borrow();
+    let Some(proof) = proof.as_ref() else { return Ok(false); };
+    let original = ledger.original.context().map_or(program, |context| &context.semantic);
+    proof.receiver_result_upper(original, owner, limits, left)
+}
+
 /// Receiver is a synthetic invocation access head, not another captured value.
 /// It has no semantic-class rows; capture domains remain on their actual Types.
 pub(in crate::semantics) fn receiver_binding(
     bindings: &mut Vec<(StoragePosition, SemanticClassExpr)>,
-    limits: &Limits, left: &mut usize,
+    proved_head: bool, limits: &Limits, left: &mut usize,
 ) -> R<bool> {
     pay(left, bindings.len())?;
     let mut receiver = None;
@@ -1678,9 +1693,14 @@ pub(in crate::semantics) fn receiver_binding(
             }
         }
     }
-    let Some(image) = receiver else { return Ok(false); };
-    crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
-    let image = image.clone();
+    let image = if let Some(image) = receiver {
+        crate::dyn_metadata::semantic_operand_snapshot(image, limits, left, 1)?;
+        image.clone()
+    } else if proved_head {
+        pay(left, 1)?;
+        SemanticClassExpr::OuterOccurrence { operand: SemanticOperand::Receiver,
+            path: Vec::new(), mode: StoredBorrowMode::SharedAddress }
+    } else { return Ok(false); };
     let at = bindings.iter().position(|(position, _)| position.base == StorageBase::Result)
         .unwrap_or(bindings.len());
     pay(left, bindings.len().saturating_add(1))?;
@@ -1774,7 +1794,8 @@ pub(in crate::semantics) fn validate_formed_header(
     let mut equal = |a: &SemanticClassExpr, b: &SemanticClassExpr, left: &mut usize| {
         equal_capture_image(program, ledger, owner, &coordinates, a, b, limits, left)
     };
-    let (expected, mapping) = complete_rows(bindings, classes, statics, &mut equal, limits, left)?;
+    let head = receiver_head(program, ledger, owner, limits, left)?;
+    let (expected, mapping) = complete_rows(bindings, classes, statics, head, &mut equal, limits, left)?;
     crate::borrowed_fp::charge_contract(header, |work| pay(left, work), 1)?;
     for row in embedding {
         crate::dyn_metadata::semantic_operand_snapshot(row, limits, left, 1)?;

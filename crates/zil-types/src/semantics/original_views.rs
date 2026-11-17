@@ -122,6 +122,115 @@ pub(super) fn snapshot_bound(
     }
     Ok(value.clone())
 }
+/// Snapshot the complete existing directed receipt before a deep comparison.
+fn snapshot_role(value: &BorrowRole, limits: &Limits, left: &mut usize) -> R<BorrowRole> {
+    for lifetime in [&value.source_lifetime, &value.target_lifetime, &value.occurrence_lifetime] {
+        crate::dyn_metadata::semantic_operand_snapshot(lifetime, limits, left, 1)?;
+    }
+    crate::dyn_metadata::semantic_operand_snapshot(&value.inner, limits, left, 1)?;
+    // The immutable path is not cloned until all of its payload is paid.
+    *left = left.checked_sub(value.steps.len().saturating_add(1)).ok_or_else(||
+        Diagnostic::limit(Phase::Types, "receiver receipt snapshot exceeded", None))?;
+    for step in &value.steps {
+        match &step.kind {
+            ViewBorrowStepKind::Capture { name } => {
+                *left = left.checked_sub(name.len()).ok_or_else(||
+                    Diagnostic::limit(Phase::Types, "receiver source name snapshot exceeded", None))?;
+            }
+            ViewBorrowStepKind::ProjectedLocal { pattern, .. } => {
+                if pattern.len() > limits.max_call_depth {
+                    return Err(Diagnostic::limit(Phase::Types, "receiver receipt path depth exceeded", None));
+                }
+                *left = left.checked_sub(pattern.len()).ok_or_else(||
+                    Diagnostic::limit(Phase::Types, "receiver receipt path snapshot exceeded", None))?;
+            }
+            _ => {}
+        }
+    }
+    Ok(value.clone())
+}
+
+struct ReceiverReturns<'a, 'b> {
+    proof: &'a Proof,
+    owner: SemanticDefinitionId,
+    limits: &'b Limits,
+    left: &'b mut usize,
+    count: usize,
+    capture: bool,
+    valid: bool,
+}
+impl super::super::original_walk::Context for ReceiverReturns<'_, '_> {
+    fn descend_closure(&self) -> bool { false }
+    fn node(&mut self, depth: usize) -> R<()> {
+        if depth > self.limits.max_call_depth {
+            return Err(Diagnostic::limit(Phase::Types, "receiver return proof depth exceeded", None));
+        }
+        *self.left = self.left.checked_sub(1).ok_or_else(||
+            Diagnostic::limit(Phase::Types, "receiver return proof work exceeded", None))?;
+        Ok(())
+    }
+    fn ty(&mut self, _: &mut SemanticTypeRecipe, depth: usize) -> R<()> { self.node(depth) }
+    fn statement(&mut self, _: NodeId, kind: &SemanticOriginalStatementKind, depth: usize) -> R<()> {
+        self.node(depth)?;
+        let CoreStatementKind::Return(value) = kind else { return Ok(()); };
+        self.count = self.count.checked_add(1).ok_or_else(|| bad("receiver return count overflows"))?;
+        if self.count > self.limits.max_nodes {
+            return Err(Diagnostic::limit(Phase::Types, "receiver return count exceeded", None));
+        }
+        let Some(value) = value else { self.valid = false; return Ok(()); };
+        *self.left = self.left.checked_sub(self.proof.types.len().saturating_add(1).ilog2() as usize + 1)
+            .ok_or_else(|| Diagnostic::limit(Phase::Types, "receiver return lookup exceeded", None))?;
+        let Some(SemanticTypeRecipe::Address { mutable: false, lifetime, inner }) =
+            self.proof.types.get(&(self.owner, Query::Expression(value.id)))
+        else { self.valid = false; return Ok(()); };
+        crate::dyn_metadata::semantic_operand_snapshot(lifetime, self.limits, self.left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(inner, self.limits, self.left, 1)?;
+        if matches!(lifetime, SemanticOuterLifeRecipe::Static) { return Ok(()); }
+        *self.left = self.left.checked_sub(self.proof.return_borrows.len().saturating_add(1).ilog2() as usize + 1)
+            .ok_or_else(|| Diagnostic::limit(Phase::Types, "receiver return source lookup exceeded", None))?;
+        let Some(role) = self.proof.return_borrows.get(&(self.owner, value.id)) else {
+            self.valid = false; return Ok(());
+        };
+        let role = snapshot_role(role, self.limits, self.left)?;
+        if !matches!(role.root, ViewBorrowRoot::Capture(_))
+            || !is_receiver_upper(&role.target_lifetime)
+            || &role.occurrence_lifetime != lifetime || role.inner != **inner
+        { self.valid = false; }
+        self.capture = true;
+        Ok(())
+    }
+}
+impl Proof {
+    /// A declaration-domain theorem, not a type equality or a runtime source.
+    /// Its actual caller must still check every returned capture derivation.
+    pub(in crate::semantics) fn receiver_result_upper(
+        &self, program: &SemanticModule, owner: SemanticDefinitionId,
+        limits: &Limits, left: &mut usize,
+    ) -> R<bool> {
+        *left = left.checked_sub(program.definitions.len()
+            .saturating_add(self.complete.len().saturating_add(1).ilog2() as usize + 1)
+            .saturating_add(self.kinds.len().saturating_add(1).ilog2() as usize + 1))
+            .ok_or_else(|| Diagnostic::limit(Phase::Types, "receiver entry lookup exceeded", None))?;
+        if !self.complete.contains(&owner)
+            || !matches!(self.kinds.get(&owner), Some(CallableKind::Fn | CallableKind::FnMut))
+        { return Ok(false); }
+        let definition = program.definitions.iter().find(|row| row.id == owner)
+            .ok_or_else(|| bad("receiver result has no original closure definition"))?;
+        let SemanticDefinitionBody::FunctionWithBody { signature,
+            body: SemanticOriginalFunctionBody::Defined(body), .. } = &definition.body
+        else { return Ok(false); };
+        if definition.kind != SemanticDefinitionKind::Closure || signature.call_kind != CallKind::Direct {
+            return Ok(false);
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(body, limits, left, 1)?;
+        let mut body = body.clone();
+        let mut returns = ReceiverReturns { proof: self, owner, limits, left,
+            count: 0, capture: false, valid: true };
+        super::super::original_walk::block(&mut body, &mut returns, 0)?;
+        Ok(returns.valid && returns.capture && returns.count != 0)
+    }
+}
+
 impl Check<'_, '_> {
     pub(super) fn bind_receiver_call_result(
         &mut self,
@@ -142,9 +251,9 @@ impl Check<'_, '_> {
                 crate::dyn_metadata::semantic_operand_snapshot(lifetime, self.limits, self.left, 1)?;
                 lifetime.clone()
             }
-            _ => self.borrow_life(owner, call.id)?,
+            _ => self.borrow_occurrence(owner, call.id, true)?,
         };
-        let bound = self.borrow_life(owner, call.id)?;
+        let bound = self.borrow_occurrence(owner, call.id, true)?;
         *lifetime = bound.clone();
         {
             let SemanticOuterLifeRecipe::Class(life) = bound else {
@@ -168,6 +277,12 @@ impl Check<'_, '_> {
             self.pay(self.proof.local_roles.len().saturating_add(1).ilog2() as usize + 3, depth)?;
             if let Some(previous) = self.proof.local_roles.get(&(owner, call.id)) {
                 crate::dyn_metadata::semantic_operand_snapshot(&previous.ty, self.limits, self.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(&role.ty, self.limits, self.left, 1)?;
+                for sources in [&previous.sources, &role.sources] {
+                    for source in sources {
+                        crate::dyn_metadata::semantic_operand_snapshot(source, self.limits, self.left, 1)?;
+                    }
+                }
                 if previous.binding != role.binding || previous.kind != role.kind
                     || previous.lifetime != role.lifetime || previous.ty != role.ty
                     || previous.sources != role.sources {
@@ -218,7 +333,9 @@ impl Check<'_, '_> {
         self.pay(self.proof.return_borrows.len().saturating_add(1).ilog2() as usize + 1, depth)?;
         let rows = &mut self.proof.proof_mut()?.return_borrows;
         if let Some(old) = rows.get(&(owner, expression.id)) {
-            if old != &role { return Err(bad("receiver result changes its exact original view")); }
+            let old = snapshot_role(old, self.limits, self.left)?;
+            let current = snapshot_role(&role, self.limits, self.left)?;
+            if old != current { return Err(bad("receiver result changes its exact original view")); }
         } else {
             rows.insert((owner, expression.id), role);
         }
@@ -857,6 +974,18 @@ impl Check<'_, '_> {
             return Ok(false);
         }
         self.same(inner, target_inner)?;
+        if is_receiver_upper(target) {
+            self.pay(self.proof.return_borrows.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+            if let Some(role) = self.proof.return_borrows.get(&(owner, expression.id)) {
+                let role = snapshot_role(role, self.limits, self.left)?;
+                crate::dyn_metadata::semantic_operand_snapshot(source, self.limits, self.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(inner, self.limits, self.left, 1)?;
+                if matches!(role.root, ViewBorrowRoot::Capture(_))
+                    && is_receiver_upper(&role.target_lifetime)
+                    && &role.occurrence_lifetime == source && role.inner == **inner
+                { return Ok(true); }
+            }
+        }
         let Some(role) = self.projected_borrow_role(
             owner,
             expression,

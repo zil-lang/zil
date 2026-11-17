@@ -1517,6 +1517,25 @@ pub(super) fn return_view(
         World::type_of(actual)?,
     )?;
     world.same(instance.id, actual, &source, implicit)?;
+    let receiver_upper = matches!(&role.1.target_lifetime,
+        SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::OuterOccurrence {
+            operand: SemanticRecipeOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
+        }) if path.is_empty());
+    if receiver_upper && function.storage_life.as_ref().is_some_and(|header|
+        header.bindings.iter().any(|row| row.position.base == StorageBase::Receiver))
+    {
+        let expected_source = roles::outer(world, expected)?;
+        if !matches!(&expected_source, roles::Source::Class(SemanticClassExpr::OuterOccurrence {
+            operand: SemanticOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
+        }) if path.is_empty()) {
+            // A stronger entry result remains its exact Fixed type. Consume
+            // the actual capture derivation even when no local type adapter
+            // is required; a later receiver-bounded operation uses this proof.
+            trace(world, instance, original, function, &role.1, operand,
+                values, locals, implicit, true)?;
+            return Ok(false);
+        }
+    }
     Ok(apply_role(
         world, instance, original, function, &role.1, operand, actual, expected, values, locals,
         implicit, true,

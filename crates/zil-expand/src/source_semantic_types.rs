@@ -1743,6 +1743,7 @@ mod static_result_tests {
         for (text, kind) in [
             ("pub fn make(n:i32)->impl Fn()->&i32{return move()=>&n}fn main()->i32{return *make(3)()}", CallableKind::Fn),
             ("fn make(n:i32)->impl FnMut()->&i32{var count=0;return move()=>{count+=1;return &n;};}fn main(){}", CallableKind::FnMut),
+            ("fn make<life a>(x:&'a i32)->impl Fn()->&i32{return move()=>x;}fn main(){}", CallableKind::Fn),
         ] {
             let definitions = inventory(text);
             let make = definitions.iter().find(|definition| definition.identity.declaration_path.last().is_some_and(|name| name == "make")).unwrap();

@@ -1424,7 +1424,25 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> R<()> {
         let value = self.observation_type(owner, ty, depth + 1)?;
-        if let Some((kind, actual)) = self.concrete_callable(&value, depth + 1)? {
+        if let Some((kind, mut actual)) = self.concrete_callable(&value, depth + 1)? {
+            // A stronger Fixed capture result may meet a receiver-bounded
+            // operation through its complete original return derivations.
+            // This local signature view is not stored as the entry's result.
+            if matches!(&wanted.result, SemanticTypeRecipe::Address { mutable: false, lifetime, .. }
+                if views::is_receiver_upper(lifetime))
+                && matches!(&actual.result, SemanticTypeRecipe::Address { mutable: false, lifetime, .. }
+                    if !views::is_receiver_upper(lifetime) && !matches!(lifetime, SemanticOuterLifeRecipe::Static))
+            {
+                let SemanticTypeRecipe::Closure { definition, .. } = &value else {
+                    return Err(bad("receiver result adapter lacks its exact concrete closure"));
+                };
+                if !matches!(required, CallableKind::Fn | CallableKind::FnMut)
+                    || wanted.call_kind != CallKind::Direct
+                    || !self.proof.receiver_result_upper(self.program, *definition, self.limits, self.left)?
+                { return Err(bad("receiver result lacks complete original capture return derivations")); }
+                let SemanticTypeRecipe::Address { lifetime, .. } = &mut actual.result else { unreachable!() };
+                *lifetime = views::receiver_upper();
+            }
             if !compatible(kind, required) {
                 return Err(bad(
                     "original concrete callable lacks the required invocation kind",

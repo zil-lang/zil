@@ -1894,6 +1894,11 @@ impl<'a> Check<'a, '_> {
         owner: SemanticDefinitionId,
         node: NodeId,
     ) -> R<SemanticOuterLifeRecipe> {
+        self.borrow_occurrence(owner, node, false)
+    }
+    fn borrow_occurrence(
+        &mut self, owner: SemanticDefinitionId, node: NodeId, receiver_call: bool,
+    ) -> R<SemanticOuterLifeRecipe> {
         let definition = self.definition(owner)?;
         let SemanticDefinitionBody::FunctionWithBody {
             sites, site_nodes, ..
@@ -1908,19 +1913,12 @@ impl<'a> Check<'a, '_> {
                 .saturating_add(definition.implicit_lifetimes.len()),
             0,
         )?;
-        // A receiver borrow belongs to the actual OriginalCall occurrence,
-        // not to another TypeUse observation of the same expression node.
-        self.pay(site_nodes.len().saturating_mul(sites.len().saturating_add(1)), 0)?;
-        let call = site_nodes.iter().any(|row|
-            row.node == SemanticOriginalNode::Expression(node)
-                && sites.iter().any(|site| site.id == row.site
-                    && matches!(site.kind, SemanticSiteRecipeKind::OriginalCall)));
         let mut selected = None;
         for row in site_nodes {
             if row.node == SemanticOriginalNode::Expression(node) {
                 if let Some(site) = sites.iter().find(|site| {
                     site.id == row.site
-                        && if call { matches!(site.kind, SemanticSiteRecipeKind::OriginalCall) }
+                        && if receiver_call { matches!(site.kind, SemanticSiteRecipeKind::OriginalCall) }
                         else { matches!(site.kind, SemanticSiteRecipeKind::TypeUse { .. }) }
                 }) {
                     for implicit in &definition.implicit_lifetimes {
@@ -6008,12 +6006,6 @@ impl<'a> Check<'a, '_> {
             0,
         )?;
         names.sort_unstable();
-        if (kind == CallableKind::FnOnce || signature.call_kind != CallKind::Direct)
-            && matches!(self.proof.types.get(&(definition.id, Query::Result)),
-                Some(SemanticTypeRecipe::Address { lifetime, .. }) if views::is_receiver_upper(lifetime))
-        {
-            return Err(bad("consuming closure cannot return a loan of its own environment"));
-        }
         self.proof.proof_mut()?.kinds.insert(definition.id, kind);
         self.pay(names.len(), 0)?;
         for name in &names {
@@ -6035,6 +6027,12 @@ impl<'a> Check<'a, '_> {
                 .proof_mut()?
                 .types
                 .insert((definition.id, Query::Result), result);
+        }
+        if (kind == CallableKind::FnOnce || signature.call_kind != CallKind::Direct)
+            && matches!(self.proof.types.get(&(definition.id, Query::Result)),
+                Some(SemanticTypeRecipe::Address { lifetime, .. }) if views::is_receiver_upper(lifetime))
+        {
+            return Err(bad("consuming closure cannot return a loan of its own environment"));
         }
         self.result_callable_requirements(definition.id, &definition.requirements, &mut Vec::new(), 0)?;
         self.recheck_escaping_roles(definition.id, 0)?;
