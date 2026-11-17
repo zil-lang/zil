@@ -202,6 +202,41 @@ pub(super) fn shape(t: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
     }
     Ok(true)
 }
+fn plain_actual(argument:&LifeNominalActual)->Option<&Type>{match argument {
+        LifeNominalActual::Type(ty)=>Some(ty),
+        LifeNominalActual::QualifiedType{ty,life}if life.binder_count==0&&life.slots.is_empty()&&life.retained.is_empty()&&life.nominal_arguments.is_empty()=>Some(ty),
+        _=>None,
+    }}
+
+/// Plain failure metadata has no persistent borrowing domain. The caller
+/// independently proves every complete Type actual and physical child Known0;
+/// this check seals their ordered nominal/field identity, not an executable
+/// Task phase, input source or cleanup certificate.
+pub(super) fn plain_instance(i:&LifeNominalInstance,limits:&Limits,b:&mut Budget)->Check<()> {
+    let (name,fields,record)=match &i.ty {
+        Type::Record{name,fields}=>(name,fields,true),
+        Type::Package{name,fields}=>(name,fields,false),
+        _=>return Err(err("plain Task failure has another actual carrier kind")),
+    };
+    let expected=if record{zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD}else{zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE};
+    if i.declaration!=expected{return Err(err("plain Task failure declaration differs from its actual shell"));}
+    let [inputs,context]=i.arguments.as_slice()else{return Err(err("plain Task failure omits its exact Inputs and Context Type actuals"));};
+    let inputs=plain_actual(inputs).ok_or_else(||err("plain Task failure changes its complete Inputs Type actual"))?;
+    let context=plain_actual(context).ok_or_else(||err("plain Task failure changes its complete Context Type actual"))?;
+    type_work(inputs,limits,b)?;type_work(context,limits,b)?;
+    b.spend(name.len().saturating_add(fields.len()).saturating_add(96))?;
+    let Type::Tuple(elements)=inputs else{return Err(err("plain Task failure Inputs is not its complete ordered tuple"));};
+    let Type::Task{result,retained_life}=context else{return Err(err("plain Task failure Context is not its actual Task domain"));};
+    if result.as_ref()!=&Type::Unit||retained_life.binder_count!=0||!retained_life.ports.is_empty()||!retained_life.retained.is_empty()||!retained_life.nominal_arguments.is_empty(){return Err(err("plain Task failure cannot erase a nonneutral complete Context"));}
+    if name!=&format!("@std.task:v1:TaskCreateFailure:{}",inputs.fingerprint()){return Err(err("plain Task failure input nominal identity differs"));}
+    let [(reason,Type::Enum{name:error,variants}),(input_name,physical_inputs)]=fields.as_slice()else{return Err(err("plain Task failure complete physical fields differ"));};
+    if reason!="reason"||input_name!="inputs"||physical_inputs!=inputs||error!="@std.task:v1:TaskCreateError"||!matches!(variants.as_slice(),[(name,fields)]if name=="Allocation"&&fields.is_empty()){return Err(err("plain Task failure changes its sealed reason or ordered input fields"));}
+    b.spend(elements.len())?;
+    let needs_owned_shell=elements.iter().any(|element|!element.is_copy_value()&&!matches!(element,Type::Address{..}));
+    if record==needs_owned_shell{return Err(err("plain Task failure shell changes its actual input responsibilities"));}
+    Ok(())
+}
+
 pub(super) fn instance(i: &LifeNominalInstance, limits: &Limits, b: &mut Budget) -> Check<()> {
     if !shape(&i.ty, limits, b)? {
         return Err(err("Task failure nominal has no complete physical carrier"));

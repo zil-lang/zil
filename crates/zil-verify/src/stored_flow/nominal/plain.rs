@@ -33,7 +33,9 @@ pub(super) fn with_active(module: &TypedModule, instance: &LifeNominalInstance, 
             _ => return Err(err("plain nominal changes its full-ordinal actual kind or constant carrier")),
         }
     }
-    if declaration.id.compiler && !sealed_task_enum(declaration,instance,b)? {
+    if task_failure::declaration(declaration) {
+        task_failure::plain_instance(instance,limits,b)?;
+    } else if declaration.id.compiler && !sealed_task_enum(declaration,instance,b)? {
         let [argument] = instance.arguments.as_slice() else { return Err(err("plain builtin nominal omits its complete Type argument")); };
         let actual=match argument{LifeNominalActual::Type(ty)|LifeNominalActual::QualifiedType{ty,..}=>ty,_=>return Err(err("plain builtin nominal changes its actual full-ordinal Type kind"))};
         let Type::Enum { name, variants } = &instance.ty else { return Err(err("plain builtin nominal is not its actual enum")); };
@@ -124,6 +126,56 @@ fn sealed_task_enum(declaration:&LifeNominalDeclaration,instance:&LifeNominalIns
 #[cfg(test)]
 mod tests{
     use super::*;
+    fn builtin_declaration(id:LifeDeclarationId,kind:LifeNominalKind,word:&str,parameters:Vec<LifeParameterKind>)->LifeNominalDeclaration{
+        LifeNominalDeclaration{id,kind,parameters,identity:LifeDeclarationIdentity{package:"@zil.builtin".into(),module_path:vec!["task".into()],declaration_path:vec![if kind==LifeNominalKind::Enum{"enum"}else if kind==LifeNominalKind::Package{"package"}else{"record"}.into(),word.into()],generation_path:vec![]}}
+    }
+    fn failure_fixture(owning:bool,qualified:bool)->(TypedModule,usize){
+        let(mut module,_)=crate::tests::baseline();
+        let quiet=Type::Record{name:"Quiet".into(),fields:vec![("value".into(),Type::I32)]};
+        let quiet_id=LifeDeclarationId{module:zil_base::ModuleId(0),declaration:zil_base::NodeId(777),compiler:false};
+        module.life_declarations.push(LifeNominalDeclaration{id:quiet_id,kind:LifeNominalKind::Resource,parameters:vec![],identity:LifeDeclarationIdentity{package:"test".into(),module_path:vec![],declaration_path:vec!["Quiet".into()],generation_path:vec![]}});
+        module.life_instances.push(LifeNominalInstance{declaration:quiet_id,ty:quiet.clone(),arguments:vec![]});
+        let reason=Type::Enum{name:"@std.task:v1:TaskCreateError".into(),variants:vec![("Allocation".into(),vec![])]};
+        module.life_declarations.push(builtin_declaration(zil_ir::builtin_life::TASK_CREATE_ERROR,LifeNominalKind::Enum,"TaskCreateError",vec![]));
+        module.life_instances.push(LifeNominalInstance{declaration:zil_ir::builtin_life::TASK_CREATE_ERROR,ty:reason.clone(),arguments:vec![]});
+        let(kind,id)=if owning{(LifeNominalKind::Package,zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE)}else{(LifeNominalKind::Record,zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD)};
+        module.life_declarations.push(builtin_declaration(id,kind,"TaskCreateFailure",vec![LifeParameterKind::Type;2]));
+        let inputs=Type::Tuple(vec![if owning{Type::Managed(Box::new(quiet))}else{Type::I32}]);
+        let context=Type::Task{result:Box::new(Type::Unit),retained_life:RetainedLifeShape{binder_count:0,ports:vec![],retained:vec![],nominal_arguments:vec![]}};
+        let name=format!("@std.task:v1:TaskCreateFailure:{}",inputs.fingerprint());let fields=vec![("reason".into(),reason),("inputs".into(),inputs.clone())];
+        let ty=if owning{Type::Package{name,fields}}else{Type::Record{name,fields}};
+        let actual=|ty|if qualified{LifeNominalActual::QualifiedType{ty,life:StorageLifeShape{binder_count:0,slots:vec![],retained:vec![],nominal_arguments:vec![]}}}else{LifeNominalActual::Type(ty)};
+        let index=module.life_instances.len();module.life_instances.push(LifeNominalInstance{declaration:id,ty,arguments:vec![actual(inputs),actual(context)]});
+        (module,index)
+    }
+    fn check_failure_raw_wire(module:&TypedModule,index:usize)->bool{
+        let limits=Limits::default();let raw=check(module,&module.life_instances[index],&limits,&mut Budget::new(&limits));
+        let bytes=zil_ir::wire::encode_module_candidate(module,&CandidatePlan::empty_for(module),&limits).unwrap();let(wire,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+        let decoded=check(&wire,&wire.life_instances[index],&limits,&mut Budget::new(&limits));
+        assert_eq!(raw.as_ref().map_err(|e|(&e.code,&e.message)),decoded.as_ref().map_err(|e|(&e.code,&e.message)));raw.is_ok()
+    }
+    #[test]
+    fn plain_task_failure_keeps_both_actuals_sealed_identity_and_input_responsibility_raw_wire(){
+        for owning in [false,true]{for qualified in [false,true]{
+            let(module,index)=failure_fixture(owning,qualified);assert!(check_failure_raw_wire(&module,index));
+            for attack in 0..9{
+                let mut forged=module.clone();
+                match attack{
+                    0=>{forged.life_instances[index].arguments.pop();},
+                    1=>{let arg=&mut forged.life_instances[index].arguments[1];let(LifeNominalActual::Type(Type::Task{result,..})|LifeNominalActual::QualifiedType{ty:Type::Task{result,..},..})=arg else{unreachable!()};**result=Type::I32;},
+                    2=>{let(Type::Record{fields,..}|Type::Package{fields,..})=&mut forged.life_instances[index].ty else{unreachable!()};fields[1].1=Type::Tuple(vec![]);},
+                    3=>{let(Type::Record{fields,..}|Type::Package{fields,..})=&mut forged.life_instances[index].ty else{unreachable!()};fields[0].0="other".into();},
+                    4=>{let decl=forged.life_declarations.iter_mut().find(|d|d.id==forged.life_instances[index].declaration).unwrap();decl.identity.generation_path.push(1);},
+                    5=>{forged.life_instances[index].arguments.swap(0,1);},
+                    6=>{forged.life_instances[index].arguments[1]=LifeNominalActual::QualifiedType{ty:Type::Task{result:Box::new(Type::Unit),retained_life:RetainedLifeShape{binder_count:0,ports:vec![],retained:vec![],nominal_arguments:vec![]}},life:StorageLifeShape{binder_count:1,slots:vec![],retained:vec![],nominal_arguments:vec![]}};},
+                    7=>{let instance=&mut forged.life_instances[index];instance.ty=match &instance.ty{Type::Record{name,fields}=>Type::Package{name:name.clone(),fields:fields.clone()},Type::Package{name,fields}=>Type::Record{name:name.clone(),fields:fields.clone()},_=>unreachable!()};instance.declaration=if owning{zil_ir::builtin_life::TASK_CREATE_FAILURE_RECORD}else{zil_ir::builtin_life::TASK_CREATE_FAILURE_PACKAGE};let kind=if owning{LifeNominalKind::Record}else{LifeNominalKind::Package};forged.life_declarations.push(builtin_declaration(instance.declaration,kind,"TaskCreateFailure",vec![LifeParameterKind::Type;2]));},
+                    8=>{forged.life_instances[index].arguments[1]=LifeNominalActual::Type(Type::Task{result:Box::new(Type::Unit),retained_life:RetainedLifeShape{binder_count:1,ports:vec![RetainedBorrowPort{leaf:Type::Address{mutable:false,inner:Box::new(Type::I32)},mode:StoredBorrowMode::SharedAddress,binder:0}],retained:vec![StorageRetainedBinding{path:vec![LifeTypeProjection::Parameter(0)],class:0,binder:0}],nominal_arguments:vec![]}});},
+                    _=>unreachable!(),
+                }
+                assert!(!check_failure_raw_wire(&forged,index),"Task failure attack {attack}, owning={owning}, qualified={qualified}");
+            }
+        }}
+    }
     // Metadata-only proofs deliberately retain pending actual sources. These
     // cases are not executable Source/owner/loan certificates.
     #[test]
