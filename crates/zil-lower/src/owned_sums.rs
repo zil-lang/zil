@@ -518,7 +518,7 @@ impl<'a> Budget<'a> {
                 }
                 Ok(true)
             }
-            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            Type::Package { fields, .. } => {
                 for (_, t) in fields {
                     if !self.admits(t, resources, depth + 1)? {
                         return Ok(false);

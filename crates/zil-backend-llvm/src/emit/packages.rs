@@ -45,8 +45,9 @@ pub(super) fn capture_admission(
     if supported_type(ty, resources) || product_type(ty, resources) {
         return Ok((true, false));
     }
-    if !matches!(ty, Type::Package { .. } | Type::Record { .. } | Type::Tuple(_)
-        | Type::Enum { .. } | Type::ErrorUnion { .. } | Type::BorrowedStorage { .. }) {
+    // Capture dispatch has a partial-field Package representation and a
+    // complete Sum representation. Record is not an owning capture ABI.
+    if physical_package(ty).is_none() && !drop_plan::owned_sum(ty) {
         return Ok((false, false));
     }
     let before = *work;
@@ -141,7 +142,7 @@ fn has_store_fields(ty: &Type) -> bool {
         if fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(payload) | Type::Desc(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))))
 }
 
-fn owned_field(ty: &Type) -> bool {
+pub(super) fn owned_field(ty: &Type) -> bool {
     // An embedded child is complete. Its parent has one direct field flag;
     // internal partial flags belong only to the child's independent local.
     drop_plan::owned_sum(ty)

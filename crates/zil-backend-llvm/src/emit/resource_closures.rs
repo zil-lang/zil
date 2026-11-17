@@ -19,7 +19,8 @@ pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
 }
 
 /// Flags are appended after all data fields, grouped by capture order.
-/// Package groups are shell followed by direct Managed/complete child fields.
+/// Package groups are shell followed by the same owned direct fields used by
+/// local storage, Take/refill, capture binding and destruction.
 pub(super) fn flag_count(ty: &Type) -> usize {
     match packages::physical_package(ty).unwrap_or(ty) {
         Type::Managed(_) | Type::Closure(_) | Type::OwnedDyn { .. } => 1,
@@ -27,11 +28,7 @@ pub(super) fn flag_count(ty: &Type) -> usize {
         Type::Package { fields, .. } => {
             1 + fields
                 .iter()
-                .filter(|(_, ty)| {
-                    matches!(ty, Type::Managed(_))
-                        || packages::physical_package(ty).is_some()
-                        || drop_plan::owned_sum(ty)
-                })
+                .filter(|(_, ty)| packages::owned_field(ty))
                 .count()
         }
         _ => 0,
@@ -255,10 +252,7 @@ pub(super) fn drop_functions(
                 Type::Package { fields, .. } => {
                     let mut offset = 1;
                     for (field, (_, ty)) in fields.iter().enumerate() {
-                        if !matches!(ty, Type::Managed(_))
-                            && packages::physical_package(ty).is_none()
-                            && !drop_plan::owned_sum(ty)
-                        {
+                        if !packages::owned_field(ty) {
                             continue;
                         }
                         let field_flag = flag + offset;
@@ -444,10 +438,7 @@ impl FunctionEmitter<'_> {
             .iter()
             .enumerate()
             .filter_map(|(field, (_, ty))| {
-                (matches!(ty, Type::Managed(_))
-                    || packages::physical_package(ty).is_some()
-                    || drop_plan::owned_sum(ty))
-                .then_some(field)
+                packages::owned_field(ty).then_some(field)
             })
             .collect::<Vec<_>>();
         let env = environment_type(environment);
@@ -887,5 +878,61 @@ impl FunctionEmitter<'_> {
             },
         )));
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod capture_cleanup_tests {
+    use super::*;
+
+    #[test]
+    fn callable_package_capture_emits_guarded_child_cleanup() {
+        let interface = zil_ir::DynInterfaceId { module: zil_base::ModuleId(0), index: 9 };
+        let package = Type::Package {
+            name: "Callbacks".into(),
+            fields: vec![
+                ("callback".into(), Type::Closure(ClosureId(7))),
+                ("dynamic".into(), Type::OwnedDyn { interface }),
+                ("count".into(), Type::I32),
+            ],
+        };
+        let limits = zil_base::Limits::default();
+        let mut work = limits.max_analysis_steps;
+        assert!(packages::capture_admission(&package, &[], &limits, &mut work).unwrap().0);
+        assert_eq!(flag_count(&package), 3, "shell and both independently movable children");
+        let definition = ClosureDefinition {
+            storage_life: None, id: ClosureId(0), function: FunctionId(0),
+            captures: vec![package.clone()], parameters: vec![], result: Type::Unit,
+            kind: CallableKind::FnOnce, lending_captures: vec![],
+        };
+        let code = drop_functions(&[definition], &[]).unwrap();
+        // Inspect the actual shared machine stream, not just the helper plan:
+        // each owning child must have its own live branch and exactly one call.
+        for (field, symbol) in [(0, "zil.closure.drop.7".to_string()),
+            (1, dyn_dispatch::owner_drop_symbol(interface))] {
+            let drop_label = format!("field.drop.0.{field}");
+            assert!(code.0.iter().any(|event| matches!(event,
+                m::Event::Instruction(m::Inst { op: m::Op::CondBranch { yes, .. }, .. })
+                if yes == &drop_label)));
+            let begin = code.0.iter().position(|event|
+                matches!(event, m::Event::Label(label) if label == &drop_label)).unwrap();
+            let end = code.0.iter().position(|event|
+                matches!(event, m::Event::Label(label) if label == &format!("field.done.0.{field}"))).unwrap();
+            let child = &code.0[begin..end];
+            assert!(child.iter().any(|event| matches!(event,
+                m::Event::Instruction(m::Inst { op: m::Op::Store { arg, .. }, .. })
+                if arg.value == m::Val::Bool(false))));
+            assert_eq!(child.iter().filter(|event| matches!(event,
+                m::Event::Instruction(m::Inst { op: m::Op::Call { callee, .. }, .. })
+                if *callee == m::global(symbol.clone()))).count(), 1);
+        }
+        // No new Record capture ABI or Array-of-callable-Package ABI is implied
+        // by admitting a complete Package through its established field route.
+        let Type::Package { name, fields } = package.clone() else { unreachable!() };
+        let record = Type::Record { name, fields };
+        assert!(!packages::capture_admission(&record, &[], &limits, &mut work).unwrap().0);
+        assert!(!drop_plan::value_type(&record, &[]));
+        let array = Type::Array { element: Box::new(package), length: 2 };
+        assert!(!drop_plan::value_type(&array, &[]));
     }
 }

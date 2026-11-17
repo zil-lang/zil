@@ -70,10 +70,10 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
         Type::Array { element, length }
             if *length > 0 && matches!(element.as_ref(), Type::Package { .. }) =>
         {
-            value_type(element, resources)
+            arrays::supported_type(ty, resources) && value_type(element, resources)
         }
         Type::Tuple(fields) => fields.iter().all(|t| value_type(t, resources)),
-        Type::Record { fields, .. } | Type::Package { fields, .. } =>
+        Type::Package { fields, .. } =>
             fields.iter().all(|(_, t)| value_type(t, resources)),
         Type::Enum { variants, .. } => variants
             .iter()
