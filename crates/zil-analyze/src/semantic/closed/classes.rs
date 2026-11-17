@@ -945,6 +945,7 @@ impl Check<'_, '_> {
                 ));
             }
             for capture in &closure.lending_captures {
+                b.spend(creator_bindings.len(), WORK)?;
                 let binding = creator_bindings.values().find(|binding| binding.capture == *capture)
                     .ok_or_else(|| fail("lending capture omits its independently bound original source"))?;
                 let paths = self.original_static_byte_paths(&binding.stored, b)?;

@@ -2,6 +2,7 @@
 //! reachable writes. No Types proposal or Candidate Hold row supplies roots.
 use super::*;
 mod dynamic_static;
+mod mutations;
 use std::collections::{BTreeMap, BTreeSet};
 type Path = Vec<ContractProjection>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -119,6 +120,7 @@ struct Context<'a> {
     stores: BTreeMap<LocalId, Vec<ValueId>>,
     returned: Vec<ValueId>,
     capture_writes: Vec<(u32, ValueId)>,
+    mutations: mutations::Writes,
 }
 fn context<'a>(
     module: &'a TypedModule,
@@ -165,12 +167,13 @@ fn context<'a>(
         stores: BTreeMap::new(),
         returned: Vec::new(),
         capture_writes: Vec::new(),
+        mutations: mutations::Writes::default(),
     };
-    for (block, live) in f.blocks.iter().zip(reachable) {
-        if !live {
+    for (block, live) in f.blocks.iter().zip(&reachable) {
+        if !*live {
             continue;
         }
-        for i in &block.instructions {
+        for (ordinal, i) in block.instructions.iter().enumerate() {
             pay(b, 1)?;
             if let Some(v) = i.result {
                 *c.defs
@@ -184,6 +187,16 @@ fn context<'a>(
             }
             if let InstructionKind::WriteCapture { index, value } = i.kind {
                 pay(b, 1)?;
+                let definition = f.environment.and_then(|id| module.closures.get(id.0 as usize))
+                    .ok_or_else(|| err("capture replacement has no actual environment"))?;
+                let expected = definition.captures.get(index as usize)
+                    .ok_or_else(|| err("capture replacement selects an absent complete field"))?;
+                let actual = f.values.get(value.0 as usize)
+                    .ok_or_else(|| err("capture replacement has no actual value"))?;
+                crate::dyn_metadata::ty(expected, b)?;
+                crate::dyn_metadata::ty(actual, b)?;
+                if expected != actual { return Err(err("capture replacement changes its complete field Type")); }
+                crate::semantic::source_value_available(f, (block.id, ordinal), value, b)?;
                 c.capture_writes.push((index, value));
             }
         }
@@ -191,6 +204,7 @@ fn context<'a>(
             c.returned.push(v)
         }
     }
+    c.mutations = mutations::collect(&c, &reachable, b)?;
     Ok(c)
 }
 fn extend(to: &mut Sources, from: Sources, b: &mut Budget) -> CompileResult<()> {
@@ -413,6 +427,34 @@ fn resolve(
                 b,
             )
         }
+        InstructionKind::UpdateField { aggregate, index, value } => {
+            let at = crate::shared_definition(c.f, v, b)?;
+            crate::semantic::source_value_available(c.f, (at.block, at.instruction), *aggregate, b)?;
+            crate::semantic::source_value_available(c.f, (at.block, at.instruction), *value, b)?;
+            let parent = c.f.values.get(aggregate.0 as usize)
+                .ok_or_else(|| err("updated aggregate source is absent"))?;
+            let result = c.f.values.get(v.0 as usize)
+                .ok_or_else(|| err("updated aggregate result is absent"))?;
+            let replacement = c.f.values.get(value.0 as usize)
+                .ok_or_else(|| err("updated aggregate replacement is absent"))?;
+            crate::dyn_metadata::ty(parent, b)?;
+            crate::dyn_metadata::ty(result, b)?;
+            crate::dyn_metadata::ty(replacement, b)?;
+            let storage = if let Type::BorrowedStorage { storage, .. } = parent { storage.as_ref() } else { parent };
+            let field = match storage {
+                Type::Tuple(fields) => fields.get(*index as usize),
+                Type::Record { fields, .. } | Type::Package { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
+                _ => None,
+            }.ok_or_else(|| err("updated aggregate source has no exact physical field"))?;
+            if parent != result || field != replacement {
+                return Err(err("updated aggregate changes its complete parent, result or field Type"));
+            }
+            let Some((ContractProjection::Place(PlaceProjection::Field(selected)), tail)) = path.split_first() else {
+                return Err(err("updated aggregate Static leaf lacks its complete field selector"));
+            };
+            if selected == index { resolve(c, *value, tail, active, depth + 1, b) }
+            else { resolve(c, *aggregate, path, active, depth + 1, b) }
+        }
         InstructionKind::ExtractField { aggregate, index } => {
             let mut p = vec![ContractProjection::Place(PlaceProjection::Field(*index))];
             p.extend_from_slice(path);
@@ -555,6 +597,7 @@ fn capture_sources(
             }
         }
         if function.environment == Some(definition.id) {
+            c.mutations.check(mutations::Root::Capture(index), path, b)?;
             for (slot, value) in &c.capture_writes {
                 if *slot == index {
                     extend(
@@ -634,6 +677,7 @@ fn local_sources(
             .saturating_add(c.stores.len())
             .saturating_add(path.len()),
     )?;
+    c.mutations.check(mutations::Root::Local(local), path, b)?;
     let mut out = Sources::new();
     if let Some(index) = c.f.parameters.iter().position(|l| *l == local) {
         let ty = &c.f.locals[local.0 as usize].ty;
@@ -1132,6 +1176,105 @@ pub(super) fn check_dyn_static_return(
 mod static_grounding_tests {
     use super::*;
     #[test]
+    fn static_tuple_sources_reject_field_replacement_and_mutable_helper_aliases() {
+        // A source-equation Raw/Wire control, not a complete module or Source
+        // acceptance receipt. Every variant keeps the same old literal/header.
+        let limits = Limits::default();
+        for mode in 0..9 {
+            let mut module = crate::static_utf8_tests::module();
+            let leaf = module.functions[0].return_type.clone();
+            let tuple = Type::Tuple(vec![leaf.clone(), Type::I32]);
+            let scalar_write = mode == 1 || mode == 7;
+            let target = if scalar_write { Type::I32 } else { leaf.clone() };
+            let pointer = Type::Address { mutable: true, inner: Box::new(target.clone()) };
+            let whole_pointer = Type::Address { mutable: true, inner: Box::new(tuple.clone()) };
+            let span = module.functions[0].span;
+            let instruction = |result: Option<u32>, kind| Instruction {
+                result: result.map(ValueId), kind, span,
+            };
+            let function = &mut module.functions[0];
+            function.storage_life = Some(StorageLifeContract { fixed_binder_count: 0,
+                invocation_binder_count: 0, bindings: vec![], classes: vec![],
+                static_bindings: vec![StoragePosition { base: StorageBase::Result, path: vec![] }] });
+            function.locals = vec![
+                LocalDecl { id: LocalId(0), name: "replacement_source".into(), ty: leaf.clone(), mutable: false, span },
+                LocalDecl { id: LocalId(1), name: "tuple_slot".into(), ty: tuple.clone(), mutable: true, span },
+                LocalDecl { id: LocalId(2), name: "pointer_temporary".into(), ty: pointer.clone(), mutable: false, span },
+            ];
+            function.parameters = vec![LocalId(0)];
+            function.values = vec![leaf.clone(), Type::I32, tuple.clone(), pointer.clone(), target.clone(),
+                tuple.clone(), leaf.clone(), pointer.clone(), pointer.clone(), whole_pointer, tuple.clone()];
+            let mut body = function.blocks[0].instructions.clone();
+            body.extend([
+                instruction(Some(1), InstructionKind::Constant(Constant::I32(7))),
+                instruction(Some(2), InstructionKind::MakeAggregate { fields: vec![ValueId(0), ValueId(1)] }),
+                instruction(None, InstructionKind::StorageLive(LocalId(1))),
+                instruction(None, InstructionKind::Store { local: LocalId(1), value: ValueId(2) }),
+                instruction(Some(3), InstructionKind::BorrowPlaceLocal { local: LocalId(1),
+                    path: vec![PlaceProjection::Field(if scalar_write { 1 } else { 0 })], mutable: true }),
+                instruction(None, InstructionKind::StorageLive(LocalId(2))),
+                instruction(None, InstructionKind::Store { local: LocalId(2), value: ValueId(3) }),
+                instruction(Some(7), InstructionKind::Load(LocalId(2))),
+                instruction(Some(8), InstructionKind::ReborrowAddress { address: ValueId(7), mutable: true }),
+                instruction(Some(4), if scalar_write { InstructionKind::Constant(Constant::I32(9)) }
+                    else { InstructionKind::Load(LocalId(0)) }),
+            ]);
+            match mode {
+                0 => {},
+                1 | 2 => body.push(instruction(None, InstructionKind::WriteAddress { address: ValueId(8), value: ValueId(4) })),
+                3 => body.push(instruction(None, InstructionKind::Call { function: FunctionId(1), arguments: vec![ValueId(8), ValueId(4)] })),
+                4 => {
+                    body.push(instruction(Some(9), InstructionKind::BorrowLocalMut { local: LocalId(1) }));
+                    body.push(instruction(None, InstructionKind::StoreStoredBorrow { storage: ValueId(9), path: vec![PlaceProjection::Field(0)], value: ValueId(4) }));
+                }
+                5 => {
+                    body.push(instruction(None, InstructionKind::ReservePlaceLocal { reservation: zil_ir::ReservationId(0), local: LocalId(1), path: vec![PlaceProjection::Field(0)] }));
+                    body.push(instruction(None, InstructionKind::CommitPlaceReplace { reservation: zil_ir::ReservationId(0), value: ValueId(4) }));
+                }
+                6 => {
+                    body.push(instruction(Some(9), InstructionKind::BorrowLocalMut { local: LocalId(1) }));
+                    body.push(instruction(None, InstructionKind::ReservePlaceAddress { reservation: zil_ir::ReservationId(0), address: ValueId(9), path: vec![PlaceProjection::Field(0)] }));
+                    body.push(instruction(None, InstructionKind::CommitPlaceReplace { reservation: zil_ir::ReservationId(0), value: ValueId(4) }));
+                }
+                7 | 8 => {
+                    body.push(instruction(Some(10), InstructionKind::UpdateField { aggregate: ValueId(2),
+                        index: if scalar_write { 1 } else { 0 }, value: ValueId(4) }));
+                    body.push(instruction(None, InstructionKind::Store { local: LocalId(1), value: ValueId(10) }));
+                }
+                _ => unreachable!(),
+            }
+            body.extend([
+                instruction(Some(5), InstructionKind::Load(LocalId(1))),
+                instruction(Some(6), InstructionKind::ExtractField { aggregate: ValueId(5), index: 0 }),
+            ]);
+            function.blocks[0].instructions = body;
+            function.blocks[0].terminator = Terminator::Return(Some(ValueId(6)));
+            let mut helper = function.clone();
+            helper.id = FunctionId(1);
+            helper.name = "replace_borrowed_field".into();
+            helper.storage_life = None;
+            helper.return_type = Type::Unit;
+            helper.locals = vec![
+                LocalDecl { id: LocalId(0), name: "target".into(), ty: pointer.clone(), mutable: false, span },
+                LocalDecl { id: LocalId(1), name: "source".into(), ty: target.clone(), mutable: false, span },
+            ];
+            helper.parameters = vec![LocalId(0), LocalId(1)];
+            helper.values = vec![pointer, target];
+            helper.blocks[0].instructions = vec![
+                instruction(Some(0), InstructionKind::Load(LocalId(0))),
+                instruction(Some(1), InstructionKind::Load(LocalId(1))),
+                instruction(None, InstructionKind::WriteAddress { address: ValueId(0), value: ValueId(1) }),
+            ];
+            helper.blocks[0].terminator = Terminator::Return(None);
+            module.functions.push(helper);
+            let check = |module: &TypedModule| check_static_occurrences(module, &mut Budget::new(&limits)).is_ok();
+            assert_eq!(check(&module), mode <= 1 || mode == 7, "mutation mode {mode}");
+            let bytes = zil_ir::wire::encode_module_candidate(&module, &CandidatePlan::empty_for(&module), &limits).unwrap();
+            let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+            assert_eq!(check(&decoded), mode <= 1 || mode == 7, "Wire mutation mode {mode}");
+        }
+    }
+    #[test]
     fn nested_static_capture_requires_every_actual_constructor_to_retain_literal_sources() {
         // Source-independent trust-boundary control: an unused constructor with
         // the same complete physical Types must not inherit another literal's
@@ -1189,7 +1332,27 @@ mod static_grounding_tests {
             instruction(7, InstructionKind::MakeAggregate { fields: vec![ValueId(6), ValueId(1)] }),
             instruction(8, InstructionKind::MakeClosure { closure: ClosureId(0), captures: vec![ValueId(7)] }),
         ]);
-        for (module, accepted) in [(module, true), (forged, false)] {
+        let mut captured_replacement = module.clone();
+        let pointer = Type::Address { mutable: true, inner: Box::new(
+            captured_replacement.closures[0].captures[0].clone()) };
+        let leaf = captured_replacement.closures[0].result.clone();
+        let leaf_pointer = Type::Address { mutable: true, inner: Box::new(leaf.clone()) };
+        captured_replacement.closures[0].parameters.push(leaf.clone());
+        let entry = &mut captured_replacement.functions[1];
+        entry.parameters.push(LocalId(0));
+        entry.locals.push(LocalDecl { id: LocalId(0), name: "capture_replacement".into(),
+            ty: leaf.clone(), mutable: false, span });
+        entry.values.extend([pointer, leaf_pointer, leaf]);
+        let mut replacement = vec![
+            instruction(3, InstructionKind::BorrowCapture { index: 0, mutable: true }),
+            instruction(4, InstructionKind::BorrowPlaceAddress { address: ValueId(3),
+                path: vec![PlaceProjection::Field(0), PlaceProjection::Field(0)], mutable: true }),
+            instruction(5, InstructionKind::Load(LocalId(0))),
+            Instruction { result: None, kind: InstructionKind::WriteAddress { address: ValueId(4), value: ValueId(5) }, span },
+        ];
+        replacement.append(&mut entry.blocks[0].instructions);
+        entry.blocks[0].instructions = replacement;
+        for (module, accepted) in [(module, true), (forged, false), (captured_replacement, false)] {
             let check = |module: &TypedModule|
                 check_static_occurrences(module, &mut Budget::new(&limits)).is_ok();
             assert_eq!(check(&module), accepted,

@@ -41,6 +41,13 @@ mod traits;
 mod worlds;
 pub(super) use traits::{original_associated, original_self};
 
+// Retained literal equations consume the same actual SSA availability proof;
+// exposing this narrow check creates no original/source or access authority.
+pub(super) fn source_value_available(function: &TypedFunction, at: (BlockId, usize),
+    value: ValueId, b: &mut Budget) -> CompileResult<()> {
+    operations::available_before(function, (at.0, at.1, SemanticSiteEdge::Before), value, b)
+}
+
 fn unknown(message: &str) -> Vec<zil_base::Diagnostic> {
     vec![zil_base::Diagnostic::unsupported(
         zil_base::Phase::Analyze,

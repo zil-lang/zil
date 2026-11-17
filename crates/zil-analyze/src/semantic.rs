@@ -12,6 +12,11 @@ mod original_index;
 mod site_index;
 mod value;
 
+pub(super) fn source_value_available(function: &TypedFunction, at: (BlockId, usize),
+    value: ValueId, b: &mut Budget) -> CompileResult<()> {
+    closed::source_value_available(function, at, value, b)
+}
+
 const WORK: &str = "original semantic program inventory";
 fn fail(message: &str) -> Vec<zil_base::Diagnostic> {
     bad(format!("semantic program: {message}"))
