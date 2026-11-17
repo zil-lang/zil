@@ -183,26 +183,20 @@ fn reused_resource_scan_stacks_preserve_nested_roots_and_independent_fee_boundar
             "registration {allowance}"
         );
         assert!(definitions.is_empty());
-        if registration.is_ok() {
-            assert_eq!(remaining, allowance - 22);
+        if let Err(error) = registration {
+            assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
         } else {
-            assert_eq!(
-                registration.unwrap_err().category,
-                zil_base::ResultCategory::ResourceLimit
-            );
+            assert_eq!(remaining, allowance - 22);
         }
         let mut definitions = Vec::new();
         let bytes = byte_buffer::add_definition(&functions, &mut definitions, &limits);
         assert_eq!(bytes.is_ok(), allowance >= byte_bound, "bytes {allowance}");
-        if bytes.is_ok() {
+        if let Err(error) = bytes {
+            assert!(definitions.is_empty());
+            assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
+        } else {
             assert_eq!(definitions.len(), 1);
             assert_eq!(definitions[0].payload, Type::ByteBuffer);
-        } else {
-            assert!(definitions.is_empty());
-            assert_eq!(
-                bytes.unwrap_err().category,
-                zil_base::ResultCategory::ResourceLimit
-            );
         }
         let mut definitions = Vec::new();
         let mut shared = 123;
