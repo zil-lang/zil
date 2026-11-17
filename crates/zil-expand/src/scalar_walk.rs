@@ -1,6 +1,7 @@
 //! Current-request scalar body views. Normalize borrows the real parser tree;
 //! only renamed expressions are owned. Its complete walk also observes the
-//! structural Restore demand. No observation or view survives this request.
+//! structural Restore demand. Demand is request-local; real syntax views may
+//! remain in the existing session's parser/environment-bound syntax owners.
 use super::*;
 use crate::incremental::{Reuse, Stage};
 use zil_syntax::ParsedSource;
@@ -590,6 +591,7 @@ pub(super) fn normalize(
                 _ => unreachable!("scalar declaration"),
             };
             reuse.save_normalized_recipe(item.span, ordinal, declaration);
+            reuse.save_normalized_view(item.span, view.clone());
             demands.push(demand);
             normalized.push(NormalizedProduct::View(view));
         }
@@ -605,6 +607,8 @@ pub(super) fn normalize(
         let before = budget.remaining_limits();
         let mut edges = imports.clone();
         let mut items = Vec::new();
+        let mut stored_items = Vec::new();
+        let mut current_epoch = reuse.restore_base(module.span.file);
         while normalized
             .peek()
             .is_some_and(|(view, _)| view.span().file == module.span.file)
@@ -618,6 +622,7 @@ pub(super) fn normalize(
             let item_before = budget.remaining_limits();
             let clock = reuse.clock();
             let nodes = demand.nodes;
+            let edge_start = edges.len();
             let (restored, fused) = restore(&view, demand, functions, &mut edges, &mut budget)?;
             if fused {
                 reuse.fused_restore(nodes);
@@ -626,9 +631,27 @@ pub(super) fn normalize(
             }
             reuse.production(clock);
             reuse.record(Stage::RestoreItem, view.item().span, item_before, &budget);
-            items.push(Arc::new(restored));
+            let restored = Arc::new(restored);
+            let stored = scalar_products::RestoredProduct::view(restored.clone());
+            current_epoch = reuse.save_restored_product(
+                view.item().span,
+                stored.clone(),
+                current_epoch,
+                &edges[edge_start..],
+            );
+            stored_items.push(stored);
+            items.push(restored);
         }
         reuse.record_restore_module(module.span, before, &budget);
+        reuse.save_restored_view(
+            module.span.file,
+            scalar_products::RestoredModuleView::new(
+                module.id,
+                module.span,
+                stored_items,
+                edges.clone(),
+            ),
+        );
         output.push(ModuleView {
             id: module.id,
             span: module.span,

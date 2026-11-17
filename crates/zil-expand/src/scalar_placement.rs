@@ -170,30 +170,39 @@ impl Placement {
                     module: module.id,
                     environment: environment.clone(),
                     declaration: recipe.declaration.clone(),
+                    view: None,
                 })),
             );
             if let Some(outcome) = old.scalar_headers.get(&before.span.start) {
                 headers.insert(item.span.start, *outcome);
             }
             let prior = old.restored_items.get(&before.span.start)?;
-            let rebound = self.item(&prior.item)?;
-            syntax_copies += u64::from(!Arc::ptr_eq(&rebound, &prior.item));
+            let prior_item = prior.item.materialize();
+            let rebound = self.item(&prior_item)?;
+            syntax_copies += u64::from(!Arc::ptr_eq(&rebound, &prior_item));
             restored.insert(
                 item.span.start,
                 RestoredItem {
-                    item: rebound,
+                    item: modules::scalar_products::RestoredProduct::Shared(rebound),
                     before: prior.before.clone(),
                     after: prior.after.clone(),
                     added: self.imports(&prior.added)?.into(),
                 },
             );
         }
-        let old_shared = old.shared_restored.as_ref()?;
+        let old_shared = old
+            .shared_restored
+            .clone()
+            .or_else(|| old.restored_view.as_ref().map(|view| view.materialize()))?;
         let shared_items = module
             .items
             .iter()
             .filter(|item| !matches!(item.kind, s::ItemKind::Import(_)))
-            .map(|item| restored.get(&item.span.start).map(|item| item.item.clone()))
+            .map(|item| {
+                restored
+                    .get(&item.span.start)
+                    .map(|item| item.item.materialize())
+            })
             .collect::<Option<Vec<_>>>()?;
         let shared = Arc::new(modules::SharedScalarModule {
             id: module.id,
@@ -210,6 +219,7 @@ impl Placement {
         next.restored_items = Arc::new(restored);
         next.restore_base = old.restore_base.clone();
         next.shared_restored = Some(shared);
+        next.restored_view = None;
         next.lower = Some((lower_limits.clone(), Arc::new(lower)));
         next.relocated_lower = true;
         // revision remains fresh: absolute output and SourceMap did change.

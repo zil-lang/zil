@@ -571,7 +571,7 @@ impl PartialEq for RestoreEpoch {
 impl Eq for RestoreEpoch {}
 #[derive(Clone)]
 pub(super) struct RestoredItem {
-    pub(super) item: Arc<s::Item>,
+    pub(super) item: modules::scalar_products::RestoredProduct,
     before: RestoreEpoch,
     pub(super) after: RestoreEpoch,
     pub(super) added: Arc<[CoreImport]>,
@@ -610,6 +610,9 @@ pub(crate) struct NormalizedRecipe {
     module: ModuleId,
     environment: Arc<Environment>,
     declaration: modules::scalar_products::Declaration,
+    // Real normalized syntax formed by the cold borrowed producer. It is
+    // usable only with its exact parser owner and compatible current Index.
+    pub(crate) view: Option<Arc<modules::scalar_walk::BodyView>>,
 }
 impl NormalizedRecipe {
     pub(crate) fn span(&self) -> Span {
@@ -686,6 +689,7 @@ struct Entry {
     restored_items: Arc<BTreeMap<usize, RestoredItem>>,
     restore_base: RestoreEpoch,
     shared_restored: Option<Arc<modules::SharedScalarModule>>,
+    restored_view: Option<Arc<modules::scalar_products::RestoredModuleView>>,
     restored: Option<Arc<(s::Module, Vec<CoreImport>)>>,
     lower: Option<(Limits, Arc<ExpandedModule>)>,
     // A changed absolute binding must validate against all current sources at
@@ -903,6 +907,7 @@ impl ExpandSession {
                         .map(|entry| entry.restore_base.clone())
                         .unwrap_or_default(),
                     shared_restored: None,
+                    restored_view: None,
                     restored: None,
                     lower: None,
                     relocated_lower: false,
@@ -970,6 +975,7 @@ impl ExpandSession {
                 entry.scalar_headers = Arc::default();
                 entry.restored_items = Arc::default();
                 entry.shared_restored = None;
+                entry.restored_view = None;
                 entry.restore_base = RestoreEpoch::default();
                 entry.restored = None;
                 entry.lower = None;
@@ -1706,7 +1712,11 @@ impl Reuse<'_> {
         &mut self,
         file: FileId,
     ) -> Option<Arc<modules::SharedScalarModule>> {
-        self.entry(file).shared_restored.clone()
+        let entry = self.entry(file);
+        if entry.shared_restored.is_none() {
+            entry.shared_restored = entry.restored_view.as_ref().map(|view| view.materialize());
+        }
+        entry.shared_restored.clone()
     }
     pub(super) fn save_shared_restored(
         &mut self,
@@ -1714,6 +1724,13 @@ impl Reuse<'_> {
         module: Arc<modules::SharedScalarModule>,
     ) {
         self.entry(file).shared_restored = Some(module);
+    }
+    pub(crate) fn save_restored_view(
+        &mut self,
+        file: FileId,
+        module: modules::scalar_products::RestoredModuleView,
+    ) {
+        self.entry(file).restored_view = Some(Arc::new(module));
     }
     pub(super) fn restored_item(
         &mut self,
@@ -1736,6 +1753,20 @@ impl Reuse<'_> {
         &mut self,
         span: Span,
         item: Arc<s::Item>,
+        before: RestoreEpoch,
+        added: &[CoreImport],
+    ) -> RestoreEpoch {
+        self.save_restored_product(
+            span,
+            modules::scalar_products::RestoredProduct::Shared(item),
+            before,
+            added,
+        )
+    }
+    pub(crate) fn save_restored_product(
+        &mut self,
+        span: Span,
+        item: modules::scalar_products::RestoredProduct,
         before: RestoreEpoch,
         added: &[CoreImport],
     ) -> RestoreEpoch {
@@ -1946,6 +1977,13 @@ impl Reuse<'_> {
                     return Some(NormalizedCache::Deferred(recipe));
                 }
                 let recipe = Arc::new(NormalizedRecipe {
+                    // Address-keyed expression overrides cannot move to a
+                    // different parser allocation, even for identical bytes.
+                    view: if recipe.parsed.same_revision(&entry.parsed) {
+                        recipe.view.clone()
+                    } else {
+                        None
+                    },
                     parsed: entry.parsed.clone(),
                     ordinal: recipe.ordinal,
                     span: recipe.span,
@@ -1988,8 +2026,22 @@ impl Reuse<'_> {
             module: entry.parsed.source().module_id,
             environment,
             declaration,
+            view: None,
         });
         Arc::make_mut(&mut entry.normalized).insert(span.start, NormalizedCache::Deferred(recipe));
+    }
+    pub(crate) fn save_normalized_view(
+        &mut self,
+        span: Span,
+        view: Arc<modules::scalar_walk::BodyView>,
+    ) {
+        let entry = self.entry(span.file);
+        if let Some(NormalizedCache::Deferred(recipe)) =
+            Arc::make_mut(&mut entry.normalized).get_mut(&span.start)
+            && std::ptr::eq(view.item(), recipe.source_item())
+        {
+            Arc::make_mut(recipe).view = Some(view);
+        }
     }
     pub(crate) fn normalized_recipe_retained(&mut self) {
         self.stats.normalized_recipe_hits += 1;

@@ -181,10 +181,11 @@ fn producer_filesystem_real_io_emit_keeps_module_reuse_and_complete_types() {
         assert_eq!(work.lower_modules, 3);
         // Actual input declarations: main has one, left two, and the original
         // IO fixture four (two extern declarations plus read and emit).
-        assert_eq!(work.normalized_item_deep_clones, 7);
+        assert_eq!(work.normalized_item_deep_clones, 0);
+        assert_eq!(work.borrowed_scalar_items, 7);
         assert_eq!(work.restored_module_deep_clones, 0);
         assert_eq!(work.restored_item_deep_clones, 0);
-        assert_eq!(work.owned_restore_items, 7);
+        assert_eq!(work.owned_restore_items, 0);
         assert_eq!(work.normalized_materializations, 0);
         assert_eq!(work.retained_normalized_items, 0);
         assert_eq!(work.retained_restored_modules, 0);

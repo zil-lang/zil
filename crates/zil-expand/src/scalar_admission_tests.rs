@@ -176,6 +176,25 @@ fn fused_scalar_chain_executes_less_work_and_preserves_full_outputs_and_maps() {
     assert_eq!(session.last_stats().fused_lifetime_items, 3);
     assert_eq!(session.last_stats().plain_lifetimes_modules, 0);
     assert!(session.last_stats().fused_lifetime_nodes > 0);
+    for entry in session.entries.values() {
+        assert!(
+            entry.shared_restored.is_none(),
+            "cold bodies must stay borrowed"
+        );
+        assert!(!entry.restored_view.as_ref().unwrap().is_materialized());
+        assert!(
+            entry
+                .restored_items
+                .values()
+                .all(|item| !item.item.is_materialized())
+        );
+        for product in entry.normalized.values() {
+            let NormalizedCache::Deferred(recipe) = product else {
+                panic!("current normalized recipe")
+            };
+            assert!(recipe.view.is_some(), "retain the actual normalized view");
+        }
+    }
     let fused_nodes = session.last_stats().visited_nodes;
     for entry in session.entries.values() {
         assert!(
@@ -189,6 +208,23 @@ fn fused_scalar_chain_executes_less_work_and_preserves_full_outputs_and_maps() {
     assert_eq!(cold, warm);
     assert_eq!(session.last_stats().normalize_modules, 0);
     assert_eq!(session.last_stats().normalized_materializations, 0);
+    for entry in session.entries.values() {
+        let shared = entry.shared_restored.as_ref().unwrap();
+        for item in shared.items.iter() {
+            let record = &entry.restored_items[&item.span.start];
+            assert!(
+                Arc::ptr_eq(item, &record.item.materialize()),
+                "one lazy AST owner per item"
+            );
+        }
+    }
+    assert!(
+        session.entries.values().all(|entry| entry
+            .restored_view
+            .as_ref()
+            .unwrap()
+            .is_materialized())
+    );
     for ((before, before_map), (after, after_map)) in cold.iter().zip(&warm) {
         assert!(Arc::ptr_eq(&before.core, &after.core));
         assert!(Arc::ptr_eq(before_map, after_map));
@@ -550,6 +586,25 @@ fn fused_scalar_placement_and_current_import_changes_do_not_reuse_stale_maps() {
     assert_eq!(current, raw(&moved, &moved_imports, &limits).unwrap());
     assert!(session.last_stats().rebound_frontend_modules > 0);
     assert_eq!(session.last_stats().rebound_source_map_validations, 2);
+    assert_eq!(session.last_stats().normalize_modules, 0);
+    assert_eq!(session.last_stats().normalized_materializations, 0);
+    assert_eq!(session.last_stats().lower_modules, 0);
+    assert_eq!(session.last_stats().reused_lower_modules, 2);
+    for entry in session.entries.values() {
+        assert!(
+            entry.restored_view.is_none(),
+            "placement publishes actual rebound syntax"
+        );
+        for product in entry.normalized.values() {
+            let NormalizedCache::Deferred(recipe) = product else {
+                panic!("current placement recipe")
+            };
+            assert!(
+                recipe.view.is_none(),
+                "old expression addresses cannot bind new parser nodes"
+            );
+        }
+    }
     for (_, map) in &current {
         map.validate_iter(moved.iter().map(ParsedSource::source), &limits)
             .unwrap();
@@ -593,4 +648,40 @@ fn fused_scalar_placement_and_current_import_changes_do_not_reuse_stale_maps() {
         run(&mut session, &moved, &moved_imports, &aliases, &limits).unwrap(),
         current
     );
+}
+
+#[test]
+fn retained_cold_normalized_views_supply_real_probe_and_lifetime_misses() {
+    let (inputs, imports, aliases) = fixture("");
+    let limits = Limits::default();
+    let mut seed = ExpandSession::default();
+    let expected = run(&mut seed, &inputs, &imports, &aliases, &limits).unwrap();
+    for stage in [Stage::Prepare, Stage::Lifetimes, Stage::Headers] {
+        let mut session = seed.checkpoint();
+        for entry in session.entries.values_mut() {
+            Arc::make_mut(&mut entry.receipts).retain(|(current, _), _| *current != stage);
+        }
+        let actual = run(&mut session, &inputs, &imports, &aliases, &limits).unwrap();
+        assert_eq!(actual, expected, "{stage:?}");
+        assert_eq!(actual, raw(&inputs, &imports, &limits).unwrap());
+        assert_eq!(session.last_stats().normalized_materializations, 0);
+        assert_eq!(session.last_stats().normalized_item_deep_clones, 0);
+        for (module, entry) in &seed.entries {
+            assert_eq!(
+                entry
+                    .receipts
+                    .iter()
+                    .filter(|((current, _), _)| *current == stage)
+                    .map(|(key, value)| (*key, (value.nodes, value.work)))
+                    .collect::<Vec<_>>(),
+                session.entries[module]
+                    .receipts
+                    .iter()
+                    .filter(|((current, _), _)| *current == stage)
+                    .map(|(key, value)| (*key, (value.nodes, value.work)))
+                    .collect::<Vec<_>>(),
+                "same original normalized stage fees"
+            );
+        }
+    }
 }

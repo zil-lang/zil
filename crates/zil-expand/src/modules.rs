@@ -1232,11 +1232,15 @@ fn normalize_scalar(
                     }
                     NormalizedCache::Deferred(recipe) => {
                         reuse.normalized_recipe_retained();
-                        NormalizedProduct::Deferred {
-                            recipe,
-                            allowance: before,
-                            index,
-                            target_pointer_width: visitor.budget.target_pointer_width,
+                        if let Some(view) = &recipe.view {
+                            NormalizedProduct::View(view.clone())
+                        } else {
+                            NormalizedProduct::Deferred {
+                                recipe,
+                                allowance: before,
+                                index,
+                                target_pointer_width: visitor.budget.target_pointer_width,
+                            }
                         }
                     }
                 });
@@ -1330,7 +1334,7 @@ fn normalize_scalar(
                 edges.extend(item.added.iter().cloned());
                 current_epoch = item.after.clone();
                 reuse.retain_restored_item();
-                restored.push(item.item);
+                restored.push(item.item.materialize());
                 continue;
             }
             let item_before = budget.remaining_limits();

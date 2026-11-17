@@ -3,6 +3,88 @@
 use super::*;
 use crate::incremental::{NormalizedRecipe, Reuse, Stage};
 
+/// A successful restored view is syntax ownership, never a new stage receipt.
+/// Copies of the lazy owner share one eventual AST, including when a checkpoint
+/// or placement candidate is the first consumer that needs ordinary syntax.
+#[derive(Clone)]
+pub(crate) enum RestoredProduct {
+    Shared(Arc<Item>),
+    View(Arc<RestoredView>),
+}
+pub(crate) struct RestoredView {
+    body: Arc<super::scalar_walk::BodyView>,
+    item: std::sync::OnceLock<Arc<Item>>,
+}
+impl RestoredProduct {
+    #[cfg(test)]
+    pub(crate) fn is_materialized(&self) -> bool {
+        match self {
+            Self::Shared(_) => true,
+            Self::View(view) => view.item.get().is_some(),
+        }
+    }
+    pub(crate) fn view(body: Arc<super::scalar_walk::BodyView>) -> Self {
+        Self::View(Arc::new(RestoredView {
+            body,
+            item: std::sync::OnceLock::new(),
+        }))
+    }
+    pub(crate) fn materialize(&self) -> Arc<Item> {
+        match self {
+            Self::Shared(item) => item.clone(),
+            Self::View(view) => view
+                .item
+                .get_or_init(|| Arc::new(view.body.materialize()))
+                .clone(),
+        }
+    }
+}
+
+pub(crate) struct RestoredModuleView {
+    id: ModuleId,
+    span: Span,
+    items: Vec<RestoredProduct>,
+    imports: Vec<CoreImport>,
+    module: std::sync::OnceLock<Arc<SharedScalarModule>>,
+}
+impl RestoredModuleView {
+    #[cfg(test)]
+    pub(crate) fn is_materialized(&self) -> bool {
+        self.module.get().is_some()
+    }
+    pub(crate) fn new(
+        id: ModuleId,
+        span: Span,
+        items: Vec<RestoredProduct>,
+        imports: Vec<CoreImport>,
+    ) -> Self {
+        Self {
+            id,
+            span,
+            items,
+            imports,
+            module: std::sync::OnceLock::new(),
+        }
+    }
+    pub(crate) fn materialize(&self) -> Arc<SharedScalarModule> {
+        self.module
+            .get_or_init(|| {
+                Arc::new(SharedScalarModule {
+                    id: self.id,
+                    span: self.span,
+                    items: self
+                        .items
+                        .iter()
+                        .map(RestoredProduct::materialize)
+                        .collect::<Vec<_>>()
+                        .into(),
+                    imports: self.imports.clone(),
+                })
+            })
+            .clone()
+    }
+}
+
 #[derive(Clone)]
 pub(crate) enum Declaration {
     Function(String),
