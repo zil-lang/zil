@@ -4412,6 +4412,20 @@ fn analyze_function_program(
             errors
         })
 }
+// A consuming call still owes its exact operation proof when the complete
+// environment contains no owner cells. The ordinary flow validates the real
+// call and publishes its completion; an empty shape table is not a proof.
+fn has_consuming_obligation(function: FunctionId, budget: &mut Budget) -> CompileResult<bool> {
+    if budget.semantic_consuming_operations.is_empty() {
+        return Ok(false);
+    }
+    budget.lookup(budget.semantic_consuming_operations.len(), "resource consuming operation occurrence")?;
+    Ok(budget.semantic_consuming_operations
+        .range((function, BlockId(0), 0, ClosureId(0))..)
+        .next()
+        .is_some_and(|(point, _)| point.0 == function))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn analyze_function_program_inner(
     module: &TypedModule,
@@ -4433,6 +4447,7 @@ fn analyze_function_program_inner(
     }
     if shapes.is_empty()
         && sums.is_none()
+        && !(check && has_consuming_obligation(f.id, budget)?)
         && !(replacements.is_some() && forwards_replacement_effect(f, reachable, effects, budget)?)
     {
         return Ok(Effect::default());
@@ -4910,7 +4925,8 @@ pub(super) fn check_module(
         // An absent raw table cannot bypass actual replacement obligations.
         // The paid preflight already inventoried these owning ticket sites.
         let mut owning_entry = !budget.replacement_functions.is_empty() || budget.affine_packages
-            || !budget.semantic_cleanup_sites.is_empty();
+            || !budget.semantic_cleanup_sites.is_empty()
+            || !budget.semantic_consuming_operations.is_empty();
         for closure in &module.closures {
             budget.spend(closure.captures.len(), "resource capture presence")?;
             owning_entry |= closure.kind == CallableKind::FnOnce
@@ -4984,7 +5000,8 @@ fn analyze_function_eager_reference(
     }
     let sums = sums::Plan::new(f, budget)?;
     let shapes = shapes(module, f, budget)?;
-    if shapes.is_empty() && sums.is_none() {
+    if shapes.is_empty() && sums.is_none()
+        && !(check && has_consuming_obligation(f.id, budget)?) {
         return Ok(Effect::default());
     }
     let after = afters(f, reachable, &shapes, budget)?;
