@@ -1,26 +1,28 @@
 # 原生重启首改整链结果
 
-源码 `15f858c4ce183fedee9eb3a46082b4ee74ee404b`；完整缓存读取、恢复和发布链同批验收。
+源码 `5fe48bda9bfd4d541d26580f12e2681eb03a9659`，二进制 `4e472f597524e44766680ef1ff1f9617f18a5f870721f59e7208c496afe9f594`。输入、Expand、Types、缓存发布同批实施并统一验收。
 
-NoGo: first-edit target unmet; ordinaryCLI C1796.207/Rust1238.061ms; all6pairsfaster=False; comprehensive goal remains open.
+NoGo: first-edit target unmet; ordinaryCLI C1767.598/Rust1217.055ms; all6pairsfaster=False; comprehensive goal remains open.
 
 | 场景 | ZIL秒 | Rust秒 |
 | --- | ---: | ---: |
-| 驻留请求 cold | 3.270923 | 6.154449 |
-| 驻留请求 unchanged | 0.109766 | 0.022445 |
-| 驻留请求 private-001 | 1.739086 | 1.445658 |
-| 驻留请求 recovery | 1.989997 | 5.898568 |
-| 普通CLI完整进程 cold | 2.715802 | 6.352213 |
-| 普通CLI完整进程 private-001 | 1.796207 | 1.238061 |
+| 驻留请求 cold | 3.281434 | 6.656113 |
+| 驻留请求 unchanged | 0.059020 | 0.018883 |
+| 驻留请求 private-001 | 1.583330 | 1.222044 |
+| 驻留请求 recovery | 1.711590 | 5.842942 |
+| 普通CLI完整进程 cold | 2.655648 | 6.357395 |
+| 普通CLI完整进程 private-001 | 1.767598 | 1.217055 |
 
-原30请求/10功能格、另12运行构建/4运行格；普通CLI六个交替区块，共36次构建。用户盘量完整历史采样峰 ZIL 30.0–30.0 MB，Rust 61.5–76.7 MB；每个时点全局inode去重后再取峰，含实际缓存和最终产物，不含SDK/宿主构建/研究输出。
+5105函数/102文件，实际main/候选/Rust，O2/CGU16/compiler jobs1。原30请求/10功能格、另12运行构建/4运行格及六CLI区块36构建均完成；功能与运行质量通过。CLI首改5负1胜，目标未完成，不合main。
 
-strict、IR95、backend402、Driver265、native publication4、fmt、release和Astra源码独审通过。未改Expand/Types/Analyze/Verify的原通过收据按差异复用。
+CLI同一时点全局inode去重峰值：候选27.62–27.66MB/Rust61.15MB；完整编辑历史约29.17–29.20MB/Rust61.55–76.73MB。含实际缓存及最终产物，不含SDK/宿主target/研究文件。
 
-机器原始缓存各段共持有完整已校验文件；借用解码保持remaining node边界；待发布产品按原字节流散列并流式写出，删除重复整份复制和聚合。原schema、完整hash/EOF、16MiB逻辑上限、费用和manifest最后原子发布保持。
+已实施：ASCII/最长词法分派与单次UTF-8扫描；恢复后的Expand按原阶段汇总费用，省逐函数包装与多轮回放；Types共享实际解码owner、延迟身份包装并消费当前推断投影；canonical输出与encoding一次绑定；CT与前端共享保存的完整源字节，恢复原收据后再走原准入，原逻辑限额保持。
 
-旧约1.5秒为驻留请求；普通CLI包含启动和退出。window29驻留1.776/Rust1.484秒、CLI1.800/Rust1.074秒；window30驻留1.599/Rust1.386秒、CLI1.890/Rust1.142秒，均未达标；不能把时钟差异当作回退的全部解释。旧window26–30负结果均保留，跨窗口差额不冒称因果收益。
+strict、Syntax79、Expand153、Types136、backend402、Driver267、native publication4、fmt、release、Astra独审通过。独立Verify、原预算/O2及研究开关默认关闭保持。首次strict机械问题、保留类型名fixture错误和零doctest统计误报已保留并修正；一行fixture变化后仅补受影响检查和release。
 
-完整结果：[current.json](native-direct-edit-chain-20261116/current.json)；历史：[window30](native-direct-edit-chain-20261116/window30.json)。实际main超限、工业多crate/proc-macro/build.rs、分钟/GB规模及全面超越目标仍开放；未合main。
+六CLI阶段独立中位数：Expand109ms、Types163ms、Verify74ms、后端648ms（机器产生231ms、类变换161ms、对象125ms）；嵌套/分别取中位数字段不可相加。单次同口径阶段诊断的输入/解析65.6ms、实际parser58.7ms；该诊断类变换出现664ms高值，不能用单样本替代六组结论，也未查明全部波动成因。Rust确实以incremental=1执行冷编译和首改，LLVM嵌套时间不重复相加。
 
-同版六CLI样本阶段中位数：后端635ms（机器产生238ms、类变换168ms、对象119ms），Types195ms、Expand113ms、Verify74ms；各字段中位数不可相加。分区11ms、诊断文本8ms；一次未复现大停顿的系统调用诊断中fsync12ms、页回收13ms，不能据此归因数百毫秒尖峰，也未据此改持久化政策。
+window31普通CLI为1.796/Rust1.238秒；本轮1.768/1.217秒，仅约28ms差额，不能宣称明显整链改善或归因于单一补丁。此前1.5秒驻留口径和全部负结果仍保留。冷编译领先不等于首改领先：尚未将全机器恢复/变换裁成仅受影响工作，不能继续把局部命中当作目标达成。
+
+精简结果：[current.json](native-direct-edit-chain-20261116/current.json)，前次：[window31](native-direct-edit-chain-20261116/window31.json)。实际main仍超限；工业多crate/proc-macro/build.rs、分钟/GB规模和全面超越目标未验成。无LLVM重建或全量证据打包。
