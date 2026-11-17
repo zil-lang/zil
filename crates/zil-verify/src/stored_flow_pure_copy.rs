@@ -680,6 +680,50 @@ fn complete_owned_fields(module:&TypedModule,pending:Vec<(&Type,usize)>,b:&mut B
     Ok(true)
 }
 
+// A concrete callback keeps its own complete opaque boundary. This lane
+// transports its real physical captured pointers; it does not classify that
+// environment target-free or infer CE/SyncDrop from its number of classes.
+fn callable_tuple(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    let mut pending = vec![(ty, 0usize)];
+    let mut callable = false;
+    while let Some((ty, depth)) = pending.pop() {
+        b.spend(1)?;
+        if depth > b.limits.max_call_depth { return Err(limit("callable Tuple domain depth exceeded")); }
+        match ty {
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|ty| (ty, depth + 1)));
+            }
+            Type::Closure(id) => {
+                let (count, _) = crate::dynamic_witness::intrinsic_domain(module, ty, b)?;
+                if count != 0 { return Ok(false); }
+                // Independently enumerate actual physical capture occurrences,
+                // including real Static fields. No pointer is made from N0.
+                returned_environment::leaves(module, *id, b)?;
+                callable = true;
+            }
+            other => if !crate::stored_owned::target_free_value(module, other, b)? { return Ok(false); },
+        }
+    }
+    if callable { crate::sums::check_type_for(module, ty, None, b)?; }
+    Ok(callable)
+}
+
+// Physical callback capture rows have a real private Field path. Logical
+// carrier namespaces must use their own complete transport, never disappear
+// into that path or an empty target permission.
+pub(super) fn physical_tuple_payload(p: &Payload, b: &mut Budget) -> Check<()> {
+    payload_work(p, b)?;
+    if !p.address.sources.is_empty() || !p.address.loans.is_empty()
+        || !p.store_description.sources.is_empty() || !p.store_description.loans.is_empty()
+        || !p.task_ports.is_empty() || !p.dyn_ports.0.is_empty() || !p.dyn_views.is_empty()
+        || p.option_variants.mask() != 0
+    {
+        return Err(unsupported("ordinary callable Tuple requires its independent logical carrier transport", None));
+    }
+    Ok(())
+}
+
 // Ordinary affine products may have no stored targets while still owning
 // resources. Complete actual type and Sum checks precede their transfers;
 // neither this lane nor a zero domain discharges tag/init/debt/cleanup facts.
@@ -689,7 +733,7 @@ pub(super) fn ordinary_owned_tuple(module:&TypedModule,f:&TypedFunction,i:&Instr
         InstructionKind::UnpackTuple{local,..}|InstructionKind::DropTuple{local}|InstructionKind::TakeTupleField{local,..}=>&f.locals.get(local.0 as usize).ok_or_else(||err("ordinary owning Tuple has no actual local"))?.ty,
         _=>return Ok(false),
     };
-    if !matches!(ty,Type::Tuple(_))||ty.is_copy_value()||!complete_owned_value(module,ty,b)?{return Ok(false);}
+    if !matches!(ty,Type::Tuple(_))||ty.is_copy_value()||!(complete_owned_value(module,ty,b)?||callable_tuple(module,ty,b)?){return Ok(false);}
     crate::sums::check_instruction(f,i,&b.limits.clone(),b)?;
     Ok(true)
 }
@@ -699,11 +743,13 @@ pub(super) fn ordinary_tuple_transfer(f:&TypedFunction,i:&Instruction,state:&mut
         InstructionKind::MakeOwnedTuple{fields}=>{
             for(index,value)in fields.iter().enumerate(){
                 let payload=values.get(value.0 as usize).ok_or_else(||err("ordinary owning Tuple input is absent"))?;
+                physical_tuple_payload(payload,b)?;
                 for(tail,permission)in &payload.leaves{b.spend(tail.len().saturating_add(1))?;let mut path=vec![PlaceProjection::Field(index as u32)];path.extend(tail);add_leaf(out,&path,permission,b)?;}
             }
         },
         InstructionKind::UnpackTuple{local,fields}=>{
             let payload=copy_payload(&state.locals[local.0 as usize],b)?;
+            physical_tuple_payload(&payload,b)?;
             for(index,target)in fields.iter().enumerate(){
                 let prefix=[PlaceProjection::Field(index as u32)];let mut child=Payload::default();
                 child.enum_variants=payload.enum_variants.project(&prefix,b)?;
@@ -713,7 +759,7 @@ pub(super) fn ordinary_tuple_transfer(f:&TypedFunction,i:&Instruction,state:&mut
             state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;
         },
         InstructionKind::TakeTupleField{local,path}=>{
-            let holder=&mut state.locals[local.0 as usize];out.enum_variants=holder.enum_variants.project(path,b)?;
+            let holder=&mut state.locals[local.0 as usize];physical_tuple_payload(holder,b)?;out.enum_variants=holder.enum_variants.project(path,b)?;
             b.spend(holder.leaves.len())?;let mut remaining=Vec::with_capacity(holder.leaves.len());
             for(actual,permission)in std::mem::take(&mut holder.leaves).into_vec(b)?{
                 b.spend(actual.len().saturating_add(path.len()))?;
@@ -721,7 +767,7 @@ pub(super) fn ordinary_tuple_transfer(f:&TypedFunction,i:&Instruction,state:&mut
             }
             holder.leaves=leaf_rows::Rows::from_vec(remaining,b)?;
         },
-        InstructionKind::DropTuple{local}=>{state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;},
+        InstructionKind::DropTuple{local}=>{physical_tuple_payload(&state.locals[local.0 as usize],b)?;state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;},
         _=>return Err(err("ordinary owning Tuple transfer has another actual opcode")),
     }
     let _=f;Ok(())
@@ -1252,3 +1298,7 @@ mod owned_observation_tests{
         }
     }
 }
+
+#[cfg(test)]
+#[path = "stored_flow_pure_copy/callable_tuple_tests.rs"]
+mod callable_tuple_tests;

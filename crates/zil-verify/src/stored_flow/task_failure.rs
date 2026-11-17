@@ -400,6 +400,33 @@ pub(super) fn create(
     else {
         return Ok(());
     };
+    if let Type::Package { name, fields } | Type::Record { name, fields } = error.as_ref() {
+        if !name.starts_with("@std.task:v1:TaskCreateFailure:") { return Ok(()); }
+        let [(reason, Type::Enum { name: error_name, variants }), (input_name, Type::Tuple(inputs))] = fields.as_slice() else {
+            return Err(err("plain Task failure constructor fields differ"));
+        };
+        b.spend(name.len().saturating_add(inputs.len()).saturating_add(variants.len()))?;
+        if reason != "reason" || input_name != "inputs" || error_name != "@std.task:v1:TaskCreateError"
+            || !matches!(variants.as_slice(), [(name, fields)] if name == "Allocation" && fields.is_empty())
+            || inputs.len() != arguments.len()
+        { return Err(err("plain Task failure constructor loses its exact inputs or reason")); }
+        for (ordinal, (argument, input)) in arguments.iter().zip(inputs).enumerate() {
+            type_work(input, &b.limits.clone(), b)?;
+            type_work(vt(f, *argument)?, &b.limits.clone(), b)?;
+            if vt(f, *argument)? != input { return Err(err("plain Task failure input type differs")); }
+            let actual = values.get(argument.0 as usize).ok_or_else(||err("plain Task failure input is absent"))?;
+            let prefix = [PlaceProjection::ErrorArm(true), PlaceProjection::Field(1), PlaceProjection::Field(ordinal as u32)];
+            if matches!(input, Type::Address { .. }) {
+                add_leaf(out, &prefix, &actual.address, b)?;
+            } else { pure_copy::physical_tuple_payload(actual, b)?; }
+            for (tail, permission) in &actual.leaves {
+                b.spend(prefix.len().saturating_add(tail.len()))?;
+                let mut path = prefix.to_vec(); path.extend(tail);
+                add_leaf(out, &path, permission, b)?;
+            }
+        }
+        return Ok(());
+    }
     let Some((Type::Record { name, .. } | Type::Package { name, .. }, _)) = qualified(error) else {
         return Ok(());
     };

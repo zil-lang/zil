@@ -159,6 +159,14 @@ fn ordinary_sum_data_does_not_open_owning_state_constructor_extras() {
             result: Box::new(owned()),
         },
     ] {
-        state(Some(ty)).reject("owning State");
+        let mut raw = state(Some(ty));
+        // This attack is about owning State extras, not Unknown callback
+        // metadata. Supply its complete actual scalar-entry/capture relation.
+        let relation = StorageLifeContract { fixed_binder_count: 0, invocation_binder_count: 0,
+            bindings: vec![], static_bindings: vec![], classes: vec![] };
+        let entry = raw.module.closures[0].function;
+        raw.module.closures[0].storage_life = Some(relation.clone());
+        raw.module.functions[entry.0 as usize].storage_life = Some(relation);
+        raw.reject("owning State");
     }
 }

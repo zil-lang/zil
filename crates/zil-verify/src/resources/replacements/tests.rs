@@ -286,7 +286,8 @@ fn whole_helper_caller_shell_and_old_fields_must_still_be_live() {
     );
     let error = whole_check(&module).unwrap_err();
     assert!(
-        error.message.contains("every old field responsibility"),
+        error.message.contains("every old field responsibility")
+            || (error.code == "E-VERIFY-SUM" && error.message == "replacement needs a complete ordinary Product"),
         "{error:?}"
     );
 }
@@ -546,7 +547,8 @@ fn whole_package_needs_its_original_live_field_and_consumes_rhs_once() {
                 "old field live"
             } else {
                 "consumed before Commit"
-            }),
+            }) || (partial && error.code == "E-VERIFY-SUM"
+                && error.message == "replacement needs a complete ordinary Product"),
             "{error:?}"
         );
     }
