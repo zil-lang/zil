@@ -295,7 +295,7 @@ pub(super) fn semantic_owned_capture(
 ) -> CompileResult<bool> {
     if !matches!(
         ty,
-        Type::Managed(_) | Type::Package { .. } | Type::ErrorUnion { .. }
+        Type::Managed(_) | Type::Package { .. } | Type::ErrorUnion { .. } | Type::Closure(_)
     ) {
         return Ok(false);
     }
@@ -315,6 +315,17 @@ pub(super) fn semantic_owned_capture(
             "ordinary owner capture is not its exact immutable environment",
         ));
     }
+    if let Type::Closure(child) = ty {
+        b.lookup(b.semantic_closures_proven.len(), "completed nested owner environment")?;
+        if !b.semantic_closures_proven.contains(child) || !finite(module, *child) {
+            return Ok(false);
+        }
+        // These are two separately proved original environments. Their
+        // shared class images do not merge the actual child responsibilities.
+        // Select the existing complete nested resource/cleanup kernel.
+        b.owning_environment_captures = true;
+        return Ok(true);
+    }
     super::stored_flow::owned::ordinary_value(module, ty, b)
 }
 /// Copy nominal data with phantom classes is an ordinary environment value,
@@ -332,6 +343,19 @@ pub(super) fn semantic_copy_capture(
     )?;
     if !b.semantic_closures_proven.contains(&closure.id) {
         return Ok(false);
+    }
+    if matches!(ty, Type::Tuple(_)) && super::stored_flow::shared_compound(module, ty, b)? {
+        if closure.storage_life.is_none()
+            || !module.closures.get(closure.id.0 as usize)
+                .is_some_and(|actual| std::ptr::eq(actual, closure))
+        {
+            return Err(bad("completed shared compound capture has another actual environment"));
+        }
+        // Physical shared leaves still carry their actual permissions. The
+        // completed original/creator/Static-field proof is mandatory; this
+        // finite shape supplies no Static, Copy or empty-target fact.
+        b.owning_environment_captures = true;
+        return Ok(true);
     }
     if matches!(ty,Type::Desc(inner) if matches!(inner.as_ref(),Type::Mutex {payload} if **payload==Type::I32))
     {
