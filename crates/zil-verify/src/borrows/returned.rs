@@ -6,6 +6,13 @@ type Slots = BTreeMap<u32, BTreeSet<captures::Source>>;
 fn bad(message: &str) -> Diagnostic {
     reject("E-VERIFY-CALLABLE-SOURCE", None, message)
 }
+fn static_source(module:&TypedModule,closure:ClosureId,binding:&StorageSourceBinding,atom:&StorageSource,b:&mut Budget)->Check<bool>{
+    let StorageSource::Static{leaf,mode}=atom else{return Ok(false);};
+    if !matches!(binding.position.base,StorageBase::Capture(_))||*mode!=StoredBorrowMode::SharedAddress||!matches!(leaf,Type::Address{mutable:false,..}){return Err(bad("returned Static source is not its exact immutable capture leaf"));}
+    crate::dynamic_metadata::ty(leaf,b)?;crate::dynamic_metadata::position(&binding.position,b)?;
+    let row=crate::semantic::StaticOccurrence::Logical{closure,position:binding.position.clone(),leaf:leaf.clone(),mode:*mode};
+    crate::semantic::task_domains::require_static_occurrence(module,&row,b)?;Ok(true)
+}
 pub(super) fn inputs(
     module: &TypedModule,
     function: FunctionId,
@@ -23,6 +30,7 @@ pub(super) fn inputs(
     for binding in sources {
         budget.spend(binding.sources.len())?;
         for atom in &binding.sources {
+            if static_source(module,claim.closure,binding,atom,budget)?{continue;}
             let source = crate::exact_storage_source(atom)?;
             let StorageBase::Parameter(index) = source.base else {
                 return Err(bad("returned environment source is not an input"));
@@ -54,6 +62,15 @@ pub(super) fn instantiate(
         let StorageBase::Capture(capture) = binding.position.base else {
             return Err(bad("returned environment target is not a capture"));
         };
+        let mut ordinary_sources=Vec::new();
+        budget.spend(binding.sources.len())?;
+        for atom in &binding.sources{
+            if static_source(module,claim.closure,binding,atom,budget)?{
+                let row=slots.entry(capture).or_insert_with(BTreeSet::new);budget.spend(row.len().saturating_add(1))?;
+                row.insert(captures::Source::Root(Root::Static));
+            }else{ordinary_sources.push(atom);}
+        }
+        if ordinary_sources.is_empty(){continue;}
         if matches!(
             binding.position.path.last(),
             Some(ContractProjection::RetainedPort(_))
@@ -63,7 +80,7 @@ pub(super) fn instantiate(
                     "returned Task capture lacks complete stored source proof",
                 ));
             }
-            for atom in &binding.sources {
+            for atom in ordinary_sources {
                 let source = crate::exact_storage_source(atom)?;
                 let StorageBase::Parameter(parameter) = source.base else {
                     return Err(bad("returned Task port source is not an input"));
@@ -129,7 +146,7 @@ pub(super) fn instantiate(
         }
         let capture_type = &module.closures[claim.closure.0 as usize].captures[capture as usize];
         let mut roots = Roots::new();
-        for atom in &binding.sources {
+        for atom in ordinary_sources {
             let source = crate::exact_storage_source(atom)?;
             budget.spend(source.path.len().saturating_add(1))?;
             let StorageBase::Parameter(parameter) = source.base else {
@@ -266,4 +283,36 @@ pub(super) fn roots(
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod static_capture_tests{
+    use super::*;
+    #[test]
+    fn returned_static_atom_requires_the_exact_completed_occurrence_not_a_declaration(){
+        let(mut module,plan)=crate::tests::baseline();
+        let leaf=Type::Address{mutable:false,inner:Box::new(Type::Slice{element:Box::new(Type::U8)})};
+        let position=StoragePosition{base:StorageBase::Capture(0),path:vec![]};
+        let header=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],classes:vec![],static_bindings:vec![position.clone()]};
+        module.functions[0].environment=Some(ClosureId(0));module.functions[0].storage_life=Some(header.clone());
+        module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![leaf.clone()],parameters:vec![],result:Type::I32,kind:CallableKind::Fn,storage_life:Some(header),lending_captures:vec![]});
+        let atom=StorageSource::Static{leaf,mode:StoredBorrowMode::SharedAddress};let binding=StorageSourceBinding{position:position.clone(),sources:vec![atom.clone()]};
+        for wire in [false,true]{
+            let limits=Limits::default();let decoded;
+            let module=if wire{let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;&decoded}else{&module};
+            let mut b=Budget::new(&limits);
+            assert!(static_source(module,ClosureId(0),&binding,&atom,&mut b).is_err());
+            assert!(b.proven_static_occurrences.is_empty(),"a pending declaration cannot prove its own data source");
+            // Simulate only the private post-solver boundary for this leaf;
+            // the full-source tests exercise the actual least-root publisher.
+            b.proven_static_occurrences.insert((ClosureId(0),position.clone()));
+            assert!(static_source(module,ClosureId(0),&binding,&atom,&mut b).unwrap());
+            let wrong=StorageSource::Static{leaf:Type::Address{mutable:false,inner:Box::new(Type::I32)},mode:StoredBorrowMode::SharedAddress};
+            assert!(static_source(module,ClosureId(0),&binding,&wrong,&mut b).is_err());
+            let mut wrong=binding.clone();wrong.position.base=StorageBase::Capture(1);
+            assert!(static_source(module,ClosureId(0),&wrong,&atom,&mut b).is_err());
+            let wrong=StorageSource::Static{leaf:Type::Address{mutable:true,inner:Box::new(Type::I32)},mode:StoredBorrowMode::ExclusiveAddress};
+            assert!(static_source(module,ClosureId(0),&binding,&wrong,&mut b).is_err());
+        }
+    }
 }

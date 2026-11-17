@@ -1698,7 +1698,6 @@ pub(super) fn qualifications(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
-    let mixed_package = b.stored_package_instance;
     for (index, f) in module.functions.iter().enumerate() {
         if mask.is_some_and(|mask| !mask[index]) {
             continue;
@@ -1745,28 +1744,13 @@ pub(super) fn qualifications(
                         "actual exclusive stored carrier was copied without a transfer",
                     ));
                 }
-                let scalar_owner_operation = match &i.kind {
-                    InstructionKind::ReadDesc { desc, .. }|InstructionKind::WriteDesc{desc,..} => f
-                        .values
-                        .get(desc.0 as usize)
-                        .is_some_and(super::stored_owned::description),
-                    InstructionKind::MakeManaged { .. } => i.result.is_some_and(|id| {
-                        f.values
-                            .get(id.0 as usize)
-                            .is_some_and(super::stored_owned::owner)
-                    }),
-                    _ => false,
-                };
                 let ordinary_store_operation=super::stored_owned::ordinary_store_instruction(module,f,i,b)?||super::stored_owned::ordinary_byte_instruction(module,f,i,b)?;
                 let enum_operation = enum_address::instruction(module, f, i, b)?;
                 let task_capture_operation = task_address::capture_instruction(module, f, i, b)?;
                 let owned_operation = !ordinary_store_operation && !task_capture_operation
-                    && ((!mixed_package
-                        && !b.masked_stored_tasks()
-                        && super::stored_owned::instruction(f, &i.kind))
-                        || scalar_owner_operation)
                     && !owned_byte_views::owner_instruction(module, f, i, b)?
-                    && !(b.task_sources() && task_address::owner_instruction(f, &i.kind));
+                    && !(b.task_sources() && task_address::owner_instruction(f, &i.kind))
+                    && super::stored_owned::operation(module,f,i,b)?;
                 if !ordinary_store_operation && !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
                     && !foreign_calls::operation(module, f, i, b)?
@@ -1872,9 +1856,6 @@ pub(super) fn qualifications(
                         "instruction is outside the checked stored profile, including unreachable blocks",
                         Some(i.span),
                     ));
-                }
-                if owned_operation {
-                    super::stored_owned::types(module, f, i, b)?;
                 }
                 if super::class_flow::pointer_instruction(f, i) {
                     super::class_flow::pointer_types(module, f, i, b)?;
@@ -3750,7 +3731,7 @@ static_dependency: StaticProvenance::NotStatic,
                 heap_element: None,
             });
         }
-        InstructionKind::TakeCapture { index } if b.returned_environment_sources => {
+        InstructionKind::TakeCapture { index } if b.returned_environment_sources||super::stored_owned::operation(module,f,i,b)? => {
             out = copy_payload(&state.captures[*index as usize], b)?;
             let pointee = i.result.is_some_and(|result|
                 matches!(&f.values[result.0 as usize], Type::Address { inner, .. }

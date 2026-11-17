@@ -78,25 +78,28 @@ fn capture<'a>(
         .get(index as usize)
         .ok_or_else(|| bad(span, "owner capture index absent"))
 }
-pub(super) fn instruction(f: &TypedFunction, i: &InstructionKind) -> bool {
-    if let InstructionKind::WriteDesc{desc,..}=i{
-        return f.values.get(desc.0 as usize).is_some_and(description);
-    }
-    if let InstructionKind::TakeLocal { local } = i {
-        return f
-            .locals
-            .get(local.0 as usize)
-            .is_some_and(|local| matches!(local.ty, Type::Managed(_)));
-    }
-    matches!(
-        i,
-        InstructionKind::MakeManaged { .. }
-            | InstructionKind::TakeCapture { .. }
-            | InstructionKind::DescribeLocal { .. }
-            | InstructionKind::DescribeCapture { .. }
-            | InstructionKind::ReadDesc { .. }
-            | InstructionKind::DropManaged { .. }
-    )
+/// One actual-type classifier for profile, staging and transfer. Routing flags
+/// select work; they never erase a supported owner operation in a mixed task
+/// module. This predicate supplies no initialization, source or cleanup debt.
+pub(super) fn operation(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<bool>{
+    let ty=match &i.kind{
+        InstructionKind::MakeManaged{..}=>result(f,i)?,
+        InstructionKind::TakeLocal{local:id}|InstructionKind::DescribeLocal{local:id}|InstructionKind::DropManaged{local:id}=>local(f,*id,i.span)?,
+        InstructionKind::TakeCapture{index}|InstructionKind::DescribeCapture{index}=>{
+            let Some(definition)=f.environment.and_then(|id|module.closures.get(id.0 as usize))else{return Ok(false);};
+            let Some(ty)=definition.captures.get(*index as usize)else{return Err(bad(i.span,"owner capture index absent"));};
+            if definition.storage_life.is_none(){return Ok(false);}ty
+        },
+        InstructionKind::ReadDesc{desc,..}|InstructionKind::WriteDesc{desc,..}=>actual(f,*desc,i.span)?,
+        _=>return Ok(false),
+    };
+    stored_flow::type_work(ty,&b.limits.clone(),b)?;
+    let supported=match i.kind{
+        InstructionKind::ReadDesc{..}|InstructionKind::WriteDesc{..}=>description(ty),
+        InstructionKind::TakeCapture{..}=>owner(ty)||matches!(ty,Type::Closure(_)|Type::Address{mutable:true,..}),
+        _=>owner(ty),
+    };
+    if supported{types(module,f,i,b)?;}Ok(supported)
 }
 pub(super) fn types(
     module: &TypedModule,
@@ -484,6 +487,25 @@ pub(super) fn ordinary_byte_instruction(module:&TypedModule,f:&TypedFunction,i:&
 mod scalar_write_tests{
     use super::*;
     #[test]
+    fn typed_capture_owner_operations_survive_mixed_routing_without_losing_once_or_full_type_checks(){
+        let limits=Limits::default();
+        for attack in 0..4{
+            let(mut module,plan)=crate::tests::baseline();
+            let owner=Type::Managed(Box::new(Type::Record{name:"OwnedScalar".into(),fields:vec![("value".into(),Type::I32)]}));
+            let header=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],classes:vec![],static_bindings:vec![]};
+            module.functions[0].environment=Some(ClosureId(0));module.functions[0].storage_life=Some(header.clone());module.functions[0].values=vec![if attack==2{Type::I32}else{owner.clone()}];
+            module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![owner],parameters:vec![],result:Type::I32,kind:if attack==1{CallableKind::FnMut}else{CallableKind::FnOnce},storage_life:Some(header),lending_captures:vec![]});
+            let instruction=Instruction{result:Some(ValueId(0)),kind:InstructionKind::TakeCapture{index:if attack==3{1}else{0}},span:module.functions[0].span};
+            for wire in [false,true]{
+                let decoded;let module=if wire{let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;&decoded}else{&module};
+                let mut b=Budget::new(&limits);b.task_failure_carriers=true;b.stored_package_instance=true;
+                assert!(b.masked_stored_tasks());
+                let result=operation(module,&module.functions[0],&instruction,&mut b);
+                if attack==0{assert!(result.unwrap());}else{assert!(result.is_err(),"owner capture attack {attack}, wire {wire}");}
+            }
+        }
+    }
+    #[test]
     fn scalar_description_write_keeps_exact_field_type_and_no_owned_payload_raw_wire(){
         let limits=Limits::default();
         for attack in 0..5{
@@ -494,7 +516,9 @@ mod scalar_write_tests{
             let operation=Instruction{result:(attack==3).then_some(ValueId(1)),kind:InstructionKind::WriteDesc{desc:ValueId(0),index:if attack==1{99}else{0},value:ValueId(if attack==2{2}else{1})},span};
             for wire in [false,true]{
                 let decoded;let current=if wire{let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;&decoded}else{&module};
-                assert_eq!(instruction(&current.functions[0],&operation.kind),attack!=4);
+                assert_eq!(description(&current.functions[0].values[0]),attack!=4);
+                let classified=super::operation(current,&current.functions[0],&operation,&mut Budget::new(&limits));
+                if attack==0{assert!(classified.unwrap());}else if attack==4{assert!(!classified.unwrap());}else{assert!(classified.is_err());}
                 let result=types(current,&current.functions[0],&operation,&mut Budget::new(&limits));
                 if attack==0{result.unwrap();}else{assert!(result.is_err(),"scalar field attack {attack}, wire {wire}");}
             }

@@ -229,7 +229,7 @@ pub(super) fn parameter(
     let mut before = None;
     for (index, instruction) in block.instructions.iter().enumerate() {
         if !finite_instruction(&instruction.kind)
-            && !super::super::stored_owned::instruction(f, &instruction.kind)
+            && !super::super::stored_owned::operation(module,f,instruction,b)?
         {
             return Err(bad(
                 "staged callback body exposes storage or unsupported effects",

@@ -367,6 +367,8 @@ fn invocation(
             (callee.0 as usize, CallableKind::Fn, false)
         }
         InstructionKind::CallClosureMut { callee, .. } => {
+            let local=f.locals.get(callee.0 as usize).ok_or_else(||bad(f,"mutable callback event has no actual local"))?;
+            if !local.mutable||!matches!(local.ty,Type::Closure(_)){return Err(bad(f,"mutable callback event lacks its exact exclusive local environment place"));}
             (callee.0 as usize, CallableKind::FnMut, false)
         }
         InstructionKind::CallClosure { callee, .. } => (
@@ -380,6 +382,7 @@ fn invocation(
             false,
         ),
         InstructionKind::CallClosureBorrowed { callee, kind, .. } => {
+            if *kind==CallableKind::FnMut&&!matches!(f.values.get(callee.0 as usize),Some(Type::Address{mutable:true,inner})if matches!(inner.as_ref(),Type::Closure(_))){return Err(bad(f,"borrowed FnMut event lacks its actual exclusive environment address"));}
             (origins.values_at + callee.0 as usize, *kind, true)
         }
         _ => return Ok(None),
@@ -1098,10 +1101,13 @@ pub(super) fn check_module(
                 ));
             }
             if !borrowed && proposed.kind == CallableKind::FnMut && !forwarding && !scoped {
-                return Err(unsupported(
-                    "this helper slice takes FnMut through an exclusive environment address",
-                    Some(f.span),
-                ));
+                // Ownership and invocation are different roles. A by-value
+                // environment can move into a real mutable local and be
+                // invoked repeatedly without consuming that same occupant.
+                // Exact local/mode/LIVE checks run on each actual opcode;
+                // the complete role/CFG/cleanup reconstruction below still
+                // proves its incoming identity and every successor edge.
+                if !matches!(ty,Type::Closure(id)if id==closure){return Err(bad(f,"owned FnMut role does not name its exact concrete environment"));}
             }
             if let Type::Address { mutable, .. } = ty
                 && !(proposed.kind == CallableKind::Fn && !mutable
@@ -1201,6 +1207,22 @@ pub(super) fn check_module(
 #[cfg(test)]
 mod origin_classification_tests {
     use super::*;
+    #[test]
+    fn owned_mutable_events_keep_real_local_permission_and_borrowed_modes_separate(){
+        let(module,_)=crate::tests::baseline();let mut f=module.functions[0].clone();
+        f.locals=vec![LocalDecl{id:LocalId(0),name:"active".into(),ty:Type::Closure(ClosureId(0)),mutable:true,span:f.span}];
+        f.parameters=vec![LocalId(0)];f.values=vec![Type::Address{mutable:true,inner:Box::new(Type::Closure(ClosureId(0)))}];
+        let origins=EnvironmentOrigins{values_at:1,marks:vec![Origin::supplied(0,false);2],parameters:vec![0]};
+        let local=Instruction{result:None,kind:InstructionKind::CallClosureMut{callee:LocalId(0),arguments:vec![]},span:f.span};
+        let event=CallEvent{parameter:0,kind:CallableKind::FnMut};
+        assert_eq!(invocation(&f,&local,&origins).unwrap(),Some(event.clone()));
+        assert_eq!(invocation(&f,&local,&origins).unwrap(),Some(event),"successive activations retain the owned environment role");
+        f.locals[0].mutable=false;assert!(invocation(&f,&local,&origins).is_err());f.locals[0].mutable=true;
+        let borrowed=Instruction{result:None,kind:InstructionKind::CallClosureBorrowed{callee:ValueId(0),kind:CallableKind::FnMut,arguments:vec![]},span:f.span};
+        assert!(invocation(&f,&borrowed,&origins).unwrap().is_some());
+        if let Type::Address{mutable,..}=&mut f.values[0]{*mutable=false;}
+        assert!(invocation(&f,&borrowed,&origins).is_err(),"a shared environment address cannot supply FnMut");
+    }
     #[test]
     fn legacy_masks_match_independent_event_substitution_classifiers() {
         let origins = EnvironmentOrigins {

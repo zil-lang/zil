@@ -1521,3 +1521,11 @@ pub(crate) fn defer_static_capture(module:&TypedModule,closure:ClosureId,positio
     let row=statics::occurrence(module,closure,position,b)?;
     defer_static_occurrence(module,&row,b)
 }
+/// A data/root consumer runs only after the actual whole-module static solver.
+/// Structural callers use defer_static_occurrence instead; neither directory
+/// membership nor a Static source upper can publish a literal root here.
+pub(crate) fn require_static_occurrence(module:&TypedModule,row:&StaticOccurrence,b:&mut Budget)->Check<()>{
+    defer_static_occurrence(module,row,b)?;
+    let StaticOccurrence::Logical{closure,position,..}=row else{unreachable!()};
+    super::callable_obligations::static_node(module,*closure,position,b)
+}
