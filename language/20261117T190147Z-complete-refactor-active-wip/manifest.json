@@ -1,0 +1,29 @@
+{
+  "source_base": "8c6f55393bd6b0de3efa28d8b0201663b0e3d54e",
+  "snapshot_utc": "20261117T190147Z",
+  "status": "Exact in-progress source preservation only; incomplete logic, no compile/test/functional acceptance",
+  "scope": [
+    "crates",
+    "spec",
+    "_zil_design.md",
+    "tests/language-readiness"
+  ],
+  "changed_files": {
+    "crates/zil-verify/src/stored_flow.rs": "57e9ee81d1c432b2995a71eb08ff7053bd2858705274dcadbfad2cad8dc183c8",
+    "crates/zil-verify/src/stored_flow/after_state.rs": "3f3cdfd42ae5b072fae3fc297f76a852d27de6cc4c8f74ade300e72118f8b9a9",
+    "crates/zil-verify/src/stored_flow/call_results.rs": "9c8078e66eeeafed53600c9124fc9c826bc8ffec504c3e95a4290e556f773fca",
+    "crates/zil-verify/src/stored_flow/captured_owner.rs": "c957b854da5ef6a12f2898ed5a845c8ff128bb53125c020f90495e8e7b24397a",
+    "crates/zil-verify/src/stored_flow/live_loan_ids.rs": "a52931417e6ae7359f72d7ffafb1fef9ff10019eafbf344f3107bf954ebdf959",
+    "crates/zil-verify/src/stored_flow/receiver.rs": "a6cc7a25a338976b176d378d4654b332400fc94caf2a4d706f7c3a7fd7ff82cf",
+    "crates/zil-verify/src/stored_flow/value_transport.rs": "edd6925b2570acda5fe9ee4b81a2a3c3cdd2a988f5d65d99dd6d01af8f1e6115",
+    "crates/zil-verify/src/stored_flow/value_transport/after.rs": "cc2868308227f6d7cbd2e2558181ebef07791478ca0cf36fd5ad4bfe1336e6dc",
+    "crates/zil-verify/src/stored_flow_pure_copy/callable_tuple_tests.rs": "583ccde8a19da4fb6445529dc651152cf2b7528253f9b6e5a7f36d7c372f3934"
+  },
+  "untracked_files": [],
+  "stable_double_read": true,
+  "patch_reconstruction_checked": true,
+  "restore": "Checkout source_base, apply source.patch, copy untracked/ into that checkout. working-tree/ contains exact changed file bytes; null hashes denote deletions. Never blind-apply to a different base. Later writes are not included.",
+  "goal_commit": "d2c8ceabb46204a3591b9339e9ecb65994e5cb47",
+  "actual_executed_candidate": "3cbb0eeffa0da39533fc05132671648750bc831e",
+  "original_execution_counts_unchanged": true
+}
