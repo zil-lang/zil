@@ -1,0 +1,808 @@
+diff --git a/crates/zil-types/src/lending.rs b/crates/zil-types/src/lending.rs
+index a1ce9ac0d..10800ac13 100644
+--- a/crates/zil-types/src/lending.rs
++++ b/crates/zil-types/src/lending.rs
+@@ -313,13 +313,13 @@ fn sources(
+ 
+ /// Complete-module placement permits ordinary parameter-origin forwarding
+ /// without treating source names or source annotations as provenance shortcuts.
+-pub(super) fn populate(module: &mut TypedModule, remaining: &mut usize) -> R<()> {
++pub(super) fn populate(module: &mut TypedModule, static_origins: &retained::StaticOrigins, remaining: &mut usize) -> R<()> {
+     let mut work = Work(*remaining);
+-    let result = populate_inner(module, &mut work);
++    let result = populate_inner(module, static_origins, &mut work);
+     *remaining = work.0;
+     result
+ }
+-fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
++fn populate_inner(module: &mut TypedModule, static_origins: &retained::StaticOrigins, work: &mut Work) -> R<()> {
+     work.spend(module.closures.len(), Span::default())?;
+     if !module
+         .closures
+@@ -349,6 +349,23 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
+         if !matches!(closure.result, Type::Address { .. }) {
+             continue;
+         }
++        if static_origins.result(closure.id, &mut work.0, f.span)? {
++            // Every actual return and constructor/write dependency has been
++            // discharged. Static bytes borrow neither activation nor env.
++            let span = f.span;
++            work.spend(6, span)?;
++            let sources = vec![StorageSourceBinding {
++                position: StoragePosition { base: StorageBase::Result, path: Vec::new() },
++                sources: vec![StorageSource::Static { leaf: closure.result.clone(), mode: StoredBorrowMode::SharedAddress }],
++            }];
++            let actual = &mut module.functions[closure.function.0 as usize].retained_return_sources;
++            if actual.as_ref().is_some_and(|old| old != &sources) {
++                return Err(error("E-LENDING-ORIGIN", span,
++                    "Static actual return disagrees with its complete existing source relation"));
++            }
++            *actual = Some(sources);
++            continue;
++        }
+         // A complete explicit constant result is an untrusted obligation for
+         // the safety kernels, not a borrow of an environment or argument.
+         if closure.captures.is_empty()
+diff --git a/crates/zil-types/src/lib.rs b/crates/zil-types/src/lib.rs
+index 710d9002e..ec62f9768 100644
+--- a/crates/zil-types/src/lib.rs
++++ b/crates/zil-types/src/lib.rs
+@@ -842,16 +842,10 @@ pub fn check(
+         .map_err(|e| vec![e])?;
+     retained::populate_local_static_results(&mut module, &mut remaining, limits)
+         .map_err(|e| vec![e])?;
+-    lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
+     retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
+     retained::populate_return_lives(&mut module, &returned_life_bounds, &mut remaining, limits)
+         .map_err(|e| vec![e])?;
+-    retained::check_contexts(&module, &mut remaining).map_err(|e| vec![e])?;
+-    retained::check_deferred_closed(&module, &deferred_closed, &mut remaining, limits)
+-        .map_err(|e| vec![e])?;
+     mark_cost("single: local origins and protocol metadata", remaining);
+-    registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
+-        .map_err(|e| vec![e])?;
+     module.semantic = semantics::finish::program(
+         &[core],
+         &mut module,
+@@ -861,6 +855,14 @@ pub fn check(
+         &mut remaining,
+     )
+     .map_err(|e| vec![e])?;
++    retained::check_contexts(&module, &mut remaining).map_err(|e| vec![e])?;
++    let static_origins = retained::prove_static_origins(&module, &mut remaining, limits)
++        .map_err(|e| vec![e])?;
++    lending::populate(&mut module, &static_origins, &mut remaining).map_err(|e| vec![e])?;
++    retained::check_deferred_closed(&module, &deferred_closed, &static_origins, &mut remaining, limits)
++        .map_err(|e| vec![e])?;
++    registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
++        .map_err(|e| vec![e])?;
+     Ok(module)
+ }
+ struct Builder<'a, 'c> {
+diff --git a/crates/zil-types/src/program.rs b/crates/zil-types/src/program.rs
+index 2523ffc45..dba276b05 100644
+--- a/crates/zil-types/src/program.rs
++++ b/crates/zil-types/src/program.rs
+@@ -713,15 +713,10 @@ fn check_resolved_program_in_context(
+         .map_err(|e| vec![e])?;
+     retained::populate_local_static_results(&mut module, &mut remaining, limits)
+         .map_err(|e| vec![e])?;
+-    lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
+     retained::populate_sources(&mut module, &mut remaining, limits).map_err(|e| vec![e])?;
+     retained::populate_return_lives(&mut module, &returned_life_bounds, &mut remaining, limits)
+         .map_err(|e| vec![e])?;
+-    retained::check_deferred_closed(&module, &deferred_closed, &mut remaining, limits)
+-        .map_err(|e| vec![e])?;
+     mark_cost("program: local origins and protocol metadata", remaining);
+-    registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
+-        .map_err(|e| vec![e])?;
+     if program
+         .modules
+         .iter()
+@@ -751,6 +746,15 @@ fn check_resolved_program_in_context(
+         // discharge when no original semantic program was supplied.
+         stored::ordinary_inventory(&module, limits, &mut remaining).map_err(|e| vec![e])?;
+     }
++    // Actual headers and materialized CFGs are now complete. No class-free
++    // candidate or least-fixed-point bottom may decide Static/lending/CE.
++    let static_origins = retained::prove_static_origins(&module, &mut remaining, limits)
++        .map_err(|e| vec![e])?;
++    lending::populate(&mut module, &static_origins, &mut remaining).map_err(|e| vec![e])?;
++    retained::check_deferred_closed(&module, &deferred_closed, &static_origins, &mut remaining, limits)
++        .map_err(|e| vec![e])?;
++    registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
++        .map_err(|e| vec![e])?;
+     // Materialization and origin discovery finalize complete callable headers.
+     // Publish the same headers the executable carries before computing any
+     // interface identity; early emission snapshots are not final contracts.
+diff --git a/crates/zil-types/src/retained.rs b/crates/zil-types/src/retained.rs
+index 44e47ae12..a61f6a349 100644
+--- a/crates/zil-types/src/retained.rs
++++ b/crates/zil-types/src/retained.rs
+@@ -19,6 +19,7 @@ pub(crate) struct ReturnedLifeBound {
+ }
+ pub(super) use return_life::populate as populate_return_lives;
+ pub(super) use sources::check_contexts;
++pub(super) use sources::{StaticOrigins, prove_static_origins};
+ pub(super) use sources::populate as populate_sources;
+ 
+ /// Schedule concrete results without speculative type checking: a failed
+diff --git a/crates/zil-types/src/retained/sources.rs b/crates/zil-types/src/retained/sources.rs
+index c95e85cda..cddb90531 100644
+--- a/crates/zil-types/src/retained/sources.rs
++++ b/crates/zil-types/src/retained/sources.rs
+@@ -46,6 +46,7 @@ fn static_leaf<'a>(
+             (ContractProjection::Place(PlaceProjection::Field(index)), Type::Tuple(fields)) => {
+                 fields.get(*index as usize)
+             }
++            (ContractProjection::Place(PlaceProjection::Field(index)), Type::Array { element, length }) if *index < *length => Some(element.as_ref()),
+             (
+                 ContractProjection::Place(PlaceProjection::Variant(projection)),
+                 Type::Enum { variants, .. },
+@@ -80,6 +81,7 @@ struct Summary {
+     captures: Row,
+     external: BTreeMap<u32, Row>,
+     constructed: Vec<(ClosureId, u32, Row, bool)>,
++    returns_complete: bool,
+ }
+ 
+ fn cost(row: &Row, left: &mut usize, span: Span) -> R<()> {
+@@ -152,16 +154,15 @@ fn leaves(
+     }
+     match ty {
+         Type::Address { .. } | Type::Desc(_) => out.push(path.clone()),
+-        Type::BorrowedStorage { life, .. } => {
++        Type::BorrowedStorage { storage, life } => {
++            // The physical Static forest is not the variable slot list.
++            // Keep both directories, deduplicating only an identical path.
++            leaves(module, storage, depth + 1, path, out, left, span, limit)?;
+             for slot in &life.slots {
+-                spend(
+-                    left,
+-                    path.len().saturating_add(slot.path.len()).saturating_add(1),
+-                    span,
+-                )?;
++                spend(left, path.len().saturating_add(slot.path.len()).saturating_add(out.len()).saturating_add(1), span)?;
+                 let mut leaf = path.clone();
+                 leaf.extend(slot.path.iter().copied().map(ContractProjection::Place));
+-                out.push(leaf);
++                if !out.contains(&leaf) { out.push(leaf); }
+             }
+         }
+         Type::OwnedDyn { interface } | Type::Dyn { interface } => {
+@@ -232,6 +233,34 @@ fn leaves(
+                 path.pop();
+             }
+         }
++        Type::Array { element, length } => {
++            spend(left, *length as usize, span)?;
++            for index in 0..*length {
++                path.push(ContractProjection::Place(PlaceProjection::Field(index)));
++                leaves(module, element, depth + 1, path, out, left, span, limit)?;
++                path.pop();
++            }
++        }
++        Type::Enum { variants, .. } => {
++            spend(left, variants.len(), span)?;
++            for (variant, (_, fields)) in variants.iter().enumerate() {
++                spend(left, fields.len(), span)?;
++                let variant = u32::try_from(variant).map_err(|_| unsupported(span, "source variant ordinal overflows"))?;
++                for (index, field) in fields.iter().enumerate() {
++                    let index = u32::try_from(index).map_err(|_| unsupported(span, "source variant field ordinal overflows"))?;
++                    path.push(ContractProjection::Place(PlaceProjection::Variant(VariantProjection { variant, index })));
++                    leaves(module, field, depth + 1, path, out, left, span, limit)?;
++                    path.pop();
++                }
++            }
++        }
++        Type::ErrorUnion { error, result } => {
++            for (arm, child) in [(true, error.as_ref()), (false, result.as_ref())] {
++                path.push(ContractProjection::Place(PlaceProjection::ErrorArm(arm)));
++                leaves(module, child, depth + 1, path, out, left, span, limit)?;
++                path.pop();
++            }
++        }
+         _ => {}
+     }
+     Ok(())
+@@ -373,6 +402,7 @@ fn solve(
+     left: &mut usize,
+     limit: usize,
+     collect_static: bool,
++    total: bool,
+ ) -> R<Summary> {
+     let span = f.span;
+     let captures = f
+@@ -513,6 +543,20 @@ fn solve(
+             head.places.insert((*cell, Vec::new()));
+         }
+     }
++    // Final proof pass observes every intermediate captured-field state, not
++    // just explicit WriteCapture or normal exits. Missing modeled writes
++    // become Unknown in this same source engine before they can prove Static.
++    let mut capture_writes = BTreeMap::<u32, Row>::new();
++    if total && let Some(id) = f.environment {
++        let d = module.closures.get(id.0 as usize).ok_or_else(|| unsupported(span, "Static proof environment is absent"))?;
++        if let Some(header) = &d.storage_life {
++            spend(left, header.static_bindings.len(), span)?;
++            for position in &header.static_bindings {
++                if let StorageBase::Capture(index) = position.base { capture_writes.entry(index).or_default(); }
++            }
++        }
++    }
++    let mut sealed = false;
+     loop {
+         let mut changed = false;
+         for (index, block) in f.blocks.iter().enumerate() {
+@@ -536,7 +580,7 @@ fn solve(
+                 let i = &instruction.kind;
+                 let at = instruction.span;
+                 if let Some(result) = instruction.result {
+-                    let row = match i {
++                    let mut row = match i {
+                         InstructionKind::StaticUtf8 { .. } => Row::from([(
+                             Vec::new(),
+                             Origins {
+@@ -548,7 +592,8 @@ fn solve(
+                             copy(&state[local.0 as usize], left, at)?
+                         }
+                         InstructionKind::BorrowLocal { local }
+-                        | InstructionKind::BorrowLocalMut { local } => {
++                        | InstructionKind::BorrowLocalMut { local }
++                        | InstructionKind::DescribeLocal { local } => {
+                             let mut r =
+                                 seed(module, &f.values[result.0 as usize], None, left, at, limit)?;
+                             if let Some(origin) = r.get_mut(&Vec::new()) {
+@@ -572,6 +617,14 @@ fn solve(
+                             }
+                             r
+                         }
++                        InstructionKind::DescribePackageField { local, index } => {
++                            let mut row = seed(module, &f.values[result.0 as usize], None, left, at, limit)?;
++                            if let Some(head) = row.get_mut(&Vec::new()) {
++                                head.unknown = false;
++                                head.places.insert((*local, vec![ContractProjection::Place(PlaceProjection::Field(*index))]));
++                            }
++                            row
++                        }
+                         InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                             let mut r =
+                                 seed(module, &f.values[result.0 as usize], None, left, at, limit)?;
+@@ -589,7 +642,9 @@ fn solve(
+                             r
+                         }
+                         InstructionKind::ReborrowAddress { address, .. }
+-                        | InstructionKind::DescribeAddress { address } => {
++                        | InstructionKind::DescribeAddress { address }
++                        | InstructionKind::AddressIndex { address, .. }
++                        | InstructionKind::AddressSlice { address, .. } => {
+                             copy(&values[address.0 as usize], left, at)?
+                         }
+                         InstructionKind::AddressField { address, index } => pointed(
+@@ -608,6 +663,8 @@ fn solve(
+                             left,
+                             at,
+                         )?,
++                        InstructionKind::ReadAddress { address } => stored_read(&values[address.0 as usize], &[], &state, left, at)?,
++                        InstructionKind::ReadDesc { desc, index } => stored_read(&values[desc.0 as usize], &[ContractProjection::Place(PlaceProjection::Field(*index))], &state, left, at)?,
+                         InstructionKind::LoadStoredBorrow {
+                             storage,
+                             path,
+@@ -763,7 +820,8 @@ fn solve(
+                         InstructionKind::TakeCapture { index } => {
+                             copy(&state[f.locals.len() + *index as usize], left, at)?
+                         }
+-                        InstructionKind::BorrowCapture { index, .. } => {
++                        InstructionKind::BorrowCapture { index, .. }
++                        | InstructionKind::DescribeCapture { index } => {
+                             let mut row =
+                                 seed(module, &f.values[result.0 as usize], None, left, at, limit)?;
+                             if let Some(head) = row.get_mut(&Vec::new()) {
+@@ -881,6 +939,16 @@ fn solve(
+                         }
+                         _ => seed(module, &f.values[result.0 as usize], None, left, at, limit)?,
+                     };
++                    if sealed {
++                        let mut required = Vec::new();
++                        leaves(module, &f.values[result.0 as usize], 0, &mut Vec::new(), &mut required, left, at, limit)?;
++                        for path in required {
++                            spend(left, path.len().saturating_add(1), at)?;
++                            if !row.get(&path).is_some_and(meaningful) {
++                                row.entry(path).or_default().unknown = true;
++                            }
++                        }
++                    }
+                     changed |= join(&mut values[result.0 as usize], &row, left, at)?;
+                 }
+                 match i {
+@@ -899,6 +967,24 @@ fn solve(
+                         state[f.locals.len() + *index as usize] =
+                             copy(&values[value.0 as usize], left, at)?
+                     }
++                    InstructionKind::WriteAddress { address, value } => {
++                        // The existing place directory is the only target
++                        // relation. Unknown/missing source leaves cannot leave
++                        // an earlier literal pointer live in that place.
++                        let mut update = copy(&values[value.0 as usize], left, at)?;
++                        if sealed {
++                            let mut required = Vec::new();
++                            leaves(module, &f.values[value.0 as usize], 0, &mut Vec::new(), &mut required, left, at, limit)?;
++                            for path in required {
++                                if !update.get(&path).is_some_and(meaningful) { update.entry(path).or_default().unknown = true; }
++                            }
++                        }
++                        mutable_sources::publish(&values[address.0 as usize], &update, &mut state, left, at)?;
++                    }
++                    InstructionKind::WriteDesc { desc, index, value } => {
++                        let address = pointed(&values[desc.0 as usize], &[ContractProjection::Place(PlaceProjection::Field(*index))], left, at)?;
++                        mutable_sources::publish(&address, &values[value.0 as usize], &mut state, left, at)?;
++                    }
+                     InstructionKind::StoreStoredBorrow {
+                         storage,
+                         path,
+@@ -1028,10 +1114,11 @@ fn solve(
+                             else {
+                                 continue;
+                             };
+-                            if !matches!(
+-                                inner.as_ref(),
+-                                Type::Closure(_) | Type::BorrowedStorage { .. }
+-                            ) {
++                            if !matches!(inner.as_ref(), Type::Closure(_) | Type::BorrowedStorage { .. }) {
++                                if sealed {
++                                    let updates = seed(module, inner, None, left, at, limit)?;
++                                    if !updates.is_empty() { publications.push((parameter, updates)); }
++                                }
+                                 continue;
+                             }
+                             let paths =
+@@ -1047,7 +1134,7 @@ fn solve(
+                                         actual, None, arguments, &values, &state, left, at,
+                                     )?
+                                 } else {
+-                                    Origins::default()
++                                    Origins { unknown: sealed, ..Origins::default() }
+                                 };
+                                 updates.insert(path, origin);
+                             }
+@@ -1068,17 +1155,29 @@ fn solve(
+                     | InstructionKind::StorageDead(local) => state[local.0 as usize].clear(),
+                     _ => {}
+                 }
++                if sealed {
++                    for (capture, all_writes) in &mut capture_writes {
++                        let row = state.get(f.locals.len().saturating_add(*capture as usize))
++                            .ok_or_else(|| unsupported(at, "Static captured-field state is absent"))?;
++                        join(all_writes, row, left, at)?;
++                    }
++                }
+             }
+             for (to, from) in outputs[index].iter_mut().zip(state) {
+                 changed |= join(to, &from, left, span)?;
+             }
+         }
+         if !changed {
++            if total && !sealed { sealed = true; continue; }
+             break;
+         }
+     }
+     let mut summary = Summary::default();
+-    for (index, (block, live)) in f.blocks.iter().zip(reachable).enumerate() {
++    let mut required = Vec::new();
++    leaves(module, &f.return_type, 0, &mut Vec::new(), &mut required, left, span, limit)?;
++    let mut saw_return = false;
++    summary.returns_complete = true;
++    for (index, (block, live)) in f.blocks.iter().zip(reachable.iter().copied()).enumerate() {
+         if live && collect_static {
+             for instruction in &block.instructions {
+                 match &instruction.kind {
+@@ -1107,9 +1206,14 @@ fn solve(
+             }
+         }
+         if live && matches!(block.terminator, Terminator::Return(_)) {
++            saw_return = true;
+             if let Terminator::Return(Some(value)) = block.terminator {
++                for path in &required {
++                    spend(left, path.len().saturating_add(1), span)?;
++                    summary.returns_complete &= values[value.0 as usize].get(path).is_some_and(meaningful);
++                }
+                 join(&mut summary.returned, &values[value.0 as usize], left, span)?;
+-            }
++            } else { summary.returns_complete &= required.is_empty(); }
+             for capture in 0..captures.len() {
+                 let row = wrap(
+                     &outputs[index][f.locals.len() + capture],
+@@ -1145,9 +1249,21 @@ fn solve(
+             }
+         }
+     }
++    if total && let Some(closure) = f.environment {
++        for (capture, row) in capture_writes { summary.constructed.push((closure, capture, row, false)); }
++    }
++    summary.returns_complete &= required.is_empty() || saw_return;
++    if total && !summary.returns_complete {
++        for path in required { summary.returned.entry(path).or_default().unknown = true; }
++    }
+     Ok(summary)
+ }
+ 
++fn meaningful(origin: &Origins) -> bool {
++    origin.local || origin.unknown || origin.receiver || origin.static_utf8
++        || !origin.inputs.is_empty() || !origin.places.is_empty()
++}
++
+ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limits) -> R<()> {
+     let local_scopes = local_scopes::populate(module, left, limits, true)?;
+     if local_scopes {
+@@ -1208,7 +1324,7 @@ pub(crate) fn populate(module: &mut TypedModule, left: &mut usize, limits: &Limi
+         let mut changed = false;
+         for f in &module.functions {
+             if f.foreign.is_none() && relevant[f.id.0 as usize] {
+-                let actual = solve(module, f, &summaries, left, limits.max_call_depth, false)?;
++                let actual = solve(module, f, &summaries, left, limits.max_call_depth, false, false)?;
+                 let summary = &mut summaries[f.id.0 as usize];
+                 changed |= join(&mut summary.returned, &actual.returned, left, f.span)?;
+                 changed |= join(&mut summary.captures, &actual.captures, left, f.span)?;
+@@ -2470,6 +2586,20 @@ pub(crate) fn check_contexts(module: &TypedModule, left: &mut usize) -> R<()> {
+ }
+ 
+ type StaticNode = (ClosureId, StoragePosition);
++pub(crate) struct StaticOrigins {
++    captures: BTreeSet<StaticNode>,
++    results: BTreeSet<ClosureId>,
++}
++impl StaticOrigins {
++    pub(crate) fn result(&self, id: ClosureId, left: &mut usize, span: Span) -> R<bool> {
++        spend(left, helpers::plan::tree_work(self.results.len()), span)?;
++        Ok(self.results.contains(&id))
++    }
++    pub(crate) fn capture(&self, id: ClosureId, position: &StoragePosition, left: &mut usize, span: Span) -> R<bool> {
++        spend(left, position.path.len().saturating_add(1).saturating_mul(helpers::plan::tree_work(self.captures.len())), span)?;
++        Ok(self.captures.contains(&(id, position.clone())))
++    }
++}
+ 
+ // A complete actual child Closure identity may conditionally refer to its
+ // constant field. The all-constructor graph below must discharge that field;
+@@ -2550,17 +2680,27 @@ fn static_child_node<'a>(
+                 };
+                 ty
+             }
++            (Type::Array { element, length }, ContractProjection::Place(PlaceProjection::Field(index))) if *index < *length => element,
++            (Type::Enum { variants, .. }, ContractProjection::Place(PlaceProjection::Variant(projection))) => {
++                let Some(child) = variants.get(projection.variant as usize).and_then(|(_, fields)| fields.get(projection.index as usize)) else { return Ok(None); };
++                child
++            }
++            (Type::ErrorUnion { error, result }, ContractProjection::Place(PlaceProjection::ErrorArm(arm))) => if *arm { error } else { result },
+             _ => return Ok(None),
+         };
+         path = tail;
+     }
+ }
+ 
+-pub(super) fn prove_static_constructors(
++pub(crate) fn prove_static_origins(
+     module: &TypedModule,
+     left: &mut usize,
+     limits: &Limits,
+-) -> R<BTreeSet<StaticNode>> {
++) -> R<StaticOrigins> {
++    spend(left, module.closures.len(), Span::default())?;
++    if !module.closures.iter().any(|d| d.storage_life.as_ref().is_some_and(|life| !life.static_bindings.is_empty())) {
++        return Ok(StaticOrigins { captures: BTreeSet::new(), results: BTreeSet::new() });
++    }
+     spend(left, module.functions.len(), Span::default())?;
+     let mut summaries = (0..module.functions.len())
+         .map(|_| Summary::default())
+@@ -2571,7 +2711,7 @@ pub(super) fn prove_static_constructors(
+             if f.foreign.is_some() {
+                 continue;
+             }
+-            let actual = solve(module, f, &summaries, left, limits.max_call_depth, true)?;
++            let actual = solve(module, f, &summaries, left, limits.max_call_depth, true, false)?;
+             let summary = &mut summaries[f.id.0 as usize];
+             changed |= join(&mut summary.returned, &actual.returned, left, f.span)?;
+             changed |= join(&mut summary.captures, &actual.captures, left, f.span)?;
+@@ -2589,6 +2729,22 @@ pub(super) fn prove_static_constructors(
+             break;
+         }
+     }
++    loop {
++        let mut changed = false;
++        for f in &module.functions {
++            if f.foreign.is_some() { continue; }
++            let actual = solve(module, f, &summaries, left, limits.max_call_depth, true, true)?;
++            let summary = &mut summaries[f.id.0 as usize];
++            changed |= join(&mut summary.returned, &actual.returned, left, f.span)?;
++            changed |= join(&mut summary.captures, &actual.captures, left, f.span)?;
++            for (parameter, row) in actual.external {
++                changed |= join(summary.external.entry(parameter).or_default(), &row, left, f.span)?;
++            }
++            summary.constructed = actual.constructed;
++            summary.returns_complete = actual.returns_complete;
++        }
++        if !changed { break; }
++    }
+     let mut edges: BTreeMap<StaticNode, BTreeSet<StaticNode>> = BTreeMap::new();
+     let mut grounded = BTreeSet::new();
+     let mut constructors = BTreeSet::new();
+@@ -2737,5 +2893,37 @@ pub(super) fn prove_static_constructors(
+             "constant environment graph has no actual constructor or StaticUtf8 root",
+         ));
+     }
+-    Ok(grounded)
++    let mut results = BTreeSet::new();
++    for d in &module.closures {
++        let f = &module.functions[d.function.0 as usize];
++        spend(left, d.storage_life.as_ref().map_or(0, |life| life.static_bindings.len()).saturating_add(1), f.span)?;
++        if !d.storage_life.as_ref().is_some_and(|life| life.static_bindings.contains(&StoragePosition { base: StorageBase::Result, path: Vec::new() }))
++            || !summaries[d.function.0 as usize].returns_complete
++            || !matches!(&d.result, Type::Address { mutable: false, inner } if **inner == Type::U8 || matches!(inner.as_ref(), Type::Slice { element } if **element == Type::U8))
++        { continue; }
++        let Some(origins) = summaries[d.function.0 as usize].returned.get(&Vec::new()) else { continue; };
++        if origins.local || origins.unknown || origins.receiver || !origins.places.is_empty()
++            || !origins.static_utf8 && origins.inputs.is_empty() { continue; }
++        let mut complete = true;
++        for source in &origins.inputs {
++            spend(left, source.path.len().saturating_add(1), f.span)?;
++            let node = match source.base {
++                StorageBase::Capture(index) => {
++                    let direct = (d.id, source.clone());
++                    if grounded.contains(&direct) { Some(direct) }
++                    else if let Some(ty) = d.captures.get(index as usize) { static_child_node(module, ty, &source.path, left, f.span, limits.max_call_depth)? }
++                    else { None }
++                }
++                StorageBase::Parameter(index) => {
++                    if let Some(local) = f.parameters.get(index as usize) {
++                        static_child_node(module, &f.locals[local.0 as usize].ty, &source.path, left, f.span, limits.max_call_depth)?
++                    } else { None }
++                }
++                StorageBase::Result => None,
++            };
++            complete &= node.is_some_and(|node| grounded.contains(&node));
++        }
++        if complete { results.insert(d.id); }
++    }
++    Ok(StaticOrigins { captures: grounded, results })
+ }
+diff --git a/crates/zil-types/src/retained/static_closed.rs b/crates/zil-types/src/retained/static_closed.rs
+index 1e6de473e..19b6a1c48 100644
+--- a/crates/zil-types/src/retained/static_closed.rs
++++ b/crates/zil-types/src/retained/static_closed.rs
+@@ -2,115 +2,140 @@
+ //! proposed zero domain is never itself a ClosedEnvironment proof.
+ use super::*;
+ 
++#[allow(clippy::too_many_arguments)]
++fn field(
++    module: &TypedModule,
++    owner: ClosureId,
++    capture: u32,
++    ty: &Type,
++    path: &mut Vec<ContractProjection>,
++    life: &StorageLifeContract,
++    proven: &sources::StaticOrigins,
++    pending: &mut Vec<(ClosureId, Span)>,
++    left: &mut usize,
++    limits: &Limits,
++    span: Span,
++    depth: usize,
++) -> R<()> {
++    spend(left, path.len().saturating_add(1), span)?;
++    if depth > limits.max_call_depth {
++        return Err(Diagnostic::limit(Phase::Types,
++            "closed environment physical forest exceeds depth", Some(span)));
++    }
++    match ty {
++        Type::Closure(child) => { pending.push((*child, span)); }
++        Type::Address { mutable: false, .. } => {
++            spend(left, life.static_bindings.len().saturating_mul(path.len().saturating_add(1)), span)?;
++            let position = StoragePosition { base: StorageBase::Capture(capture), path: path.clone() };
++            if !life.static_bindings.contains(&position) || !proven.capture(owner, &position, left, span)? {
++                return Err(error("E-CLOSED-ENVIRONMENT", span,
++                    "constant environment leaf lacks complete actual constructor and write proofs"));
++            }
++        }
++        Type::Address { mutable: true, .. } | Type::Desc(_) => {
++            return Err(error("E-CLOSED-ENVIRONMENT", span,
++                "actual environment retains an external or exclusive borrowed leaf"));
++        }
++        Type::BorrowedStorage { storage, life: domain } => {
++            spend(left, domain.slots.len().saturating_add(domain.retained.len()).saturating_add(domain.nominal_arguments.len()).saturating_add(1), span)?;
++            if domain.binder_count != 0 || !domain.slots.is_empty()
++                || !domain.retained.is_empty() || !domain.nominal_arguments.is_empty()
++            {
++                return Err(error("E-CLOSED-ENVIRONMENT", span,
++                    "qualified environment retains its complete nonzero or phantom domain"));
++            }
++            field(module, owner, capture, storage, path, life, proven, pending, left, limits, span, depth + 1)?;
++        }
++        Type::Tuple(fields) => {
++            spend(left, fields.len(), span)?;
++            for (index, child) in fields.iter().enumerate() {
++                let index = u32::try_from(index).map_err(|_| unsupported(span, "closed Tuple ordinal overflows"))?;
++                path.push(ContractProjection::Place(PlaceProjection::Field(index)));
++                field(module, owner, capture, child, path, life, proven, pending, left, limits, span, depth + 1)?;
++                path.pop();
++            }
++        }
++        Type::Record { fields, .. } | Type::Package { fields, .. } => {
++            spend(left, fields.len(), span)?;
++            for (index, (_, child)) in fields.iter().enumerate() {
++                let index = u32::try_from(index).map_err(|_| unsupported(span, "closed Product ordinal overflows"))?;
++                path.push(ContractProjection::Place(PlaceProjection::Field(index)));
++                field(module, owner, capture, child, path, life, proven, pending, left, limits, span, depth + 1)?;
++                path.pop();
++            }
++        }
++        Type::Array { element, length } => {
++            spend(left, *length as usize, span)?;
++            for index in 0..*length {
++                path.push(ContractProjection::Place(PlaceProjection::Field(index)));
++                field(module, owner, capture, element, path, life, proven, pending, left, limits, span, depth + 1)?;
++                path.pop();
++            }
++        }
++        Type::Enum { variants, .. } => {
++            spend(left, variants.len(), span)?;
++            for (variant, (_, fields)) in variants.iter().enumerate() {
++                let variant = u32::try_from(variant).map_err(|_| unsupported(span, "closed variant ordinal overflows"))?;
++                spend(left, fields.len(), span)?;
++                for (index, child) in fields.iter().enumerate() {
++                    let index = u32::try_from(index).map_err(|_| unsupported(span, "closed variant field ordinal overflows"))?;
++                    path.push(ContractProjection::Place(PlaceProjection::Variant(VariantProjection { variant, index })));
++                    field(module, owner, capture, child, path, life, proven, pending, left, limits, span, depth + 1)?;
++                    path.pop();
++                }
++            }
++        }
++        Type::ErrorUnion { error, result } => {
++            for (arm, child) in [(true, error.as_ref()), (false, result.as_ref())] {
++                path.push(ContractProjection::Place(PlaceProjection::ErrorArm(arm)));
++                field(module, owner, capture, child, path, life, proven, pending, left, limits, span, depth + 1)?;
++                path.pop();
++            }
++        }
++        _ => {
++            if !local_scopes::closed(ty, module, left, span, depth, limits.max_call_depth)? {
++                return Err(error("E-CLOSED-ENVIRONMENT", span,
++                    "actual environment retains an unproved borrowed or nominal domain"));
++            }
++            // Owning child environments remain independently checked; their
++            // fields are not flattened into this parent's physical positions.
++            if let Type::Managed(child) | Type::OwnedStore { element: child }
++                | Type::Mutex { payload: child } = ty
++            {
++                field(module, owner, capture, child, path, life, proven, pending, left, limits, span, depth + 1)?;
++            }
++        }
++    }
++    Ok(())
++}
++
+ pub(crate) fn check(
+     module: &TypedModule,
+     obligations: &BTreeMap<ClosureId, Span>,
++    proven: &sources::StaticOrigins,
+     left: &mut usize,
+     limits: &Limits,
+ ) -> R<()> {
+-    if obligations.is_empty() {
+-        return Ok(());
+-    }
+-    let proven = sources::prove_static_constructors(module, left, limits)?;
+-    let mut pending = obligations
+-        .iter()
+-        .map(|(id, span)| (*id, *span))
+-        .collect::<Vec<_>>();
++    spend(left, obligations.len(), Span::default())?;
++    let mut pending = obligations.iter().map(|(id, span)| (*id, *span)).collect::<Vec<_>>();
+     let mut seen = BTreeSet::new();
+     while let Some((id, span)) = pending.pop() {
+         spend(left, seen.len().saturating_add(1), span)?;
+-        if !seen.insert(id) {
+-            continue;
+-        }
+-        let d = module
+-            .closures
+-            .get(id.0 as usize)
++        if !seen.insert(id) { continue; }
++        let d = module.closures.get(id.0 as usize)
+             .ok_or_else(|| unsupported(span, "deferred actual ClosureDefinition is absent"))?;
+-        let life = d.storage_life.as_ref().ok_or_else(|| {
+-            unsupported(
+-                span,
+-                "ClosedEnvironment requires a complete actual domain; None is unknown",
+-            )
+-        })?;
++        let life = d.storage_life.as_ref().ok_or_else(|| unsupported(span,
++            "ClosedEnvironment requires a complete actual domain; None is unknown"))?;
+         if life.fixed_binder_count != 0 {
+-            return Err(error(
+-                "E-CLOSED-ENVIRONMENT",
+-                span,
+-                "actual environment retains free input classes",
+-            ));
++            return Err(error("E-CLOSED-ENVIRONMENT", span,
++                "actual environment retains free input classes"));
+         }
+-        for (index, ty) in d.captures.iter().enumerate() {
++        spend(left, d.captures.len(), span)?;
++        for (capture, ty) in d.captures.iter().enumerate() {
+             inference::charge_type_snapshot(ty, span, limits, left, 1)?;
+-            match ty {
+-                Type::Closure(child) => pending.push((*child, span)),
+-                Type::Address { mutable: false, .. } => {
+-                    let position = StoragePosition {
+-                        base: StorageBase::Capture(index as u32),
+-                        path: Vec::new(),
+-                    };
+-                    if !life.static_bindings.contains(&position)
+-                        || !proven.contains(&(id, position))
+-                    {
+-                        return Err(error(
+-                            "E-CLOSED-ENVIRONMENT",
+-                            span,
+-                            "constant environment field lacks complete actual constructor and write proofs",
+-                        ));
+-                    }
+-                }
+-                _ if local_scopes::closed(ty, module, left, span, 0, limits.max_call_depth)? => {
+-                    // Zero class metadata on a nested child is a candidate,
+-                    // not its environment proof. Inspect every actual child
+-                    // definition even when a Product/array hides its value.
+-                    let mut fields = vec![(ty, 0usize)];
+-                    while let Some((field, depth)) = fields.pop() {
+-                        spend(left, 1, span)?;
+-                        if depth > limits.max_call_depth {
+-                            return Err(unsupported(
+-                                span,
+-                                "nested closed environment inventory exceeds finite depth",
+-                            ));
+-                        }
+-                        match field {
+-                            Type::Closure(child) => pending.push((*child, span)),
+-                            Type::Managed(inner)
+-                            | Type::Array { element: inner, .. }
+-                            | Type::OwnedStore { element: inner }
+-                            | Type::BorrowedStorage { storage: inner, .. } => {
+-                                fields.push((inner, depth + 1))
+-                            }
+-                            Type::Tuple(children) => {
+-                                fields.extend(children.iter().map(|child| (child, depth + 1)))
+-                            }
+-                            Type::Record {
+-                                fields: children, ..
+-                            }
+-                            | Type::Package {
+-                                fields: children, ..
+-                            } => {
+-                                fields.extend(children.iter().map(|(_, child)| (child, depth + 1)))
+-                            }
+-                            Type::Enum { variants, .. } => {
+-                                for (_, children) in variants {
+-                                    fields.extend(children.iter().map(|child| (child, depth + 1)));
+-                                }
+-                            }
+-                            Type::ErrorUnion { error, result } => {
+-                                fields.push((error, depth + 1));
+-                                fields.push((result, depth + 1));
+-                            }
+-                            _ => {}
+-                        }
+-                    }
+-                }
+-                _ => {
+-                    return Err(error(
+-                        "E-CLOSED-ENVIRONMENT",
+-                        span,
+-                        "actual environment retains an unproved borrowed or nominal domain",
+-                    ));
+-                }
+-            }
++            let capture = u32::try_from(capture).map_err(|_| unsupported(span, "capture ordinal overflows"))?;
++            field(module, id, capture, ty, &mut Vec::new(), life, proven,
++                &mut pending, left, limits, span, 0)?;
+         }
+     }
+     Ok(())

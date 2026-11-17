@@ -1,0 +1,317 @@
+{
+  "rows": [
+    {
+      "step": "original-16-standard",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/check-task-positive-fixtures.py",
+        "--repo",
+        "/workspace/zil-alpha-candidate",
+        "--run",
+        "alpha-resume-complete-task-lifecycle-and-exact-success-preservation",
+        "--cli",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/frozen-cli/zil",
+        "--work-profile",
+        "standard",
+        "--jobs",
+        "2"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": true,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 4.839729070663452
+    },
+    {
+      "step": "original-16-alpha",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/check-task-positive-fixtures.py",
+        "--repo",
+        "/workspace/zil-alpha-candidate",
+        "--run",
+        "alpha-resume-complete-task-lifecycle-and-exact-success-preservation",
+        "--cli",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/frozen-cli/zil",
+        "--work-profile",
+        "alpha",
+        "--jobs",
+        "2"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": true,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 4.779519081115723
+    },
+    {
+      "step": "foundation",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/check-foundation-compressed.py",
+        "--repo",
+        "/workspace/zil-alpha-candidate",
+        "--cli",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/frozen-cli/zil",
+        "--out",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/alpha-coverage",
+        "--work-profile",
+        "alpha",
+        "--jobs",
+        "2"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 18.86198329925537
+    },
+    {
+      "step": "all-helper-sources",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/check-all-task-helper-sources.py",
+        "--repo",
+        "/workspace/zil-alpha-candidate",
+        "--cli",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/frozen-cli/zil",
+        "--build-receipt",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/compiler-build-receipt.json",
+        "--out",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/all-task-helper-sources",
+        "--work-profile",
+        "standard",
+        "--jobs",
+        "2"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": true,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 10.828535795211792
+    },
+    {
+      "step": "sdk-derived-sources",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/check-sdk-derived-task-sources.py",
+        "--repo",
+        "/workspace/zil-alpha-candidate",
+        "--run",
+        "alpha-resume-complete-task-lifecycle-and-exact-success-preservation"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": true,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 2.456251859664917
+    },
+    {
+      "step": "task-owner-complete",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "task_owner_transport",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 101,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 50.755040884017944
+    },
+    {
+      "step": "direct-native",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/check-task-direct-existing-native.py",
+        "--repo",
+        "/workspace/zil-alpha-candidate",
+        "--run",
+        "alpha-resume-complete-task-lifecycle-and-exact-success-preservation"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 9.378681182861328
+    },
+    {
+      "step": "original-simple-native",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/check-task-helper-native-cases.py",
+        "--repo",
+        "/workspace/zil-alpha-candidate",
+        "--run",
+        "alpha-resume-complete-task-lifecycle-and-exact-success-preservation",
+        "--jobs",
+        "2",
+        "--exact-simple-fixtures"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 5.911194562911987
+    },
+    {
+      "step": "source-integrations",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--no-fail-fast",
+        "-p",
+        "zil-expand",
+        "--test",
+        "option_borrowed_input",
+        "--test",
+        "task_callable_source",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 0.979550838470459
+    },
+    {
+      "step": "source-static-controls",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-expand",
+        "--lib",
+        "static_result",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 0.22076153755187988
+    },
+    {
+      "step": "address-product-controls",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-types",
+        "--lib",
+        "address_product_tests",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 0.18912053108215332
+    },
+    {
+      "step": "frame-consumer-controls",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-analyze",
+        "--lib",
+        "frame_consumer_tests",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 31.410693645477295
+    },
+    {
+      "step": "extra-originals",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/check-extra-originals.py",
+        "--repo",
+        "/workspace/zil-alpha-candidate",
+        "--run",
+        "alpha-resume-complete-task-lifecycle-and-exact-success-preservation",
+        "--work-profile",
+        "alpha",
+        "--jobs",
+        "2"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 4.467534780502319
+    },
+    {
+      "step": "nearest",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/check-alpha-nearest-complete.py",
+        "--repo",
+        "/workspace/zil-alpha-candidate",
+        "--run",
+        "alpha-resume-complete-task-lifecycle-and-exact-success-preservation",
+        "--work-profile",
+        "alpha"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 3.2988994121551514
+    },
+    {
+      "step": "focused-raw",
+      "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+      "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/check-complete-raw-controls.py",
+        "--repo",
+        "/workspace/zil-alpha-candidate",
+        "--run",
+        "alpha-resume-complete-task-lifecycle-and-exact-success-preservation",
+        "--write-manifest",
+        "/tmp/zil-raw-reference-write-controls/cases-reviewed-oracle.json"
+      ],
+      "exit_code": 0,
+      "diagnostic_only": false,
+      "command_exit_is_not_acceptance": true,
+      "seconds": 2.392852783203125
+    }
+  ]
+}

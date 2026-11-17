@@ -1,0 +1,16 @@
+{
+  "status": "Pass",
+  "exit_code": 0,
+  "git_status": "",
+  "source_commit": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+  "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "zil-cli"
+  ],
+  "build_log": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/build.log",
+  "completed_at_utc": "2026-11-17T06:41:46.253470+00:00"
+}
