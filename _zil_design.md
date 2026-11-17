@@ -674,6 +674,8 @@ Address 的捕获在首次地址解引用处截断，包括 `move`；例如 `sel
 
 满足 Fn 的环境也可经独占/消费适配调用，满足 FnMut 的环境也可经消费适配调用；适配不减少 Hold、效果和状态前提。普通 `f(...)` 按静态接口当前可见的 Fn、FnMut、FnOnce 优先顺序确定一次调用模式，再检查其前提；检查失败不消费回退。具体 FnMut 闭包不能因绑定是 let 就自动改走 FnOnce；需要消费适配时显式使用 `FnOnce.call_once(f, argsTuple)`，或将 f 按值传给只声明 FnOnce 的泛型入口。调用 FnMut 需要可写闭包位置，通常为 `var f`；FnOnce 调用消费闭包，即使绑定是 let 也可以移动一次。FnOnce 只表示至多一次调用接口，不承诺一定调用；从未调用的拥有环境仍准确清理。
 
+Callable 签名的 Direct/Suspend 上界约束所选调用模式的完整操作。对 FnOnce，Direct 包括正文执行及未转交的剩余环境清理；正文入口采用 Direct ABI 不单独证明消费适配为 Direct。全出口已转交的捕获不再清理，剩余实际 Task 已合法 Closed 且其余清理同步时也可证明 Direct，不要求整个环境类型因此具有 SyncDrop。需要异步清理的消费操作只能在已核的 Suspend 合同与实际任务帧中完成，外围函数可挂起不能补足被调用方的 Direct 承诺。原泛型约束中的完整 FnOnce Direct 前提可证明该次消费，但不授予未调用环境 SyncDrop；实参准备失败、未调用或分支上未消费的位置仍有独立清理义务。opaque 返回隐藏具体类型后继续导出这一完整操作上界；返回合同和依赖它的调用效果须共同收敛后发布，不能从隐藏正文的入口 ABI 反推公开消费能力，也不能将显式 Direct 限制改写成 Suspend 来接受程序。
+
 拥有捕获不等于 FnOnce-only：`move () => text.length()` 可以保有 text 并重复只读。相反，`move () => file.close()` 在 file 为直接 Managed 时会修改环境内真实责任记录并履行责任，必须取得消费环境资格，不能宣称通过共享 `&Env` 写 cleanup flag。若显式槽协议在每个出口重新建立完整形状、初始化与新责任，可以提供 FnMut；新实例不得冒充旧实例。
 
 `() => alias.close()` 若只捕获外部 Desc 与借入 route，环境本身可为 Shared，但 Call 把外部目标由 Live 变 Done，第二次调用必须拒绝。重复调用还需每个允许出口的 Call 后态满足下一次入口；`Fn` 不隐含任意次数、无重入、纯函数或线程安全。泛型 twice/map 等接口必须导出其真实调用次数、顺序或循环不变入口义务；不能只凭 trait 名称批准重复调用。
