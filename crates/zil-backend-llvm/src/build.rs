@@ -189,7 +189,7 @@ impl CodegenSummary {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq)]
 pub struct BuildOptions {
     pub backend: NativeBackend,
     pub clang: PathBuf,
@@ -217,8 +217,58 @@ pub struct BuildOptions {
     pub windows: Option<WindowsLinkOptions>,
     /// Explicit trusted local cache; None preserves the uncached reference.
     pub object_cache: Option<PathBuf>,
+    /// Raw emission DATA under the explicit trusted semantic-cache contract.
+    /// Requires current producer reuse; ordinary object-cache trust is separate.
+    pub trusted_emission_cache: Option<PathBuf>,
     /// Read-only publication hints; only opaque backend evidence can retain files.
     pub published_paths: Option<(PathBuf, PathBuf)>,
+}
+
+impl PartialEq for BuildOptions {
+    fn eq(&self, other: &Self) -> bool {
+        // A held cache directory may have another /proc/self/fd spelling on
+        // each request. It is an operational DATA source, not an emission or
+        // partition input. Presence stays bound; every actual output is bound
+        // by the existing current machine identities and model comparisons.
+        let Self {
+            backend,
+            clang,
+            native_link_profile,
+            output,
+            optimization,
+            closed_executable,
+            late_closed_executable,
+            incremental_o2,
+            bounded_class_imports,
+            native_products,
+            emission_reuse,
+            function_merging,
+            codegen,
+            emit,
+            windows,
+            object_cache,
+            trusted_emission_cache,
+            published_paths,
+        } = other;
+        self.backend == *backend
+            && self.clang == *clang
+            && self.native_link_profile == *native_link_profile
+            && self.output == *output
+            && self.optimization == *optimization
+            && self.closed_executable == *closed_executable
+            && self.late_closed_executable == *late_closed_executable
+            && self.incremental_o2 == *incremental_o2
+            && self.bounded_class_imports == *bounded_class_imports
+            && self.native_products == *native_products
+            && self.emission_reuse == *emission_reuse
+            && self.function_merging == *function_merging
+            && self.codegen == *codegen
+            && self.emit == *emit
+            && self.windows == *windows
+            && self.object_cache == *object_cache
+            && self.trusted_emission_cache.is_some() == trusted_emission_cache.is_some()
+            && self.published_paths == *published_paths
+    }
 }
 
 impl BuildOptions {
@@ -239,6 +289,7 @@ impl BuildOptions {
             codegen: CodegenOptions::default(),
             windows: None,
             object_cache: None,
+            trusted_emission_cache: None,
             published_paths: None,
             emit: EmitOptions {
                 entry: EntryPoint::Main,
@@ -276,6 +327,19 @@ impl BuildArtifact {
     /// Call only after all request validation, cancellation and publication steps.
     pub fn commit_object_cache(&mut self) {
         std::mem::take(&mut self.pending_cache).commit(&mut self.codegen.object_cache);
+    }
+}
+
+impl crate::BackendSession {
+    /// Driver calls only after its successful native publication and cache
+    /// namespace guard. Failed/cancelled requests drop their staged session.
+    pub fn commit_trusted_emission_cache(&mut self, guarded_root: &Path) {
+        if let Some(pending) = self.lower.pending_raw_emission.take() {
+            pending.commit(guarded_root);
+        }
+    }
+    pub fn discard_trusted_emission_cache(&mut self) {
+        self.lower.pending_raw_emission = None;
     }
 }
 
@@ -426,20 +490,35 @@ pub fn build_view_with_cancellation_and_session(
     }
     let machine_started = std::time::Instant::now();
     let mut machine_preflight = crate::machine_preflight::CurrentPreflight::default();
-    let (mut machine, collected_closed, mut task_work) = crate::emit::lower_output_with_session(
-        verified,
-        lir,
-        &options.emit,
-        options.optimization == Optimization::O2 && options.incremental_o2,
-        options.closed_executable
-            && options.backend == NativeBackend::LlvmApi
-            && options.codegen.units >= 2,
-        options.codegen.jobs,
-        session.as_deref_mut().map(|session| &mut session.lower),
-        options.backend == NativeBackend::LlvmApi
-            && options.optimization == Optimization::O2
-            && !options.incremental_o2,
-    )?;
+    if let Some(session) = session.as_deref_mut() {
+        session.lower.pending_raw_emission = None;
+    }
+    let mut raw_emission = (options.backend == NativeBackend::LlvmApi
+        && options.optimization == Optimization::O2
+        && session.is_some())
+    .then(|| {
+        options
+            .trusted_emission_cache
+            .as_deref()
+            .and_then(|root| crate::emit::raw_products::Request::new(root, lir.target))
+    })
+    .flatten();
+    let (mut machine, collected_closed, mut task_work) =
+        crate::emit::lower_output_with_raw_products(
+            verified,
+            lir,
+            &options.emit,
+            options.optimization == Optimization::O2 && options.incremental_o2,
+            options.closed_executable
+                && options.backend == NativeBackend::LlvmApi
+                && options.codegen.units >= 2,
+            options.codegen.jobs,
+            session.as_deref_mut().map(|session| &mut session.lower),
+            options.backend == NativeBackend::LlvmApi
+                && options.optimization == Optimization::O2
+                && !options.incremental_o2,
+            raw_emission.as_mut(),
+        )?;
     timings.machine_emit_ns = crate::object_cache::elapsed_ns(machine_started);
     let transform_started = std::time::Instant::now();
     if let Some(session) = session.as_deref_mut() {
@@ -449,6 +528,10 @@ pub fn build_view_with_cancellation_and_session(
         session.summary.reused_functions = session.lower.hits;
         session.summary.reused_body_templates = session.lower.reused_body_templates;
         session.summary.produced_body_templates = session.lower.produced_body_templates;
+        session.summary.restored_emission_templates =
+            raw_emission.as_ref().map_or(0, |raw| raw.hits);
+        session.summary.raw_emission_cache_misses =
+            raw_emission.as_ref().map_or(0, |raw| raw.misses);
         session.summary.shared_body_template_reuses = session.lower.shared_body_template_reuses;
         session.summary.shared_admission_reuses = session.lower.shared_admission_reuses;
         session.summary.reused_machine_module = session.lower.reused_machine_module;
@@ -1506,6 +1589,7 @@ pub fn build_view_with_cancellation_and_session(
         session.final_product = Some(product);
         session.summary.reused_link = true;
         session.remember_machine_products();
+        session.lower.pending_raw_emission = raw_emission.take().and_then(|raw| raw.pending());
         codegen.final_artifact = Some(crate::FinalArtifactSummary {
             reused_program: true,
             retained_files: retained,
@@ -1910,6 +1994,7 @@ pub fn build_view_with_cancellation_and_session(
     let artifact_reuse = final_product.as_ref().map(|product| product.token(None));
     timings.link_execution_ns += crate::object_cache::elapsed_ns(capture_started);
     if let Some(session) = session {
+        session.lower.pending_raw_emission = raw_emission.take().and_then(|raw| raw.pending());
         // Attach only a complete successful chain to the existing lower LRU.
         // Failed/cancelled builds never publish this historical association.
         session.remember_machine_products();

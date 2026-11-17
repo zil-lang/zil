@@ -741,3 +741,30 @@ fn shared_locator_chunks_use_one_physical_pack_and_checked_offsets() {
     let rebound = restored.epoch();
     assert_eq!(rebound.shared.as_ref().unwrap().locations, shared.locations);
 }
+
+#[test]
+fn repeated_logical_reads_share_current_checked_bytes_and_cancel_still_wins() {
+    let fixture = Fixture::new(8192);
+    let bytes: Arc<[u8]> = vec![29; 2049].into();
+    let key = Fingerprint::of(&bytes);
+    let mut epoch = Epoch::default();
+    fixture.publish(
+        91,
+        b"current logical rows",
+        &[(key, bytes.clone())],
+        &mut epoch,
+    );
+    let mut reader = fixture.reader(91);
+    let first = reader.load(key).unwrap();
+    let second = reader.load(key).unwrap();
+    assert!(Arc::ptr_eq(&first, &second));
+    assert_eq!(first.as_ref(), bytes.as_ref());
+    assert_eq!(reader.requested.len(), 1);
+    // Already admitted immutable bytes remain only a raw-data snapshot, not a
+    // way around cancellation or a second reader's actual file validation.
+    reader.cancellation.cancel();
+    assert!(reader.load(key).is_none());
+    let file = epoch.first_pack_path().unwrap();
+    fs::write(file, b"corrupt after the current reader").unwrap();
+    assert!(fixture.reader(91).load(key).is_none());
+}

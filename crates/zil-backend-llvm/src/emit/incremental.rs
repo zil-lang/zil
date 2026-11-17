@@ -7,6 +7,7 @@ use std::sync::Arc;
 #[path = "incremental_tests.rs"]
 mod header_tests;
 mod metadata_budget;
+mod raw_context;
 mod representation;
 mod whole;
 #[cfg(test)]
@@ -19,6 +20,7 @@ pub(crate) use whole::with_initial_work;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Session {
+    pub(crate) pending_raw_emission: Option<crate::emit::raw_products::Pending>,
     pub(in crate::emit) body_inputs: Option<Arc<scalar_bodies::Inputs>>,
     context: Option<Arc<Context>>,
     entries: EntryTable,

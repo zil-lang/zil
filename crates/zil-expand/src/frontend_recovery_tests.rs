@@ -413,3 +413,151 @@ fn source_and_context_bytes_are_authority_not_record_selector() {
     );
     assert_eq!(restored.last_stats().recovered_frontend_modules, 0);
 }
+
+fn namespace_environment(text: &str) -> Environment {
+    let input = parsed(0, text);
+    assert!(
+        input.parsed().diagnostics.is_empty(),
+        "{:?}",
+        input.parsed().diagnostics
+    );
+    assert!(ExpandSession::default().parsed_scalar(&input, &Limits::default()));
+    Environment {
+        sources: vec![(ModuleId(0), FileId(0), "m0.zil".into())],
+        headers: vec![HeaderInput(Arc::new(module_headers(
+            &input.parsed().module,
+        )))],
+        imports: vec![vec![]],
+        limits: Limits::default(),
+        target: TargetProfile::default(),
+        context: "closed:0:[]".into(),
+        fused_distribution: false,
+    }
+}
+
+#[test]
+fn canonical_namespace_bytes_match_the_existing_closed_products_predicate() {
+    let declarations = [
+        "fn f(x:i32)->i32=>x;",
+        "fn f(y:i64,z:bool)->i64=>y+123456;",
+        "pub fn f(x:i32)->i32=>x;",
+        "#[test] fn f(x:i32)->i32=>x;",
+        "fn renamed(x:i32)->i32=>x;",
+        "extern \"C\" fn f(x:i32)->i32;",
+        "extern \"other\" fn f(y:i64)->i64;",
+        "import dep as a; fn f(x:i32)->i32=>x;",
+        "import dep as b; fn f(x:i32)->i32=>x;",
+        "import other as a; fn f(x:i32)->i32=>x;",
+    ]
+    .map(namespace_environment);
+    for left in &declarations {
+        for right in &declarations {
+            assert_eq!(
+                context(left) == context(right),
+                left.scalar_products_compatible(right)
+            );
+        }
+    }
+    let baseline = namespace_environment("fn f(x:i32)->i32=>x;");
+    let mut current = baseline.clone();
+    current.limits.max_nodes -= 1;
+    current.limits.max_analysis_steps -= 1;
+    assert_eq!(context(&current), context(&baseline));
+    current = baseline.clone();
+    current.target.triple.push('x');
+    assert_ne!(context(&current), context(&baseline));
+    current = baseline.clone();
+    current.limits.max_call_depth -= 1;
+    assert_ne!(context(&current), context(&baseline));
+    current = baseline.clone();
+    current.sources[0].1 = FileId(1);
+    assert_ne!(context(&current), context(&baseline));
+    current = baseline.clone();
+    current.fused_distribution = true;
+    assert_ne!(context(&current), context(&baseline));
+    current = baseline.clone();
+    current.imports[0].push(CoreImport {
+        alias: "dep".into(),
+        module: ModuleId(1),
+        span: Span::default(),
+    });
+    let with_import = context(&current);
+    current.imports[0][0].span.end += 1;
+    assert_ne!(
+        context(&current),
+        with_import,
+        "exact current import diagnostic binding"
+    );
+    // An unclassified attribute cannot be represented as an admitted marker.
+    current = namespace_environment("#[test] fn f()->i32=>1;");
+    Arc::make_mut(&mut current.headers[0].0)[0].attributes[0].path = vec!["unknown".into()];
+    assert!(context(&current).is_none());
+}
+
+#[test]
+fn namespace_encoding_is_bounded_and_shared_only_under_its_exact_dependency_projection() {
+    let mut environment = namespace_environment("fn f(x:i32)->i32=>x;");
+    let length = context(&environment).unwrap().len();
+    environment.limits.max_source_bytes = length;
+    assert_eq!(context(&environment).unwrap().len(), length);
+    environment.limits.max_source_bytes -= 1;
+    assert!(context(&environment).is_none());
+
+    let limits = Limits::default();
+    let mut session = ExpandSession::default();
+    run(
+        &mut session,
+        &inputs("fn main(x:i32)->i32=>x;"),
+        &limits,
+        false,
+    )
+    .unwrap()
+    .unwrap();
+    let products = session.encode_frontend_products(&limits).unwrap();
+    let memo = session.frontend_context.clone();
+    assert!(memo.get().unwrap().is_some());
+    // Signature, body length and the later function's placement are separately
+    // current inputs; none is a remote raw Normalize/Restore/Lower lookup.
+    run(
+        &mut session,
+        &inputs("fn main(y:i64,z:bool)->i64=>y+123456;"),
+        &limits,
+        false,
+    )
+    .unwrap()
+    .unwrap();
+    assert!(Arc::ptr_eq(&memo, &session.frontend_context));
+    assert_eq!(
+        session.encode_frontend_products(&limits).unwrap().context,
+        products.context
+    );
+    run(
+        &mut session,
+        &inputs("pub fn main(y:i64,z:bool)->i64=>y+123456;"),
+        &limits,
+        false,
+    )
+    .unwrap()
+    .unwrap();
+    assert!(!Arc::ptr_eq(&memo, &session.frontend_context));
+    assert_ne!(
+        session.encode_frontend_products(&limits).unwrap().context,
+        products.context
+    );
+}
+
+#[test]
+fn projected_namespace_still_binds_complete_local_source_before_recovery() {
+    let limits = Limits::default();
+    let products = seed(false);
+    let current = inputs("fn main(x:i64,y:bool)->i64=>x+123456;");
+    let mut session = ExpandSession::default();
+    assert!(session.restore_frontend_products(products, &limits));
+    let actual = run(&mut session, &current, &limits, false).unwrap();
+    assert_eq!(
+        actual,
+        run(&mut ExpandSession::default(), &current, &limits, false).unwrap()
+    );
+    assert_eq!(session.last_stats().recovered_frontend_modules, 1);
+    assert_eq!(session.last_stats().lower_modules, 1);
+}

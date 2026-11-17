@@ -16,6 +16,88 @@ use zil_db::{
 use zil_ir::{CandidatePlan, CoreModule, Type, TypedModule, TypedProgram};
 use zil_syntax::ParseResult;
 
+fn trusted_emission_namespace(
+    options: &CompileOptions,
+    artifacts: &ArtifactPlan,
+) -> Option<(ArtifactPlan, super::artifacts::CacheNamespace, PathBuf)> {
+    // This is the explicit semantic-cache trust domain. In particular the
+    // legacy post-O2 emission_reuse flag excludes closed builds and must not
+    // select this pre-O2 raw-data cache.
+    if !options.push_reuse
+        || options.backend != NativeBackend::LlvmApi
+        || options.optimization != Optimization::O2
+    {
+        return None;
+    }
+    if ["LD_PRELOAD", "LD_AUDIT"]
+        .iter()
+        .any(|name| std::env::var_os(name).is_some_and(|value| !value.is_empty()))
+    {
+        return None;
+    }
+    let semantic = options.semantic_cache.as_ref()?;
+    let parent = fs::symlink_metadata(semantic).ok()?;
+    if !parent.is_dir() || parent.file_type().is_symlink() {
+        return None;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if parent.permissions().mode() & 0o022 != 0 {
+            return None;
+        }
+    }
+    let mut plan = artifacts.clone();
+    let root = plan
+        .cache_directory("trusted-raw-emission", &semantic.join("raw-emission-v1"))
+        .ok()?;
+    let mut builder = fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder.create(&root).ok()?;
+    let meta = fs::symlink_metadata(&root).ok()?;
+    if !meta.is_dir() || meta.file_type().is_symlink() {
+        return None;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if meta.permissions().mode() & 0o022 != 0 {
+            return None;
+        }
+    }
+    let namespace = plan.pin_cache_directory(&root).ok()?;
+    namespace.validate_write().ok()?;
+    Some((plan, namespace, root))
+}
+
+fn refresh_emission_namespace(
+    guarded: &(ArtifactPlan, super::artifacts::CacheNamespace, PathBuf),
+) -> Option<super::artifacts::CacheNamespace> {
+    let (plan, held, root) = guarded;
+    let original = fs::metadata(held.root()).ok()?;
+    let current = fs::symlink_metadata(root).ok()?;
+    if !current.is_dir() || current.file_type().is_symlink() {
+        return None;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if (original.dev(), original.ino()) != (current.dev(), current.ino()) {
+            return None;
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = original;
+    // Legitimate native publication changed output stamps. Capture a fresh
+    // full artifact guard only after that publication, retaining the same root.
+    plan.pin_cache_directory(root).ok()
+}
+
 // A refusal policy for the CLI's optional native capture, never a machine or
 // language proof. Small bodies pay fixed key/capture costs at many LLVM stages;
 // require at least this much current LIR work per defined function before
@@ -1388,6 +1470,10 @@ impl CompilationSession {
             && !build.native_products
             && !options.closed_executable
             && !options.late_closed_executable;
+        let trusted_emission_namespace = trusted_emission_namespace(options, &artifacts);
+        build.trusted_emission_cache = trusted_emission_namespace
+            .as_ref()
+            .map(|(_, namespace, _)| namespace.root().to_path_buf());
         report.native_product_selection = Some(Box::new(native_selection));
         // The current BuildOptions value enters the original backend config
         // match and successful native-history commit. A cheap successful build
@@ -1479,6 +1565,19 @@ impl CompilationSession {
             artifact.discard_partition_cache();
         }
         artifact.commit_object_cache();
+        if let Some(backend) = backend.as_mut() {
+            let namespace = trusted_emission_namespace
+                .as_ref()
+                .and_then(refresh_emission_namespace);
+            if !options.cancellation.is_cancelled()
+                && let Some(namespace) = namespace
+                && namespace.validate_write().is_ok()
+            {
+                backend.commit_trusted_emission_cache(namespace.root());
+            } else {
+                backend.discard_trusted_emission_cache();
+            }
+        }
         if let Some(backend) = backend.as_mut() {
             backend.record_published(&artifact);
         }

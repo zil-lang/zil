@@ -10,15 +10,67 @@ pub struct FrontendProducts {
     pub modules: BTreeMap<ModuleId, Arc<[u8]>>,
 }
 
+// One immutable encoding per successful bound environment. Checkpoints share
+// it; only the existing scalar-products predicate can carry it to a new epoch.
+pub(super) type ContextEncoding = Arc<std::sync::OnceLock<Option<Arc<[u8]>>>>;
+
+fn bound_context<'a>(environment: &Environment, encoding: &'a ContextEncoding) -> Option<&'a [u8]> {
+    encoding
+        .get_or_init(|| context(environment).map(Arc::from))
+        .as_deref()
+}
+
 fn context(environment: &Environment) -> Option<Vec<u8>> {
-    // Encode the same closed namespace dependency as namespace_headers. The
-    // current local bytes bind the complete signature/body; remote signatures
-    // are not read by Normalize/Restore/Lower in this admitted domain.
-    let mut limits = environment.limits.clone();
-    limits.max_nodes = 0;
-    limits.max_analysis_steps = 0;
+    // Encode exactly the closed namespace dependency of namespace_headers.
+    // Local complete source bytes bind signatures/bodies, and the independent
+    // current Types context continues to consume every actual signature.
     let mut w = Writer::new(&environment.limits);
-    w.debug(&(&limits, &environment.target))?;
+    w.put(b"ZILNS02\0")?;
+    let Limits {
+        max_source_bytes,
+        max_tokens,
+        max_nodes: _,
+        max_functions,
+        max_blocks,
+        max_instructions,
+        max_locals,
+        max_values,
+        max_analysis_steps: _,
+        max_ct_steps,
+        max_call_depth,
+    } = &environment.limits;
+    for value in [
+        *max_source_bytes,
+        *max_tokens,
+        *max_functions,
+        *max_blocks,
+        *max_instructions,
+        *max_locals,
+        *max_values,
+        *max_call_depth,
+    ] {
+        w.u64(u64::try_from(value).ok()?)?;
+    }
+    w.u64(*max_ct_steps)?;
+    let TargetProfile {
+        id,
+        triple,
+        pointer_width,
+        endian,
+        backend,
+        rule_version,
+        checked_arithmetic,
+    } = &environment.target;
+    w.text(id)?;
+    w.text(triple)?;
+    w.number(usize::from(*pointer_width))?;
+    w.byte(match endian {
+        zil_base::Endian::Little => 0,
+        zil_base::Endian::Big => 1,
+    })?;
+    w.text(backend)?;
+    w.text(rule_version)?;
+    w.boolean(*checked_arithmetic)?;
     w.text(&environment.context)?;
     w.boolean(environment.fused_distribution)?;
     w.number(environment.sources.len())?;
@@ -43,6 +95,22 @@ fn context(environment: &Environment) -> Option<Vec<u8>> {
             }
             w.boolean(item.public)?;
             w.number(item.attributes.len())?;
+            for attribute in &item.attributes {
+                let s::Attribute {
+                    path,
+                    arguments,
+                    string_value,
+                    span: _,
+                } = attribute;
+                // Scalar admission permits only argument-free #[test]. Keep
+                // the actual full fields rather than a name-derived marker.
+                if !arguments.is_empty() {
+                    return None;
+                }
+                w.strings(path)?;
+                w.number(arguments.len())?;
+                w.optional(string_value, |w, value| w.text(value))?;
+            }
             match &item.kind {
                 s::ItemKind::Function(f) => {
                     w.byte(0)?;
@@ -53,8 +121,15 @@ fn context(environment: &Environment) -> Option<Vec<u8>> {
                     w.text(&function.name)?;
                 }
                 s::ItemKind::Import(import) => {
+                    let s::Import {
+                        path,
+                        alias,
+                        syntax,
+                    } = import;
                     w.byte(2)?;
-                    w.debug(import)?;
+                    w.strings(path)?;
+                    w.optional(alias, |w, value| w.text(value))?;
+                    w.boolean(*syntax)?;
                 }
                 _ => return None,
             }
@@ -90,7 +165,7 @@ impl ExpandSession {
 
     pub fn encode_frontend_products(&self, limits: &Limits) -> Option<FrontendProducts> {
         let environment = self.environment.as_ref()?;
-        let context = context(environment)?;
+        let context = bound_context(environment, &self.frontend_context)?.to_vec();
         let mut bytes = context.len();
         let mut modules = BTreeMap::new();
         for (id, entry) in &self.entries {
@@ -120,12 +195,13 @@ pub(super) fn admit(
     products: Option<&FrontendProducts>,
     environment: &Environment,
     owner: &Arc<Environment>,
+    encoding: &ContextEncoding,
     entries: &mut BTreeMap<ModuleId, Entry>,
 ) -> u64 {
     let Some(products) = products else {
         return 0;
     };
-    if context(environment).as_deref() != Some(products.context.as_slice()) {
+    if bound_context(environment, encoding) != Some(products.context.as_slice()) {
         return 0;
     }
     let mut restored = 0;
@@ -551,11 +627,15 @@ impl Writer {
         }
         self.byte(n as u8)
     }
-    fn debug(&mut self, value: &impl std::fmt::Debug) -> Option<()> {
-        // The formatted payload is bounded before each allocation/growth. This
-        // exact compiler-version-bound encoding is not a fingerprint.
-        use std::fmt::Write;
-        write!(self, "{value:?}\0").ok()
+    fn u64(&mut self, n: u64) -> Option<()> {
+        self.put(&n.to_le_bytes())
+    }
+    fn strings(&mut self, values: &[String]) -> Option<()> {
+        self.number(values.len())?;
+        for value in values {
+            self.text(value)?;
+        }
+        Some(())
     }
     fn text(&mut self, s: &str) -> Option<()> {
         self.number(s.len())?;
@@ -583,11 +663,6 @@ impl Writer {
         self.text(&i.alias)?;
         self.number(i.module.0 as usize)?;
         self.span(i.span)
-    }
-}
-impl std::fmt::Write for Writer {
-    fn write_str(&mut self, text: &str) -> std::fmt::Result {
-        self.put(text.as_bytes()).ok_or(std::fmt::Error)
     }
 }
 struct Reader<'a, 'n> {

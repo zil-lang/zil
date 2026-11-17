@@ -518,14 +518,13 @@ fn inspect_pack(
     let file = path(root, key);
     let before = stamp(&file)?;
     let CacheRead::Candidate(bytes) = ArtifactCache::with_limit(root, length)
-        .inspect_candidate(key)
+        .inspect_content_candidate(key)
         .ok()?
     else {
         return None;
     };
     if bytes.len() != length
         || bytes.get(..8)? != PACK_MAGIC
-        || Fingerprint::of(&bytes) != key
         || number(&bytes, 8)? != bytes.len().checked_sub(PACK_HEADER)?
         || count(&bytes, 16)? == 0
         // A current manifest can select a small subset of an older pack. Its
@@ -549,6 +548,10 @@ pub(crate) struct Reader {
     bounds: Bounds,
     manifest: Manifest,
     loaded: BTreeMap<Fingerprint, VerifiedPack>,
+    // Successful immutable item bytes only, local to this one bounded reader.
+    // Repeated logical rows need neither another hash nor another payload copy.
+    items: BTreeMap<Fingerprint, Arc<[u8]>>,
+    item_bytes: usize,
     requested: BTreeSet<Fingerprint>,
     cancellation: CancellationToken,
 }
@@ -569,6 +572,8 @@ impl Reader {
             bounds,
             manifest: read_manifest(root, bytes, bounds, cancellation)?,
             loaded: BTreeMap::new(),
+            items: BTreeMap::new(),
+            item_bytes: 0,
             requested: BTreeSet::new(),
             cancellation: cancellation.clone(),
         })
@@ -614,6 +619,9 @@ impl Reader {
         if self.cancellation.is_cancelled() {
             return None;
         }
+        if let Some(bytes) = self.items.get(&key) {
+            return Some(bytes.clone());
+        }
         let item = *self.manifest.locations.get(&key)?;
         if !self.loaded.contains_key(&item.pack) {
             let bytes = inspect_pack(
@@ -629,7 +637,16 @@ impl Reader {
             return None;
         }
         self.requested.insert(key);
-        Some(bytes.into())
+        let bytes: Arc<[u8]> = bytes.into();
+        if let Some(total) = self.item_bytes.checked_add(bytes.len())
+            && total <= self.bounds.maximum
+            && self.items.len() < self.bounds.max_items
+        {
+            self.item_bytes = total;
+            self.items.insert(key, bytes.clone());
+        }
+        // Retention refusal changes only work, never the read result or quota.
+        Some(bytes)
     }
     pub(crate) fn epoch(&self) -> Epoch {
         let locations: BTreeMap<_, _> = self
@@ -887,10 +904,13 @@ fn place_items(
                 }
             });
             let (pack_bytes, stamp) = value.as_ref()?;
-            if let Some(pack_bytes) = pack_bytes
-                && Fingerprint::of(segment(pack_bytes, item)?) != *key
-            {
-                return None;
+            if let Some(pack_bytes) = pack_bytes {
+                let stored = segment(pack_bytes, item)?;
+                // A digest selects an item; bind the actual complete current
+                // payload as well before retaining its physical association.
+                if stored != current.get(key)?.as_ref() || Fingerprint::of(stored) != *key {
+                    return None;
+                }
             }
             packs.insert(item.pack, record.length);
             records.insert(

@@ -718,6 +718,7 @@ pub struct ExpandSession {
     stats: ProducerStats,
     profiling: bool,
     recovery: Option<FrontendProducts>,
+    frontend_context: recovery::ContextEncoding,
 }
 impl ExpandSession {
     pub fn set_cost_profiling(&mut self, enabled: bool) {
@@ -1180,10 +1181,19 @@ impl ExpandSession {
                 }
             }
         }
+        // This is exactly the raw products' existing dependency predicate,
+        // including limits, target, full namespace, imports and source context.
+        // A signature/body change outside those reads need not re-encode them.
+        let frontend_context = if same_scalar_products {
+            self.frontend_context.clone()
+        } else {
+            recovery::ContextEncoding::default()
+        };
         self.stats.recovered_frontend_modules = recovery::admit(
             self.recovery.as_ref(),
             &environment,
             &normalization_environment,
+            &frontend_context,
             &mut entries,
         );
         let mut reuse = Reuse {
@@ -1393,6 +1403,7 @@ impl ExpandSession {
         self.scalar_inventory = scalar_inventory;
         self.environment = Some(environment);
         self.normalization_environment = Some(normalization_environment);
+        self.frontend_context = frontend_context;
         self.input_context = Some(input_context);
         self.namespace_context = Some(namespace_context);
         Ok(Some(ExpandedProgram {

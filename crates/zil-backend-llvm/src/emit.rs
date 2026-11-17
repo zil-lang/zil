@@ -22,6 +22,8 @@ mod owned_sums;
 mod packages;
 mod parallel_lowering;
 mod partial_places;
+mod raw_codec;
+pub(crate) mod raw_products;
 mod registration;
 mod replacements;
 mod resource_closures;
@@ -202,6 +204,31 @@ pub(crate) fn lower_output_with_session(
     session: Option<&mut incremental::Session>,
     retain_pieces: bool,
 ) -> CompileResult<(crate::machine_output::MachineOutput, bool, usize)> {
+    lower_output_with_raw_products(
+        verified,
+        lir,
+        options,
+        incremental_scalar_policy,
+        closed_scalar_collection,
+        jobs,
+        session,
+        retain_pieces,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn lower_output_with_raw_products(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &EmitOptions,
+    incremental_scalar_policy: bool,
+    closed_scalar_collection: bool,
+    jobs: usize,
+    session: Option<&mut incremental::Session>,
+    retain_pieces: bool,
+    mut raw_products: Option<&mut raw_products::Request>,
+) -> CompileResult<(crate::machine_output::MachineOutput, bool, usize)> {
     let mut session = session;
     if let Some(session) = session.as_deref_mut() {
         session.begin_machine_request();
@@ -374,6 +401,14 @@ pub(crate) fn lower_output_with_session(
         // invocation or authorize any source, verification or native-cache hit.
         let mut scalar_bodies = scalar_bodies::Cache::default();
         scalar_bodies.set_inputs(session.body_inputs.clone());
+        if let Some(raw) = raw_products.as_deref_mut() {
+            raw.bind(
+                session.raw_context(),
+                verified.limits(),
+                whole_options,
+                collected.as_ref(),
+            );
+        }
         let mut batches = Vec::with_capacity(lir.functions.len().max(1));
         for function in lir.functions {
             let share_body = session.admits(function.id)
@@ -412,13 +447,21 @@ pub(crate) fn lower_output_with_session(
                 )
                 .map(|_| ())
             };
-            batches.push(session.lower(
+            let output = session.lower(
                 function,
                 summaries.as_ref(),
                 collected.as_ref(),
                 reserve_current,
                 || {
                     scalar_bodies.lower(function, share_body, reserve_current, || {
+                        if share_body
+                            && let Some(output) = raw_products.as_deref_mut().and_then(|raw| {
+                                raw.lookup(function, summaries.as_ref(), &functions, lir.target)
+                            })
+                        {
+                            reserve_current()?;
+                            return Ok(output);
+                        }
                         lower_function_batch(
                             std::slice::from_ref(function).iter(),
                             lir,
@@ -435,7 +478,16 @@ pub(crate) fn lower_output_with_session(
                         )
                     })
                 },
-            )?);
+            )?;
+            if share_body && let Some(raw) = raw_products.as_deref_mut() {
+                raw.stage(
+                    function,
+                    &output,
+                    scalar_bodies::key(session.body_inputs.as_deref(), function),
+                    summaries.as_ref(),
+                );
+            }
+            batches.push(output);
         }
         session.reused_body_templates = scalar_bodies.hits;
         session.produced_body_templates = scalar_bodies.produced;

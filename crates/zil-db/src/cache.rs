@@ -68,17 +68,31 @@ impl ArtifactCache {
         self.root.join(format!("{key}.candidate"))
     }
     pub fn inspect_candidate(&self, key: Fingerprint) -> io::Result<CacheRead> {
+        self.inspect(key, false)
+    }
+    /// Content-addressed raw payloads additionally bind the requested key to
+    /// the digest already calculated for envelope integrity. This conveys no
+    /// semantic authority and keeps action-keyed candidates unchanged.
+    pub fn inspect_content_candidate(&self, key: Fingerprint) -> io::Result<CacheRead> {
+        self.inspect(key, true)
+    }
+    fn inspect(&self, key: Fingerprint, content_addressed: bool) -> io::Result<CacheRead> {
         let file = match File::open(self.path(key)) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(CacheRead::Missing),
             Err(error) => return Err(error),
         };
         let maximum = (self.max_payload as u64).saturating_add(HEADER as u64);
-        if file.metadata()?.len() > maximum {
+        let length = file.metadata()?.len();
+        if length > maximum {
             return Ok(CacheRead::Corrupt(CacheCorruption::TooLarge));
         }
-        // The read is bounded even when the file grows after metadata was read.
-        let mut raw = Vec::new();
+        let Ok(capacity) = usize::try_from(length) else {
+            return Ok(CacheRead::Corrupt(CacheCorruption::TooLarge));
+        };
+        // Reserve the already bounded physical length once. The read remains
+        // bounded independently when a writer grows the file after metadata.
+        let mut raw = Vec::with_capacity(capacity);
         file.take(maximum.saturating_add(1)).read_to_end(&mut raw)?;
         if raw.len() as u64 > maximum {
             return Ok(CacheRead::Corrupt(CacheCorruption::TooLarge));
@@ -98,11 +112,17 @@ impl ArtifactCache {
         if size > self.max_payload as u64 || size != (raw.len() - HEADER) as u64 {
             return Ok(CacheRead::Corrupt(CacheCorruption::Length));
         }
-        let payload = &raw[HEADER..];
-        if Fingerprint::of(payload).0 != raw[40..72] {
+        let digest = Fingerprint::of(&raw[HEADER..]);
+        if digest.0 != raw[40..72] {
             return Ok(CacheRead::Corrupt(CacheCorruption::Digest));
         }
-        Ok(CacheRead::Candidate(payload.to_vec()))
+        if content_addressed && digest != key {
+            return Ok(CacheRead::Corrupt(CacheCorruption::Identity));
+        }
+        // Keep the bounded read's allocation; do not allocate/copy a second
+        // complete payload buffer merely to remove its small transport header.
+        drop(raw.drain(..HEADER));
+        Ok(CacheRead::Candidate(raw))
     }
     pub fn read_candidate(&self, key: Fingerprint) -> io::Result<Option<Vec<u8>>> {
         Ok(match self.inspect_candidate(key)? {
@@ -285,6 +305,35 @@ mod tests {
         assert_eq!(
             cache.inspect_candidate(key).unwrap(),
             CacheRead::Corrupt(CacheCorruption::TooLarge)
+        );
+    }
+    #[test]
+    fn content_reads_bind_the_actual_payload_while_action_reads_keep_their_domain() {
+        let directory = Directory::new();
+        let bytes = vec![37u8; 65539];
+        let key = Fingerprint::of(&bytes);
+        let cache = ArtifactCache::with_limit(&directory.0, bytes.len());
+        cache.write_candidate(key, &bytes).unwrap();
+        assert_eq!(
+            cache.inspect_content_candidate(key).unwrap(),
+            CacheRead::Candidate(bytes.clone())
+        );
+        let action = Fingerprint::of(b"an action selector");
+        cache.write_candidate(action, &bytes).unwrap();
+        assert_eq!(
+            cache.inspect_candidate(action).unwrap(),
+            CacheRead::Candidate(bytes)
+        );
+        assert_eq!(
+            cache.inspect_content_candidate(action).unwrap(),
+            CacheRead::Corrupt(CacheCorruption::Identity)
+        );
+        let mut raw = fs::read(cache.path(key)).unwrap();
+        raw[HEADER] ^= 1;
+        fs::write(cache.path(key), raw).unwrap();
+        assert_eq!(
+            cache.inspect_content_candidate(key).unwrap(),
+            CacheRead::Corrupt(CacheCorruption::Digest)
         );
     }
 }

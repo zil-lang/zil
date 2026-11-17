@@ -128,76 +128,106 @@ impl Store {
         options: &CompileOptions,
         artifacts: &ArtifactPlan,
     ) {
-        let publish = || -> Option<()> {
+        if options.cancellation.is_cancelled() {
+            return;
+        }
+        let Some(products) = producer.encode_frontend_products(&options.limits) else {
+            return;
+        };
+        let ct = materializer.encode_raw_receipts(&options.limits);
+        let _ = self.publish_products(&products, &ct, options, artifacts, &mut || {});
+    }
+
+    fn publish_products(
+        &self,
+        products: &FrontendProducts,
+        ct: &BTreeMap<ModuleId, Arc<[u8]>>,
+        options: &CompileOptions,
+        artifacts: &ArtifactPlan,
+        before_write: &mut dyn FnMut(),
+    ) -> Option<()> {
+        if options.cancellation.is_cancelled() {
+            return None;
+        }
+        let mut manifest = Vec::new();
+        manifest.extend_from_slice(b"ZILFEC01");
+        blob(&mut manifest, &products.context)?;
+        number(&mut manifest, products.modules.len())?;
+        let mut total = products.context.len();
+        for (id, bytes) in &products.modules {
+            number(&mut manifest, id.0 as usize)?;
+            manifest.extend_from_slice(&Fingerprint::of(bytes).0);
+            number(&mut manifest, bytes.len())?;
+            blob(&mut manifest, ct.get(id).map_or(&[], |b| b.as_ref()))?;
+            total = total.checked_add(bytes.len())?;
+            if total.checked_add(manifest.len())? > self.maximum {
+                return None;
+            }
+        }
+        if options.cancellation.is_cancelled()
+            || artifacts.validate().is_err()
+            || !private_directory(&self.root, true)
+        {
+            return None;
+        }
+        let namespace = artifacts.pin_cache_directory(&self.root).ok()?;
+        let cache = ArtifactCache::with_limit(namespace.root(), self.maximum);
+        for (id, bytes) in &products.modules {
             if options.cancellation.is_cancelled() {
                 return None;
             }
-            let products = producer.encode_frontend_products(&options.limits)?;
-            let ct = materializer.encode_raw_receipts(&options.limits);
-            let mut manifest = Vec::new();
-            manifest.extend_from_slice(b"ZILFEC01");
-            blob(&mut manifest, &products.context)?;
-            number(&mut manifest, products.modules.len())?;
-            let mut total = products.context.len();
-            for (id, bytes) in &products.modules {
-                number(&mut manifest, id.0 as usize)?;
-                manifest.extend_from_slice(&Fingerprint::of(bytes).0);
-                number(&mut manifest, bytes.len())?;
-                blob(&mut manifest, ct.get(id).map_or(&[], |b| b.as_ref()))?;
-                total = total.checked_add(bytes.len())?;
-                if total.checked_add(manifest.len())? > self.maximum {
-                    return None;
-                }
-            }
-            if options.cancellation.is_cancelled()
-                || artifacts.validate().is_err()
-                || !private_directory(&self.root, true)
+            // Immutable bytes already read in this request are a complete
+            // equality witness. A selector/digest alone cannot skip a write.
+            // Do this before either full or per-write filesystem validation.
+            if self
+                .loaded
+                .borrow()
+                .get(id)
+                .is_some_and(|old| Arc::ptr_eq(old, bytes) || old.as_ref() == bytes.as_ref())
             {
+                continue;
+            }
+            // A resident request has no loaded map. Compare the actual current
+            // candidate bytes before paying any per-WRITE guard in that case.
+            if let Ok(CacheRead::Candidate(existing)) = cache.inspect_candidate(self.slot(*id))
+                && existing.as_slice() == bytes.as_ref()
+            {
+                continue;
+            }
+            before_write();
+            if options.cancellation.is_cancelled() {
                 return None;
             }
-            let namespace = artifacts.pin_cache_directory(&self.root).ok()?;
-            let cache = ArtifactCache::with_limit(namespace.root(), self.maximum);
-            for (id, bytes) in &products.modules {
-                if options.cancellation.is_cancelled() || artifacts.validate().is_err() {
-                    return None;
-                }
-                if self
-                    .loaded
-                    .borrow()
-                    .get(id)
-                    .is_some_and(|old| old.as_ref() == bytes.as_ref())
-                {
-                    continue;
-                }
-                // Stable per-module slots bound retained disk volume. A crash
-                // during replacement makes the old manifest miss by checksum;
-                // the manifest is committed only after every product succeeds.
-                namespace.validate_write().ok()?;
-                // A resident request constructs a new Store without disk load.
-                // Compare complete current candidate bytes before overwriting;
-                // neither the slot nor its checksum alone grants this reuse.
-                if let Ok(CacheRead::Candidate(existing)) = cache.inspect_candidate(self.slot(*id))
-                    && existing.as_slice() == bytes.as_ref()
-                {
-                    continue;
-                }
-                cache
-                    .write_candidate_cancellable(self.slot(*id), bytes, &options.cancellation)
-                    .ok()?;
-            }
-            if options.cancellation.is_cancelled() || artifacts.validate().is_err() {
+            // The pinned batch checks every planned identity and ancestor at
+            // each write, with full collision/canonical checks at both ends.
+            // Repeating the complete all-source matrix here makes cold writes
+            // quadratic just as surely as checking unchanged products does.
+            namespace.validate_write().ok()?;
+            // Stable module slots bound retained disk volume. A crash during
+            // replacement makes the old manifest miss its checksum; the new
+            // manifest is committed only after all actual products succeed.
+            cache
+                .write_candidate_cancellable(self.slot(*id), bytes, &options.cancellation)
+                .ok()?;
+        }
+        if options.cancellation.is_cancelled() {
+            return None;
+        }
+        // Always validate the complete batch at the final boundary, including
+        // when every product and the complete manifest were unchanged.
+        namespace.validate().ok()?;
+        if !matches!(cache.inspect_candidate(self.key), Ok(CacheRead::Candidate(ref old)) if old == &manifest)
+        {
+            before_write();
+            if options.cancellation.is_cancelled() {
                 return None;
             }
             namespace.validate().ok()?;
-            if !matches!(cache.inspect_candidate(self.key), Ok(CacheRead::Candidate(ref old)) if old == &manifest)
-            {
-                cache
-                    .write_candidate_cancellable(self.key, &manifest, &options.cancellation)
-                    .ok()?;
-            }
-            Some(())
-        };
-        let _ = publish();
+            cache
+                .write_candidate_cancellable(self.key, &manifest, &options.cancellation)
+                .ok()?;
+        }
+        Some(())
     }
 }
 fn number(out: &mut Vec<u8>, n: usize) -> Option<()> {
@@ -251,4 +281,203 @@ fn private_directory(path: &Path, create: bool) -> bool {
         }
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+
+    struct Fixture {
+        directory: PathBuf,
+        store: Store,
+        artifacts: ArtifactPlan,
+        options: CompileOptions,
+    }
+    impl Fixture {
+        fn new() -> Self {
+            let directory = std::env::temp_dir().join(format!(
+                "zil-frontend-publication-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&directory).unwrap();
+            let path = directory.join("main.zil");
+            let text = "pub fn main()->i32=>0;";
+            fs::write(&path, text).unwrap();
+            let source = SourceUnit::new(FileId(0), ModuleId(0), path.display().to_string(), text);
+            let options = CompileOptions::default();
+            let mut artifacts = ArtifactPlan::new(&source, &options).unwrap();
+            let root = artifacts
+                .cache_directory("frontend-products", &directory.join("cache"))
+                .unwrap();
+            Self {
+                directory,
+                artifacts,
+                options,
+                store: Store {
+                    root,
+                    key: Fingerprint::of(b"frontend-publication-test"),
+                    maximum: Limits::default().max_source_bytes,
+                    loaded: Default::default(),
+                },
+            }
+        }
+        fn products(&self) -> FrontendProducts {
+            FrontendProducts {
+                context: b"current exact namespace".to_vec(),
+                modules: (0u32..102)
+                    .map(|id| (ModuleId(id), Arc::<[u8]>::from(id.to_le_bytes().as_slice())))
+                    .collect(),
+            }
+        }
+        fn publish(&self, products: &FrontendProducts) -> usize {
+            let mut guards = 0;
+            self.store
+                .publish_products(
+                    products,
+                    &BTreeMap::new(),
+                    &self.options,
+                    &self.artifacts,
+                    &mut || {
+                        guards += 1;
+                    },
+                )
+                .unwrap();
+            guards
+        }
+        fn manifest(&self, root: &Path) -> Vec<u8> {
+            let CacheRead::Candidate(bytes) = ArtifactCache::with_limit(root, self.store.maximum)
+                .inspect_candidate(self.store.key)
+                .unwrap()
+            else {
+                panic!("current manifest");
+            };
+            bytes
+        }
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.directory);
+        }
+    }
+
+    #[test]
+    fn unchanged_products_skip_per_write_guards_for_loaded_and_resident_publications() {
+        let fixture = Fixture::new();
+        let mut products = fixture.products();
+        assert_eq!(fixture.publish(&products), 103);
+        let before = fixture.manifest(&fixture.store.root);
+        // The resident path has no disk-loaded map; actual candidate equality
+        // must still skip both the per-WRITE guard and the filesystem rewrite.
+        assert!(fixture.store.loaded.borrow().is_empty());
+        assert_eq!(fixture.publish(&products), 0);
+        assert_eq!(fixture.manifest(&fixture.store.root), before);
+        *fixture.store.loaded.borrow_mut() = products.modules.clone();
+        assert_eq!(fixture.publish(&products), 0);
+        products
+            .modules
+            .insert(ModuleId(7), Arc::from(&b"one changed module"[..]));
+        assert_eq!(
+            fixture.publish(&products),
+            2,
+            "one product plus the final manifest"
+        );
+        assert_ne!(fixture.manifest(&fixture.store.root), before);
+    }
+
+    #[test]
+    fn cancelled_manifest_keeps_previous_bytes_and_checksum_misses_only_the_changed_product() {
+        let fixture = Fixture::new();
+        let original = fixture.products();
+        fixture.publish(&original);
+        *fixture.store.loaded.borrow_mut() = original.modules.clone();
+        let before = fixture.manifest(&fixture.store.root);
+        let mut changed = original;
+        changed
+            .modules
+            .insert(ModuleId(7), Arc::from(&b"changed raw bytes"[..]));
+        let mut options = fixture.options.clone();
+        options.cancellation = CancellationToken::default();
+        let mut writes = 0;
+        assert!(
+            fixture
+                .store
+                .publish_products(
+                    &changed,
+                    &BTreeMap::new(),
+                    &options,
+                    &fixture.artifacts,
+                    &mut || {
+                        writes += 1;
+                        if writes == 2 {
+                            options.cancellation.cancel();
+                        }
+                    }
+                )
+                .is_none()
+        );
+        assert_eq!(writes, 2);
+        assert_eq!(fixture.manifest(&fixture.store.root), before);
+        let mut producer = zil_expand::ExpandSession::default();
+        let mut materializer =
+            super::super::super::ct_artifact::ScalarMaterializationSession::default();
+        // The previous manifest cannot authenticate the changed stable slot.
+        // Unaffected actual bytes are still usable as raw recovery candidates.
+        let mut retry_options = fixture.options.clone();
+        retry_options.cancellation = CancellationToken::default();
+        fixture
+            .store
+            .load(&retry_options, &mut producer, &mut materializer);
+        assert_eq!(fixture.store.loaded.borrow().len(), 101);
+        assert!(!fixture.store.loaded.borrow().contains_key(&ModuleId(7)));
+        assert_eq!(
+            fixture.publish(&changed),
+            1,
+            "retry writes only the missing manifest"
+        );
+        assert_ne!(fixture.manifest(&fixture.store.root), before);
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn replaced_namespace_cannot_receive_a_product_or_manifest_after_unchanged_skips() {
+        for manifest_only in [false, true] {
+            let fixture = Fixture::new();
+            let original = fixture.products();
+            fixture.publish(&original);
+            *fixture.store.loaded.borrow_mut() = original.modules.clone();
+            let before = fixture.manifest(&fixture.store.root);
+            let mut changed = original;
+            if manifest_only {
+                changed.context.push(1);
+            } else {
+                changed
+                    .modules
+                    .insert(ModuleId(101), Arc::from(&b"changed module"[..]));
+            }
+            let held = fixture.directory.join("held-cache");
+            let mut writes = 0;
+            assert!(
+                fixture
+                    .store
+                    .publish_products(
+                        &changed,
+                        &BTreeMap::new(),
+                        &fixture.options,
+                        &fixture.artifacts,
+                        &mut || {
+                            writes += 1;
+                            fs::rename(&fixture.store.root, &held).unwrap();
+                            fs::create_dir(&fixture.store.root).unwrap();
+                        }
+                    )
+                    .is_none()
+            );
+            assert_eq!(writes, 1);
+            assert_eq!(fixture.manifest(&held), before);
+            assert_eq!(fs::read_dir(&fixture.store.root).unwrap().count(), 0);
+        }
+    }
 }

@@ -1,6 +1,7 @@
 //! Request-local production of equal, currently verified arithmetic bodies.
-//! No disk or previous-request input enters this table. Selectors only locate
-//! candidates: complete current semantic CFG equality authorizes each reuse.
+//! Selectors only locate candidates: complete current semantic CFG equality
+//! authorizes each reuse. The producer may restore explicit trusted raw data
+//! only after current admission and the same current reservation consumer.
 use super::*;
 use std::collections::{HashMap, hash_map::RandomState};
 use std::hash::{BuildHasher, Hash, Hasher};
@@ -182,6 +183,10 @@ fn cost(function: &TypedFunction) -> Option<usize> {
     Some(cost.saturating_add(1))
 }
 
+pub(super) fn cacheable(function: &TypedFunction) -> bool {
+    cost(function).is_some()
+}
+
 struct Selector<'a>(&'a TypedFunction);
 impl Hash for Selector<'_> {
     fn hash<H: Hasher>(&self, h: &mut H) {
@@ -324,7 +329,7 @@ impl<'a> Cache<'a> {
     }
 }
 
-fn rebind(output: &FunctionBatch, id: FunctionId) -> FunctionBatch {
+pub(super) fn rebind(output: &FunctionBatch, id: FunctionId) -> FunctionBatch {
     let mut output = output.clone();
     let m::Item::Function(machine) = &mut output.body[0] else {
         unreachable!("only one successful definition is retained")
