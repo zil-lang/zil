@@ -1,9 +1,9 @@
 {
   "schema": "zil.native-direct-firstedit-result.v6",
-  "source": "3fef2e582e0c93e051b8500c85dfe33b66319bda",
-  "binary_sha256": "85d6b2c71fc3121ca02f51dff6945b91884ee3074eae1cace00fcb5d0afa0a93",
+  "source": "e4cf6071eaeb2faaa426046473f7f48e72dbf685",
+  "binary_sha256": "12fdd54ce48135cb3ece78be8e89cb7d54fef2e54cb89e369e2fc1e8459019e2",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "result": "Firstedit still slower than Rust despite real243-template machine restoration; goal remains open",
+  "result": "NoGo: firstedit1.818/Rust1.259s. Backend allocation improved but new Analyze restore physically duplicates5105plans; real5104reuse is not a speed win.",
   "scope": "Original5105functions/102files/843875bytes, original257input domain; actualmain/currentcandidate/Rust only. Native O2/CGU16/compilerjobs1; explicit default-off bounded-class-imports128-v4. Closeprocess, edit, then newprocess first resident request. Startup separate; not full ordinaryCLI or OS-cold.",
   "execution_complete": true,
   "functional_quality_valid": true,
@@ -17,92 +17,92 @@
   },
   "compile_median_ms": {
     "cold": {
-      "candidate": 3650.3134069999996,
-      "rust": 6975.382796
+      "candidate": 3395.2839195,
+      "rust": 6367.362488
     },
     "unchanged": {
-      "candidate": 66.132976,
-      "rust": 26.021055
+      "candidate": 54.4562595,
+      "rust": 14.664334
     },
     "private-001": {
-      "candidate": 1870.5150265000002,
-      "rust": 1275.83535
+      "candidate": 1817.61953,
+      "rust": 1258.641102
     },
     "recovery": {
-      "candidate": 1868.5233185,
-      "rust": 5802.8285825
+      "candidate": 1864.8039835,
+      "rust": 5756.961349
     },
     "error": {
-      "candidate": 1145.432961,
-      "rust": 1803.486926
+      "candidate": 1239.6943135000001,
+      "rust": 1713.5502535
     }
   },
   "runtime_ms": {
     "5105/cold": {
-      "candidate": 41.6451915,
-      "rust": 226.16072200000002
+      "candidate": 31.316703000000004,
+      "rust": 185.206538
     },
     "5105/unchanged": {
-      "candidate": 34.305127,
-      "rust": 200.196034
+      "candidate": 31.208586,
+      "rust": 189.34768200000002
     },
     "5105/private-001": {
-      "candidate": 34.869378,
-      "rust": 187.75725649999998
+      "candidate": 32.857243499999996,
+      "rust": 192.662238
     },
     "5105/recovery": {
-      "candidate": 35.715653,
-      "rust": 187.9235265
+      "candidate": 34.180526,
+      "rust": 195.558423
     }
   },
   "user_disk_boundary_peak_physical_bytes": [
     {
       "block": 0,
-      "candidate": 40914944,
+      "candidate": 50294784,
       "rust": 76734464
     },
     {
       "block": 1,
-      "candidate": 40939520,
+      "candidate": 50294784,
       "rust": 61546496
     }
   ],
   "disk_accounting": "Peak of simultaneous per-arm totals in original workflow snapshots, global inode dedup st_blocks*512. Not sum of independent category peaks; not transient peaks; SDK/host/evidence excluded.",
-  "raw": "out/runs/direct-firstedit-performance-direct-23",
-  "previous_formal_result": "https://github.com/zil-lang/zil/blob/ccd6d85fd/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
+  "raw": "out/runs/direct-firstedit-performance-direct-24",
+  "previous_formal_result": "https://github.com/zil-lang/zil/blob/a535684282051c69f1e2e223b7a0e266266ea4d1/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
   "unresolved": "Actualmain defaultResourceLimit remains failure and excluded from ratios. Industrialmulti-crate/proc-macro/build.rs/minute/GB/currentnative ordinaryCLI coverage incomplete; no main merge; comprehensive Rust goal open.",
   "direct_firstedit_costs": [
     {
       "block": 0,
-      "wall_ms": 1953.977315,
-      "cpu_seconds": 1.88,
+      "wall_ms": 1759.447424,
+      "cpu_seconds": 1.7,
       "phases_ms": {
-        "parse": 0.175834,
-        "expand": 132.01348,
-        "types": 142.631839,
-        "analyze": 118.126593,
-        "verify": 77.519038,
-        "lower": 5.258583,
-        "codegen": 1027.10246,
-        "ct": 58.890826
+        "parse": 0.185522,
+        "expand": 130.599919,
+        "types": 128.98095,
+        "analyze": 363.101313,
+        "verify": 58.325435,
+        "lower": 2.834099,
+        "codegen": 538.984079,
+        "ct": 44.414624
       },
       "backend_ms": {
-        "machine": 782.658219,
-        "machine_emit": 134.166667,
-        "machine_transform": 643.904279,
-        "transform_ranges": 17.482848,
-        "transform_checked_add": 1.462383,
-        "transform_scalar": 16.910622,
-        "transform_call_classes": 606.854488,
-        "transform_purity": 0.745879,
-        "machine_preflight": 26.965985,
-        "partition": 17.896905,
-        "diagnostic": 9.361448,
-        "object": 126.76471,
-        "link_key": 44.608781,
-        "link_execution": 30.591102,
-        "other": 14.907159,
-        "total": 1026.788324
+        "machine": 317.049707,
+        "machine_emit": 174.576079,
+        "machine_transform": 139.517865,
+        "transform_ranges": 13.284463,
+        "transform_checked_add": 1.140626,
+        "transform_scalar": 1.444716,
+        "transform_call_classes": 122.880628,
+        "transform_purity": 0.453807,
+        "machine_preflight": 16.042197,
+        "partition": 10.252606,
+        "diagnostic": 6.987635,
+        "object": 128.172405,
+        "link_key": 32.335554,
+        "link_execution": 37.927582,
+        "other": 5.987199,
+        "total": 538.712688
       },
       "producer": {
         "lower_modules": 1,
@@ -153,39 +153,77 @@
         "native_history_restored_units": 0,
         "native_history_retained_epochs": 0,
         "native_history_payload_bytes": 0
+      },
+      "analyze_work": {
+        "executed_functions": 1,
+        "reused_functions": 0,
+        "retained_queries": 0,
+        "candidate_reused_functions": 5104,
+        "candidate_executed_functions": 1,
+        "equal_function_results": 5105,
+        "changed_function_results": 0,
+        "shared_program_reuses": 0,
+        "initialization_inputs_built": 0,
+        "candidate_inputs_built": 0,
+        "candidate_input_projection_reuses": 0,
+        "candidate_output_projection_reuses": 0,
+        "dependency_signatures_checked": 0,
+        "resource_transfers_executed": 0,
+        "resource_transfers_reused": 0,
+        "retained_candidate_queries": 5105,
+        "product_admission_functions_checked": 1,
+        "product_function_queries_executed": 1,
+        "product_function_queries_reused": 5104,
+        "product_global_obligations_executed": 0,
+        "product_global_obligations_reused": 1,
+        "product_plan_rows_replaced": 0,
+        "product_semantic_functions_compared": 5105,
+        "raw_functions_restored": 5104,
+        "raw_body_facts_built": 379,
+        "raw_body_facts_reused": 9831,
+        "raw_plan_shapes_checked": 5105,
+        "raw_plan_shapes_reused": 0,
+        "product_semantic_body_comparisons": 5101,
+        "product_semantic_body_comparison_reuses": 0,
+        "product_relocated_function_bindings": 5104,
+        "bootstrap_templates": 0,
+        "bootstrap_initialization_reuses": 0,
+        "bootstrap_local_reuses": 0,
+        "bootstrap_scope_reuses": 0,
+        "bootstrap_hold_reuses": 0
       }
     },
     {
       "block": 1,
-      "wall_ms": 1787.052738,
-      "cpu_seconds": 1.75,
+      "wall_ms": 1875.791636,
+      "cpu_seconds": 1.84,
       "phases_ms": {
-        "parse": 0.126184,
-        "expand": 103.812605,
-        "types": 163.824698,
-        "analyze": 147.921171,
-        "verify": 88.981166,
-        "lower": 2.719996,
-        "codegen": 619.342096,
-        "ct": 50.277551
+        "parse": 0.236194,
+        "expand": 104.912394,
+        "types": 205.010496,
+        "analyze": 47.033597,
+        "verify": 65.185897,
+        "lower": 3.73988,
+        "codegen": 572.401921,
+        "ct": 45.652367
       },
       "backend_ms": {
-        "machine": 408.431575,
-        "machine_emit": 117.583605,
-        "machine_transform": 284.743812,
-        "transform_ranges": 14.880421,
-        "transform_checked_add": 1.598018,
-        "transform_scalar": 2.415526,
-        "transform_call_classes": 264.987582,
-        "transform_purity": 0.509701,
-        "machine_preflight": 22.311868,
-        "partition": 9.969839,
-        "diagnostic": 10.253709,
-        "object": 118.884493,
-        "link_key": 35.08605,
-        "link_execution": 28.587215,
-        "other": 7.844103,
-        "total": 619.056984
+        "machine": 382.751925,
+        "machine_emit": 208.022965,
+        "machine_transform": 171.454915,
+        "transform_ranges": 17.281272,
+        "transform_checked_add": 1.221669,
+        "transform_scalar": 1.607853,
+        "transform_call_classes": 150.410048,
+        "transform_purity": 0.576522,
+        "machine_preflight": 17.619974,
+        "partition": 10.96969,
+        "diagnostic": 7.763469,
+        "object": 114.374821,
+        "link_key": 27.31084,
+        "link_execution": 18.282267,
+        "other": 10.75808,
+        "total": 572.211092
       },
       "producer": {
         "lower_modules": 1,
@@ -236,6 +274,44 @@
         "native_history_restored_units": 0,
         "native_history_retained_epochs": 0,
         "native_history_payload_bytes": 0
+      },
+      "analyze_work": {
+        "executed_functions": 1,
+        "reused_functions": 0,
+        "retained_queries": 0,
+        "candidate_reused_functions": 5104,
+        "candidate_executed_functions": 1,
+        "equal_function_results": 5105,
+        "changed_function_results": 0,
+        "shared_program_reuses": 0,
+        "initialization_inputs_built": 0,
+        "candidate_inputs_built": 0,
+        "candidate_input_projection_reuses": 0,
+        "candidate_output_projection_reuses": 0,
+        "dependency_signatures_checked": 0,
+        "resource_transfers_executed": 0,
+        "resource_transfers_reused": 0,
+        "retained_candidate_queries": 5105,
+        "product_admission_functions_checked": 1,
+        "product_function_queries_executed": 1,
+        "product_function_queries_reused": 5104,
+        "product_global_obligations_executed": 0,
+        "product_global_obligations_reused": 1,
+        "product_plan_rows_replaced": 0,
+        "product_semantic_functions_compared": 5105,
+        "raw_functions_restored": 5104,
+        "raw_body_facts_built": 379,
+        "raw_body_facts_reused": 9831,
+        "raw_plan_shapes_checked": 5105,
+        "raw_plan_shapes_reused": 0,
+        "product_semantic_body_comparisons": 5101,
+        "product_semantic_body_comparison_reuses": 0,
+        "product_relocated_function_bindings": 5104,
+        "bootstrap_templates": 0,
+        "bootstrap_initialization_reuses": 0,
+        "bootstrap_local_reuses": 0,
+        "bootstrap_scope_reuses": 0,
+        "bootstrap_hold_reuses": 0
       }
     }
   ],
@@ -243,99 +319,21 @@
     "Source/Core exact bounded binary context replaces Debug formatting; same dependency predicate memo shares admission/publication encoding. Unchanged module bytes skip publication guards; actual writes use held namespace identities and complete boundary guards, avoiding repeated full path-collision scans.",
     "ArtifactCache content-key reads reuse the already computed envelope digest and remove headers in place. Packed readers memo successful unique immutable segments within original aggregate caps, still observe cancellation first, and publishers compare full current item bytes before reusing old locations.",
     "Explicit trusted semantic-cache/push-reuse raw emitted functions retain bounded primitive machine DATA, full compiler/DSO/context/callee-summary/current body bindings, original reservations and complete current preflight/full O2. Per-body representatives plus aliases share actual decoded owners and retain accepted bytes. No Source/Verify/WorldBound permission serialized; defaults off.",
-    "Cold absent semantic roots are privately created only after complete destination planning, rechecked and pinned. Raw manifest commits only after successful guarded native publication. Fresh-session native regression proves cold seeding, direct first-edit restored+changed templates, exact outputs/current preflight and SafeReject without cache advancement."
+    "Cold absent semantic roots are privately created only after complete destination planning, rechecked and pinned. Raw manifest commits only after successful guarded native publication. Fresh-session native regression proves cold seeding, direct first-edit restored+changed templates, exact outputs/current preflight and SafeReject without cache advancement.",
+    "Current normalized machine results use shared immutable holders; actual current callee names compare by borrow; the current classified normalized body supplies the identical rewrite output, avoiding a second full COW clone. Decoder uses bounded preallocation. Protected/callee-change and full output controls pass.",
+    "Explicit default-off host-jemalloc build matches rustc58cf8f9 process C override with tikv-jemalloc-sys0.6.1. Release verifies6T allocator exports, noLD_PRELOAD/MALLOC_CONF. No target allocator or defaultO2 change.",
+    "Raw Analyze producer exports actual five stage costs/globalcost with bounded trusted input/plan DATA; restart consumes current exact headers/contexts and original update ledger, retains complete independentVerify; only successful guarded enclosing publication replaces manifest. Positiveforeign input, quota/firsterror, corruption and native failure/newSession controls pass. Actual cold owner-only plan publication fails to deduplicate independently allocated equivalent bodies, so5105planshapechecks and5101bodycomparisons remain a measured bottleneck."
   ],
   "gates": {
-    "source": "3fef2e582e0c93e051b8500c85dfe33b66319bda",
-    "path": "out/runs/direct-firstedit-native-gates-54-3fef2e582e0c",
-    "checks": {
-      "strict": {
-        "source": "3fef2e582e0c93e051b8500c85dfe33b66319bda",
-        "valid": true,
-        "test_results": [],
-        "path": "out/runs/direct-firstedit-native-gates-54-3fef2e582e0c/strict.json"
-      },
-      "publication": {
-        "source": "3fef2e582e0c93e051b8500c85dfe33b66319bda",
-        "valid": true,
-        "test_results": [
-          [
-            "ok",
-            "3",
-            "0",
-            "0"
-          ]
-        ],
-        "path": "out/runs/direct-firstedit-native-gates-54-3fef2e582e0c/publication.json"
-      },
-      "fmt": {
-        "source": "3fef2e582e0c93e051b8500c85dfe33b66319bda",
-        "valid": true,
-        "test_results": [],
-        "path": "out/runs/direct-firstedit-native-gates-54-3fef2e582e0c/fmt.json"
-      },
-      "release": {
-        "source": "3fef2e582e0c93e051b8500c85dfe33b66319bda",
-        "valid": true,
-        "test_results": [],
-        "path": "out/runs/direct-firstedit-native-gates-54-3fef2e582e0c/release.json"
-      },
-      "backend": {
-        "source": "951add3bef36ebac1a3ebe4b02898a2be59c305c",
-        "valid": true,
-        "test_results": [
-          [
-            "ok",
-            "381",
-            "0",
-            "0"
-          ]
-        ],
-        "path": "out/runs/direct-firstedit-native-gates-52-951add3bef36/backend.json"
-      },
-      "db": {
-        "source": "951add3bef36ebac1a3ebe4b02898a2be59c305c",
-        "valid": true,
-        "test_results": [
-          [
-            "ok",
-            "39",
-            "0",
-            "0"
-          ]
-        ],
-        "path": "out/runs/direct-firstedit-native-gates-51-951add3bef36/db.json"
-      },
-      "expand": {
-        "source": "951add3bef36ebac1a3ebe4b02898a2be59c305c",
-        "valid": true,
-        "test_results": [
-          [
-            "ok",
-            "148",
-            "0",
-            "0"
-          ]
-        ],
-        "path": "out/runs/direct-firstedit-native-gates-51-951add3bef36/expand.json"
-      },
-      "driver": {
-        "source": "951add3bef36ebac1a3ebe4b02898a2be59c305c",
-        "valid": true,
-        "test_results": [
-          [
-            "ok",
-            "243",
-            "0",
-            "0"
-          ]
-        ],
-        "path": "out/runs/direct-firstedit-native-gates-51-951add3bef36/driver.json"
-      }
-    }
+    "source": "e4cf6071eaeb2faaa426046473f7f48e72dbf685",
+    "complete_affected_selection": true,
+    "strict_native1_fmt_release": "out/runs/direct-firstedit-native-gates-58-e4cf6071eaeb",
+    "Analyze315_driver248_individual_passes": "out/runs/direct-firstedit-native-gates-57-e5b238b45914",
+    "native1_replaces_exact_one_fixture_failure": "same-source production unchanged, only test destroys failed worker before actual disk recovery; all original execution/native/cleanup assertions kept",
+    "default_host_IR94_backend382_publication3_qualifier31_recording2": "out/runs/direct-firstedit-native-gates-56-517eb2ad2a1b"
   },
-  "unchanged_checks_reused": "Backend381 g52 (raw-machine library unchanged since951add); DB39/Expand148/Driver243 g51. Later changes are only guarded missing-root initialization and a real native integration contract. CT78g49, Types121g43, IR94g39, independent Analyze310/Verify657g36, API105g35 and qualifier31g48 reused unchanged.",
-  "review": "Root reviewed complete Astra raw-machine producer/consumer and Source/Core patch; Source Astra independently reviewed root transport and publication guard changes. Astra Euler independently reviewed exact cold-seed fix3849366c44d93e75086eae5e629bb303f91abcde: no blockers. New test upgraded to actual foreign input and precise SafeReject; all3 native publication contracts pass.",
+  "unchanged_checks_reused": "CT78/E148/Types121/V657/API105 unchanged; all affected strict/IR94/Analyze315/Backend382/Driver249 (248 unchanged plus repaired exact native1)/nativepub3/qualifier31/recording2/default-host/fmt/release completed. No default budget or proof changes.",
+  "review": "Root reviewed complete Astra Analyze data/accounting/import/publication and current-body memo chain. IndependentDewey reviewed root backend change, mechanical nestedArc issue and both new protected/callee controls repaired thenPASS. Exact rustc allocator source and installedrustcTmalloc symbols verified.",
   "failures_preserved": [
     "gates47: new backend test imports used private IR identities; driver load result triggered strict type-complexity. Fixed mechanically, no old release used.",
     "gates48: driver237PASS/2FAIL; recovered parser-LRU/leaf identity lost CT continuation (210checks/96reuse instead1/305), and candidate retry reason precedence changed. Fixed actual retention/provenance, original assertions retained; gates49driver239PASS.",
@@ -343,51 +341,26 @@
     "gates50 strict: new test field_reassign_with_default; corrected test initialization; no old binary used.",
     "gates51 backend380PASS/1FAIL and nativepublication0PASS/2FAIL: launcher omitted ZIL_TEST_NATIVE_LINK_PROFILE. Same-source explicit-profile gates52backend381/publication2 PASS.",
     "Formal22 source951add3bef36ebac1a3ebe4b02898a2be59c305c binary0c75b8cc27bef4ae01ae1e2eafe0a9021d278729847973559347fd3589400a97: firstedit1.8920515635/Rust1.0873430315s; full30/10 and4runtime PASS. Cold absent root skipped raw producer, firstedit0restored/248misses; failure retained, not a machine-cache win.",
-    "gates53: existing native2PASS/new1FAIL because constant-input test legitimately fully folded to1CGU and exercised no raw producer. Real foreign-input dependency now exercises cold seed/directedit; existing unit/preflight/native assertions retained; SafeReject checks tightened."
+    "gates53: existing native2PASS/new1FAIL because constant-input test legitimately fully folded to1CGU and exercised no raw producer. Real foreign-input dependency now exercises cold seed/directedit; existing unit/preflight/native assertions retained; SafeReject checks tightened.",
+    "g55: cross-driver-module private analysis field access; scoped getter fixed, field remains private.",
+    "g56: Analyze314/1 counter fixture lacked outer relocation; Driver246/3 fixtures: independent valid Analyze cache not isolated by old hydration corruption test, native profile requiredCGU>=2, and adopted-restored counter excludes changed row. All original safety/fee/native assertions preserved, scenarios corrected.",
+    "g57: Analyze315/Driver248 passed; one native newSession proof accidentally reused same-process successful stage query after outer failure, leaving initialization_workNone. g58 destroys worker before disk retry, exact1 contractPASS; no production logic changed."
   ],
-  "diagnostic_only": {
-    "path": "out/runs/native-direct-profile-23/private-001.json",
-    "not_formal_Rust_ratio": true,
-    "exclusive_ms": {
-      "analyze": 104.597556,
-      "codegen": 1008.387995,
-      "ct": 46.675267,
-      "discovery_receipt_publication": 4.042618,
-      "expand_assembly": 0.620364,
-      "expand_context": 4.514111,
-      "expand_materialization": 19.201148,
-      "expand_other": 66.738133,
-      "expand_production": 12.18158,
-      "expand_reuse": 1.731778,
-      "frontend_product_publication": 21.063126,
-      "frontend_product_read": 11.853659,
-      "function_cache_publication": 16.839585,
-      "function_cache_read": 64.757713,
-      "function_checkpoint": 0.018848,
-      "lower": 3.682423,
-      "owner_binding": 0.036195,
-      "parse": 0.117051,
-      "producer_checkpoint": 0.021172,
-      "project_setup": 1.254118,
-      "semantic_cache_read": 5.76184,
-      "semantic_candidate_publication": 110.940425,
-      "source_ingress": 80.563823,
-      "types_cfg_execute": 0.077636,
-      "types_cfg_reuse": 46.455178,
-      "types_cfg_store": 0.046913,
-      "types_context": 14.461406,
-      "types_core_comparison": 0.0,
-      "types_graph_maintenance": 0.0,
-      "types_input_inventory": 2.654729,
-      "types_other": 56.03659,
-      "types_projection_context": 3.155515,
-      "types_query_evaluation": 23.393832,
-      "types_shape": 10.431797,
-      "verify": 74.082534
+  "host_build_features": [
+    "native-products",
+    "host-jemalloc"
+  ],
+  "host_allocator": {
+    "identity": "tikv-jemalloc-sys0.6.1 process C override",
+    "exports": {
+      "malloc": "T",
+      "free": "T",
+      "realloc": "T",
+      "calloc": "T",
+      "posix_memalign": "T",
+      "malloc_usable_size": "T"
     },
-    "unassigned_ms": 46.030845,
-    "overlap_ms": 0.0,
-    "own_child_cpu_samples": 213,
-    "sampling_scope": "Includes startup/shutdown; sessionDrop after quit excluded from compile attribution. Raw decode/validation and machine class COW allocation are actual sampled compile stacks; not causal estimates of formal phase variation."
+    "LD_PRELOAD": null,
+    "MALLOC_CONF_present": false
   }
 }
