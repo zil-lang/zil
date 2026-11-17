@@ -1593,6 +1593,26 @@ fn resolved_parts(
                 && life.slots.is_empty()
                 && life.retained.is_empty()
                 && life.nominal_arguments.is_empty() => {}
+        Type::Tuple(fields) if empty_shape(life) => {
+            // Resolve the complete structural value using the same leaf
+            // rules as a standalone value. A class-free shared byte leaf is
+            // a Static obligation, not a source proof: the original creator,
+            // every actual constructor/write and return still establish its
+            // literal provenance. The nominal type-only query below cannot
+            // reconstruct that obligation from a raw nested Address.
+            for (index, _) in fields.iter().enumerate() {
+                b.spend(1, WORK)?;
+                let child = geometry::project(
+                    &geometry,
+                    geometry::Child::Field(None, index),
+                    &empty(),
+                    b,
+                )?;
+                resolved_parts(
+                    instance, &child.ty, &child.life, &[], inventory, b, depth + 1,
+                )?;
+            }
+        }
         Type::BorrowedStorage { life: actual, .. } if actual == life => {}
         Type::BorrowedStorage { .. } => {
             return Err(fail(
