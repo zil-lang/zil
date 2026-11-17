@@ -799,15 +799,90 @@ impl Builder<'_, '_> {
         let (index, field) = aggregates::field(&ty, member, span)?;
         let kind = if matches!(field, Type::Managed(_)) {
             InstructionKind::DescribePackageField { local, index }
-        } else if array_field_supported(&field)
-            || matches!(field, Type::Closure(_) | Type::Package { .. })
-            || owned_shapes::sum(&field)
-        {
+        } else if array_field_supported(&field) || owned_shapes::field(&field) {
             InstructionKind::TakePackageField { local, index }
         } else {
             InstructionKind::ReadPackageField { local, index }
         };
         let ty = projection_type(field);
         Ok((self.value(kind, ty.clone(), span)?, ty))
+    }
+}
+
+#[cfg(test)]
+mod field_transfer_tests {
+    use super::*;
+    use zil_base::{FileId, ModuleId, SourceUnit};
+
+    #[test]
+    fn original_task_failure_moves_callable_inputs_and_reads_copy_reason() {
+        // Keep the real async cleanup and failure branches. In particular the
+        // returned callback owns a child Task; a zero-class shape is not Copy.
+        let text = include_str!(
+            "../../../tests/language-readiness/task-owner-transport/nested-callable-child-cleanup.zil"
+        );
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "task-fields.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let core = zil_expand::expand(&source, &parsed).unwrap();
+        let typed = check(&core, &TargetProfile::default(), &Limits::default()).unwrap();
+        let mut read_reason = false;
+        let mut take_callbacks = false;
+        let mut unpack_callbacks = false;
+        for function in &typed.functions {
+            for instruction in function.blocks.iter().flat_map(|b| &b.instructions) {
+                match &instruction.kind {
+                    InstructionKind::ReadPackageField { local, index }
+                    | InstructionKind::TakePackageField { local, index } => {
+                        let Type::Package { name, fields } =
+                            stored::physical(&function.locals[local.0 as usize].ty)
+                        else {
+                            continue;
+                        };
+                        if !name.starts_with("@std.task:v1:TaskCreateFailure:") {
+                            continue;
+                        }
+                        let (name, ty) = &fields[*index as usize];
+                        if matches!(&instruction.kind, InstructionKind::ReadPackageField { .. }) {
+                            assert!(ty.is_copy_value(), "non-Copy failure input read: {ty:?}");
+                            read_reason |= name == "reason";
+                        } else if name == "inputs"
+                            && matches!(stored::physical(ty), Type::Tuple(fields)
+                                if fields.iter().any(|ty| matches!(ty, Type::Closure(_))))
+                        {
+                            take_callbacks = true;
+                            assert_eq!(
+                                function.values[instruction.result.unwrap().0 as usize],
+                                *ty
+                            );
+                        }
+                    }
+                    InstructionKind::UnpackTuple { local, fields } => {
+                        if let Type::Tuple(types) =
+                            stored::physical(&function.locals[local.0 as usize].ty)
+                            && types.iter().any(|ty| matches!(ty, Type::Closure(_)))
+                        {
+                            assert_eq!(fields.len(), types.len());
+                            for (field, ty) in fields.iter().zip(types) {
+                                assert_eq!(&function.locals[field.0 as usize].ty, ty);
+                            }
+                            unpack_callbacks = true;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        assert!(
+            read_reason,
+            "actual failure reason should retain its Copy read"
+        );
+        assert!(
+            take_callbacks,
+            "actual callback tuple must transfer from failure.inputs"
+        );
+        assert!(
+            unpack_callbacks,
+            "destructuring must transfer the complete callback child"
+        );
     }
 }

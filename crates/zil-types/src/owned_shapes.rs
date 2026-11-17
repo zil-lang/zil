@@ -36,7 +36,11 @@ fn scoped_shape(ty: &Type) -> Option<bool> {
 fn shape(ty: &Type) -> Option<bool> {
     match ty {
         Type::BorrowedStorage { storage, .. } => scoped_shape(storage),
-        Type::MutexGuard { .. } => Some(true),
+        // A concrete closure carries its own environment responsibility. This
+        // structural classification chooses transfer/cleanup operations only;
+        // it never infers Copy or a synchronous destructor from an empty or
+        // unknown capture directory. The actual closure is checked separately.
+        Type::Closure(_) | Type::MutexGuard { .. } => Some(true),
         Type::Managed(_) => resources::supported(ty).then_some(true),
         Type::Tuple(fields) => {
             let mut owns = false;
@@ -145,7 +149,10 @@ pub(super) fn error_union(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { .. }) && shape(ty).is_some()
 }
 pub(super) fn field(ty: &Type) -> bool {
-    matches!(ty, Type::Managed(_) | Type::Package { .. }) || sum(ty)
+    matches!(
+        ty,
+        Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
+    ) || sum(ty)
 }
 
 pub(super) fn validate(ty: &Type, remaining: &mut usize, depth_limit: usize, span: Span) -> R<()> {
@@ -246,4 +253,30 @@ pub(super) fn product_with_sum(ty: &Type) -> bool {
         }
     }
     matches!(ty, Type::Package { .. }) && contains(ty) && value(ty)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn closure_products_are_affine_without_a_copy_or_empty_domain_assumption() {
+        let closure = Type::Closure(ClosureId(17));
+        let inputs = Type::Tuple(vec![Type::I32, Type::Tuple(vec![closure.clone()])]);
+        let package = Type::Package {
+            name: "Failure".into(),
+            fields: vec![
+                ("reason".into(), Type::I32),
+                ("inputs".into(), inputs.clone()),
+            ],
+        };
+        assert!(tuple(&inputs));
+        assert!(field(&inputs));
+        assert!(field(&closure));
+        assert!(value(&package));
+        assert!(!zero_debt_package(&package));
+        assert!(!inputs.is_copy_value());
+        assert!(!field(&Type::I32));
+        assert!(!value(&Type::Tuple(vec![Type::Named("unresolved".into())])));
+    }
 }
