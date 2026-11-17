@@ -256,7 +256,7 @@ pub(super) fn resolve(
         retained_port: None,
         heap_parents: row.suffix.heap_parents.clone(),
         heap_element: row.suffix.heap_element.clone(),
-        static_dependency: row.source.static_dependency,
+        static_dependency: row.source.static_dependency.clone(),
     };
     for target in &mut actual.sources {
         store_paths::compose(target, &relative, b)?;

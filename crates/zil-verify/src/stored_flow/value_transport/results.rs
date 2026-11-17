@@ -15,7 +15,7 @@ pub(in crate::stored_flow) struct ResultFacts {
     pub(in crate::stored_flow) option: option_address::Variants,
     pub(in crate::stored_flow) creation: Option<bool>,
 }
-fn symbolic(
+pub(super) fn symbolic(
     permission: &Permission,
     f: &TypedFunction,
     solution: &Solution,
@@ -30,7 +30,7 @@ fn symbolic(
         receiver: receiver::returned_head(permission, solution, b)?,
     })
 }
-fn join_symbolic(
+pub(super) fn join_symbolic(
     out: &mut SymbolicPermission,
     from: &SymbolicPermission,
     b: &mut Budget,
@@ -1046,6 +1046,12 @@ pub(super) fn validate_after_rows(
     let mut relations = relation_index::Relations::new(f, b)?;
     for (path, row) in rows {
         let destination = call_results::destination(module, ty, path, b)?;
+        if !row.description.sources.is_empty() && !matches!(destination, Type::Desc(_)) {
+            return Err(err(
+                "description after-state selects another actual field kind",
+            ));
+        }
+
         for (permission, description) in
             std::iter::once((&row.address, matches!(destination, Type::Desc(_))))
                 .chain(std::iter::once((&row.description, true)))

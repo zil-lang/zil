@@ -990,13 +990,20 @@ fn prepare_result(
         }
     }
     for (path, sources) in &summary.result {
-        destination(module, &definition.result, path, b)?;
+        let descriptor = matches!(
+            destination(module, &definition.result, path, b)?,
+            Type::Desc(_)
+        );
         if !path_active(module, &definition.result, &prepared, path, b)? {
             continue;
         }
         let mut permission = Permission::default();
         for source in sources {
-            let actual = before.source(source, b)?;
+            let actual = if descriptor {
+                before.descriptor_source(source, b)?
+            } else {
+                before.source(source, b)?
+            };
             if actual.sources.is_empty() {
                 complete = false;
             }
@@ -1279,7 +1286,9 @@ impl Before<'_> {
                     permission
                 }
             } else {
-                return Ok(Permission::default());
+                // A genuine non-Desc input owner keeps its existing head
+                // route; it is not reinterpreted as a saved descriptor.
+                return self.source(source, b);
             };
             if permission.sources.is_empty() {
                 return Ok(Permission::default());
@@ -1314,7 +1323,7 @@ impl Before<'_> {
         }
         let mut out = vec![];
         for (holder, path, _) in locations {
-            let views = if path.is_empty() {
+            let views: &[dyn_ports::View] = if path.is_empty() {
                 holder.dyn_views.as_slice()
             } else {
                 value_transport::facts(holder, &path, b)?
@@ -1440,6 +1449,17 @@ impl Before<'_> {
         }
         Ok(result)
     }
+    pub(super) fn physical_permission(
+        &self,
+        row: &value_transport::SymbolicPermission,
+        description: bool,
+        i: &Instruction,
+        sites: &WriteSites,
+        loans: &mut [Loan],
+        b: &mut Budget,
+    ) -> Check<(Permission, bool)> {
+        self.symbolic(row, description, i, sites, loans, b)
+    }
     fn symbolic(
         &self,
         row: &value_transport::SymbolicPermission,
@@ -1553,7 +1573,11 @@ impl Before<'_> {
             if !path_active(self.module, result_type, &activity, path, b)? {
                 continue;
             }
-            let (address, a) = self.symbolic(&row.address, false, i, sites, loans, b)?;
+            let descriptor = matches!(
+                destination(self.module, result_type, path, b)?,
+                Type::Desc(_)
+            );
+            let (address, a) = self.symbolic(&row.address, descriptor, i, sites, loans, b)?;
             let (description, d) = self.symbolic(&row.description, true, i, sites, loans, b)?;
             complete &= a && d;
             let option = value_transport::option_at(&activity, path, b)?;

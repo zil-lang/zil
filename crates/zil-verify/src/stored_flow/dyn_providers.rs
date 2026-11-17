@@ -940,6 +940,7 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
                 .guarantees
                 .as_ref()
                 .ok_or_else(|| bad("provider receiver-after source upper is Unknown"))?;
+            let memory_rows = value_transport::memory_after_sources(module, summary, b)?;
             for row in &table.ports {
                 let Some(DynGuarantee::StorageSources(upper)) = guarantees.get(row.port as usize)
                 else {
@@ -953,10 +954,9 @@ pub(super) fn validate(module: &TypedModule, summaries: &[Summary], b: &mut Budg
                             .len()
                             .saturating_mul(path.len().saturating_add(1)),
                     )?;
-                    let actual = summary
-                        .external_after
+                    let actual = memory_rows
                         .iter()
-                        .find(|(parameter, p, _)| *parameter == 0 && p == &path)
+                        .find(|(base, p, _)| *base == HoldRoot::Parameter(0) && p == &path)
                         .ok_or_else(|| {
                             bad("provider actual Return omits a retained Self after-state leaf")
                         })?;
@@ -1291,6 +1291,7 @@ mod access_tests {
             &values,
             &[],
             &mut rows,
+            &mut Vec::new(),
             &mut b,
         )
         .unwrap();

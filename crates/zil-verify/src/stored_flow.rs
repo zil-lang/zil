@@ -3723,6 +3723,7 @@ fn write_sites(
         && !b.stored_constructor_sites
         && !b.nested_callable_sources
         && !b.replacements
+        && !b.stored_borrows
         && !module.closures.iter().any(receiver::declared)
     {
         return Ok(sites);
@@ -3737,6 +3738,18 @@ fn write_sites(
             let mut add =
                 |parameter: u32, path: &Path, exclusive: bool, b: &mut Budget| -> Check<()> {
                     b.spend(path.len().saturating_add(sites.len()).saturating_add(2))?;
+                    if let Some((_, _, _, _, old_mode)) =
+                        sites.iter().find(|(at, p, selected, _, _)| {
+                            *at == site && *p == parameter && selected == path
+                        })
+                    {
+                        if *old_mode != exclusive {
+                            return Err(err(
+                                "one actual stored write site changes its complete target mode",
+                            ));
+                        }
+                        return Ok(());
+                    }
                     let id = loans.len();
                     loans.push(Loan::default());
                     b.stored_exclusive_loans |= exclusive;
@@ -3822,6 +3835,21 @@ fn write_sites(
                     }
                 }
                 _ => {}
+            }
+            let callee = match &i.kind {
+                InstructionKind::Call { function, .. }
+                | InstructionKind::SuspendCall { function, .. } => {
+                    module.functions.get(function.0 as usize)
+                }
+                kind => stored_callables::called(module, f, kind).and_then(|(definition, _)| {
+                    module.functions.get(definition.function.0 as usize)
+                }),
+            };
+            if let Some(callee) = callee {
+                for (parameter, path, exclusive) in value_transport::after_sites(module, callee, b)?
+                {
+                    add(parameter, &path, exclusive, b)?;
+                }
             }
         }
     }
@@ -4755,11 +4783,13 @@ static_dependency: StaticProvenance::NotStatic,
             let(variants,variants_known)=summaries[function.0 as usize].returned_variants.substitute_known(arguments,values,b)?;
             out.option_variants=if variants_known{variants}else{option_address::Variants::default()};
             let mut result_pending=!variants_known||!enum_known;
+            if !summaries[function.0 as usize].field_result_facts.is_empty(){result_pending|=!before.field_results(&summaries[function.0 as usize],&callee.return_type,i,sites,loans,&mut out,b)?;}
             for (path, sources) in &summaries[function.0 as usize].result {
-                call_results::destination(module,&callee.return_type,path,b)?;
+                let descriptor=matches!(call_results::destination(module,&callee.return_type,path,b)?,Type::Desc(_));
+                if !call_results::path_active(module,&callee.return_type,&out,path,b)?{continue;}
                 let mut p = Permission::default();
                 for source in sources {
-                    let actual=before.source(source,b)?;
+                    let actual=if descriptor{before.descriptor_source(source,b)?}else{before.source(source,b)?};
                     result_pending|=actual.sources.is_empty();
                     join_permission(&mut p,&actual,b)?;
                     if path.is_empty()
@@ -4807,7 +4837,6 @@ static_dependency: StaticProvenance::NotStatic,
                     add_loans(&mut out.address.loans, &actual.loans, b)?;
                 }
             }
-            if !summaries[function.0 as usize].field_result_facts.is_empty(){result_pending|=!before.field_results(&summaries[function.0 as usize],&callee.return_type,i,sites,loans,&mut out,b)?;}
             drop(before);
             state.pending_external_update|=result_pending;
             let dyn_updates = dyn_ports::prepare_after(

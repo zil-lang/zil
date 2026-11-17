@@ -198,7 +198,15 @@ pub(super) fn receiver_result(
             }
         }
         for source in sources {
-            let actual = before.source(source, b)?;
+            let descriptor = matches!(
+                call_results::destination(module, &d.result, path, b)?,
+                Type::Desc(_)
+            );
+            let actual = if descriptor {
+                before.descriptor_source(source, b)?
+            } else {
+                before.source(source, b)?
+            };
             *pending |= actual.sources.is_empty();
             if path.is_empty() {
                 join_permission(&mut out.address, &actual, b)?;

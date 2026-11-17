@@ -6,13 +6,46 @@ mod after;
 mod inputs;
 mod results;
 pub(super) use after::{
-    After, PreparedAfter, after_work, prepare_after, publish_after, summarize_after,
+    After, PreparedAfter, after_sites, after_sources, after_work, prepare_after, publish_after,
+    summarize_after,
 };
 pub(super) use inputs::{seed_capture, seed_parameter};
 pub(super) use results::{
     ResultFacts, SymbolicPermission, required_channels_known, result_bound, result_work, summarize,
     validate_results,
 };
+pub(super) fn memory_after_sources(
+    module: &TypedModule,
+    summary: &Summary,
+    b: &mut Budget,
+) -> Check<Vec<(HoldRoot, Path, Vec<Source>)>> {
+    let mut rows = after_sources(module, &summary.value_after, b)?;
+    for (base, path, sources) in summary
+        .external_after
+        .iter()
+        .map(|(index, path, sources)| (HoldRoot::Parameter(*index), path, sources))
+        .chain(
+            summary
+                .capture_after
+                .iter()
+                .map(|(index, path, sources)| (HoldRoot::Capture(*index), path, sources)),
+        )
+    {
+        b.spend(rows.len().saturating_mul(path.len().saturating_add(1)))?;
+        if let Some((_, _, known)) = rows
+            .iter_mut()
+            .find(|(root, key, _)| *root == base && key == path)
+        {
+            add_sources(known, sources, b)?;
+        } else {
+            b.spend(path.len().saturating_add(1))?;
+            source_work(sources, b)?;
+            rows.push((base, path.clone(), sources.clone()));
+        }
+    }
+    Ok(rows)
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct FieldFacts {
     pub(super) address: Permission,

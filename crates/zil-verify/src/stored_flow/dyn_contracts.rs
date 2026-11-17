@@ -794,16 +794,48 @@ fn after_upper(
             .find(|row| row.port == *port)
             .ok_or_else(|| bad("after-state Context port has no complete actual row"))?;
         for source in &row.sources {
-            actual_paths.push((0, crate::dynamic_ports::source_places(source, b)?));
+            actual_paths.push((
+                HoldRoot::Parameter(0),
+                crate::dynamic_ports::source_places(source, b)?,
+            ));
         }
     } else {
-        let StorageBase::Parameter(parameter) = upper.position.base else {
-            return Ok(());
+        let (base, parameter, path_slice, ty) = match upper.position.base {
+            StorageBase::Parameter(parameter) => {
+                let value = request
+                    .parameters
+                    .get(parameter as usize)
+                    .ok_or_else(|| bad("after-state parameter is absent"))?;
+                (
+                    HoldRoot::Parameter(parameter),
+                    Some(parameter),
+                    upper.position.path.as_slice(),
+                    &value.ty,
+                )
+            }
+            StorageBase::Receiver if matches!(request.origin, Origin::Callable { .. }) => {
+                let Some((ContractProjection::Capture(index), tail)) =
+                    upper.position.path.split_first()
+                else {
+                    return Err(bad(
+                        "after-state receiver requires its exact captured memory selector",
+                    ));
+                };
+                let function = module
+                    .functions
+                    .get(request.function.0 as usize)
+                    .ok_or_else(|| bad("after-state callable function is absent"))?;
+                let ty = function
+                    .environment
+                    .and_then(|id| module.closures.get(id.0 as usize))
+                    .and_then(|definition| definition.captures.get(*index as usize))
+                    .ok_or_else(|| bad("after-state captured memory type is absent"))?;
+                (HoldRoot::Capture(*index), None, tail, ty)
+            }
+            _ => return Ok(()),
         };
         b.spend(upper.position.path.len().saturating_add(1))?;
-        let path = upper
-            .position
-            .path
+        let path = path_slice
             .iter()
             .map(|step| match step {
                 ContractProjection::Place(place) => Ok(*place),
@@ -812,37 +844,43 @@ fn after_upper(
                 )),
             })
             .collect::<Check<Vec<_>>>()?;
-        let value = request
-            .parameters
-            .get(parameter as usize)
-            .ok_or_else(|| bad("after-state parameter is absent"))?;
-        let root = match &value.ty {
-            Type::Address { inner, .. } | Type::Desc(inner) => inner.as_ref(),
+        let _ = parameter;
+        let root = match ty {
+            Type::Address { inner, .. } => inner.as_ref(),
+            Type::Desc(inner) if matches!(base, HoldRoot::Parameter(_)) => inner.as_ref(),
             ty => ty,
         };
         output = crate::dynamic_ports::physical_path(root, &path, b)?;
-        actual_paths.push((parameter, path));
+        actual_paths.push((base, path));
     }
-    for (parameter, path) in actual_paths {
-        let actual = summary
-            .external_after
+    let memory_rows = value_transport::memory_after_sources(module, summary, b)?;
+    for (base, path) in actual_paths {
+        let parameter = if let HoldRoot::Parameter(index) = base {
+            Some(index)
+        } else {
+            None
+        };
+        let actual = memory_rows
             .iter()
-            .find(|(index, at, _)| *index == parameter && *at == path)
+            .find(|(root, at, _)| *root == base && *at == path)
             .ok_or_else(|| bad("actual Return omits an original after-state source leaf"))?;
         if actual.2.is_empty() {
             return Err(bad("actual after-state leaf is Unknown, not known empty"));
         }
-        let destination = StoragePosition {
-            base: StorageBase::Parameter(parameter),
-            path: path
-                .iter()
-                .copied()
-                .map(ContractProjection::Place)
-                .collect(),
+        let location = Source {
+            base,
+            leaf: path.clone(),
+            inline: vec![],
+            retained_port: None,
+            heap_parents: vec![],
+            heap_element: None,
+            static_dependency: StaticProvenance::NotStatic,
         };
+        let destination = position(request, module, &location, b)?
+            .ok_or_else(|| bad("after-state memory has no original public position"))?;
         let mut variable = variable_outer(request, &destination, b)?;
         if !variable
-            && parameter == 0
+            && parameter == Some(0)
             && matches!(
                 request.origin,
                 Origin::TableSlot { .. } | Origin::Definition { .. }
@@ -1280,9 +1318,9 @@ fn contract(
             }
         }
     }
-    for (index, path, sources) in &summary.external_after {
+    for (base, path, sources) in &value_transport::memory_after_sources(module, summary, b)? {
         let location = Source {
-            base: HoldRoot::Parameter(*index),
+            base: *base,
             leaf: path.clone(),
             inline: vec![],
             retained_port: None,

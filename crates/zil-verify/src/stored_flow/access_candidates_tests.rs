@@ -391,6 +391,7 @@ fn complete_call_oracle_preserves_held_leaf_argument_and_summary_checks() {
                 None,
                 None,
                 &mut Vec::new(),
+                &mut Vec::new(),
                 &mut new_b,
             );
             assert_eq!(
