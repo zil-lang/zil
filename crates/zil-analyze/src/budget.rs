@@ -126,6 +126,10 @@ pub(super) struct Budget {
     // the resource/frame or unconditional post-body proof in this request.
     pub(super) semantic_consuming_cleanups:
         BTreeSet<(FunctionId, zil_ir::BlockId, usize, zil_ir::ClosureId)>,
+    // Complete zero-Task scope metadata in one bound immutable request:
+    // module/resource ordinal, explicit metadata bounds, current raw bounds.
+    // This caches no owner, phase, source class, cleanup or caller theorem.
+    pub(super) semantic_task_scopes: BTreeSet<(usize, usize, usize, usize, usize, usize)>,
     // Exact constructor occurrences whose complete original class value and
     // actual header embedding have both been proved. No target/loan facts.
     pub(super) semantic_aggregate_classes:
@@ -325,6 +329,7 @@ impl Budget {
             semantic_cleanup_proofs: BTreeSet::new(),
             semantic_capture_cleanups: BTreeSet::new(),
             semantic_consuming_cleanups: BTreeSet::new(),
+            semantic_task_scopes: BTreeSet::new(),
             semantic_aggregate_classes: BTreeMap::new(),
             stored_synchronous_abis: BTreeSet::new(),
             stored_task_frame_functions: BTreeSet::new(),

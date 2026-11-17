@@ -154,6 +154,7 @@ fn analyze_budgeted_context(
     budget.semantic_cleanup_proofs.clear();
     budget.semantic_capture_cleanups.clear();
     budget.semantic_consuming_cleanups.clear();
+    budget.semantic_task_scopes.clear();
     budget.stored_synchronous_abis.clear();
     budget.stored_task_frame_functions.clear();
     budget.stored_task_frame_pending = false;
