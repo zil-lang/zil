@@ -1,6 +1,7 @@
 //! A provenance-transfer regression, independent of Source type admission.
-//! The ordinary fixture supplies a fully checked original declaration world;
+//! A current raw constructor supplies a checked original declaration world;
 //! this test exercises its protocol interpreter with one Closed owner context.
+//! It neither decodes historical Wire nor claims Source/Types acceptance.
 use super::*;
 
 fn expr(kind: CoreExprKind<SemanticTypeRecipe>) -> SemanticOriginalExpr {
@@ -10,8 +11,31 @@ fn expr(kind: CoreExprKind<SemanticTypeRecipe>) -> SemanticOriginalExpr {
 #[test]
 fn returned_input_owner_cannot_disappear_through_a_nested_aggregate_or_opaque_call() {
     let limits = zil_base::Limits::default();
-    let (module, _) = wire::decode_module_candidate(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/semantic-identity.typed.wire")), &limits).unwrap();
+    // The provenance interpreter needs a checked original lexical world,
+    // not a particular producer candidate or historical wire layout.
+    let mut module = crate::static_utf8_tests::module();
+    module.functions.clear();
+    module.semantic = Some(SemanticModule {
+        definitions: vec![SemanticDefinition {
+            id: SemanticDefinitionId { module: zil_base::ModuleId(0), index: 0 },
+            identity: LifeDeclarationIdentity { package: "raw-owner-transfer-control".into(),
+                module_path: vec!["protocol".into()], declaration_path: vec!["context".into()],
+                generation_path: vec![] },
+            parent: None, kind: SemanticDefinitionKind::Function, parameters: vec![],
+            implicit_lifetimes: vec![], requirements: vec![], environment: vec![],
+            body: SemanticDefinitionBody::FunctionWithBody {
+                signature: SemanticSignatureRecipe { bound_lifetimes: 0, invocation_lifetimes: 0,
+                    parameters: vec![], result: SemanticTypeRecipe::Atom(Type::Unit),
+                    result_mode: PassingMode::Infer, call_kind: CallKind::Direct },
+                protocol_contracts: vec![], foreign: None, resume_bound: TaskResumeBound::Local,
+                sites: vec![], parameters: vec![], receiver_parameter: None, names: vec![], site_nodes: vec![],
+                body: SemanticOriginalFunctionBody::Defined(CoreBlock {
+                    statements: vec![], span: zil_base::Span::default(),
+                }),
+            },
+        }],
+        instances: vec![], sites: vec![], dyn_scopes: vec![],
+    });
     let program = module.semantic.as_ref().unwrap();
     let mut budget = Budget::new(&limits);
     let inventory = Inventory::new(&module, &limits, program, &mut budget).unwrap();
