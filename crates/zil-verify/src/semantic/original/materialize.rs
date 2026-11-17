@@ -87,7 +87,7 @@ impl CheckedOriginal {
     pub(in crate::semantic) fn call_type_sources(&self,definition:SemanticDefinitionId,site:SemanticSiteId,ordinal:u32,b:&mut Budget)->Check<Vec<(SemanticTypeRecipe,bool)>>{
         let mut sources=Vec::new();if let Some(nodes)=self.call_type_sources.get(&(definition,site,ordinal)){b.spend(nodes.len())?;for(node,shared_view)in nodes{sources.push((SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(*node)},*shared_view));}}Ok(sources)
     }
-    fn scope(&self,id:SemanticDefinitionId,env:&EvalEnv,b:&mut Budget)->Check<SemanticScopeRef>{b.spend(env.lexical.len())?;env.lexical.iter().position(|frame|frame.definition==id).map(|depth|SemanticScopeRef::Ancestor(depth as u32)).ok_or_else(||bad("original symbolic term escapes the actual real lexical scope"))}
+    pub(super) fn scope(&self,id:SemanticDefinitionId,env:&Env,b:&mut Budget)->Check<SemanticScopeRef>{b.spend(env.lexical.len())?;env.lexical.iter().position(|frame|frame.definition==id).map(|depth|SemanticScopeRef::Ancestor(depth as u32)).ok_or_else(||bad("original symbolic term escapes the actual real lexical scope"))}
     pub(super) fn reify_type(&self,module:&TypedModule,ty:&Ty,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
         self.reify_type_at(module,ty,env,0,b)
     }
