@@ -1,0 +1,101 @@
+{
+  "updated_utc": "2026-11-16T23:55:35+00:00",
+  "goal": "Finish core-language Alpha; do not declare delivery from stage-only counts.",
+  "source": "/workspace/zil-public-integration",
+  "branch": "task/language-alpha",
+  "saved_source": "d15580dd48da37631e08f0eb607284bcb93e32b4",
+  "github_saved_source_verified": true,
+  "candidate": "/workspace/zil-alpha-candidate",
+  "sole_git_build_integrator": "/root/analyze_dynamic_source_atoms",
+  "diagnostic_run": "alpha-resume-callable-boundary-exact-evidence",
+  "last_complete_test_candidate": "132839bf566db2c178008479b158d229171bde91",
+  "last_complete_counts": {
+    "foundation_positive": "13/13",
+    "intended_semantic_negative": "4/4",
+    "extra": "14/14 restored nested-borrowed regression",
+    "nearest": "40/40",
+    "reviewed_raw": "13/13",
+    "source_integration": "TaskSource9/9 +Option6/6 actual passed after owned Task callback result fixes. SourceStatic new positive controls pass; original e0bb now expands/types but A ghostcapture missing full data/head.",
+    "task_sdk": "36 tests:15pass/21fail; actual Counter A13/T5/V3. Do not reuse old T16/A3/V4.",
+    "task_helper_source_census": "30:18 VerifySuccess/5A/7V.",
+    "native": "Same132839:18 helper Sources x both backends O0/O2=72builds,144normal/fail1 real executions all passed exact stdout and original observer. Not full30."
+  },
+  "saved_fixes": [
+    "2c2af1629: Analyze readonly static byte-view index/len and real test Typed-site transport",
+    "1a04c910e: Verify complete callable boundary diagnostics only; no rigid Eq relaxation"
+  ],
+  "active_complete_batches": {
+    "analyze_dynamic_source_atoms": "Sole Git/index/build/candidate/validation/goal; no other heavy build. Native helper enumeration now prevents SDK first-assert masking.",
+    "task_alpha_complete": "ACTUALLY resumed26c A13. 8reg heads loseOwnedFailure input roots: protocol Data aliases only, ErrorArm/Member/tuplePattern discard exact returned arg provenance. Implement paid original projection-source/allbranches. 3cleanup: TaskPattern absentFrame.bindings and Suspend generic F rigid; record sourceframe+exactAnchor/Node/subject and actualDrop allinstances instead term-only. Direct strictΓ remains. sameformal2 directory onecapture/Fixed must retain all occurrences, no sourceowner selection byclass/representative. e47fStaticghost2 saved and Sourcee0bb original knownStatic lendingCapture1; fullReturn literal checks preserve.",
+    "original_borrowed_call_completion": "VStatic5=f41ebbfc saved655f8eb6, sourcecandidate514d currentlyfulltest onlyCE2. Root ACTUALLY restoredV-Astra final5diffreview afterthreadlimit clears. ActualCE readonlyStatic header→Logicalpending registry→allCtor/Write/Return leastroot; no permissions beforefinal. Desc3=80a2 and backendprepay510 complete; check new runtime. Sameimage κ tests retain all. Direct NoExt sourceinvalidation4a9 saved.",
+    "types_scale_complete": "ACTUALLY active pending_once alias2; paid fullType sides diagnostics206d saved nextCLI. WrongContext negative: genericOpaque zero query borrowed_check neededmain complete during main check. Private currentΓ read-only reborrow+otherownercomplete+fullD/allreturn/mixed/where/phantom bridge READY ad6b5916 single original_results.rs Astra final approved; waitrealnegativeexpectedSyncDrop, never justchangeoracle.",
+    "iteration_complete_original_domains": "ACTUALLY active new fundamental Rootprobe /workspace/.zil-env/root-generic-task-return-233703/source.zil retain<T:Value+CE>(giveTaskT)->FnOnce ManagedTaskT. Source gap noFnformal returnsopaque fallsordinarykey. OrdinaryValue genericfactory+signature/capture/return/if/binding/mixedtypes lifetimes implemented WIP; CE treatednominalbound next. Add privateBoundCE only original obligation transport, do NOT putCE in generic_value::bound/value_shape or grantCopy/SD/N0; actualSource/Types allΓ independence. SourceAstra reviewed probevalid, no needSyncDrop. Originale0bbStatic3 Source is saved, not pendingSource."
+  },
+  "critical_actual_diagnostic": "Nested cleanup de3b failure is owner0:20 Direct close_callback local callback, NOT already-passing owner19 Suspend parent. Preserve parent body and Quiet7. Change real recovery helper to consume FnOnce; do not add SyncDrop to async parent or invoke callback to manufacture Quiet8.",
+  "recovery": "Environment restart removes agents but preserves files/processes. Check actual processes first, then followup_task owners; send_message does not start completed agents. Do not duplicate surviving Cargo. Save exact READY and ACK immediately. Root has read Analyze algorithms and must not inspect Verify algorithms.",
+  "acceptance": "One exact candidate: legitimate positives, safety negatives with passing bases, Source/Core/Typed, independent raw/Wire, both native backends O0/O2, allocation failure and exact cleanup, relevant regression, independent review and clean restoration. Unsupported/ResourceLimit/ignored/zero-execution is not a pass.",
+  "diagnostic_census": {
+    "candidate": "1a04c910ea977cce39ec98c965df263194390736",
+    "receipt": "/workspace/.zil-env/root-callable-diagnostics-1a04-210100/all-original-helper-cases/receipt.json",
+    "counts": "30 exact existing Rust helper Source cases: 12 Verify Success, 5 Verify fail, 3 Types fail, 10 Analyze fail; diagnostic not native acceptance",
+    "runner": "/workspace/.zil-env/check-all-task-helper-sources.py",
+    "lesson": "SDK loop first assert hides later cases. Enumerate and check every original helper-generated Source case in parallel, preserve all original assertions. Native failures are returned-frame-ready family, not already-passing prepolled-pending."
+  },
+  "active_candidate": "3d305ded6c1d1c963057c7f320a94162283af2dd",
+  "active_build_run": "alpha-resume-complete-static-captures-managed-task-cleanup-and-nested-creators",
+  "latest_core": {
+    "candidate": "0ba3cebaaaab75b57646c8e7047b6e5b6bffac61",
+    "passed": 1565,
+    "failed": 0,
+    "ignored": 0,
+    "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-exact-task-protocol-opcode-evidence/core-libraries/receipt.json"
+  },
+  "current_full_run": "alpha-resume-source-static-capture-congruence-and-source-width-mechanical",
+  "core_regression": {
+    "candidate": "0ba3cebaaaab75b57646c8e7047b6e5b6bffac61",
+    "counts": "IR103/Expand179/Types96/Analyze312/Verify875; total1565 passed, zero failed, zero ignored"
+  },
+  "reviewed_hypothesis": "495 Known0 did NOT delete actual Static: original real Closure entry/definition Capture0[] and factory capture_sources Static byte intact. Factory envelope and inner captured Static are separate levels; do not add captured Static as external header kappa.",
+  "external_runner_fix": "Root fixed extra, nearest, core helper exit status to inspect all result rows; old copies retained. Verified actual de3b14/14=>exit0 and26a13/14=>exit1. Census is explicitly diagnostic and not native acceptance.",
+  "latest_tested_after_3d305": {
+    "candidate": "26c1362a59d8affe7967a12328979e14c6d31c1c",
+    "run": "alpha-resume-complete-task-environments-static-ghost-and-description-codegen",
+    "helper30": "18Success/12V (preCE2)",
+    "fixtures16": "4Success/7A/4Types/1V",
+    "SDK36": "15pass21fail; Counter A13/Types3/V4/assertion1. Direct ENOENT fixed by reading actual report.artifacts[llvm] program.ll, no weakened assertions."
+  },
+  "backup": "Integrator archived Source WIP + source/native census and three runner exit fixes on GitHub archive/source-history@15098e2c46166a3772da25945724b015c72cb1ce; manifest/patch readback verified. Main source branch normal FF, no permissions pending.",
+  "next_candidate": "b7d7615... contains World2 + V86 + Source actual lookup facts. Integrator frees disk by exact-SHA/mode hardlinking only completed immutable CLI copies, never mutable target; preserves paths/bytes/manifests. No Source/receipt/native deletion.",
+  "recovery_critical": "Environment/tool abort can erase agent list without newenvironment message; Root recently found onlyRoot, preservedSource514d+7WIP and noRust, ACTUALLY followedup integrator/V/Types/Source/A. Allnowrealrunning. Never assume send resumescompleted/interrupted. Root alreadyreadA, mustnotreadVimplementation. Keep Rootanalysis1-2 concrete sentences thenact; do not speculate algorithms for thousands of tokens.",
+  "summary_tool": "Root updated summarize-alpha-run.py: row counts+candidate/CLI hash checks, Counter SDK phases, observed failures exit1 and alpha_acceptance_claim=false; actuala396 report /workspace/.zil-env/a396-row-verified-summary.txt. All4 acceptance helpers now row status exits; archive next time.",
+  "latest_checkpoint_20261117": {
+    "source_saved": "4be7b3861 (verify actual HEAD; all saved FF GitHub)",
+    "alpha_complete": false,
+    "private_slot": "All producer/SSA/local/logical/operations/borrow/move/refill/cleanup consumers now saved with A-only exact static review accepted; unified validation pending",
+    "a25": "OwnerSources private whole/projected/opaque, exhaustive old consumer migration; cleanup Origin/Occurrence/Event mapping; TaskValid weak observation; plain failure transport. Original a8f plus exact5d2c activation/contract-return deltas accepted static",
+    "types": "Nominal original opaque identity3 final71278 saved886ca plus private explicit SourceFailure boundary, both global From removed; latest722170 full check/build0, no Source acceptance yet",
+    "v": "Latest45034f212 static/owned mutable/FnOnce3families6paths exact1c794ec3 finalV-only accepted static; actual Source/native pending",
+    "known_in_progress": "A closed_capture Array alias epoch/Closed transfer, sole writer task_alpha_complete; do not derive Closed/SD/CE from N0; test all original cases samecandidate",
+    "latest_full_functional_receipts": "84520 real instantiated retain<T> Task<I32> native4build/8normal+fail1 passed; 16752 helper30=18Success12V, fixtures16=3Success11A1T1V. Do not use old phase counts as current results."
+  },
+  "root_current_implementation": {
+    "read_boundary": "Analyze only; never read Verify/Types algorithms",
+    "state": "All Root files saved/frozen. Exact A-only final reviews accepted static; no Cargo performed by Root. Integrator sole Git/index/Cargo/build/push/archive",
+    "files": [
+      "semantic/closed.rs",
+      "semantic/closed/classes.rs",
+      "semantic/closed/persistent_slots.rs",
+      "semantic/closed/capture_heads.rs",
+      "semantic/closed/traits.rs (2 Check initializers only)",
+      "semantic/closed/borrows.rs",
+      "semantic/closed/borrow_places.rs"
+    ],
+    "final_patches": [
+      "/tmp/a-persistent-slot-grounded-value-equations.patch",
+      "/tmp/a-persistent-slot-query-initializers-and-cleanup-fee.patch",
+      "/tmp/a-persistent-slot-original-place-transfers.patch"
+    ],
+    "last_borrow_patch_sha256": "2574f5033ac5a72e844685bbdd03e13bdf5ccc772ce7012313daf9cb42407597",
+    "source_rule": "Logical values use real initializer seed and require every actual refill to preserve full value. Same read liveness/alias barrier always checked. Recursive equations finite; no seed from asserted metadata; no provisional state survives."
+  }
+}

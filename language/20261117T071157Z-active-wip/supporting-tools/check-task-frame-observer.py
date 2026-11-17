@@ -1,0 +1,18 @@
+from pathlib import Path
+import argparse,hashlib,json,os,shlex,subprocess
+from lossless_phase_logs import compress_phases
+p=argparse.ArgumentParser();p.add_argument('--repo',type=Path,required=True);p.add_argument('--run',required=True);a=p.parse_args();b=a.repo/'out/runs'/a.run;identity=json.loads((b/'compiler-build-receipt.json').read_text());out=b/'task-frame-observer';out.mkdir(exist_ok=False);cli=Path('/workspace/.zil-env/target-language-alpha/debug/zil');assert hashlib.sha256(cli.read_bytes()).hexdigest()==identity['cli_sha256'];cc=os.environ.get('ZIL_CLANG','clang');observer=a.repo/'tests/language-readiness/task-aggregate-results/frame-observer.c';obj=out/'observer.o';cmd=[cc,'-std=c11','-Wall','-Wextra','-Werror','-DZIL_TASK_EXPECTED_FRAMES=1','-c',str(observer),'-o',str(obj)];r=subprocess.run(cmd,capture_output=True);(out/'observer.stderr').write_bytes(r.stderr);assert r.returncode==0,r.stderr.decode();wrapper=out/'clang-observer.sh';wrapper.write_text('#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in "$@"; do\ncase "$arg" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ "$link" = 1 ] && [ "$input" = 1 ]; then\nexec '+shlex.quote(cc)+' "$@" -x none '+shlex.quote(str(obj))+' -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec '+shlex.quote(cc)+' "$@"\n');wrapper.chmod(0o755);rows=[]
+for name,expected in [('basic',b''),('ready',b'A')]:
+ source=Path('/tmp/zil-task-real-basic-ready-controls')/(name+'-positive.zil')
+ for backend in ['clang','llvm-api']:
+  for opt in ['O0','O2']:
+   d=out/f'{name}-{backend}-{opt}';d.mkdir();exe=d/'program';argv=[str(cli),'build',str(source),'--work-profile','alpha','--backend',backend,'--opt',opt,'--clang',str(wrapper),'--emit-dir',str(d/'phases'),'-o',str(exe),'--json']
+   with(d/'build.json').open('w')as o,(d/'build.stderr').open('w')as e:z=subprocess.run(argv,cwd=a.repo,stdout=o,stderr=e,timeout=240)
+   v=json.loads((d/'build.json').read_text());row={'case':name,'backend':backend,'opt':opt,'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'build_exit':z.returncode,'status':v.get('status'),'diagnostics':v.get('diagnostics'),'executions':[],'passed':False}
+   if z.returncode==0 and exe.exists():
+    cg=v.get('native_codegen')or{};assert v.get('verification_runs')==1 and cg.get('backend')==backend and cg.get('fallback')is None
+    for label,env,code in [('normal',{},0),('allocation-failure',{'ZIL_TASK_AGGREGATE_FAIL':'1'},1)]:
+     x=subprocess.run([str(exe)],capture_output=True,env=dict(os.environ,**env),timeout=20);(d/(label+'.stdout.bin')).write_bytes(x.stdout);(d/(label+'.stderr.bin')).write_bytes(x.stderr);row['executions'].append({'label':label,'environment':env,'expected_exit':code,'actual_exit':x.returncode,'expected_stdout_hex':expected.hex(),'actual_stdout_hex':x.stdout.hex(),'stderr_hex':x.stderr.hex(),'passed':x.returncode==code and x.stdout==expected and not x.stderr})
+    row['executable_sha256']=hashlib.sha256(exe.read_bytes()).hexdigest();row['passed']=all(x['passed']for x in row['executions'])
+   compress_phases(d);(d/'receipt.json').write_text(json.dumps(row,indent=2)+'\n');rows.append(row);print(name,backend,opt,row['status'],row['passed'],[(x['label'],x['actual_exit'],x['passed'])for x in row['executions']],flush=True)
+(out/'receipt.json').write_text(json.dumps({'candidate':identity['source_commit'],'cli_sha256':identity['cli_sha256'],'observer_source_sha256':hashlib.sha256(observer.read_bytes()).hexdigest(),'observer_command':cmd,'contract':'Exact original frame-observer.c with expectedFrames1 and original calloc/free wraps; normal and first allocation failure; original ready Token A exactly once','rows':rows},indent=2)+'\n')
