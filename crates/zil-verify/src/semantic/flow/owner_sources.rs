@@ -5,7 +5,7 @@ use super::*;
 use original::intrinsics::{AddressProjection,AddressRoot,BufferRoot,BufferSource};
 use zil_base::NodeId;
 #[path = "scalar_preparations.rs"]
-mod scalar_preparations;
+pub(in crate::semantic::flow) mod scalar_preparations;
 #[path = "range_bindings.rs"]
 mod range_bindings;
 
@@ -148,6 +148,7 @@ impl CheckedContext{
                 return Ok(());
             }
             if !seen.insert(value){return Err(bad("address input has a cyclic actual preparation/reborrow chain"));}
+            if let Some(source)=self.prepared_closure_source(module,caller,f,value,b)?{value=source;continue;}
             let(block,at,instruction)=producer(f,value,b)?;
             crate::check_instruction(module,f,instruction,b)?;
             if let InstructionKind::Load(local)=instruction.kind {
@@ -195,6 +196,7 @@ impl CheckedContext{
         let mut seen=std::collections::BTreeSet::new();
         loop{
             b.spend(1)?;if !seen.insert(value){return Err(bad("projected buffer has a cyclic actual producer chain"));}
+            if let Some(source)=self.prepared_closure_source(module,caller,f,value,b)?{value=source;continue;}
             let(block,index,instruction)=producer(f,value,b)?;
             match &instruction.kind{
                 InstructionKind::ReborrowAddress{address,..}|InstructionKind::AddressSlice{address,..}|InstructionKind::DescribeAddress{address}=>value=*address,

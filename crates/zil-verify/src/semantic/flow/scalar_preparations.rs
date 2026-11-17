@@ -11,11 +11,14 @@ pub(super) struct Slot {
 }
 
 pub(super) fn slot(f:&TypedFunction,local:LocalId,readonly:bool,b:&mut Budget)->Check<Option<Slot>> {
+    slot_kind(f,local,readonly,false,b)
+}
+fn slot_kind(f:&TypedFunction,local:LocalId,readonly:bool,owned:bool,b:&mut Budget)->Check<Option<Slot>> {
     let declaration=f.locals.get(local.0 as usize).ok_or_else(||bad("scalar source local is absent"))?;
     b.spend(f.parameters.len().saturating_add(1))?;
     if readonly&&declaration.mutable||f.parameters.contains(&local){return Ok(None);}
     let ty=&declaration.ty;
-    if !ty.is_integer()&&!ty.is_float()&&!matches!(ty,Type::Unit|Type::Bool){return Ok(None);}
+    if if owned{!matches!(ty,Type::Closure(_))}else{!ty.is_integer()&&!ty.is_float()&&!matches!(ty,Type::Unit|Type::Bool)}{return Ok(None);}
     crate::stored_flow::type_work(ty,&b.limits.clone(),b)?;
     let mut live=None;let mut stores=Vec::new();let mut loads=Vec::new();let mut dead=Vec::new();
     for body in &f.blocks {
@@ -38,7 +41,7 @@ pub(super) fn slot(f:&TypedFunction,local:LocalId,readonly:bool,b:&mut Budget)->
                 |InstructionKind::TakePackageField{local:actual,..}|InstructionKind::DropPackageField{local:actual,..}
                 |InstructionKind::StorePackageField{local:actual,..}|InstructionKind::BindPackageCapture{local:actual,..}
                 |InstructionKind::EndPackageCapture{local:actual,..}|InstructionKind::DescribeLocal{local:actual}
-                |InstructionKind::DropManaged{local:actual}|InstructionKind::TakeLocal{local:actual}
+                |InstructionKind::DropManaged{local:actual}
                 |InstructionKind::BorrowLocal{local:actual}|InstructionKind::BorrowLocalMut{local:actual}
                 |InstructionKind::DropMutexGuard{local:actual}|InstructionKind::DropTuple{local:actual}
                 |InstructionKind::TakeTupleField{local:actual,..}|InstructionKind::TakeVariantField{local:actual,..}
@@ -46,19 +49,41 @@ pub(super) fn slot(f:&TypedFunction,local:LocalId,readonly:bool,b:&mut Budget)->
                 |InstructionKind::ReservePlaceLocal{local:actual,..}|InstructionKind::BorrowFieldLocal{local:actual,..}
                 |InstructionKind::VariantTagLocal{local:actual,..}|InstructionKind::ReadVariantLocal{local:actual,..}
                 |InstructionKind::BorrowVariantLocal{local:actual,..}|InstructionKind::DropEnum{local:actual}
-                |InstructionKind::DropClosure{local:actual}|InstructionKind::CallClosureShared{callee:actual,..}
+                |InstructionKind::CallClosureShared{callee:actual,..}
                 |InstructionKind::CallClosureMut{callee:actual,..}if *actual==local=>return Ok(None),
                 InstructionKind::UnpackTuple{local:source,fields}|InstructionKind::UnpackVariant{local:source,fields,..}=>{
                     b.spend(fields.len())?;
                     if *source==local||fields.contains(&local){return Ok(None);}
                 },
-                InstructionKind::Load(actual)if *actual==local=>{if loads.len()==loads.capacity(){b.spend(loads.len().saturating_add(1))?;}b.spend(1)?;loads.push((body.id,index,instruction.result));},
+                InstructionKind::DropClosure{local:actual}if *actual==local=>{if !owned{return Ok(None);}},
+                InstructionKind::Load(actual)if *actual==local=>{if owned{return Ok(None);}if loads.len()==loads.capacity(){b.spend(loads.len().saturating_add(1))?;}b.spend(1)?;loads.push((body.id,index,instruction.result));},
+                InstructionKind::TakeLocal{local:actual}if *actual==local=>{if !owned{return Ok(None);}if loads.len()==loads.capacity(){b.spend(loads.len().saturating_add(1))?;}b.spend(1)?;loads.push((body.id,index,instruction.result));},
                 InstructionKind::StorageDead(actual)if *actual==local=>{if dead.len()==dead.capacity(){b.spend(dead.len().saturating_add(1))?;}b.spend(1)?;dead.push((body.id,index));},
                 _=>{},
             }
         }
     }
     Ok(live.map(|live|Slot{live,stores,loads,dead}))
+}
+
+/// An EvalOnce owning argument/RHS keeps its actual element identity through
+/// one nonaliased Store/Take in the same epoch. No declaration or name chooses
+/// its source, and the normal affine kernel still proves the actual move.
+pub(in crate::semantic::flow) fn owning_source(module:&TypedModule,f:&TypedFunction,block:BlockId,at:u32,local:LocalId,b:&mut Budget)->Check<Option<ValueId>>{
+    let Some(slot)=slot_kind(f,local,false,true,b)?else{return Ok(None);};
+    let[(store_block,store_at,value)]=slot.stores.as_slice()else{return Ok(None);};
+    let[(take_block,take_at,_)]=slot.loads.as_slice()else{return Ok(None);};
+    let(live_block,live_at)=slot.live;
+    if live_block!=block||*store_block!=block||*take_block!=block||*take_at!=at as usize||live_at>=*store_at||*store_at>=*take_at{return Ok(None);}
+    if slot.dead.iter().any(|(block_id,index)|*block_id!=block||*index<=*take_at){return Ok(None);}
+    let body=f.blocks.get(block.0 as usize).filter(|body|body.id==block).ok_or_else(||bad("owning preparation block is absent"))?;
+    let live=&body.instructions[live_at];let store=&body.instructions[*store_at];let take=&body.instructions[*take_at];
+    let declaration=&f.locals[local.0 as usize];
+    if live.span!=declaration.span||store.span!=declaration.span{return Ok(None);}
+    let interval=&body.instructions[live_at+1..*take_at];b.spend(interval.len())?;
+    if interval.iter().any(|instruction|matches!(instruction.kind,InstructionKind::ScopeExit{..})||matches!(instruction.kind,InstructionKind::DropClosure{local:actual}if actual==local)){return Ok(None);}
+    crate::check_instruction(module,f,live,b)?;crate::check_instruction(module,f,store,b)?;crate::check_instruction(module,f,take,b)?;
+    Ok(Some(*value))
 }
 
 pub(super) fn source(module:&TypedModule,f:&TypedFunction,block:BlockId,at:u32,local:LocalId,b:&mut Budget)->Check<Option<ValueId>> {
@@ -110,6 +135,26 @@ mod tests {
     }
     fn prove(module:&TypedModule,f:&TypedFunction,block:u32,at:u32)->Check<Option<ValueId>>{
         source(module,f,BlockId(block),at,LocalId(1),&mut Budget::new(&Limits::default()))
+    }
+    #[test]
+    fn owning_preparation_preserves_exact_stored_instance_and_rejects_aliases_and_replacement(){
+        let(module,mut f)=prepared();
+        let closure=Type::Closure(ClosureId(0));
+        f.locals[0].ty=closure.clone();f.locals[1].ty=closure.clone();f.locals[1].mutable=true;
+        f.values=vec![closure.clone();3];f.return_type=closure;
+        f.blocks[0].instructions[0].kind=InstructionKind::TakeLocal{local:LocalId(0)};
+        f.blocks[0].instructions[3].kind=InstructionKind::TakeLocal{local:LocalId(1)};
+        let prove=|f:&TypedFunction,at|owning_source(&module,f,BlockId(0),at,LocalId(1),&mut Budget::new(&Limits::default()));
+        assert_eq!(prove(&f,3).unwrap(),Some(ValueId(0)));
+        let mut other=f.clone();other.locals[1].name="another_prepared_value".into();
+        other.blocks[0].instructions[2].kind=InstructionKind::Store{local:LocalId(1),value:ValueId(2)};
+        assert_eq!(prove(&other,3).unwrap(),Some(ValueId(2)),"equal whole types do not select the same actual occupant");
+        for kind in [InstructionKind::BorrowLocal{local:LocalId(1)},InstructionKind::Store{local:LocalId(1),value:ValueId(2)},InstructionKind::TakeLocal{local:LocalId(1)},InstructionKind::DropClosure{local:LocalId(1)},InstructionKind::StorageDead(LocalId(1))]{
+            let mut wrong=f.clone();wrong.blocks[0].instructions.insert(3,fixture::instruction(None,kind));
+            assert!(prove(&wrong,4).unwrap().is_none());
+        }
+        let mut settled=f;settled.blocks[0].instructions.insert(4,fixture::instruction(None,InstructionKind::DropClosure{local:LocalId(1)}));
+        assert_eq!(prove(&settled,3).unwrap(),Some(ValueId(0)),"conditional settlement of the already moved preparation changes no source");
     }
     #[test]
     fn scalar_preparation_keeps_exact_stored_ssa_not_same_type_or_name(){

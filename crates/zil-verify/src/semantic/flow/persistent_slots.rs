@@ -8,6 +8,22 @@ pub(super) fn element(ty:&Type)->Option<&Type>{
 }
 
 impl CheckedContext{
+    /// Existing EvalOnce staging is transparent only after its complete
+    /// no-alias/one-Store/one-Take epoch has been checked. A real original
+    /// binder remains an independent source occurrence, even at the same type.
+    pub(super) fn prepared_closure_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,b:&mut Budget)->Check<Option<ValueId>>{
+        if !matches!(f.values.get(value.0 as usize),Some(Type::Closure(_))){return Ok(None);}
+        let(block,at,instruction)=super::intrinsics::owner_sources::producer(f,value,b)?;
+        let InstructionKind::TakeLocal{local}=instruction.kind else{return Ok(None);};
+        if f.locals.get(local.0 as usize).is_none_or(|declaration|!declaration.mutable){return Ok(None);}
+        let programme=module.semantic.as_ref().ok_or_else(||bad("owning preparation lacks its original programme"))?;
+        for site in &programme.sites{b.spend(1)?;if site.instance==caller.id&&(
+            matches!(site.action,SemanticSiteAction::DeclareLocal{local:SemanticLocalTarget::Typed(actual),..}if actual==local)
+            ||matches!(site.action,SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(actual),..}if actual==value)
+            ||matches!(site.action,SemanticSiteAction::TypeUse{subject:SemanticOperand::Local(actual),..}if actual==local)
+        ){return Ok(None);}}
+        super::intrinsics::owner_sources::scalar_preparations::owning_source(module,f,block,at,local,b)
+    }
     /// A complete occurrence map for one real element, including phantom κ.
     fn persistent_array(&self,module:&TypedModule,child:&CheckedType,b:&mut Budget)->Check<CheckedType>{
         if !matches!(child.ty,Type::Closure(_))||!child.life.slots.is_empty()||!child.life.retained.is_empty()||!child.life.nominal_arguments.is_empty(){return Err(bad("private callback element is not its complete opaque Closure domain"));}
@@ -103,7 +119,7 @@ impl CheckedContext{
                 let originals=self.original.borrow().as_ref().ok_or_else(||bad("private callback refill lacks its original source proof"))?.assignments(module,caller.definition,b)?;
                 let mut matched=false;
                 for original in originals{
-                    if original.compound.is_some()||original.span!=instruction.span{continue;}
+                    if original.compound.is_some()||original.span!=instruction.span&&original.statement_span!=instruction.span{continue;}
                     let(root,path)=self.original.borrow().as_ref().unwrap().buffer_place(caller.definition,original.target,b)?;
                     let original::intrinsics::BufferRoot::Local{node}=root else{continue;};
                     if !path.is_empty()||self.buffer_source_local(module,caller,f,original::intrinsics::BufferSource::Local{definition:caller.definition,node},b)?!=local{continue;}

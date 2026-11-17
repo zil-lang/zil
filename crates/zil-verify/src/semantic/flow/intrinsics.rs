@@ -238,6 +238,7 @@ impl CheckedContext {
             if !seen.insert(value) {
                 return Err(bad("operational owner reborrow has a producer cycle"));
             }
+            if let Some(source)=self.prepared_closure_source(module,caller,f,value,b)?{value=source;continue;}
             let mut producer = None;
             for block in &f.blocks {
                 b.spend(block.instructions.len())?;

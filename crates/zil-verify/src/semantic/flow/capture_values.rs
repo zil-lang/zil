@@ -7,6 +7,7 @@ impl CheckedContext {
         let local=self.buffer_source_local(module,creator,f,source,b)?;
         let mut seen=BTreeSet::new();loop{
             b.spend(1)?;if !seen.insert(value){return Err(bad("capture creator has a cyclic actual producer chain"));}
+            if let Some(source)=self.prepared_closure_source(module,creator,f,value,b)?{value=source;continue;}
             let mut producer=None;
             for block in &f.blocks{b.spend(block.instructions.len())?;for instruction in &block.instructions{if instruction.result==Some(value)&&producer.replace(instruction).is_some(){return Err(bad("capture creator operand has several actual SSA definitions"));}}}
             match &producer.ok_or_else(||bad("capture creator actual operand is undefined"))?.kind{

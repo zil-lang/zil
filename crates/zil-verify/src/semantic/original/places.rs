@@ -6,6 +6,7 @@ pub(in crate::semantic) struct Assignment {
     pub(in crate::semantic) target: NodeId,
     pub(in crate::semantic) value: NodeId,
     pub(in crate::semantic) span: Span,
+    pub(in crate::semantic) statement_span: Span,
     pub(in crate::semantic) compound: Option<BinaryOp>,
 }
 fn nonnegative_index(value:&Constant)->Option<u64>{match value{Constant::I8(value)=>u64::try_from(*value).ok(),Constant::I16(value)=>u64::try_from(*value).ok(),Constant::I32(value)=>u64::try_from(*value).ok(),Constant::I64(value)|Constant::Isize(value)=>u64::try_from(*value).ok(),Constant::U8(value)=>Some(u64::from(*value)),Constant::U16(value)=>Some(u64::from(*value)),Constant::U32(value)=>Some(u64::from(*value)),Constant::U64(value)|Constant::Usize(value)=>Some(*value),_=>None}}
@@ -56,7 +57,7 @@ impl CheckedOriginal {
                 _=>continue,
             };
             b.spend(result.len().saturating_add(1))?;
-            result.push(Assignment{statement:statement.id,target:target.id,value:value.id,span:target.span,compound});
+            result.push(Assignment{statement:statement.id,target:target.id,value:value.id,span:target.span,statement_span:statement.span,compound});
         }
         Ok(result)
     }
