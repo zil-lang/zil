@@ -304,50 +304,102 @@ fn bind_instance(
     limits: &Limits,
     left: &mut usize,
 ) -> R<Option<SemanticInstanceId>> {
-    fee(
-        left,
-        ledger.frames.len().saturating_add(program.instances.len()),
-    )?;
-    let Some(frame) = ledger.frames.get(&actual) else {
-        return Ok(None);
-    };
-    let mut selected = None;
-    for row in &program.instances {
-        if preferred.is_some_and(|preferred| row.id != preferred)
-            || !origin_matches(&row.target, frame.origin)
-        {
-            continue;
-        }
-        if selected.replace(row).is_some() {
-            return Err(bad(
-                "actual Task preparation has multiple original worlds for one exact emitter origin",
-            ));
-        }
+    bind_instance_at(directory, program, ledger, actual, preferred, limits, left,
+        0, &mut BTreeSet::new())
+}
+
+fn bind_instance_at(
+    directory: &mut ActualDirectory<'_>, program: &SemanticModule, ledger: &Ledger,
+    actual: FunctionId, preferred: Option<SemanticInstanceId>, limits: &Limits,
+    left: &mut usize, depth: usize, active: &mut BTreeSet<FunctionId>,
+) -> R<Option<SemanticInstanceId>> {
+    fee(left, active.len().saturating_add(1).ilog2() as usize + 2)?;
+    if depth > limits.max_call_depth {
+        return Err(Diagnostic::limit(Phase::Types,
+            "actual creator frame dependency depth exceeded", None));
     }
-    let Some(original) = selected else {
-        return Ok(None);
-    };
-    if let Some(previous) = directory.instances.get(&original.id) {
-        if matches!(previous.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id != actual)
-        {
-            // A different actual world needs its own preparation view. It is
-            // never selected because its layout or caller image looks equal.
+    if !active.insert(actual) {
+        return Err(bad("actual creator frames have a cyclic creation dependency"));
+    }
+    let result = (|| {
+        fee(
+            left,
+            ledger.frames.len().saturating_add(program.instances.len()),
+        )?;
+        let Some(frame) = ledger.frames.get(&actual) else {
             return Ok(None);
+        };
+        let mut selected = None;
+        for row in &program.instances {
+            if preferred.is_some_and(|preferred| row.id != preferred)
+                || !origin_matches(&row.target, frame.origin)
+            {
+                continue;
+            }
+            if selected.replace(row).is_some() {
+                return Err(bad(
+                    "actual Task preparation has multiple original worlds for one exact emitter origin",
+                ));
+            }
         }
-    }
-    crate::dyn_metadata::semantic_operand_snapshot(original, limits, left, 1)?;
-    let mut row = original.clone();
-    row.target = SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(actual));
-    if let Some((_, closure)) = frame.parent {
-        let environment = row
-            .environment
-            .as_mut()
-            .ok_or_else(|| bad("actual closure preparation lost its original environment"))?;
-        environment.closure = SemanticClosureTarget::Typed(closure);
-    }
-    let id = row.id;
-    directory.instances.insert(id, row);
-    Ok(Some(id))
+        let Some(original) = selected else {
+            return Ok(None);
+        };
+        if let Some(previous) = directory.instances.get(&original.id) {
+            if matches!(previous.target, SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id != actual)
+            {
+                // A different actual world needs its own preparation view. It is
+                // never selected because its layout or caller image looks equal.
+                return Ok(None);
+            }
+        }
+        if let Some((creator, _)) = frame.parent {
+            let parent = original.parent
+                .ok_or_else(|| bad("actual closure preparation loses its original lexical creator"))?;
+            fee(left, program.definitions.len().saturating_add(program.instances.len()))?;
+            let child = program.definitions.iter().find(|row| row.id == original.definition)
+                .ok_or_else(|| bad("actual creator binding has no original child definition"))?;
+            let parent_row = directory.original_instance(program, parent)
+                .ok_or_else(|| bad("actual creator binding has no original parent instance"))?;
+            if child.kind != SemanticDefinitionKind::Closure || child.parent != Some(parent_row.definition)
+                || !matches!(original.environment.as_ref(), Some(environment)
+                    if matches!(environment.closure, SemanticClosureTarget::Core { .. }
+                        | SemanticClosureTarget::Typed(_)))
+            {
+                return Err(bad("actual closure creator changes its complete original lexical owner"));
+            }
+            if directory.function(creator).is_none() {
+                return Err(unknown("actual closure preparation awaits its real creator frame"));
+            }
+            // The creator is the exact emitted parent, not an equal input type or
+            // a first helper sharing a template name. Bind it before the child.
+            if bind_instance_at(directory, program, ledger, creator, Some(parent), limits, left,
+                depth + 1, active)? != Some(parent)
+            {
+                return Ok(None);
+            }
+            let actual_parent = directory.original_instance(program, parent)
+                .ok_or_else(|| bad("actual creator binding lost its completed parent"))?;
+            if actual_parent.target != SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(creator)) {
+                return Err(bad("actual child preparation changes its exact Typed creator"));
+            }
+        }
+        crate::dyn_metadata::semantic_operand_snapshot(original, limits, left, 1)?;
+        let mut row = original.clone();
+        row.target = SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(actual));
+        if let Some((_, closure)) = frame.parent {
+            let environment = row
+                .environment
+                .as_mut()
+                .ok_or_else(|| bad("actual closure preparation lost its original environment"))?;
+            environment.closure = SemanticClosureTarget::Typed(closure);
+        }
+        let id = row.id;
+        directory.instances.insert(id, row);
+        Ok(Some(id))
+    })();
+    active.remove(&actual);
+    result
 }
 
 fn install_callable_actuals(
@@ -554,6 +606,15 @@ fn emitter_directory<'m>(
         left,
     )?
     .ok_or_else(|| bad("Task caller preparation lost its exact original world"))?;
+    let required = directory.closures.iter()
+        .filter(|row| needed.contains(&row.id))
+        .map(|row| row.function).collect::<Vec<_>>();
+    fee(left, directory.closures.len().saturating_add(required.len()))?;
+    for entry in required {
+        if bind_instance(&mut directory, program, ledger, entry, None, limits, left)?.is_none() {
+            return Err(unknown("needed Task closure lacks one exact original creator context"));
+        }
+    }
     for function in prior {
         bind_instance(
             &mut directory,
@@ -580,6 +641,9 @@ fn emitter_directory<'m>(
             limits,
             left,
         )?;
+    }
+    for function in state.helper_functions.iter().chain(state.thin.iter().filter_map(Option::as_ref)) {
+        bind_instance(&mut directory, program, ledger, function.id, None, limits, left)?;
     }
     // A previously prepared real closure keeps the same complete original
     // embedding when another TaskCreate observes it. A header without its
