@@ -572,18 +572,29 @@ impl Builder<'_, '_, '_, '_> {
                         scope: SemanticScopeRef::Ancestor(0),
                         ordinal: ordinal as u32,
                     };
-                    let actual = match formal.kind {
+                    let actual = match &formal.kind {
                         s::GenericParamKind::Lifetime => {
                             SemanticActualRecipe::Life(SemanticLifeRecipe::Formal(reference))
                         }
                         s::GenericParamKind::Type(_) => {
                             SemanticActualRecipe::Type(SemanticTypeRecipe::Formal(reference))
                         }
-                        _ => {
-                            return Err(unsupported(
-                                ty.span,
-                                "opaque Const argument requires its complete original carrier",
-                            ));
+                        s::GenericParamKind::Const(carrier) => {
+                            // The opaque application is the definition's
+                            // identity substitution, including unused mixed
+                            // formals. Interpret its carrier at the original
+                            // declaration occurrence, never in a caller's
+                            // scope or using an inferred integer default.
+                            let carrier = self.ty(
+                                carrier,
+                                &mut vec![0, reference.ordinal],
+                                depth + 1,
+                                false,
+                            )?;
+                            SemanticActualRecipe::Const {
+                                carrier,
+                                value: SemanticConstRecipe::Formal(reference),
+                            }
                         }
                     };
                     self.push(&mut arguments, actual, ty.span)?;

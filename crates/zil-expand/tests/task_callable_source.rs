@@ -577,6 +577,25 @@ fn task_value_factory_preserves_mixed_and_phantom_source_formals() {
     let zil_ir::SemanticDefinitionBody::FunctionWithBody { signature, .. } = &original.body else {
         panic!()
     };
+    let zil_ir::SemanticTypeRecipe::Opaque { arguments, .. } = &signature.result else {
+        panic!("factory result lost its original opaque application");
+    };
+    assert_eq!(arguments.len(), 5, "phantom mixed actuals remain present");
+    for (ordinal, actual) in arguments.iter().enumerate() {
+        let reference = match actual {
+            zil_ir::SemanticActualRecipe::Life(zil_ir::SemanticLifeRecipe::Formal(reference))
+            | zil_ir::SemanticActualRecipe::Type(zil_ir::SemanticTypeRecipe::Formal(reference)) => {
+                reference
+            }
+            zil_ir::SemanticActualRecipe::Const {
+                carrier: zil_ir::SemanticTypeRecipe::Atom(zil_ir::Type::I32),
+                value: zil_ir::SemanticConstRecipe::Formal(reference),
+            } if ordinal == 2 => reference,
+            _ => panic!("wrong mixed kind or original Const carrier: {actual:?}"),
+        };
+        assert_eq!(reference.scope, zil_ir::SemanticScopeRef::Ancestor(0));
+        assert_eq!(reference.ordinal as usize, ordinal);
+    }
     let zil_ir::SemanticTypeRecipe::Managed(task) = &signature.parameters[0].ty else {
         panic!()
     };
@@ -625,7 +644,42 @@ fn ordinary_task_factory_keeps_where_ce_and_symbolic_array_result() {
     ] {
         let core = expand(text).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
         assert!(core.unsupported.is_empty(), "{:?}", core.unsupported);
-        assert!(core.semantic.is_some());
+        let original = core
+            .semantic
+            .as_ref()
+            .unwrap()
+            .definitions
+            .iter()
+            .find(|definition| {
+                definition
+                    .identity
+                    .declaration_path
+                    .last()
+                    .is_some_and(|name| name == "retain")
+            })
+            .unwrap();
+        if text.contains("#n:i32") {
+            let zil_ir::SemanticDefinitionBody::FunctionWithBody { signature, .. } = &original.body
+            else {
+                panic!()
+            };
+            let zil_ir::SemanticTypeRecipe::Opaque { arguments, .. } = &signature.result else {
+                panic!()
+            };
+            assert!(
+                matches!(
+                    &arguments[1],
+                    zil_ir::SemanticActualRecipe::Const {
+                        carrier: zil_ir::SemanticTypeRecipe::Atom(zil_ir::Type::I32),
+                        value: zil_ir::SemanticConstRecipe::Formal(zil_ir::SemanticFormalRef {
+                            scope: zil_ir::SemanticScopeRef::Ancestor(0),
+                            ordinal: 1,
+                        }),
+                    }
+                ),
+                "symbolic array length must retain its original carrier and full ordinal"
+            );
+        }
     }
     let text = "fn retain<T:Value+ClosedEnvironment+ClosedEnvironment>(give selected:Task<T>)->impl FnOnce()->Managed<Task<T>>{return move()=>give selected;}fn main(){}";
     let errors = expand(text).expect_err("duplicate sealed requirement is not a second premise");
