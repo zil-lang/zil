@@ -782,6 +782,54 @@ impl CheckedContext {
 mod constructed_task_descendant_tests {
     use super::*;
     #[test]
+    fn nested_task_capture_headers_use_only_the_real_opaque_class_rows_raw_wire(){
+        let limits=Limits::default();
+        for tuple in [false,true]{
+            let(mut module,_)=crate::tests::baseline();
+            let leaf=Type::Address{mutable:false,inner:Box::new(Type::I32)};
+            let owner=Type::Managed(Box::new(Type::Task{result:Box::new(Type::I32),retained_life:RetainedLifeShape{
+                binder_count:2,ports:vec![RetainedBorrowPort{leaf:leaf.clone(),mode:StoredBorrowMode::SharedAddress,binder:1}],
+                retained:(0..2).map(|class|StorageRetainedBinding{path:vec![LifeTypeProjection::Parameter(0)],class,binder:class}).collect(),nominal_arguments:vec![],
+            }}));
+            let projection=if tuple{PlaceProjection::Field(0)}else{PlaceProjection::ErrorArm(false)};
+            let capture=if tuple{Type::Tuple(vec![owner])}else{Type::ErrorUnion{error:Box::new(Type::Unit),result:Box::new(owner)}};
+            let header=StorageLifeContract{fixed_binder_count:2,invocation_binder_count:0,
+                bindings:vec![StorageLifeBinding{position:StoragePosition{base:StorageBase::Capture(0),path:vec![ContractProjection::Place(projection),ContractProjection::RetainedPort(0)]},binder:StorageBinder::Fixed(1)}],
+                classes:(0..2).map(|class|SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Capture(0),path:vec![LifeTypeProjection::Place(projection),LifeTypeProjection::Pointee],class},binder:StorageBinder::Fixed(class)}).collect(),static_bindings:vec![],
+            };
+            module.functions[0].environment=Some(ClosureId(0));module.functions[0].storage_life=Some(header.clone());
+            module.closures.push(ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![capture],parameters:vec![],result:Type::I32,kind:CallableKind::FnOnce,storage_life:Some(header),lending_captures:vec![]});
+            let bytes=zil_ir::wire::encode_module_candidate(&module,&CandidatePlan::empty_for(&module),&limits).unwrap();let(wire,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+            for actual in [&module,&wire]{
+                let life=StorageLifeShape{binder_count:2,slots:vec![],retained:vec![],nominal_arguments:vec![]};let ty=Type::Closure(ClosureId(0));
+                let ports=task_domains::raw_input_ports(actual,&ty,&life,&mut Budget::new(&limits)).unwrap();
+                assert_eq!(ports,vec![(leaf.clone(),StoredBorrowMode::SharedAddress,1,vec![ContractProjection::Capture(0),ContractProjection::Place(projection),ContractProjection::RetainedPort(0)])]);
+                for attack in 0..2{
+                    let mut forged=actual.clone();let header=forged.closures[0].storage_life.as_mut().unwrap();
+                    if attack==0{header.classes.pop();}else{header.classes[1].binder=StorageBinder::Fixed(0);}
+                    forged.functions[0].storage_life=forged.closures[0].storage_life.clone();
+                    assert!(task_domains::raw_input_ports(&forged,&ty,&life,&mut Budget::new(&limits)).is_err(),"a true opaque child cannot omit or coalesce an intrinsic class");
+                }
+                let mut swapped=actual.clone();let header=swapped.closures[0].storage_life.as_mut().unwrap();header.classes[0].binder=StorageBinder::Fixed(1);header.classes[1].binder=StorageBinder::Fixed(0);
+                swapped.functions[0].storage_life=swapped.closures[0].storage_life.clone();
+                let changed=task_domains::raw_input_ports(&swapped,&ty,&life,&mut Budget::new(&limits)).unwrap();
+                assert_eq!(changed[0].2,0);
+                // A bare map may permute a child's images. It must report
+                // that distinct original index, never silently use κ1. The
+                // exact original header/Fixed contract separately rejects a
+                // permutation inconsistent with its unchanged port binding.
+                if !tuple {
+                    let check_header=|module:&TypedModule|{
+                        let definition=&module.closures[0];
+                        crate::signature_life::closure_relation_resource_scopes(module,&definition.parameters,&definition.captures,definition.kind,&definition.result,definition.storage_life.as_ref().unwrap(),Some(module.functions[0].span),&mut Budget::new(&limits))
+                    };
+                    check_header(actual).unwrap();
+                    assert!(check_header(&swapped).is_err());
+                }
+            }
+        }
+    }
+    #[test]
     fn error_union_preserves_every_task_wrapper_occurrence_without_merging_equal_images_raw_wire(){
         let limits=Limits::default();
         let(base,_)=zil_ir::wire::decode_module_candidate(include_bytes!("fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();

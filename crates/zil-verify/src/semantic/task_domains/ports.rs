@@ -468,13 +468,9 @@ impl Walker<'_> {
                     b.spend(semantic.len().saturating_add(1))?;
                     let mut sem = semantic.to_vec();
                     sem.push(LifeTypeProjection::Pointee);
-                    if !semantic.is_empty() {
-                        let child=crate::tasks::frame_shape::declared_life(self.module,inner,b)?;
-                        let whole=header_map(header,base,map,semantic,child.binder_count,b)?;
-                        let pointee=header_map(header,base,map,&sem,child.binder_count,b)?;
-                        b.spend(whole.len().saturating_add(pointee.len()))?;
-                        if whole!=pointee{return Err(bad("Task captured Managed child changes its complete transparent class indices"));}
-                    }
+                    // Header classes name real opaque boundaries, not each
+                    // transparent owning wrapper. The Task/Closure/Dyn child
+                    // below validates its full N and exact Fixed map there.
                     self.header_node(
                         inner,
                         header,
