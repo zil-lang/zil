@@ -3318,18 +3318,73 @@ fn environment_path(
 /// Enumerate actual inline callable positions. An Address field is a pointer,
 /// not an inline environment; only the entry's outer Address is opened here.
 fn environment_roots(ty: &Type, b: &mut Budget) -> CompileResult<Vec<(ClosureId, Path)>> {
+    fn depth_limit() -> Vec<Diagnostic> {
+        vec![Diagnostic::limit(Phase::Analyze,
+            "inline callable inventory exceeds finite depth", None)]
+    }
+    // A compact structural pass visits an Array's element type once. This
+    // request-local set describes inline layout only, not capture qualification,
+    // targets, Copy, a class domain or an initialized environment occupant.
+    fn inventory(
+        ty: &Type, depth: usize, inline: &mut BTreeSet<usize>, b: &mut Budget,
+    ) -> CompileResult<bool> {
+        fee(b,1)?;
+        if depth > b.partial_depth { return Err(depth_limit()); }
+        let contains = match ty {
+            Type::Closure(_) => true,
+            Type::BorrowedStorage { storage, .. } | Type::Opaque { hidden: storage, .. }
+                | Type::Array { element: storage, .. } => inventory(storage,depth+1,inline,b)?,
+            Type::Tuple(fields) => {
+                let mut contains=false;
+                for child in fields { contains |= inventory(child,depth+1,inline,b)?; }
+                contains
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                let mut contains=false;
+                for (_,child) in fields { contains |= inventory(child,depth+1,inline,b)?; }
+                contains
+            }
+            Type::Enum { variants, .. } => {
+                let mut contains=false;
+                for (_,fields) in variants {
+                    fee(b,1)?;
+                    for child in fields { contains |= inventory(child,depth+1,inline,b)?; }
+                }
+                contains
+            }
+            Type::ErrorUnion { error, result } => {
+                let left=inventory(error,depth+1,inline,b)?;
+                let right=inventory(result,depth+1,inline,b)?;
+                left || right
+            }
+            // Address and every other indirect owner are physical boundaries.
+            _ => false,
+        };
+        if contains {
+            ordered(b,inline.len(),0)?;
+            inline.insert(ty as *const Type as usize);
+        }
+        Ok(contains)
+    }
+    fn included(ty: &Type, inline: &BTreeSet<usize>, b: &mut Budget) -> CompileResult<bool> {
+        ordered(b,inline.len(),0)?;
+        Ok(inline.contains(&(ty as *const Type as usize)))
+    }
     let ty = if let Type::Address { inner, .. } = ty { inner.as_ref() } else { ty };
+    let mut inline=BTreeSet::new();
+    if !inventory(ty,0,&mut inline,b)? { return Ok(Vec::new()); }
     let mut pending = vec![(ty, Vec::new(), 0usize)];
     let mut out = Vec::new();
     while let Some((ty, path, depth)) = pending.pop() {
         fee(b, path.len().saturating_add(1))?;
-        if depth > b.partial_depth { return Err(failure("inline callable inventory exceeds finite depth")); }
+        if depth > b.partial_depth { return Err(depth_limit()); }
         match ty {
             Type::Closure(id) => out.push((*id, path)),
             Type::BorrowedStorage { storage, .. } | Type::Opaque { hidden: storage, .. } =>
                 pending.push((storage, path, depth + 1)),
             Type::Tuple(fields) => {
                 for (index, field) in fields.iter().enumerate() {
+                    if !included(field,&inline,b)? { continue; }
                     fee(b, path.len().saturating_add(2))?;
                     let mut child = path.clone(); child.push(PlaceProjection::Field(u32::try_from(index)
                         .map_err(|_| failure("inline callable field ordinal overflow"))?));
@@ -3338,6 +3393,7 @@ fn environment_roots(ty: &Type, b: &mut Budget) -> CompileResult<Vec<(ClosureId,
             }
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 for (index, (_, field)) in fields.iter().enumerate() {
+                    if !included(field,&inline,b)? { continue; }
                     fee(b, path.len().saturating_add(2))?;
                     let mut child = path.clone(); child.push(PlaceProjection::Field(u32::try_from(index)
                         .map_err(|_| failure("inline callable field ordinal overflow"))?));
@@ -3345,6 +3401,7 @@ fn environment_roots(ty: &Type, b: &mut Budget) -> CompileResult<Vec<(ClosureId,
                 }
             }
             Type::Array { element, length } => {
+                if !included(element,&inline,b)? { continue; }
                 fee(b,(*length as usize).saturating_mul(path.len().saturating_add(2)))?;
                 for index in 0..*length {
                     let mut child=path.clone(); child.push(PlaceProjection::Field(index));
@@ -3354,6 +3411,7 @@ fn environment_roots(ty: &Type, b: &mut Budget) -> CompileResult<Vec<(ClosureId,
             Type::Enum { variants, .. } => {
                 for (variant,(_,fields)) in variants.iter().enumerate() {
                     for (index,field) in fields.iter().enumerate() {
+                        if !included(field,&inline,b)? { continue; }
                         fee(b,path.len().saturating_add(2))?;
                         let mut child=path.clone();
                         child.push(PlaceProjection::Variant(zil_ir::VariantProjection {
@@ -3366,6 +3424,7 @@ fn environment_roots(ty: &Type, b: &mut Budget) -> CompileResult<Vec<(ClosureId,
             }
             Type::ErrorUnion { error, result } => {
                 for (arm,field) in [(true,error.as_ref()),(false,result.as_ref())] {
+                    if !included(field,&inline,b)? { continue; }
                     fee(b,path.len().saturating_add(2))?;
                     let mut child=path.clone();child.push(PlaceProjection::ErrorArm(arm));
                     pending.push((field,child,depth+1));
@@ -9839,6 +9898,48 @@ fn actual_instructions(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn inline_environment_inventory_does_not_expand_scalar_arrays() {
+        let mut remaining=None;
+        for length in [1,u32::MAX] {
+            let mut budget=Budget::new(&Limits::default());
+            let ty=Type::Tuple(vec![Type::Closure(ClosureId(0)),Type::Array {
+                element:Box::new(Type::I32),length,
+            }]);
+            assert_eq!(environment_roots(&ty,&mut budget).unwrap(),
+                vec![(ClosureId(0),vec![PlaceProjection::Field(0)])]);
+            if let Some(first)=remaining { assert_eq!(budget.remaining(),first); }
+            else { remaining=Some(budget.remaining()); }
+        }
+        let mut budget=Budget::new(&Limits::default());
+        assert!(environment_roots(&Type::Array {
+            element:Box::new(Type::I32),length:u32::MAX,
+        },&mut budget).unwrap().is_empty());
+    }
+    #[test]
+    fn inline_environment_inventory_preserves_array_positions_and_pointer_boundaries() {
+        let mut budget=Budget::new(&Limits::default());
+        let ty=Type::Tuple(vec![Type::Address {mutable:false,
+            inner:Box::new(Type::Closure(ClosureId(1)))},Type::Array {
+            element:Box::new(Type::Closure(ClosureId(2))),length:2,
+        }]);
+        let roots=environment_roots(&ty,&mut budget).unwrap().into_iter().collect::<BTreeSet<_>>();
+        assert_eq!(roots,BTreeSet::from([
+            (ClosureId(2),vec![PlaceProjection::Field(1),PlaceProjection::Field(0)]),
+            (ClosureId(2),vec![PlaceProjection::Field(1),PlaceProjection::Field(1)]),
+        ]));
+        let outer=Type::Address {mutable:false,inner:Box::new(Type::Closure(ClosureId(3)))};
+        assert_eq!(environment_roots(&outer,&mut budget).unwrap(),vec![(ClosureId(3),Vec::new())]);
+    }
+    #[test]
+    fn inline_environment_inventory_depth_exhaustion_is_a_resource_limit() {
+        let mut budget=Budget::new(&Limits::default());
+        budget.partial_depth=0;
+        let error=environment_roots(&Type::Array {
+            element:Box::new(Type::Closure(ClosureId(0))),length:2,
+        },&mut budget).unwrap_err();
+        assert!(error.iter().all(|d|d.category==zil_base::ResultCategory::ResourceLimit));
+    }
     mod fixture {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
