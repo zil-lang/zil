@@ -400,6 +400,13 @@ fn closed_phase_keeps_both_same_type_capture_leaves_and_replacement_epochs() {
         report.to_json()
     );
     let stale = positive.replace(close_new, "");
+    assert_eq!(positive.matches(header).count(), 1);
+    let positive_direct = positive.replacen(header,
+        "fn main()->TaskCreateError!i32 contract{effects(io);}{", 1);
+    let closed_replacement = compile_source(&source(&positive_direct), &options);
+    assert_eq!(closed_replacement.status, ResultCategory::Success,
+        "{}", closed_replacement.to_json());
+    assert_eq!(closed_replacement.verification_runs, 1);
     let report = compile_source(&source(&stale), &options);
     // The old Ready cannot close the replacement epoch. An implicit endpoint
     // can still suspend to dispose of it; only a Direct endpoint requires the
