@@ -75,7 +75,9 @@ fn original_post_consumers_record_the_same_per_function_and_independent_ledger_f
     .unwrap();
     assert!(resources.is_empty());
     assert_eq!(observations.observed_functions(), 64);
-    let receipts = observations.receipts(&functions).unwrap();
+    let receipts = observations
+        .receipts(program.module.functions.iter())
+        .unwrap();
     let expected = functions
         .iter()
         .map(|function| PostReceipt::check(function, &limits).unwrap())
@@ -115,6 +117,6 @@ fn incomplete_duplicate_and_unattributed_post_work_cannot_create_a_current_conte
             observations.finish(pass, if failure == 2 { 7 } else { 6 }, 8);
         }
         assert_eq!(observations.observed_functions(), 0);
-        assert!(observations.receipts(&functions).is_none());
+        assert!(observations.receipts(functions.iter()).is_none());
     }
 }

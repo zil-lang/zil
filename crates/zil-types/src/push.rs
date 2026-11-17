@@ -816,7 +816,10 @@ impl Recording {
         {
             return None;
         }
-        let post = self.post.take()?.receipts(&program.module.functions)?;
+        let post = self
+            .post
+            .take()?
+            .receipts(program.module.functions.iter())?;
         if post.len() != self.rows.len() {
             return None;
         }
@@ -1000,7 +1003,10 @@ impl PostObservations {
             0
         }
     }
-    fn receipts(self, functions: &[TypedFunction]) -> Option<Vec<PostReceipt>> {
+    fn receipts<'a>(
+        self,
+        functions: impl ExactSizeIterator<Item = &'a TypedFunction>,
+    ) -> Option<Vec<PostReceipt>> {
         if !self.valid || self.complete.iter().any(|complete| !complete) {
             return None;
         }

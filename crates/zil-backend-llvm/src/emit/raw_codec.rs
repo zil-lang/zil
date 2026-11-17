@@ -467,11 +467,11 @@ impl<'a> Reader<'a> {
 }
 
 #[cfg(test)]
-pub(crate) fn encode(batch: &FunctionBatch) -> Option<Vec<u8>> {
+pub(super) fn encode(batch: &FunctionBatch) -> Option<Vec<u8>> {
     encode_bounded(batch, MAX_BYTES)
 }
 
-pub(crate) fn encode_bounded(batch: &FunctionBatch, maximum: usize) -> Option<Vec<u8>> {
+pub(super) fn encode_bounded(batch: &FunctionBatch, maximum: usize) -> Option<Vec<u8>> {
     if !batch.task_machines.is_empty() || !batch.foreign_adapters.is_empty() {
         return None;
     }
@@ -526,7 +526,7 @@ pub(crate) fn encode_bounded(batch: &FunctionBatch, maximum: usize) -> Option<Ve
     Some(out.0)
 }
 
-pub(crate) fn decode(
+pub(super) fn decode(
     bytes: &[u8],
     limits: &zil_base::Limits,
     remaining: &mut usize,

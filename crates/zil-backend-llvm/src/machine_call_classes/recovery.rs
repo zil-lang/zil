@@ -209,10 +209,10 @@ impl Cache {
             {
                 return None;
             }
-            if let Some(normalized) = &reads.normalized {
-                if !valid_normalized(reads, normalized, &names) {
-                    return None;
-                }
+            if let Some(normalized) = &reads.normalized
+                && !valid_normalized(reads, normalized, &names)
+            {
+                return None;
             }
         }
         Some(())
