@@ -173,7 +173,7 @@ fn byte_slot(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
         _ => Ok(false),
     }
 }
-fn type_of(c: &Context<'_>, value: ValueId) -> CompileResult<&Type> {
+fn type_of<'a>(c: &'a Context<'_>, value: ValueId) -> CompileResult<&'a Type> {
     c.f.values
         .get(value.0 as usize)
         .ok_or_else(|| err("Static mutation operand is absent"))
