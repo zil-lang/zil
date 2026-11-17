@@ -640,7 +640,7 @@ fn task_value_factories_require_full_value_type_and_single_owner_transfer() {
 fn ordinary_task_factory_keeps_where_ce_and_symbolic_array_result() {
     for text in [
         "fn retain<T:Value>(give selected:Task<T>)->impl FnOnce()->Managed<Task<T>> where T:ClosedEnvironment{return move()=>give selected;}fn main(){}",
-        "fn retain<T:Value+ClosedEnvironment,#n:i32>(give selected:Task<[T;n]>)->impl FnOnce()->Managed<Task<[T;n]>>{return move()=>give selected;}fn main(){}",
+        "fn retain<T:Value+ClosedEnvironment,#n:usize>(give selected:Task<[T;n]>)->impl FnOnce()->Managed<Task<[T;n]>>{return move()=>give selected;}fn main(){}",
     ] {
         let core = expand(text).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
         assert!(core.unsupported.is_empty(), "{:?}", core.unsupported);
@@ -658,7 +658,7 @@ fn ordinary_task_factory_keeps_where_ce_and_symbolic_array_result() {
                     .is_some_and(|name| name == "retain")
             })
             .unwrap();
-        if text.contains("#n:i32") {
+        if text.contains("#n:usize") {
             let zil_ir::SemanticDefinitionBody::FunctionWithBody { signature, .. } = &original.body
             else {
                 panic!()
@@ -670,7 +670,7 @@ fn ordinary_task_factory_keeps_where_ce_and_symbolic_array_result() {
                 matches!(
                     &arguments[1],
                     zil_ir::SemanticActualRecipe::Const {
-                        carrier: zil_ir::SemanticTypeRecipe::Atom(zil_ir::Type::I32),
+                        carrier: zil_ir::SemanticTypeRecipe::Atom(zil_ir::Type::Usize),
                         value: zil_ir::SemanticConstRecipe::Formal(zil_ir::SemanticFormalRef {
                             scope: zil_ir::SemanticScopeRef::Ancestor(0),
                             ordinal: 1,
