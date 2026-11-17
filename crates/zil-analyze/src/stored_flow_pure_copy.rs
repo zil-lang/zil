@@ -758,8 +758,21 @@ pub(super) fn ordinary_error_borrow(
     } else {
         (result.as_ref(), error.as_ref())
     };
+    // Reading the Copy error arm does not read or transfer the Task in the
+    // success arm. Its complete retained sources, actual tag, initialized
+    // subtree and owner debt stay with the independent Task/Sum/loan kernels.
+    // This exception never makes the whole union a pure/empty-target value.
+    let task_companion = match companion {
+        Type::Managed(payload) if *is_error && matches!(payload.as_ref(), Type::Task { .. }) => {
+            b.type_work(payload, false, "Copy error observation complete Task companion")?;
+            crate::tasks::require_closed_context(payload)?;
+            true
+        }
+        _ => false,
+    };
     if !pure(parent, b, 0)?
         && (!matches!(companion, Type::Package { .. }) || !ordinary_union_shape(parent, b)?)
+        && !task_companion
     {
         return Ok(false);
     }
