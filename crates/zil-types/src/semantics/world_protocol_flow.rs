@@ -413,13 +413,15 @@ fn instruction(
         }
         InstructionKind::TakeTupleField { local, path }
         | InstructionKind::TakeVariantField { local, path } => carrier::take_local(world, state, *local, path)?,
-        InstructionKind::TakePackageField { local, index } => carrier::take_local(world, state, *local, &[PlaceProjection::Field(*index)])?,
+        InstructionKind::TakePackageField { local, index }
+        | InstructionKind::TakeOwnedArrayElement { local, index } => carrier::take_local(world, state, *local, &[PlaceProjection::Field(*index)])?,
         InstructionKind::ReadPackageField { local, index } => {
             let value = state.local(*local, world)?;
             let value = carrier::project(world, value, &[PlaceProjection::Field(*index)])?;
             carrier::copy_projection(world, value)?
         }
-        InstructionKind::DescribePackageField { local, index } => {
+        InstructionKind::DescribePackageField { local, index }
+        | InstructionKind::BorrowOwnedArrayElement { local, index, .. } => {
             let value = state.local(*local, world)?;
             carrier::project(world, value, &[PlaceProjection::Field(*index)])?
         }
@@ -471,14 +473,18 @@ fn instruction(
             let value = state.get(*value, world)?;
             carrier::variant(world, state, u32::from(*is_error), vec![value])?
         }
-        InstructionKind::DropPackageField { local, index } => {
-            let old = carrier::take_local(world, state, *local, &[PlaceProjection::Field(*index)])?;
+        InstructionKind::DropPackageField { local, index }
+        | InstructionKind::DropOwnedArrayElement { local, index } => {
+            let old = if matches!(instruction.kind, InstructionKind::DropOwnedArrayElement { .. }) {
+                carrier::drop_array_element(world, state, *local, *index)?
+            } else { carrier::take_local(world, state, *local, &[PlaceProjection::Field(*index)])? };
             let mut roots = BTreeSet::new();
             cleanup_roots(world, state, &old, &mut roots)?;
             for root in roots { state.change(world, root, RETIRED, true)?; }
             Value::Plain
         }
-        InstructionKind::StorePackageField { local, index, value } => {
+        InstructionKind::StorePackageField { local, index, value }
+        | InstructionKind::StoreOwnedArrayElement { local, index, value } => {
             let value = state.get(*value, world)?;
             let old = carrier::replace_local(world, state, *local, &[PlaceProjection::Field(*index)], value)?;
             // Store is not a cleanup instruction. An old owning field must
@@ -666,6 +672,7 @@ fn instruction(
         }
         InstructionKind::MakeAggregate { fields }
         | InstructionKind::MakeOwnedTuple { fields }
+        | InstructionKind::MakeOwnedArray { elements: fields }
         | InstructionKind::MakeManaged { fields }
         | InstructionKind::MakePackage { fields } => {
             Value::Tuple(operand_values(world, state, fields)?)
@@ -829,6 +836,7 @@ fn instruction(
             InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. }
             | InstructionKind::DescribeLocal { .. } | InstructionKind::ReborrowAddress { .. }
             | InstructionKind::DescribeAddress { .. } | InstructionKind::DescribePackageField { .. }
+            | InstructionKind::BorrowOwnedArrayElement { .. }
             | InstructionKind::BorrowPlaceLocal { .. } | InstructionKind::BorrowPlaceAddress { .. }
             | InstructionKind::BorrowFieldLocal { .. } | InstructionKind::BorrowVariantLocal { .. }
             | InstructionKind::BorrowVariantAddress { .. }) { carrier::borrowed(world, value)? } else { value };

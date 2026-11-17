@@ -36,6 +36,14 @@ pub(crate) struct Expression {
     pub construction: Option<Construction>,
     complete: bool,
 }
+#[derive(Clone, Copy)]
+pub(crate) struct ClosureSlot {
+    pub initializer: NodeId,
+    pub input: ValueId,
+    pub array: ValueId,
+    pub construction: Point,
+    pub initialization: Point,
+}
 pub(crate) struct Declaration {
     pub local: LocalId,
     pub at: Point,
@@ -44,6 +52,7 @@ pub(crate) struct Frame {
     pub origin: Origin,
     pub expressions: BTreeMap<NodeId, Expression>,
     pub declarations: BTreeMap<NodeId, Declaration>,
+    pub closure_slots: BTreeMap<LocalId, ClosureSlot>,
     /// Actual direct creator and both actual environment/entry identities.
     pub parent: Option<(FunctionId, ClosureId)>,
     stack: Vec<NodeId>,
@@ -352,6 +361,7 @@ impl Ledger {
                 parent,
                 expressions: BTreeMap::new(),
                 declarations: BTreeMap::new(),
+                closure_slots: BTreeMap::new(),
                 stack: Vec::new(),
                 live_locals: BTreeMap::new(),
             },
@@ -633,6 +643,92 @@ impl Ledger {
         }
         Ok(())
     }
+    pub(crate) fn closure_slot(
+        &mut self, function: FunctionId, local: LocalId, initializer: NodeId, input: ValueId, array: ValueId,
+        construction: Point, initialization: Point, left: &mut usize, span: Span,
+    ) -> R<()> {
+        if self.frames.is_empty() { return Ok(()); }
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        let Some(frame) = self.frames.get_mut(&function) else { return Ok(()); };
+        pay(left, lookup_cost(frame.live_locals.len()) + lookup_cost(frame.closure_slots.len()) + 1, span)?;
+        if !frame.live_locals.contains_key(&local)
+            || frame.closure_slots.insert(local, ClosureSlot { initializer, input, array, construction, initialization }).is_some()
+        {
+            return Err(invalid(span, "callback slot does not have one real live local"));
+        }
+        Ok(())
+    }
+    /// This private emitter receipt locates a representation, not a type,
+    /// lifetime or cleanup proof. Every consumer rechecks the actual operations.
+    pub(crate) fn closure_slot_type<'f>(
+        &self, function: &'f TypedFunction, local: LocalId, limits: &Limits, left: &mut usize,
+    ) -> R<Option<&'f Type>> {
+        let span = function.span;
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        let Some(frame) = self.frames.get(&function.id) else { return Ok(None); };
+        pay(left, lookup_cost(frame.closure_slots.len()), span)?;
+        let Some(slot) = frame.closure_slots.get(&local) else { return Ok(None); };
+        let source = self.completed_expression(function.id, slot.initializer, left, span)?;
+        if source.value != Some(slot.input) {
+            return Err(invalid(span, "callback slot does not store its exact original initializer occurrence"));
+        }
+        let at = |point: Point| -> R<&Instruction> {
+            function.blocks.get(point.block.0 as usize).filter(|block| block.id == point.block)
+                .and_then(|block| block.instructions.get(point.instruction))
+                .ok_or_else(|| invalid(span, "callback slot receipt leaves its actual CFG"))
+        };
+        pay(left, lookup_cost(frame.live_locals.len()).saturating_add(4), span)?;
+        let live = *frame.live_locals.get(&local)
+            .ok_or_else(|| invalid(span, "callback slot has no exact StorageLive receipt"))?;
+        if slot.construction.block != live.block || live.block != slot.initialization.block
+            || slot.construction.instruction >= live.instruction
+            || live.instruction.checked_add(1) != Some(slot.initialization.instruction)
+            || !matches!(at(live)?.kind, InstructionKind::StorageLive(id) if id == local)
+            || !matches!(&at(slot.construction)?.kind, InstructionKind::MakeOwnedArray { elements } if elements.as_slice() == [slot.input])
+            || at(slot.construction)?.result != Some(slot.array)
+            || !matches!(at(slot.initialization)?.kind, InstructionKind::Store { local: id, value } if id == local && value == slot.array)
+        {
+            return Err(invalid(span, "callback slot changes its actual construction/live/initialization chain"));
+        }
+        let physical = &function.locals.get(local.0 as usize)
+            .ok_or_else(|| invalid(span, "callback slot local is absent"))?.ty;
+        let Type::Array { element, length: 1 } = physical else {
+            return Err(invalid(span, "callback slot is not its actual single-element storage"));
+        };
+        if !matches!(element.as_ref(), Type::Closure(_)) {
+            return Err(invalid(span, "callback slot element is not its real closure"));
+        }
+        let input = function.values.get(slot.input.0 as usize)
+            .ok_or_else(|| invalid(span, "callback slot initializer is absent"))?;
+        let array = function.values.get(slot.array.0 as usize)
+            .ok_or_else(|| invalid(span, "callback slot aggregate result is absent"))?;
+        inference::charge_type_snapshot(input, span, limits, left, 1)?;
+        inference::charge_type_snapshot(array, span, limits, left, 1)?;
+        inference::charge_type_snapshot(physical, span, limits, left, 1)?;
+        if input != element.as_ref() || array != physical {
+            return Err(invalid(span, "callback slot changes its exact original closure occurrence type"));
+        }
+        Ok(Some(element))
+    }
+    pub(crate) fn closure_slot_constructor(
+        &self, function: &TypedFunction, point: Point, limits: &Limits, left: &mut usize,
+    ) -> R<Option<ClosureSlot>> {
+        pay(left, lookup_cost(self.frames.len()), function.span)?;
+        let Some(frame) = self.frames.get(&function.id) else { return Ok(None); };
+        pay(left, frame.closure_slots.len(), function.span)?;
+        let mut selected = None;
+        for (local, slot) in &frame.closure_slots {
+            if slot.construction == point {
+                if selected.replace((*local, *slot)).is_some() {
+                    return Err(invalid(function.span, "one actual callback slot constructor initializes several source locals"));
+                }
+            }
+        }
+        let Some((local, slot)) = selected else { return Ok(None); };
+        self.closure_slot_type(function, local, limits, left)?
+            .ok_or_else(|| invalid(function.span, "callback slot constructor loses its local receipt"))?;
+        Ok(Some(slot))
+    }
     pub fn declaration(
         &mut self,
         function: FunctionId,
@@ -897,7 +993,8 @@ impl Ledger {
                 .expressions
                 .len()
                 .saturating_add(frame.declarations.len())
-                .saturating_add(frame.live_locals.len()),
+                .saturating_add(frame.live_locals.len())
+                .saturating_add(frame.closure_slots.len()),
             span,
         )?;
         for row in frame.expressions.values_mut() {
@@ -916,6 +1013,11 @@ impl Ledger {
             }
         }
         frame.live_locals.retain(|_, point| change(point));
+        for slot in frame.closure_slots.values_mut() {
+            if !change(&mut slot.construction) || !change(&mut slot.initialization) {
+                return Err(invalid(span, "callback slot receipt was removed without its exact transform"));
+            }
+        }
         for row in frame.declarations.values_mut() {
             if !change(&mut row.at) {
                 return Err(invalid(

@@ -8,6 +8,7 @@ impl Builder<'_, '_> {
         name: &str,
         id: ClosureId,
         value: ValueId,
+        initializer: zil_base::NodeId,
         span: Span,
     ) -> R<()> {
         let element = Type::Closure(id);
@@ -15,6 +16,11 @@ impl Builder<'_, '_> {
         let storage = Type::Array {
             element: Box::new(element),
             length: 1,
+        };
+        let input = value;
+        let block = self.current.ok_or_else(|| unsupported(span, "callback slot has no live actual block"))?;
+        let construction = crate::semantics::emission::Point {
+            block, instruction: self.function.blocks[block.0 as usize].instructions.len(),
         };
         let value = self.value(
             InstructionKind::MakeOwnedArray {
@@ -24,7 +30,14 @@ impl Builder<'_, '_> {
             span,
         )?;
         let local = self.local(name, storage, true, span)?;
+        let initialization = crate::semantics::emission::Point {
+            block, instruction: self.function.blocks[block.0 as usize].instructions.len(),
+        };
         self.store(local, value, span)?;
+        self.closures.semantic_emission.closure_slot(
+            self.function.id, local, initializer, input, value, construction, initialization,
+            &mut self.closures.work_left, span,
+        )?;
         self.closure_slots.insert(local, id);
         Ok(())
     }

@@ -304,7 +304,10 @@ pub(crate) fn populate(
                     expected,
                 } => (
                     expected,
-                    function.locals.get(local.0 as usize).map(|local| &local.ty),
+                    match eval.ledger.closure_slot_type(function, *local, eval.limits, eval.left)? {
+                        Some(logical) => Some(logical),
+                        None => function.locals.get(local.0 as usize).map(|local| &local.ty),
+                    },
                 ),
                 SemanticSiteAction::TypeUse {
                     subject: SemanticOperand::Value(value),
@@ -315,7 +318,10 @@ pub(crate) fn populate(
                     expected,
                 } => (
                     expected,
-                    function.locals.get(local.0 as usize).map(|local| &local.ty),
+                    match eval.ledger.closure_slot_type(function, *local, eval.limits, eval.left)? {
+                        Some(logical) => Some(logical),
+                        None => function.locals.get(local.0 as usize).map(|local| &local.ty),
+                    },
                 ),
                 _ => continue,
             };

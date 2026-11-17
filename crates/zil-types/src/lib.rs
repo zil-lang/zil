@@ -1994,7 +1994,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         .contains(&(s.id, s.span, name.clone()))
                     && let Type::Closure(id) = t
                 {
-                    return self.closure_slot(name, id, v, s.span);
+                    return self.closure_slot(name, id, v, e.id, s.span);
                 }
                 let ordinary_managed = matches!(t, Type::Managed(_))
                     && (matches!(ty, Some(Type::Managed(_)))

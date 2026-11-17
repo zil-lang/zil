@@ -26,6 +26,38 @@ fn resolved(
 ) -> SemanticTypeValue {
     SemanticTypeValue::Resolved { ty, life, classes }
 }
+/// The existing persistent callback slot has one physical element. Its
+/// representation does not change the child's complete intrinsic domain.
+pub(super) fn closure_slot_array(
+    element: &SemanticTypeValue, limits: &Limits, left: &mut usize,
+) -> R<SemanticTypeValue> {
+    crate::dyn_metadata::semantic_operand_snapshot(element, limits, left, 1)?;
+    let SemanticTypeValue::Resolved { ty, life, classes } = element else {
+        return Err(bad("callback slot element retains an unresolved original type"));
+    };
+    if !matches!(ty, Type::Closure(_)) || life.binder_count as usize != classes.len()
+        || life.slots.len() > limits.max_nodes
+    {
+        return Err(bad("callback slot omits its exact closure or complete element domain"));
+    }
+    let mut shape = empty();
+    shape.binder_count = life.binder_count;
+    let work = life.slots.iter().fold(classes.len().saturating_add(1), |work, slot| {
+        work.saturating_add(slot.path.len().saturating_add(2))
+    });
+    *left = left.checked_sub(work).ok_or_else(|| Diagnostic::limit(
+        Phase::Types, "callback slot complete element transport exceeded", None,
+    ))?;
+    for slot in &life.slots {
+        let mut path = vec![PlaceProjection::Field(0)];
+        path.extend_from_slice(&slot.path);
+        shape.slots.push(StorageLifeSlot { path, ..slot.clone() });
+    }
+    let map: Vec<_> = (0..life.binder_count).collect();
+    inherit_child_shape(&mut shape, life, LifeTypeProjection::Element, &map, limits, left)?;
+    Ok(resolved(Type::Array { element: Box::new(ty.clone()), length: 1 }, shape, classes.clone()))
+}
+
 /// Embed a real child's complete occurrence forest through its proved class
 /// map. Physical slots belong to the carrier's own layout and are transported
 /// separately; these rows describe type occurrences, never access permissions.
@@ -2274,7 +2306,10 @@ pub(super) fn program(
                 let hint = match subject {
                     SemanticOperand::Value(value) => f.values.get(value.0 as usize),
                     SemanticOperand::Local(local) => {
-                        f.locals.get(local.0 as usize).map(|local| &local.ty)
+                        match eval.ledger.closure_slot_type(f, *local, eval.limits, eval.left)? {
+                            Some(logical) => Some(logical),
+                            None => f.locals.get(local.0 as usize).map(|local| &local.ty),
+                        }
                     }
                     SemanticOperand::Capture(index) => f
                         .environment
@@ -2310,7 +2345,9 @@ pub(super) fn program(
                     .locals
                     .get(local.0 as usize)
                     .ok_or_else(|| bad("declaration constraint names an absent actual local"))?;
-                let value = eval.value(site.instance, expected, Some(&hint.ty), 0).map_err(|mut diagnostic| {
+                let logical = eval.ledger.closure_slot_type(f, *local, eval.limits, eval.left)?
+                    .unwrap_or(&hint.ty);
+                let value = eval.value(site.instance, expected, Some(logical), 0).map_err(|mut diagnostic| {
                     diagnostic.notes.push(format!(
                         "actual local declaration: instance {:?}, recipe {:?}, local {:?}, type constructor {:?}",
                         site.instance, site.recipe, local, std::mem::discriminant(&hint.ty)

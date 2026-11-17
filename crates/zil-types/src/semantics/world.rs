@@ -29,6 +29,8 @@ mod intrinsics;
 mod methods;
 #[path = "world_places.rs"]
 mod places;
+#[path = "world_persistent_slots.rs"]
+mod persistent_slots;
 #[path = "world_projection.rs"]
 mod projection;
 #[path = "world_protocol.rs"]
@@ -1288,10 +1290,14 @@ impl World<'_, '_> {
                         .get(local.0 as usize)
                         .ok_or_else(|| bad("declaration local is absent"))?
                         .ty;
-                    let actual = self.ty(instance.id, recipe, ty)?;
+                    let logical = self.ledger.closure_slot_type(function, *local, self.limits, self.left)?;
+                    let actual = self.ty(instance.id, recipe, logical.unwrap_or(ty))?;
                     self.same(instance.id, expected, &actual, implicit)?;
-                    if let Some(old) = declared.insert(*local, actual) {
-                        self.same(instance.id, &old, expected, implicit)?;
+                    let storage = if logical.is_some() {
+                        persistent_slots::array(self, &actual)?
+                    } else { actual };
+                    if let Some(old) = declared.insert(*local, storage.clone()) {
+                        self.same(instance.id, &old, &storage, implicit)?;
                     }
                 }
                 (
@@ -1302,7 +1308,11 @@ impl World<'_, '_> {
                 ) => {
                     let mut value = match subject {
                         SemanticOperand::Value(value) => self.get(values, *value)?,
-                        SemanticOperand::Local(local) => self.local(locals, *local)?,
+                        SemanticOperand::Local(local) => {
+                            if self.ledger.closure_slot_type(function, *local, self.limits, self.left)?.is_some() {
+                                self.projected_local(locals, *local, &[PlaceProjection::Field(0)])?
+                            } else { self.local(locals, *local)? }
+                        },
                         SemanticOperand::Parameter(parameter) => self.local(
                             locals,
                             *function
@@ -3175,10 +3185,13 @@ impl World<'_, '_> {
                                 let result = instruction
                                     .result
                                     .ok_or_else(|| bad("aggregate has no actual result"))?;
-                                let expected = match self.constructed_value(
+                                let slot = persistent_slots::constructor(
+                                    self, f, block.id, index, fields, &values,
+                                )?;
+                                let expected = match if slot.is_some() { slot } else { self.constructed_value(
                                     instance, original, &sites, block.id, index, result, actual_ty,
                                     &implicit,
-                                )? {
+                                )? } {
                                     Some(value) => value,
                                     None => match self
                                         .emitted_value(instance, f, block.id, index, result)?
@@ -3199,8 +3212,11 @@ impl World<'_, '_> {
                                     Type::Array { element, length }
                                         if *length as usize == fields.len() =>
                                     {
-                                        let target = self.zero(element)?;
-                                        for field in fields {
+                                        for (index, field) in fields.iter().enumerate() {
+                                            let target = projection::place(self, &expected, PlaceProjection::Field(index as u32))?;
+                                            if Self::type_of(&target)? != element.as_ref() {
+                                                return Err(bad("array constructor changes its complete element type"));
+                                            }
                                             let value = self.get(&values, *field)?;
                                             self.same(instance.id, &value, &target, &implicit)?;
                                         }
@@ -3731,7 +3747,7 @@ impl World<'_, '_> {
                         InstructionKind::TakePackageField {
                             local,
                             index: field,
-                        } => {
+                        } | InstructionKind::TakeOwnedArrayElement { local, index: field } => {
                             let path = vec![PlaceProjection::Field(*field)];
                             let value = self.projected_local(&locals, *local, &path)?;
                             self.pay(path.len().saturating_add(1))?;
@@ -3752,7 +3768,7 @@ impl World<'_, '_> {
                             local,
                             index: field,
                             value,
-                        } => {
+                        } | InstructionKind::StoreOwnedArrayElement { local, index: field, value } => {
                             let path = vec![PlaceProjection::Field(*field)];
                             let parent = locals
                                 .get(local.0 as usize)
@@ -3780,7 +3796,7 @@ impl World<'_, '_> {
                         InstructionKind::DropPackageField {
                             local,
                             index: field,
-                        } => {
+                        } | InstructionKind::DropOwnedArrayElement { local, index: field } => {
                             let path = vec![PlaceProjection::Field(*field)];
                             self.pay(path.len().saturating_add(1))?;
                             if locals

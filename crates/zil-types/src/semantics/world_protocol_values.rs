@@ -46,7 +46,7 @@ pub(super) fn tag(world: &mut World<'_, '_>, value: &Value) -> R<Value> {
 #[derive(Default)]
 struct Guards { rows: Vec<Outcome>, incomplete: bool }
 fn select(
-    world: &mut World<'_, '_>, value: &mut Value, path: &[PlaceProjection], take: bool, guards: &mut Guards, covered: bool, depth: usize,
+    world: &mut World<'_, '_>, value: &mut Value, path: &[PlaceProjection], take: bool, guards: &mut Guards, covered: bool, depth: usize, conditional_drop: bool,
 ) -> R<Option<Value>> {
     world.pay(1)?;
     if depth > world.limits.max_call_depth {
@@ -56,7 +56,7 @@ fn select(
         let mut selected = Vec::new();
         let mut survivors = Vec::new();
         for mut alternative in std::mem::take(values) {
-            if let Some(result) = select(world, &mut alternative, path, take, guards, covered, depth + 1)? {
+            if let Some(result) = select(world, &mut alternative, path, take, guards, covered, depth + 1, conditional_drop)? {
                 world.pay(2)?;
                 selected.push(result);
                 survivors.push(alternative);
@@ -66,7 +66,11 @@ fn select(
         return if selected.is_empty() { Ok(None) } else { choice(world, selected).map(Some) };
     }
     let Some((step, rest)) = path.split_first() else {
-        if matches!(value, Value::Vacant) { return Err(bad("actual protocol projection uses an already moved subtree")); }
+        if matches!(value, Value::Vacant) {
+            if conditional_drop { guards.incomplete = true; }
+            return if conditional_drop { Ok(Some(Value::Vacant)) }
+                else { Err(bad("actual protocol projection uses an already moved subtree")) };
+        }
         world.pay(value.work())?;
         if !covered { guards.incomplete = true; }
         return Ok(Some(if take { std::mem::replace(value, Value::Vacant) } else { value.clone() }));
@@ -102,15 +106,18 @@ fn select(
             else { guards.incomplete = true; }
             fields.get_mut(0)
         }
-        (_, Value::Plain) => { guards.incomplete = true; return Ok(Some(Value::Plain)); },
+        (_, Value::Plain) => {
+            if conditional_drop { return Err(pending("conditional element cleanup lacks its exact initialized parent carrier")); }
+            guards.incomplete = true; return Ok(Some(Value::Plain));
+        },
         (_, Value::Vacant) => return Err(bad("actual protocol projection crosses a moved subtree")),
         _ => None,
     }.ok_or_else(|| pending("actual protocol projection lacks its exact structured parent carrier"))?;
-    select(world, child, rest, take, guards, covered, depth + 1)
+    select(world, child, rest, take, guards, covered, depth + 1, conditional_drop)
 }
 
 pub(super) fn project(world: &mut World<'_, '_>, mut value: Value, path: &[PlaceProjection]) -> R<Value> {
-    select(world, &mut value, path, false, &mut Guards::default(), false, 0)?
+    select(world, &mut value, path, false, &mut Guards::default(), false, 0, false)?
         .ok_or_else(|| bad("actual protocol projection selects an inactive carrier tag"))
 }
 
@@ -120,8 +127,24 @@ pub(super) fn take_local(
     let value = state.locals.get_mut(local.0 as usize).and_then(Option::as_mut)
         .ok_or_else(|| bad("actual protocol take has no initialized local carrier"))?;
     let mut guards = Guards::default();
-    let selected = select(world, value, path, true, &mut guards, false, 0)?
+    let selected = select(world, value, path, true, &mut guards, false, 0, false)?
         .ok_or_else(|| bad("actual protocol take selects an inactive carrier tag"))?;
+    refine(world, state, &guards)?;
+    Ok(selected)
+}
+
+/// Element cleanup is conditional on its real initialized flag. Only the
+/// selected child may be vacant; a missing, unknown or moved parent is not an
+/// empty element, and ordinary take/read/borrow keep their stricter rules.
+pub(super) fn drop_array_element(
+    world: &mut World<'_, '_>, state: &mut State, local: LocalId, index: u32,
+) -> R<Value> {
+    let value = state.locals.get_mut(local.0 as usize).and_then(Option::as_mut)
+        .ok_or_else(|| bad("actual array cleanup has no initialized parent shell"))?;
+    let mut guards = Guards::default();
+    let selected = select(world, value, &[PlaceProjection::Field(index)], true,
+        &mut guards, false, 0, true)?
+        .ok_or_else(|| bad("actual array cleanup selects an inactive carrier"))?;
     refine(world, state, &guards)?;
     Ok(selected)
 }
@@ -132,7 +155,7 @@ pub(super) fn take_value(
     let value = state.values.get_mut(id.0 as usize).and_then(Option::as_mut)
         .ok_or_else(|| bad("actual protocol take has no dominating SSA carrier"))?;
     let mut guards = Guards::default();
-    let selected = select(world, value, path, true, &mut guards, false, 0)?
+    let selected = select(world, value, path, true, &mut guards, false, 0, false)?
         .ok_or_else(|| bad("actual protocol take selects an inactive SSA carrier tag"))?;
     refine(world, state, &guards)?;
     Ok(selected)
