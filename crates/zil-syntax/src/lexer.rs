@@ -523,7 +523,7 @@ mod tests {
         // truncation, conflicting operators and ordinary trailing bytes count.
         for a in 0..=127u8 {
             for b in 0..=127u8 {
-                for tail in [b'.', b'=', b'a'] {
+                for tail in *b".=a" {
                     let bytes = [a, b, tail];
                     for length in 0..=bytes.len() {
                         let input = &bytes[..length];

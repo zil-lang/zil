@@ -168,7 +168,7 @@ impl Store {
             number(&mut manifest, id.0 as usize)?;
             manifest.extend_from_slice(&Fingerprint::of(bytes).0);
             number(&mut manifest, bytes.len())?;
-            let receipt = ct.get(id).map_or(&[], |b| b.as_ref());
+            let receipt: &[u8] = ct.get(id).map_or(&[], |b| b.as_ref());
             number(&mut manifest, receipt.len())?;
             let compact = compact_receipt(receipt, products.source_text(*id))?;
             blob(&mut manifest, &compact)?;
