@@ -399,83 +399,10 @@ fn function_relation_inner<P:InputType>(
     zero_resources: &[KnownZeroRoot<'_>],
 ) -> Check<()> {
     pending_static(c, span)?;
-    if let Type::ErrorUnion {
-        result: success, ..
-    } = result
-        && let Type::Managed(payload) = success.as_ref()
-        && let Type::Task { retained_life, .. } = payload.as_ref()
-        && !retained_life.ports.is_empty()
-    {
-        super::tasks::require_closed_context(payload, span)?;
-        let inputs = parameters
-            .iter().map(InputType::ty)
-            .enumerate()
-            .filter(|(_, ty)| matches!(ty, Type::Address { .. }))
-            .collect::<Vec<_>>();
-        if inputs.len() != retained_life.ports.len() {
-            return Err(reject(
-                "E-VERIFY-SIGNATURE-CLASS",
-                span,
-                "borrowed Task signature input count differs from actual ports",
-            ));
-        }
-        let mut expected_bindings = Vec::new();
-        for (port, (input, ty)) in inputs.iter().enumerate() {
-            if *ty != &retained_life.ports[port].leaf {
-                return Err(reject(
-                    "E-VERIFY-SIGNATURE-CLASS",
-                    span,
-                    "borrowed Task signature input type differs from actual port",
-                ));
-            }
-            expected_bindings.push(StorageLifeBinding {
-                position: StoragePosition {
-                    base: StorageBase::Parameter(*input as u32),
-                    path: vec![],
-                },
-                binder: StorageBinder::Invocation(retained_life.ports[port].binder),
-            });
-        }
-        for (port, row) in retained_life.ports.iter().enumerate() {
-            expected_bindings.push(StorageLifeBinding {
-                position: StoragePosition {
-                    base: StorageBase::Result,
-                    path: vec![
-                        ContractProjection::Place(PlaceProjection::ErrorArm(false)),
-                        ContractProjection::RetainedPort(port as u32),
-                    ],
-                },
-                binder: StorageBinder::Invocation(row.binder),
-            });
-        }
-        let mut expected_classes = Vec::new();
-        for class in 0..retained_life.binder_count {
-            expected_classes.push(SignatureLifeClassBinding {
-                position: SignatureLifeClass {
-                    base: StorageBase::Result,
-                    path: vec![
-                        LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
-                        LifeTypeProjection::Pointee,
-                    ],
-                    class,
-                },
-                binder: StorageBinder::Invocation(class),
-            });
-        }
-        if !c.static_bindings.is_empty()
-            || c.fixed_binder_count != 0
-            || c.invocation_binder_count != retained_life.binder_count
-            || c.bindings != expected_bindings
-            || c.classes != expected_classes
-        {
-            return Err(reject(
-                "E-VERIFY-SIGNATURE-CLASS",
-                span,
-                "borrowed Task signature has no exact actual input port relation",
-            ));
-        }
-        return Ok(());
-    }
+    // A returned Task's physical ports belong to its full retained frame,
+    // not to the enclosing helper's count/order of root Address parameters.
+    // Constructors and ordinary helpers use the same complete occurrence walk;
+    // actual source selection is independently proved by the SSA/store kernel.
     relation_inputs(
         parameters,
         result,
@@ -1386,4 +1313,24 @@ mod raw_reference_directory_tests {
             assert!(function_relation(&module,&parameters,&Type::I32,&altered,None,false).is_err(),"attack {attack} must not alter the complete raw child forest");
         }
     }
+    #[test]
+    fn returned_task_header_keeps_occurrences_without_identifying_helper_inputs_with_worker_ports(){
+        let(module,_)=crate::tests::baseline();
+        let address=Type::Address{mutable:true,inner:Box::new(Type::I32)};
+        let shape=RetainedLifeShape{binder_count:1,ports:vec![RetainedBorrowPort{leaf:address.clone(),mode:StoredBorrowMode::ExclusiveAddress,binder:0}],retained:vec![StorageRetainedBinding{path:vec![LifeTypeProjection::Parameter(0)],class:0,binder:0}],nominal_arguments:vec![]};
+        let result=Type::ErrorUnion{error:Box::new(Type::I32),result:Box::new(Type::Managed(Box::new(Type::Task{result:Box::new(Type::I32),retained_life:shape})))};
+        let output=StorageLifeBinding{position:StoragePosition{base:StorageBase::Result,path:vec![ContractProjection::Place(PlaceProjection::ErrorArm(false)),ContractProjection::RetainedPort(0)]},binder:StorageBinder::Invocation(0)};
+        let class=SignatureLifeClassBinding{position:SignatureLifeClass{base:StorageBase::Result,path:vec![LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),LifeTypeProjection::Pointee],class:0},binder:StorageBinder::Invocation(0)};
+        for input_count in [1,2]{
+            let parameters=vec![address.clone();input_count];
+            let mut bindings=(0..input_count).map(|input|StorageLifeBinding{position:StoragePosition{base:StorageBase::Parameter(input as u32),path:vec![]},binder:StorageBinder::Invocation(0)}).collect::<Vec<_>>();bindings.push(output.clone());
+            let c=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:1,bindings,static_bindings:vec![],classes:vec![class.clone()]};
+            function_relation(&module,&parameters,&result,&c,None,false).unwrap();
+            for attack in 0..4{let mut altered=c.clone();match attack{0=>{altered.classes.clear();},1=>{altered.bindings.pop();},2=>altered.bindings.last_mut().unwrap().position.path=vec![ContractProjection::Place(PlaceProjection::ErrorArm(false)),ContractProjection::RetainedPort(1)],_=>altered.classes[0].position.class=1}assert!(function_relation(&module,&parameters,&result,&altered,None,false).is_err(),"complete physical port/class occurrence attack {attack}");}
+        }
+        // This is only header identity. Two same-domain inputs do not select
+        // a data source; equal-task-source Raw/Wire controls still check the
+        // actual returned second input through the independent source ledger.
+    }
+
 }
