@@ -2521,14 +2521,18 @@ impl Flow<'_> {
                                 && fact.life.contains(&Life::Available)
                                 && tasks::needs_synchronous_proof(self.module, element, budget)?
                             {
-                                tasks::require_synchronous_drop(
-                                    self.module,
-                                    f,
-                                    *local,
-                                    (b, position),
-                                    budget,
-                                    Some(i.span),
-                                )?;
+                                let original_slot = if let Type::Closure(closure) = element.as_ref() {
+                                    budget.lookup(budget.semantic_cleanup_sites.len(), "original slot cleanup isolation")?;
+                                    *length == 1 && *index == 0 && budget.semantic_cleanup_sites.contains(
+                                        &(f.id, f.blocks[b].id, position, *local, Some(*closure)))
+                                } else { false };
+                                if original_slot && f.call_kind == CallKind::Direct {
+                                    tasks::require_original_synchronous_drop(
+                                        self.module, f, *local, (b, position), budget, Some(i.span))?;
+                                } else {
+                                    tasks::require_synchronous_drop(
+                                        self.module, f, *local, (b, position), budget, Some(i.span))?;
+                                }
                             }
                             if i.result.is_some() {
                                 return Err(error("owning array element cleanup has no result"));
@@ -2581,6 +2585,21 @@ impl Flow<'_> {
                         _ => unreachable!("owning array element operation"),
                     }
                     replace(state, place, fact, budget)?;
+                    if check && matches!(i.kind, InstructionKind::DropOwnedArrayElement { .. })
+                        && *length == 1 && *index == 0
+                        && let Type::Closure(closure) = element.as_ref() {
+                        let point = (f.id, f.blocks[b].id, position, *local);
+                        budget.lookup(budget.semantic_cleanup_sites.len(), "original slot cleanup occurrence")?;
+                        if budget.semantic_cleanup_sites.contains(&(point.0, point.1, point.2, point.3, Some(*closure))) {
+                            if !budget.task_origin_roots || !budget.tasks || budget.task_input_scopes.is_none() {
+                                return Err(error("original slot cleanup has no complete actual preflight and input scopes"));
+                            }
+                            // The actual conditional child debt, loans and
+                            // no-later-use check above also cover vacancy.
+                            budget.lookup(budget.semantic_cleanup_proofs.len(), "original slot cleanup proof")?;
+                            budget.semantic_cleanup_proofs.insert(point);
+                        }
+                    }
                 }
                 InstructionKind::ReadPackageField { local, index }
                 | InstructionKind::DescribePackageField { local, index }
@@ -3511,14 +3530,35 @@ impl Flow<'_> {
                         return Err(error("DropOwnedArray requires a finite owning array local"));
                     }
                     let mut fact = copied(state, Place::Local(*local), budget)?;
+                    let slot_closure = if matches!(i.kind, InstructionKind::DropOwnedArray { .. }) {
+                        match &f.locals[local.0 as usize].ty {
+                            Type::Array { element, length: 1 } => match element.as_ref() {
+                                Type::Closure(closure) => Some(*closure), _ => None,
+                            },
+                            _ => None,
+                        }
+                    } else { None };
+                    // A live owning shell can have no remaining child debt.
+                    // Determine that from the converged child facts, never
+                    // from its array shape or an empty class directory.
+                    let mut live_children = true;
+                    if check && matches!(i.kind, InstructionKind::DropOwnedArray { .. })
+                        && let Type::Array { length, .. } = &f.locals[local.0 as usize].ty {
+                        live_children = false;
+                        for index in 0..*length {
+                            budget.spend(1, "owning array cleanup child debt")?;
+                            live_children |= copied(state, Place::ArrayElement { local: *local, index }, budget)?
+                                .life.contains(&Life::Available);
+                        }
+                    }
                     if check && f.call_kind == CallKind::Direct
                         && !budget.semantic_cleanup_sites.is_empty()
-                        && matches!(i.kind, InstructionKind::DropManaged { .. })
+                        && (matches!(i.kind, InstructionKind::DropManaged { .. }) || slot_closure.is_some())
                     {
-                        let point = (f.id, f.blocks[b].id, position, *local, None);
+                        let point = (f.id, f.blocks[b].id, position, *local, slot_closure);
                         budget.lookup(budget.semantic_cleanup_sites.len(), "original Task cleanup source isolation")?;
                         if budget.semantic_cleanup_sites.contains(&point)
-                            && fact.life.contains(&Life::Available)
+                            && live_children && fact.life.contains(&Life::Available)
                             && state.sums.may_live_task(*local, &f.locals[local.0 as usize].ty, budget)?
                         {
                             // Raw whole-program cleanup may close actual
@@ -3531,7 +3571,7 @@ impl Flow<'_> {
                     }
                     if check
                         && f.call_kind == CallKind::Direct
-                        && fact.life.contains(&Life::Available)
+                        && live_children && fact.life.contains(&Life::Available)
                         && state.sums.may_live_task(
                             *local,
                             &f.locals[local.0 as usize].ty,
@@ -3600,11 +3640,11 @@ impl Flow<'_> {
                     replace(state, Place::Local(*local), fact, budget)?;
                     forget_order(state, *local, budget)?;
                     if check && !budget.semantic_cleanup_sites.is_empty()
-                        && matches!(i.kind, InstructionKind::DropManaged { .. })
+                        && (matches!(i.kind, InstructionKind::DropManaged { .. }) || slot_closure.is_some())
                     {
                         let point = (f.id, f.blocks[b].id, position, *local);
                         budget.lookup(budget.semantic_cleanup_sites.len(), "original Task cleanup occurrence")?;
-                        if budget.semantic_cleanup_sites.contains(&(point.0, point.1, point.2, point.3, None)) {
+                        if budget.semantic_cleanup_sites.contains(&(point.0, point.1, point.2, point.3, slot_closure)) {
                             if !budget.task_origin_roots || !budget.tasks || budget.task_input_scopes.is_none() {
                                 return Err(error("original Task cleanup has no complete actual preflight and input scopes"));
                             }

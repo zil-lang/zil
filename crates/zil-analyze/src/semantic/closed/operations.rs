@@ -482,7 +482,14 @@ impl Check<'_, '_> {
             ) => {
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
                 let expected_type = &original_value.ty;
-                let actual_operand = self.operand(instance, subject, point, b)?;
+                // A logical local use crosses the private shell only through
+                // this original binding's real declaration/initializer witness.
+                let actual_operand = if let SemanticOperand::Local(local) = subject
+                    && matches!(expected_type, Type::Closure(_))
+                    && let Some(slot) = self.persistent_slot(instance, point.function, *local, b)? {
+                    self.persistent_slot_value(instance, point.function, &slot,
+                        (point.block.id, point.instruction + usize::from(point.edge == SemanticSiteEdge::After)), b, 0)?.into_type(b)?
+                } else { self.operand(instance, subject, point, b)? };
                 if &actual_operand != expected_type
                     && let Some((whole, error)) = self.original.return_injection(
                         instance,
@@ -669,6 +676,22 @@ impl Check<'_, '_> {
                     self.original_claim(instance, expected, &original_value, b)?;
                 }
 
+                if let Some(slot) = self.persistent_slot(instance, point.function, *local, b)? {
+                    if slot.declaration() != (point.block.id, point.instruction)
+                        || point.edge != SemanticSiteEdge::After
+                        || !slot.logical().equal_paid(&original_value, b)? {
+                        return Err(fail("persistent declaration changes its exact original boundary or whole value"));
+                    }
+                    let actual = self.ssa_value(instance, point.function, slot.initial(), b, 0)?;
+                    if !actual.equal_paid(&original_value, b)? {
+                        return Err(fail("persistent declaration initializer changes its complete original child"));
+                    }
+                    let images = self.image_heads(instance, expected,
+                        (point.block.id, point.instruction, point.edge), b)?;
+                    self.match_heads(instance, &images, &SemanticOperand::Value(slot.initial()),
+                        (slot.initial_store().0, slot.initial_store().1, SemanticSiteEdge::Before), b)?;
+                    return Ok(());
+                }
                 self.image_operands(instance, expected, point, None, b)?;
                 if &self.captured_value(
                     instance,
@@ -1782,8 +1805,15 @@ impl Check<'_, '_> {
                                     Some(role) => role,
                                     None => self.ssa_value(instance, function, value, b, 0)?,
                                 };
-                            if !actual.equal_paid(expected, b)?
-                                && !self.outer_role(instance, function, &actual, expected, b, 0)? {
+                            let shell = self.persistent_slot(instance, function, local, b)?;
+                            let physical_expected = if let Some(slot) = &shell {
+                                if slot.initial_store() != (block.id, index) || slot.array() != value {
+                                    return Err(fail("persistent Store replaces another original shell activation"));
+                                }
+                                self.persistent_slot_array_value(instance, function, slot, expected, b)?
+                            } else { expected.copy(b)? };
+                            if !actual.equal_paid(&physical_expected, b)?
+                                && !self.outer_role(instance, function, &actual, &physical_expected, b, 0)? {
                                 return Err(fail(
                                     "actual Store changes its complete original local class constraint",
                                 ));
@@ -1791,13 +1821,32 @@ impl Check<'_, '_> {
                         }
                         b.spend(declared.len().saturating_add(1), WORK)?;
                         if let Some(images) = declared.get(&local) {
+                            let subject = if let Some(slot) = self.persistent_slot(instance, function, local, b)? {
+                                if slot.initial_store() != (block.id, index) || slot.array() != value {
+                                    return Err(fail("persistent head Store changes its exact initializer"));
+                                }
+                                slot.initial()
+                            } else { value };
                             self.match_heads(
                                 instance,
                                 images,
-                                &SemanticOperand::Value(value),
+                                &SemanticOperand::Value(subject),
                                 (block.id, index, SemanticSiteEdge::Before),
                                 b,
                             )?;
+                        }
+                    }
+                    if let InstructionKind::StoreOwnedArrayElement { local, index: element, value } = instruction.kind
+                        && let Some(slot) = self.persistent_slot(instance, function, local, b)? {
+                        if element != 0 { return Err(fail("persistent refill changes its original element selector")); }
+                        available_before(function, (block.id, index, SemanticSiteEdge::Before), value, b)?;
+                        let incoming = self.ssa_value(instance, function, value, b, 0)?;
+                        if !incoming.equal_paid(slot.logical(), b)? {
+                            return Err(fail("persistent refill changes its complete original logical value"));
+                        }
+                        if let Some(images) = declared.get(&local) {
+                            self.match_heads(instance, images, &SemanticOperand::Value(value),
+                                (block.id, index, SemanticSiteEdge::Before), b)?;
                         }
                     }
                     let requires = match instruction.kind {

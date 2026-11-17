@@ -191,7 +191,13 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
         let declaration = function.locals.get(local.0 as usize)
             .filter(|actual| actual.id == local)
             .ok_or_else(|| fail("original concrete cleanup loses its actual local"))?;
-        let exact = match closure {
+        let slot = match (closure, &declaration.ty) {
+            (Some(closure), Type::Array { element, length: 1 }) if element.as_ref() == &Type::Closure(closure) =>
+                matches!(instruction.kind, InstructionKind::DropOwnedArrayElement { local: actual, index: 0 }
+                    | InstructionKind::DropOwnedArray { local: actual } if actual == local),
+            _ => false,
+        };
+        let exact = slot || match closure {
             Some(closure) => matches!(instruction.kind, InstructionKind::DropClosure { local: actual } if actual == local)
                 && declaration.ty == Type::Closure(closure),
             None => matches!(instruction.kind, InstructionKind::DropManaged { local: actual } if actual == local)
@@ -201,7 +207,7 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
             return Err(fail("original concrete cleanup changes its exact actual Task-bearing site"));
         }
         b.spend(function.name.len().saturating_add(128), WORK)?;
-        if closure.is_none() {
+        if closure.is_none() || slot {
             b.lookup(b.semantic_cleanup_proofs.len(), WORK)?;
             if !b.semantic_cleanup_proofs.contains(&(function.id, block, position, local)) {
                 let mut errors = fail("original Task cleanup lacks its complete actual resource ledger proof");

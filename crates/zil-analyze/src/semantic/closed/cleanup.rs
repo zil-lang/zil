@@ -58,7 +58,12 @@ impl Check<'_, '_> {
                 };
                 let declaration = function.locals.get(local.0 as usize).filter(|declaration| declaration.id == local)
                     .ok_or_else(|| fail("original cleanup occurrence loses its exact actual local"))?;
-                if !geometry::same_type(&expected.ty, &declaration.ty, b)? {
+                let slot = self.persistent_slot(instance, function, local, b)?;
+                if let Some(slot) = &slot {
+                    if !slot.logical().equal_paid(&expected, b)? {
+                        return Err(fail("original slot cleanup changes its complete logical subject"));
+                    }
+                } else if !geometry::same_type(&expected.ty, &declaration.ty, b)? {
                     return Err(fail("original cleanup occurrence changes its complete instantiated subject type"));
                 }
                 // A Suspend declaration may dispose of its actual closed
@@ -68,7 +73,7 @@ impl Check<'_, '_> {
                     && self.structural_actual(&expected.ty, original::Predicate::SyncDrop, b, 0)?;
                 let replacements = self.cleanup_replacement_values(instance, function,
                     pending.source, &pending.path, pending.event, b)?;
-                let closure = match &declaration.ty {
+                let closure = match &expected.ty {
                     Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }) => None,
                     Type::Closure(id) => Some(*id),
                     _ => return Err(unknown("original cleanup occurrence needs its complete actual owning Task frame proof")),
@@ -77,16 +82,28 @@ impl Check<'_, '_> {
                 for block in &function.blocks {
                     for (position, instruction) in block.instructions.iter().enumerate() {
                         b.spend(1, WORK)?;
-                        let matches = match closure {
+                        let matches = if slot.is_some() {
+                            matches!(instruction.kind,
+                                InstructionKind::DropOwnedArrayElement { local: selected, index: 0 }
+                                | InstructionKind::DropOwnedArray { local: selected } if selected == local)
+                        } else { match closure {
                             None => matches!(instruction.kind, InstructionKind::DropManaged { local: selected } if selected == local),
                             Some(_) => matches!(instruction.kind, InstructionKind::DropClosure { local: selected } if selected == local),
-                        };
+                        }};
                         if matches {
                             if !self.cleanup_event_matches(function, local, block.id, position,
                                 pending.event, &replacements, b)? { continue; }
-                            let actual = self.local_value(instance, function, local, (block.id, position), b, 0)?;
-                            if actual != expected {
-                                return Err(fail("original cleanup occurrence changes its complete actual child/class value"));
+                            if let Some(slot) = &slot {
+                                // A conditional element drop and the final shell
+                                // drop can be vacant. Prove every live source;
+                                // the converged resource ledger decides debts.
+                                self.cleanup_slot_subject(instance, function, slot,
+                                    (block.id, position), &expected, b)?;
+                            } else {
+                                let actual = self.local_value(instance, function, local, (block.id, position), b, 0)?;
+                                if !actual.equal_paid(&expected, b)? {
+                                    return Err(fail("original cleanup occurrence changes its complete actual child/class value"));
+                                }
                             }
                             if !synchronous {
                                 b.lookup(b.semantic_cleanup_sites.len(), WORK)?;
@@ -106,6 +123,79 @@ impl Check<'_, '_> {
                 return Err(fail("original cleanup occurrence has no complete actual instances"));
             }
         }
+        Ok(())
+    }
+
+    // Cleanup is conditional on element debt. Unlike a read, a genuine
+    // preceding take/drop proves vacancy; it never supplies a logical value.
+    fn cleanup_slot_subject(&self, instance: &SemanticInstance, function: &TypedFunction,
+        slot: &persistent_slots::Slot, at: (BlockId, usize), expected: &value::Value,
+        b: &mut Budget) -> CompileResult<()> {
+        operations::initialized_local_before(function, at, slot.local(), b)?;
+        let initialization = crate::shared_initialization(function, b)?;
+        let mut pending = Vec::new();
+        self.push_value(&mut pending, at, b)?;
+        let mut seen = BTreeSet::new();
+        let mut grounded = false;
+        while let Some((block, end)) = pending.pop() {
+            b.lookup(seen.len(), WORK)?;
+            if !seen.insert((block, end)) { continue; }
+            let body = function.blocks.get(block.0 as usize)
+                .filter(|body| body.id == block && end <= body.instructions.len())
+                .ok_or_else(|| fail("slot cleanup loses its exact actual CFG boundary"))?;
+            let mut stopped = false;
+            for (index, instruction) in body.instructions.iter().enumerate().take(end).rev() {
+                b.spend(1, WORK)?;
+                self.head_projection_barrier(function, slot.local(), &[], &instruction.kind, b)?;
+                let source = match instruction.kind {
+                    InstructionKind::StoreOwnedArrayElement { local, index: 0, value }
+                        if local == slot.local() => Some(value),
+                    InstructionKind::Store { local, value } if local == slot.local() => {
+                        if (block, index) != slot.initial_store() || value != slot.array() {
+                            return Err(fail("slot cleanup crosses an unrelated shell replacement"));
+                        }
+                        Some(slot.initial())
+                    }
+                    InstructionKind::TakeOwnedArrayElement { local, index: 0 }
+                    | InstructionKind::DropOwnedArrayElement { local, index: 0 } if local == slot.local() => {
+                        grounded = true;
+                        stopped = true;
+                        break;
+                    }
+                    InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local)
+                    | InstructionKind::DropOwnedArray { local } | InstructionKind::TakeLocal { local }
+                        if local == slot.local() => {
+                        return Err(fail("slot cleanup crosses a vacant shell activation"));
+                    }
+                    _ => None,
+                };
+                if let Some(source) = source {
+                    operations::available_before(function, (block, index, SemanticSiteEdge::Before), source, b)?;
+                    let actual = self.ssa_value(instance, function, source, b, 0)?;
+                    if !actual.equal_paid(expected, b)? {
+                        return Err(fail("slot cleanup changes a complete live original child source"));
+                    }
+                    grounded = true;
+                    stopped = true;
+                    break;
+                }
+            }
+            if stopped { continue; }
+            if block == function.entry {
+                return Err(fail("slot cleanup has no initialized original child or actual removal"));
+            }
+            let mut incoming = false;
+            for predecessor in &initialization.predecessors[block.0 as usize] {
+                b.spend(1, WORK)?;
+                if initialization.reachable[*predecessor] {
+                    let previous = &function.blocks[*predecessor];
+                    self.push_value(&mut pending, (previous.id, previous.instructions.len()), b)?;
+                    incoming = true;
+                }
+            }
+            if !incoming { return Err(fail("slot cleanup has no complete predecessor activation")); }
+        }
+        if !grounded { return Err(unknown("slot cleanup has an ungrounded occupancy cycle")); }
         Ok(())
     }
 
