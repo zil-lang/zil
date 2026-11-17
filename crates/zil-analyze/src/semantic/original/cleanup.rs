@@ -207,7 +207,11 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
             return Err(fail("original concrete cleanup changes its exact actual Task-bearing site"));
         }
         b.spend(function.name.len().saturating_add(128), WORK)?;
-        if closure.is_none() || slot {
+        // Every conditional local drop, including a concrete Closure,
+        // consumes its converged live/vacant resource proof. Original strict
+        // Direct checks run there only on live debt; Suspend still needs the
+        // actual frame graph below. No vacant value is read here.
+        {
             b.lookup(b.semantic_cleanup_proofs.len(), WORK)?;
             if !b.semantic_cleanup_proofs.contains(&(function.id, block, position, local)) {
                 let mut errors = fail("original Task cleanup lacks its complete actual resource ledger proof");
@@ -220,24 +224,6 @@ pub(super) fn finish(module: &TypedModule, b: &mut Budget) -> CompileResult<()> 
             }
             continue;
         }
-        let proof = match function.call_kind {
-            CallKind::Direct => crate::tasks::require_original_synchronous_drop(
-                module, function, local, (block.0 as usize, position), b, Some(instruction.span)),
-            CallKind::Suspend => {
-                b.lookup(frames.len(), WORK)?;
-                if frames.insert(function.id) {
-                    crate::tasks::cleanup_frame_profile(module, function, b)
-                } else {
-                    Ok(())
-                }
-            }
-        };
-        proof.map_err(|mut errors| {
-            for error in &mut errors {
-                error.notes.push(format!("original concrete cleanup actual function {} {}, block {} instruction {}, local {}, closure {:?}", function.id.0, function.name, block.0, position, local.0, closure));
-            }
-            errors
-        })?;
     }
     // Called only after tasks::check and resources::check_module succeeded.
     // A failure above leaves every pending site intact in this request.

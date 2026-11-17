@@ -3535,7 +3535,9 @@ impl Flow<'_> {
                         return Err(error("DropOwnedArray requires a finite owning array local"));
                     }
                     let mut fact = copied(state, Place::Local(*local), budget)?;
-                    let slot_closure = if matches!(i.kind, InstructionKind::DropOwnedArray { .. }) {
+                    let cleanup_closure = if matches!(i.kind, InstructionKind::DropClosure { .. }) {
+                        match f.locals[local.0 as usize].ty { Type::Closure(closure) => Some(closure), _ => None }
+                    } else if matches!(i.kind, InstructionKind::DropOwnedArray { .. }) {
                         match &f.locals[local.0 as usize].ty {
                             Type::Array { element, length: 1 } => match element.as_ref() {
                                 Type::Closure(closure) => Some(*closure), _ => None,
@@ -3558,9 +3560,9 @@ impl Flow<'_> {
                     }
                     if check && f.call_kind == CallKind::Direct
                         && !budget.semantic_cleanup_sites.is_empty()
-                        && (matches!(i.kind, InstructionKind::DropManaged { .. }) || slot_closure.is_some())
+                        && (matches!(i.kind, InstructionKind::DropManaged { .. }) || cleanup_closure.is_some())
                     {
-                        let point = (f.id, f.blocks[b].id, position, *local, slot_closure);
+                        let point = (f.id, f.blocks[b].id, position, *local, cleanup_closure);
                         budget.lookup(budget.semantic_cleanup_sites.len(), "original Task cleanup source isolation")?;
                         if budget.semantic_cleanup_sites.contains(&point)
                             && live_children && fact.life.contains(&Life::Available)
@@ -3645,11 +3647,11 @@ impl Flow<'_> {
                     replace(state, Place::Local(*local), fact, budget)?;
                     forget_order(state, *local, budget)?;
                     if check && !budget.semantic_cleanup_sites.is_empty()
-                        && (matches!(i.kind, InstructionKind::DropManaged { .. }) || slot_closure.is_some())
+                        && (matches!(i.kind, InstructionKind::DropManaged { .. }) || cleanup_closure.is_some())
                     {
                         let point = (f.id, f.blocks[b].id, position, *local);
                         budget.lookup(budget.semantic_cleanup_sites.len(), "original Task cleanup occurrence")?;
-                        if budget.semantic_cleanup_sites.contains(&(point.0, point.1, point.2, point.3, slot_closure)) {
+                        if budget.semantic_cleanup_sites.contains(&(point.0, point.1, point.2, point.3, cleanup_closure)) {
                             if !budget.task_origin_roots || !budget.tasks || budget.task_input_scopes.is_none() {
                                 return Err(error("original Task cleanup has no complete actual preflight and input scopes"));
                             }

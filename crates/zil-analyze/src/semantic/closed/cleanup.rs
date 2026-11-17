@@ -100,10 +100,8 @@ impl Check<'_, '_> {
                                 self.cleanup_slot_subject(instance, function, slot,
                                     (block.id, position), &expected, b)?;
                             } else {
-                                let actual = self.local_value(instance, function, local, (block.id, position), b, 0)?;
-                                if !actual.equal_paid(&expected, b)? {
-                                    return Err(fail("original cleanup occurrence changes its complete actual child/class value"));
-                                }
+                                self.cleanup_local_subject(instance, function, local,
+                                    (block.id, position), &expected, b)?;
                             }
                             if !synchronous {
                                 b.lookup(b.semantic_cleanup_sites.len(), WORK)?;
@@ -123,6 +121,82 @@ impl Check<'_, '_> {
                 return Err(fail("original cleanup occurrence has no complete actual instances"));
             }
         }
+        Ok(())
+    }
+
+    // A conditional owning drop is not a read. Validate every live reaching
+    // source independently; an actual removal supplies only a vacant debt.
+    fn cleanup_local_subject(&self, instance: &SemanticInstance, function: &TypedFunction,
+        local: LocalId, at: (BlockId, usize), expected: &value::Value,
+        b: &mut Budget) -> CompileResult<()> {
+        let initialization = crate::shared_initialization(function, b)?;
+        let mut pending = Vec::new();
+        self.push_value(&mut pending, at, b)?;
+        let mut seen = BTreeSet::new();
+        let mut grounded = false;
+        while let Some((block, end)) = pending.pop() {
+            b.lookup(seen.len(), WORK)?;
+            if !seen.insert((block, end)) { continue; }
+            let body = function.blocks.get(block.0 as usize)
+                .filter(|body| body.id == block && end <= body.instructions.len())
+                .ok_or_else(|| fail("conditional cleanup loses its actual CFG boundary"))?;
+            let mut stopped = false;
+            for (index, instruction) in body.instructions.iter().enumerate().take(end).rev() {
+                b.spend(1, WORK)?;
+                match instruction.kind {
+                    InstructionKind::Store { local: target, value } if target == local => {
+                        operations::available_before(function, (block, index, SemanticSiteEdge::Before), value, b)?;
+                        let actual = self.ssa_value(instance, function, value, b, 0)?;
+                        if !actual.equal_paid(expected, b)? {
+                            return Err(fail("conditional cleanup changes a complete live original subject"));
+                        }
+                        grounded = true;
+                        stopped = true;
+                        break;
+                    }
+                    InstructionKind::TakeLocal { local: target }
+                    | InstructionKind::DropManaged { local: target }
+                    | InstructionKind::DropClosure { local: target }
+                    | InstructionKind::StorageLive(target) | InstructionKind::StorageDead(target)
+                        if target == local => {
+                        // The actual resource/epoch kernel must still accept
+                        // this removal and the final conditional drop itself.
+                        grounded = true;
+                        stopped = true;
+                        break;
+                    }
+                    InstructionKind::CommitPlaceReplace { .. } | InstructionKind::WriteAddress { .. }
+                    | InstructionKind::StoreStoredBorrow { .. } => {
+                        return Err(unknown("conditional cleanup needs its complete indirect replacement source"));
+                    }
+                    _ => {}
+                }
+            }
+            if stopped { continue; }
+            if block == function.entry {
+                b.spend(function.parameters.len(), WORK)?;
+                if !function.parameters.contains(&local) {
+                    return Err(fail("conditional cleanup has no initialized source or actual vacancy"));
+                }
+                let actual = self.local_value(instance, function, local, (function.entry, 0), b, 0)?;
+                if !actual.equal_paid(expected, b)? {
+                    return Err(fail("conditional cleanup changes its complete original input subject"));
+                }
+                grounded = true;
+                continue;
+            }
+            let mut incoming = false;
+            for predecessor in &initialization.predecessors[block.0 as usize] {
+                b.spend(1, WORK)?;
+                if initialization.reachable[*predecessor] {
+                    let previous = &function.blocks[*predecessor];
+                    self.push_value(&mut pending, (previous.id, previous.instructions.len()), b)?;
+                    incoming = true;
+                }
+            }
+            if !incoming { return Err(fail("conditional cleanup has no complete predecessor source")); }
+        }
+        if !grounded { return Err(unknown("conditional cleanup has an ungrounded source cycle")); }
         Ok(())
     }
 
