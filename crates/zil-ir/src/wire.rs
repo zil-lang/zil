@@ -358,6 +358,19 @@ pub fn decode_raw_function(bytes: &[u8], limits: &Limits) -> CompileResult<(Type
     })())
 }
 
+/// Decode an exactly consumed borrowed fragment against the caller's remaining
+/// aggregate node allowance. No encoding owner or copy of the input is made;
+/// the returned node cost has the same meaning as the owned raw decoder's.
+pub fn decode_raw_function_bounded(
+    bytes: &[u8],
+    limits: &Limits,
+    remaining_nodes: usize,
+) -> CompileResult<(TypedFunction, usize)> {
+    let mut remaining = limits.clone();
+    remaining.max_nodes = remaining_nodes.min(limits.max_nodes);
+    decode_raw_function(bytes, &remaining)
+}
+
 /// Restore the fragment and its accounting receipt together from bounded raw
 /// bytes. The aggregate caller supplies its remaining node budget. This is an
 /// encoder/decoder receipt only and never authorizes Verify.

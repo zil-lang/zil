@@ -3,6 +3,15 @@ use super::*;
 use zil_base::{ModuleId, SCHEMA_VERSION, Span};
 use zil_ir::*;
 
+fn same_view(left: &ByteView, right: &ByteView) -> bool {
+    left.range == right.range
+        && match (&left.owner, &right.owner) {
+            (ByteOwner::Buffer(left), ByteOwner::Buffer(right)) => Arc::ptr_eq(left, right),
+            (ByteOwner::Encoded(left), ByteOwner::Encoded(right)) => Arc::ptr_eq(left, right),
+            _ => false,
+        }
+}
+
 struct Directory(PathBuf);
 impl Directory {
     fn new() -> Self {
@@ -281,9 +290,9 @@ fn restarted_raw_products_match_original_emitter_and_edit_only_one_representativ
             .any(|current| restored
                 .old
                 .iter()
-                .any(|old| Arc::ptr_eq(&current.input, &old.input)
-                    && Arc::ptr_eq(&current.output, &old.output)
-                    && Arc::ptr_eq(&current.facts, &old.facts)))
+                .any(|old| same_view(&current.input, &old.input)
+                    && same_view(&current.output, &old.output)
+                    && same_view(&current.facts, &old.facts)))
     );
 }
 
@@ -532,7 +541,7 @@ fn uncommitted_corrupt_and_guarded_records_are_only_misses() {
     lower(&verified, &source, Some(&mut cold)).unwrap();
     let pending = cold.pending().unwrap();
     let namespace = pending.directory.clone();
-    let digest = Fingerprint::of(&pending.bytes);
+    let digest = pending.bytes.digest();
     pending.commit(&directory.0);
     let payload = namespace.join(format!("{}.raw", digest.to_hex()));
     let original = fs::read(&payload).unwrap();
@@ -882,4 +891,201 @@ fn auxiliary_products_require_context_integrity_and_successful_publication() {
         corrupted.hits == 0,
         "corrupt shared envelope cannot lend emission bodies either"
     );
+}
+
+// The prior contiguous serializer is an independent byte-schema oracle.
+fn contiguous_payload(request: &Request) -> Vec<u8> {
+    let mut out = Writer::bounded(request.maximum);
+    out.put(b"ZILRAE02").unwrap();
+    out.blob(&request.context).unwrap();
+    out.word(request.current.len()).unwrap();
+    for record in &request.current {
+        out.blob(&record.input).unwrap();
+        out.blob(&record.facts).unwrap();
+        out.blob(&record.output).unwrap();
+    }
+    out.word(request.current_aliases.len()).unwrap();
+    for (id, index) in &request.current_aliases {
+        out.word(id.0 as usize).unwrap();
+        out.word(*index).unwrap();
+    }
+    let products = if request.products.is_empty() {
+        &request.old_products
+    } else {
+        &request.products
+    };
+    out.word(products.len()).unwrap();
+    for (name, bytes) in products {
+        out.text(name).unwrap();
+        out.blob(bytes).unwrap();
+    }
+    out.0
+}
+
+#[test]
+fn shared_file_views_survive_restore_stage_and_byte_identical_streamed_republication() {
+    let directory = Directory::new();
+    let verified = fixture(false);
+    let source = lir(&verified);
+    let mut cold = request(&directory.0);
+    let expected_machine = lower(&verified, &source, Some(&mut cold)).unwrap();
+    let product = vec![37; 128 * 1024];
+    let product_ptr = product.as_ptr();
+    cold.stage_product("machine-products", product);
+    assert_eq!(cold.products["machine-products"].as_ptr(), product_ptr);
+    let originals = cold.current.clone();
+    let expected = contiguous_payload(&cold);
+    let pending = cold.pending().unwrap();
+    assert_eq!(pending.bytes.length, expected.len());
+    assert_eq!(pending.bytes.digest(), Fingerprint::of(&expected));
+    for record in &originals {
+        for bytes in [&record.input, &record.facts, &record.output] {
+            assert!(
+                pending
+                    .bytes
+                    .pieces
+                    .iter()
+                    .any(|piece| same_view(piece, bytes))
+            );
+        }
+    }
+    assert!(
+        pending
+            .bytes
+            .pieces
+            .iter()
+            .any(|piece| piece.as_ptr() == product_ptr)
+    );
+    let namespace = pending.directory.clone();
+    let path = namespace.join(format!("{}.raw", pending.bytes.digest().to_hex()));
+    pending.commit(&directory.0);
+    assert_eq!(fs::read(&path).unwrap(), expected);
+    let manifest = read(&namespace.join("current.manifest"), 44).unwrap();
+    assert_eq!(&manifest[..8], b"ZILRAM01");
+    assert_eq!(&manifest[8..40], &Fingerprint::of(&expected).0);
+    assert_eq!(
+        u32::from_le_bytes(manifest[40..44].try_into().unwrap()) as usize,
+        expected.len()
+    );
+
+    let mut restored = request(&directory.0);
+    assert_eq!(
+        lower(&verified, &source, Some(&mut restored)).unwrap(),
+        expected_machine
+    );
+    let product = restored.product("machine-products").unwrap();
+    let ByteOwner::Buffer(owner) = &product.owner else {
+        panic!("restored file owner")
+    };
+    let owner = owner.clone();
+    assert_eq!(owner.as_slice(), expected);
+    for record in &restored.old {
+        for bytes in [&record.input, &record.facts, &record.output] {
+            let ByteOwner::Buffer(buffer) = &bytes.owner else {
+                panic!("one shared file allocation")
+            };
+            assert!(Arc::ptr_eq(buffer, &owner));
+            assert_eq!(bytes.as_ptr(), owner[bytes.range.clone()].as_ptr());
+        }
+    }
+    let expected_again = contiguous_payload(&restored);
+    let pending = restored.pending().unwrap();
+    assert_eq!(expected_again, expected);
+    assert_eq!(pending.bytes.digest(), Fingerprint::of(&expected));
+    assert!(
+        pending
+            .bytes
+            .pieces
+            .iter()
+            .any(|piece| same_view(piece, &product))
+    );
+    assert!(matches_payload(&path, MAX_BYTES, &pending.bytes));
+    // A retained owner cannot conceal current corruption or a trailing byte.
+    let mut corrupted = expected.clone();
+    *corrupted.last_mut().unwrap() ^= 1;
+    fs::write(&path, &corrupted).unwrap();
+    assert!(!matches_payload(&path, MAX_BYTES, &pending.bytes));
+    corrupted = expected.clone();
+    corrupted.push(0);
+    fs::write(&path, corrupted).unwrap();
+    assert!(!matches_payload(&path, MAX_BYTES, &pending.bytes));
+    pending.commit(&directory.0);
+    assert_eq!(fs::read(&path).unwrap(), expected);
+    // The returned product is owned independently of Request and Pending.
+    assert_eq!(product.as_ref(), &[37; 128 * 1024]);
+}
+
+#[test]
+fn borrowed_function_decode_keeps_exact_consumption_and_remaining_node_limits() {
+    let limits = Limits::default();
+    let encoded = zil_ir::wire::encode_raw_function(&function(3, 7), &limits)
+        .unwrap()
+        .shared_bytes();
+    let (expected, receipt) =
+        zil_ir::wire::decode_raw_function_shared_owner(encoded.clone(), &limits, limits.max_nodes)
+            .unwrap();
+    let nodes = receipt.node_cost();
+    assert!(nodes > 0);
+    let mut enclosing = vec![91; 7];
+    enclosing.extend_from_slice(&encoded);
+    enclosing.extend_from_slice(&[92; 9]);
+    let owner = Arc::new(enclosing);
+    let view = ByteView::range(&owner, 7..7 + encoded.len()).unwrap();
+    let count = Arc::strong_count(&owner);
+    let (actual, cost) = zil_ir::wire::decode_raw_function_bounded(&view, &limits, nodes).unwrap();
+    assert_eq!(&actual, expected.as_ref());
+    assert_eq!(cost, nodes);
+    assert_eq!(Arc::strong_count(&owner), count);
+    assert_eq!(view.as_ptr(), owner[7..].as_ptr());
+    assert!(zil_ir::wire::decode_raw_function_bounded(&view, &limits, nodes - 1).is_err());
+    let short = Limits {
+        max_nodes: nodes - 1,
+        ..limits.clone()
+    };
+    assert!(zil_ir::wire::decode_raw_function_bounded(&view, &short, usize::MAX).is_err());
+    let short = Limits {
+        max_source_bytes: view.len() - 1,
+        ..limits.clone()
+    };
+    assert!(zil_ir::wire::decode_raw_function_bounded(&view, &short, nodes).is_err());
+    assert!(
+        zil_ir::wire::decode_raw_function_bounded(&view[..view.len() - 1], &limits, nodes).is_err()
+    );
+    assert!(zil_ir::wire::decode_raw_function_bounded(&owner[7..], &limits, nodes).is_err());
+    assert!(ByteView::range(&owner, 0..usize::MAX).is_none());
+}
+
+#[test]
+fn segmented_payload_counts_repeated_views_and_atomic_failures_leave_old_bytes() {
+    let segment: ByteView = vec![7; 64 * 1024].into();
+    let mut out = PayloadWriter::new(MAX_BYTES);
+    for _ in 0..255 {
+        out.blob(segment.clone()).unwrap();
+    }
+    // 256 references still cost their full logical lengths, despite sharing
+    // one 64 KiB allocation. The original aggregate 16 MiB cap is unchanged.
+    assert!(out.blob(segment).is_none());
+
+    let bytes: ByteView = vec![1, 2, 3, 4].into();
+    let mut exact = PayloadWriter::new(8);
+    exact.blob(bytes.clone()).unwrap();
+    let exact = exact.finish().unwrap();
+    assert_eq!(exact.length, 8);
+    assert!(PayloadWriter::new(7).blob(bytes).is_none());
+    let directory = Directory::new();
+    atomic(&directory.0, "selected", b"old").unwrap();
+    assert!(atomic_parts(&directory.0, "selected", 7, exact.slices()).is_none());
+    assert!(atomic_parts(&directory.0, "selected", 9, exact.slices()).is_none());
+    assert!(atomic_parts(&directory.0, "selected", MAX_BYTES + 1, exact.slices()).is_none());
+    assert_eq!(fs::read(directory.0.join("selected")).unwrap(), b"old");
+    assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 1);
+    #[cfg(unix)]
+    {
+        let link = directory.0.join("linked");
+        std::os::unix::fs::symlink(directory.0.join("selected"), &link).unwrap();
+        assert!(read(&link, MAX_BYTES).is_none());
+        assert!(!matches_payload(&link, MAX_BYTES, &exact));
+        assert!(atomic_parts(&directory.0, "linked", exact.length, exact.slices()).is_none());
+        assert_eq!(fs::read(directory.0.join("selected")).unwrap(), b"old");
+    }
 }

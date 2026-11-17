@@ -4,20 +4,173 @@
 use super::raw_codec::{self, MAX_BYTES, Reader, Writer};
 use super::*;
 use std::fs::{self, File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::{BufReader, BufWriter, Read, Write};
+use std::ops::{Deref, Range};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use zil_base::{Fingerprint, Limits};
+use zil_base::{Fingerprint, FingerprintBuilder, Limits};
 
 const MAX_RECORDS: usize = 16_384;
 static NEXT: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Clone, Debug)]
+enum ByteOwner {
+    Buffer(Arc<Vec<u8>>),
+    // The existing raw function encoder already returns this immutable owner.
+    // Retain it directly, without copying it into a different allocation.
+    Encoded(Arc<[u8]>),
+}
+
+/// An owned byte view. Restored records and products all retain the SAME
+/// complete, checked file allocation; ranges never escape that owner.
+#[derive(Clone, Debug)]
+pub(crate) struct ByteView {
+    owner: ByteOwner,
+    range: Range<usize>,
+}
+impl ByteView {
+    fn range(owner: &Arc<Vec<u8>>, range: Range<usize>) -> Option<Self> {
+        owner.get(range.clone())?;
+        Some(Self {
+            owner: ByteOwner::Buffer(owner.clone()),
+            range,
+        })
+    }
+}
+impl From<Vec<u8>> for ByteView {
+    fn from(bytes: Vec<u8>) -> Self {
+        let range = 0..bytes.len();
+        Self {
+            owner: ByteOwner::Buffer(Arc::new(bytes)),
+            range,
+        }
+    }
+}
+impl From<Arc<[u8]>> for ByteView {
+    fn from(bytes: Arc<[u8]>) -> Self {
+        let range = 0..bytes.len();
+        Self {
+            owner: ByteOwner::Encoded(bytes),
+            range,
+        }
+    }
+}
+impl Deref for ByteView {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        let bytes: &[u8] = match &self.owner {
+            ByteOwner::Buffer(bytes) => bytes,
+            ByteOwner::Encoded(bytes) => bytes,
+        };
+        &bytes[self.range.clone()]
+    }
+}
+impl AsRef<[u8]> for ByteView {
+    fn as_ref(&self) -> &[u8] {
+        self
+    }
+}
+impl PartialEq for ByteView {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+impl Eq for ByteView {}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Payload {
+    pieces: Vec<ByteView>,
+    length: usize,
+}
+impl Payload {
+    fn slices(&self) -> impl Iterator<Item = &[u8]> {
+        self.pieces.iter().map(AsRef::as_ref)
+    }
+    fn digest(&self) -> Fingerprint {
+        let mut digest = FingerprintBuilder::new();
+        for bytes in self.slices() {
+            digest.update(bytes);
+        }
+        digest.digest()
+    }
+}
+
+enum Piece {
+    Header(Range<usize>),
+    Blob(ByteView),
+}
+// Only small wire headers are accumulated. Blob owners remain intact through
+// staging, the pending native transaction, hashing and the actual file write.
+struct PayloadWriter {
+    header: Writer,
+    pieces: Vec<Piece>,
+    length: usize,
+    maximum: usize,
+}
+impl PayloadWriter {
+    fn new(maximum: usize) -> Self {
+        Self {
+            header: Writer::bounded(maximum),
+            pieces: Vec::new(),
+            length: 0,
+            maximum: maximum.min(MAX_BYTES),
+        }
+    }
+    fn charge(&mut self, length: usize) -> Option<()> {
+        self.length = self
+            .length
+            .checked_add(length)
+            .filter(|length| *length <= self.maximum)?;
+        Some(())
+    }
+    fn put(&mut self, bytes: &[u8]) -> Option<()> {
+        self.charge(bytes.len())?;
+        let start = self.header.0.len();
+        self.header.put(bytes)?;
+        let end = self.header.0.len();
+        if let Some(Piece::Header(range)) = self.pieces.last_mut() {
+            range.end = end;
+        } else {
+            self.pieces.push(Piece::Header(start..end));
+        }
+        Some(())
+    }
+    fn word(&mut self, value: usize) -> Option<()> {
+        self.put(&u32::try_from(value).ok()?.to_le_bytes())
+    }
+    fn text(&mut self, text: &str) -> Option<()> {
+        self.word(text.len())?;
+        self.put(text.as_bytes())
+    }
+    fn blob(&mut self, bytes: ByteView) -> Option<()> {
+        self.word(bytes.len())?;
+        self.charge(bytes.len())?;
+        self.pieces.push(Piece::Blob(bytes));
+        Some(())
+    }
+    fn finish(self) -> Option<Payload> {
+        let header = Arc::new(self.header.0);
+        let pieces = self
+            .pieces
+            .into_iter()
+            .map(|piece| match piece {
+                Piece::Header(range) => ByteView::range(&header, range),
+                Piece::Blob(bytes) => Some(bytes),
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(Payload {
+            pieces,
+            length: self.length,
+        })
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Pending {
     directory: PathBuf,
     manifest: String,
-    bytes: Vec<u8>,
+    bytes: Payload,
     maximum: usize,
 }
 impl Pending {
@@ -34,7 +187,9 @@ impl Pending {
         let _ = self.store();
     }
     fn store(self) -> Option<()> {
-        if !private_directory(&self.directory, true) {
+        if self.bytes.length > self.maximum.min(MAX_BYTES)
+            || !private_directory(&self.directory, true)
+        {
             return None;
         }
         let previous = read(&self.directory.join(&self.manifest), 44).and_then(|bytes| {
@@ -46,19 +201,27 @@ impl Pending {
             let length = input.word()?;
             input.finish().then_some((digest, length))
         });
-        let digest = Fingerprint::of(&self.bytes);
+        let digest = self.bytes.digest();
         let payload_name = format!("{}.raw", digest.to_hex());
-        if previous == Some((digest, self.bytes.len()))
-            && read(&self.directory.join(&payload_name), self.maximum)
-                .is_some_and(|current| current == self.bytes)
+        if previous == Some((digest, self.bytes.length))
+            && matches_payload(
+                &self.directory.join(&payload_name),
+                self.maximum,
+                &self.bytes,
+            )
         {
             return Some(());
         }
-        atomic(&self.directory, &payload_name, &self.bytes)?;
+        atomic_parts(
+            &self.directory,
+            &payload_name,
+            self.bytes.length,
+            self.bytes.slices(),
+        )?;
         let mut manifest = Writer::new();
         manifest.put(b"ZILRAM01")?;
         manifest.put(&digest.0)?;
-        manifest.word(self.bytes.len())?;
+        manifest.word(self.bytes.length)?;
         atomic(&self.directory, &self.manifest, &manifest.0)?;
         if let Some((previous, _)) = previous
             && previous != digest
@@ -73,14 +236,14 @@ impl Pending {
 
 #[derive(Clone)]
 struct RawRecord {
-    input: Arc<[u8]>,
-    facts: Arc<[u8]>,
-    output: Arc<[u8]>,
+    input: ByteView,
+    facts: ByteView,
+    output: ByteView,
 }
 type Inventory = (
     Vec<RawRecord>,
     BTreeMap<FunctionId, usize>,
-    BTreeMap<String, Arc<[u8]>>,
+    BTreeMap<String, ByteView>,
 );
 pub(crate) struct Request {
     inputs: Option<Arc<scalar_bodies::Inputs>>,
@@ -94,8 +257,8 @@ pub(crate) struct Request {
     decoded: BTreeMap<usize, Option<(TypedFunction, FunctionBatch)>>,
     accepted: BTreeMap<FunctionId, (usize, FunctionBatch)>,
     decode_nodes: usize,
-    products: BTreeMap<String, Arc<[u8]>>,
-    old_products: BTreeMap<String, Arc<[u8]>>,
+    products: BTreeMap<String, ByteView>,
+    old_products: BTreeMap<String, ByteView>,
     current: Vec<RawRecord>,
     current_aliases: BTreeMap<FunctionId, usize>,
     owners: std::collections::HashMap<scalar_bodies::Key, usize>,
@@ -258,6 +421,7 @@ impl Request {
         if bytes.len() != length || Fingerprint::of(&bytes) != digest {
             return None;
         }
+        let bytes = Arc::new(bytes);
         let mut input = Reader::new(&bytes, self.limits.max_nodes.min(1_000_000))?;
         if input.take(8)? != b"ZILRAE02" || input.blob()? != self.context {
             return None;
@@ -269,9 +433,9 @@ impl Request {
         let mut records = Vec::with_capacity(count);
         for _ in 0..count {
             records.push(RawRecord {
-                input: input.blob()?.into(),
-                facts: input.blob()?.into(),
-                output: input.blob()?.into(),
+                input: ByteView::range(&bytes, input.blob_range()?)?,
+                facts: ByteView::range(&bytes, input.blob_range()?)?,
+                output: ByteView::range(&bytes, input.blob_range()?)?,
             });
         }
         let count = input.count()?;
@@ -297,7 +461,9 @@ impl Request {
         for _ in 0..count {
             let name = input.text()?;
             if name != "machine-products"
-                || products.insert(name, Arc::from(input.blob()?)).is_some()
+                || products
+                    .insert(name, ByteView::range(&bytes, input.blob_range()?)?)
+                    .is_some()
             {
                 return None;
             }
@@ -337,19 +503,19 @@ impl Request {
         }
         if !self.decoded.contains_key(&index) {
             let decoded = (|| {
-                let decoded = zil_ir::wire::decode_raw_function_shared_owner(
-                    record.input.clone(),
+                let decoded = zil_ir::wire::decode_raw_function_bounded(
+                    &record.input,
                     &self.limits,
                     self.decode_nodes,
                 );
-                let (raw, encoding) = match decoded {
+                let (raw, nodes) = match decoded {
                     Ok(decoded) => decoded,
                     Err(_) => {
                         self.decode_nodes = 0;
                         return None;
                     }
                 };
-                self.decode_nodes = self.decode_nodes.checked_sub(encoding.node_cost())?;
+                self.decode_nodes = self.decode_nodes.checked_sub(nodes)?;
                 let output =
                     match raw_codec::decode(&record.output, &self.limits, &mut self.decode_nodes) {
                         Some(output) => output,
@@ -374,7 +540,7 @@ impl Request {
                 {
                     return None;
                 }
-                Some((raw.as_ref().clone(), output))
+                Some((raw, output))
             })();
             self.decoded.insert(index, decoded);
         }
@@ -454,7 +620,7 @@ impl Request {
                 .checked_sub(20)?;
             let output = raw_codec::encode_bounded(output, remaining)?;
             RawRecord {
-                input,
+                input: input.into(),
                 facts: facts.into(),
                 output: output.into(),
             }
@@ -477,7 +643,7 @@ impl Request {
     }
     /// All raw products are covered by one context, byte cap, payload digest,
     /// manifest and success-only transaction. No auxiliary files or histories.
-    pub(crate) fn product(&self, name: &str) -> Option<Arc<[u8]>> {
+    pub(crate) fn product(&self, name: &str) -> Option<ByteView> {
         self.old_products.get(name).cloned()
     }
     pub(crate) fn stage_product(&mut self, name: &str, bytes: Vec<u8>) {
@@ -507,14 +673,14 @@ impl Request {
         if !self.enabled || self.current.is_empty() {
             return None;
         }
-        let mut out = Writer::bounded(self.maximum);
+        let mut out = PayloadWriter::new(self.maximum);
         out.put(b"ZILRAE02")?;
-        out.blob(&self.context)?;
+        out.blob(self.context.into())?;
         out.word(self.current.len())?;
         for record in self.current {
-            out.blob(&record.input)?;
-            out.blob(&record.facts)?;
-            out.blob(&record.output)?;
+            out.blob(record.input)?;
+            out.blob(record.facts)?;
+            out.blob(record.output)?;
         }
         out.word(self.current_aliases.len())?;
         for (id, record) in self.current_aliases {
@@ -524,12 +690,12 @@ impl Request {
         out.word(self.products.len())?;
         for (name, bytes) in self.products {
             out.text(&name)?;
-            out.blob(&bytes)?;
+            out.blob(bytes)?;
         }
         Some(Pending {
             directory: self.directory,
             manifest: self.manifest,
-            bytes: out.0,
+            bytes: out.finish()?,
             maximum: self.maximum,
         })
     }
@@ -763,6 +929,21 @@ fn private_directory(path: &Path, create: bool) -> bool {
     true
 }
 fn read(path: &Path, maximum: usize) -> Option<Vec<u8>> {
+    let (mut file, length) = open_read(path, maximum)?;
+    let mut bytes = Vec::with_capacity(length);
+    (&mut file)
+        .take(maximum as u64 + 1)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    if bytes.len() > maximum || bytes.len() != length {
+        return None;
+    }
+    Some(bytes)
+}
+
+// Both allocating reads and streamed equality checks use the same no-follow,
+// permissions, size and opened-inode checks. Stat never proves payload bytes.
+fn open_read(path: &Path, maximum: usize) -> Option<(File, usize)> {
     let before = fs::symlink_metadata(path).ok()?;
     if !before.is_file() || before.file_type().is_symlink() || before.len() > maximum as u64 {
         return None;
@@ -781,8 +962,12 @@ fn read(path: &Path, maximum: usize) -> Option<Vec<u8>> {
         use std::os::unix::fs::OpenOptionsExt;
         options.custom_flags(0o400000);
     }
-    let mut file = options.open(path).ok()?;
+    let file = options.open(path).ok()?;
     let opened = file.metadata().ok()?;
+    let length = usize::try_from(opened.len()).ok()?;
+    if !opened.is_file() || length > maximum {
+        return None;
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
@@ -790,18 +975,43 @@ fn read(path: &Path, maximum: usize) -> Option<Vec<u8>> {
             return None;
         }
     }
-    let mut bytes = Vec::with_capacity(before.len() as usize);
-    (&mut file)
-        .take(maximum as u64 + 1)
-        .read_to_end(&mut bytes)
-        .ok()?;
-    if bytes.len() > maximum || bytes.len() != opened.len() as usize {
-        return None;
-    }
-    Some(bytes)
+    Some((file, length))
 }
+
+fn matches_payload(path: &Path, maximum: usize, payload: &Payload) -> bool {
+    (|| {
+        let (file, length) = open_read(path, maximum)?;
+        if length != payload.length {
+            return None;
+        }
+        let mut file =
+            BufReader::with_capacity(length.min(64 * 1024), file.take(length as u64 + 1));
+        let mut buffer = [0u8; 16 * 1024];
+        for piece in payload.slices() {
+            for expected in piece.chunks(buffer.len()) {
+                let actual = &mut buffer[..expected.len()];
+                file.read_exact(actual).ok()?;
+                if actual != expected {
+                    return None;
+                }
+            }
+        }
+        (file.read(&mut buffer[..1]).ok()? == 0).then_some(())
+    })()
+    .is_some()
+}
+
 fn atomic(directory: &Path, name: &str, bytes: &[u8]) -> Option<()> {
-    if bytes.len() > MAX_BYTES || !private_directory(directory, false) {
+    atomic_parts(directory, name, bytes.len(), std::iter::once(bytes))
+}
+
+fn atomic_parts<'a>(
+    directory: &Path,
+    name: &str,
+    length: usize,
+    pieces: impl IntoIterator<Item = &'a [u8]>,
+) -> Option<()> {
+    if length > MAX_BYTES || !private_directory(directory, false) {
         return None;
     }
     let path = directory.join(name);
@@ -823,8 +1033,23 @@ fn atomic(directory: &Path, name: &str, bytes: &[u8]) -> Option<()> {
         options.mode(0o600);
     }
     let result = (|| {
-        let mut file: File = options.open(&temporary).ok()?;
-        file.write_all(bytes).ok()?;
+        let file: File = options.open(&temporary).ok()?;
+        {
+            // Coalesce small length/alias fields in a fixed buffer, while
+            // large blobs stream directly from their immutable owners.
+            let mut output = BufWriter::with_capacity(length.min(64 * 1024), &file);
+            let mut written = 0usize;
+            for bytes in pieces {
+                written = written
+                    .checked_add(bytes.len())
+                    .filter(|written| *written <= length)?;
+                output.write_all(bytes).ok()?;
+            }
+            if written != length {
+                return None;
+            }
+            output.flush().ok()?;
+        }
         file.sync_all().ok()?;
         if !private_directory(directory, false) {
             return None;

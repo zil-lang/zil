@@ -244,11 +244,16 @@ impl Writer {
 
 pub(crate) struct Reader<'a> {
     bytes: &'a [u8],
+    position: usize,
     pub(crate) nodes: usize,
 }
 impl<'a> Reader<'a> {
     pub(crate) fn new(bytes: &'a [u8], nodes: usize) -> Option<Self> {
-        (bytes.len() <= MAX_BYTES).then_some(Self { bytes, nodes })
+        (bytes.len() <= MAX_BYTES).then_some(Self {
+            bytes,
+            position: 0,
+            nodes,
+        })
     }
     fn node(&mut self) -> Option<()> {
         self.nodes = self.nodes.checked_sub(1)?;
@@ -257,6 +262,7 @@ impl<'a> Reader<'a> {
     pub(crate) fn take(&mut self, count: usize) -> Option<&'a [u8]> {
         let (value, rest) = self.bytes.split_at_checked(count)?;
         self.bytes = rest;
+        self.position += count;
         Some(value)
     }
     pub(crate) fn word(&mut self) -> Option<usize> {
@@ -273,6 +279,14 @@ impl<'a> Reader<'a> {
     pub(crate) fn blob(&mut self) -> Option<&'a [u8]> {
         let n = self.word()?;
         self.take(n)
+    }
+    /// The same bounded blob read, expressed relative to the original input.
+    /// An enclosing owner can retain this range without copying its bytes.
+    pub(crate) fn blob_range(&mut self) -> Option<std::ops::Range<usize>> {
+        let n = self.word()?;
+        let start = self.position;
+        self.take(n)?;
+        Some(start..self.position)
     }
     pub(crate) fn text(&mut self) -> Option<String> {
         self.node()?;
