@@ -35,7 +35,7 @@ pub(super) fn copy_value(
     };
     if !environment(module, *id, budget)? { return Ok(false); }
     let definition = &module.closures[id.0 as usize];
-    if definition.kind != CallableKind::Fn { return Ok(false); }
+    if !matches!(definition.kind, CallableKind::Fn | CallableKind::FnMut) { return Ok(false); }
     budget.spend(definition.captures.len(), "callback Copy capture directory")?;
     for capture in &definition.captures {
         if !copy_value(module, capture, budget, depth + 1)? { return Ok(false); }
