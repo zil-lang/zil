@@ -2526,9 +2526,14 @@ impl Flow<'_> {
                                     *length == 1 && *index == 0 && budget.semantic_cleanup_sites.contains(
                                         &(f.id, f.blocks[b].id, position, *local, Some(*closure)))
                                 } else { false };
-                                if original_slot && f.call_kind == CallKind::Direct {
-                                    tasks::require_original_synchronous_drop(
-                                        self.module, f, *local, (b, position), budget, Some(i.span))?;
+                                if original_slot {
+                                    if f.call_kind == CallKind::Direct {
+                                        tasks::require_original_synchronous_drop(
+                                            self.module, f, *local, (b, position), budget, Some(i.span))?;
+                                    }
+                                    // Suspend's exact original occurrence
+                                    // remains pending through this ledger;
+                                    // finish requires the actual frame graph.
                                 } else {
                                     tasks::require_synchronous_drop(
                                         self.module, f, *local, (b, position), budget, Some(i.span))?;

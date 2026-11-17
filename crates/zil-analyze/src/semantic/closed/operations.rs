@@ -686,8 +686,10 @@ impl Check<'_, '_> {
                     if !actual.equal_paid(&original_value, b)? {
                         return Err(fail("persistent declaration initializer changes its complete original child"));
                     }
+                    // The original declaration is logical; its private
+                    // shell is initialized by the witnessed immediate Store.
                     let images = self.image_heads(instance, expected,
-                        (point.block.id, point.instruction, point.edge), b)?;
+                        (slot.initial_store().0, slot.initial_store().1, SemanticSiteEdge::After), b)?;
                     self.match_heads(instance, &images, &SemanticOperand::Value(slot.initial()),
                         (slot.initial_store().0, slot.initial_store().1, SemanticSiteEdge::Before), b)?;
                     return Ok(());
@@ -1604,8 +1606,10 @@ impl Check<'_, '_> {
                 else {
                     return Err(fail("declaration snapshot retains a Core emission site"));
                 };
-                let images =
-                    self.image_heads(instance, expected, (block, instruction as usize, edge), b)?;
+                let image_at = if let Some(slot) = self.persistent_slot(instance, function, *local, b)? {
+                    (slot.initial_store().0, slot.initial_store().1, SemanticSiteEdge::After)
+                } else { (block, instruction as usize, edge) };
+                let images = self.image_heads(instance, expected, image_at, b)?;
                 if let SemanticTypeValue::Resolved { ty, .. } = expected {
                     if self.uses_full_value(ty, b)? {
                         let value = self.resolved(instance, expected, b, 0)?;
