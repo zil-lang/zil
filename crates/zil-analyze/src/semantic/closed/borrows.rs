@@ -553,13 +553,13 @@ impl Check<'_, '_> {
     pub(super) fn call_output_from_entry(
         &self, instance:&SemanticInstance,function:&TypedFunction,at:(BlockId,usize),
         callee:&TypedFunction,arguments:&[ValueId],expected_parameters:&[Value],ty:&Type,
-        output:Value,b:&mut Budget,depth:usize,
+        output:Value,mixed:Option<&operation_transport::MixedCall<'_>>,b:&mut Budget,depth:usize,
     )->CompileResult<Value> {
         if !geometry::same_type(&output.ty,ty,b)? {
             return Err(fail("operation output changes its complete original type"));
         }
         self.transport_operation_output(instance,function,at,callee,arguments,
-            expected_parameters,output,None,None,b,depth)
+            expected_parameters,output,None,None,mixed,b,depth)
     }
 
     // Independent physical header slots may denote the same declared

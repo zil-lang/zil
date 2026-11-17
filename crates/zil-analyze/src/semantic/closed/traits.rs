@@ -58,6 +58,85 @@ pub(super) fn arguments_equal(left: &[Argument], right: &[Argument], b: &mut Bud
     Ok(equal)
 }
 impl Check<'_, '_> {
+    /// Provider selection and original conformance precede this contextual
+    /// substitution. Every method world and its genuine lexical parent remain
+    /// independently rigid; their formal classes are mapped by full ordinal,
+    /// never by coincident Type/lifetime images.
+    #[allow(clippy::too_many_arguments)]
+    fn trait_operation_mixed<'m>(&self, target: FunctionId,
+        expected: SemanticDefinitionId, provider: &SemanticInstance,
+        receiver: &Value, declaration: LifeDeclarationId, overridden: bool,
+        trait_arguments: &[Argument], method_arguments: &'m [Argument], b: &mut Budget)
+        -> CompileResult<operation_transport::MixedCall<'m>> {
+        let parent_definition = if overridden { provider.definition } else {
+            original::declaration_scope(self.program, declaration, self.inventory, b)?
+        };
+        let mut provider_arguments = Vec::new();
+        if overridden {
+            for actual in &provider.actuals {
+                self.push_value(&mut provider_arguments, self.actual_value(provider, actual, b, 0)?, b)?;
+            }
+        }
+        let parent_arguments = if overridden { provider_arguments.as_slice() } else { trait_arguments };
+        let parent_self = if overridden { self.original_scope_self(provider, b, 0)? } else { receiver.copy(b)? };
+        let expected_definition = self.inventory.definition(expected, b)?;
+        if expected_definition.kind != SemanticDefinitionKind::Method
+            || expected_definition.parent != Some(parent_definition) {
+            return Err(fail("trait operation changes its selected provider/default lexical definition"));
+        }
+        let worlds = self.function_worlds(target, b)?;
+        if worlds.is_empty() { return Err(fail("trait operation has no complete actual method worlds")); }
+        let mut parents: BTreeMap<SemanticInstanceId, Vec<Argument>> = BTreeMap::new();
+        for world in worlds {
+            if world.definition != expected || world.environment.is_some() {
+                return Err(fail("actual trait call selects another member/default definition even though its ABI may match"));
+            }
+            self.operation_mixed_arguments(world, method_arguments, b)?;
+            let parent = self.inventory.instance(world.parent
+                .ok_or_else(|| fail("trait operation method has no genuine lexical scope"))?, b)?;
+            if parent.definition != parent_definition || !matches!(parent.target, SemanticInstanceTarget::Scope) {
+                return Err(fail("trait operation method selects another provider/default parent scope"));
+            }
+            self.operation_mixed_arguments(parent, parent_arguments, b)?;
+            let actual_self = self.original_scope_self(parent, b, 0)?;
+            let mut classes = Vec::new();
+            for class in &actual_self.classes {
+                let class = self.operation_mixed_class(class, parent.id, parent_arguments, b)?
+                    .unwrap_or_else(|| class.clone());
+                self.push_value(&mut classes, class, b)?;
+            }
+            let actual_self = actual_self.with_classes(classes, b)?;
+            if !actual_self.equal_paid(&parent_self, b)? {
+                return Err(fail("trait operation parent changes its independently selected complete Self substitution"));
+            }
+            let actual = world.self_type.as_ref()
+                .ok_or_else(|| fail("trait operation method omits its original Self context"))?;
+            let actual = self.resolved(world, actual, b, 0)?;
+            let mut classes = Vec::new();
+            for class in &actual.classes {
+                let class = match self.operation_mixed_class(class, world.id, method_arguments, b)? {
+                    Some(class) => class,
+                    None => self.operation_mixed_class(class, parent.id, parent_arguments, b)?
+                        .unwrap_or_else(|| class.clone()),
+                };
+                self.push_value(&mut classes, class, b)?;
+            }
+            if !actual.with_classes(classes, b)?.equal_paid(&parent_self, b)? {
+                return Err(fail("trait operation method changes its complete receiver scope substitution"));
+            }
+            b.lookup(parents.len(), WORK)?;
+            if let Some(previous) = parents.get(&parent.id) {
+                if !arguments_equal(previous, parent_arguments, b)? {
+                    return Err(fail("trait operation has conflicting actual parent mixed substitutions"));
+                }
+            } else {
+                charge_arguments(parent_arguments, b)?;
+                parents.insert(parent.id, parent_arguments.to_vec());
+            }
+        }
+        Ok(operation_transport::MixedCall { target: expected, arguments: method_arguments, parents })
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn trait_operation(
         &self,
@@ -436,6 +515,7 @@ impl Check<'_, '_> {
                 }
             }
         }
+        let overridden = definition.is_some();
         let definition = if let Some(definition) = definition {
             definition
         } else {
@@ -449,12 +529,6 @@ impl Check<'_, '_> {
                 })?
         };
         let expected = original::definition_scope(self.program, definition, self.inventory, b)?;
-        let target_instance = self.function_instance(target, b)?;
-        if target_instance.definition != expected {
-            return Err(fail(
-                "actual trait call selects another member/default definition even though its ABI may match",
-            ));
-        }
         let callee = self
             .inventory
             .function(&SemanticFunctionTarget::Typed(target), b)?;
@@ -467,6 +541,9 @@ impl Check<'_, '_> {
                 "actual trait method changes its original concrete entry, ABI or environment role",
             ));
         }
+        let mixed = self.trait_operation_mixed(target, expected, provider,
+            &boundary.receiver, boundary.declaration, overridden,
+            &boundary.arguments, &boundary.method_actuals, b)?;
         if let Some(anchor) = boundary.receiver_anchor {
             let head = *arguments
                 .first()
@@ -558,6 +635,7 @@ impl Check<'_, '_> {
                 &boundary.parameters,
                 &boundary.result.ty,
                 boundary.result.copy(b)?,
+                Some(&mixed),
                 b,
                 0,
             )?

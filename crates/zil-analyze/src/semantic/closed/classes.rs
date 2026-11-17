@@ -2881,6 +2881,7 @@ impl Check<'_, '_> {
                     &expected_parameters,
                     ty,
                     original_output,
+                    None,
                     b,
                     depth,
                 )
@@ -3244,7 +3245,7 @@ impl Check<'_, '_> {
         crate::stored_callables::check_role_relation(self.module, closure,
             entry.storage_life.as_ref().ok_or_else(|| fail("call entry has no complete role directory"))?, b)?;
         self.transport_operation_output(instance,function,(block,index),entry,arguments,&parameters,
-            output,Some(&receiver.classes),receiving,b,0)
+            output,Some(&receiver.classes),receiving,None,b,0)
     }
 
     /// Physical byte leaves only: a closure or owning head does not expose its

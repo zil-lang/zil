@@ -4,6 +4,15 @@
 use super::*;
 use crate::semantic::value::{Argument,Class,Value};
 
+/// A selected trait provider/default supplies this contextual mixed map only
+/// after the ordinary trait boundary, provider identity and every rigid scope
+/// have been proved. It contains no permission or additional class equation.
+pub(super) struct MixedCall<'a> {
+    pub(super) target: SemanticDefinitionId,
+    pub(super) arguments: &'a [Argument],
+    pub(super) parents: BTreeMap<SemanticInstanceId, Vec<Argument>>,
+}
+
 impl Check<'_, '_> {
     fn install_operation_class(
         &self, rows:&mut BTreeMap<StorageBinder,Class>, binder:StorageBinder,
@@ -80,56 +89,101 @@ impl Check<'_, '_> {
         Ok(selected)
     }
 
+    pub(super) fn operation_mixed_arguments(&self, scope: &SemanticInstance,
+        expected: &[Argument], b: &mut Budget) -> CompileResult<()> {
+        let definition = self.inventory.definition(scope.definition, b)?;
+        b.spend(expected.len().saturating_add(scope.actuals.len()).saturating_add(1), WORK)?;
+        if definition.parameters.len() != expected.len() || scope.actuals.len() != expected.len() {
+            return Err(fail("operation context changes its complete mixed formal arity"));
+        }
+        for (ordinal, ((formal, expected), actual)) in definition.parameters.iter()
+            .zip(expected).zip(&scope.actuals).enumerate() {
+            let actual = self.actual_value(scope, actual, b, 0)?;
+            if !self.body_call_actual(scope, ordinal, formal, expected, &actual, b)? {
+                return Err(fail("operation context changes its full rigid mixed ordinal or invariant domain"));
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn operation_mixed_class(&self, class: &Class,
+        owner: SemanticInstanceId, arguments: &[Argument], b: &mut Budget)
+        -> CompileResult<Option<Class>> {
+        b.spend(1, WORK)?;
+        Ok(match class {
+            Class::Formal(scope, index) if *scope == owner => {
+                let Some(Argument::Life(class)) = arguments.get(*index as usize) else {
+                    return Err(fail("operation Fixed life has no full original mixed ordinal"));
+                };
+                Some(class.clone())
+            }
+            Class::TypeArgument(scope, index, child) if *scope == owner => {
+                let Some(Argument::Type(value)) = arguments.get(*index as usize) else {
+                    return Err(fail("operation Fixed Type has no full original mixed ordinal"));
+                };
+                Some(value.classes.get(*child as usize).cloned()
+                    .ok_or_else(|| fail("operation Fixed selector leaves its complete Type argument"))?)
+            }
+            _ => None,
+        })
+    }
+
     fn operation_fixed_sources(&self, instance: &SemanticInstance,
         at: (BlockId, usize), callee: &TypedFunction,
         contract: &StorageLifeContract, rows: &mut BTreeMap<StorageBinder, Class>,
-        b: &mut Budget) -> CompileResult<()> {
+        mixed: Option<&MixedCall<'_>>, b: &mut Budget) -> CompileResult<()> {
         if contract.fixed_binder_count == 0 { return Ok(()); }
-        let mut receipt = None;
-        for site in self.inventory.sites_at(self.program, instance.id, at.0, at.1, SemanticSiteEdge::After, b)? {
-            if !matches!(site.action, SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. }) { continue; }
-            if receipt.replace(site).is_some() { return Err(fail("operation Fixed transport repeats its original receipt")); }
-        }
-        let receipt = receipt.ok_or_else(|| fail("operation Fixed transport has no original receipt"))?;
-        let (target, arguments) = self.original.call_arguments(instance, receipt.recipe, self.program, self.inventory, b)?;
+        let ordinary;
+        let (target, arguments) = if let Some(mixed) = mixed {
+            (mixed.target, mixed.arguments)
+        } else {
+            let mut receipt = None;
+            for site in self.inventory.sites_at(self.program, instance.id, at.0, at.1, SemanticSiteEdge::After, b)? {
+                if !matches!(site.action, SemanticSiteAction::Call { .. } | SemanticSiteAction::BodyCall { .. }) { continue; }
+                if receipt.replace(site).is_some() { return Err(fail("operation Fixed transport repeats its original receipt")); }
+            }
+            let receipt = receipt.ok_or_else(|| fail("operation Fixed transport has no original receipt"))?;
+            ordinary = self.original.call_arguments(instance, receipt.recipe, self.program, self.inventory, b)?;
+            (ordinary.0, ordinary.1.as_slice())
+        };
         let worlds = self.function_worlds(callee.id, b)?;
         if worlds.is_empty() { return Err(fail("operation Fixed transport has no complete callee worlds")); }
         for world in worlds {
             if world.definition != target { return Err(fail("operation Fixed transport changes its original target")); }
+            self.operation_mixed_arguments(world, arguments, b)?;
             for ordinal in 0..contract.fixed_binder_count {
                 let binder = StorageBinder::Fixed(ordinal);
                 let original = self.header_class(world, binder, b)?;
-                let source = match original {
-                    Class::Formal(owner, index) if owner == world.id => {
-                        b.spend(1, WORK)?;
-                        let Some(Argument::Life(class)) = arguments.get(index as usize) else {
-                            return Err(fail("operation Fixed life has no full original mixed ordinal"));
-                        };
-                        class.clone()
-                    }
-                    Class::TypeArgument(owner, index, child) if owner == world.id => {
-                        b.spend(1, WORK)?;
-                        let Some(Argument::Type(value)) = arguments.get(index as usize) else {
-                            return Err(fail("operation Fixed Type has no full original mixed ordinal"));
-                        };
-                        value.classes.get(child as usize).cloned()
-                            .ok_or_else(|| fail("operation Fixed selector leaves its complete Type argument"))?
-                    }
-                    class @ (Class::Formal(owner, _) | Class::TypeArgument(owner, _, _)) => {
-                        // A lexical ancestor is reusable only when it is also
-                        // this caller's genuine original ancestor, never by Type.
-                        let mut current = Some(instance);
-                        let mut found = false;
-                        for _ in 0..=b.partial_depth {
-                            let Some(scope) = current else { break; };
-                            b.spend(1, WORK)?;
-                            if scope.id == owner { found = true; break; }
-                            current = scope.parent.map(|parent| self.inventory.instance(parent, b)).transpose()?;
+                let mut source = self.operation_mixed_class(&original, world.id, arguments, b)?;
+                if source.is_none() && let Some(mixed) = mixed {
+                    let owner = match original {
+                        Class::Formal(owner, _) | Class::TypeArgument(owner, _, _) => Some(owner),
+                        _ => None,
+                    };
+                    if let Some(owner) = owner {
+                        b.lookup(mixed.parents.len(), WORK)?;
+                        if let Some(arguments) = mixed.parents.get(&owner) {
+                            source = self.operation_mixed_class(&original, owner, arguments, b)?;
                         }
-                        if !found { return Err(unknown("operation Fixed class retains an unresolved lexical dependency")); }
-                        class
                     }
-                    _ => return Err(fail("operation Fixed source is neither a genuine mixed formal nor a lexical ancestor")),
+                }
+                let source = if let Some(source) = source { source } else {
+                    let owner = match original {
+                        Class::Formal(owner, _) | Class::TypeArgument(owner, _, _) => owner,
+                        _ => return Err(fail("operation Fixed source is neither a genuine mixed formal nor a lexical ancestor")),
+                    };
+                    // Unsubstituted lexical ancestors must genuinely belong to
+                    // this caller; class-image equality cannot choose a scope.
+                    let mut current = Some(instance);
+                    let mut found = false;
+                    for _ in 0..=b.partial_depth {
+                        let Some(scope) = current else { break; };
+                        b.spend(1, WORK)?;
+                        if scope.id == owner { found = true; break; }
+                        current = scope.parent.map(|parent| self.inventory.instance(parent, b)).transpose()?;
+                    }
+                    if !found { return Err(unknown("operation Fixed class retains an unresolved lexical dependency")); }
+                    original
                 };
                 self.install_operation_class(rows, binder, source, b)?;
             }
@@ -144,7 +198,7 @@ impl Check<'_, '_> {
     pub(super) fn transport_operation_output(
         &self,instance:&SemanticInstance,function:&TypedFunction,at:(BlockId,usize),
         callee:&TypedFunction,arguments:&[ValueId],parameters:&[Value],output:Value,
-        fixed:Option<&[Class]>,receiving:Option<u32>,b:&mut Budget,depth:usize,
+        fixed:Option<&[Class]>,receiving:Option<u32>,mixed:Option<&MixedCall<'_>>,b:&mut Budget,depth:usize,
     )->CompileResult<Value> {
         b.spend(1,WORK)?;
         if depth>b.partial_depth {return Err(vec![zil_base::Diagnostic::limit(
@@ -169,7 +223,7 @@ impl Check<'_, '_> {
             }
         }
         if fixed.is_none() {
-            self.operation_fixed_sources(instance, at, callee, contract, &mut sources, b)?;
+            self.operation_fixed_sources(instance, at, callee, contract, &mut sources, mixed, b)?;
         }
         for (ordinal,(operand,expected)) in arguments.iter().zip(parameters).enumerate() {
             operations::available_before(function,(at.0,at.1,SemanticSiteEdge::Before),*operand,b)?;
