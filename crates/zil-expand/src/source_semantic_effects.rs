@@ -4,6 +4,9 @@
 //! body. The independent consumers must check that body and its actual ABI.
 use super::*;
 
+#[path = "source_semantic_cleanup_candidates.rs"]
+mod cleanup_candidates;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Target {
     Definition(usize),
@@ -2220,7 +2223,7 @@ pub(super) fn propose(
     budget.drop_lineage_vec(roles, Span::default())?;
     budget.drop_lineage_vec(definitions, Span::default())?;
     let mut index = 0;
-    for (_, module) in modules {
+    for (_, module) in modules.iter_mut() {
         for definition in &mut module.definitions {
             let vertex = &vertices[index];
             budget.identity_work(promoted.len(), Span::default())?;
@@ -2254,7 +2257,7 @@ pub(super) fn propose(
     // Every actual consume use of a promoted role already belongs to a
     // Suspend vertex. Thus publication cannot introduce a new function effect
     // edge, and never bootstraps a Suspend premise from its own invocation.
-    Ok(())
+    cleanup_candidates::propose(modules, budget)
 }
 
 #[cfg(test)]
@@ -2467,9 +2470,15 @@ fn main(){}
     #[test]
     fn original_pending_fixtures_publish_the_complete_consuming_upper() {
         for text in [
-            include_str!("../../../tests/language-readiness/task-owner-transport/once-pending-callable-cleanup.zil"),
-            include_str!("../../../tests/language-readiness/task-owner-transport/once-pending-owned-result-cleanup.zil"),
-            include_str!("../../../tests/language-readiness/task-owner-transport/once-pending-returned-task-cleanup.zil"),
+            include_str!(
+                "../../../tests/language-readiness/task-owner-transport/once-pending-callable-cleanup.zil"
+            ),
+            include_str!(
+                "../../../tests/language-readiness/task-owner-transport/once-pending-owned-result-cleanup.zil"
+            ),
+            include_str!(
+                "../../../tests/language-readiness/task-owner-transport/once-pending-returned-task-cleanup.zil"
+            ),
         ] {
             let module = original_module(text);
             let parent = function(&module, "parent");
@@ -2479,7 +2488,86 @@ fn main(){}
             // Constructing a callable does not execute its body or cleanup,
             // and the opaque callable result is not an input consuming role.
             assert_eq!(signature(keep).unwrap().call_kind, CallKind::Direct);
+            for requirement in &keep.requirements {
+                if let SemanticRequirementRecipe::Callable {
+                    kind, signature, ..
+                } = requirement
+                {
+                    assert_eq!(
+                        signature.call_kind,
+                        if *kind == CallableKind::FnOnce {
+                            CallKind::Suspend
+                        } else {
+                            CallKind::Direct
+                        }
+                    );
+                }
+            }
         }
     }
 
+    #[test]
+    fn opaque_consumption_tracks_remaining_task_not_the_body_abi() {
+        let module = original_module(
+            r#"
+fn close(give task:Task<i32>)->i32{task_finish_destroy(give task);return 0;}
+fn observed(give task:Task<i32>)->impl FnOnce()->i32{return move()=>{task_valid(task);return 0;};}
+fn transferred(give task:Task<i32>)->impl FnOnce()->Managed<Task<i32>>{return move()=>give task;}
+fn closed(give task:Task<i32>)->impl FnOnce()->i32{return move()=>{close(give task);return 0;};}
+fn partial(give task:Task<i32>,flag:bool)->impl FnOnce()->i32{return move()=>{if flag{close(give task);return 1;}return 0;};}
+fn both(give task:Task<i32>,flag:bool)->impl FnOnce()->i32{return move()=>{if flag{close(give task);return 1;}close(give task);return 0;};}
+fn forwarded<F:FnOnce()->i32>(original:F)->impl FnOnce()->i32{return move()=>original();}
+fn nonconsuming<F:FnMut()->i32>(original:F)->impl FnOnce()->i32{return move()=>original();}
+fn literal()->impl FnOnce()->i32{return move()=>42;}
+resource Token{value:i32}
+impl Drop for Token{fn drop(self:Self){}}
+fn ordinary(give token:Token)->impl FnOnce()->i32{return move()=>token.value;}
+struct Holder<T:Value>{item:T}
+fn ordinary_nominal(value:Holder<i32>)->impl FnOnce()->i32{return move()=>value.item;}
+fn sync_inner()->impl Fn()->i32{return move()=>42;}
+fn sync_outer()->impl FnOnce()->i32{let inner=sync_inner();return move()=>inner();}
+fn task_inner(give task:Task<i32>)->impl FnMut()->i32{return move()=>{task_valid(task);return 0;};}
+fn task_outer(give task:Task<i32>)->impl FnOnce()->i32{var inner=task_inner(give task);return move()=>inner();}
+fn through_tuple(give task:Task<i32>)->impl FnOnce()->Managed<Task<i32>>{return move()=>{let pair=(give task,);let (selected,)=pair;return give selected;};}
+fn main(){}
+"#,
+        );
+        for (name, expected) in [
+            ("observed", CallKind::Suspend),
+            ("partial", CallKind::Suspend),
+            ("nonconsuming", CallKind::Suspend),
+            ("transferred", CallKind::Direct),
+            ("closed", CallKind::Direct),
+            ("both", CallKind::Direct),
+            ("forwarded", CallKind::Direct),
+            ("literal", CallKind::Direct),
+            ("ordinary", CallKind::Direct),
+            ("ordinary_nominal", CallKind::Direct),
+            ("through_tuple", CallKind::Direct),
+            ("sync_outer", CallKind::Direct),
+            ("task_outer", CallKind::Suspend),
+        ] {
+            let definition = function(&module, name);
+            let mut found = false;
+            for requirement in &definition.requirements {
+                if let SemanticRequirementRecipe::Callable {
+                    ty:
+                        SemanticTypeRecipe::OriginalType {
+                            source: SemanticOriginalTypeSource::Result,
+                            ..
+                        },
+                    kind: CallableKind::FnOnce,
+                    signature,
+                } = requirement
+                {
+                    assert_eq!(signature.call_kind, expected, "{name}");
+                    found = true;
+                }
+            }
+            assert!(found, "{name}");
+            assert_eq!(signature(definition).unwrap().call_kind, CallKind::Direct);
+        }
+        // Candidate formation does not establish the close helper's Closed
+        // precondition, nor permit any actual Direct consume to suspend.
+    }
 }
