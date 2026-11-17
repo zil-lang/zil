@@ -1,0 +1,11 @@
+{
+  "source_base": "36f81a479b4b9f5c39aafdfeadc6a2f2998bbdfc",
+  "actual_executed_candidate": "3cbb0eeffa0da39533fc05132671648750bc831e",
+  "cli_sha256": "ded6e9ea1bd246bf1a1204b1622a374ae64e86d048ec3190c70513f040ef251e",
+  "goal_head": "380553268133be6f843dd4ff8fd239841f51cc2d",
+  "snapshot_utc": "20261117T153339Z",
+  "changed_files": {},
+  "status": "Saved36f is untested;3c is not Alpha accepted. No active implementation. Native event totals are not independently counted.",
+  "restore": "Checkout source_base. Saved source branch is complete and clean. Read executed-3cbb/adjacent-validation-index.json; preserve initial failed SDK receipts and exact retries separately. Shared SDK native output archive has mixed candidate provenance and is preservation only.",
+  "previous_exact_wip_snapshot": "a9f6290adf2578f3d051d6bf349b1218c6ffc0b2"
+}
