@@ -760,9 +760,10 @@ fn creator_captures(
             .ok_or_else(|| bad("actual lexical capture has no exact original environment slot"))?;
         let source = &original.environment[ordinal as usize].source;
         crate::dyn_metadata::semantic_operand_snapshot(source, limits, left, 1)?;
-        if !matches!(&environment.actuals[ordinal as usize], SemanticActual::CoreRecipe { scope, recipe }
-            if *scope == parent && recipe.as_ref() == source)
-        {
+        if !creator_source_matches(
+            program, module, ledger, parent,
+            &environment.actuals[ordinal as usize], source, limits, left,
+        )? {
             return Err(bad(
                 "captured environment actual changes its exact original creator source",
             ));
@@ -788,6 +789,41 @@ fn creator_captures(
         result.push((capture as u32, ordinal, ty.clone()));
     }
     Ok(result)
+}
+
+/// The immutable original source and the exact creator establish identity.
+/// A ghost actual may still be its Core recipe, or may have been completely
+/// materialized by finish. Both stages verify that same source; equality here
+/// does not establish a runtime capture, owner, or cleanup fact.
+#[allow(clippy::too_many_arguments)]
+fn creator_source_matches(
+    program: &SemanticModule,
+    module: &super::super::materialize::ActualDirectory<'_>,
+    ledger: &super::super::emission::Ledger,
+    parent: SemanticInstanceId,
+    actual: &SemanticActual,
+    source: &SemanticActualRecipe,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<bool> {
+    crate::dyn_metadata::semantic_operand_snapshot(actual, limits, left, 1)?;
+    match actual {
+        SemanticActual::CoreRecipe { scope, recipe } => {
+            Ok(*scope == parent && recipe.as_ref() == source)
+        }
+        SemanticActual::Type(SemanticTypeValue::Resolved { .. }) => {
+            // Use the real creator's original Gamma, not the child's asserted
+            // environment and not a hint selected by physical Type equality.
+            let expected = super::super::materialize::actual_in_view(
+                program, module, ledger, parent, source, limits, left,
+            )?;
+            crate::dyn_metadata::semantic_operand_snapshot(&expected, limits, left, 1)?;
+            Ok(actual == &expected)
+        }
+        // An unmaterialized inference, unresolved Type, or a different actual
+        // kind cannot stand in for this original captured Type source.
+        _ => Ok(false),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
