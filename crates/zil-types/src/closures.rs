@@ -939,10 +939,16 @@ impl State {
             .is_some_and(|pending| pending.source_context.is_some())
     }
 
+    pub(super) fn source_state_bounds<'a>(
+        &mut self, function: &'a CoreFunction,
+    ) -> R<std::borrow::Cow<'a, [CoreCallableParameter]>> {
+        state_origins::bounds(function, &self.limits, &mut self.work_left)
+    }
+
     pub(super) fn source_helper_joint(
         &mut self,
         original: &CoreFunction,
-        partials: &[(u32, StorageLifeContract)],
+        partials: &[(u32, u32, StorageLifeContract, StorageLifeContract)],
         span: Span,
     ) -> R<StorageLifeContract> {
         helpers::source_life::joint_header(original, partials, &mut self.work_left, span)

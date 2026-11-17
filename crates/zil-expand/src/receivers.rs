@@ -102,7 +102,7 @@ impl Expander<'_> {
             .storage_catalog
             .is_some_and(|storage| storage.source_helpers)
         {
-            let count = template.as_ref().map_or(0, |t| t.roles.len());
+            let count = template.as_ref().map_or(0, |t| t.bindings().count());
             if self
                 .member_owner_limit
                 .saturating_sub(self.member_owner_work)
@@ -121,8 +121,7 @@ impl Expander<'_> {
             template
                 .as_ref()
                 .map(|t| {
-                    t.roles
-                        .iter()
+                    t.bindings()
                         .map(|r| (r.index as u32, r.generic_index, r.source_bound_ordinal))
                         .collect::<Vec<_>>()
                 })
@@ -139,6 +138,8 @@ impl Expander<'_> {
                             .state_bindings
                             .into_iter()
                             .map(|binding| zil_ir::CoreStateBinding {
+                                life: None,
+                                source_life: None,
                                 generic_index: binding.generic_index,
                                 generic_name: binding.generic_name,
                                 kind: binding.kind,

@@ -72,6 +72,8 @@ fn mixed(reverse: bool, fields: usize, kind: CallableKind) -> CoreProgram {
     f.state_parameters = vec![CoreStateParameter {
         index: owner,
         bindings: vec![CoreStateBinding {
+                        life: None,
+                        source_life: None,
             generic_index: 0,
             generic_name: "F".into(),
             kind,

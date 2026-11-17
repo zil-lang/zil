@@ -729,6 +729,8 @@ fn mixed_state_signature(function: &CoreFunction) -> CompileResult<()> {
     if bound.generic_name != direct.generic_name
         || bound.parameters != direct.parameters
         || bound.result != direct.result
+        || bound.life != direct.life
+        || bound.source_life != direct.source_life
         || !matches!(&function.parameters[direct.index as usize].ty,
             Type::Named(name) if name == &bound.generic_name)
         || state != &function.return_type
@@ -860,12 +862,26 @@ impl Collector<'_> {
     }
     // Independently preflight all retained State data before the collector
     // clones even an unused declaration into the runtime normalized program.
+    fn stored_callable_metadata(&mut self,bound:&CoreStateBinding,span:Span) -> CompileResult<()> {
+        let work=callable_context_metadata_work(bound.life.as_ref(),bound.source_life.as_ref(),
+            self.limits.max_nodes,self.limits.max_call_depth,self.work_left).ok_or_else(|| vec![Diagnostic::limit(
+                Phase::Ct,"stored callable metadata exceeds bounds",Some(span))])?;
+        self.text_len(work)?;
+        if let Some(context)=&bound.source_life {
+            self.callable_source_context(context,span)?;
+            for kind in &context.parameters {
+                if let LifeParameterKind::Const(ty)=kind { self.ty(ty,0)?; }
+            }
+        }
+        Ok(())
+    }
     fn state_header(&mut self, function: &CoreFunction) -> CompileResult<()> {
         if !function.callable_parameters.is_empty() {
             mixed_state_shape(function)?;
             self.charge(0)?;
             let bound = &function.state_parameters[0].bindings[0];
             self.charge(0)?;
+            self.stored_callable_metadata(bound,function.span)?;
             self.text(&bound.generic_name)?;
             self.parameters(&bound.parameters, &bound.result)?;
             for _ in &bound.fields {
@@ -913,6 +929,7 @@ impl Collector<'_> {
                 return Err(invalid());
             }
             self.charge(0)?;
+            self.stored_callable_metadata(bound,function.span)?;
             self.text(&bound.generic_name)?;
             self.parameters(&bound.parameters, &bound.result)?;
             for _ in &bound.fields {

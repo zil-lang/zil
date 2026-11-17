@@ -306,7 +306,7 @@ fn signatures(
                     retained_return_sources: f.retained_return_sources.clone(),
                     storage_life: f.storage_life.clone(),
                     life: f.life.as_ref().map(borrowed_fp::from_life),
-                    callable: state_origins::bounds(f).into_owned(),
+                    callable: state_origins::bounds(f, limits, &mut foreign_work).map_err(|e| vec![e])?.into_owned(),
                     state_parameter: f.state_parameters.first().cloned(),
                     callable_return: f.callable_return.clone(),
                     type_parameter: f.type_parameters.first().cloned(),

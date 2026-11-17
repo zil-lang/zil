@@ -1144,6 +1144,10 @@ pub struct CoreStateParameter {
 /// Declaration order is independent of Package field order and ClosureId.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreStateBinding {
+    /// Complete original callback P/R relation, identical to a direct role.
+    pub life: Option<StorageLifeContract>,
+    /// Original declaration/full generic inverse; never an environment proof.
+    pub source_life: Option<CoreCallableLifeContext>,
     pub generic_index: u32,
     pub generic_name: String,
     pub kind: CallableKind,

@@ -158,34 +158,51 @@ impl generics::products::Products {
                     function.callable_parameters.len().saturating_add(1),
                     item.span,
                 )?;
-                let role = function
+                let direct = function
                     .callable_parameters
                     .iter_mut()
-                    .find(|r| r.index == parameter)
-                    .ok_or_else(|| {
-                        Diagnostic::unsupported(
+                    .find(|role| role.index == parameter && role.generic_index == generic);
+                if let Some(role) = direct {
+                    if role.source_life.is_some()
+                        || role.generic_index != row.generic_index
+                        || role.kind != row.kind
+                    {
+                        return Err(Diagnostic::unsupported(
                             Phase::Expand,
-                            "source helper actual role is absent",
+                            "source helper actual role changed",
                             Some(item.span),
-                        )
-                    })?;
-                if role.source_life.is_some()
-                    || role.generic_index != row.generic_index
-                    || !matches!(
-                        role.kind,
-                        CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-                    )
-                {
-                    return Err(Diagnostic::unsupported(
-                        Phase::Expand,
-                        "source helper actual role changed",
-                        Some(item.span),
-                    ));
+                        ));
+                    }
+                    role.life = Some(row.life);
+                    role.source_life = Some(row.context);
+                    role.parameters = row.parameters;
+                    role.result = row.result;
+                } else {
+                    let binding = function
+                        .state_parameters
+                        .iter_mut()
+                        .filter(|state| state.index == parameter)
+                        .flat_map(|state| state.bindings.iter_mut())
+                        .find(|binding| binding.generic_index == generic)
+                        .ok_or_else(|| {
+                            Diagnostic::unsupported(
+                                Phase::Expand,
+                                "source helper actual stored role is absent",
+                                Some(item.span),
+                            )
+                        })?;
+                    if binding.source_life.is_some() || binding.kind != row.kind {
+                        return Err(Diagnostic::unsupported(
+                            Phase::Expand,
+                            "source helper stored role changed",
+                            Some(item.span),
+                        ));
+                    }
+                    binding.life = Some(row.life);
+                    binding.source_life = Some(row.context);
+                    binding.parameters = row.parameters;
+                    binding.result = row.result;
                 }
-                role.life = Some(row.life);
-                role.source_life = Some(row.context);
-                role.parameters = row.parameters;
-                role.result = row.result;
             }
             Ok(())
         })();

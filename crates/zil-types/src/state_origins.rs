@@ -1088,16 +1088,32 @@ fn check_moves(
     walk.block(&function.body, 0)
 }
 
-pub(super) fn bounds(function: &CoreFunction) -> Cow<'_, [CoreCallableParameter]> {
+pub(super) fn bounds<'a>(function: &'a CoreFunction, limits: &Limits, left: &mut usize) -> R<Cow<'a, [CoreCallableParameter]>> {
     let Some(state) = function.state_parameters.first() else {
-        return Cow::Borrowed(&function.callable_parameters);
+        return Ok(Cow::Borrowed(&function.callable_parameters));
     };
+    for binding in &state.bindings {
+        let work = callable_context_metadata_work(binding.life.as_ref(),binding.source_life.as_ref(),
+            limits.max_nodes,limits.max_call_depth,*left)
+            .ok_or_else(|| Diagnostic::limit(Phase::Types,"State callable metadata exceeds remaining bounds",Some(function.span)))?;
+        *left = left.checked_sub(work).ok_or_else(|| Diagnostic::limit(Phase::Types,"State callable metadata exceeds remaining work",Some(function.span)))?;
+        for ty in binding.parameters.iter().chain(std::iter::once(&binding.result)) {
+            inference::charge_type_snapshot(ty,function.span,limits,left,1)?;
+        }
+        if let Some(context)=&binding.source_life {
+            for kind in &context.parameters {
+                if let LifeParameterKind::Const(ty)=kind {
+                    inference::charge_type_snapshot(ty,function.span,limits,left,1)?;
+                }
+            }
+        }
+    }
     let mut bindings: Vec<_> = state
         .bindings
         .iter()
         .map(|binding| CoreCallableParameter {
-            source_life: None,
-            life: None,
+            source_life: binding.source_life.clone(),
+            life: binding.life.clone(),
             index: state.index,
             generic_index: binding.generic_index,
             generic_name: binding.generic_name.clone(),
@@ -1110,9 +1126,9 @@ pub(super) fn bounds(function: &CoreFunction) -> Cow<'_, [CoreCallableParameter]
         })
         .collect();
     if replacement(function) {
-        bindings.extend(function.callable_parameters.iter().cloned());
+        bindings.extend(inference::snapshot_callable_parameters(&function.callable_parameters,limits,left,function.span)?);
     }
-    Cow::Owned(bindings)
+    Ok(Cow::Owned(bindings))
 }
 
 /// This classifies only the new finite table shape. validate_header/shape must
@@ -1144,6 +1160,9 @@ pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
     let [state] = function.state_parameters.as_slice() else {
         return Err(reject());
     };
+    for binding in &state.bindings {
+        helpers::source_life::state_relation(binding,function.span)?;
+    }
     if replacement(function) {
         let binding = &state.bindings[0];
         let direct = &function.callable_parameters[0];
@@ -1164,12 +1183,14 @@ pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
             || binding.kind == CallableKind::FunctionPointer
             || !(1..=2).contains(&binding.fields.len())
             || binding.fields.windows(2).any(|pair| pair[0] >= pair[1])
-            || !binding.result.is_copy_value()
-            || !closures::supported_signature(&binding.parameters, &binding.result)
+            || (binding.source_life.is_none() && (!binding.result.is_copy_value()
+                || !closures::supported_signature(&binding.parameters, &binding.result)))
             || direct.generic_name != binding.generic_name
             || direct.kind != binding.kind
             || direct.parameters != binding.parameters
             || direct.result != binding.result
+            || direct.life != binding.life
+            || direct.source_life != binding.source_life
         {
             return Err(reject());
         }
@@ -1190,8 +1211,8 @@ pub(super) fn validate_header(function: &CoreFunction) -> R<()> {
         if binding.generic_index != index as u32
             || binding.generic_name.is_empty()
             || binding.kind == CallableKind::FunctionPointer
-            || !binding.result.is_copy_value()
-            || !closures::supported_signature(&binding.parameters, &binding.result)
+            || (binding.source_life.is_none() && (!binding.result.is_copy_value()
+                || !closures::supported_signature(&binding.parameters, &binding.result)))
             || binding.fields.len() != 1
         {
             return Err(reject());
@@ -1514,7 +1535,7 @@ pub(super) fn collect(
         let (work, _) = inference::helper_snapshot_work(function, limits)?;
         state.snapshot(work, span)?;
     }
-    let bounds = bounds(function).into_owned();
+    let bounds = state.source_state_bounds(function)?.into_owned();
     let tables = state.helper_tables.clone();
     let mut walk = Walk {
         bounds: &bounds,

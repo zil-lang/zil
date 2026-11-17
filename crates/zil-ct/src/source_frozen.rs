@@ -5230,9 +5230,11 @@ fn preflight(value: &CoreProgram, meter: &mut Meter<'_>) -> CompileResult<()> {
                 prepare(
                     &mut pending,
                     meter,
-                    6,
+                    8,
                     std::mem::size_of::<(Walk<'_>, usize)>(),
                 )?;
+                pending.push((Walk::W180(&value.source_life), depth + 1));
+                pending.push((Walk::W103(&value.life), depth + 1));
                 pending.push((Walk::W177(&value.fields), depth + 1));
                 pending.push((Walk::W43(&value.result), depth + 1));
                 pending.push((Walk::W42(&value.parameters), depth + 1));

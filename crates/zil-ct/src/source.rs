@@ -309,6 +309,20 @@ fn life_metadata_cost(function: &CoreFunction, limits: &Limits) -> CompileResult
     if let Some(storage) = &function.storage_life {
         inventory::contract(storage, &mut storage_nodes, &mut storage_work, limits)?;
     }
+    for binding in function.state_parameters.iter().flat_map(|state| &state.bindings) {
+        let work = callable_context_metadata_work(binding.life.as_ref(),binding.source_life.as_ref(),
+            limits.max_nodes,limits.max_call_depth,storage_work).ok_or_else(|| vec![Diagnostic::limit(
+                Phase::Ct,"stored callback relation exceeds metadata bounds",Some(function.span))])?;
+        storage_work = storage_work.checked_sub(work).ok_or_else(|| vec![Diagnostic::limit(
+            Phase::Ct,"stored callback relation exceeds copy budget",Some(function.span))])?;
+        if let Some(context)=&binding.source_life {
+            for kind in &context.parameters {
+                if let LifeParameterKind::Const(ty)=kind {
+                    hint_type(ty,0,&mut storage_nodes,&mut storage_work,limits)?;
+                }
+            }
+        }
+    }
     let Some(life) = &function.life else {
         return Ok((storage_nodes, limits.max_analysis_steps - storage_work));
     };
@@ -492,6 +506,8 @@ fn mixed_state_signature(function: &CoreFunction) -> CompileResult<()> {
     if bound.generic_name != direct.generic_name
         || bound.parameters != direct.parameters
         || bound.result != direct.result
+        || bound.life != direct.life
+        || bound.source_life != direct.source_life
         || !matches!(&function.parameters[direct.index as usize].ty,
             Type::Named(name) if name == &bound.generic_name)
         || state != &function.return_type
@@ -1375,6 +1391,9 @@ impl<'a> Walker<'a> {
                 for bound in &f.state_parameters[0].bindings {
                     self.charge(0, f.span)?;
                     self.text(&bound.generic_name, Some(f.span))?;
+                    if let Some(context)=&bound.source_life {
+                        self.callable_source_context(context,bound.life.as_ref(),f.span)?;
+                    }
                     self.parameters(&bound.parameters, &bound.result, f.span)?;
                     for _ in &bound.fields {
                         self.charge(0, f.span)?;
@@ -4429,6 +4448,8 @@ mod tests {
                 index: 0,
                 bindings: vec![
                     CoreStateBinding {
+                        life: None,
+                        source_life: None,
                         generic_index: 0,
                         generic_name: "F".into(),
                         kind: CallableKind::Fn,
@@ -4437,6 +4458,8 @@ mod tests {
                         fields: vec![0],
                     },
                     CoreStateBinding {
+                        life: None,
+                        source_life: None,
                         generic_index: 1,
                         generic_name: "G".into(),
                         kind: CallableKind::FnOnce,
@@ -4481,6 +4504,39 @@ mod tests {
             CoreExprKind::Integer("4294967296i64".into())
         );
         assert!(usage.steps > 0);
+    }
+
+    #[test]
+    fn stored_callable_source_metadata_survives_transport_and_binds_frozen_content() {
+        let mut core=runtime_generic_template();
+        let CoreStatementKind::Return(Some(call))=&mut core.functions[0].body.statements[0].kind else {panic!("raw runtime call");};
+        let CoreExprKind::Call{callee,..}=&mut call.kind else {panic!("raw runtime call");};
+        **callee=expr(CoreExprKind::Name("reserve".into()));
+        let function=&mut core.functions[1];
+        function.type_parameters.clear();
+        function.parameters[0].ty=Type::Package{name:"State".into(),fields:vec![
+            ("f".into(),Type::Named("F".into())),("g".into(),Type::Named("G".into()))]};
+        function.parameters[0].mode=PassingMode::Infer;
+        let life=StorageLifeContract {fixed_binder_count:0,invocation_binder_count:0,
+            bindings:vec![],classes:vec![],static_bindings:vec![]};
+        function.state_parameters=vec![CoreStateParameter{index:0,bindings:["F","G"].into_iter().enumerate().map(|(index,name)|CoreStateBinding {
+            generic_index:index as u32,generic_name:name.into(),kind:CallableKind::Fn,
+            parameters:vec![],result:Type::I32,fields:vec![index as u32],life:Some(life.clone()),source_life:None,
+        }).collect()}];
+        let limits=Limits::default();
+        let mut program=CoreProgram {root:core.module_id,source_fingerprint:core.source_fingerprint,
+            modules:vec![ProgramModule{core:core.clone(),imports:vec![],exports:vec![]}]};
+        let first=SourceProgramContext::new(&program,&limits).unwrap().frozen_stage().clone();
+        program.modules[0].core.functions[1].state_parameters[0].bindings[0].life=None;
+        let changed=SourceProgramContext::new(&program,&limits).unwrap().frozen_stage().clone();
+        assert_ne!(first.declaration_inventory_fingerprint,changed.declaration_inventory_fingerprint);
+        assert_ne!(first.committed_generation_fingerprint,changed.committed_generation_fingerprint);
+        // This is declaration transport only; the raw fixture has no authority
+        // to execute a runtime callback or to establish a source lifetime.
+        let normalized=evaluate_source_constants(&core,&TargetProfile::default(),&limits).unwrap();
+        assert_eq!(normalized.functions[1].state_parameters,core.functions[1].state_parameters);
+        let short=Limits{max_analysis_steps:1,..limits};
+        assert!(SourceProgramContext::new(&program,&short).is_err());
     }
 
     #[test]

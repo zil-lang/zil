@@ -1195,7 +1195,7 @@ fn dependencies(
     } else {
         template.function.as_ref()
     };
-    let bounds_view = state_origins::bounds(function);
+    let bounds_view = state.source_state_bounds(function)?;
     let bounds = bounds_view.as_ref();
     if bounds.is_empty() && matches!(instance, Node::Callable(_)) {
         return Err(unsupported(

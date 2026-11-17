@@ -547,15 +547,12 @@ impl<'a> Engine<'a> {
             } else {
                 false
             };
-        let mut callable_data_profile = true;
-        let mut callable_receivers = 0usize;
         let mut next_elided = u32::try_from(self.life_scope.len())
             .map_err(|_| error(function.span, "lifetime scope overflow"))?;
         for (index, parameter) in function.params.iter_mut().enumerate() {
-            let before = occurrences.len();
             let mut parameter_stored = false;
             let anonymous = self.anonymous_signature_actual(&parameter.ty)?;
-            let physical_witness = if let Some(actual) = anonymous {
+            if let Some(actual) = anonymous {
                 let ordinal = u32::try_from(index)
                     .map_err(|_| error(parameter.span, "parameter ordinal overflow"))?;
                 self.anonymous_signature_occurrences(
@@ -567,7 +564,6 @@ impl<'a> Engine<'a> {
                 parameter.ty = actual.physical;
                 candidate.parameters.insert(ordinal, actual.ty);
                 parameter_stored = true;
-                false
             } else {
                 self.storage_header(
                     &mut parameter.ty,
@@ -581,52 +577,9 @@ impl<'a> Engine<'a> {
                     &mut parameter_stored,
                     &mut next_elided,
                     0,
-                )?
-            };
-            stored |= parameter_stored;
-            if !callable_parameters.is_empty() {
-                if callable_parameters.len() > 1 {
-                    self.budget
-                        .identity_work(callable_parameters.len(), parameter.span)?;
-                }
-                let receiver = callable_parameters.iter().find_map(|ordinal| {
-                    let generic = &function.generics[*ordinal];
-                    let receiver = match &parameter.ty.kind {
-                        TypeKind::Named { path, args } if args.is_empty() && path.as_slice() == [generic.name.as_str()] => true,
-                        TypeKind::Reference { inner, .. } => matches!(&inner.kind, TypeKind::Named {path,args}
-                            if args.is_empty() && path.as_slice() == [generic.name.as_str()]),
-                        _ => false,
-                    };
-                    if !receiver { return None; }
-                    let GenericParamKind::Type(bounds) = &generic.kind else { return None; };
-                    let [bound] = bounds.as_slice() else { return None; };
-                    match &bound.kind {
-                        TypeKind::Named {path,..} if matches!(path.as_slice(), [name] if name == "FnOnce") => Some(None),
-                        TypeKind::Named {path,..} if matches!(path.as_slice(), [name] if name == "FnMut") => Some(Some(true)),
-                        TypeKind::Named {path,..} if matches!(path.as_slice(), [name] if name == "Fn") => Some(Some(false)),
-                        _ => None,
-                    }
-                });
-                match &parameter.ty.kind {
-                    TypeKind::Reference { mutable, inner, .. }
-                        if matches!(inner.kind, TypeKind::Named { .. }) =>
-                    {
-                        if parameter_stored {
-                            callable_data_profile &=
-                                !*mutable && occurrences.len() - before == 2 && physical_witness;
-                        } else {
-                            callable_data_profile &= receiver == Some(Some(*mutable));
-                            callable_receivers += 1;
-                        }
-                    }
-                    _ if callable_context::scalar_syntax(&parameter.ty) => {}
-                    TypeKind::Named { .. } if receiver == Some(None) && !parameter_stored => {
-                        callable_receivers += 1;
-                    }
-                    TypeKind::Named { .. } if parameter.give && !parameter_stored => {}
-                    _ => callable_data_profile = false,
-                }
+                )?;
             }
+            stored |= parameter_stored;
         }
         if let Some(result) = &mut function.return_type {
             if let Some(actual) = self.anonymous_signature_actual(result)? {
@@ -658,9 +611,6 @@ impl<'a> Engine<'a> {
         {
             self.signature_candidate = Some(candidate);
         }
-        if !stored {
-            return Ok(false);
-        }
         if let Some(result) = source_result {
             self.budget.ty(&result)?;
             self.budget.text(&function.name, function.span)?;
@@ -679,28 +629,12 @@ impl<'a> Engine<'a> {
             function.span,
         )?;
         self.prepare_callable_return_context(function, &contract, &fixed, &invocation)?;
-        if callable_data_profile && callable_receivers == callable_parameters.len() {
-            // Preserve the original unique-binder path and its paid template
-            // schedule. Only repeated runtime positions need an extra selector.
-            for &parameter in callable_parameters {
-                self.prepare_callable_context(
-                    function,
-                    &contract,
-                    &fixed,
-                    &invocation,
-                    parameter,
-                    None,
-                )?;
-            }
-        } else if callable_data_profile && !callable_parameters.is_empty() {
-            let selected = callable::template(function, &mut self.budget)?;
-            if let Some(selected) = selected
-                && callable_receivers == selected.roles.len()
-            {
+        if !callable_parameters.is_empty() {
+            if let Some(selected) = callable::template(function, &mut self.budget)? {
                 self.budget
-                    .identity_work(selected.roles.len(), function.span)?;
-                for role in selected.roles {
-                    self.prepare_callable_context(
+                    .identity_work(selected.bindings().count(), function.span)?;
+                for role in selected.bindings() {
+                    stored |= self.prepare_callable_context(
                         function,
                         &contract,
                         &fixed,
@@ -710,6 +644,9 @@ impl<'a> Engine<'a> {
                     )?;
                 }
             }
+        }
+        if !stored {
+            return Ok(false);
         }
         self.budget.text(&function.name, function.span)?;
         self.stored_lookup_fee(

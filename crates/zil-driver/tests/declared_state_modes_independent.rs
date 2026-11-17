@@ -461,6 +461,8 @@ fn main()->i32{return 0}
         index: 0,
         bindings: vec![
             CoreStateBinding {
+                        life: None,
+                        source_life: None,
                 generic_index: 0,
                 generic_name: "ReviewF".into(),
                 kind: CallableKind::Fn,
@@ -469,6 +471,8 @@ fn main()->i32{return 0}
                 fields: vec![1],
             },
             CoreStateBinding {
+                        life: None,
+                        source_life: None,
                 generic_index: 1,
                 generic_name: "ReviewG".into(),
                 kind: CallableKind::FnOnce,

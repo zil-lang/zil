@@ -252,3 +252,55 @@ pub fn callable_return_metadata_work(
     }
     Some(work)
 }
+
+/// Bounded transport of a direct or stored callback's complete source relation.
+/// This computes copy work only. Const type carriers still require the caller's
+/// bounded type walk, and all original declaration/class checks remain separate.
+pub fn callable_context_metadata_work(
+    life: Option<&StorageLifeContract>,
+    context: Option<&CoreCallableLifeContext>,
+    max_nodes: usize,
+    max_depth: usize,
+    remaining_work: usize,
+) -> Option<usize> {
+    let add = |work: usize, count: usize| work.checked_add(count).filter(|n| *n <= remaining_work);
+    let mut work = match life {
+        Some(life) => storage_relation_metadata_work(life, max_nodes, max_depth, remaining_work)?,
+        None => 0,
+    };
+    if let Some(context) = context {
+        for count in [
+            context.parameters.len(),
+            context.named_fixed.len(),
+            context.inputs.len(),
+            context.identity.module_path.len(),
+            context.identity.declaration_path.len(),
+            context.identity.generation_path.len(),
+        ] {
+            if count > max_nodes {
+                return None;
+            }
+            work = add(work, count.checked_mul(8)?.checked_add(1)?)?;
+        }
+        work = add(work, context.identity.package.len().checked_add(8)?)?;
+        for text in context
+            .identity
+            .module_path
+            .iter()
+            .chain(&context.identity.declaration_path)
+        {
+            work = add(work, text.len().checked_add(1)?)?;
+        }
+        for input in &context.inputs {
+            let depth = match &input.position {
+                CoreClosureHeaderPosition::Borrow(position) => position.path.len(),
+                CoreClosureHeaderPosition::Class(position) => position.path.len(),
+            };
+            if depth > max_depth {
+                return None;
+            }
+            work = add(work, depth.checked_mul(2)?)?;
+        }
+    }
+    Some(work)
+}

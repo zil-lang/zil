@@ -62,10 +62,6 @@ pub(crate) fn reserve(
             bound.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
         )
-        || bound.closed_environment
-        || bound.transfer
-        || bound.thread_callable
-        || context.bound_ordinal != 0
         || context.parameters.iter().enumerate().any(|(index, kind)| {
             if index == context.generic_parameter as usize {
                 *kind != LifeParameterKind::Type
@@ -75,13 +71,6 @@ pub(crate) fn reserve(
         })
         || context.parameters.get(context.generic_parameter as usize)
             != Some(&LifeParameterKind::Type)
-        || context
-            .parameters
-            .iter()
-            .take(context.generic_parameter as usize)
-            .filter(|kind| **kind == LifeParameterKind::Type)
-            .count()
-            != bound.generic_index as usize
     {
         return Err(unsupported(
             span,
@@ -230,6 +219,11 @@ pub(crate) fn reserve_function(
             work = work.saturating_add(fields.len().saturating_add(1));
         }
     }
+    for state in &function.state_parameters {
+        for binding in &state.bindings {
+            work = work.saturating_add(binding.fields.len().saturating_mul(4));
+        }
+    }
     pay(
         left,
         work.saturating_mul(copies.saturating_add(1)),
@@ -237,277 +231,652 @@ pub(crate) fn reserve_function(
     )
 }
 
-fn scalar(ty: &Type) -> bool {
-    matches!(
-        ty,
-        Type::Unit
+// This walk describes signature occurrences only. It grants neither Copy,
+// capture permission nor a lifetime image. Qualified children keep their full
+// intrinsic boundary, including phantom classes; physical paths stay separate.
+#[derive(Default)]
+struct Occurrences {
+    borrows: Vec<(StoragePosition, bool)>,
+    classes: Vec<SignatureLifeClass>,
+}
+impl Occurrences {
+    fn ty(
+        &mut self,
+        ty: &Type,
+        base: StorageBase,
+        physical: &mut Vec<ContractProjection>,
+        intrinsic: &mut Vec<LifeTypeProjection>,
+        row_limit: usize,
+        span: Span,
+    ) -> R<()> {
+        if self.borrows.len().saturating_add(self.classes.len()) > row_limit {
+            return Err(bad(
+                span,
+                "source bound contains an incomplete actual occurrence domain",
+            ));
+        }
+        match ty {
+            Type::Address { mutable, inner } => {
+                self.borrows.push((
+                    StoragePosition {
+                        base,
+                        path: physical.clone(),
+                    },
+                    *mutable,
+                ));
+                intrinsic.push(LifeTypeProjection::Pointee);
+                match inner.as_ref() {
+                    Type::BorrowedStorage { life, .. } => {
+                        self.boundary(life.binder_count, base, intrinsic, row_limit, span)?
+                    }
+                    Type::Address { .. } => {
+                        return Err(unsupported(
+                            span,
+                            "nested address callable requires its complete original pointee domain",
+                        ));
+                    }
+                    _ => self.children(inner, base, physical, intrinsic, row_limit, span)?,
+                }
+                intrinsic.pop();
+            }
+            Type::BorrowedStorage { life, .. } => {
+                self.boundary(life.binder_count, base, intrinsic, row_limit, span)?
+            }
+            Type::Managed(inner) | Type::Desc(inner) => {
+                // Resource carriers add no physical Address. Task's intrinsic
+                // boundary remains at its actual payload coordinate.
+                self.ty(inner, base, physical, intrinsic, row_limit, span)?;
+            }
+            Type::Task { retained_life, .. } => {
+                for (port, row) in retained_life.ports.iter().enumerate() {
+                    physical.push(ContractProjection::RetainedPort(port as u32));
+                    self.borrows.push((
+                        StoragePosition {
+                            base,
+                            path: physical.clone(),
+                        },
+                        row.mode == StoredBorrowMode::ExclusiveAddress,
+                    ));
+                    physical.pop();
+                }
+                intrinsic.push(LifeTypeProjection::Pointee);
+                self.boundary(retained_life.binder_count, base, intrinsic, row_limit, span)?;
+                intrinsic.pop();
+            }
+            Type::MutexGuard { retained_life, .. } => {
+                self.boundary(retained_life.binder_count, base, intrinsic, row_limit, span)?
+            }
+            Type::BorrowedFunctionPointer { life, .. } => {
+                self.boundary(life.fixed_binder_count, base, intrinsic, row_limit, span)?
+            }
+            Type::Closure(_)
+            | Type::Dyn { .. }
+            | Type::OwnedDyn { .. }
+            | Type::Named(_)
+            | Type::Unsupported(_)
+            | Type::Opaque { .. } => {
+                return Err(unsupported(
+                    span,
+                    "callable signature requires its actual complete type domain",
+                ));
+            }
+            _ => self.children(ty, base, physical, intrinsic, row_limit, span)?,
+        }
+        Ok(())
+    }
+    fn boundary(
+        &mut self,
+        count: u32,
+        base: StorageBase,
+        path: &[LifeTypeProjection],
+        row_limit: usize,
+        span: Span,
+    ) -> R<()> {
+        if count as usize > row_limit.saturating_sub(self.classes.len()) {
+            return Err(bad(span, "source bound omits a qualified intrinsic class"));
+        }
+        for class in 0..count {
+            self.classes.push(SignatureLifeClass {
+                base,
+                path: path.to_vec(),
+                class,
+            });
+        }
+        Ok(())
+    }
+    fn child(
+        &mut self,
+        ty: &Type,
+        selector: PlaceProjection,
+        base: StorageBase,
+        physical: &mut Vec<ContractProjection>,
+        intrinsic: &mut Vec<LifeTypeProjection>,
+        row_limit: usize,
+        span: Span,
+    ) -> R<()> {
+        physical.push(ContractProjection::Place(selector));
+        intrinsic.push(LifeTypeProjection::Place(selector));
+        let result = self.ty(ty, base, physical, intrinsic, row_limit, span);
+        intrinsic.pop();
+        physical.pop();
+        result
+    }
+    fn children(
+        &mut self,
+        ty: &Type,
+        base: StorageBase,
+        physical: &mut Vec<ContractProjection>,
+        intrinsic: &mut Vec<LifeTypeProjection>,
+        row_limit: usize,
+        span: Span,
+    ) -> R<()> {
+        match ty {
+            Type::Tuple(fields) => {
+                for (index, ty) in fields.iter().enumerate() {
+                    self.child(
+                        ty,
+                        PlaceProjection::Field(index as u32),
+                        base,
+                        physical,
+                        intrinsic,
+                        row_limit,
+                        span,
+                    )?;
+                }
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                for (index, (_, ty)) in fields.iter().enumerate() {
+                    self.child(
+                        ty,
+                        PlaceProjection::Field(index as u32),
+                        base,
+                        physical,
+                        intrinsic,
+                        row_limit,
+                        span,
+                    )?;
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (variant, (_, fields)) in variants.iter().enumerate() {
+                    for (index, ty) in fields.iter().enumerate() {
+                        self.child(
+                            ty,
+                            PlaceProjection::Variant(zil_ir::VariantProjection {
+                                variant: variant as u32,
+                                index: index as u32,
+                            }),
+                            base,
+                            physical,
+                            intrinsic,
+                            row_limit,
+                            span,
+                        )?;
+                    }
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                self.child(
+                    error,
+                    PlaceProjection::ErrorArm(true),
+                    base,
+                    physical,
+                    intrinsic,
+                    row_limit,
+                    span,
+                )?;
+                self.child(
+                    result,
+                    PlaceProjection::ErrorArm(false),
+                    base,
+                    physical,
+                    intrinsic,
+                    row_limit,
+                    span,
+                )?;
+            }
+            Type::Array { element, length } if matches!(element.as_ref(), Type::Address { .. }) => {
+                if *length as usize > row_limit {
+                    return Err(bad(span, "array signature omits actual element borrows"));
+                }
+                for index in 0..*length {
+                    self.child(
+                        element,
+                        PlaceProjection::Field(index),
+                        base,
+                        physical,
+                        intrinsic,
+                        row_limit,
+                        span,
+                    )?;
+                }
+            }
+            Type::Array { element, .. } => {
+                intrinsic.push(LifeTypeProjection::Element);
+                self.ty(element, base, physical, intrinsic, row_limit, span)?;
+                intrinsic.pop();
+            }
+            Type::Managed(inner) | Type::Desc(inner) => {
+                self.ty(inner, base, physical, intrinsic, row_limit, span)?
+            }
+            Type::BorrowedStorage { .. }
+            | Type::Address { .. }
+            | Type::Task { .. }
+            | Type::MutexGuard { .. }
+            | Type::BorrowedFunctionPointer { .. } => {
+                self.ty(ty, base, physical, intrinsic, row_limit, span)?
+            }
+            Type::Closure(_)
+            | Type::Dyn { .. }
+            | Type::OwnedDyn { .. }
+            | Type::Named(_)
+            | Type::Unsupported(_)
+            | Type::Opaque { .. }
+            | Type::Registration { .. }
+            | Type::AsyncRegistration { .. }
+            | Type::OwnedStore { .. } => {
+                return Err(unsupported(
+                    span,
+                    "callable occurrence requires its actual complete owner/type domain",
+                ));
+            }
+            Type::Slice { element } | Type::Mutex { payload: element } => {
+                let before = (self.borrows.len(), self.classes.len());
+                self.ty(element, base, physical, intrinsic, row_limit, span)?;
+                if before != (self.borrows.len(), self.classes.len()) {
+                    return Err(unsupported(
+                        span,
+                        "opaque payload needs its complete intrinsic owner domain",
+                    ));
+                }
+            }
+            // These are closed scalar/native/code leaves. Admitting their
+            // structural zero domain supplies no resource or Copy permission.
+            Type::Unit
             | Type::Bool
             | Type::I32
-            | Type::I8
-            | Type::I16
-            | Type::Isize
             | Type::I64
             | Type::U64
             | Type::Usize
+            | Type::F32
+            | Type::F64
             | Type::U8
             | Type::U16
             | Type::U32
-            | Type::F32
-            | Type::F64
-    )
+            | Type::I8
+            | Type::I16
+            | Type::Isize
+            | Type::ByteBuffer
+            | Type::ForeignHandle
+            | Type::SyncCell(_)
+            | Type::TaskI32
+            | Type::CWideString
+            | Type::ForeignCallback { .. }
+            | Type::FunctionPointer { .. } => {}
+        }
+        Ok(())
+    }
 }
-fn environment_result(ty: &Type) -> bool {
-    matches!(ty, Type::Address { mutable:false, inner } if scalar(inner))
+fn environment_lending(kind: CallableKind, result: &Type, life: &StorageLifeContract) -> bool {
+    kind != CallableKind::FnOnce
+        && matches!(result, Type::Address { mutable: false, .. })
+        && !life
+            .bindings
+            .iter()
+            .any(|row| row.position.base == StorageBase::Result)
+        && !life
+            .static_bindings
+            .iter()
+            .any(|row| row.base == StorageBase::Result)
 }
-fn tag(ty: &Type) -> Option<&StorageLifeShape> {
-    let Type::Address {
-        mutable: false,
-        inner,
-    } = ty
-    else {
-        return None;
-    };
-    let Type::BorrowedStorage { storage, life } = inner.as_ref() else {
-        return None;
-    };
-    (matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
-        && life.binder_count == 1
-        && life.retained.is_empty()
-        && matches!(life.slots.as_slice(),[slot] if slot.binder==0 && slot.mode==StoredBorrowMode::SharedAddress))
-    .then_some(life)
+fn environment_result(bound: &CoreCallableParameter) -> bool {
+    bound
+        .life
+        .as_ref()
+        .is_some_and(|life| environment_lending(bound.kind, &bound.result, life))
 }
 
-/// Only this context-bearing lane accepts a source bound with Fixed rows.
-/// Actual receiver and argument class equations remain independent kernel work.
+/// Authenticate every P/R occurrence and its full partition. Fixed rows name
+/// original declared classes here; grounding the actual environment is a later
+/// whole-type operation, never an extra invented data argument.
 pub(crate) fn relation(bound: &CoreCallableParameter, span: Span) -> R<()> {
     let life = bound
         .life
         .as_ref()
         .ok_or_else(|| bad(span, "source helper bound relation is absent"))?;
-    if bound.source_life.is_none() {
-        return borrowed_fp::relation(&bound.parameters, &bound.result, life, span);
-    }
-    if bound.parameters.len() != 1
-        || tag(&bound.parameters[0]).is_none()
-        || !(scalar(&bound.result)
-            || bound.kind != CallableKind::FnOnce && environment_result(&bound.result))
-        || life.fixed_binder_count != 1
-        || life.invocation_binder_count != 1
-        || life.bindings.len() != 1
-        || life.classes.len() != 1
-        || life.bindings[0].position
-            != (StoragePosition {
-                base: StorageBase::Parameter(0),
-                path: vec![],
-            })
-        || life.bindings[0].binder != StorageBinder::Invocation(0)
-        || life.classes[0].position
-            != (SignatureLifeClass {
-                base: StorageBase::Parameter(0),
-                path: vec![LifeTypeProjection::Pointee],
-                class: 0,
-            })
-        || life.classes[0].binder != StorageBinder::Fixed(0)
-    {
-        return Err(unsupported(
-            span,
-            "source helper first profile needs one shared qualified Fn input and scalar result",
-        ));
-    }
-    borrowed_fp_qualified::relation(
+    signature_relation(
         &bound.parameters,
-        if environment_result(&bound.result) {
-            &Type::Unit
-        } else {
-            &bound.result
-        },
+        &bound.result,
         life,
+        bound.source_life.as_ref(),
+        bound.kind,
         span,
     )
 }
+pub(crate) fn state_relation(bound: &CoreStateBinding, span: Span) -> R<()> {
+    match &bound.life {
+        Some(life) => signature_relation(
+            &bound.parameters,
+            &bound.result,
+            life,
+            bound.source_life.as_ref(),
+            bound.kind,
+            span,
+        ),
+        None if bound.source_life.is_some() => Err(bad(
+            span,
+            "stored source bound omits its complete P/R relation",
+        )),
+        None => Ok(()),
+    }
+}
+fn signature_relation(
+    parameters: &[Type],
+    result: &Type,
+    life: &StorageLifeContract,
+    context: Option<&CoreCallableLifeContext>,
+    kind: CallableKind,
+    span: Span,
+) -> R<()> {
+    if context.is_none() {
+        return borrowed_fp::relation(parameters, result, life, span);
+    }
+    let mut expected = Occurrences::default();
+    let rows = life
+        .bindings
+        .len()
+        .saturating_add(life.classes.len())
+        .saturating_add(life.static_bindings.len());
+    for (index, parameter) in parameters.iter().enumerate() {
+        expected.ty(
+            parameter,
+            StorageBase::Parameter(index as u32),
+            &mut Vec::new(),
+            &mut Vec::new(),
+            rows,
+            span,
+        )?;
+    }
+    if !environment_lending(kind, result, life) {
+        expected.ty(
+            result,
+            StorageBase::Result,
+            &mut Vec::new(),
+            &mut Vec::new(),
+            rows,
+            span,
+        )?;
+    }
+    let mut seen_fixed = std::collections::BTreeSet::new();
+    let mut seen_invocation = std::collections::BTreeSet::new();
+    let mut binder = |value: StorageBinder| -> R<()> {
+        let (index, seen, count) = match value {
+            StorageBinder::Fixed(index) => (index, &mut seen_fixed, life.fixed_binder_count),
+            StorageBinder::Invocation(index) => {
+                (index, &mut seen_invocation, life.invocation_binder_count)
+            }
+        };
+        if index >= count {
+            return Err(bad(span, "source bound binder leaves its complete domain"));
+        }
+        seen.insert(index);
+        Ok(())
+    };
+    let mut borrows = life.bindings.iter();
+    let mut statics = life.static_bindings.iter();
+    let mut constant = statics.next();
+    for (position, mutable) in &expected.borrows {
+        if constant == Some(position) {
+            if *mutable {
+                return Err(bad(
+                    span,
+                    "Static cannot supply an exclusive signature occurrence",
+                ));
+            }
+            constant = statics.next();
+        } else {
+            let row = borrows
+                .next()
+                .ok_or_else(|| bad(span, "source bound omits an actual P/R borrow"))?;
+            if row.position != *position {
+                return Err(bad(
+                    span,
+                    "source bound changes an actual P/R borrow selector",
+                ));
+            }
+            binder(row.binder)?;
+        }
+    }
+    // The two row tables are separate; first occurrence can interleave a
+    // physical borrow and an intrinsic class. Check density jointly.
+    if life.classes.len() != expected.classes.len() {
+        return Err(bad(
+            span,
+            "source bound omits its complete intrinsic class domain",
+        ));
+    }
+    for (row, position) in life.classes.iter().zip(expected.classes) {
+        if row.position != position {
+            return Err(bad(
+                span,
+                "source bound changes a complete intrinsic selector",
+            ));
+        }
+        binder(row.binder)?;
+    }
+    if borrows.next().is_some()
+        || constant.is_some()
+        || statics.next().is_some()
+        || seen_fixed.len() != life.fixed_binder_count as usize
+        || seen_invocation.len() != life.invocation_binder_count as usize
+    {
+        return Err(bad(
+            span,
+            "source bound contains extra or unused relation rows",
+        ));
+    }
+    Ok(())
+}
 
-/// Complete actual header and original-kind checks, also for unused templates.
-/// reserve prepays the bounded all-pairs selector/inverse comparisons.
+fn role_paths(
+    function: &CoreFunction,
+    bound: &CoreCallableParameter,
+) -> R<Vec<Vec<LifeTypeProjection>>> {
+    let span = function.span;
+    let parameter = function
+        .parameters
+        .get(bound.index as usize)
+        .ok_or_else(|| bad(span, "source role actual parameter is absent"))?;
+    let mode = parameter_mode(&parameter.ty, &bound.generic_name);
+    if let Some(mode) = mode {
+        if mode.is_some_and(|mutable| {
+            bound.kind == CallableKind::FnOnce || bound.kind == CallableKind::FnMut && !mutable
+        }) {
+            return Err(bad(span, "source role changes the actual receiver mode"));
+        }
+        if !function
+            .callable_parameters
+            .iter()
+            .any(|actual| actual == bound)
+        {
+            return Err(bad(span, "source role changes its actual bound record"));
+        }
+        return Ok(vec![if mode.is_some() {
+            vec![LifeTypeProjection::Pointee]
+        } else {
+            vec![]
+        }]);
+    }
+    let binding = function
+        .state_parameters
+        .iter()
+        .filter(|state| state.index == bound.index)
+        .flat_map(|state| &state.bindings)
+        .find(|binding| {
+            binding.generic_index == bound.generic_index
+                && binding.generic_name == bound.generic_name
+        })
+        .ok_or_else(|| bad(span, "source role has no actual State binding"))?;
+    if binding.kind != bound.kind
+        || binding.parameters != bound.parameters
+        || binding.result != bound.result
+        || binding.life != bound.life
+        || binding.source_life != bound.source_life
+    {
+        return Err(bad(
+            span,
+            "source State role changes its original complete signature",
+        ));
+    }
+    let (ty, borrowed) = match &parameter.ty {
+        Type::Address { inner, .. } => (inner.as_ref(), true),
+        ty => (ty, false),
+    };
+    let Type::Package { fields, .. } = ty else {
+        return Err(bad(span, "source State role has no actual Package fields"));
+    };
+    let mut paths = Vec::new();
+    for (ordinal, field) in binding.fields.iter().enumerate() {
+        if (ordinal > 0 && binding.fields[ordinal - 1] >= *field)
+            || !fields
+                .get(*field as usize)
+                .is_some_and(|(_, ty)| matches!(ty,Type::Named(name)if name==&binding.generic_name))
+        {
+            return Err(bad(
+                span,
+                "source State role changes an actual symbolic field selector",
+            ));
+        }
+        let mut path = if borrowed {
+            vec![LifeTypeProjection::Pointee]
+        } else {
+            vec![]
+        };
+        path.push(LifeTypeProjection::Place(PlaceProjection::Field(*field)));
+        paths.push(path);
+    }
+    if paths.is_empty() {
+        return Err(bad(
+            span,
+            "source State role omits its complete field occurrences",
+        ));
+    }
+    Ok(paths)
+}
+fn field_namespace(path: &[LifeTypeProjection]) -> u32 {
+    match path.last() {
+        Some(LifeTypeProjection::Place(PlaceProjection::Field(field))) => *field,
+        _ => u32::MAX,
+    }
+}
+
+/// This authenticates the actual raw declaration coordinates. Permission and
+/// class equalities are still checked from original semantics independently.
 pub(crate) fn validate(function: &CoreFunction, bound: &CoreCallableParameter) -> R<()> {
     let Some(context) = &bound.source_life else {
         return Ok(());
     };
     let span = function.span;
-    if function.callable_parameters.is_empty()
-        || !function.type_parameters.is_empty()
-        || !function.state_parameters.is_empty()
-        || function.receiver.is_some()
-        || function.foreign.is_some()
-        || function.callable_return.is_some()
-        || !(scalar(&function.return_type) || function.callable_parameters.len() == 1 && bound.kind != CallableKind::FnOnce && environment_result(&bound.result) && environment_result(&function.return_type))
-        || !function.parameters.get(bound.index as usize).is_some_and(|p| match &p.ty {
-            Type::Named(name) => bound.kind == CallableKind::FnOnce && name == &bound.generic_name,
-            Type::Address {mutable,inner} => bound.kind != CallableKind::FnOnce
-                && *mutable == (bound.kind == CallableKind::FnMut)
-                && matches!(inner.as_ref(), Type::Named(name) if name == &bound.generic_name),
-            _ => false,
-        })
-    {
-        return Err(unsupported(
+    if function.receiver.is_some() || function.foreign.is_some() {
+        return Err(bad(
             span,
-            "source helper requires its actual free shared Fn parameter and scalar result",
+            "source bound must retain its actual free function owner",
         ));
     }
-    // Every original Type ordinal has at least one actual role. Several runtime
-    // positions may share one F, but each role authenticates the same original
-    // declaration separately; their environment classes stay position scoped.
-    for (ordinal, kind) in context.parameters.iter().enumerate() {
-        if *kind != LifeParameterKind::Type {
-            continue;
-        }
-        let mut count = 0usize;
-        for role in function.callable_parameters.iter().filter(|role| {
-            role.source_life
-                .as_ref()
-                .is_some_and(|other| other.generic_parameter as usize == ordinal)
-        }) {
-            count += 1;
-            let other = role.source_life.as_ref().unwrap();
-            if other.parameters != context.parameters
-                || other.declaration != context.declaration
-                || other.identity != context.identity
-                || role.generic_index as usize
-                    != context.parameters[..ordinal]
-                        .iter()
-                        .filter(|kind| **kind == LifeParameterKind::Type)
-                        .count()
-            {
-                return Err(bad(
-                    span,
-                    "source helper callable role has a different original declaration",
-                ));
-            }
-        }
-        if count == 0 {
+    role_paths(function, bound)?;
+    relation(bound, span)?;
+    let life = bound
+        .life
+        .as_ref()
+        .ok_or_else(|| bad(span, "source bound omits its full P/R relation"))?;
+    if context.named_fixed.len() != life.fixed_binder_count as usize {
+        return Err(bad(
+            span,
+            "source bound omits its full declared Fixed inverse",
+        ));
+    }
+    for (index, fixed) in context.named_fixed.iter().enumerate() {
+        if fixed.fixed as usize != index
+            || context.parameters.get(fixed.parameter as usize)
+                != Some(&LifeParameterKind::Lifetime)
+            || context.named_fixed[..index]
+                .iter()
+                .any(|old| old.parameter == fixed.parameter)
+        {
             return Err(bad(
                 span,
-                "source helper Type ordinal has no actual callable role",
+                "source bound changes its original full lifetime ordinal",
             ));
         }
     }
-    relation(bound, span)?;
     let header = function
         .storage_life
         .as_ref()
-        .ok_or_else(|| bad(span, "source helper actual data header is absent"))?;
+        .ok_or_else(|| bad(span, "source bound omits its actual header proposal"))?;
     if context.inputs.len()
         != header
             .bindings
             .iter()
-            .filter(|row| row.position.base != StorageBase::Result)
+            .filter(|row| matches!(row.position.base, StorageBase::Parameter(_)))
             .count()
-            .saturating_add(header.classes.len())
-        || context.named_fixed.len() != 1
-        || context.named_fixed[0].fixed != 0
+            .saturating_add(
+                header
+                    .classes
+                    .iter()
+                    .filter(|row| matches!(row.position.base, StorageBase::Parameter(_)))
+                    .count(),
+            )
     {
         return Err(bad(
             span,
-            "source helper context does not cover its actual bound/header",
-        ));
-    }
-    let valid_source =
-        |source: u32| context.parameters.get(source as usize) == Some(&LifeParameterKind::Lifetime);
-    let bound_source = context.named_fixed[0].parameter;
-    if !valid_source(bound_source) {
-        return Err(bad(
-            span,
-            "source helper bound Fixed has no original full life ordinal",
+            "source bound does not cover every actual header input",
         ));
     }
     for (index, input) in context.inputs.iter().enumerate() {
-        let base = StorageBase::Parameter(input.parameter);
-        let parameter = function
-            .parameters
-            .get(input.parameter as usize)
-            .ok_or_else(|| bad(span, "source helper anchor input is absent"))?;
-        if let Some(source) = input.source_parameter
-            && !valid_source(source)
+        if function.parameters.get(input.parameter as usize).is_none()
+            || input.source_parameter.is_some_and(|source| {
+                context.parameters.get(source as usize) != Some(&LifeParameterKind::Lifetime)
+            })
         {
             return Err(bad(
                 span,
-                "source helper input anchor has no original life ordinal",
+                "source bound has an absent input or lifetime anchor",
             ));
         }
-        match &input.position {
-            CoreClosureHeaderPosition::Borrow(position) => {
-                if position.base != base
-                    || !position.path.is_empty()
-                    || !matches!(parameter.ty, Type::Address { mutable, .. }
-                        if mutable == function.callable_parameters.iter().any(|role|role.index==input.parameter && role.kind==CallableKind::FnMut))
-                    || !header
-                        .bindings
-                        .iter()
-                        .any(|r| r.position == *position && r.binder == input.header_binder)
-                {
-                    return Err(bad(
-                        span,
-                        "source helper anchor differs from its actual outer header borrow",
-                    ));
+        let base = StorageBase::Parameter(input.parameter);
+        let present =
+            match &input.position {
+                CoreClosureHeaderPosition::Borrow(position) => {
+                    position.base == base
+                        && header.bindings.iter().any(|row| {
+                            row.position == *position && row.binder == input.header_binder
+                        })
                 }
-            }
-            CoreClosureHeaderPosition::Class(position) => {
-                if position.base != base
-                    || position.path.as_slice() != [LifeTypeProjection::Pointee]
-                    || position.class != 0
-                    || tag(&parameter.ty).is_none()
-                    || input.source_parameter.is_none()
-                    || !matches!(input.header_binder, StorageBinder::Fixed(_))
-                    || !header
-                        .classes
-                        .iter()
-                        .any(|r| r.position == *position && r.binder == input.header_binder)
-                {
-                    return Err(bad(
-                        span,
-                        "source helper anchor differs from its actual qualified data class",
-                    ));
+                CoreClosureHeaderPosition::Class(position) => {
+                    position.base == base
+                        && header.classes.iter().any(|row| {
+                            row.position == *position && row.binder == input.header_binder
+                        })
                 }
-            }
+            };
+        if !present {
+            return Err(bad(
+                span,
+                "source anchor differs from its exact actual header occurrence",
+            ));
         }
         for prior in &context.inputs[..index] {
             if prior.position == input.position {
-                return Err(bad(span, "source helper header selector is duplicated"));
+                return Err(bad(span, "source header anchor is duplicated"));
             }
             if let (Some(a), Some(b)) = (prior.source_parameter, input.source_parameter)
                 && ((a == b) != (prior.header_binder == input.header_binder))
             {
                 return Err(bad(
                     span,
-                    "source helper declared-life/header inverse is inconsistent",
+                    "source lifetime/header inverse changes its partition",
                 ));
             }
-        }
-    }
-    if !context.inputs.iter().any(|input| {
-        input.source_parameter == Some(bound_source)
-            && matches!(input.position, CoreClosureHeaderPosition::Class(_))
-    }) {
-        return Err(bad(
-            span,
-            "source helper bound life lacks a real qualified data input",
-        ));
-    }
-    for (index, parameter) in function.parameters.iter().enumerate() {
-        if !function
-            .callable_parameters
-            .iter()
-            .any(|role| role.index as usize == index)
-            && !(scalar(&parameter.ty)
-                || tag(&parameter.ty).is_some()
-                || parameter.mode == PassingMode::Give
-                    && matches!(&parameter.ty, Type::Managed(payload)
-                        if matches!(payload.as_ref(), Type::Record { fields, .. }
-                            if fields.iter().all(|(_, ty)| scalar(ty)))))
-        {
-            return Err(unsupported(
-                span,
-                "source helper first data profile is scalar or shared qualified input",
-            ));
         }
     }
     Ok(())
@@ -516,7 +885,8 @@ pub(crate) fn validate(function: &CoreFunction, bound: &CoreCallableParameter) -
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum HeaderKey {
     Source(StorageBinder),
-    Environment(u32, u32),
+    Declared(u32),
+    Environment(u32, u32, u32),
 }
 struct Writer {
     fixed: BTreeMap<HeaderKey, u32>,
@@ -568,257 +938,227 @@ pub(crate) fn form(
     span: Span,
 ) -> R<(StorageLifeContract, StorageLifeContract)> {
     validate(original, bound)?;
-    relation(bound, span)?;
     let context = bound
         .source_life
         .as_ref()
-        .ok_or_else(|| bad(span, "source helper context is absent"))?;
+        .ok_or_else(|| bad(span, "source context is absent"))?;
     let proposed = bound
         .life
         .as_ref()
-        .ok_or_else(|| bad(span, "source helper bound P/R is absent"))?;
-    let actual = definition.storage_life.as_ref().ok_or_else(|| {
-        bad(
-            span,
-            "source helper actual environment has no capture contract",
-        )
-    })?;
+        .ok_or_else(|| bad(span, "source P/R proposal is absent"))?;
+    let actual = definition
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| bad(span, "actual environment header is unresolved"))?;
     if !compatible(definition.kind, bound.kind)
         || definition.parameters != bound.parameters
         || definition.result != bound.result
     {
         return Err(bad(
             span,
-            "source helper actual environment differs from its declared Fn signature",
+            "actual environment changes its declared callable signature",
         ));
     }
-    if definition.kind == CallableKind::FnOnce && bound.kind == CallableKind::FnOnce
-        || definition
-            .captures
-            .iter()
-            .any(|ty| matches!(ty, Type::Managed(_)))
-    {
-        // The new owner classifier visits captures twice and scalar Record
-        // fields twice, independently of the already-paid definition clone.
-        pay(
-            left,
-            definition
-                .captures
-                .len()
-                .saturating_mul(3)
-                .saturating_add(definition.parameters.len())
-                .saturating_add(borrowed_fp::metadata_work(actual)),
-            span,
-        )?;
-        for capture in &definition.captures {
-            if let Type::Managed(payload) = capture
-                && let Type::Record { fields, .. } = payload.as_ref()
-            {
-                pay(left, fields.len().saturating_mul(2), span)?;
-            }
-        }
-        borrowed_fp_qualified::source_capture_relation(
-            &definition.parameters,
-            &definition.captures,
-            if environment_result(&definition.result) {
-                &Type::Unit
-            } else {
-                &definition.result
-            },
-            actual,
-            span,
-        )?;
-    } else {
-        borrowed_fp_qualified::capture_relation(
-            &definition.parameters,
-            &definition.captures,
-            if environment_result(&definition.result) {
-                &Type::Unit
-            } else {
-                &definition.result
-            },
-            actual,
-            span,
-        )?;
-    }
-    pay(
-        left,
-        borrowed_fp::metadata_work(actual)
-            .saturating_mul(3)
-            .saturating_add(borrowed_fp::metadata_work(proposed)),
-        span,
-    )?;
-    // Align every declared P/R occurrence first. The sole Fixed is a semantic
-    // qualified input, never the captured outer Address's independent Fixed.
-    let actual_parameter_borrows = actual
-        .bindings
-        .iter()
-        .filter(|r| !matches!(r.position.base, StorageBase::Capture(_)))
-        .collect::<Vec<_>>();
-    let actual_parameter_classes = actual
-        .classes
-        .iter()
-        .filter(|r| !matches!(r.position.base, StorageBase::Capture(_)))
-        .collect::<Vec<_>>();
-    if actual_parameter_borrows.len() != proposed.bindings.len()
-        || actual_parameter_classes.len() != proposed.classes.len()
-        || actual_parameter_borrows[0].position != proposed.bindings[0].position
-        || !matches!(
-            actual_parameter_borrows[0].binder,
-            StorageBinder::Invocation(_)
-        )
-        || actual_parameter_classes[0].position != proposed.classes[0].position
-    {
-        return Err(bad(
-            span,
-            "source helper actual P/R does not implement its declared source bound",
-        ));
-    }
-    let StorageBinder::Fixed(environment_fixed) = actual_parameter_classes[0].binder else {
-        return Err(bad(
-            span,
-            "source helper bound needs a persistent actual environment class",
-        ));
-    };
-    let source = context.named_fixed[0].parameter;
-    pay(left, context.inputs.len(), span)?;
-    let source_binder = context
-        .inputs
-        .iter()
-        .find(|input| {
-            input.source_parameter == Some(source)
-                && matches!(input.position, CoreClosureHeaderPosition::Class(_))
-        })
-        .ok_or_else(|| bad(span, "source helper bound has no actual data header class"))?
-        .header_binder;
     let old = original
         .storage_life
         .as_ref()
-        .ok_or_else(|| bad(span, "source helper header is absent"))?;
-    pay(
-        left,
-        borrowed_fp::metadata_work(old)
-            .saturating_mul(3)
-            .saturating_add(original.parameters.len())
-            .saturating_add(actual.fixed_binder_count as usize),
-        span,
-    )?;
+        .ok_or_else(|| bad(span, "actual source header is absent"))?;
+    let width = borrowed_fp::metadata_work(actual)
+        .saturating_add(borrowed_fp::metadata_work(proposed))
+        .saturating_add(borrowed_fp::metadata_work(old));
+    pay(left, width.saturating_mul(width.saturating_add(1)), span)?;
+    let lending = environment_result(bound);
+    let pr = |base: StorageBase| {
+        matches!(base, StorageBase::Parameter(_)) || base == StorageBase::Result && !lending
+    };
+    let mut images = BTreeMap::<StorageBinder, StorageBinder>::new();
+    let mut inverse = BTreeMap::<StorageBinder, StorageBinder>::new();
+    let mut align = |expected: StorageBinder, found: StorageBinder| -> R<()> {
+        let in_domain = match found {
+            StorageBinder::Fixed(index) => index < actual.fixed_binder_count,
+            StorageBinder::Invocation(index) => index < actual.invocation_binder_count,
+        };
+        if !in_domain
+            || !matches!(
+                (expected, found),
+                (StorageBinder::Fixed(_), StorageBinder::Fixed(_))
+                    | (StorageBinder::Invocation(_), StorageBinder::Invocation(_))
+            )
+            || images
+                .insert(expected, found)
+                .is_some_and(|old| old != found)
+            || inverse
+                .insert(found, expected)
+                .is_some_and(|old| old != expected)
+        {
+            return Err(bad(
+                span,
+                "actual P/R changes a declared Fixed/Invocation partition",
+            ));
+        }
+        Ok(())
+    };
+    let mut borrows = actual.bindings.iter().filter(|row| pr(row.position.base));
+    for row in &proposed.bindings {
+        let found = borrows
+            .next()
+            .ok_or_else(|| bad(span, "actual environment omits a declared P/R borrow"))?;
+        if row.position != found.position {
+            return Err(bad(span, "actual P/R borrow selector differs"));
+        }
+        align(row.binder, found.binder)?;
+    }
+    let mut classes = actual.classes.iter().filter(|row| pr(row.position.base));
+    for row in &proposed.classes {
+        let found = classes.next().ok_or_else(|| {
+            bad(
+                span,
+                "actual environment omits a declared intrinsic P/R class",
+            )
+        })?;
+        if row.position != found.position {
+            return Err(bad(span, "actual P/R class selector differs"));
+        }
+        align(row.binder, found.binder)?;
+    }
+    if borrows.next().is_some()
+        || classes.next().is_some()
+        || actual
+            .static_bindings
+            .iter()
+            .filter(|row| pr(row.base))
+            .ne(proposed.static_bindings.iter())
+    {
+        return Err(bad(
+            span,
+            "actual environment has extra or changed P/R occurrences",
+        ));
+    }
+    // Fixed captures are already formed by the actual closure producer. Keep
+    // their entire domain, including classes unused by this particular bound.
+    // The finished semantic directory independently checks their real sources.
+    let mut declared = BTreeMap::new();
+    for fixed in &context.named_fixed {
+        let Some(StorageBinder::Fixed(actual)) =
+            images.get(&StorageBinder::Fixed(fixed.fixed)).copied()
+        else {
+            return Err(bad(
+                span,
+                "declared Fixed has no exact actual environment image",
+            ));
+        };
+        declared.insert(actual, fixed.parameter);
+    }
+    let mut source_keys = BTreeMap::new();
+    for input in &context.inputs {
+        if let Some(source) = input.source_parameter
+            && context
+                .named_fixed
+                .iter()
+                .any(|fixed| fixed.parameter == source)
+        {
+            source_keys.insert(input.header_binder, HeaderKey::Declared(source));
+        }
+    }
+    let source_key = |binder| {
+        source_keys
+            .get(&binder)
+            .copied()
+            .unwrap_or(HeaderKey::Source(binder))
+    };
     let mut writer = Writer {
         fixed: BTreeMap::new(),
         invocation: BTreeMap::new(),
         bindings: Vec::new(),
         classes: Vec::new(),
     };
-    let mut borrows = old.bindings.iter();
-    let mut classes = old.classes.iter();
-    for (index, parameter) in original.parameters.iter().enumerate() {
+    // Preserve exact source P/R rows first. No result/capture relation is erased
+    // merely because it is outside the callback's invocation signature.
+    for index in 0..original.parameters.len() {
         let base = StorageBase::Parameter(index as u32);
-        if matches!(parameter.ty, Type::Address { .. }) {
-            let row = borrows
-                .next()
-                .ok_or_else(|| bad(span, "source helper header omits an actual outer borrow"))?;
-            if row.position.base != base || !row.position.path.is_empty() {
-                return Err(bad(
-                    span,
-                    "source helper outer borrow order is noncanonical",
-                ));
-            }
-            let binder = writer.binder(HeaderKey::Source(row.binder), left, span)?;
+        for row in old.bindings.iter().filter(|row| row.position.base == base) {
+            let binder = writer.binder(source_key(row.binder), left, span)?;
             writer.bindings.push(StorageLifeBinding {
                 position: row.position.clone(),
                 binder,
             });
         }
-        if index == bound.index as usize {
-            for class in 0..actual.fixed_binder_count {
-                let key = if class == environment_fixed {
-                    HeaderKey::Source(source_binder)
-                } else {
-                    HeaderKey::Environment(0, class)
-                };
-                let binder = writer.binder(key, left, span)?;
-                writer.classes.push(SignatureLifeClassBinding {
-                    position: SignatureLifeClass {
-                        base,
-                        path: if bound.kind == CallableKind::FnOnce {
-                            vec![]
-                        } else {
-                            vec![LifeTypeProjection::Pointee]
-                        },
-                        class,
-                    },
-                    binder,
-                });
-            }
-        } else if tag(&parameter.ty).is_some() {
-            let row = classes
-                .next()
-                .ok_or_else(|| bad(span, "source helper header omits an actual data class"))?;
-            if row.position.base != base
-                || row.position.path.as_slice() != [LifeTypeProjection::Pointee]
-                || row.position.class != 0
-            {
-                return Err(bad(
-                    span,
-                    "source helper data class order differs from its actual parameter",
-                ));
-            }
-            let binder = writer.binder(HeaderKey::Source(row.binder), left, span)?;
+        for row in old.classes.iter().filter(|row| row.position.base == base) {
+            let binder = writer.binder(source_key(row.binder), left, span)?;
             writer.classes.push(SignatureLifeClassBinding {
                 position: row.position.clone(),
                 binder,
             });
         }
-    }
-    if environment_result(&bound.result) {
-        let row = borrows
-            .next()
-            .ok_or_else(|| bad(span, "lending helper result has no real receiver relation"))?;
-        if row.position.base != StorageBase::Result
-            || !row.position.path.is_empty()
-            || !old.bindings.iter().any(|input| {
-                input.position.base == StorageBase::Parameter(bound.index)
-                    && input.position.path.is_empty()
-                    && input.binder == row.binder
-            })
-        {
-            return Err(bad(
-                span,
-                "lending result does not borrow its actual receiver",
-            ));
+        if index == bound.index as usize {
+            for path in role_paths(original, bound)? {
+                for class in 0..actual.fixed_binder_count {
+                    let key = declared.get(&class).map_or(
+                        HeaderKey::Environment(bound.index, field_namespace(&path), class),
+                        |source| HeaderKey::Declared(*source),
+                    );
+                    let binder = writer.binder(key, left, span)?;
+                    writer.classes.push(SignatureLifeClassBinding {
+                        position: SignatureLifeClass {
+                            base,
+                            path: path.clone(),
+                            class,
+                        },
+                        binder,
+                    });
+                }
+            }
         }
-        let binder = writer.binder(HeaderKey::Source(row.binder), left, span)?;
+    }
+    for row in old
+        .bindings
+        .iter()
+        .filter(|row| row.position.base == StorageBase::Result)
+    {
+        let binder = writer.binder(source_key(row.binder), left, span)?;
         writer.bindings.push(StorageLifeBinding {
             position: row.position.clone(),
             binder,
         });
     }
-    if borrows.next().is_some() || classes.next().is_some() {
-        return Err(bad(span, "source helper header has extra source positions"));
+    for row in old
+        .classes
+        .iter()
+        .filter(|row| row.position.base == StorageBase::Result)
+    {
+        let binder = writer.binder(source_key(row.binder), left, span)?;
+        writer.classes.push(SignatureLifeClassBinding {
+            position: row.position.clone(),
+            binder,
+        });
     }
-    // Complete role is copied only after every source bound occurrence and its
-    // data-header inverse has been checked. It remains untrusted Typed input.
-    Ok((writer.finish(), actual.clone()))
+    let mut header = writer.finish();
+    header.bindings.sort_by(|a, b| a.position.cmp(&b.position));
+    header.classes.sort_by(|a, b| a.position.cmp(&b.position));
+    header.static_bindings = old.static_bindings.clone();
+    // Result fields whose symbolic F has just become this actual Closure are
+    // completed from its original occurrence by creator_headers at finish.
+    Ok((header, actual.clone()))
 }
 
-/// Compose role-local canonical headers by their real original data anchors.
-/// Unanchored environment classes are namespaced by runtime parameter position.
-/// Equality of ClosureId or a binder ordinal in two closures is never a link.
+/// Compose complete role-local headers using each actual P/R-to-environment
+/// relation and its original full declared-lifetime inverse. Neither equal
+/// ClosureId nor an equal local binder number establishes a cross-role link.
 pub(crate) fn joint_header(
     original: &CoreFunction,
-    partials: &[(u32, StorageLifeContract)],
+    partials: &[(u32, u32, StorageLifeContract, StorageLifeContract)],
     left: &mut usize,
     span: Span,
 ) -> R<StorageLifeContract> {
     let source = original
         .storage_life
         .as_ref()
-        .ok_or_else(|| bad(span, "multiple source roles omit their actual data header"))?;
+        .ok_or_else(|| bad(span, "source roles omit their actual original header"))?;
     let width = partials.iter().fold(
-        source.bindings.len().saturating_add(source.classes.len()),
-        |sum, (_, header)| {
-            sum.saturating_add(header.bindings.len())
-                .saturating_add(header.classes.len())
+        borrowed_fp::metadata_work(source),
+        |sum, (_, _, header, role)| {
+            sum.saturating_add(borrowed_fp::metadata_work(header))
+                .saturating_add(borrowed_fp::metadata_work(role))
         },
     );
     pay(
@@ -829,6 +1169,131 @@ pub(crate) fn joint_header(
             .saturating_add(original.parameters.len().saturating_mul(partials.len())),
         span,
     )?;
+    let mut source_keys = BTreeMap::new();
+    let mut role_keys = BTreeMap::new();
+    for (parameter, generic, _, actual) in partials {
+        let direct = original
+            .callable_parameters
+            .iter()
+            .find(|bound| bound.index == *parameter && bound.generic_index == *generic);
+        let owned;
+        let bound = if let Some(bound) = direct {
+            bound
+        } else {
+            let state = original
+                .state_parameters
+                .iter()
+                .find(|state| state.index == *parameter)
+                .ok_or_else(|| bad(span, "composed stored role has no actual State parameter"))?;
+            let binding = state
+                .bindings
+                .iter()
+                .find(|binding| binding.generic_index == *generic)
+                .ok_or_else(|| bad(span, "composed stored role has no actual original bound"))?;
+            // The caller prepaid the complete source bound before this copy.
+            owned = CoreCallableParameter {
+                index: *parameter,
+                generic_index: *generic,
+                generic_name: binding.generic_name.clone(),
+                kind: binding.kind,
+                closed_environment: false,
+                transfer: false,
+                thread_callable: false,
+                parameters: binding.parameters.clone(),
+                result: binding.result.clone(),
+                life: binding.life.clone(),
+                source_life: binding.source_life.clone(),
+            };
+            &owned
+        };
+        validate(original, bound)?;
+        let context = bound
+            .source_life
+            .as_ref()
+            .ok_or_else(|| bad(span, "composed role omits its original class inverse"))?;
+        let proposed = bound
+            .life
+            .as_ref()
+            .ok_or_else(|| bad(span, "composed role omits its full P/R"))?;
+        for input in &context.inputs {
+            if let Some(source) = input.source_parameter
+                && context
+                    .named_fixed
+                    .iter()
+                    .any(|fixed| fixed.parameter == source)
+            {
+                if source_keys
+                    .insert(input.header_binder, HeaderKey::Declared(source))
+                    .is_some_and(|old| old != HeaderKey::Declared(source))
+                {
+                    return Err(bad(
+                        span,
+                        "composed roles change an original declared-life anchor",
+                    ));
+                }
+            }
+        }
+        // Every selection includes the full actual position. Lookup by the
+        // ordinal of a type-shaped callback could merge distinct environments.
+        for fixed in &context.named_fixed {
+            let mut image = None;
+            for row in proposed
+                .bindings
+                .iter()
+                .filter(|row| row.binder == StorageBinder::Fixed(fixed.fixed))
+            {
+                let found = actual
+                    .bindings
+                    .iter()
+                    .find(|actual| actual.position == row.position)
+                    .ok_or_else(|| bad(span, "composed role loses an actual P/R borrow"))?;
+                if image
+                    .replace(found.binder)
+                    .is_some_and(|old| old != found.binder)
+                {
+                    return Err(bad(span, "composed role changes its declared Fixed image"));
+                }
+            }
+            for row in proposed
+                .classes
+                .iter()
+                .filter(|row| row.binder == StorageBinder::Fixed(fixed.fixed))
+            {
+                let found = actual
+                    .classes
+                    .iter()
+                    .find(|actual| actual.position == row.position)
+                    .ok_or_else(|| bad(span, "composed role loses an actual P/R class"))?;
+                if image
+                    .replace(found.binder)
+                    .is_some_and(|old| old != found.binder)
+                {
+                    return Err(bad(span, "composed role changes its declared Fixed image"));
+                }
+            }
+            let Some(StorageBinder::Fixed(class)) = image else {
+                return Err(bad(
+                    span,
+                    "composed declared class has no actual persistent image",
+                ));
+            };
+            if role_keys
+                .insert(
+                    (*parameter, *generic, class),
+                    HeaderKey::Declared(fixed.parameter),
+                )
+                .is_some_and(|old| old != HeaderKey::Declared(fixed.parameter))
+            {
+                return Err(bad(span, "composed role merges different declared classes"));
+            }
+        }
+    }
+    let source_key = |binder| {
+        source_keys
+            .get(&binder)
+            .copied()
+            .unwrap_or(HeaderKey::Source(binder))
+    };
     let mut writer = Writer {
         fixed: BTreeMap::new(),
         invocation: BTreeMap::new(),
@@ -842,76 +1307,376 @@ pub(crate) fn joint_header(
             .iter()
             .filter(|row| row.position.base == base)
         {
-            let binder = writer.binder(HeaderKey::Source(row.binder), left, span)?;
+            let binder = writer.binder(source_key(row.binder), left, span)?;
             writer.bindings.push(StorageLifeBinding {
                 position: row.position.clone(),
                 binder,
             });
         }
-        if let Some((parameter, header)) = partials
+        for row in source
+            .classes
             .iter()
-            .find(|(parameter, _)| *parameter as usize == index)
+            .filter(|row| row.position.base == base)
         {
-            for row in header
-                .classes
-                .iter()
-                .filter(|row| row.position.base == base)
-            {
-                let mut anchor = None;
-                for data in &source.classes {
-                    if header.classes.iter().any(|actual| {
-                        actual.position == data.position && actual.binder == row.binder
-                    }) && anchor
-                        .replace(data.binder)
-                        .is_some_and(|old| old != data.binder)
-                    {
-                        return Err(bad(
-                            span,
-                            "multiple role header equates distinct original data classes",
-                        ));
-                    }
+            let binder = writer.binder(source_key(row.binder), left, span)?;
+            writer.classes.push(SignatureLifeClassBinding {
+                position: row.position.clone(),
+                binder,
+            });
+        }
+        for (parameter, generic, header, actual) in partials
+            .iter()
+            .filter(|(parameter, _, _, _)| *parameter as usize == index)
+        {
+            for row in header.classes.iter().filter(|row| {
+                row.position.base == base && row.position.class < actual.fixed_binder_count
+            }) {
+                // A source data class already retained above is not a newly
+                // materialized callback environment occurrence.
+                if source
+                    .classes
+                    .iter()
+                    .any(|old| old.position == row.position)
+                {
+                    continue;
                 }
-                for data in &source.bindings {
-                    if header.bindings.iter().any(|actual| {
-                        actual.position == data.position && actual.binder == row.binder
-                    }) && anchor
-                        .replace(data.binder)
-                        .is_some_and(|old| old != data.binder)
-                    {
-                        return Err(bad(
-                            span,
-                            "multiple role header equates distinct original borrows",
-                        ));
-                    }
-                }
-                let key = match anchor {
-                    Some(source) => HeaderKey::Source(source),
-                    None => {
-                        let StorageBinder::Fixed(class) = row.binder else {
-                            return Err(bad(span, "role environment class is not Fixed"));
-                        };
-                        HeaderKey::Environment(*parameter, class)
-                    }
-                };
+                let key = role_keys
+                    .get(&(*parameter, *generic, row.position.class))
+                    .copied()
+                    .unwrap_or(HeaderKey::Environment(
+                        *parameter,
+                        field_namespace(&row.position.path),
+                        row.position.class,
+                    ));
                 let binder = writer.binder(key, left, span)?;
-                writer.classes.push(SignatureLifeClassBinding {
-                    position: row.position.clone(),
-                    binder,
-                });
-            }
-        } else {
-            for row in source
-                .classes
-                .iter()
-                .filter(|row| row.position.base == base)
-            {
-                let binder = writer.binder(HeaderKey::Source(row.binder), left, span)?;
-                writer.classes.push(SignatureLifeClassBinding {
-                    position: row.position.clone(),
-                    binder,
-                });
+                if writer
+                    .classes
+                    .iter()
+                    .any(|old| old.position == row.position && old.binder != binder)
+                {
+                    return Err(bad(
+                        span,
+                        "composed State roles conflict at one actual environment field",
+                    ));
+                }
+                if !writer
+                    .classes
+                    .iter()
+                    .any(|old| old.position == row.position)
+                {
+                    writer.classes.push(SignatureLifeClassBinding {
+                        position: row.position.clone(),
+                        binder,
+                    });
+                }
             }
         }
     }
-    Ok(writer.finish())
+    for row in source
+        .bindings
+        .iter()
+        .filter(|row| row.position.base == StorageBase::Result)
+    {
+        let binder = writer.binder(source_key(row.binder), left, span)?;
+        writer.bindings.push(StorageLifeBinding {
+            position: row.position.clone(),
+            binder,
+        });
+    }
+    for row in source
+        .classes
+        .iter()
+        .filter(|row| row.position.base == StorageBase::Result)
+    {
+        let binder = writer.binder(source_key(row.binder), left, span)?;
+        writer.classes.push(SignatureLifeClassBinding {
+            position: row.position.clone(),
+            binder,
+        });
+    }
+    let mut header = writer.finish();
+    header.bindings.sort_by(|a, b| a.position.cmp(&b.position));
+    header.classes.sort_by(|a, b| a.position.cmp(&b.position));
+    header.static_bindings = source.static_bindings.clone();
+    Ok(header)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zil_base::{ModuleId, NodeId};
+
+    fn address() -> Type {
+        Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        }
+    }
+    fn contract(fixed: u32, parameters: &[u32], captures: &[u32]) -> StorageLifeContract {
+        StorageLifeContract {
+            fixed_binder_count: fixed,
+            invocation_binder_count: 0,
+            bindings: parameters
+                .iter()
+                .enumerate()
+                .map(|(index, binder)| StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Parameter(index as u32),
+                        path: vec![],
+                    },
+                    binder: StorageBinder::Fixed(*binder),
+                })
+                .chain(
+                    captures
+                        .iter()
+                        .enumerate()
+                        .map(|(index, binder)| StorageLifeBinding {
+                            position: StoragePosition {
+                                base: StorageBase::Capture(index as u32),
+                                path: vec![],
+                            },
+                            binder: StorageBinder::Fixed(*binder),
+                        }),
+                )
+                .collect(),
+            classes: vec![],
+            static_bindings: vec![],
+        }
+    }
+    fn bound(index: u32, name: &str) -> CoreCallableParameter {
+        CoreCallableParameter {
+            life: Some(contract(2, &[0, 1], &[])),
+            source_life: Some(CoreCallableLifeContext {
+                declaration: LifeDeclarationId {
+                    module: ModuleId(0),
+                    declaration: NodeId(0),
+                    compiler: false,
+                },
+                identity: LifeDeclarationIdentity {
+                    package: "test".into(),
+                    module_path: vec![],
+                    declaration_path: vec!["helper".into()],
+                    generation_path: vec![],
+                },
+                parameters: vec![
+                    LifeParameterKind::Lifetime,
+                    LifeParameterKind::Lifetime,
+                    LifeParameterKind::Type,
+                    LifeParameterKind::Type,
+                ],
+                generic_parameter: 2 + index,
+                bound_ordinal: 0,
+                named_fixed: vec![
+                    CoreClosureNamedFixed {
+                        fixed: 0,
+                        parameter: 0,
+                    },
+                    CoreClosureNamedFixed {
+                        fixed: 1,
+                        parameter: 1,
+                    },
+                ],
+                inputs: vec![],
+            }),
+            index,
+            generic_index: index,
+            generic_name: name.into(),
+            kind: CallableKind::FnMut,
+            closed_environment: false,
+            transfer: false,
+            thread_callable: false,
+            parameters: vec![address(), address()],
+            result: Type::I32,
+        }
+    }
+    fn function(bounds: Vec<CoreCallableParameter>) -> CoreFunction {
+        CoreFunction {
+            id: NodeId(0),
+            name: "helper".into(),
+            span: Span::default(),
+            source_scope: None,
+            dyn_instance: None,
+            retained_return_sources: None,
+            storage_life: Some(contract(0, &[], &[])),
+            call_kind: None,
+            resume_bound: TaskResumeBound::Local,
+            life: None,
+            parameters: bounds
+                .iter()
+                .map(|bound| CoreParameter {
+                    name: bound.generic_name.to_lowercase(),
+                    ty: Type::Named(bound.generic_name.clone()),
+                    mode: PassingMode::Infer,
+                    span: Span::default(),
+                })
+                .collect(),
+            return_type: Type::I32,
+            result_mode: PassingMode::Infer,
+            receiver: None,
+            foreign: None,
+            type_parameters: vec![],
+            state_parameters: vec![],
+            protocol_contracts: vec![],
+            callable_return: None,
+            callable_parameters: bounds,
+            body: CoreBlock {
+                statements: vec![],
+                span: Span::default(),
+            },
+        }
+    }
+    fn actual(id: u32, fixed: u32, parameters: &[u32], captures: &[u32]) -> ClosureDefinition {
+        ClosureDefinition {
+            id: ClosureId(id),
+            function: FunctionId(id),
+            kind: CallableKind::FnMut,
+            parameters: parameters.iter().map(|_| address()).collect(),
+            captures: captures.iter().map(|_| address()).collect(),
+            result: Type::I32,
+            lending_captures: vec![],
+            storage_life: Some(contract(fixed, parameters, captures)),
+        }
+    }
+
+    #[test]
+    fn declared_bound_aligns_full_actual_partition_and_preserves_extra_captures() {
+        let original = function(vec![bound(0, "F")]);
+        let actual = actual(0, 3, &[2, 0], &[0, 1, 2]);
+        let mut left = 1_000_000;
+        let (header, role) = form(
+            &original,
+            &original.callable_parameters[0],
+            &actual,
+            &mut left,
+            Span::default(),
+        )
+        .unwrap();
+        assert_eq!(header.fixed_binder_count, 3);
+        assert_eq!(header.classes.len(), 3);
+        assert_eq!(role, actual.storage_life.clone().unwrap());
+        let wrong = self::actual(0, 3, &[2, 2], &[0, 1, 2]);
+        assert!(
+            form(
+                &original,
+                &original.callable_parameters[0],
+                &wrong,
+                &mut left,
+                Span::default()
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn multiple_roles_share_declared_images_and_keep_unrelated_environment_classes_distinct() {
+        let original = function(vec![bound(0, "F"), bound(1, "G")]);
+        let definitions = [
+            actual(0, 3, &[2, 0], &[0, 1, 2]),
+            actual(1, 2, &[0, 1], &[0, 1]),
+        ];
+        let mut left = 1_000_000;
+        let mut partials = Vec::new();
+        for (bound, definition) in original.callable_parameters.iter().zip(definitions) {
+            let (header, role) =
+                form(&original, bound, &definition, &mut left, Span::default()).unwrap();
+            partials.push((bound.index, bound.generic_index, header, role));
+        }
+        let header = joint_header(&original, &partials, &mut left, Span::default()).unwrap();
+        assert_eq!(header.fixed_binder_count, 3);
+        let image = |parameter, class| {
+            header
+                .classes
+                .iter()
+                .find(|row| {
+                    row.position.base == StorageBase::Parameter(parameter)
+                        && row.position.class == class
+                })
+                .unwrap()
+                .binder
+        };
+        assert_eq!(image(0, 2), image(1, 0));
+        assert_eq!(image(0, 0), image(1, 1));
+        assert_ne!(image(0, 1), image(1, 0));
+        assert_ne!(image(0, 1), image(1, 1));
+    }
+
+    #[test]
+    fn source_bound_cannot_drop_or_duplicate_an_intrinsic_or_physical_occurrence() {
+        let mut bound = bound(0, "F");
+        relation(&bound, Span::default()).unwrap();
+        bound.life.as_mut().unwrap().bindings.pop();
+        assert!(relation(&bound, Span::default()).is_err());
+        bound = self::bound(0, "F");
+        bound.life.as_mut().unwrap().bindings[1].position.base = StorageBase::Parameter(0);
+        assert!(relation(&bound, Span::default()).is_err());
+        bound = self::bound(0, "F");
+        bound.source_life.as_mut().unwrap().named_fixed[1].parameter = 0;
+        let original = function(vec![bound.clone()]);
+        assert!(validate(&original, &bound).is_err());
+    }
+    #[test]
+    fn stored_roles_keep_actual_field_coordinates_and_complete_environment_images() {
+        let bounds = vec![bound(0, "F"), bound(1, "G")];
+        let mut original = function(bounds.clone());
+        original.parameters = vec![CoreParameter {
+            name: "state".into(),
+            ty: Type::Package {
+                name: "Pair".into(),
+                fields: vec![
+                    ("f".into(), Type::Named("F".into())),
+                    ("g".into(), Type::Named("G".into())),
+                ],
+            },
+            mode: PassingMode::Infer,
+            span: Span::default(),
+        }];
+        original.state_parameters = vec![CoreStateParameter {
+            index: 0,
+            bindings: bounds
+                .iter()
+                .enumerate()
+                .map(|(index, bound)| CoreStateBinding {
+                    generic_index: bound.generic_index,
+                    generic_name: bound.generic_name.clone(),
+                    kind: bound.kind,
+                    parameters: bound.parameters.clone(),
+                    result: bound.result.clone(),
+                    fields: vec![index as u32],
+                    life: bound.life.clone(),
+                    source_life: bound.source_life.clone(),
+                })
+                .collect(),
+        }];
+        original.callable_parameters.clear();
+        let mut left = 1_000_000;
+        let bounds = state_origins::bounds(&original, &Limits::default(), &mut left)
+            .unwrap()
+            .into_owned();
+        let definitions = [
+            actual(0, 3, &[2, 0], &[0, 1, 2]),
+            actual(1, 2, &[0, 1], &[0, 1]),
+        ];
+        let mut partials = Vec::new();
+        for (bound, definition) in bounds.iter().zip(definitions) {
+            let (header, role) =
+                form(&original, bound, &definition, &mut left, Span::default()).unwrap();
+            partials.push((bound.index, bound.generic_index, header, role));
+        }
+        let header = joint_header(&original, &partials, &mut left, Span::default()).unwrap();
+        assert_eq!(header.fixed_binder_count, 3);
+        let image = |field, class| {
+            header
+                .classes
+                .iter()
+                .find(|row| {
+                    row.position.path == [LifeTypeProjection::Place(PlaceProjection::Field(field))]
+                        && row.position.class == class
+                })
+                .unwrap()
+                .binder
+        };
+        assert_eq!(image(0, 2), image(1, 0));
+        assert_eq!(image(0, 0), image(1, 1));
+        assert_ne!(image(0, 1), image(1, 0));
+    }
 }

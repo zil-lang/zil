@@ -6,6 +6,7 @@ pub(crate) struct Produced {
     pub(crate) origin: origins::Origin,
     pub(crate) parameter: u32,
     pub(crate) generic_index: u32,
+    pub(crate) kind: CallableKind,
     pub(crate) context: CoreCallableLifeContext,
     pub(crate) life: StorageLifeContract,
     pub(crate) parameters: Vec<Type>,
@@ -134,7 +135,7 @@ impl Ledger {
                 "source helper bound has no actual lowered role",
             ));
         }
-        Ok(())
+        Ok(true)
     }
 }
 impl Engine<'_> {
@@ -148,94 +149,60 @@ impl Engine<'_> {
         invocation: &[crate::stored_types::LexicalLife],
         generic_parameter: usize,
         runtime_parameter: Option<usize>,
-    ) -> R<()> {
+    ) -> R<bool> {
         if self.life_scope.is_empty() {
-            return Ok(());
+            return Ok(false);
         }
-        let Some(parameter) = function.generics.get(generic_parameter) else {
-            return Ok(());
+        let selected = callable::template(function, &mut self.budget)?;
+        let Some(selected) = selected else {
+            return Ok(false);
         };
-        let GenericParamKind::Type(bounds) = &parameter.kind else {
-            unreachable!()
-        };
-        let [bound] = bounds.as_slice() else {
-            return Ok(());
-        };
-        let TypeKind::Named { path, args } = &bound.kind else {
-            return Ok(());
-        };
-        let kind = match path.as_slice() {
-            [name] if name == "Fn" => CallableKind::Fn,
-            [name] if name == "FnMut" => CallableKind::FnMut,
-            [name] if name == "FnOnce" => CallableKind::FnOnce,
-            _ => return Ok(()),
-        };
-        let candidate = matches!(args.as_slice(), [GenericArg::Type(parameters), GenericArg::Type(_)]
-            if matches!(&parameters.kind, TypeKind::Tuple(parameters) if matches!(parameters.as_slice(), [parameter]
-                if matches!(&parameter.kind, TypeKind::Reference { mutable:false,inner,.. }
-                    if matches!(&inner.kind, TypeKind::Named { args,.. } if matches!(args.as_slice(), [GenericArg::Lifetime(_)]))))));
-        if !candidate {
-            return Ok(());
-        }
-        let Some(GenericArg::Type(result)) = args.last() else {
-            return Ok(());
-        };
-        let lending_result = kind != CallableKind::FnOnce
-            && matches!(&result.kind, TypeKind::Reference { mutable:false, lifetime:None, inner }
-                if scalar_syntax(inner));
-        if !(scalar_syntax(result) || lending_result)
-            || function.return_type.as_ref().is_some_and(|result|
-                !(scalar_syntax(result) || lending_result && matches!(&result.kind,
-                    TypeKind::Reference { mutable:false, lifetime:Some(_), inner } if scalar_syntax(inner))))
-        {
-            return Ok(());
-        }
-        let selected = callable::template(function, &mut self.budget)?.ok_or_else(|| {
-            unavailable(
-                function.span,
-                "source helper actual selected role is absent",
-            )
-        })?;
-        if selected.roles.len() > 1 {
-            self.budget
-                .identity_work(selected.roles.len(), function.span)?;
-        }
-        let mut selected_roles = selected.roles.iter().filter(|role| {
+        self.budget
+            .identity_work(selected.bindings().count(), function.span)?;
+        let mut roles = selected.bindings().filter(|role| {
             role.source_generic_parameter == generic_parameter as u32
                 && runtime_parameter.is_none_or(|parameter| role.index == parameter)
         });
-        let Some(selected_role) = selected_roles.next() else {
-            return Err(unavailable(
-                function.span,
-                "source helper selected role is absent",
-            ));
+        let Some(role) = roles.next() else {
+            return Ok(false);
         };
-        if selected_roles.next().is_some() {
+        if roles.next().is_some() {
             return Err(unavailable(
                 function.span,
                 "source helper selected role is ambiguous",
             ));
         }
-        if selected_role.source_generic_parameter != generic_parameter as u32
-            || selected_role.source_bound_ordinal != 0
-            || selected_role.kind != kind
-        {
+        let parameter = function.generics.get(generic_parameter).ok_or_else(|| {
+            unavailable(
+                function.span,
+                "source helper original generic parameter is absent",
+            )
+        })?;
+        let GenericParamKind::Type(bounds) = &parameter.kind else {
             return Err(unavailable(
                 function.span,
-                "source helper selected bound differs from its actual receiver",
+                "source helper original generic is not a Type",
             ));
-        }
-        if callable::parameter_mode(&function.params[selected_role.index].ty, &parameter.name)
-            != Some(if kind == CallableKind::FnOnce {
-                None
-            } else {
-                Some(kind == CallableKind::FnMut)
-            })
+        };
+        let bound_ordinal = role.source_bound_ordinal;
+        let bound = bounds
+            .get(bound_ordinal as usize)
+            .ok_or_else(|| unavailable(function.span, "source helper original bound is absent"))?;
+        // A higher-rank binder belongs to its own prepared Code signature.
+        // Only free declared classes require this original-Definition bridge.
+        if matches!(bound.kind, TypeKind::ForLifetime { .. })
+            || !callable_return_context::named_life(bound, &mut self.budget)?
         {
-            return Ok(());
+            return Ok(false);
         }
-        let role_parameter = selected_role.index as u32;
-        let role_generic = selected_role.generic_index;
+        let kind = role.kind;
+        let role_parameter = role.index as u32;
+        let role_generic = role.generic_index;
+        let arguments = &role.parameters;
+        let result = &role.result;
+        let lending_result = kind != CallableKind::FnOnce
+            && matches!(&result.kind, TypeKind::Reference { mutable:false, lifetime:None, inner }
+                if scalar_syntax(inner));
         let origin = self
             .current_origin
             .ok_or_else(|| unavailable(function.span, "source helper owner lineage is absent"))?;
@@ -292,12 +259,21 @@ impl Engine<'_> {
         let mut life_ordinals = Vec::new();
         for (index, parameter) in function.generics.iter().enumerate() {
             self.budget.node(parameter.span, 0)?;
-            if matches!(parameter.kind, GenericParamKind::Lifetime) {
-                parameters.push(LifeParameterKind::Lifetime);
-                life_ordinals.push(index as u32);
-            } else {
-                parameters.push(LifeParameterKind::Type);
-            }
+            parameters.push(match &parameter.kind {
+                GenericParamKind::Lifetime => {
+                    life_ordinals.push(index as u32);
+                    LifeParameterKind::Lifetime
+                }
+                GenericParamKind::Type(_) => LifeParameterKind::Type,
+                GenericParamKind::Const(ty) => {
+                    LifeParameterKind::Const(self.products.storage.pointer_parameter_type(
+                        ty,
+                        &self.nominals,
+                        &mut self.budget,
+                        0,
+                    )?)
+                }
+            });
         }
         if life_ordinals.len() != self.life_scope.len() {
             return Err(unavailable(
@@ -316,13 +292,9 @@ impl Engine<'_> {
             self.budget
                 .identity_work(position.path.len().saturating_add(1), function.span)?;
             let StorageBase::Parameter(index) = position.base else {
-                if lending_result && position.base == StorageBase::Result {
-                    continue;
-                }
-                return Err(unavailable(
-                    function.span,
-                    "source helper result has no receiver lending relation",
-                ));
+                // Result rows belong to the complete header and are retained
+                // there; an input anchor must always name a real parameter.
+                continue;
             };
             let life = match binder {
                 StorageBinder::Fixed(i) => fixed.get(i as usize),
@@ -342,13 +314,9 @@ impl Engine<'_> {
             self.budget
                 .identity_work(position.path.len().saturating_add(1), function.span)?;
             let StorageBase::Parameter(index) = position.base else {
-                if lending_result && position.base == StorageBase::Result {
-                    continue;
-                }
-                return Err(unavailable(
-                    function.span,
-                    "source helper result has no receiver lending relation",
-                ));
+                // Result rows belong to the complete header and are retained
+                // there; an input anchor must always name a real parameter.
+                continue;
             };
             let life = match binder {
                 StorageBinder::Fixed(i) => fixed.get(i as usize),
@@ -364,24 +332,6 @@ impl Engine<'_> {
                 position: CoreClosureHeaderPosition::Class(position.clone()),
             });
         }
-        let [GenericArg::Type(arguments), GenericArg::Type(result)] = args.as_slice() else {
-            return Err(unavailable(
-                bound.span,
-                "source helper requires its actual complete Fn P/R",
-            ));
-        };
-        let TypeKind::Tuple(arguments) = &arguments.kind else {
-            return Err(unavailable(
-                bound.span,
-                "source helper Fn parameters require a tuple",
-            ));
-        };
-        if arguments.len() != 1 {
-            return Err(unavailable(
-                bound.span,
-                "source helper first profile has one shared qualified callback input",
-            ));
-        }
         let mut occurrences = Vec::new();
         let mut stored = false;
         let mut next = self.life_scope.len() as u32;
@@ -389,7 +339,7 @@ impl Engine<'_> {
         for (index, ty) in arguments.iter().enumerate() {
             self.budget.ty(ty)?;
             let mut ty = ty.clone();
-            let physical_witness = self.storage_header(
+            self.storage_header(
                 &mut ty,
                 StorageBase::Parameter(index as u32),
                 &mut Vec::new(),
@@ -399,9 +349,6 @@ impl Engine<'_> {
                 &mut next,
                 0,
             )?;
-            if !physical_witness {
-                return Ok(());
-            }
             actual_parameters.push(self.products.storage.pointer_parameter_type(
                 &ty,
                 &self.nominals,
@@ -429,9 +376,16 @@ impl Engine<'_> {
             &mut self.budget,
             0,
         )?;
+        // Only actual declared outer lives are Fixed. An anonymous callback
+        // input remains Invocation even inside a qualified nominal boundary.
+        for occurrence in &mut occurrences {
+            occurrence.fixed_input = false;
+        }
         let (life, bound_fixed, _) = crate::stored_types::contract_with_sources(
             occurrences,
-            Vec::new(),
+            (0..self.life_scope.len())
+                .map(|index| crate::stored_types::LexicalLife(index as u32))
+                .collect(),
             &mut self.budget,
             bound.span,
         )?;
@@ -449,25 +403,10 @@ impl Engine<'_> {
                     "source helper bound Fixed needs a real declared life",
                 )
             })?;
-            if !inputs.iter().any(|input| {
-                input.source_parameter == Some(parameter)
-                    && matches!(input.position, CoreClosureHeaderPosition::Class(_))
-            }) {
-                return Err(unavailable(
-                    bound.span,
-                    "source helper bound life has no actual qualified data header anchor",
-                ));
-            }
             named_fixed.push(CoreClosureNamedFixed {
                 fixed: fixed as u32,
                 parameter,
             });
-        }
-        if !stored || named_fixed.is_empty() {
-            return Err(unavailable(
-                bound.span,
-                "source helper bound needs actual qualified Fixed input",
-            ));
         }
         self.budget.identity_work(
             self.products.callable_contexts.rows.len().saturating_add(1),
@@ -483,7 +422,7 @@ impl Engine<'_> {
                 r.origin == origin
                     && r.parameter == role_parameter
                     && r.generic_index == role_generic
-                    && r.context.bound_ordinal == 0
+                    && r.context.bound_ordinal == bound_ordinal
             })
         {
             return Err(unavailable(
@@ -495,12 +434,13 @@ impl Engine<'_> {
             origin,
             parameter: role_parameter,
             generic_index: role_generic,
+            kind,
             context: CoreCallableLifeContext {
                 declaration,
                 identity,
                 parameters,
                 generic_parameter: generic_parameter as u32,
-                bound_ordinal: 0,
+                bound_ordinal,
                 named_fixed,
                 inputs,
             },
@@ -509,6 +449,163 @@ impl Engine<'_> {
             result: actual_result,
         }));
         self.products.storage.source_helpers = true;
-        Ok(())
+        Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zil_base::{FileId, ModuleId, SourceUnit};
+
+    fn expanded(text: &str) -> zil_ir::CoreModule {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "bound.zil", text);
+        let module = zil_syntax::parse(&source).into_result().unwrap();
+        let aliases = BTreeMap::new();
+        let expanded = crate::expand_with_map_limits_target_context(
+            &source,
+            &module,
+            &Limits::default(),
+            &zil_base::TargetProfile::default(),
+            crate::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &aliases,
+                declarations: crate::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap();
+        assert!(
+            expanded.core.unsupported.is_empty(),
+            "{:?}",
+            expanded.core.unsupported
+        );
+        expanded.core
+    }
+
+    #[test]
+    fn owned_callable_bound_keeps_named_life_without_inventing_data_anchor() {
+        let module = expanded(
+            "package State<F>{manages storage:ByteBuffer;callback:F;count:i32}fn pack<life a,F:FnMut(&'a i32)->i32>(callback:F)->State<F>{return State::<F>{storage:bytes_new(),callback:callback,count:0}}",
+        );
+        let function = module
+            .functions
+            .iter()
+            .find(|function| function.name == "pack")
+            .unwrap();
+        let [bound] = function.callable_parameters.as_slice() else {
+            panic!("one actual role");
+        };
+        assert_eq!(
+            bound.parameters,
+            [Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32)
+            }]
+        );
+        let life = bound.life.as_ref().unwrap();
+        assert_eq!(
+            (life.fixed_binder_count, life.invocation_binder_count),
+            (1, 0)
+        );
+        assert_eq!(life.bindings[0].binder, StorageBinder::Fixed(0));
+        let source = bound.source_life.as_ref().unwrap();
+        assert_eq!(
+            source.parameters,
+            [LifeParameterKind::Lifetime, LifeParameterKind::Type]
+        );
+        assert_eq!(source.generic_parameter, 1);
+        assert_eq!(
+            source.named_fixed,
+            [CoreClosureNamedFixed {
+                fixed: 0,
+                parameter: 0
+            }]
+        );
+        assert!(source.inputs.is_empty());
+        assert_eq!(
+            function.storage_life.as_ref().unwrap().fixed_binder_count,
+            0
+        );
+    }
+
+    #[test]
+    fn source_bound_preserves_all_parameter_and_result_occurrences() {
+        let module = expanded(
+            "fn apply<life a,life b,F:Fn(&'a i32,&'b i32)->&'a i32>(callback:&F,a:&'a i32,b:&'b i32)->i32{return *callback(a,b)}",
+        );
+        let function = module
+            .functions
+            .iter()
+            .find(|function| function.name == "apply")
+            .unwrap();
+        let [bound] = function.callable_parameters.as_slice() else {
+            panic!("one actual role");
+        };
+        let life = bound.life.as_ref().unwrap();
+        assert_eq!(
+            (life.fixed_binder_count, life.invocation_binder_count),
+            (2, 0)
+        );
+        assert_eq!(
+            life.bindings
+                .iter()
+                .map(|row| (row.position.base, row.binder))
+                .collect::<Vec<_>>(),
+            [
+                (StorageBase::Parameter(0), StorageBinder::Fixed(0)),
+                (StorageBase::Parameter(1), StorageBinder::Fixed(1)),
+                (StorageBase::Result, StorageBinder::Fixed(0)),
+            ]
+        );
+        let context = bound.source_life.as_ref().unwrap();
+        assert_eq!(
+            context.named_fixed,
+            [
+                CoreClosureNamedFixed {
+                    fixed: 0,
+                    parameter: 0
+                },
+                CoreClosureNamedFixed {
+                    fixed: 1,
+                    parameter: 1
+                }
+            ]
+        );
+        assert_eq!(context.generic_parameter, 2);
+        assert_eq!(context.inputs.len(), 3);
+    }
+    #[test]
+    fn stored_roles_preserve_the_same_complete_source_bound_as_direct_inputs() {
+        let module = expanded(
+            "package Pair<F,G>{manages storage:ByteBuffer;left:F;right:G}fn read<life a,life b,F:Fn(&'a i32)->i32,G:Fn(&'b i32)->i32>(state:Pair<F,G>,a:&'a i32,b:&'b i32)->i32{return state.left(a)+state.right(b)}",
+        );
+        let function = module
+            .functions
+            .iter()
+            .find(|function| function.name == "read")
+            .unwrap();
+        let [state] = function.state_parameters.as_slice() else {
+            panic!("one real State parameter");
+        };
+        assert_eq!(state.bindings.len(), 2);
+        for (ordinal, binding) in state.bindings.iter().enumerate() {
+            let life = binding.life.as_ref().unwrap();
+            let context = binding.source_life.as_ref().unwrap();
+            assert_eq!(context.generic_parameter, ordinal as u32 + 2);
+            assert_eq!(
+                context.named_fixed,
+                [CoreClosureNamedFixed {
+                    fixed: 0,
+                    parameter: ordinal as u32
+                }]
+            );
+            assert_eq!(
+                (life.fixed_binder_count, life.invocation_binder_count),
+                (1, 0)
+            );
+            assert_eq!(life.bindings.len(), 1);
+            assert_eq!(life.bindings[0].binder, StorageBinder::Fixed(0));
+            assert_eq!(binding.fields, [ordinal as u32 + 1]);
+        }
     }
 }

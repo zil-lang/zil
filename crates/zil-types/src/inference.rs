@@ -258,6 +258,15 @@ fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget
     for state in states {
         budget.work(state.bindings.len().saturating_add(1), span)?;
         for binding in &state.bindings {
+            let metadata = callable_context_metadata_work(binding.life.as_ref(),binding.source_life.as_ref(),
+                budget.limits.max_nodes,budget.limits.max_call_depth,budget.work)
+                .ok_or_else(|| Diagnostic::limit(Phase::Types,"State callable metadata exceeds remaining bounds",Some(span)))?;
+            budget.work(metadata,span)?;
+            if let Some(context)=&binding.source_life {
+                for kind in &context.parameters {
+                    if let LifeParameterKind::Const(ty)=kind { validate_type(ty,0,span,budget)?; }
+                }
+            }
             budget.work(
                 binding
                     .generic_name
@@ -774,7 +783,7 @@ fn headers(
                 retained_return_sources: function.retained_return_sources.clone(),
                 storage_life: function.storage_life.clone(),
                 life: function.life.as_ref().map(borrowed_fp::from_life),
-                callable: state_origins::bounds(function).into_owned(),
+                callable: state_origins::bounds(function,budget.limits,&mut budget.work)?.into_owned(),
                 state_parameter: function.state_parameters.first().cloned(),
                 callable_return: function.callable_return.clone(),
                 type_parameter: function.type_parameters.first().cloned(),

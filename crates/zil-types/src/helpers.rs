@@ -576,11 +576,12 @@ pub(super) fn install(
             || !function.type_parameters.is_empty()
             || !function.state_parameters.is_empty()
         {
-            state.snapshot(function.callable_parameters.len(), function.span)?;
-            for bound in &function.callable_parameters {
-                state.source_helper_context(function, bound)?;
-                if let Some(life) = &bound.life {
-                    state.snapshot(borrowed_fp::metadata_work(life), function.span)?;
+            let bounds=state.source_state_bounds(function)?;
+            state.snapshot(bounds.len(),function.span)?;
+            for bound in bounds.as_ref() {
+                state.source_helper_context(function,bound)?;
+                if let Some(life)=&bound.life {
+                    state.snapshot(borrowed_fp::metadata_work(life),function.span)?;
                 }
             }
             validate_template(function, &mut |ty, span| {
@@ -1063,9 +1064,12 @@ impl Builder<'_, '_> {
                 borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
             }
         }
-        if owned_state {
+        if owned_state && bound.source_life.is_none() {
             self.closures.factory_self_contained(closure, span)?;
         }
+        // A context-bearing State retains the actual full borrowed domain.
+        // It acquires no ClosedEnvironment/NoExternal or cleanup permission;
+        // those original requirements and independent proofs remain separate.
         let pending = self
             .closures
             .pending
@@ -1196,7 +1200,7 @@ impl Builder<'_, '_> {
             self.limits,
         )?;
         let mut function = template.function.as_ref().clone();
-        let bounds_view = state_origins::bounds(&template.function);
+        let bounds_view = self.closures.source_state_bounds(&template.function)?;
         let bounds = bounds_view.as_ref();
         let owned_state = callable_fields::template(&function);
         let owned_factory = owning_factory::template(&function);
@@ -1300,8 +1304,9 @@ impl Builder<'_, '_> {
                     closure,
                     span,
                 )?;
-                partials.push((bound.index, header));
-                multiple_source_roles.insert(bound.index, role);
+                self.closures.snapshot(borrowed_fp::metadata_work(&role), span)?;
+                partials.push((bound.index, bound.generic_index, header, role.clone()));
+                multiple_source_roles.insert((bound.index,bound.generic_index), role);
             }
             function.storage_life = Some(self.closures.source_helper_joint(
                 &template.function,
@@ -1458,7 +1463,7 @@ impl Builder<'_, '_> {
                         .snapshot(borrowed_fp::metadata_work(life), span)?;
                 }
                 let actual_source_role = multiple_source_roles
-                    .get(&bound.index)
+                    .get(&(bound.index,bound.generic_index))
                     .or(source_role_life.as_ref());
                 if bound.source_life.is_some()
                     && let Some(life) = actual_source_role
