@@ -43,6 +43,16 @@ pub(super) fn parameter(
         let Type::Managed(payload) = capture else {
             continue;
         };
+        if matches!(payload.as_ref(), Type::Task { .. }) {
+            // This pass recovers only the original receiver parameter. A
+            // complete class-free Task is an owning input even when its
+            // actual frame needs asynchronous cancellation. Prove its whole
+            // physical scope here; the consuming-call resource check must
+            // still prove every remaining capture before delivering results.
+            super::super::tasks::closed_environment_task(module, payload, b, f.span)?;
+            owner = true;
+            continue;
+        }
         if !resource_payload(payload, b)? {
             return Err(closed());
         }
