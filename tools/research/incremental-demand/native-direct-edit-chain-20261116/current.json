@@ -1,9 +1,9 @@
 {
-  "schema": "zil.native-direct-firstedit-result.v3",
-  "source": "1719acac5d7ee4b8924d2cada8c9974bd9c5ec21",
-  "binary_sha256": "3e84b56f45511180801f305ba606915d8623592b9c43cb83495325ff6061a1da",
+  "schema": "zil.native-direct-firstedit-result.v4",
+  "source": "de43085b1416970a00d19c2b8b11da93172612f5",
+  "binary_sha256": "c01edb9b89b016aaf1d39524b825d4c0da5cdae3ebfa59dc380bec619964fb15",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "result": "Firstedit still slower than Rust",
+  "result": "Firstedit still slower than Rust; semantic sharing fixed but total improvement not established",
   "scope": "Original5105functions/102files/843875bytes, original257input domain; actualmain/currentcandidate/Rust only. Native O2/CGU16/compilerjobs1; explicit default-off bounded-class-imports128-v3. Closeprocess, edit, then newprocess first resident request. Startup separate; not full ordinaryCLI or OS-cold.",
   "execution_complete": true,
   "functional_quality_valid": true,
@@ -15,33 +15,55 @@
     "functional_cells": 10,
     "sustained_runtime_cases": 4
   },
+  "compile_median_ms": {
+    "cold": {
+      "candidate": 3151.0698709999997,
+      "rust": 6950.1117665
+    },
+    "unchanged": {
+      "candidate": 60.917966,
+      "rust": 35.050548
+    },
+    "private-001": {
+      "candidate": 2119.716305,
+      "rust": 1096.3470565
+    },
+    "recovery": {
+      "candidate": 2100.2443869999997,
+      "rust": 6285.3326655
+    },
+    "error": {
+      "candidate": 1569.6091975,
+      "rust": 2089.4391505
+    }
+  },
   "runtime_ms": {
     "5105/cold": {
-      "candidate": 31.8989085,
-      "rust": 190.89814
+      "candidate": 32.5191965,
+      "rust": 227.754975
     },
     "5105/unchanged": {
-      "candidate": 29.493949,
-      "rust": 190.9656955
+      "candidate": 34.9338305,
+      "rust": 217.416556
     },
     "5105/private-001": {
-      "candidate": 32.8434455,
-      "rust": 190.70516450000002
+      "candidate": 33.2991915,
+      "rust": 193.44741199999999
     },
     "5105/recovery": {
-      "candidate": 30.323259,
-      "rust": 192.3593655
+      "candidate": 29.769730000000003,
+      "rust": 192.99460950000002
     }
   },
   "user_disk_boundary_peak_physical_bytes": [
     {
       "block": 0,
-      "candidate": 30367744,
-      "rust": 76734464
+      "candidate": 30347264,
+      "rust": 76742656
     },
     {
       "block": 1,
-      "candidate": 30343168,
+      "candidate": 30392320,
       "rust": 61546496
     }
   ],
@@ -49,262 +71,140 @@
   "direct_firstedit_costs": [
     {
       "block": 0,
-      "wall_ms": 2047.219378,
-      "cpu_seconds": 2.01,
+      "wall_ms": 1915.26307,
       "phases_ms": {
-        "analyze": 131.813348,
-        "codegen": 967.946066,
-        "ct": 64.319627,
-        "expand": 241.471697,
-        "lower": 4.878403,
-        "parse": 0.117545,
-        "types": 211.580297,
-        "verify": 59.028479
+        "analyze": 105.828583,
+        "codegen": 872.009586,
+        "ct": 54.679638,
+        "expand": 261.746169,
+        "lower": 3.175015,
+        "parse": 0.122644,
+        "types": 169.068254,
+        "verify": 63.74715
       },
       "backend_ms": {
-        "diagnostic": 21.974976,
-        "link_execution": 28.814226,
-        "link_key": 37.974257,
-        "machine_emit": 172.235605,
-        "machine": 620.545894,
-        "machine_preflight": 42.863357,
-        "machine_transform": 440.057989,
-        "object": 175.667403,
-        "other": 12.100497,
-        "partition": 70.426544,
-        "total": 967.503797
+        "diagnostic": 45.9981,
+        "link_execution": 61.222621,
+        "link_key": 29.595797,
+        "machine_emit": 140.374332,
+        "machine": 316.139953,
+        "machine_preflight": 33.849185,
+        "machine_transform": 171.598194,
+        "object": 327.222795,
+        "other": 2.360471,
+        "partition": 83.038556,
+        "total": 865.578293,
+        "transform_call_classes": 23.029821,
+        "transform_checked_add": 8.270967,
+        "transform_purity": 11.921401,
+        "transform_ranges": 123.391853,
+        "transform_scalar": 4.727634
       },
       "backend_work": {
-        "representation_functions_checked": 5105,
-        "representation_functions_reused": 0,
-        "shared_admission_reuses": 0,
-        "shared_body_template_reuses": 0
-      },
-      "raw_inference_work": {
-        "closure_bodies_checked": 5105,
-        "closure_bodies_reused": 0,
-        "dependency_bodies_checked": 5105,
-        "dependency_bodies_observed": 5105,
-        "dependency_bodies_reused": 0,
-        "full_runs": 1,
-        "name_bodies_observed": 5105,
-        "name_functions_checked": 5105,
-        "name_functions_reused": 0,
-        "replay_fallbacks": 0,
-        "sparse_batches": 0
-      },
-      "function_cache_decoding": {
-        "decode_attempts": 374,
-        "decoded_functions": 374,
-        "relabeled_decoded_functions": 0,
-        "reused_decoded_functions": 4727,
-        "reused_result_projections": 4727
-      },
-      "producer": {
-        "borrowed_restore_fallback_items": 0,
-        "borrowed_scalar_items": 5105,
-        "fused_distributed_items": 5105,
-        "fused_lifetime_items": 5105,
-        "fused_lifetime_nodes": 272908,
-        "fused_restore_items": 5105,
-        "fused_restore_nodes": 267189
+        "produced_body_templates": 244,
+        "representation_functions_checked": 248,
+        "representation_functions_reused": 4857,
+        "reused_body_templates": 4857,
+        "shared_admission_reuses": 4857,
+        "shared_body_template_reuses": 4857
       }
     },
     {
       "block": 1,
-      "wall_ms": 1959.359784,
-      "cpu_seconds": 1.91,
+      "wall_ms": 2324.16954,
       "phases_ms": {
-        "analyze": 109.011933,
-        "codegen": 801.958815,
-        "ct": 59.325755,
-        "expand": 230.841196,
-        "lower": 2.856583,
-        "parse": 0.116636,
-        "types": 179.144376,
-        "verify": 59.719816
+        "analyze": 342.812139,
+        "codegen": 782.454055,
+        "ct": 60.456393,
+        "expand": 317.385677,
+        "lower": 8.454418,
+        "parse": 0.167646,
+        "types": 228.390198,
+        "verify": 83.045541
       },
       "backend_ms": {
-        "diagnostic": 37.607233,
-        "link_execution": 57.189387,
-        "link_key": 29.21964,
-        "machine_emit": 149.243766,
-        "machine": 351.345535,
-        "machine_preflight": 39.082776,
-        "machine_transform": 196.845303,
-        "object": 244.154888,
-        "other": 1.727774,
-        "partition": 72.890058,
-        "total": 794.134515
+        "diagnostic": 49.026391,
+        "link_execution": 31.78519,
+        "link_key": 33.452692,
+        "machine_emit": 164.49056,
+        "machine": 392.586683,
+        "machine_preflight": 41.366859,
+        "machine_transform": 222.750023,
+        "object": 170.491045,
+        "other": 1.407781,
+        "partition": 103.204567,
+        "total": 781.954349,
+        "transform_call_classes": 64.845779,
+        "transform_checked_add": 9.102955,
+        "transform_purity": 13.083108,
+        "transform_ranges": 129.996511,
+        "transform_scalar": 5.466282
       },
       "backend_work": {
-        "representation_functions_checked": 5105,
-        "representation_functions_reused": 0,
-        "shared_admission_reuses": 0,
-        "shared_body_template_reuses": 0
-      },
-      "raw_inference_work": {
-        "closure_bodies_checked": 5105,
-        "closure_bodies_reused": 0,
-        "dependency_bodies_checked": 5105,
-        "dependency_bodies_observed": 5105,
-        "dependency_bodies_reused": 0,
-        "full_runs": 1,
-        "name_bodies_observed": 5105,
-        "name_functions_checked": 5105,
-        "name_functions_reused": 0,
-        "replay_fallbacks": 0,
-        "sparse_batches": 0
-      },
-      "function_cache_decoding": {
-        "decode_attempts": 374,
-        "decoded_functions": 374,
-        "relabeled_decoded_functions": 0,
-        "reused_decoded_functions": 4727,
-        "reused_result_projections": 4727
-      },
-      "producer": {
-        "borrowed_restore_fallback_items": 0,
-        "borrowed_scalar_items": 5105,
-        "fused_distributed_items": 5105,
-        "fused_lifetime_items": 5105,
-        "fused_lifetime_nodes": 272908,
-        "fused_restore_items": 5105,
-        "fused_restore_nodes": 267189
+        "produced_body_templates": 244,
+        "representation_functions_checked": 248,
+        "representation_functions_reused": 4857,
+        "reused_body_templates": 4857,
+        "shared_admission_reuses": 4857,
+        "shared_body_template_reuses": 4857
       }
     }
   ],
   "changes": [
-    "Current immutable scalar SourceSite binding observes the complete AST once, replays original count/collect/bind fees and temporary peak only on full fit, reconstructs exact current addresses/ordinals; original ordered path remains on any refusal.",
-    "Cold Normalize and Restore borrow actual parser-owned AST through private views; changed expression names override only actual parser node addresses. Original current visitors and exact fee/failure fallback remain; real Core lowering and SourceMaps consume these views.",
-    "Normalized/restored views continue through existing warm syntax owners with full parser/environment binding; lazy physical restoration keeps current placement rebind and original SourceMap validation. No persisted Source proof or machine permission.",
-    "CT shape eligibility and actual hint lookup observation fuse into the existing complete no-rewrite visitor, including misses and inactive branches. Raw inference records current body visits to replace eligible later names/dependency walks at their original quota positions.",
-    "Same-request exact shared raw bodies reuse representation, callee admission/projections, Copy/ABI/metadata planning and direct-call machine emission. All actual callee IDs/current global facts/roles/headers/fees are bound; every unsupported or tight-budget case retains original checks."
+    "Same-request semantic body index retains the exact current verified root and requires exhaustive original executable body equality after optional hash selection; outer function ID/name and diagnostic spans only are rebound. Private class keys cannot be minted for detached functions. It now feeds all representation/admission/Copy/ABI/metadata/projection/emission consumers, with original fees and full fallback. Actual firstedit shared admission/template hits4857, representation248 checked/4857 reused.",
+    "Current-machine range analysis indexes immutable body transfers once and omits only unconditional Top operations. Every use still reads current return/argument/intrinsic facts, pays original complete fees and retains independent original-model preflight. Original walker remains reference oracle; budget-prefix/current-World/malformed-model parity tests added.",
+    "Per-transform nested timing now separates ranges, checked-add, scalar folding, call classes and purity. These overlap parent transform/preflight totals and must not be summed with parents."
   ],
   "gates": {
-    "out/runs/direct-firstedit-native-gates-45-1719acac5d7e": {
-      "publication": [
-        [
-          "ok",
-          "2",
-          "0",
-          "0"
+    "source": "de43085b1416970a00d19c2b8b11da93172612f5",
+    "path": "out/runs/direct-firstedit-native-gates-46-de43085b1416",
+    "checks": {
+      "publication": {
+        "exit_code": 0,
+        "valid": true,
+        "test_results": [
+          [
+            "ok",
+            "2",
+            "0",
+            "0"
+          ]
         ]
-      ],
-      "fmt": true,
-      "expand": [
-        [
-          "ok",
-          "137",
-          "0",
-          "0"
+      },
+      "fmt": {
+        "exit_code": 0,
+        "valid": true,
+        "test_results": []
+      },
+      "backend": {
+        "exit_code": 0,
+        "valid": true,
+        "test_results": [
+          [
+            "ok",
+            "372",
+            "0",
+            "0"
+          ]
         ]
-      ],
-      "release": true,
-      "strict": true,
-      "driver": [
-        [
-          "ok",
-          "235",
-          "0",
-          "0"
-        ]
-      ]
+      },
+      "release": {
+        "exit_code": 0,
+        "valid": true,
+        "test_results": [],
+        "sha256": "c01edb9b89b016aaf1d39524b825d4c0da5cdae3ebfa59dc380bec619964fb15"
+      },
+      "strict": {
+        "exit_code": 0,
+        "valid": true,
+        "test_results": []
+      }
     }
   },
-  "unchanged_checks_reused": "IR94 gates39, Analyze310/Verify657 gates36, API105 gates35. CT78/backend370 gates42 and Types121 gates43 passed; subsequent fixes limited to Source view continuation and truthful clone counter assertions. Independent A/V unchanged. Strict/Expand/Driver/nativepublication/fmt/release gates45 cover finalchain.",
-  "review": "Nonauthor Beauvoir reviewed root SourceSite bind; root reviewed Astra backend, Sagan Core and Aquinas Source/warm continuation patches. Exact quotas, all current input bindings and full O2 preserved.",
-  "raw": "out/runs/direct-firstedit-performance-direct-19",
-  "previous_formal_result": "https://github.com/zil-lang/zil/blob/a68ede06531f443776029607ee69f3196fd41d35/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
+  "unchanged_checks_reused": "Expand137/Driver235 gates45; Types121 gates43; CT78 gates42; IR94 gates39; Analyze310/Verify657 gates36; API105 gates35. Nativepublication2/strict/backend372/fmt/release gates46 cover this final chain. Independent A/V unchanged.",
+  "review": "Nonauthor Wegener reviewed all semantic body index consumers; root reviewed Astra range-plan semantics and independent reference tests. No permissions persisted, current full inputs/default limits/full O2 maintained.",
+  "raw": "out/runs/direct-firstedit-performance-direct-20",
+  "previous_formal_result": "https://github.com/zil-lang/zil/blob/75f459af5f01eef820f192081ad14d92b9140bf3/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
   "unresolved": "Actualmain defaultResourceLimit remains failure and excluded from ratios. Industrialmulti-crate/proc-macro/build.rs/minute/GB/currentnative ordinaryCLI coverage incomplete; no main merge; comprehensive Rust goal open.",
-  "diagnostic_only": {
-    "path": "out/runs/native-direct-profile-19/private-001.json",
-    "no_Rust_ratio": true,
-    "semantic_cache_publication": {
-      "serialized_functions": 5,
-      "reused_functions": 5100,
-      "serialized_function_plans": 248,
-      "reused_function_plans": 4857
-    },
-    "segments_ms": {
-      "analyze": 107.81,
-      "codegen": 672.207,
-      "ct": 50.7,
-      "discovery_receipt_publication": 3.615,
-      "expand_assembly": 0.014,
-      "expand_context": 3.889,
-      "expand_materialization": 79.168,
-      "expand_other": 27.125,
-      "expand_production": 120.903,
-      "expand_reuse": 3.27,
-      "function_cache_publication": 15.801,
-      "function_cache_read": 69.574,
-      "function_checkpoint": 0.019,
-      "lower": 4.121,
-      "owner_binding": 0.035,
-      "parse": 0.115,
-      "producer_checkpoint": 0.011,
-      "project_setup": 1.222,
-      "semantic_cache_read": 6.751,
-      "semantic_candidate_publication": 107.533,
-      "source_ingress": 77.444,
-      "types_cfg_execute": 0.081,
-      "types_cfg_reuse": 27.643,
-      "types_cfg_store": 0.031,
-      "types_context": 15.313,
-      "types_core_comparison": 0.0,
-      "types_graph_maintenance": 0.0,
-      "types_input_inventory": 1.931,
-      "types_other": 49.362,
-      "types_projection_context": 2.739,
-      "types_query_evaluation": 20.794,
-      "types_shape": 10.817,
-      "verify": 64.885
-    },
-    "unassigned_ms": 17.628
-  },
-  "failures_preserved": [
-    "gates42: duplicate Lifetime expression hook compile error; merged with original state handler.",
-    "gates43: two Source warm continuation regressions plus corresponding driver counter/position checks; restored lazy syntax consumers and original current SourceMap placement path.",
-    "gates44: new test diagnostics required private Stage Debug derive; corrected mechanically."
-  ],
-  "all_relevant_checks_passed": true,
-  "diagnostic_profile_disabled_control": {
-    "path": "out/runs/native-direct-profile-18/private-001.json",
-    "request_ms": 1889.705457,
-    "phase_timings_ns": {
-      "parse": 124207,
-      "expand": 248650323,
-      "types": 183296562,
-      "analyze": 147181448,
-      "verify": 237220930,
-      "lower": 3193091,
-      "codegen": 651968923,
-      "ct": 81653173
-    },
-    "scope": "Two extra standalone diagnostic requests with profiling off, same-length fixture path. Not formal Rust comparison; phase variation does not establish causal attribution to profiling or any single stage."
-  },
-  "compile_median_ms": {
-    "cold": {
-      "candidate": 3304.1972514999998,
-      "rust": 6123.770444
-    },
-    "unchanged": {
-      "candidate": 37.9295325,
-      "rust": 31.204237
-    },
-    "private-001": {
-      "candidate": 2003.289581,
-      "rust": 1289.083508
-    },
-    "recovery": {
-      "candidate": 1883.7836545,
-      "rust": 5795.309347
-    },
-    "error": {
-      "candidate": 1423.6683165,
-      "rust": 1674.1288104999999
-    }
-  },
-  "remaining_bottlenecks": "Still2.003/Rust1.289s. Actual current Typed absolute-position rebase splits body allocations, so shared_body_template_reuses/shared_admission_reuses bothZERO; representation5105fresh. Existing structural emissiontemplates4857 work, but newallocationidentity additions do not solve production restart. Formalblock0transform440ms; need currentsemanticbody classes before all relevant consumers plus actualtransform optimization. No causal attribution from block/profile variation."
+  "diagnostic_failure": "First profile20 invocation lacked LD_LIBRARY_PATH; CLI loader exit127 before compiler ran. Kept separately, not performance or product failure."
 }

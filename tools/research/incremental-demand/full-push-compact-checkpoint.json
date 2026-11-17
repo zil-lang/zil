@@ -1,28 +1,23 @@
 {
-  "schema": "zil.compiler-pain-continuation.v15",
+  "schema": "zil.compiler-pain-continuation.v16",
   "construction_branch": "research/full-push-native",
-  "compiled_source": "1719acac5d7ee4b8924d2cada8c9974bd9c5ec21",
-  "production_source": "1719acac5d7ee4b8924d2cada8c9974bd9c5ec21",
-  "binary_sha256": "3e84b56f45511180801f305ba606915d8623592b9c43cb83495325ff6061a1da",
-  "binary": "/workspace/zil-push-main/out/binaries/1719acac5d7ee4b8924d2cada8c9974bd9c5ec21/zil",
+  "compiled_source": "de43085b1416970a00d19c2b8b11da93172612f5",
+  "production_source": "de43085b1416970a00d19c2b8b11da93172612f5",
+  "binary_sha256": "c01edb9b89b016aaf1d39524b825d4c0da5cdae3ebfa59dc380bec619964fb15",
+  "binary": "/workspace/zil-push-main/out/binaries/de43085b1416970a00d19c2b8b11da93172612f5/zil",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "status": "window19 firstedit 2.003/Rust1.289s; Firstedit still slower than Rust; runtimequality=True. Final affectedgates45 complete; CT78/backend370 gates42 and Types121 gates43 reused. Duplicate hook and warm continuation failures retained. No main merge. Continued work in progress: root semantic body index, Astra transform chain; no main merge.",
+  "status": "window20 firstedit 2.120/Rust1.096s still slower; runtimequalityPASS; gates46 strict/backend372/publication2/fmt/release PASS. Semantic body sharing actual4857 hits fixed; machine reconstruction/Source-Core remain open.",
   "current_result": "tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
   "previous_native_result": "https://github.com/zil-lang/zil/blob/a68ede06531f443776029607ee69f3196fd41d35/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
   "previous_check_source": "54a0258ab9e081085254084e4b081309dc06eda9",
   "previous_check_result": "tools/research/incremental-demand/check-restart-scope-chain-20261116/summary.json",
   "work_in_this_commit": [
-    "Current immutable scalar SourceSite binding observes the complete AST once, replays original count/collect/bind fees and temporary peak only on full fit, reconstructs exact current addresses/ordinals; original ordered path remains on any refusal.",
-    "Cold Normalize and Restore borrow actual parser-owned AST through private views; changed expression names override only actual parser node addresses. Original current visitors and exact fee/failure fallback remain; real Core lowering and SourceMaps consume these views.",
-    "Normalized/restored views continue through existing warm syntax owners with full parser/environment binding; lazy physical restoration keeps current placement rebind and original SourceMap validation. No persisted Source proof or machine permission.",
-    "CT shape eligibility and actual hint lookup observation fuse into the existing complete no-rewrite visitor, including misses and inactive branches. Raw inference records current body visits to replace eligible later names/dependency walks at their original quota positions.",
-    "Same-request exact shared raw bodies reuse representation, callee admission/projections, Copy/ABI/metadata planning and direct-call machine emission. All actual callee IDs/current global facts/roles/headers/fees are bound; every unsupported or tight-budget case retains original checks."
+    "Same-request semantic body index retains the exact current verified root and requires exhaustive original executable body equality after optional hash selection; outer function ID/name and diagnostic spans only are rebound. Private class keys cannot be minted for detached functions. It now feeds all representation/admission/Copy/ABI/metadata/projection/emission consumers, with original fees and full fallback. Actual firstedit shared admission/template hits4857, representation248 checked/4857 reused.",
+    "Current-machine range analysis indexes immutable body transfers once and omits only unconditional Top operations. Every use still reads current return/argument/intrinsic facts, pays original complete fees and retains independent original-model preflight. Original walker remains reference oracle; budget-prefix/current-World/malformed-model parity tests added.",
+    "Per-transform nested timing now separates ranges, checked-add, scalar folding, call classes and purity. These overlap parent transform/preflight totals and must not be summed with parents."
   ],
   "invariants": "Default research off; current full Source/LIR bindings, original budgets, independent Verify, full default<O2>; main/goal/archive separate; no LLVM rebuild or evidence packing.",
   "sdk": "Installed SDK18/native-link reused, V32 pins unchanged; no assumption of historical local caches. Completed old user caches retired only after raw/results preserved; not product disk improvement.",
   "goal_status": "Full Rust/main/industrial gates OPEN; old7e/98fa/021997/54a/e402/f828 figures stay source-bound.",
-  "active_work": {
-    "root": "current semantic bodyclasses across actual emit consumers; nextbatchnotimplemented yet",
-    "astra": "6afbaeec-b134-8191-b506-565d359a3015 transform chain, owns build.rs and machine_* only"
-  }
+  "active_work": "Root investigating remaining machine reconstruction; Astra Plato read-only auditing per-module current-input-bound Source/Core recovery. No completion claim."
 }
