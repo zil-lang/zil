@@ -1698,7 +1698,15 @@ pub(super) fn shared_compound(
             other => Ok(other.is_copy_value()),
         }
     }
-    walk(module, ty, b)
+    let admitted = walk(module, ty, b)?;
+    if admitted {
+        // A raw shared tuple still owns physical pointer rows even when its
+        // logical class domain is zero. Schedule their CFG and grounding
+        // proof; these flags grant no Static source or Copy capability.
+        b.stored_compound_values = true;
+        b.stored_borrows = true;
+    }
+    Ok(admitted)
 }
 pub(super) fn affine_compound(
     module: &TypedModule,
@@ -3316,7 +3324,13 @@ fn capture_static_leaf(
     let declared = life
         .static_bindings
         .iter()
-        .any(|position| position.base == StorageBase::Capture(index) && position.path == path);
+        .any(|position| {
+            position.base == StorageBase::Capture(index)
+                && position.path.len() == path.len()
+                && position.path.iter().zip(path).all(|(contract, physical)| {
+                    matches!(contract, ContractProjection::Place(step) if step == physical)
+                })
+        });
     if declared && mode != StoredBorrowMode::SharedAddress {
         return Err(failure(
             "Static capture occurrence cannot seed an exclusive or description permission",
@@ -9707,7 +9721,7 @@ mod tests {
             classes: vec![],
             static_bindings: vec![StoragePosition {
                 base: StorageBase::Capture(0),
-                path: vec![PlaceProjection::Field(0)],
+                path: vec![ContractProjection::Place(PlaceProjection::Field(0))],
             }],
         };
         module.closures = vec![ClosureDefinition {
@@ -9768,6 +9782,7 @@ mod tests {
             &mut b,
         )
         .unwrap();
+        assert!(b.stored_compound_values && b.stored_borrows);
         let path = vec![PlaceProjection::Field(0)];
         assert_eq!(values[2].slots[&path], original);
         let extract = fixture::instruction(
@@ -9934,7 +9949,12 @@ mod tests {
                 .iter()
                 .all(|id| loans[*id].targets == permission.targets)
         );
-        module.closures[0]
+        for projection in [
+            ContractProjection::Capture(0),
+            ContractProjection::RetainedPort(0),
+            ContractProjection::RetainedClass(0),
+        ] {
+            module.closures[0]
             .storage_life
             .as_mut()
             .unwrap()
@@ -9952,7 +9972,10 @@ mod tests {
         outer.captures = vec![Type::Closure(ClosureId(0))];
         outer.storage_life.as_mut().unwrap().static_bindings = vec![StoragePosition {
             base: StorageBase::Capture(0),
-            path: vec![PlaceProjection::Field(0), PlaceProjection::Field(0)],
+            path: vec![
+                ContractProjection::Place(PlaceProjection::Field(0)),
+                ContractProjection::Place(PlaceProjection::Field(0)),
+            ],
         }];
         module.closures.push(outer);
         let mut nested = Value::default();
