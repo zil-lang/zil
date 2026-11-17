@@ -1,6 +1,6 @@
 {
-  "source": "15f858c4ce183fedee9eb3a46082b4ee74ee404b",
-  "binary_sha256": "0bc88ec30978d8f3869354fca77747372bfbd9a7828008111ed0fde8dacbb0ee",
+  "source": "5fe48bda9bfd4d541d26580f12e2681eb03a9659",
+  "binary_sha256": "4e472f597524e44766680ef1ff1f9617f18a5f870721f59e7208c496afe9f594",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
   "scope": "5105functions/102files; actualmain/candidate/Rust; fullO2/CGU16/compilerjobs1; SDK18/native-link reused, noLLVMrebuild; explicit default-off research flags and host-jemalloc.",
   "counts": {
@@ -13,20 +13,20 @@
   },
   "compile_median_ms": {
     "cold": {
-      "candidate": 3270.9233480000003,
-      "rust": 6154.448856
+      "candidate": 3281.4339035000003,
+      "rust": 6656.112501
     },
     "unchanged": {
-      "candidate": 109.76647,
-      "rust": 22.4452995
+      "candidate": 59.020408,
+      "rust": 18.882817
     },
     "private-001": {
-      "candidate": 1739.0862204999999,
-      "rust": 1445.6581715
+      "candidate": 1583.3301784999999,
+      "rust": 1222.0435630000002
     },
     "recovery": {
-      "candidate": 1989.996701,
-      "rust": 5898.5681325000005
+      "candidate": 1711.5902145,
+      "rust": 5842.9416615
     }
   },
   "ordinary_cli": {
@@ -35,41 +35,41 @@
     "blocks": 6,
     "first_edit_pairs_ms": [
       {
-        "candidate": 2268.5122,
-        "rust": 1729.099337
+        "candidate": 1907.637116,
+        "rust": 1028.682649
       },
       {
-        "candidate": 1232.588115,
-        "rust": 1246.904712
+        "candidate": 1620.783113,
+        "rust": 1080.683364
       },
       {
-        "candidate": 1832.118169,
-        "rust": 1384.304415
+        "candidate": 1627.558539,
+        "rust": 1162.432997
       },
       {
-        "candidate": 1736.391125,
-        "rust": 976.316553
+        "candidate": 1963.301214,
+        "rust": 1271.676706
       },
       {
-        "candidate": 1760.29613,
-        "rust": 976.391084
+        "candidate": 2198.837224,
+        "rust": 1524.925729
       },
       {
-        "candidate": 2104.304783,
-        "rust": 1229.218121
+        "candidate": 1216.397703,
+        "rust": 1540.190158
       }
     ],
     "candidate_faster_in_every_first_edit_pair": false,
     "median_ms": {
       "cold": {
-        "baseline": 528.606162,
-        "candidate": 2715.801643,
-        "rust": 6352.213339
+        "baseline": 513.7018395,
+        "candidate": 2655.6484325,
+        "rust": 6357.395417
       },
       "private-001": {
-        "baseline": 566.6687105000001,
-        "candidate": 1796.2071495,
-        "rust": 1238.0614165000002
+        "baseline": 642.723937,
+        "candidate": 1767.5978275000002,
+        "rust": 1217.0548515
       }
     },
     "clock": "ordinary CLI launch through process exit; default session capacity; no diagnostic flags",
@@ -81,8 +81,8 @@
     {
       "block": 0,
       "candidate": {
-        "logical_bytes": 29544957,
-        "physical_bytes": 30048256
+        "logical_bytes": 28703393,
+        "physical_bytes": 29204480
       },
       "rust": {
         "logical_bytes": 76553667,
@@ -92,12 +92,12 @@
     {
       "block": 1,
       "candidate": {
-        "logical_bytes": 29464411,
-        "physical_bytes": 29966336
+        "logical_bytes": 28668255,
+        "physical_bytes": 29171712
       },
       "rust": {
-        "logical_bytes": 61371067,
-        "physical_bytes": 61546496
+        "logical_bytes": 61371066,
+        "physical_bytes": 61550592
       }
     }
   ],
@@ -105,153 +105,157 @@
     {
       "block": 0,
       "candidate": {
-        "logical_bytes": 27984222,
-        "physical_bytes": 28459008
+        "logical_bytes": 27155997,
+        "physical_bytes": 27631616
       },
       "rust": {
-        "logical_bytes": 60994590,
+        "logical_bytes": 60994484,
         "physical_bytes": 61153280
       }
     },
     {
       "block": 1,
       "candidate": {
-        "logical_bytes": 28048151,
-        "physical_bytes": 28524544
+        "logical_bytes": 27151503,
+        "physical_bytes": 27627520
       },
       "rust": {
-        "logical_bytes": 60994590,
+        "logical_bytes": 60994484,
         "physical_bytes": 61153280
       }
     },
     {
       "block": 2,
       "candidate": {
-        "logical_bytes": 27989070,
-        "physical_bytes": 28467200
+        "logical_bytes": 27140943,
+        "physical_bytes": 27623424
       },
       "rust": {
-        "logical_bytes": 60994589,
+        "logical_bytes": 60994485,
         "physical_bytes": 61153280
       }
     },
     {
       "block": 3,
       "candidate": {
-        "logical_bytes": 28011977,
-        "physical_bytes": 28487680
+        "logical_bytes": 27179676,
+        "physical_bytes": 27660288
       },
       "rust": {
-        "logical_bytes": 60994589,
+        "logical_bytes": 60994485,
         "physical_bytes": 61153280
       }
     },
     {
       "block": 4,
       "candidate": {
-        "logical_bytes": 28000290,
-        "physical_bytes": 28475392
+        "logical_bytes": 27153524,
+        "physical_bytes": 27627520
       },
       "rust": {
-        "logical_bytes": 60994590,
+        "logical_bytes": 60994484,
         "physical_bytes": 61153280
       }
     },
     {
       "block": 5,
       "candidate": {
-        "logical_bytes": 28012140,
-        "physical_bytes": 28487680
+        "logical_bytes": 27142248,
+        "physical_bytes": 27615232
       },
       "rust": {
-        "logical_bytes": 60994590,
-        "physical_bytes": 61153280
+        "logical_bytes": 60994485,
+        "physical_bytes": 61149184
       }
     }
   ],
   "runtime_ms": {
     "5105/cold": {
-      "candidate": 31.217326999999997,
-      "rust": 190.63201700000002
+      "candidate": 34.3607545,
+      "rust": 203.085214
     },
     "5105/unchanged": {
-      "candidate": 32.212877500000005,
-      "rust": 193.475593
+      "candidate": 51.23949,
+      "rust": 202.23254450000002
     },
     "5105/private-001": {
-      "candidate": 33.448847,
-      "rust": 196.77203150000003
+      "candidate": 36.881517,
+      "rust": 215.27065449999998
     },
     "5105/recovery": {
-      "candidate": 32.085559,
-      "rust": 185.1607475
+      "candidate": 32.413520000000005,
+      "rust": 186.5351395
     }
   },
   "changes": [
-    "One immutable checked raw-file owner supplies all bounded record and machine-product views; restore does not copy every blob or allocate unused wire ownership.",
-    "Original bounded function decoder consumes borrowed fragments with the same remaining aggregate node limit and exact EOF.",
-    "Pending cache publication retains immutable byte segments, hashes and writes the identical wire stream through bounded buffers; removes full payload concatenation and repeated growth/copies. Same complete payload comparisons, byte cap, file guards and manifest-last transaction."
+    "Lexer uses ASCII XID classification, maximal-munch byte dispatch and one UTF-8 iterator per scan; exact Unicode17/token/trivia/diagnostic budgets retained.",
+    "Expand recovery validates current source/context/placement then retains grouped stage totals instead of per-function fee maps, recipes and header wrappers; original separate ledgers and full fallback preserved.",
+    "Types dictionary rows share real bounded decoded owners and defer outer identity/encoding wrappers; publication retains original logical byte/node charges and exact wire bytes.",
+    "Types producer consumes actual current inference body projections and rebinds current signature dependencies rather than visiting the same body again.",
+    "Semantic publication consumes current canonical owner and encoding in one binding operation.",
+    "Frontend manifest factors CT receipt source text from exact checksummed stored frontend bytes. Reconstructs original CT bytes before unchanged admission; original logical aggregate cap remains. No new full cache or persistent Verify authority."
   ],
   "ordinary_cli_phase_median_ms": {
-    "note": "Each phase median computed separately; nested backend fields are not additive and these are not paired Rust phase equivalents.",
+    "note": "Separate medians, nested backend fields are not additive or direct Rust equivalents. parse excludes source ingress parser work.",
     "phases": {
-      "parse": 0.1617955,
-      "expand": 113.25846250000001,
-      "types": 195.14153599999997,
-      "analyze": 36.015012,
-      "verify": 74.024711,
-      "lower": 4.958494,
-      "codegen": 635.172373,
-      "ct": 52.383628
+      "parse": 0.124844,
+      "expand": 109.27193399999999,
+      "types": 162.843966,
+      "analyze": 39.563131,
+      "verify": 74.0924435,
+      "lower": 3.2522865,
+      "codegen": 648.4425085,
+      "ct": 56.535957999999994
     },
     "backend": {
-      "machine_ns": 432.0990155,
-      "machine_emit_ns": 237.71356,
-      "machine_transform_ns": 183.7387095,
-      "transform_ranges_ns": 12.860428,
-      "transform_checked_add_ns": 1.2127949999999998,
-      "transform_scalar_ns": 1.4565195,
-      "transform_call_classes_ns": 167.9396845,
-      "transform_purity_ns": 0.40372600000000003,
-      "machine_preflight_ns": 36.426696,
-      "partition_ns": 11.2067005,
-      "diagnostic_ns": 8.3444635,
-      "object_ns": 118.7285785,
-      "link_key_ns": 27.475021,
-      "link_execution_ns": 23.1209575,
-      "other_ns": 14.7070955,
-      "total_ns": 634.4020575
+      "machine_ns": 430.461706,
+      "machine_emit_ns": 231.00149,
+      "machine_transform_ns": 177.416123,
+      "transform_ranges_ns": 12.676964,
+      "transform_checked_add_ns": 1.3369135,
+      "transform_scalar_ns": 1.2658655,
+      "transform_call_classes_ns": 161.1348505,
+      "transform_purity_ns": 0.419745,
+      "machine_preflight_ns": 33.834183499999995,
+      "partition_ns": 11.4447305,
+      "diagnostic_ns": 8.7108235,
+      "object_ns": 124.7445605,
+      "link_key_ns": 30.385821999999997,
+      "link_execution_ns": 25.309569000000003,
+      "other_ns": 16.552737,
+      "total_ns": 647.4991405
     },
-    "process_minus_report": 122.06111799999996
-  },
-  "diagnostic_only": {
-    "source": "15f858c4ce183fedee9eb3a46082b4ee74ee404b",
-    "raw": "out/runs/native-direct-syscalls-31",
-    "method": "Fresh own-child cold -> exit -> private001, strace seccomp-bpf fsync/fdatasync/madvise only; profile-compilation enabled. Not formal timing/ratio.",
-    "syscall_count": {
-      "madvise": 68,
-      "fsync": 13
-    },
-    "syscall_ms": {
-      "madvise": 13.291,
-      "fsync": 12.335999999999997
-    },
-    "finding": "This sample did not reproduce the hundreds-of-ms spikes. No fsync/allocator policy change justified by these small observed costs."
+    "process_minus_report": 126.3968645000001
   },
   "remaining": [
     "OrdinaryCLI firstedit still fails target. Do not claim success based on cache reductions or local counters.",
-    "Same work counters still exhibit hundreds-of-ms phase/process-exit variation. Exact cause is unproven; do not attribute it to fsync/purge from a fast diagnostic sample, or infer regression causality from cross-window clocks.",
     "All conclusions limited to measured5105function102file directrestartfirstedit chain; original budgets/Verify/fullO2 remain.",
-    "Actualmain originalResourceLimit, industrial multicrate/procmacro/build.rs/minute-scale and comprehensive compile goal remain unproven."
+    "Actualmain originalResourceLimit, industrial multicrate/procmacro/build.rs/minute-scale and comprehensive compile goal remain unproven.",
+    "The first-edit goal is still unmet: new CLI1.768s/Rust1.217s versus previous1.796s/1.238s; this window does not establish a meaningful whole-chain improvement.",
+    "Machine generation/transforms still reconstruct the whole logical inventory before object reuse; this batch does not claim a completed Rust-style whole-machine dependency-first path."
   ],
-  "schema": "zil.compiler-current-native-continuation.v8",
+  "schema": "zil.compiler-incremental-continuation.v26",
   "branch": "research/full-push-native",
-  "production_source": "15f858c4ce183fedee9eb3a46082b4ee74ee404b",
-  "result_commit": "b51a365c8ee012ec066747fc9c8c622b01361273",
-  "goal_read_sha": "27c0980b0ab967466ea7763d8b085de88f64c778",
-  "status": "NoGo: first-edit target unmet; ordinaryCLI C1796.207/Rust1238.061ms; all6pairsfaster=False; comprehensive goal remains open.",
+  "production_source": "5fe48bda9bfd4d541d26580f12e2681eb03a9659",
+  "result_commit": "3c14f3bdc",
+  "goal_read_sha": "3634ff9649abde9af9627480f747088fcfd59bff",
+  "status": "NoGo: first-edit target unmet; ordinaryCLI C1767.598/Rust1217.055ms; all6pairsfaster=False; comprehensive goal remains open.",
   "gates": {
     "publication": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--test",
+        "retained_native_publication",
+        "--",
+        "--ignored"
+      ],
       "exit_code": 0,
       "valid": true,
       "test_results": [
@@ -264,23 +268,126 @@
       ]
     },
     "fmt": {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
       "exit_code": 0,
       "valid": true,
       "test_results": []
     },
-    "ir": {
+    "expand": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-expand",
+        "--lib"
+      ],
       "exit_code": 0,
       "valid": true,
       "test_results": [
         [
           "ok",
-          "95",
+          "153",
+          "0",
+          "0"
+        ]
+      ]
+    },
+    "syntax": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-syntax"
+      ],
+      "exit_code": 0,
+      "valid": true,
+      "test_results": [
+        [
+          "ok",
+          "38",
+          "0",
+          "0"
+        ],
+        [
+          "ok",
+          "11",
+          "0",
+          "0"
+        ],
+        [
+          "ok",
+          "4",
+          "0",
+          "0"
+        ],
+        [
+          "ok",
+          "2",
+          "0",
+          "0"
+        ],
+        [
+          "ok",
+          "5",
+          "0",
+          "0"
+        ],
+        [
+          "ok",
+          "4",
+          "0",
+          "0"
+        ],
+        [
+          "ok",
+          "2",
+          "0",
+          "0"
+        ],
+        [
+          "ok",
+          "11",
+          "0",
+          "0"
+        ],
+        [
+          "ok",
+          "2",
+          "0",
+          "0"
+        ],
+        [
+          "ok",
+          "0",
           "0",
           "0"
         ]
       ]
     },
     "backend": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--include-ignored"
+      ],
       "exit_code": 0,
       "valid": true,
       "test_results": [
@@ -293,22 +400,80 @@
       ]
     },
     "release": {
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--release",
+        "-p",
+        "zil-cli",
+        "--features",
+        "native-products,host-jemalloc"
+      ],
       "exit_code": 0,
       "valid": true,
       "test_results": []
     },
-    "strict": {
-      "exit_code": 0,
-      "valid": true,
-      "test_results": []
-    },
-    "driver": {
+    "types": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-types",
+        "--lib"
+      ],
       "exit_code": 0,
       "valid": true,
       "test_results": [
         [
           "ok",
-          "265",
+          "136",
+          "0",
+          "0"
+        ]
+      ]
+    },
+    "strict": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-expand",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "valid": true,
+      "test_results": [],
+      "unaffected_targets_receipt": "out/runs/restart-frontend-gates-32-77da85578ad8/strict.json"
+    },
+    "driver": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--features",
+        "native-products",
+        "--lib",
+        "--",
+        "--include-ignored"
+      ],
+      "exit_code": 0,
+      "valid": true,
+      "test_results": [
+        [
+          "ok",
+          "267",
           "0",
           "0"
         ]
@@ -316,10 +481,124 @@
     }
   },
   "source_review": {
-    "verdict": "PASS",
-    "source": "15f858c4ce183fedee9eb3a46082b4ee74ee404b"
+    "source": "5fe48bda9bfd4d541d26580f12e2681eb03a9659",
+    "reviewer": "Astra (Huygens), independent read-only source review",
+    "result": "PASS",
+    "scope": "Full input/Expand/Types/frontend transport diff from b51a365c8; final one-line fixture f32 -> f_32 change checked; production identical to 77da85578.",
+    "tests_by_reviewer": false,
+    "performance_claim": false
   },
   "result_path": "tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
   "history": "Source branch window26–31.json retain failures and exact source bindings. No evidence archive or LLVM rebuild.",
-  "invariants": "Independent current Verify, complete bindings, original budgets and full O2; research switches default off; main/goal/archive remain separate."
+  "invariants": "Independent current Verify, complete bindings, original budgets and full O2; research switches default off; main/goal/archive remain separate.",
+  "paired_phase_diagnostic": {
+    "source": "5fe48bda9bfd4d541d26580f12e2681eb03a9659",
+    "diagnostic_only": true,
+    "formal_ratio": false,
+    "process_wall_ms": {
+      "candidate": 1894.413771,
+      "rust": 1185.446902
+    },
+    "source_ingress": {
+      "source_files_read": 102,
+      "source_bytes_read": 843875,
+      "source_clone_bytes": 849518,
+      "parser_executions": 102,
+      "parser_reuses": 0,
+      "semantic_load_attempts": 0,
+      "semantic_restored_functions": 0,
+      "resident_routes": 0,
+      "resident_frontend_hits": 0,
+      "discovery_receipt_probes": 1,
+      "discovery_receipt_complete": 0,
+      "source_read_ns": 1669597,
+      "discovery_receipt_ns": 4353467,
+      "semantic_probe_ns": 0,
+      "parser_ns": 58667072
+    },
+    "phase_timings_ns": {
+      "parse": 121074,
+      "expand": 106366789,
+      "types": 79872896,
+      "analyze": 30049666,
+      "verify": 56283255,
+      "lower": 4654334,
+      "codegen": 1033034644,
+      "ct": 81363172
+    },
+    "exclusive_costs": {
+      "total_ns": 1744168955,
+      "classified_ns": 1648547056,
+      "unassigned_ns": 95621899,
+      "overlap_ns": 0,
+      "overlap_errors_ns": {},
+      "segments_ns": {
+        "analyze": 30049666,
+        "codegen": 1033034644,
+        "ct": 81363172,
+        "discovery_receipt_publication": 4584127,
+        "expand_assembly": 1430458,
+        "expand_context": 3001162,
+        "expand_materialization": 19516463,
+        "expand_other": 69769469,
+        "expand_production": 12553281,
+        "expand_reuse": 95956,
+        "frontend_product_publication": 13023288,
+        "frontend_product_read": 16503213,
+        "function_cache_publication": 12495852,
+        "function_cache_read": 45385310,
+        "function_checkpoint": 120892,
+        "lower": 4654334,
+        "owner_binding": 19740,
+        "parse": 121074,
+        "producer_checkpoint": 31818,
+        "project_setup": 1252085,
+        "semantic_cache_read": 11063733,
+        "semantic_candidate_publication": 86744074,
+        "semantic_publication_wait": 3756,
+        "source_ingress": 65573338,
+        "types_cfg_execute": 74962,
+        "types_cfg_reuse": 25942165,
+        "types_cfg_store": 28143,
+        "types_context": 6136808,
+        "types_core_comparison": 0,
+        "types_graph_maintenance": 0,
+        "types_input_inventory": 1657289,
+        "types_other": 38133434,
+        "types_projection_context": 2591893,
+        "types_query_evaluation": 4004319,
+        "types_shape": 1303883,
+        "verify": 56283255
+      }
+    },
+    "raw": "out/runs/paired-firstedit-phases-32",
+    "rust_incremental_explicit_and_argv_verified": true,
+    "rust_pass_ms": {
+      "parse_crate": 0.516853,
+      "macro_expand_crate": 95.102043,
+      "resolve_crate": 58.374601,
+      "type_check_crate": 22.08307,
+      "MIR_borrow_checking": 26.043874000000002,
+      "misc_checking_3": 49.161228,
+      "codegen_crate": 78.750547,
+      "finish_ongoing_codegen": 380.49830499999996,
+      "link_crate": 44.638563999999995,
+      "serialize_dep_graph": 61.476755000000004,
+      "LLVM_passes": 34.019869,
+      "LLVM_thinlto": 457.216998,
+      "total": 1108.269718
+    },
+    "rust_note": "Rust parse_crate is the root only; module parsing occurs in macro expansion. Nested/overlapping LLVM fields cannot be added to codegen/finish. A single diagnostic run does not replace six-block CLI results."
+  },
+  "rust_reference": {
+    "repository": "https://github.com/rust-lang/rust",
+    "commit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+    "paths": [
+      "compiler/rustc_lexer/src/lib.rs",
+      "compiler/rustc_interface/src/passes.rs",
+      "compiler/rustc_query_impl/src/incremental.rs",
+      "compiler/rustc_middle/src/query/on_disk_cache.rs"
+    ],
+    "lesson": "Direct lexical dispatch and current-input-bound demand recovery/shared raw owners; Rust frontend parsing is not wholly skipped on edited crates. No wholesale transfer of persistent query authority into ZIL Verify."
+  }
 }
