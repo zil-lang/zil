@@ -834,8 +834,6 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         | InstructionKind::DropClosure { local: _ }
         | InstructionKind::Unsupported(_) => Vec::new(),
         InstructionKind::CallDynSlot { callee: value0, interface: _, slot: _, arguments: inputs0 }
-        | InstructionKind::SyncI32 { op: _, address: value0, value: inputs0, ordering: _ }
-        | InstructionKind::SyncInteger { op: _, address: value0, value: inputs0, ordering: _ }
         | InstructionKind::CallIndirect { callee: value0, arguments: inputs0 }
         | InstructionKind::CallClosureBorrowed { callee: value0, kind: _, arguments: inputs0 }
         | InstructionKind::CallClosureOnce { callee: value0, arguments: inputs0 }
@@ -875,6 +873,9 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         InstructionKind::SyncI32CompareExchange { address: value0, expected: value1, desired: value2, success: _, failure: _ }
         | InstructionKind::SyncIntegerCompareExchange { address: value0, expected: value1, desired: value2, success: _, failure: _ }
         | InstructionKind::UpdateIndex { aggregate: value0, index: value1, value: value2 } => vec![*value0, *value1, *value2],
+        InstructionKind::SyncI32 { op: _, address, value, ordering: _ }
+        | InstructionKind::SyncInteger { op: _, address, value, ordering: _ } =>
+            std::iter::once(*address).chain(value.iter().copied()).collect(),
     }
 }
 
@@ -892,7 +893,38 @@ pub(super) fn reserve_emission(
         })
     })?;
     for f in lir.functions {
+        // Array ownership flags are expanded per element at entry and at
+        // each initialization/transfer/drop site, even when data is copied by
+        // one aggregate load/store. Reuse the complete multiplied machine
+        // bound; visiting the compact Array type alone cannot pay this work.
+        pay(work, f.locals.len())?;
+        let mut array_expansion = Vec::with_capacity(f.locals.len());
+        for local in &f.locals {
+            let owning_array = matches!(&local.ty, Type::Array { element, .. }
+                if matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_)));
+            let bound = if owning_array {
+                let mut remaining = limits.clone();
+                remaining.max_analysis_steps = *work;
+                let mut budget = drop_plan::Budget::new(&remaining);
+                let bound = budget.store_bound(&local.ty, 0);
+                pay(work, budget.spent())?;
+                bound?
+            } else { 0 };
+            pay(work, bound)?; // actual entry allocation/initial flags
+            array_expansion.push(bound);
+        }
         for i in f.blocks.iter().flat_map(|b| &b.instructions) {
+            let whole_array_local = match i.kind {
+                InstructionKind::Store { local, .. }
+                | InstructionKind::TakeLocal { local }
+                | InstructionKind::StorageLive(local)
+                | InstructionKind::StorageDead(local)
+                | InstructionKind::DropOwnedArray { local } => Some(local),
+                _ => None,
+            };
+            if let Some(local) = whole_array_local {
+                pay(work, array_expansion[local.0 as usize])?;
+            }
             let count = match &i.kind {
                 InstructionKind::Call { arguments, .. }
                 | InstructionKind::SuspendCall { arguments, .. }
@@ -1227,6 +1259,44 @@ impl FunctionEmitter<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn owning_array_emission_pays_length_at_every_transfer_site() {
+        // A physical budget probe, not an independently verified program.
+        fn measure(length: u32, stores: usize, allowance: usize) -> CompileResult<usize> {
+            let mut module = fixture::module();
+            module.functions.truncate(1);
+            let f = &mut module.functions[0];
+            f.parameters.clear();
+            f.locals.truncate(1);
+            let ty = Type::Array { element: Box::new(Type::Closure(ClosureId(0))), length };
+            f.locals[0].ty = ty.clone();
+            f.values = vec![ty];
+            f.blocks.truncate(1);
+            f.blocks[0].instructions = (0..stores).map(|_| fixture::instruction(None,
+                InstructionKind::Store { local: LocalId(0), value: ValueId(0) })).collect();
+            f.blocks[0].terminator = Terminator::Return(None);
+            let view = LirView {
+                schema_version: module.schema_version, module_id: module.module_id,
+                verified_fingerprint: zil_base::Fingerprint::ZERO, target: &module.target,
+                functions: &module.functions, closures: &[], resources: &[],
+                layouts: std::borrow::Cow::Borrowed(&[]),
+            };
+            let mut work = allowance;
+            reserve_emission(&view, &Limits::default(), &BTreeMap::new(), &mut work)?;
+            Ok(allowance - work)
+        }
+        let entry_growth = measure(5, 0, 1_000_000).unwrap() - measure(1, 0, 1_000_000).unwrap();
+        let repeated_growth = measure(5, 3, 1_000_000).unwrap() - measure(1, 3, 1_000_000).unwrap();
+        assert!(entry_growth > 0);
+        assert!(repeated_growth >= 4 * entry_growth,
+            "three transfers must pay their own length expansion, in addition to entry");
+        let exact = measure(5, 3, 1_000_000).unwrap();
+        assert_eq!(measure(5, 3, exact).unwrap(), exact);
+        assert_eq!(measure(5, 3, exact - 1).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit);
+        assert_eq!(measure(5, 3, exact).unwrap(), exact);
+    }
 
     #[test]
     fn borrowed_enum_representation_is_a_thin_pointer_slice_only() {
@@ -1612,7 +1682,7 @@ mod tests {
             type_work(&output, &mut types, &limits, 0).unwrap();
             // One function, one block and the existing fixed event reservation,
             // plus the full actual input parent and complete result type.
-            let needed = (usize::MAX - types) + 37;
+            let needed = (usize::MAX - types) + 37 + view.functions[0].locals.len();
             let mut exact = needed;
             reserve_emission(&view, &limits, &BTreeMap::new(), &mut exact).unwrap();
             assert_eq!(exact, 0);

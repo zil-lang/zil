@@ -246,7 +246,7 @@ impl<'a> Budget<'a> {
             _ => 1,
         })
     }
-    fn store_bound(&mut self, ty: &Type, depth: usize) -> CompileResult<usize> {
+    pub(super) fn store_bound(&mut self, ty: &Type, depth: usize) -> CompileResult<usize> {
         self.pay(depth, 1)?;
         let weight = self.machine_weight(ty, depth)?;
         let unit = 16usize
