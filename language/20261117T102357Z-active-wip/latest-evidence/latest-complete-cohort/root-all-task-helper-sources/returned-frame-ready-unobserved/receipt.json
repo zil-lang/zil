@@ -1,0 +1,19 @@
+{
+  "case": "returned-frame-ready-unobserved",
+  "source_sha256": "7e177a3a98959b3959f97aeb88843b6a90cecd355dfe87183f2938345ffbe586",
+  "exit_code": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/returned-frame-ready-unobserved/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/returned-frame-ready-unobserved/phases",
+    "--json"
+  ]
+}

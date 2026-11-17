@@ -1,0 +1,16 @@
+{
+  "status": "Pass",
+  "exit_code": 0,
+  "git_status": "",
+  "source_commit": "16e8788cab34c19fad8adc83b3d565eac27ad5b9",
+  "cli_sha256": "e4a1450eb3a0348bdece18e8e14b13ccb175b932badf0203d3847477c0f920dd",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "zil-cli"
+  ],
+  "build_log": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending/build.log",
+  "completed_at_utc": "2026-11-17T07:29:22.033410+00:00"
+}

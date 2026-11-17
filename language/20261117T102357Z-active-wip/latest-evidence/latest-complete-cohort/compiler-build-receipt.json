@@ -1,0 +1,16 @@
+{
+  "status": "Pass",
+  "exit_code": 0,
+  "git_status": "",
+  "source_commit": "6e0606b929480fbdab9585474509a663528edac3",
+  "cli_sha256": "e3c8e8abda797295f5831427e15709efff65786c5bbb89bfcb426140e36951f1",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "zil-cli"
+  ],
+  "build_log": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/build.log",
+  "completed_at_utc": "2026-11-17T09:34:46.422225+00:00"
+}

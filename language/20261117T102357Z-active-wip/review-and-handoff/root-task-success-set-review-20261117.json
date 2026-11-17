@@ -1,0 +1,169 @@
+{
+  "scope": "Original Task positive Source success-set comparison only; no native or Alpha acceptance claim",
+  "baselines": [
+    {
+      "candidate": "73c74d0c1965b531c5b242cae96fafc75e38920d",
+      "cli_sha256": "a60dfbe18ccf8a77b14473b8d85a27dd8651e17c94b3f6e06cc9644d7ad1a972",
+      "work_profile": "standard",
+      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-checked-cleanup-routes-exact-return-ports-and-owned-products/original-task-positive-fixtures/receipt.json",
+      "passed": [
+        "closed-task-fnonce",
+        "direct-default-local",
+        "adapter-default-local",
+        "returned-task-result-fnonce",
+        "returned-second-task-fnonce",
+        "equal-shared-task-classes",
+        "static-callable-input"
+      ]
+    },
+    {
+      "candidate": "01636b4512ae01f1a21062554607adc5726bdeea",
+      "cli_sha256": "317078ec91973ba52a78c965414067d07321e97a5b80799afe32165554377990",
+      "work_profile": "standard",
+      "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-projected-receivers-and-closed-task-source-cohort/original-task-positive-fixtures/receipt.json",
+      "passed": [
+        "child-frame-cleanup",
+        "closed-task-fnonce",
+        "direct-default-local",
+        "adapter-default-local",
+        "returned-task-result-fnonce",
+        "returned-second-task-fnonce",
+        "static-callable-input"
+      ]
+    }
+  ],
+  "unchanged_source_count": 16,
+  "regressions": [
+    "equal-shared-task-classes"
+  ],
+  "new_successes": [
+    "child-frame-cleanup"
+  ],
+  "required_preserved_successes": [
+    "adapter-default-local",
+    "child-frame-cleanup",
+    "closed-task-fnonce",
+    "direct-default-local",
+    "equal-shared-task-classes",
+    "returned-second-task-fnonce",
+    "returned-task-result-fnonce",
+    "static-callable-input"
+  ],
+  "alpha_acceptance_claim": false,
+  "macro_execution_decision": {
+    "keep_architecture": true,
+    "chain_owners": {
+      "task_lifecycle": "/root",
+      "nested_static_closure_return": "/root/types_scale_complete"
+    },
+    "delivery_unit": "unchanged original Source through independent Verify and both native backends, O0/O2, original failure cleanup observers",
+    "in_progress_chain_limit": 2,
+    "incomplete_batch_per_chain": 1,
+    "public_fact_migration_limit": 1,
+    "diagnostic_only_candidate_per_hypothesis_limit": 1,
+    "review_rounds": "one review and one revision; unresolved semantic dispute goes to root public-contract decision",
+    "candidate_promotion": "preserve prior accepted case set; no trading new success for regression",
+    "ready_semantics": "recoverable source checkpoint, not feature acceptance",
+    "current_source_head": "edb263ae6d1e6116c50b276f7946dbe31b02a27d",
+    "last_complete_candidate": "01636b4512ae01f1a21062554607adc5726bdeea",
+    "implementation_writers": {
+      "analyze_pending_sum": "/root/task_alpha_complete",
+      "verify_task_lifecycle": "/root/original_borrowed_call_completion",
+      "types_static_source": "/root/types_scale_complete",
+      "git_build_test_archive_goal": "/root/analyze_dynamic_source_atoms"
+    },
+    "stopped_work": [
+      "new phase deliveries",
+      "unrelated generalization and performance work",
+      "whole-project rewrite",
+      "diagnostic-only repeat builds from known logs"
+    ]
+  },
+  "original_native_gap_review": {
+    "status": "Plan applicability reviewed; no execution claim",
+    "observer": "tests/language-readiness/task-aggregate-results/frame-observer.c",
+    "observer_sha256": "faad11be691182cd155d5c5ebe0e58c0409e9b50721f8dc2638780d8581b2f06",
+    "cases": [
+      {
+        "case": "returned-task-result-fnonce",
+        "source_sha256": "481c3efa48432814220cfe69beefe3ac4f02402fd5df7e93dcbf6e231dfba240",
+        "normal": {
+          "expected_exit": 0,
+          "expected_stdout": "",
+          "expected_stderr": "",
+          "expected_frames": 1,
+          "expected_quiet": 0
+        },
+        "failure_1": {
+          "env": "ZIL_TASK_AGGREGATE_FAIL_AT=1",
+          "expected_exit": 1,
+          "expected_stdout": "",
+          "expected_stderr": "",
+          "expected_allocations": 0,
+          "expected_releases": 0
+        }
+      },
+      {
+        "case": "static-callable-input",
+        "source_sha256": "ce376838b851f4ac4529f189ba3254a225dfbafa8d9d357d472d62662f5309d2",
+        "normal": {
+          "expected_exit": 0,
+          "expected_stdout": "",
+          "expected_stderr": "",
+          "expected_frames": 1,
+          "expected_quiet": 0
+        },
+        "failure_1": {
+          "env": "ZIL_TASK_AGGREGATE_FAIL_AT=1",
+          "expected_exit": 1,
+          "expected_stdout": "",
+          "expected_stderr": "",
+          "expected_allocations": 0,
+          "expected_releases": 0
+        }
+      }
+    ],
+    "required_matrix": "clang/llvm-api × O0/O2 × normal/failure1; actual backend and no fallback, independent Verify required"
+  },
+  "latest_task_candidate_review": {
+    "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+    "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+    "source_verified": 8,
+    "source_selected": 16,
+    "passed_cases": [
+      "adapter-default-local",
+      "child-frame-cleanup",
+      "closed-task-fnonce",
+      "direct-default-local",
+      "equal-shared-task-classes",
+      "returned-second-task-fnonce",
+      "returned-task-result-fnonce",
+      "static-callable-input"
+    ],
+    "prior_success_set_preserved": true,
+    "sdk_passed": 25,
+    "sdk_failed": 11,
+    "sdk_ignored": 0,
+    "sdk_log": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/task-owner-complete/test.log",
+    "native_suites": [
+      {
+        "suite": "original-simple-task-native",
+        "builds": 8,
+        "builds_passed": 8,
+        "executions": 16,
+        "executions_passed": 16,
+        "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/receipt.json"
+      },
+      {
+        "suite": "existing-direct-cleanup-native",
+        "builds": 8,
+        "builds_passed": 8,
+        "executions": 20,
+        "executions_passed": 20,
+        "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/existing-direct-cleanup-native/receipt.json"
+      }
+    ],
+    "remaining": "Eight original positive Sources all currently fail independent Verify; full Alpha remains open",
+    "alpha_acceptance_claim": false
+  }
+}

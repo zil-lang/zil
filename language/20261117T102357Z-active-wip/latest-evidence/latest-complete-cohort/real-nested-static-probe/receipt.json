@@ -1,0 +1,74 @@
+{
+  "candidate": "6e0606b929480fbdab9585474509a663528edac3",
+  "cli_sha256": "e3c8e8abda797295f5831427e15709efff65786c5bbb89bfcb426140e36951f1",
+  "source_sha256": "528d69dc979d081fe8ad35cc30d9b4fba34e522011af0fd4bf22f78244c83544",
+  "exit_code": 3,
+  "report": {
+    "status": "Unsupported",
+    "phase": "types",
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "environment lending requires a non-consuming call on an actual stored closure position",
+        "span": {
+          "file": 0,
+          "start": 135,
+          "end": 145
+        },
+        "notes": []
+      }
+    ],
+    "artifacts": {
+      "core": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/real-nested-static-probe/phases/core.txt",
+      "ct-core": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/real-nested-static-probe/phases/ct-core.txt",
+      "source-map": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/real-nested-static-probe/phases/source-map.txt",
+      "syntax": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/real-nested-static-probe/phases/syntax.txt"
+    },
+    "input_fingerprint": "02dfe42ca1f89851df929b7489bed4ac98f4de6d628f5553c360e76fa2067ca9",
+    "seconds": 0.067279852,
+    "cache_hit": false,
+    "commands": [],
+    "native_codegen": null,
+    "disk_cache": "disabled",
+    "query_events": [
+      {
+        "phase": "parse",
+        "disposition": "executed"
+      },
+      {
+        "phase": "expand",
+        "disposition": "executed"
+      },
+      {
+        "phase": "ct",
+        "disposition": "executed"
+      },
+      {
+        "phase": "types",
+        "disposition": "executed"
+      }
+    ],
+    "verification_runs": 0,
+    "source_files": {
+      "0": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/real-nested-static-probe/source.zil"
+    },
+    "scalar_interfaces": [],
+    "work_profile": "standard",
+    "work_profile_revision": "standard-10m-v1",
+    "effective_limits": {
+      "max_source_bytes": 16777216,
+      "max_tokens": 1000000,
+      "max_nodes": 1000000,
+      "max_functions": 10000,
+      "max_blocks": 100000,
+      "max_instructions": 1000000,
+      "max_locals": 100000,
+      "max_values": 1000000,
+      "max_analysis_steps": 10000000,
+      "max_ct_steps": 1000000,
+      "max_call_depth": 256
+    }
+  }
+}

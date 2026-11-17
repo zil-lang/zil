@@ -1,0 +1,37 @@
+{
+  "case": "mutable-frame-cancel-after-pending",
+  "source_sha256": "0b9b4f8b138f456059788a3da7d11668f3322f86b917244bf39e532cff9f0b5f",
+  "exit_code": 1,
+  "status": "SafeReject",
+  "phase": "types",
+  "verification_runs": 0,
+  "diagnostics": [
+    {
+      "phase": "types",
+      "category": "SafeReject",
+      "code": "E-ORIGINAL-CLEANUP",
+      "message": "live original Task default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root",
+      "span": {
+        "file": 0,
+        "start": 0,
+        "end": 0
+      },
+      "notes": [
+        "original scope cleanup binding \"callback\", retained lexical depth 0",
+        "original checked function SemanticDefinitionId { module: ModuleId(0), index: 5 }",
+        "original protocol method costs {\"async_head\": (10, 14, 10), \"block\": (4, 9877, 24), \"call\": (3, 476, 39), \"can_drop\": (1, 227, 227), \"capture_type\": (1, 1076, 244), \"category\": (39, 3710, 3710), \"change\": (3, 61, 61), \"charge_state\": (2, 6, 0), \"charge_value\": (25, 30, 25), \"choice\": (1, 10, 8), \"cleanup\": (4, 113, 3), \"cleanup_value\": (0, 0, 0), \"closure_child\": (1, 14, 6), \"closure_creator\": (0, 0, 0), \"condition\": (2, 4, 4), \"copy\": (2, 51, 45), \"definition\": (17, 68, 68), \"drop_value\": (8, 253, 15), \"expr\": (16, 9224, 32), \"expr_inner\": (16, 3651, 318), \"function\": (5, 21944, 6157), \"function_inputs\": (3, 5714, 2245), \"hide_for_defer\": (0, 0, 0), \"items\": (3, 878, 1), \"iteration\": (0, 0, 0), \"leave\": (4, 110, 96), \"loop_body\": (0, 0, 0), \"matches\": (0, 0, 0), \"merge\": (0, 0, 0), \"move_place\": (2, 42, 0), \"nominal_value\": (4, 4, 4), \"observe\": (10, 132, 79), \"offer\": (0, 0, 0), \"output\": (2, 46, 46), \"ownership\": (2, 2, 2), \"pattern\": (0, 0, 0), \"pattern_query\": (0, 0, 0), \"place_path\": (6, 49, 49), \"present\": (0, 0, 0), \"query_async\": (6, 1799, 0), \"query_ownership\": (2, 1652, 0), \"query_type\": (32, 8023, 8023), \"replace_place\": (3, 43, 22), \"restore\": (0, 0, 0), \"restore_defer\": (0, 0, 0), \"root\": (1, 2, 2), \"scope\": (4, 48, 48), \"selected\": (0, 0, 0), \"site\": (9, 75, 39), \"statement\": (8, 9692, 38), \"typed\": (23, 2020, 169), \"unknown_call\": (3, 374, 34), \"unselected\": (0, 0, 0), \"value_copy\": (13, 38, 23), \"view\": (18, 24, 23)}; function costs {SemanticDefinitionId { module: ModuleId(0), index: 0 }: (1, 15, 15), SemanticDefinitionId { module: ModuleId(0), index: 3 }: (1, 1631, 1631), SemanticDefinitionId { module: ModuleId(0), index: 4 }: (2, 13393, 13393), SemanticDefinitionId { module: ModuleId(0), index: 5 }: (1, 6905, 6900)}",
+        "Types request pass costs Stats { passes: {\"abi: collect original input\": PassStats { calls: 1, work: 9525, first_allowance: 9999992, last_remaining: 9990467 }, \"abi: original function heads\": PassStats { calls: 1, work: 6, first_allowance: 9999998, last_remaining: 9999992 }, \"abi: universal original body check\": PassStats { calls: 1, work: 88319, first_allowance: 9990467, last_remaining: 9902148 }}, original_bodies: {}, original_stages: {}, protocol_bodies: {}, protocol_methods: {}, phases: {} }"
+      ]
+    }
+  ],
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/mutable-frame-cancel-after-pending/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/mutable-frame-cancel-after-pending/phases",
+    "--json"
+  ]
+}

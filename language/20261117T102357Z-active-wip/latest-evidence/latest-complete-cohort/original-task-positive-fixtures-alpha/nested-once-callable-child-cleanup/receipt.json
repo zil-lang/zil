@@ -1,0 +1,33 @@
+{
+  "case": "nested-once-callable-child-cleanup",
+  "source_sha256": "4ff7fb8fd51b1fb902daa1c01431e03fb6576e206ad9ff7a6543aeee1312bee9",
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/frozen-cli/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures-alpha/nested-once-callable-child-cleanup/source.zil",
+    "--work-profile",
+    "alpha",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/original-task-positive-fixtures-alpha/nested-once-callable-child-cleanup/phases",
+    "--json"
+  ],
+  "exit": 1,
+  "status": "SafeReject",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [
+    {
+      "phase": "verify",
+      "category": "SafeReject",
+      "code": "E-VERIFY-SUM",
+      "message": "ordinary Product requires an owning child or complete finite Copy fields",
+      "span": {
+        "file": 0,
+        "start": 2817,
+        "end": 2830
+      },
+      "notes": []
+    }
+  ],
+  "verified": false
+}

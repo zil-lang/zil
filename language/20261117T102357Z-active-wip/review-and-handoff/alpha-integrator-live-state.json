@@ -1,0 +1,144 @@
+{
+  "updated_utc": "2026-11-17T07:40:37.417627+00:00",
+  "source_head": "39e91a9192e120c5b1c9190797fe4f6f9b8a945f",
+  "candidate": "16e8788cab34c19fad8adc83b3d565eac27ad5b9",
+  "candidate_run": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-static-origin-before-lending",
+  "candidate_cli_sha256": "e4a1450eb3a0348bdece18e8e14b13ccb175b932badf0203d3847477c0f920dd",
+  "build_or_test_active": false,
+  "next_action": "Await next complete Static original-occurrence correction or Task Source/A/V consuming contract cohort. Exact-save READY immediately. Do not mix hot WIP or rerun unchanged diagnostic candidate.",
+  "core_results": {
+    "IR": [
+      103,
+      0
+    ],
+    "Expand": [
+      181,
+      0
+    ],
+    "Types": [
+      101,
+      1
+    ],
+    "Analyze": [
+      322,
+      1
+    ],
+    "Verify": [
+      902,
+      1
+    ],
+    "ignored": 0
+  },
+  "saved_corrections": {
+    "ae672c50a753c66b89165ec6b89a94501c7a5e1b": "Types affine package unit uses actual Original semantic check_program setup",
+    "2850d186f422e48468c3c4ef271e6a6af17f4ae3": "Actual measured exact A work boundary12630; all existing N-1/fresh/warm assertions retained",
+    "647e425eeb76fe4628f8a1663cb1ec1dfca2d177": "V complete Task signature occurrence relation; Task other consumers pending",
+    "16e8788cab34c19fad8adc83b3d565eac27ad5b9": "Complete Static6 final7fb8, built and measured above",
+    "3749007471382c725753872f7e0e93b302069662": "Complete V driver3 plus canonical header fixture; 5 trailing spaces only corrected final01b15, Astra accepted_static, not in16e candidate",
+    "39e91a9192e120c5b1c9190797fe4f6f9b8a945f": "Source original consuming-upper1 ready0d174f, awaits A/V actual consumers same Task cohort"
+  },
+  "remaining_core_test_fix": "Dynamic V owner correcting canonical Fixed first-occurrence order in added fixture; production strictness unchanged; not READY yet",
+  "source16_standard_success": 8,
+  "source16_alpha_success": 8,
+  "preserved_union8": true,
+  "SDK36": {
+    "passed": 25,
+    "failed": 11,
+    "phase": "Verify"
+  },
+  "native_groups": [
+    {
+      "suite": "direct_adapter",
+      "builds_passed": 8,
+      "builds_total": 8,
+      "execution_passed": 20,
+      "execution_total": 20
+    },
+    {
+      "suite": "two_exact_original_sources",
+      "builds_passed": 8,
+      "builds_total": 8,
+      "execution_passed": 16,
+      "execution_total": 16
+    }
+  ],
+  "alpha_accepted": false,
+  "goal_remote": "7c219df4c",
+  "latest_fixed_archive": "14b01acee1fcd1f3b81f95f96543ca1a5f47dbe8",
+  "archive_prefix": "language/20261117T071855Z-active-wip",
+  "archive_remote_readback_equal": true,
+  "isolation": "Integrator has read A, must not read V algorithm. Exact V hash/patch/manifest integration only. Task is Root chain; Static is Types chain. No hot WIP in candidate.",
+  "git_status_at_checkpoint": " M crates/zil-analyze/src/budget.rs\n M crates/zil-analyze/src/lib.rs\n M crates/zil-analyze/src/semantic.rs\n M crates/zil-analyze/src/semantic/closed/abstract_calls.rs\n M crates/zil-analyze/src/semantic/closed/callable_roles.rs\n M crates/zil-analyze/src/semantic/closed/cleanup.rs\n M crates/zil-analyze/src/semantic/original/captures.rs\n M crates/zil-analyze/src/semantic/original/cleanup.rs\n M crates/zil-analyze/src/semantic/original/roles.rs\n M crates/zil-verify/src/dynamic_witness/semantic_patterns.rs\n M crates/zil-verify/src/semantic/callable_obligations.rs\n M crates/zil-verify/src/semantic/flow.rs\n M crates/zil-verify/src/semantic/original/cleanup.rs\n M crates/zil-verify/src/semantic/original/mod.rs\n M crates/zil-verify/src/semantic/original/protocol.rs\n M crates/zil-verify/src/semantic/original/protocol/state.rs\n M crates/zil-verify/src/semantic/original/protocol/tasks.rs\n M crates/zil-verify/src/semantic/original/protocol/walk.rs\n M crates/zil-verify/src/tasks.rs\n M crates/zil-verify/src/tasks/drop_sync.rs\n",
+  "prior_complete_task_candidate": {
+    "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+    "run": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation",
+    "core_results": {
+      "IR": [
+        103,
+        0
+      ],
+      "Expand": [
+        181,
+        0
+      ],
+      "Types": [
+        101,
+        1
+      ],
+      "Analyze": [
+        322,
+        1
+      ],
+      "Verify": [
+        902,
+        1
+      ],
+      "ignored": 0
+    },
+    "SDK36": {
+      "passed": 25,
+      "failed": 11,
+      "phase": "Verify"
+    },
+    "native_groups": [
+      {
+        "suite": "direct_adapter",
+        "builds_passed": 8,
+        "builds_total": 8,
+        "execution_passed": 20,
+        "execution_total": 20
+      },
+      {
+        "suite": "two_exact_original_sources",
+        "builds_passed": 8,
+        "builds_total": 8,
+        "execution_passed": 16,
+        "execution_total": 16
+      }
+    ]
+  },
+  "current_static_result": {
+    "check": 0,
+    "build": 0,
+    "Types": [
+      102,
+      0
+    ],
+    "Source": [
+      19,
+      0
+    ],
+    "static_tests": [
+      2,
+      0
+    ],
+    "source16_success": 8,
+    "all_required8_preserved": true,
+    "helper": 30,
+    "foundation": "13/13 positives and4/4 negatives",
+    "528d": "Types Unsupported projected outer address requires its original complete occurrence; no Verify/native",
+    "3_extra_aggregate_controls": "CT Unsupported all3; no accepted negative baseline"
+  },
+  "core_results_scope": "Prior full33ddea five-core; current16e reran affected Types102/0 only",
+  "native_groups_scope": "Prior complete33ddea; current Static16e has no verified positive baseline so0 native"
+}

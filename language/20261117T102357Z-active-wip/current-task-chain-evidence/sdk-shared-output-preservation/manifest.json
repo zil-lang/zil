@@ -1,0 +1,2744 @@
+{
+  "candidate_at_snapshot": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+  "provenance": "Shared SDK hardcoded output directories may include prior candidates; preservation only. No native execution or per-file candidate acceptance is inferred. Exact actual test counts remain in matching task-owner-complete/test.log.",
+  "archive_sha256": "e161783ca0b0810733ff368595dc73559837e1156ae2c70ccb196a808b0505ee",
+  "all_archived_files_readback_sha_verified": true,
+  "rows": [
+    {
+      "path": "task-child-native/Clang-O0-false-false/link.sh",
+      "sha256": "5439a363b09dbb5312e8ac59bafa3e9430c305c89ddf8f48847e820156de1bf6",
+      "bytes": 449,
+      "mtime_ns": 1794897753777356783
+    },
+    {
+      "path": "task-child-native/Clang-O0-false-false/observer.o",
+      "sha256": "c67bae2ea60d369645bc2b6c696f48a4f327d3282e31f20088ca6b2609625f86",
+      "bytes": 7464,
+      "mtime_ns": 1794897753773356834
+    },
+    {
+      "path": "task-child-native/Clang-O0-false-false/program",
+      "sha256": "442480a80475fd7573563d8e00ed9a372724fad90f49d95a4b07ae9b22110070",
+      "bytes": 32128,
+      "mtime_ns": 1794897754225351067
+    },
+    {
+      "path": "task-child-native/Clang-O0-false-false/program.ll",
+      "sha256": "2f78e005f2ce436b6fcf2289e7762835c4e69a6f5ff605b0c431b18dc0f8089b",
+      "bytes": 93760,
+      "mtime_ns": 1794897754053353261
+    },
+    {
+      "path": "task-child-native/Clang-O0-false-false/report.json",
+      "sha256": "c8c188986bd37ae6ed9f9cd1e99f72723c596028931e0fbf527d2e2bee3a7064",
+      "bytes": 1639,
+      "mtime_ns": 1794897754235156822
+    },
+    {
+      "path": "task-child-native/Clang-O0-false-false/source.zil",
+      "sha256": "366a9e48b11d221d489ffde0a7c296f73ef12cdad83db7964a423108da0706a7",
+      "bytes": 2543,
+      "mtime_ns": 1794897753693357854
+    },
+    {
+      "path": "task-child-native/Clang-O0-false-true/link.sh",
+      "sha256": "1cab2d13b4c09df4457a5e2d5f5b25db72752607e2a5a2529efb7740af744add",
+      "bytes": 448,
+      "mtime_ns": 1794897754329349739
+    },
+    {
+      "path": "task-child-native/Clang-O0-false-true/observer.o",
+      "sha256": "39c4e31403a9848e1b6c51148a8a46302a8d7fe65ae0dff51cbf5e7a32187fe8",
+      "bytes": 7560,
+      "mtime_ns": 1794897754329349739
+    },
+    {
+      "path": "task-child-native/Clang-O0-false-true/program",
+      "sha256": "fca464cc59cb791f3b840fce9da52475a682e6ac40510bd646676f7c7f45844c",
+      "bytes": 28032,
+      "mtime_ns": 1794897755045340602
+    },
+    {
+      "path": "task-child-native/Clang-O0-false-true/program.ll",
+      "sha256": "4ac769faa030c1be7ea7d40e2a7bb31635b0b666ba8e122b7ea4642c4295cbf3",
+      "bytes": 93250,
+      "mtime_ns": 1794897754889342593
+    },
+    {
+      "path": "task-child-native/Clang-O0-false-true/report.json",
+      "sha256": "1a46cce3f0afc1f127c8c16eddb571adfc6c5eec80db456c55ee0aee34057ede",
+      "bytes": 1634,
+      "mtime_ns": 1794897755057340450
+    },
+    {
+      "path": "task-child-native/Clang-O0-false-true/source.zil",
+      "sha256": "c9c7206afae6fb047a3fdae6e9b36cf2c2c299a14cb152fad5899462b22ef947",
+      "bytes": 2617,
+      "mtime_ns": 1794897754245350811
+    },
+    {
+      "path": "task-child-native/Clang-O0-true-false/link.sh",
+      "sha256": "a873e20e695a48ac972fb33645750051c1f47e388ce73ba8d0de60e7b1e6be1d",
+      "bytes": 448,
+      "mtime_ns": 1794897755137339428
+    },
+    {
+      "path": "task-child-native/Clang-O0-true-false/observer.o",
+      "sha256": "a893c48a34d2eac7bed667b2b83c135f3535fbb2273e20f3af5ee4939105f41c",
+      "bytes": 7480,
+      "mtime_ns": 1794897755137339428
+    },
+    {
+      "path": "task-child-native/Clang-O0-true-false/program",
+      "sha256": "7b8a6cb4d6a9838015005fb22e38283bb007882f5a7d6365cbe31fa4f9494fc0",
+      "bytes": 32128,
+      "mtime_ns": 1794897755629333160
+    },
+    {
+      "path": "task-child-native/Clang-O0-true-false/program.ll",
+      "sha256": "71043cbe5954960347c64d587413d90812c460d3afb3f97f1babfb57b930609b",
+      "bytes": 95763,
+      "mtime_ns": 1794897755561334025
+    },
+    {
+      "path": "task-child-native/Clang-O0-true-false/report.json",
+      "sha256": "e8fab323513fe9c3f8314e0028d1b4e035c9d6095244bb9a88a014c762095d1e",
+      "bytes": 1634,
+      "mtime_ns": 1794897755636419599
+    },
+    {
+      "path": "task-child-native/Clang-O0-true-false/source.zil",
+      "sha256": "e8930bf047c4c820ecf70e8c3d553a7898df930ca8ba9a7d5dfadd684a284083",
+      "bytes": 2565,
+      "mtime_ns": 1794897755061340398
+    },
+    {
+      "path": "task-child-native/Clang-O0-true-true/link.sh",
+      "sha256": "7b7f07eb8cca8df1a04b2bd77a6c5f67b7094a6db7e62fdcfd915efa54ce0849",
+      "bytes": 447,
+      "mtime_ns": 1794897755685332446
+    },
+    {
+      "path": "task-child-native/Clang-O0-true-true/observer.o",
+      "sha256": "5c9f044cf9c795858890d86ed2ac63413681a36d34e53b55b6e87cb9e3bc182a",
+      "bytes": 7576,
+      "mtime_ns": 1794897755681332497
+    },
+    {
+      "path": "task-child-native/Clang-O0-true-true/program",
+      "sha256": "b5b0f758ffb031bc8fed9c7d1038482059061d0d8be9885a87b5e11924c26f96",
+      "bytes": 28032,
+      "mtime_ns": 1794897756265325054
+    },
+    {
+      "path": "task-child-native/Clang-O0-true-true/program.ll",
+      "sha256": "e68e54ebb26921340727572f4838d7efdba9058fb32dc786be880a3101bd531b",
+      "bytes": 95253,
+      "mtime_ns": 1794897756197325921
+    },
+    {
+      "path": "task-child-native/Clang-O0-true-true/report.json",
+      "sha256": "dc78e50d4d82c0280629701859bc94efc3121c30bcf2ae09a120caa3d09805d5",
+      "bytes": 1628,
+      "mtime_ns": 1794897756273803350
+    },
+    {
+      "path": "task-child-native/Clang-O0-true-true/source.zil",
+      "sha256": "9d3956fbdd78cd6950b59e3aa3e21b68936d18dcaeb90212f12d2a4d688e37d5",
+      "bytes": 2639,
+      "mtime_ns": 1794897755641333006
+    },
+    {
+      "path": "task-child-native/Clang-O2-false-false/link.sh",
+      "sha256": "e414b88c4117270b1f5350edd95f564eff3ad30d80ef61efeefa37ce7ffcefe6",
+      "bytes": 449,
+      "mtime_ns": 1794897756309324494
+    },
+    {
+      "path": "task-child-native/Clang-O2-false-false/observer.o",
+      "sha256": "c67bae2ea60d369645bc2b6c696f48a4f327d3282e31f20088ca6b2609625f86",
+      "bytes": 7464,
+      "mtime_ns": 1794897756309324494
+    },
+    {
+      "path": "task-child-native/Clang-O2-false-false/program",
+      "sha256": "668a839b1afc2347461bda69582c23e63b205660d549caa655298a47f7b19b63",
+      "bytes": 22440,
+      "mtime_ns": 1794897757357311139
+    },
+    {
+      "path": "task-child-native/Clang-O2-false-false/program.ll",
+      "sha256": "2f78e005f2ce436b6fcf2289e7762835c4e69a6f5ff605b0c431b18dc0f8089b",
+      "bytes": 93760,
+      "mtime_ns": 1794897756885317155
+    },
+    {
+      "path": "task-child-native/Clang-O2-false-false/report.json",
+      "sha256": "b82c743c52e816e39887b9d456d48addf5a9582f9645533fc53e5c4473dbca19",
+      "bytes": 1639,
+      "mtime_ns": 1794897757385310783
+    },
+    {
+      "path": "task-child-native/Clang-O2-false-false/source.zil",
+      "sha256": "366a9e48b11d221d489ffde0a7c296f73ef12cdad83db7964a423108da0706a7",
+      "bytes": 2543,
+      "mtime_ns": 1794897756277324902
+    },
+    {
+      "path": "task-child-native/Clang-O2-false-true/link.sh",
+      "sha256": "af0afec159dd28f064297aabc823e0b6251c184b49f73fae2d35c431f809c8dc",
+      "bytes": 448,
+      "mtime_ns": 1794897757465309763
+    },
+    {
+      "path": "task-child-native/Clang-O2-false-true/observer.o",
+      "sha256": "39c4e31403a9848e1b6c51148a8a46302a8d7fe65ae0dff51cbf5e7a32187fe8",
+      "bytes": 7560,
+      "mtime_ns": 1794897757461309815
+    },
+    {
+      "path": "task-child-native/Clang-O2-false-true/program",
+      "sha256": "20bca60d4563131a31736f4bb38ac3ca19e0fc5050968f61c1a65fb68a0ab530",
+      "bytes": 22440,
+      "mtime_ns": 1794897758073302016
+    },
+    {
+      "path": "task-child-native/Clang-O2-false-true/program.ll",
+      "sha256": "4ac769faa030c1be7ea7d40e2a7bb31635b0b666ba8e122b7ea4642c4295cbf3",
+      "bytes": 93250,
+      "mtime_ns": 1794897757913304056
+    },
+    {
+      "path": "task-child-native/Clang-O2-false-true/report.json",
+      "sha256": "380e941c63ebefd295a012396d957634a66b69e7099bea7e41fb00d0a73eda16",
+      "bytes": 1634,
+      "mtime_ns": 1794897758079891860
+    },
+    {
+      "path": "task-child-native/Clang-O2-false-true/source.zil",
+      "sha256": "c9c7206afae6fb047a3fdae6e9b36cf2c2c299a14cb152fad5899462b22ef947",
+      "bytes": 2617,
+      "mtime_ns": 1794897757393310681
+    },
+    {
+      "path": "task-child-native/Clang-O2-true-false/link.sh",
+      "sha256": "de05a24ca575a4bd0ce7fe58841f478df094866c83fc193a9ce8d92d64913aac",
+      "bytes": 448,
+      "mtime_ns": 1794897758113301507
+    },
+    {
+      "path": "task-child-native/Clang-O2-true-false/observer.o",
+      "sha256": "a893c48a34d2eac7bed667b2b83c135f3535fbb2273e20f3af5ee4939105f41c",
+      "bytes": 7480,
+      "mtime_ns": 1794897758113301507
+    },
+    {
+      "path": "task-child-native/Clang-O2-true-false/program",
+      "sha256": "107c2f2f8ff420214029c1e5a5edc6f2bcfb383034c29f4441ce7eba6543b29a",
+      "bytes": 22440,
+      "mtime_ns": 1794897758573295645
+    },
+    {
+      "path": "task-child-native/Clang-O2-true-false/program.ll",
+      "sha256": "71043cbe5954960347c64d587413d90812c460d3afb3f97f1babfb57b930609b",
+      "bytes": 95763,
+      "mtime_ns": 1794897758433297429
+    },
+    {
+      "path": "task-child-native/Clang-O2-true-false/report.json",
+      "sha256": "1ecf625ec07b9e2098d5cab37ec88235444e17a10a84dac78a04345c1c8f5cf0",
+      "bytes": 1633,
+      "mtime_ns": 1794897758584451181
+    },
+    {
+      "path": "task-child-native/Clang-O2-true-false/source.zil",
+      "sha256": "e8930bf047c4c820ecf70e8c3d553a7898df930ca8ba9a7d5dfadd684a284083",
+      "bytes": 2565,
+      "mtime_ns": 1794897758085301863
+    },
+    {
+      "path": "task-child-native/Clang-O2-true-true/link.sh",
+      "sha256": "3618f365094cc7c35f358add79331517aae45d70edd9a6e1068e05707a4c50ad",
+      "bytes": 447,
+      "mtime_ns": 1794897758617295085
+    },
+    {
+      "path": "task-child-native/Clang-O2-true-true/observer.o",
+      "sha256": "5c9f044cf9c795858890d86ed2ac63413681a36d34e53b55b6e87cb9e3bc182a",
+      "bytes": 7576,
+      "mtime_ns": 1794897758613295135
+    },
+    {
+      "path": "task-child-native/Clang-O2-true-true/program",
+      "sha256": "bac1b7ebc1d382cfe99fb1133f03b22e8adb7b28e32f1faac4ed07badb7054e1",
+      "bytes": 22440,
+      "mtime_ns": 1794897759117288713
+    },
+    {
+      "path": "task-child-native/Clang-O2-true-true/program.ll",
+      "sha256": "e68e54ebb26921340727572f4838d7efdba9058fb32dc786be880a3101bd531b",
+      "bytes": 95253,
+      "mtime_ns": 1794897758945290906
+    },
+    {
+      "path": "task-child-native/Clang-O2-true-true/report.json",
+      "sha256": "dc62a7e75bd9cc75da37cd5f6fdae33fe02c2e8e46739d0a993c5236f3abcada",
+      "bytes": 1629,
+      "mtime_ns": 1794897759130337917
+    },
+    {
+      "path": "task-child-native/Clang-O2-true-true/source.zil",
+      "sha256": "9d3956fbdd78cd6950b59e3aa3e21b68936d18dcaeb90212f12d2a4d688e37d5",
+      "bytes": 2639,
+      "mtime_ns": 1794897758589295441
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-false-false/link.sh",
+      "sha256": "c8ec4d89158eab22be498944e745eb3a39318d4701485c45e2d376da45fb5ea1",
+      "bytes": 451,
+      "mtime_ns": 1794897759221287388
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-false-false/observer.o",
+      "sha256": "c67bae2ea60d369645bc2b6c696f48a4f327d3282e31f20088ca6b2609625f86",
+      "bytes": 7464,
+      "mtime_ns": 1794897759221287388
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-false-false/program",
+      "sha256": "cd90df6e49ebb7fd624842d03f4fbddf91ff50e45b217c3083976416757a6c3a",
+      "bytes": 32128,
+      "mtime_ns": 1794897759893278824
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-false-false/program.ll",
+      "sha256": "2f78e005f2ce436b6fcf2289e7762835c4e69a6f5ff605b0c431b18dc0f8089b",
+      "bytes": 93760,
+      "mtime_ns": 1794897759785280202
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-false-false/report.json",
+      "sha256": "8b2bcc3919a48bad1ea350421f2d96d9a8d683439b914a827f4e198cde4099a8",
+      "bytes": 2104,
+      "mtime_ns": 1794897759901278723
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-false-false/source.zil",
+      "sha256": "366a9e48b11d221d489ffde0a7c296f73ef12cdad83db7964a423108da0706a7",
+      "bytes": 2543,
+      "mtime_ns": 1794897759137288459
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-false-true/link.sh",
+      "sha256": "c92ba7b4caf639c4714b37e6784fc6cc4249dedddae8dff88790a1bc2a9a776a",
+      "bytes": 450,
+      "mtime_ns": 1794897759945278162
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-false-true/observer.o",
+      "sha256": "39c4e31403a9848e1b6c51148a8a46302a8d7fe65ae0dff51cbf5e7a32187fe8",
+      "bytes": 7560,
+      "mtime_ns": 1794897759945278162
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-false-true/program",
+      "sha256": "99e7d502e8e95ca8a3de2309d5f218fb1d935a9dfdf491ec640d2e204931dec0",
+      "bytes": 28032,
+      "mtime_ns": 1794897760369272760
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-false-true/program.ll",
+      "sha256": "4ac769faa030c1be7ea7d40e2a7bb31635b0b666ba8e122b7ea4642c4295cbf3",
+      "bytes": 93250,
+      "mtime_ns": 1794897760265274085
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-false-true/report.json",
+      "sha256": "a91444f8fc9983bd96d2365ed6a97db6a02cf7c41c43d981061f6e8a27442f8c",
+      "bytes": 2098,
+      "mtime_ns": 1794897760377000293
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-false-true/source.zil",
+      "sha256": "c9c7206afae6fb047a3fdae6e9b36cf2c2c299a14cb152fad5899462b22ef947",
+      "bytes": 2617,
+      "mtime_ns": 1794897759909278622
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-true-false/link.sh",
+      "sha256": "837d5426d0ec6981ee7186f10cd631bb7210e6cf550cce80dd14a306d6fc38d7",
+      "bytes": 450,
+      "mtime_ns": 1794897760413272199
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-true-false/observer.o",
+      "sha256": "a893c48a34d2eac7bed667b2b83c135f3535fbb2273e20f3af5ee4939105f41c",
+      "bytes": 7480,
+      "mtime_ns": 1794897760409272250
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-true-false/program",
+      "sha256": "c2e936822cdba8b306af1a078e0a63f7585aa70fb350ca4a62650bef05bf5c3a",
+      "bytes": 32128,
+      "mtime_ns": 1794897760765267714
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-true-false/program.ll",
+      "sha256": "71043cbe5954960347c64d587413d90812c460d3afb3f97f1babfb57b930609b",
+      "bytes": 95763,
+      "mtime_ns": 1794897760705268478
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-true-false/report.json",
+      "sha256": "103114aebe8760dc6170d07e5a0f0112c13b5ebc70df4ba56988fe3fda4ee548",
+      "bytes": 2102,
+      "mtime_ns": 1794897760773220575
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-true-false/source.zil",
+      "sha256": "e8930bf047c4c820ecf70e8c3d553a7898df930ca8ba9a7d5dfadd684a284083",
+      "bytes": 2565,
+      "mtime_ns": 1794897760381272607
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-true-true/link.sh",
+      "sha256": "b6ea495e837777451ef37be72b4601ae17b58b51ea4bb69e0e428f9dc54066ca",
+      "bytes": 449,
+      "mtime_ns": 1794897760881266235
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-true-true/observer.o",
+      "sha256": "5c9f044cf9c795858890d86ed2ac63413681a36d34e53b55b6e87cb9e3bc182a",
+      "bytes": 7576,
+      "mtime_ns": 1794897760877266286
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-true-true/program",
+      "sha256": "3db6dc7ef374bc062862c8835f13bdfca2e0e8ac6a9637055bdf5e525a5396ae",
+      "bytes": 28032,
+      "mtime_ns": 1794897761245261597
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-true-true/program.ll",
+      "sha256": "e68e54ebb26921340727572f4838d7efdba9058fb32dc786be880a3101bd531b",
+      "bytes": 95253,
+      "mtime_ns": 1794897761193262260
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-true-true/report.json",
+      "sha256": "ab8f7d1cba244023c8923fe7107aa9ebab469cc3d7ab153f8b75110b94d3d556",
+      "bytes": 2097,
+      "mtime_ns": 1794897761253283517
+    },
+    {
+      "path": "task-child-native/LlvmApi-O0-true-true/source.zil",
+      "sha256": "9d3956fbdd78cd6950b59e3aa3e21b68936d18dcaeb90212f12d2a4d688e37d5",
+      "bytes": 2639,
+      "mtime_ns": 1794897760777267560
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-false-false/link.sh",
+      "sha256": "c1e50f04c5f5daa287de73372b7d0c661952cde21b3201d566a72f2bd81ede45",
+      "bytes": 451,
+      "mtime_ns": 1794897761293260985
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-false-false/observer.o",
+      "sha256": "c67bae2ea60d369645bc2b6c696f48a4f327d3282e31f20088ca6b2609625f86",
+      "bytes": 7464,
+      "mtime_ns": 1794897761289261036
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-false-false/program",
+      "sha256": "1c329de8e559add40f55f6ff52b0f3b23879c39e505ac3a700c8cdfd00026cf5",
+      "bytes": 22440,
+      "mtime_ns": 1794897761873253595
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-false-false/program.ll",
+      "sha256": "2f78e005f2ce436b6fcf2289e7762835c4e69a6f5ff605b0c431b18dc0f8089b",
+      "bytes": 93760,
+      "mtime_ns": 1794897761585257265
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-false-false/report.json",
+      "sha256": "34f5cb97e6c0652b49f713e16babdbbcf87146419a2b4a92e95441ee0088860e",
+      "bytes": 2110,
+      "mtime_ns": 1794897761929252881
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-false-false/source.zil",
+      "sha256": "366a9e48b11d221d489ffde0a7c296f73ef12cdad83db7964a423108da0706a7",
+      "bytes": 2543,
+      "mtime_ns": 1794897761257261444
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-false-true/link.sh",
+      "sha256": "db0776824448730fca97ae479d4a73b24ee9ecdb097160a92edab8ce0b13a708",
+      "bytes": 450,
+      "mtime_ns": 1794897762137250231
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-false-true/observer.o",
+      "sha256": "39c4e31403a9848e1b6c51148a8a46302a8d7fe65ae0dff51cbf5e7a32187fe8",
+      "bytes": 7560,
+      "mtime_ns": 1794897762133250282
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-false-true/program",
+      "sha256": "0023cf8ed7ee8f677b3cc1e40f771e241ce5d7c4d7540c29087abf314ff83a42",
+      "bytes": 22440,
+      "mtime_ns": 1794897762805241719
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-false-true/program.ll",
+      "sha256": "4ac769faa030c1be7ea7d40e2a7bb31635b0b666ba8e122b7ea4642c4295cbf3",
+      "bytes": 93250,
+      "mtime_ns": 1794897762645243758
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-false-true/report.json",
+      "sha256": "95273804a62efc44b8593b92da2cbbb8942bb288057180122a183343c2104e1c",
+      "bytes": 2102,
+      "mtime_ns": 1794897762818680942
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-false-true/source.zil",
+      "sha256": "c9c7206afae6fb047a3fdae6e9b36cf2c2c299a14cb152fad5899462b22ef947",
+      "bytes": 2617,
+      "mtime_ns": 1794897761941252728
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-true-false/link.sh",
+      "sha256": "97944c9b7668b850808f8f926da48d1f75c5914a14665879a6cb68f82bc4199e",
+      "bytes": 450,
+      "mtime_ns": 1794897762917240292
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-true-false/observer.o",
+      "sha256": "a893c48a34d2eac7bed667b2b83c135f3535fbb2273e20f3af5ee4939105f41c",
+      "bytes": 7480,
+      "mtime_ns": 1794897762917240292
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-true-false/program",
+      "sha256": "95f6493c2a1165fa86780f6352ac4ca67f93773ca27acf94c6983fecd80f88cd",
+      "bytes": 22440,
+      "mtime_ns": 1794897763733229890
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-true-false/program.ll",
+      "sha256": "71043cbe5954960347c64d587413d90812c460d3afb3f97f1babfb57b930609b",
+      "bytes": 95763,
+      "mtime_ns": 1794897763593231675
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-true-false/report.json",
+      "sha256": "92e68e4a74b4c4b0796332a303cd3ba993696dc9243b711b6ea07d88780ead38",
+      "bytes": 2103,
+      "mtime_ns": 1794897763742273596
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-true-false/source.zil",
+      "sha256": "e8930bf047c4c820ecf70e8c3d553a7898df930ca8ba9a7d5dfadd684a284083",
+      "bytes": 2565,
+      "mtime_ns": 1794897762829241413
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-true-true/link.sh",
+      "sha256": "c953d17183910f014a3aa57f7c54423fbb388823e52d66dea453897bbba44f94",
+      "bytes": 449,
+      "mtime_ns": 1794897763813228871
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-true-true/observer.o",
+      "sha256": "5c9f044cf9c795858890d86ed2ac63413681a36d34e53b55b6e87cb9e3bc182a",
+      "bytes": 7576,
+      "mtime_ns": 1794897763809228921
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-true-true/program",
+      "sha256": "e680a61f03bbb8dd5b1b8d7e673d68a20b64367c0d8465b830dfc9039b1c6180",
+      "bytes": 22440,
+      "mtime_ns": 1794897764385221578
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-true-true/program.ll",
+      "sha256": "e68e54ebb26921340727572f4838d7efdba9058fb32dc786be880a3101bd531b",
+      "bytes": 95253,
+      "mtime_ns": 1794897764261223159
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-true-true/report.json",
+      "sha256": "8b8f49d66ad2d37d4ae06450a86b52848951d600739ac9abdd7d47c162448ad2",
+      "bytes": 2098,
+      "mtime_ns": 1794897764396464660
+    },
+    {
+      "path": "task-child-native/LlvmApi-O2-true-true/source.zil",
+      "sha256": "9d3956fbdd78cd6950b59e3aa3e21b68936d18dcaeb90212f12d2a4d688e37d5",
+      "bytes": 2639,
+      "mtime_ns": 1794897763749229686
+    },
+    {
+      "path": "task-closed-native/blocking-Clang-O0/link.sh",
+      "sha256": "53721df5461251b64b0e57d00fc9557f22279245aae17ee0396f7090527cc243",
+      "bytes": 447,
+      "mtime_ns": 1794897765881202506
+    },
+    {
+      "path": "task-closed-native/blocking-Clang-O0/observer.o",
+      "sha256": "5d865546fbb87be4f43cbf624a6c72d6777f601a96ec9d4d16dbe3a1c3916627",
+      "bytes": 5896,
+      "mtime_ns": 1794897765877202557
+    },
+    {
+      "path": "task-closed-native/blocking-Clang-O0/report.json",
+      "sha256": "23a69aac5171beea85328c844f8238aef82c0f381d625e2bfbb32d25621b8400",
+      "bytes": 1047,
+      "mtime_ns": 1794897766077200007
+    },
+    {
+      "path": "task-closed-native/blocking-Clang-O0/source.zil",
+      "sha256": "90e9eb4d12c4ab4ea936eaf7d7b456e43da82ac2548652c6e14b2a4cc7d1e8da",
+      "bytes": 2376,
+      "mtime_ns": 1794897765849202913
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/candidate.txt",
+      "sha256": "924aad1fc7ca65e590650776808260e9f31522d0c9b09acd0f072704b7e9d8b3",
+      "bytes": 44869,
+      "mtime_ns": 1794897770445144320
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/core.txt",
+      "sha256": "3181d66b061d317f183e41067d689ab51500ee0bfd0f91626e24d28bc00f8599",
+      "bytes": 642989,
+      "mtime_ns": 1794897770237146971
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/ct-core.txt",
+      "sha256": "90ea57f485ba295e46e323be82fa63a3bd359ec9ca6230f3f066b60edefd32f1",
+      "bytes": 653505,
+      "mtime_ns": 1794897770285146359
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/failure-0.txt",
+      "sha256": "f1c57cd3b9ba5b267fccb9fa3095a312938e464c82c2164195276e2b6e86439b",
+      "bytes": 74,
+      "mtime_ns": 1794897770662550570
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/failure-1.txt",
+      "sha256": "bb8c8a4b54e11c699f6caa742d54ed2b3d7625b488676076badeff28e7600815",
+      "bytes": 76,
+      "mtime_ns": 1794897770665141516
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/failure-2.txt",
+      "sha256": "bb8c8a4b54e11c699f6caa742d54ed2b3d7625b488676076badeff28e7600815",
+      "bytes": 76,
+      "mtime_ns": 1794897770665141516
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/link.sh",
+      "sha256": "52c2fec562e0b79d01d12e326ce82c9b7c683fc487940d8a1d05f5361b8fe112",
+      "bytes": 458,
+      "mtime_ns": 1794897770185147634
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/lir.txt",
+      "sha256": "ea5dc52786c7b526dae601b32e59d5c412ed9971716464c9781b58ac45ef2d36",
+      "bytes": 300820,
+      "mtime_ns": 1794897770565142789
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/llvm.ll",
+      "sha256": "ac7367f41cd1c912ee178747c14efa71a5fdace08aac0945dae37e82a64d9691",
+      "bytes": 92848,
+      "mtime_ns": 1794897770657532545
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/observer.o",
+      "sha256": "f889fed14ffd6ac6cb42c61ca3737d3fe8c3672fb0e26286cb989a5e4e8a7c94",
+      "bytes": 3824,
+      "mtime_ns": 1794897770181147686
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/program",
+      "sha256": "7fe6ec7891839ef0c91b032fbd6db9c122539e666c96e3593660d84df807ab6c",
+      "bytes": 30920,
+      "mtime_ns": 1794897770649141718
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/program.ll",
+      "sha256": "ac7367f41cd1c912ee178747c14efa71a5fdace08aac0945dae37e82a64d9691",
+      "bytes": 92848,
+      "mtime_ns": 1794897770573142688
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/report.json",
+      "sha256": "ba8d75a0b2ff8926a6b8f43e9e9c48ef9d1f30e7fe5882e1e25e4197668f601f",
+      "bytes": 2691,
+      "mtime_ns": 1794897770662550570
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/source-map.txt",
+      "sha256": "3fbd14f470147885f278f2eb55908fdb3a86cf6ab6b34c4ce467a2a3d2f284f9",
+      "bytes": 78573,
+      "mtime_ns": 1794897770246223479
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/source.zil",
+      "sha256": "569cb9251d329d09406f531f89ac728089b27edea95947059762067a9672b92e",
+      "bytes": 1306,
+      "mtime_ns": 1794897770149148093
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/syntax.txt",
+      "sha256": "4d5aa3df1ad3b3adf79efb386ae4f0ec6632ce5a8bb62d51cc9485b73f9b4770",
+      "bytes": 400692,
+      "mtime_ns": 1794897770197147481
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/task-abi.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2,
+      "mtime_ns": 1794897770660415514
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/typed.txt",
+      "sha256": "e88aa469d6f95c45a1f4f5de803df1dbe320c90f547652d02bdeb265c276df80",
+      "bytes": 760824,
+      "mtime_ns": 1794897770393144982
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O0/verified.txt",
+      "sha256": "51361902ddf602a8ad2c716a247b53e926b2dc5dd7a43047fe9a55f6fcde12d7",
+      "bytes": 760901,
+      "mtime_ns": 1794897770553142943
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/candidate.txt",
+      "sha256": "924aad1fc7ca65e590650776808260e9f31522d0c9b09acd0f072704b7e9d8b3",
+      "bytes": 44869,
+      "mtime_ns": 1794897771129135600
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/core.txt",
+      "sha256": "3181d66b061d317f183e41067d689ab51500ee0bfd0f91626e24d28bc00f8599",
+      "bytes": 642989,
+      "mtime_ns": 1794897770781140036
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/ct-core.txt",
+      "sha256": "90ea57f485ba295e46e323be82fa63a3bd359ec9ca6230f3f066b60edefd32f1",
+      "bytes": 653505,
+      "mtime_ns": 1794897770917138302
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/failure-0.txt",
+      "sha256": "f1c57cd3b9ba5b267fccb9fa3095a312938e464c82c2164195276e2b6e86439b",
+      "bytes": 74,
+      "mtime_ns": 1794897771461254320
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/failure-1.txt",
+      "sha256": "bb8c8a4b54e11c699f6caa742d54ed2b3d7625b488676076badeff28e7600815",
+      "bytes": 76,
+      "mtime_ns": 1794897771465131306
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/failure-2.txt",
+      "sha256": "bb8c8a4b54e11c699f6caa742d54ed2b3d7625b488676076badeff28e7600815",
+      "bytes": 76,
+      "mtime_ns": 1794897771465131306
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/link.sh",
+      "sha256": "efaac474cc00c0a321a6a7dfc958b768785849f9c5377a30af65dc5a148cf96c",
+      "bytes": 458,
+      "mtime_ns": 1794897770697141107
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/lir.txt",
+      "sha256": "ea5dc52786c7b526dae601b32e59d5c412ed9971716464c9781b58ac45ef2d36",
+      "bytes": 300820,
+      "mtime_ns": 1794897771281647124
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/llvm.ll",
+      "sha256": "ac7367f41cd1c912ee178747c14efa71a5fdace08aac0945dae37e82a64d9691",
+      "bytes": 92848,
+      "mtime_ns": 1794897771457666560
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/observer.o",
+      "sha256": "f889fed14ffd6ac6cb42c61ca3737d3fe8c3672fb0e26286cb989a5e4e8a7c94",
+      "bytes": 3824,
+      "mtime_ns": 1794897770693141157
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/program",
+      "sha256": "6c5787a2d9b3429295a42027a275ea8edf27f89960ac1336cd3f8e315a9a7975",
+      "bytes": 21760,
+      "mtime_ns": 1794897771449131511
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/program.ll",
+      "sha256": "ac7367f41cd1c912ee178747c14efa71a5fdace08aac0945dae37e82a64d9691",
+      "bytes": 92848,
+      "mtime_ns": 1794897771297133454
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/report.json",
+      "sha256": "edd2feceb5a1e5e2460bcec48c2acc4b99d058016b141dd20dbe10123eca356f",
+      "bytes": 2691,
+      "mtime_ns": 1794897771461254320
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/source-map.txt",
+      "sha256": "3fbd14f470147885f278f2eb55908fdb3a86cf6ab6b34c4ce467a2a3d2f284f9",
+      "bytes": 78573,
+      "mtime_ns": 1794897770789471403
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/source.zil",
+      "sha256": "569cb9251d329d09406f531f89ac728089b27edea95947059762067a9672b92e",
+      "bytes": 1306,
+      "mtime_ns": 1794897770665141516
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/syntax.txt",
+      "sha256": "4d5aa3df1ad3b3adf79efb386ae4f0ec6632ce5a8bb62d51cc9485b73f9b4770",
+      "bytes": 400692,
+      "mtime_ns": 1794897770717140851
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/task-abi.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2,
+      "mtime_ns": 1794897771459004105
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/typed.txt",
+      "sha256": "e88aa469d6f95c45a1f4f5de803df1dbe320c90f547652d02bdeb265c276df80",
+      "bytes": 760824,
+      "mtime_ns": 1794897771049136619
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-Clang-O2/verified.txt",
+      "sha256": "51361902ddf602a8ad2c716a247b53e926b2dc5dd7a43047fe9a55f6fcde12d7",
+      "bytes": 760901,
+      "mtime_ns": 1794897771273133761
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/candidate.txt",
+      "sha256": "924aad1fc7ca65e590650776808260e9f31522d0c9b09acd0f072704b7e9d8b3",
+      "bytes": 44869,
+      "mtime_ns": 1794897771777127317
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/core.txt",
+      "sha256": "3181d66b061d317f183e41067d689ab51500ee0bfd0f91626e24d28bc00f8599",
+      "bytes": 642989,
+      "mtime_ns": 1794897771549130232
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/ct-core.txt",
+      "sha256": "90ea57f485ba295e46e323be82fa63a3bd359ec9ca6230f3f066b60edefd32f1",
+      "bytes": 653505,
+      "mtime_ns": 1794897771597129619
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/failure-0.txt",
+      "sha256": "f1c57cd3b9ba5b267fccb9fa3095a312938e464c82c2164195276e2b6e86439b",
+      "bytes": 74,
+      "mtime_ns": 1794897772049834150
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/failure-1.txt",
+      "sha256": "bb8c8a4b54e11c699f6caa742d54ed2b3d7625b488676076badeff28e7600815",
+      "bytes": 76,
+      "mtime_ns": 1794897772049834150
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/failure-2.txt",
+      "sha256": "bb8c8a4b54e11c699f6caa742d54ed2b3d7625b488676076badeff28e7600815",
+      "bytes": 76,
+      "mtime_ns": 1794897772053123787
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/link.sh",
+      "sha256": "85e3bff13c1523e2437a4d2ae22ec212b2e84334277f69d6222d8178a40cf067",
+      "bytes": 460,
+      "mtime_ns": 1794897771493130948
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/lir.txt",
+      "sha256": "ea5dc52786c7b526dae601b32e59d5c412ed9971716464c9781b58ac45ef2d36",
+      "bytes": 300820,
+      "mtime_ns": 1794897771905125680
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/llvm.ll",
+      "sha256": "ac7367f41cd1c912ee178747c14efa71a5fdace08aac0945dae37e82a64d9691",
+      "bytes": 92848,
+      "mtime_ns": 1794897772047349421
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/observer.o",
+      "sha256": "f889fed14ffd6ac6cb42c61ca3737d3fe8c3672fb0e26286cb989a5e4e8a7c94",
+      "bytes": 3824,
+      "mtime_ns": 1794897771493130948
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/program",
+      "sha256": "9bfac88b2882fc84d36fe553faf1a83bd671f601c702c14573e580e1a4eb5f0d",
+      "bytes": 30920,
+      "mtime_ns": 1794897772037123992
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/program.ll",
+      "sha256": "ac7367f41cd1c912ee178747c14efa71a5fdace08aac0945dae37e82a64d9691",
+      "bytes": 92848,
+      "mtime_ns": 1794897771917125526
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/report.json",
+      "sha256": "01673dfca5bb8e876a02331beee2aae7a19f3860a387bc99dde4731f4fd6e19a",
+      "bytes": 3173,
+      "mtime_ns": 1794897772049834150
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/source-map.txt",
+      "sha256": "3fbd14f470147885f278f2eb55908fdb3a86cf6ab6b34c4ce467a2a3d2f284f9",
+      "bytes": 78573,
+      "mtime_ns": 1794897771555591479
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/source.zil",
+      "sha256": "569cb9251d329d09406f531f89ac728089b27edea95947059762067a9672b92e",
+      "bytes": 1306,
+      "mtime_ns": 1794897771465131306
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/syntax.txt",
+      "sha256": "4d5aa3df1ad3b3adf79efb386ae4f0ec6632ce5a8bb62d51cc9485b73f9b4770",
+      "bytes": 400692,
+      "mtime_ns": 1794897771509130744
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/task-abi.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2,
+      "mtime_ns": 1794897772048746370
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/typed.txt",
+      "sha256": "e88aa469d6f95c45a1f4f5de803df1dbe320c90f547652d02bdeb265c276df80",
+      "bytes": 760824,
+      "mtime_ns": 1794897771709128186
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O0/verified.txt",
+      "sha256": "51361902ddf602a8ad2c716a247b53e926b2dc5dd7a43047fe9a55f6fcde12d7",
+      "bytes": 760901,
+      "mtime_ns": 1794897771897125782
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/candidate.txt",
+      "sha256": "924aad1fc7ca65e590650776808260e9f31522d0c9b09acd0f072704b7e9d8b3",
+      "bytes": 44869,
+      "mtime_ns": 1794897772305120566
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/core.txt",
+      "sha256": "3181d66b061d317f183e41067d689ab51500ee0bfd0f91626e24d28bc00f8599",
+      "bytes": 642989,
+      "mtime_ns": 1794897772137122713
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/ct-core.txt",
+      "sha256": "90ea57f485ba295e46e323be82fa63a3bd359ec9ca6230f3f066b60edefd32f1",
+      "bytes": 653505,
+      "mtime_ns": 1794897772185122099
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/failure-0.txt",
+      "sha256": "f1c57cd3b9ba5b267fccb9fa3095a312938e464c82c2164195276e2b6e86439b",
+      "bytes": 74,
+      "mtime_ns": 1794897772561293450
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/failure-1.txt",
+      "sha256": "bb8c8a4b54e11c699f6caa742d54ed2b3d7625b488676076badeff28e7600815",
+      "bytes": 76,
+      "mtime_ns": 1794897772561293450
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/failure-2.txt",
+      "sha256": "bb8c8a4b54e11c699f6caa742d54ed2b3d7625b488676076badeff28e7600815",
+      "bytes": 76,
+      "mtime_ns": 1794897772565117240
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/link.sh",
+      "sha256": "ba062469cbb4e6d9335feaf01aa8ffbe4f575ee67ce3077afdbbcfba6396df0f",
+      "bytes": 460,
+      "mtime_ns": 1794897772093123276
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/lir.txt",
+      "sha256": "ea5dc52786c7b526dae601b32e59d5c412ed9971716464c9781b58ac45ef2d36",
+      "bytes": 300820,
+      "mtime_ns": 1794897772433118928
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/llvm.ll",
+      "sha256": "ac7367f41cd1c912ee178747c14efa71a5fdace08aac0945dae37e82a64d9691",
+      "bytes": 92848,
+      "mtime_ns": 1794897772558278561
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/observer.o",
+      "sha256": "f889fed14ffd6ac6cb42c61ca3737d3fe8c3672fb0e26286cb989a5e4e8a7c94",
+      "bytes": 3824,
+      "mtime_ns": 1794897772089123327
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/program",
+      "sha256": "20fb764b584b4db6355504c91aeeb215061a7025ed0a696a54f1777b064edfd1",
+      "bytes": 21760,
+      "mtime_ns": 1794897772549117446
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/program.ll",
+      "sha256": "ac7367f41cd1c912ee178747c14efa71a5fdace08aac0945dae37e82a64d9691",
+      "bytes": 92848,
+      "mtime_ns": 1794897772445118775
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/report.json",
+      "sha256": "8e3817ea654912f33e03c8d791366b7ef526e655cfad6bf979ac435c09c8d08b",
+      "bytes": 3176,
+      "mtime_ns": 1794897772561293450
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/source-map.txt",
+      "sha256": "3fbd14f470147885f278f2eb55908fdb3a86cf6ab6b34c4ce467a2a3d2f284f9",
+      "bytes": 78573,
+      "mtime_ns": 1794897772150024956
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/source.zil",
+      "sha256": "569cb9251d329d09406f531f89ac728089b27edea95947059762067a9672b92e",
+      "bytes": 1306,
+      "mtime_ns": 1794897772053123787
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/syntax.txt",
+      "sha256": "4d5aa3df1ad3b3adf79efb386ae4f0ec6632ce5a8bb62d51cc9485b73f9b4770",
+      "bytes": 400692,
+      "mtime_ns": 1794897772105123123
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/task-abi.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2,
+      "mtime_ns": 1794897772559752344
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/typed.txt",
+      "sha256": "e88aa469d6f95c45a1f4f5de803df1dbe320c90f547652d02bdeb265c276df80",
+      "bytes": 760824,
+      "mtime_ns": 1794897772257121180
+    },
+    {
+      "path": "task-direct-owner-native/adapter-local-LlvmApi-O2/verified.txt",
+      "sha256": "51361902ddf602a8ad2c716a247b53e926b2dc5dd7a43047fe9a55f6fcde12d7",
+      "bytes": 760901,
+      "mtime_ns": 1794897772425119031
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/candidate.txt",
+      "sha256": "f90e093522b4aed3b4467d2c43fb9dc4e044be565224b2a935b2ca9fe4fa683c",
+      "bytes": 28789,
+      "mtime_ns": 1794897767769178436
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/core.txt",
+      "sha256": "96aa80b3459908063ba75257f0f2e46ae2fe73e0d5b980b0d5ea7ffc0c76378b",
+      "bytes": 444533,
+      "mtime_ns": 1794897767537181393
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/ct-core.txt",
+      "sha256": "e58db320b347c6634d96e1f7a77542b6802d1b057b4cbdf9c0100f042adb56e0",
+      "bytes": 451983,
+      "mtime_ns": 1794897767601180577
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/failure-0.txt",
+      "sha256": "f1c57cd3b9ba5b267fccb9fa3095a312938e464c82c2164195276e2b6e86439b",
+      "bytes": 74,
+      "mtime_ns": 1794897768009175376
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/failure-1.txt",
+      "sha256": "bb8c8a4b54e11c699f6caa742d54ed2b3d7625b488676076badeff28e7600815",
+      "bytes": 76,
+      "mtime_ns": 1794897768009175376
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/link.sh",
+      "sha256": "6bbbb5c632e72510937a06f51607d9934b190867c215694def44aa4548c71258",
+      "bytes": 459,
+      "mtime_ns": 1794897767481182108
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/lir.txt",
+      "sha256": "31ebf714c8106c08d3229aa07063c185ab46463f729d4d17473a40329725dd4d",
+      "bytes": 194824,
+      "mtime_ns": 1794897767905176702
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/llvm.ll",
+      "sha256": "3e60e9c7206ac4400cda2646740184bf7cdfa88a1ea8476f83150d9551876fce",
+      "bytes": 26778,
+      "mtime_ns": 1794897767998098555
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/observer.o",
+      "sha256": "d87357054cc77cac62e56c9525c62c2d6fca67eca38abeeb6df6ad720b449049",
+      "bytes": 3824,
+      "mtime_ns": 1794897767477182158
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/program",
+      "sha256": "b674d2c22d06719f4e44cf835ebd708908368791539f5706ba2920efabd739d4",
+      "bytes": 17488,
+      "mtime_ns": 1794897767989175632
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/program.ll",
+      "sha256": "3e60e9c7206ac4400cda2646740184bf7cdfa88a1ea8476f83150d9551876fce",
+      "bytes": 26778,
+      "mtime_ns": 1794897767921176498
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/report.json",
+      "sha256": "1b8d57591fefc452803953c79a01f304d23bf10da1024f743ca6b4ef58cd222b",
+      "bytes": 2705,
+      "mtime_ns": 1794897768006920697
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/source-map.txt",
+      "sha256": "6bff0063d7a7989fcd35692655428b95cb75f6b0acbe12e5a280c9a09786384d",
+      "bytes": 58533,
+      "mtime_ns": 1794897767549289545
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/source.zil",
+      "sha256": "109b732b74f9bcc5b7e86de94c2d5dd648df3fa4a3d7e2a282e51f3f3564f3da",
+      "bytes": 955,
+      "mtime_ns": 1794897767421182873
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/syntax.txt",
+      "sha256": "9972085836616e4f4c5260f849187939bb3cbde58850c540ab0aefa5dc236e90",
+      "bytes": 270507,
+      "mtime_ns": 1794897767501181852
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/task-abi.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2,
+      "mtime_ns": 1794897768001771754
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/typed.txt",
+      "sha256": "dc9747db40b4672c5d0f1e27844abdabafda53ecc12988cecd722d0057dc9afe",
+      "bytes": 522515,
+      "mtime_ns": 1794897767713179149
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O0/verified.txt",
+      "sha256": "53def870dba1c5863361793737bc6f0ff7874f6e5dbf66a3043a655782ba8c19",
+      "bytes": 522592,
+      "mtime_ns": 1794897767889176906
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/candidate.txt",
+      "sha256": "f90e093522b4aed3b4467d2c43fb9dc4e044be565224b2a935b2ca9fe4fa683c",
+      "bytes": 28789,
+      "mtime_ns": 1794897768361170889
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/core.txt",
+      "sha256": "96aa80b3459908063ba75257f0f2e46ae2fe73e0d5b980b0d5ea7ffc0c76378b",
+      "bytes": 444533,
+      "mtime_ns": 1794897768121173948
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/ct-core.txt",
+      "sha256": "e58db320b347c6634d96e1f7a77542b6802d1b057b4cbdf9c0100f042adb56e0",
+      "bytes": 451983,
+      "mtime_ns": 1794897768189173081
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/failure-0.txt",
+      "sha256": "f1c57cd3b9ba5b267fccb9fa3095a312938e464c82c2164195276e2b6e86439b",
+      "bytes": 74,
+      "mtime_ns": 1794897769025162423
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/failure-1.txt",
+      "sha256": "bb8c8a4b54e11c699f6caa742d54ed2b3d7625b488676076badeff28e7600815",
+      "bytes": 76,
+      "mtime_ns": 1794897769025162423
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/link.sh",
+      "sha256": "bee5d72af416edbc82cf9890e004e306e875b361472065705799cfc2b69e3177",
+      "bytes": 459,
+      "mtime_ns": 1794897768041174967
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/lir.txt",
+      "sha256": "31ebf714c8106c08d3229aa07063c185ab46463f729d4d17473a40329725dd4d",
+      "bytes": 194824,
+      "mtime_ns": 1794897768862637552
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/llvm.ll",
+      "sha256": "3e60e9c7206ac4400cda2646740184bf7cdfa88a1ea8476f83150d9551876fce",
+      "bytes": 26778,
+      "mtime_ns": 1794897769018695900
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/observer.o",
+      "sha256": "d87357054cc77cac62e56c9525c62c2d6fca67eca38abeeb6df6ad720b449049",
+      "bytes": 3824,
+      "mtime_ns": 1794897768037175019
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/program",
+      "sha256": "d2120c7a46b4092fb47878a33d46ae610573f99c4573d9196a672007061d522f",
+      "bytes": 17104,
+      "mtime_ns": 1794897769009162627
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/program.ll",
+      "sha256": "3e60e9c7206ac4400cda2646740184bf7cdfa88a1ea8476f83150d9551876fce",
+      "bytes": 26778,
+      "mtime_ns": 1794897768889164156
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/report.json",
+      "sha256": "dd0db41873402024f5616f370b075a57cb92328f2b1628f110a94b4bae113c8d",
+      "bytes": 2704,
+      "mtime_ns": 1794897769021366397
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/source-map.txt",
+      "sha256": "6bff0063d7a7989fcd35692655428b95cb75f6b0acbe12e5a280c9a09786384d",
+      "bytes": 58533,
+      "mtime_ns": 1794897768131888188
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/source.zil",
+      "sha256": "109b732b74f9bcc5b7e86de94c2d5dd648df3fa4a3d7e2a282e51f3f3564f3da",
+      "bytes": 955,
+      "mtime_ns": 1794897768013175326
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/syntax.txt",
+      "sha256": "9972085836616e4f4c5260f849187939bb3cbde58850c540ab0aefa5dc236e90",
+      "bytes": 270507,
+      "mtime_ns": 1794897768065174662
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/task-abi.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2,
+      "mtime_ns": 1794897769019653444
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/typed.txt",
+      "sha256": "dc9747db40b4672c5d0f1e27844abdabafda53ecc12988cecd722d0057dc9afe",
+      "bytes": 522515,
+      "mtime_ns": 1794897768293171755
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-Clang-O2/verified.txt",
+      "sha256": "53def870dba1c5863361793737bc6f0ff7874f6e5dbf66a3043a655782ba8c19",
+      "bytes": 522592,
+      "mtime_ns": 1794897768853164616
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/candidate.txt",
+      "sha256": "f90e093522b4aed3b4467d2c43fb9dc4e044be565224b2a935b2ca9fe4fa683c",
+      "bytes": 28789,
+      "mtime_ns": 1794897769445157068
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/core.txt",
+      "sha256": "96aa80b3459908063ba75257f0f2e46ae2fe73e0d5b980b0d5ea7ffc0c76378b",
+      "bytes": 444533,
+      "mtime_ns": 1794897769149160843
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/ct-core.txt",
+      "sha256": "e58db320b347c6634d96e1f7a77542b6802d1b057b4cbdf9c0100f042adb56e0",
+      "bytes": 451983,
+      "mtime_ns": 1794897769225159873
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/failure-0.txt",
+      "sha256": "f1c57cd3b9ba5b267fccb9fa3095a312938e464c82c2164195276e2b6e86439b",
+      "bytes": 74,
+      "mtime_ns": 1794897769661154315
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/failure-1.txt",
+      "sha256": "bb8c8a4b54e11c699f6caa742d54ed2b3d7625b488676076badeff28e7600815",
+      "bytes": 76,
+      "mtime_ns": 1794897769665154264
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/link.sh",
+      "sha256": "81a96bb2eff869c446cb0cb27ee4846451eca9f67b387cbb8614ff131bc10aaf",
+      "bytes": 461,
+      "mtime_ns": 1794897769061161964
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/lir.txt",
+      "sha256": "31ebf714c8106c08d3229aa07063c185ab46463f729d4d17473a40329725dd4d",
+      "bytes": 194824,
+      "mtime_ns": 1794897769578936189
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/llvm.ll",
+      "sha256": "3e60e9c7206ac4400cda2646740184bf7cdfa88a1ea8476f83150d9551876fce",
+      "bytes": 26778,
+      "mtime_ns": 1794897769654764377
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/observer.o",
+      "sha256": "d87357054cc77cac62e56c9525c62c2d6fca67eca38abeeb6df6ad720b449049",
+      "bytes": 3824,
+      "mtime_ns": 1794897769057162016
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/program",
+      "sha256": "555c19f9b22f3b972b1ac1ee041db4e298d98381899a75008a6c55465513acdb",
+      "bytes": 17488,
+      "mtime_ns": 1794897769645154519
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/program.ll",
+      "sha256": "3e60e9c7206ac4400cda2646740184bf7cdfa88a1ea8476f83150d9551876fce",
+      "bytes": 26778,
+      "mtime_ns": 1794897769589155232
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/report.json",
+      "sha256": "90cbef42e5aaed2bf677cc0ed2f32c11096e92da499350bd4d2097eee5ac0920",
+      "bytes": 3186,
+      "mtime_ns": 1794897769660593036
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/source-map.txt",
+      "sha256": "6bff0063d7a7989fcd35692655428b95cb75f6b0acbe12e5a280c9a09786384d",
+      "bytes": 58533,
+      "mtime_ns": 1794897769158601054
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/source.zil",
+      "sha256": "109b732b74f9bcc5b7e86de94c2d5dd648df3fa4a3d7e2a282e51f3f3564f3da",
+      "bytes": 955,
+      "mtime_ns": 1794897769025162423
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/syntax.txt",
+      "sha256": "9972085836616e4f4c5260f849187939bb3cbde58850c540ab0aefa5dc236e90",
+      "bytes": 270507,
+      "mtime_ns": 1794897769077161761
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/task-abi.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2,
+      "mtime_ns": 1794897769658483579
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/typed.txt",
+      "sha256": "dc9747db40b4672c5d0f1e27844abdabafda53ecc12988cecd722d0057dc9afe",
+      "bytes": 522515,
+      "mtime_ns": 1794897769345158343
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O0/verified.txt",
+      "sha256": "53def870dba1c5863361793737bc6f0ff7874f6e5dbf66a3043a655782ba8c19",
+      "bytes": 522592,
+      "mtime_ns": 1794897769569155487
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/candidate.txt",
+      "sha256": "f90e093522b4aed3b4467d2c43fb9dc4e044be565224b2a935b2ca9fe4fa683c",
+      "bytes": 28789,
+      "mtime_ns": 1794897769925150950
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/core.txt",
+      "sha256": "96aa80b3459908063ba75257f0f2e46ae2fe73e0d5b980b0d5ea7ffc0c76378b",
+      "bytes": 444533,
+      "mtime_ns": 1794897769753153141
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/ct-core.txt",
+      "sha256": "e58db320b347c6634d96e1f7a77542b6802d1b057b4cbdf9c0100f042adb56e0",
+      "bytes": 451983,
+      "mtime_ns": 1794897769809152428
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/failure-0.txt",
+      "sha256": "f1c57cd3b9ba5b267fccb9fa3095a312938e464c82c2164195276e2b6e86439b",
+      "bytes": 74,
+      "mtime_ns": 1794897770078284756
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/failure-1.txt",
+      "sha256": "bb8c8a4b54e11c699f6caa742d54ed2b3d7625b488676076badeff28e7600815",
+      "bytes": 76,
+      "mtime_ns": 1794897770078284756
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/link.sh",
+      "sha256": "22a5198b829385b0ad1d3b7308dd762e8b1be688c9dc16cc96a1cf471f5b6fed",
+      "bytes": 461,
+      "mtime_ns": 1794897769693153907
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/lir.txt",
+      "sha256": "31ebf714c8106c08d3229aa07063c185ab46463f729d4d17473a40329725dd4d",
+      "bytes": 194824,
+      "mtime_ns": 1794897769990571402
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/llvm.ll",
+      "sha256": "3e60e9c7206ac4400cda2646740184bf7cdfa88a1ea8476f83150d9551876fce",
+      "bytes": 26778,
+      "mtime_ns": 1794897770075764018
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/observer.o",
+      "sha256": "d87357054cc77cac62e56c9525c62c2d6fca67eca38abeeb6df6ad720b449049",
+      "bytes": 3824,
+      "mtime_ns": 1794897769693153907
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/program",
+      "sha256": "27e485385f98b7778ea80a71a43fd92bf0c1c79641cb3c0ee08e01db450abd50",
+      "bytes": 17104,
+      "mtime_ns": 1794897770069149113
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/program.ll",
+      "sha256": "3e60e9c7206ac4400cda2646740184bf7cdfa88a1ea8476f83150d9551876fce",
+      "bytes": 26778,
+      "mtime_ns": 1794897769998875918
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/report.json",
+      "sha256": "b3cc07bdacac67cb43c27fe33ffe6f768715586186e9e2b5d0bb1b0b960c8cbf",
+      "bytes": 3187,
+      "mtime_ns": 1794897770078284756
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/source-map.txt",
+      "sha256": "6bff0063d7a7989fcd35692655428b95cb75f6b0acbe12e5a280c9a09786384d",
+      "bytes": 58533,
+      "mtime_ns": 1794897769763432325
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/source.zil",
+      "sha256": "109b732b74f9bcc5b7e86de94c2d5dd648df3fa4a3d7e2a282e51f3f3564f3da",
+      "bytes": 955,
+      "mtime_ns": 1794897769665154264
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/syntax.txt",
+      "sha256": "9972085836616e4f4c5260f849187939bb3cbde58850c540ab0aefa5dc236e90",
+      "bytes": 270507,
+      "mtime_ns": 1794897769709153703
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/task-abi.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2,
+      "mtime_ns": 1794897770076877291
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/typed.txt",
+      "sha256": "dc9747db40b4672c5d0f1e27844abdabafda53ecc12988cecd722d0057dc9afe",
+      "bytes": 522515,
+      "mtime_ns": 1794897769885151458
+    },
+    {
+      "path": "task-direct-owner-native/ordinary-local-LlvmApi-O2/verified.txt",
+      "sha256": "53def870dba1c5863361793737bc6f0ff7874f6e5dbf66a3043a655782ba8c19",
+      "bytes": 522592,
+      "mtime_ns": 1794897769981150235
+    },
+    {
+      "path": "task-nested-native/direct-capture-Clang-O0-false-false/link.sh",
+      "sha256": "debef4133f417f5268f3f7f40145a6b86fc7a5fd8ece7f2311a7eb3a2d3bb01c",
+      "bytes": 465,
+      "mtime_ns": 1794897776525066605
+    },
+    {
+      "path": "task-nested-native/direct-capture-Clang-O0-false-false/observer.o",
+      "sha256": "97d947bdfa3206b892d5e12c1280b05be39a824301db0ddad28fffc4e38cc6a4",
+      "bytes": 8160,
+      "mtime_ns": 1794897776521066656
+    },
+    {
+      "path": "task-nested-native/direct-capture-Clang-O0-false-false/report.json",
+      "sha256": "50252cee3a907e07655e76098ac4b22edadcc85fa8c18334bfef09bee9e3a817",
+      "bytes": 785,
+      "mtime_ns": 1794897776865062257
+    },
+    {
+      "path": "task-nested-native/direct-capture-Clang-O0-false-false/source.zil",
+      "sha256": "7cf6a557127f8f4629b74274f2fe39dcd4e7950fdff2121d8bd4604aac197a3b",
+      "bytes": 3231,
+      "mtime_ns": 1794897776481067167
+    },
+    {
+      "path": "task-owner-native/cancel-after-pending-Clang-O0/link.sh",
+      "sha256": "66922c37a5cfea0d50b06d7c7e5983913db8eeec0606fa7e8ff4e309d5b01ce6",
+      "bytes": 458,
+      "mtime_ns": 1794897780260998960
+    },
+    {
+      "path": "task-owner-native/cancel-after-pending-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897780256999087
+    },
+    {
+      "path": "task-owner-native/cancel-after-pending-Clang-O0/program",
+      "sha256": "0fc231d10784ec96eff4a394021688049d5f7da121fbe76381371a0453a1200b",
+      "bytes": 30632,
+      "mtime_ns": 1794897780544989880
+    },
+    {
+      "path": "task-owner-native/cancel-after-pending-Clang-O0/program.ll",
+      "sha256": "150cf6e4facf183d1f6b5ff77ab9dea5ef0447d23defca68475fec0a3c92a869",
+      "bytes": 86872,
+      "mtime_ns": 1794897780460992566
+    },
+    {
+      "path": "task-owner-native/cancel-after-pending-Clang-O0/report.json",
+      "sha256": "f1a049e0b88049a0237a140bcd8001ad3bab0ce0f713009d46aa69fb79ff9e18",
+      "bytes": 1690,
+      "mtime_ns": 1794897780556555424
+    },
+    {
+      "path": "task-owner-native/cancel-after-pending-Clang-O0/source.zil",
+      "sha256": "72199a7d86ae83b0ebdcc8892d1f91c569cb8952694d2773a9c991cf74502479",
+      "bytes": 867,
+      "mtime_ns": 1794897780236999727
+    },
+    {
+      "path": "task-owner-native/cancel-before-poll-Clang-O0/link.sh",
+      "sha256": "d478c11f72ea691414cd5bd0ffa336535a834969df3002a15edca177845c5fe9",
+      "bytes": 456,
+      "mtime_ns": 1794897779917009967
+    },
+    {
+      "path": "task-owner-native/cancel-before-poll-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897779917009967
+    },
+    {
+      "path": "task-owner-native/cancel-before-poll-Clang-O0/program",
+      "sha256": "1d59cbb0a5d75b28b4445423a755b1477a389984f2e1f6f5c4061e7afd197081",
+      "bytes": 30632,
+      "mtime_ns": 1794897780228999983
+    },
+    {
+      "path": "task-owner-native/cancel-before-poll-Clang-O0/program.ll",
+      "sha256": "cffb5dd6867cd0057cae2b25156c6fa1ed3abdf5eb66e196cee283fb51cf26fe",
+      "bytes": 81350,
+      "mtime_ns": 1794897780137002924
+    },
+    {
+      "path": "task-owner-native/cancel-before-poll-Clang-O0/report.json",
+      "sha256": "076b6a9cb8b433a396b0ebe5a92e68fb60e864f1bf4bddc102ef2b8b588a6c9f",
+      "bytes": 1680,
+      "mtime_ns": 1794897780236076308
+    },
+    {
+      "path": "task-owner-native/cancel-before-poll-Clang-O0/source.zil",
+      "sha256": "08b923f24efaf5150e67a2a9a311293390824668560d7490c201d84cb7b2aecf",
+      "bytes": 840,
+      "mtime_ns": 1794897779893010735
+    },
+    {
+      "path": "task-owner-native/closed-owner-Clang-O0/link.sh",
+      "sha256": "3bbe324ab76667fc9b366dacae859165c6b6e99cd4bdbf25a50f3a5ecf0a6774",
+      "bytes": 450,
+      "mtime_ns": 1794897791568812972
+    },
+    {
+      "path": "task-owner-native/closed-owner-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897791568812972
+    },
+    {
+      "path": "task-owner-native/closed-owner-Clang-O0/program",
+      "sha256": "a882ba8f948dbad05cf429d3cd37ba201a0ab3c3e814395422d7d1e8da28e2c8",
+      "bytes": 26464,
+      "mtime_ns": 1794897791764810421
+    },
+    {
+      "path": "task-owner-native/closed-owner-Clang-O0/program.ll",
+      "sha256": "49cabb02f2f0d4bf6caf1157347a86ee699ce4f0cbbb2bbd652acc28212e3ced",
+      "bytes": 61617,
+      "mtime_ns": 1794897791696811306
+    },
+    {
+      "path": "task-owner-native/closed-owner-Clang-O0/report.json",
+      "sha256": "27b187db6649c0e3370d80d6b252955f4eea1d186d052d48c14d32b17728b030",
+      "bytes": 1650,
+      "mtime_ns": 1794897791772382103
+    },
+    {
+      "path": "task-owner-native/closed-owner-Clang-O0/source.zil",
+      "sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+      "bytes": 682,
+      "mtime_ns": 1794897791547763111
+    },
+    {
+      "path": "task-owner-native/equal-shared-task-classes-Clang-O0/link.sh",
+      "sha256": "96f1699a96b9d27edea9f0413c940acccdd3f413bd1fd9c1beef8730e9e776fd",
+      "bytes": 463,
+      "mtime_ns": 1794897792264803913
+    },
+    {
+      "path": "task-owner-native/equal-shared-task-classes-Clang-O0/observer.o",
+      "sha256": "93c65ed6d662458bc2dabe5d17fb3f4f5fe391fbc07c5c98f67f2a5bfc1e7aae",
+      "bytes": 3712,
+      "mtime_ns": 1794897792260803966
+    },
+    {
+      "path": "task-owner-native/equal-shared-task-classes-Clang-O0/program",
+      "sha256": "0ba1e7ffd4caa0c779daf186b1ca83152d17c6a82e6756f813c15d16b3a13a17",
+      "bytes": 34976,
+      "mtime_ns": 1794897792740797717
+    },
+    {
+      "path": "task-owner-native/equal-shared-task-classes-Clang-O0/program.ll",
+      "sha256": "c7bfec7f804c3fd6d217ca0b2e41f338a3ff834e968ef90ee7d166fdd7e90dd0",
+      "bytes": 107975,
+      "mtime_ns": 1794897792620799280
+    },
+    {
+      "path": "task-owner-native/equal-shared-task-classes-Clang-O0/report.json",
+      "sha256": "3039fa73b24ccafde75400b736312ace3ce49dd40d6b720927c01b76d23992d3",
+      "bytes": 1715,
+      "mtime_ns": 1794897792754712153
+    },
+    {
+      "path": "task-owner-native/equal-shared-task-classes-Clang-O0/source.zil",
+      "sha256": "e2d5b2b12ad60930a2613044916e88f74be07b9b9e6d0f818b19d9fe3cd75483",
+      "bytes": 1094,
+      "mtime_ns": 1794897792236804278
+    },
+    {
+      "path": "task-owner-native/mutable-frame-cancel-after-pending-Clang-O0/link.sh",
+      "sha256": "a97ef96316202f7d4ed6497f7210fb5deffad797278bbbd9c919fb07014b2a9a",
+      "bytes": 472,
+      "mtime_ns": 1794897785724907195
+    },
+    {
+      "path": "task-owner-native/mutable-frame-cancel-after-pending-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897785720907247
+    },
+    {
+      "path": "task-owner-native/mutable-frame-cancel-after-pending-Clang-O0/program",
+      "sha256": "973747a288a4b9a9289ba225b4b3db976f157b0f9d635fc1d725d20f5c72201a",
+      "bytes": 30872,
+      "mtime_ns": 1794897786396898586
+    },
+    {
+      "path": "task-owner-native/mutable-frame-cancel-after-pending-Clang-O0/program.ll",
+      "sha256": "334fe69855b4cf28bc446f7b71c4fe5c2ba282c144c212ecae4146e096e8b7a2",
+      "bytes": 99154,
+      "mtime_ns": 1794897786260900329
+    },
+    {
+      "path": "task-owner-native/mutable-frame-cancel-after-pending-Clang-O0/report.json",
+      "sha256": "17acf79c5428f1bc57095c7ebcccd42096a1599319da617f14c0e49d2b759841",
+      "bytes": 1760,
+      "mtime_ns": 1794897786407049458
+    },
+    {
+      "path": "task-owner-native/mutable-frame-cancel-after-pending-Clang-O0/source.zil",
+      "sha256": "0b9b4f8b138f456059788a3da7d11668f3322f86b917244bf39e532cff9f0b5f",
+      "bytes": 889,
+      "mtime_ns": 1794897785696907553
+    },
+    {
+      "path": "task-owner-native/mutable-frame-cancel-before-poll-Clang-O0/link.sh",
+      "sha256": "694cefbc7071389e585cb3d8bdee72d9d856d991473973cc45427a5ec5356a2c",
+      "bytes": 470,
+      "mtime_ns": 1794897785148914575
+    },
+    {
+      "path": "task-owner-native/mutable-frame-cancel-before-poll-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897785148914575
+    },
+    {
+      "path": "task-owner-native/mutable-frame-cancel-before-poll-Clang-O0/program",
+      "sha256": "01ba646facd758f539c219d9df9d246c7f362c80f5d71e4f37d60cb0f2778660",
+      "bytes": 30872,
+      "mtime_ns": 1794897785676907810
+    },
+    {
+      "path": "task-owner-native/mutable-frame-cancel-before-poll-Clang-O0/program.ll",
+      "sha256": "b9a343b7f68a71672ef52b8ad1e2d30f0c318ee5fd11348f0f3f02f0058790cd",
+      "bytes": 93646,
+      "mtime_ns": 1794897785564909245
+    },
+    {
+      "path": "task-owner-native/mutable-frame-cancel-before-poll-Clang-O0/report.json",
+      "sha256": "9075e5d1c7e34920d2b451923c70106be896ffc32f04d1cc68fe2ad5e4c55a3a",
+      "bytes": 1750,
+      "mtime_ns": 1794897785691565518
+    },
+    {
+      "path": "task-owner-native/mutable-frame-cancel-before-poll-Clang-O0/source.zil",
+      "sha256": "c05f8c4bf220e8e6197453005c8c087d41b7e6fb871a02808969c6bfcc9fca1d",
+      "bytes": 864,
+      "mtime_ns": 1794897785125660917
+    },
+    {
+      "path": "task-owner-native/mutable-frame-never-called-Clang-O0/link.sh",
+      "sha256": "93cc681b6067158138b90eaea3a015bd6d9a85f637fa0e2bc8af268cdf7838f9",
+      "bytes": 464,
+      "mtime_ns": 1794897784900917751
+    },
+    {
+      "path": "task-owner-native/mutable-frame-never-called-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897784896917803
+    },
+    {
+      "path": "task-owner-native/mutable-frame-never-called-Clang-O0/program",
+      "sha256": "9039d9740e0fe204093f6c6776be0f42b634c371155320a61110ab83d51e37c5",
+      "bytes": 21824,
+      "mtime_ns": 1794897785116914984
+    },
+    {
+      "path": "task-owner-native/mutable-frame-never-called-Clang-O0/program.ll",
+      "sha256": "dca8d5fa9fc941f6c0318bd812dbc1604f9075e8b856600b2711555105e922ad",
+      "bytes": 36647,
+      "mtime_ns": 1794897785063441132
+    },
+    {
+      "path": "task-owner-native/mutable-frame-never-called-Clang-O0/report.json",
+      "sha256": "c9a9361fcc5a04493f9bb5afeda96015bfac763032d298118d0daa034037df86",
+      "bytes": 1720,
+      "mtime_ns": 1794897785125660917
+    },
+    {
+      "path": "task-owner-native/mutable-frame-never-called-Clang-O0/source.zil",
+      "sha256": "8e42eb809ba5346c0e1283599d6c5461bb1913e26448b38e5f812cb91c4470f8",
+      "bytes": 826,
+      "mtime_ns": 1794897784874070385
+    },
+    {
+      "path": "task-owner-native/mutable-frame-prepolled-Clang-O0/link.sh",
+      "sha256": "593c883a08c131860de90d6413fce8a1a673a68ffa92915730ab3bb3c05c031e",
+      "bytes": 461,
+      "mtime_ns": 1794897784228926361
+    },
+    {
+      "path": "task-owner-native/mutable-frame-prepolled-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897784228926361
+    },
+    {
+      "path": "task-owner-native/mutable-frame-prepolled-Clang-O0/program",
+      "sha256": "e0f0a335efde8b2bbef321c5dcc63b123eb22fbe3ae79f5b256cde2ba6d5028c",
+      "bytes": 34968,
+      "mtime_ns": 1794897784576921903
+    },
+    {
+      "path": "task-owner-native/mutable-frame-prepolled-Clang-O0/program.ll",
+      "sha256": "c057b5ca0f65b723164fa8e604666c89b4441786e307cb3c77953271b4e29e71",
+      "bytes": 107128,
+      "mtime_ns": 1794897784508922774
+    },
+    {
+      "path": "task-owner-native/mutable-frame-prepolled-Clang-O0/report.json",
+      "sha256": "726e9c84f5da7bee308bfbab6e456b69cf43b4e2723ffe5520c9e50390c70486",
+      "bytes": 1705,
+      "mtime_ns": 1794897784585220330
+    },
+    {
+      "path": "task-owner-native/mutable-frame-prepolled-Clang-O0/source.zil",
+      "sha256": "b933c80d36b11f3a74f95301466e2101409155bfed76c0eaf57c4a817a0c2b48",
+      "bytes": 953,
+      "mtime_ns": 1794897784193304468
+    },
+    {
+      "path": "task-owner-native/mutable-frame-ready-Clang-O0/link.sh",
+      "sha256": "78fb0a6dd6f02f21a00bc340ea1543d90bc868a789cf83286e25306a32098e24",
+      "bytes": 457,
+      "mtime_ns": 1794897783744932562
+    },
+    {
+      "path": "task-owner-native/mutable-frame-ready-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897783744932562
+    },
+    {
+      "path": "task-owner-native/mutable-frame-ready-Clang-O0/program",
+      "sha256": "6b2ad96ad73d2ed0811c69abb51113e1a5629114a43460aad8d977112ccf8713",
+      "bytes": 30872,
+      "mtime_ns": 1794897784180926976
+    },
+    {
+      "path": "task-owner-native/mutable-frame-ready-Clang-O0/program.ll",
+      "sha256": "92746c7765b67338f834ca214e4e2d2f6b732976338eed545ba899e9fb3873f7",
+      "bytes": 97525,
+      "mtime_ns": 1794897784076928308
+    },
+    {
+      "path": "task-owner-native/mutable-frame-ready-Clang-O0/report.json",
+      "sha256": "c6e8aa529c9597c444fc0be7670e397d311a621c9d7b17753b6a6483ed5675bb",
+      "bytes": 1685,
+      "mtime_ns": 1794897784193304468
+    },
+    {
+      "path": "task-owner-native/mutable-frame-ready-Clang-O0/source.zil",
+      "sha256": "fd1e0a679642ec33e0316a851860285f2e689bca48eae1e6a25641fa539eb1e2",
+      "bytes": 885,
+      "mtime_ns": 1794897783721051006
+    },
+    {
+      "path": "task-owner-native/mutable-frame-ready-unobserved-Clang-O0/link.sh",
+      "sha256": "b4db55b8026fa2f5e1c6a316059abcdf71df701393f12f2c6174e5ec1b728df7",
+      "bytes": 468,
+      "mtime_ns": 1794897784612921442
+    },
+    {
+      "path": "task-owner-native/mutable-frame-ready-unobserved-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897784612921442
+    },
+    {
+      "path": "task-owner-native/mutable-frame-ready-unobserved-Clang-O0/program",
+      "sha256": "d85a622c71d8d9924be92eb5eeb7725ad8b460ca1d94413f8aba242e54004ce1",
+      "bytes": 30872,
+      "mtime_ns": 1794897784864918212
+    },
+    {
+      "path": "task-owner-native/mutable-frame-ready-unobserved-Clang-O0/program.ll",
+      "sha256": "f9d4133022ba28efed9d0b1418691916c972bd4a9cfc82c0c6e14a99d9526f01",
+      "bytes": 93005,
+      "mtime_ns": 1794897784800919033
+    },
+    {
+      "path": "task-owner-native/mutable-frame-ready-unobserved-Clang-O0/report.json",
+      "sha256": "d9d2aeb744ab871ea568daa03e40638a74c26f7ba01ca6eac71ef3dd20c036a0",
+      "bytes": 1740,
+      "mtime_ns": 1794897784874070385
+    },
+    {
+      "path": "task-owner-native/mutable-frame-ready-unobserved-Clang-O0/source.zil",
+      "sha256": "3a785daad3a93a69d3bb6f9a3a86a297b188bd2c727919158a2fa1e8e58e9f93",
+      "bytes": 866,
+      "mtime_ns": 1794897784585220330
+    },
+    {
+      "path": "task-owner-native/prepolled-pending-Clang-O0/link.sh",
+      "sha256": "93b97e4e26ebb9a2d795d143061e111661f1865f6d7bebafecae394d71e116b1",
+      "bytes": 455,
+      "mtime_ns": 1794897779397026622
+    },
+    {
+      "path": "task-owner-native/prepolled-pending-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897779397026622
+    },
+    {
+      "path": "task-owner-native/prepolled-pending-Clang-O0/program",
+      "sha256": "ae6953f0fe45f66ffa040b6807df7135a73a928bdcff2711ffc53a9d1a943c4b",
+      "bytes": 30632,
+      "mtime_ns": 1794897779881011120
+    },
+    {
+      "path": "task-owner-native/prepolled-pending-Clang-O0/program.ll",
+      "sha256": "790405f191f2cf6237877e1e305d509a362d436bea8f1751707dda01500e31b6",
+      "bytes": 92291,
+      "mtime_ns": 1794897779793013938
+    },
+    {
+      "path": "task-owner-native/prepolled-pending-Clang-O0/report.json",
+      "sha256": "664a1cf71f2da655667d0e10b95070b4b1a4733a0afe173e331ce565852915bf",
+      "bytes": 1674,
+      "mtime_ns": 1794897779890666878
+    },
+    {
+      "path": "task-owner-native/prepolled-pending-Clang-O0/source.zil",
+      "sha256": "d7445085448dfb70d7904ddfd1e6c8776a0287b60bae56ca7c457c6ad477a5ee",
+      "bytes": 1032,
+      "mtime_ns": 1794897779369027519
+    },
+    {
+      "path": "task-owner-native/ready-Clang-O0/link.sh",
+      "sha256": "ffa07f49e6cb1eb380723c84d66d500ab4951c93285ed37409b757cf010439f5",
+      "bytes": 443,
+      "mtime_ns": 1794897779021034688
+    },
+    {
+      "path": "task-owner-native/ready-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897779017034740
+    },
+    {
+      "path": "task-owner-native/ready-Clang-O0/program",
+      "sha256": "58346f6f9a45e0ba2c9d71c7b6ca2ddcc7e88ee356efc8aa5cf6e9c196a73314",
+      "bytes": 30632,
+      "mtime_ns": 1794897779361027775
+    },
+    {
+      "path": "task-owner-native/ready-Clang-O0/program.ll",
+      "sha256": "4bbb28fd315a06c0798b0b30430326c854b3ed12e843bdc01f6f5760b5fcf29a",
+      "bytes": 86761,
+      "mtime_ns": 1794897779281030337
+    },
+    {
+      "path": "task-owner-native/ready-Clang-O0/report.json",
+      "sha256": "769a021a05e9e28f0eee294405201c110137c8a5d2483e1ecb5274baf7bbbd82",
+      "bytes": 1615,
+      "mtime_ns": 1794897779367573140
+    },
+    {
+      "path": "task-owner-native/ready-Clang-O0/source.zil",
+      "sha256": "769e7684668cacdeaf50f2cd86b219ed3a84d373ffc90f882db4e90b056aa4b7",
+      "bytes": 1005,
+      "mtime_ns": 1794897778985035148
+    },
+    {
+      "path": "task-owner-native/ready-result-unobserved-by-owner-Clang-O0/link.sh",
+      "sha256": "372eba5a2bfb4d65ae4914c9c4cb4394fe950e3f560914aa43b91647c153ed89",
+      "bytes": 470,
+      "mtime_ns": 1794897780592988346
+    },
+    {
+      "path": "task-owner-native/ready-result-unobserved-by-owner-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897780588988474
+    },
+    {
+      "path": "task-owner-native/ready-result-unobserved-by-owner-Clang-O0/program",
+      "sha256": "66e8bda48fc04a221746e39b9cdf78ece91e4781a0457edcd1f3807a1f9e9a5a",
+      "bytes": 30632,
+      "mtime_ns": 1794897781232967885
+    },
+    {
+      "path": "task-owner-native/ready-result-unobserved-by-owner-Clang-O0/program.ll",
+      "sha256": "aefe597d138624936ef0f2383bc2c98aa99682da1ce113dc7fadb4f8ec80ea07",
+      "bytes": 92430,
+      "mtime_ns": 1794897781136970954
+    },
+    {
+      "path": "task-owner-native/ready-result-unobserved-by-owner-Clang-O0/report.json",
+      "sha256": "57871b7c272cc10e01471162fab2c21780d09f4e4c182d36e3baf403cb64eff5",
+      "bytes": 1750,
+      "mtime_ns": 1794897781244967502
+    },
+    {
+      "path": "task-owner-native/ready-result-unobserved-by-owner-Clang-O0/source.zil",
+      "sha256": "55abe43ff9475955a45cdba329e93443a643e2edef51cbb81f1bc14630b0c05b",
+      "bytes": 892,
+      "mtime_ns": 1794897780560989369
+    },
+    {
+      "path": "task-owner-native/returned-frame-cancel-after-pending-Clang-O0/link.sh",
+      "sha256": "409114c9180260726b3e1f50c390c08eeed5332df5fcadaddeb663ae66ca5137",
+      "bytes": 473,
+      "mtime_ns": 1794897782972942452
+    },
+    {
+      "path": "task-owner-native/returned-frame-cancel-after-pending-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897782968942504
+    },
+    {
+      "path": "task-owner-native/returned-frame-cancel-after-pending-Clang-O0/program",
+      "sha256": "4f784ee851b73aa2d1cc59db7ad89948cc7fca72f6464be55ae87ace2c548760",
+      "bytes": 30632,
+      "mtime_ns": 1794897783324937942
+    },
+    {
+      "path": "task-owner-native/returned-frame-cancel-after-pending-Clang-O0/program.ll",
+      "sha256": "2cddcfc74de19ec1d6040dcdfeb794ba7475e9c7e8c9fc6db8fa52a1d585d381",
+      "bytes": 97027,
+      "mtime_ns": 1794897783240939018
+    },
+    {
+      "path": "task-owner-native/returned-frame-cancel-after-pending-Clang-O0/report.json",
+      "sha256": "ffc81f16796864dfa2c2f01838c5eb92b52072aff3bcb29072d2147bb6fe27f2",
+      "bytes": 1764,
+      "mtime_ns": 1794897783333063861
+    },
+    {
+      "path": "task-owner-native/returned-frame-cancel-after-pending-Clang-O0/source.zil",
+      "sha256": "776495d9e097030302f9a37ba1f49166e93860932c9a9c8d17ab6107e57e625a",
+      "bytes": 921,
+      "mtime_ns": 1794897782942622032
+    },
+    {
+      "path": "task-owner-native/returned-frame-cancel-before-poll-Clang-O0/link.sh",
+      "sha256": "3952ffe69fdf5d6347326548aaa0dfc184e0655fd9ab52c382bc918c5aa9e30d",
+      "bytes": 471,
+      "mtime_ns": 1794897782584947423
+    },
+    {
+      "path": "task-owner-native/returned-frame-cancel-before-poll-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897782576947525
+    },
+    {
+      "path": "task-owner-native/returned-frame-cancel-before-poll-Clang-O0/program",
+      "sha256": "8baefa9a3e3bd66742844b91e0d4704add522da8142931fafdb9ac30ae8c897b",
+      "bytes": 30632,
+      "mtime_ns": 1794897782936942913
+    },
+    {
+      "path": "task-owner-native/returned-frame-cancel-before-poll-Clang-O0/program.ll",
+      "sha256": "bf59fd0131a66c538677a4a5c2b4172c47f253f308a28748383eae11372241b9",
+      "bytes": 91483,
+      "mtime_ns": 1794897782824944349
+    },
+    {
+      "path": "task-owner-native/returned-frame-cancel-before-poll-Clang-O0/report.json",
+      "sha256": "580c06e77180e0eaec2704ad5d5ada79391a62a42115268cb6ab12d47d5754f5",
+      "bytes": 1755,
+      "mtime_ns": 1794897782942622032
+    },
+    {
+      "path": "task-owner-native/returned-frame-cancel-before-poll-Clang-O0/source.zil",
+      "sha256": "340ceecc8187cdc3f07b7bf64953857d090c29b4264de3f4bd18763ff5d4b5c6",
+      "bytes": 894,
+      "mtime_ns": 1794897782516948294
+    },
+    {
+      "path": "task-owner-native/returned-frame-prepolled-pending-Clang-O0/link.sh",
+      "sha256": "10adb34a12c643b0650869ebdbb1708beeb36c120b1620803f4ccfd78d3907b1",
+      "bytes": 470,
+      "mtime_ns": 1794897782056954187
+    },
+    {
+      "path": "task-owner-native/returned-frame-prepolled-pending-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897782056954187
+    },
+    {
+      "path": "task-owner-native/returned-frame-prepolled-pending-Clang-O0/program",
+      "sha256": "1deabc758f4a787db2f297d32885e7144ccf65980fa5c191e67122ba40a51979",
+      "bytes": 30632,
+      "mtime_ns": 1794897782504948447
+    },
+    {
+      "path": "task-owner-native/returned-frame-prepolled-pending-Clang-O0/program.ll",
+      "sha256": "65e357c0574b5a069d2e81a632e6185ce3c5cccabb3c986743832c0fd3e8e094",
+      "bytes": 102454,
+      "mtime_ns": 1794897782368950190
+    },
+    {
+      "path": "task-owner-native/returned-frame-prepolled-pending-Clang-O0/report.json",
+      "sha256": "d58bfa993c8a7eb09ac34b933aa2bfaed3aceb645d321bc0ae9e0dd03398a50a",
+      "bytes": 1750,
+      "mtime_ns": 1794897782514467691
+    },
+    {
+      "path": "task-owner-native/returned-frame-prepolled-pending-Clang-O0/source.zil",
+      "sha256": "b6770cb87c93e9b678e7690abfd9c4c34ad6e1f4617169051010c46e6034e7fc",
+      "bytes": 1086,
+      "mtime_ns": 1794897781964955366
+    },
+    {
+      "path": "task-owner-native/returned-frame-ready-Clang-O0/link.sh",
+      "sha256": "5fa1e15ea153e9b245c034050836f3826c2276732071a51de4a9834b2107f44a",
+      "bytes": 458,
+      "mtime_ns": 1794897781292965967
+    },
+    {
+      "path": "task-owner-native/returned-frame-ready-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897781292965967
+    },
+    {
+      "path": "task-owner-native/returned-frame-ready-Clang-O0/program",
+      "sha256": "cec689974329afd490fe5961ebfeca865267c0a2273604745287d0cec55cc481",
+      "bytes": 30632,
+      "mtime_ns": 1794897781956955469
+    },
+    {
+      "path": "task-owner-native/returned-frame-ready-Clang-O0/program.ll",
+      "sha256": "eee98f3da13548b0bbfd84f61abc262693047cb4f38233602cc5914a673c58ea",
+      "bytes": 96902,
+      "mtime_ns": 1794897781784957672
+    },
+    {
+      "path": "task-owner-native/returned-frame-ready-Clang-O0/report.json",
+      "sha256": "479959a272409f24ba62e8268355a344560f3b07435cc0f35c17f0a9a2093540",
+      "bytes": 1690,
+      "mtime_ns": 1794897781964545002
+    },
+    {
+      "path": "task-owner-native/returned-frame-ready-Clang-O0/source.zil",
+      "sha256": "9289d26dd64fcc1fc221ec5eb7181e5222038ec33aca9758d2ddfa33c68eac76",
+      "bytes": 1059,
+      "mtime_ns": 1794897781248967374
+    },
+    {
+      "path": "task-owner-native/returned-frame-ready-unobserved-Clang-O0/link.sh",
+      "sha256": "31150692059dc116f0c8a38ef93097dfc35602536517bc5c4228e2208d9c56ee",
+      "bytes": 469,
+      "mtime_ns": 1794897783356937532
+    },
+    {
+      "path": "task-owner-native/returned-frame-ready-unobserved-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897783356937532
+    },
+    {
+      "path": "task-owner-native/returned-frame-ready-unobserved-Clang-O0/program",
+      "sha256": "73a7967cb95b0bea9ca412898980d709ba1cc3d3fdfd28a77fe66f913ad3fc55",
+      "bytes": 34728,
+      "mtime_ns": 1794897783712932972
+    },
+    {
+      "path": "task-owner-native/returned-frame-ready-unobserved-Clang-O0/program.ll",
+      "sha256": "703d850a5cc271a151b2b3178ced4e5635e710b39406bb5c6e3b7a1b62854ef2",
+      "bytes": 102609,
+      "mtime_ns": 1794897783620934151
+    },
+    {
+      "path": "task-owner-native/returned-frame-ready-unobserved-Clang-O0/report.json",
+      "sha256": "89d549ec9c3fe771307f54915b5880ac891c5d5fd3bd9bc3df5ff247e03a7895",
+      "bytes": 1745,
+      "mtime_ns": 1794897783721051006
+    },
+    {
+      "path": "task-owner-native/returned-frame-ready-unobserved-Clang-O0/source.zil",
+      "sha256": "7e177a3a98959b3959f97aeb88843b6a90cecd355dfe87183f2938345ffbe586",
+      "bytes": 946,
+      "mtime_ns": 1794897783333063861
+    },
+    {
+      "path": "task-owner-native/returned-second-frame-Clang-O0/link.sh",
+      "sha256": "3b16cc07aecfaa27a835c844c9cd43e0a2235226c3885cd057cdcb65c818f964",
+      "bytes": 459,
+      "mtime_ns": 1794897791800809953
+    },
+    {
+      "path": "task-owner-native/returned-second-frame-Clang-O0/observer.o",
+      "sha256": "93c65ed6d662458bc2dabe5d17fb3f4f5fe391fbc07c5c98f67f2a5bfc1e7aae",
+      "bytes": 3712,
+      "mtime_ns": 1794897791796810005
+    },
+    {
+      "path": "task-owner-native/returned-second-frame-Clang-O0/program",
+      "sha256": "0b8e4c817b9a4a23c742b602d36e4369354eb8259ded05053a8647bf2981cbc1",
+      "bytes": 34656,
+      "mtime_ns": 1794897792228804382
+    },
+    {
+      "path": "task-owner-native/returned-second-frame-Clang-O0/program.ll",
+      "sha256": "6604ccc3a0eabc6d9119254c2da2e4cd9c3a32e5cafba60326f253530e4bbf63",
+      "bytes": 110147,
+      "mtime_ns": 1794897792148805423
+    },
+    {
+      "path": "task-owner-native/returned-second-frame-Clang-O0/report.json",
+      "sha256": "e320c69b4a104e2f1d9cf3228d86ccfac37b2997d169afdd616f64bef3460ce3",
+      "bytes": 1695,
+      "mtime_ns": 1794897792235809268
+    },
+    {
+      "path": "task-owner-native/returned-second-frame-Clang-O0/source.zil",
+      "sha256": "a31ff69da4030a0bde25723abcdde2ebdc1327109507774c466c54ad647e4e6a",
+      "bytes": 1026,
+      "mtime_ns": 1794897791772810317
+    },
+    {
+      "path": "task-owner-native/returned-shared-task-classes-Clang-O0/link.sh",
+      "sha256": "f498824f7051ec7cb1579f0ccbc082dbbd690169d130ffb8067fd62ed5b44768",
+      "bytes": 466,
+      "mtime_ns": 1794897792784797144
+    },
+    {
+      "path": "task-owner-native/returned-shared-task-classes-Clang-O0/observer.o",
+      "sha256": "93c65ed6d662458bc2dabe5d17fb3f4f5fe391fbc07c5c98f67f2a5bfc1e7aae",
+      "bytes": 3712,
+      "mtime_ns": 1794897792780797196
+    },
+    {
+      "path": "task-owner-native/returned-shared-task-classes-Clang-O0/report.json",
+      "sha256": "ae1518063f0adb188b6ae21034de249f2d32ffa1652ba646800f7c6832eceae0",
+      "bytes": 830,
+      "mtime_ns": 1794897793136792562
+    },
+    {
+      "path": "task-owner-native/returned-shared-task-classes-Clang-O0/source.zil",
+      "sha256": "1ffb120ca8667712cfa79d10917b7c2abcbb7199da511ce200312092abdaaedd",
+      "bytes": 1220,
+      "mtime_ns": 1794897792756797509
+    },
+    {
+      "path": "task-owner-native/static-frame-cancel-after-pending-Clang-O0/link.sh",
+      "sha256": "aae08e49d6e9818def71d5f11765fe0b476f00c19abbaa14ea20ba5c44eb4eea",
+      "bytes": 471,
+      "mtime_ns": 1794897791328816097
+    },
+    {
+      "path": "task-owner-native/static-frame-cancel-after-pending-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897791324816149
+    },
+    {
+      "path": "task-owner-native/static-frame-cancel-after-pending-Clang-O0/program",
+      "sha256": "3ea212ae8abbfc4a216ac1aeb461ace6cd102b09ea74bf6e205dfcb06740456a",
+      "bytes": 21792,
+      "mtime_ns": 1794897791540813337
+    },
+    {
+      "path": "task-owner-native/static-frame-cancel-after-pending-Clang-O0/program.ll",
+      "sha256": "89a6ed66a79122d230dcb9bcf4d32706e6cea78d79895afd866e00ba9450927d",
+      "bytes": 30489,
+      "mtime_ns": 1794897791476814170
+    },
+    {
+      "path": "task-owner-native/static-frame-cancel-after-pending-Clang-O0/report.json",
+      "sha256": "b337ba9435f482035768237164d0bfeddbd4a8f8a7648a41f1406c858416b533",
+      "bytes": 1755,
+      "mtime_ns": 1794897791547763111
+    },
+    {
+      "path": "task-owner-native/static-frame-cancel-after-pending-Clang-O0/source.zil",
+      "sha256": "38f5a93cefa981dfb490966fdb3b2a461b85c1d86c07c4341975e3c55fab36aa",
+      "bytes": 653,
+      "mtime_ns": 1794897791296816513
+    },
+    {
+      "path": "task-owner-native/static-frame-cancel-before-poll-Clang-O0/link.sh",
+      "sha256": "d3c4cced61b901000e518401ef12057a97700098e83f20b26853ec9d709c878a",
+      "bytes": 469,
+      "mtime_ns": 1794897791072819429
+    },
+    {
+      "path": "task-owner-native/static-frame-cancel-before-poll-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897791072819429
+    },
+    {
+      "path": "task-owner-native/static-frame-cancel-before-poll-Clang-O0/program",
+      "sha256": "f2f4da4d74c9e058215faa151fec91eb6037b734035aa3b869add92a14541a18",
+      "bytes": 21792,
+      "mtime_ns": 1794897791284816670
+    },
+    {
+      "path": "task-owner-native/static-frame-cancel-before-poll-Clang-O0/program.ll",
+      "sha256": "0c5250248400c3f22856b1ce0347a71023fa628556db79c6698e84dfc2869d43",
+      "bytes": 28490,
+      "mtime_ns": 1794897791228817399
+    },
+    {
+      "path": "task-owner-native/static-frame-cancel-before-poll-Clang-O0/report.json",
+      "sha256": "9c99010f050b47417037138ebefbdcb0794751d68c3bcc96e5d6e02f31850059",
+      "bytes": 1745,
+      "mtime_ns": 1794897791294509428
+    },
+    {
+      "path": "task-owner-native/static-frame-cancel-before-poll-Clang-O0/source.zil",
+      "sha256": "92f7824375d87480d43845bfc0af8ad02cde2efac09c9f1e61c403b7e373b282",
+      "bytes": 632,
+      "mtime_ns": 1794897791048819741
+    },
+    {
+      "path": "task-owner-native/static-frame-fn-Clang-O0/link.sh",
+      "sha256": "56c509012ecf51628fffebe3acd1736251261d0441822275715b2c2364f8c6c1",
+      "bytes": 453,
+      "mtime_ns": 1794897786444897971
+    },
+    {
+      "path": "task-owner-native/static-frame-fn-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897786440898023
+    },
+    {
+      "path": "task-owner-native/static-frame-fn-Clang-O0/program",
+      "sha256": "55b1f53a2ef6617b04abc80fc11a3c778398118782a272b27e1005dbf99b6f8c",
+      "bytes": 21792,
+      "mtime_ns": 1794897786804893359
+    },
+    {
+      "path": "task-owner-native/static-frame-fn-Clang-O0/program.ll",
+      "sha256": "12062eb9b902bffba00d3b06f666efe6e0c02546f5f16f06a1e3832f7c70f232",
+      "bytes": 33830,
+      "mtime_ns": 1794897786664895153
+    },
+    {
+      "path": "task-owner-native/static-frame-fn-Clang-O0/report.json",
+      "sha256": "7115b4ff3d84c0b4bef3342dd27b0d40d1908de8fbddd659a5cd52bc56168851",
+      "bytes": 1665,
+      "mtime_ns": 1794897786814319387
+    },
+    {
+      "path": "task-owner-native/static-frame-fn-Clang-O0/source.zil",
+      "sha256": "af5f33fa39e68e27c31fbb8931df8c701125d4ab036e58090d1ca00f203aebf2",
+      "bytes": 772,
+      "mtime_ns": 1794897786408898432
+    },
+    {
+      "path": "task-owner-native/static-frame-fnmut-Clang-O0/link.sh",
+      "sha256": "24db2771937c769c88a3adb190ebd4ad2d7770bcc02fda2fd7dfcdf3c75f0b1d",
+      "bytes": 456,
+      "mtime_ns": 1794897786876892437
+    },
+    {
+      "path": "task-owner-native/static-frame-fnmut-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897786872892488
+    },
+    {
+      "path": "task-owner-native/static-frame-fnmut-Clang-O0/program",
+      "sha256": "a7a8b2f53c47a53b31686fc0028c31bed0ded26e323e1c2f881e01c919c8ec30",
+      "bytes": 21792,
+      "mtime_ns": 1794897787200888285
+    },
+    {
+      "path": "task-owner-native/static-frame-fnmut-Clang-O0/program.ll",
+      "sha256": "06a0e83702f203aaf0eeba73942d9e19961999b246a76f19119fea6b2a4ada5a",
+      "bytes": 39333,
+      "mtime_ns": 1794897787100889567
+    },
+    {
+      "path": "task-owner-native/static-frame-fnmut-Clang-O0/report.json",
+      "sha256": "8cd86b1241a7967fb0e7aa7aa80217d5deac2bbe3b80eed39545fa0a4132d70b",
+      "bytes": 1680,
+      "mtime_ns": 1794897787209373197
+    },
+    {
+      "path": "task-owner-native/static-frame-fnmut-Clang-O0/source.zil",
+      "sha256": "17e93b500048ddd034e7e10f8cecbcf473044cc802c1a7225f261f53241dec3c",
+      "bytes": 905,
+      "mtime_ns": 1794897786820893153
+    },
+    {
+      "path": "task-owner-native/static-frame-fnonce-Clang-O0/link.sh",
+      "sha256": "7428afbfeac0302972c44127826dafbb88f18430638b4aca3dfa0aec0c104007",
+      "bytes": 457,
+      "mtime_ns": 1794897789100854281
+    },
+    {
+      "path": "task-owner-native/static-frame-fnonce-Clang-O0/observer.o",
+      "sha256": "12177c37ce97533334d3eebf55f82f47041d671a3164b24b36734f469bbcc644",
+      "bytes": 3712,
+      "mtime_ns": 1794897789096854353
+    },
+    {
+      "path": "task-owner-native/static-frame-fnonce-Clang-O0/program",
+      "sha256": "dcb772d5552fcb808e5281844652a2860e02f05619f75418ca4510f60b9d4cf1",
+      "bytes": 21792,
+      "mtime_ns": 1794897789628844767
+    },
+    {
+      "path": "task-owner-native/static-frame-fnonce-Clang-O0/program.ll",
+      "sha256": "3b5caff3b19b57025a2ed2ec02bd838a6f5c8196dbbfe05f652c41deee3fa746",
+      "bytes": 34046,
+      "mtime_ns": 1794897789544846281
+    },
+    {
+      "path": "task-owner-native/static-frame-fnonce-Clang-O0/report.json",
+      "sha256": "f76aa75d860a757ed0843c73bd617543f55ebdf3eed45604e4ae8c09a04f6aeb",
+      "bytes": 1685,
+      "mtime_ns": 1794897789635753723
+    },
+    {
+      "path": "task-owner-native/static-frame-fnonce-Clang-O0/source.zil",
+      "sha256": "2242e1d8cdee81254d767379cd8707b8ebfafcbf4429eff34ab931140059d539",
+      "bytes": 776,
+      "mtime_ns": 1794897789052855146
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-Clang-O0/link.sh",
+      "sha256": "353327374bc30a68b07db949bc66a79e327708076aeb48e8a54593ac33f7828d",
+      "bytes": 463,
+      "mtime_ns": 1794897787256887516
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-Clang-O0/observer.o",
+      "sha256": "184da7afc72b03e3049fc72fa79413e99c766616940d57bda80f691c705d02e1",
+      "bytes": 3720,
+      "mtime_ns": 1794897787252887588
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-Clang-O0/program",
+      "sha256": "401ea3eccc6f5f2b0dc19989a60935c0f5c2f409bac9e4dde2a7a05cfee891a3",
+      "bytes": 21824,
+      "mtime_ns": 1794897787596881381
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-Clang-O0/program.ll",
+      "sha256": "385c19df58af99922b2ff2617a1c34a5881e7511540981d9488e72dd1b6c6ba4",
+      "bytes": 47433,
+      "mtime_ns": 1794897787524882680
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-Clang-O0/report.json",
+      "sha256": "83c7469f496b3649b8cc908f0bb1cdebf26304c88cb16f2cff819cfd6380279c",
+      "bytes": 1715,
+      "mtime_ns": 1794897787605334215
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-Clang-O0/source.zil",
+      "sha256": "6af8b9aaeb0a236746fbcb382229e2090ec5b515765729f31c54998831df1e7e",
+      "bytes": 1117,
+      "mtime_ns": 1794897787212888131
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-after-pending-Clang-O0/link.sh",
+      "sha256": "5a72fd93837bd6173e05460c09eb66a61efcc591e31d3f05330842261055ad70",
+      "bytes": 484,
+      "mtime_ns": 1794897787984874389
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-after-pending-Clang-O0/observer.o",
+      "sha256": "1b1375d292adfa74614759ccd2a654d0611670ee92201d824e67b97591534c29",
+      "bytes": 3712,
+      "mtime_ns": 1794897787976874533
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-after-pending-Clang-O0/program",
+      "sha256": "f246a8904cbb1166a67c5ce746cd0d276576d7fcca6c8186862b2462aec91c48",
+      "bytes": 21824,
+      "mtime_ns": 1794897788528864587
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-after-pending-Clang-O0/program.ll",
+      "sha256": "a7558d639504eac241d99a51e2ea33c4b53a39c374cafa13e3bfa60654ce30bd",
+      "bytes": 44044,
+      "mtime_ns": 1794897788272869199
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-after-pending-Clang-O0/report.json",
+      "sha256": "1b8e3fd33dcbb07999a63b72feae61800aa7d916fa19d345c165cc89537296df",
+      "bytes": 1820,
+      "mtime_ns": 1794897788540864371
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-after-pending-Clang-O0/source.zil",
+      "sha256": "539499355c28e358ac1ddede2d57ceb48cafd062797919e086a0c2b20d924d4d",
+      "bytes": 998,
+      "mtime_ns": 1794897787944875109
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-after-second-pending-Clang-O0/link.sh",
+      "sha256": "424a5b880a646e9dd77deb9525df073d43884ac75540b65ea1ebadc3f7ed8b67",
+      "bytes": 491,
+      "mtime_ns": 1794897788572863793
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-after-second-pending-Clang-O0/observer.o",
+      "sha256": "5c9597bfb4f86300cbf3f6e0362cc45a1b38cc600601ce80915a11b8d7c5b24d",
+      "bytes": 3720,
+      "mtime_ns": 1794897788572863793
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-after-second-pending-Clang-O0/program",
+      "sha256": "ca68f449c912771b7649d1dfcf1a8b2fbd85c9367ddaded0d284af1bbcb8f8ee",
+      "bytes": 21824,
+      "mtime_ns": 1794897789036855434
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-after-second-pending-Clang-O0/program.ll",
+      "sha256": "aa4634b781e19aa48f48e88bda726af6721d7be680c819d379208111b34a325b",
+      "bytes": 46048,
+      "mtime_ns": 1794897788928857380
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-after-second-pending-Clang-O0/report.json",
+      "sha256": "b7f4ffbb1c54c53871712aaf4957ca5e8b246d1953b6c4e1e1c3bdfc1097a31e",
+      "bytes": 1854,
+      "mtime_ns": 1794897789047153527
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-after-second-pending-Clang-O0/source.zil",
+      "sha256": "08e83641ff19757ba18438d84a6bc189eef088d1a7eb9b14e4884aa1c7699454",
+      "bytes": 1019,
+      "mtime_ns": 1794897788544864299
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-before-poll-Clang-O0/link.sh",
+      "sha256": "afbc0d1c8d0146e87b1f95a7010224fd59aa99cccea9898f49931d1d7e5c7f9b",
+      "bytes": 482,
+      "mtime_ns": 1794897787660880226
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-before-poll-Clang-O0/observer.o",
+      "sha256": "1b1375d292adfa74614759ccd2a654d0611670ee92201d824e67b97591534c29",
+      "bytes": 3712,
+      "mtime_ns": 1794897787656880298
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-before-poll-Clang-O0/program",
+      "sha256": "cc42655cece4afed40dd87e691349c82a2393dd3c66d2ea572a9d1f63137d33c",
+      "bytes": 21824,
+      "mtime_ns": 1794897787932875325
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-before-poll-Clang-O0/program.ll",
+      "sha256": "12edc95f3ee4c02a82dcd5c17b05351c01664ed0bc4d8b1074351633a43921c5",
+      "bytes": 42040,
+      "mtime_ns": 1794897787864876551
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-before-poll-Clang-O0/report.json",
+      "sha256": "2395aa720a5053dd9da2428b09a26cbbaddadf8c0e1aabc23b61be42f1c39c8a",
+      "bytes": 1810,
+      "mtime_ns": 1794897787941669821
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnmut-cancel-before-poll-Clang-O0/source.zil",
+      "sha256": "09c0454f00030fabc345ff71b651dee29a02a0cb2f4ac74bd4148aee03be8d27",
+      "bytes": 977,
+      "mtime_ns": 1794897787605334215
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-Clang-O0/link.sh",
+      "sha256": "233a2e677e22dc9d45390cbcc22f6783366ef2b9be2f24cdcb0bf0b356cd4b8c",
+      "bytes": 464,
+      "mtime_ns": 1794897789692843614
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-Clang-O0/observer.o",
+      "sha256": "5c9597bfb4f86300cbf3f6e0362cc45a1b38cc600601ce80915a11b8d7c5b24d",
+      "bytes": 3720,
+      "mtime_ns": 1794897789688843687
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-Clang-O0/program",
+      "sha256": "f4738d35a49f87ea3d0d936f7a567d0c322d05bcca6fd0487c8bdd14426b886f",
+      "bytes": 21824,
+      "mtime_ns": 1794897790252833524
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-Clang-O0/program.ll",
+      "sha256": "179c5e3785e657b1b4ae85889c43fd64607bfa0f6b4408663786eb48632494ef",
+      "bytes": 44793,
+      "mtime_ns": 1794897790164835109
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-Clang-O0/report.json",
+      "sha256": "9b2d1976c30a53e1b4e309d769b37c935ea7330e4d0fd715bf5abda1f419c440",
+      "bytes": 1720,
+      "mtime_ns": 1794897790259370826
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-Clang-O0/source.zil",
+      "sha256": "5fa4d302873b57d654ac8f709a03f1fd5dbee8f3ad5516b992cd85f2b5374db4",
+      "bytes": 1027,
+      "mtime_ns": 1794897789636844622
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-cancel-after-pending-Clang-O0/link.sh",
+      "sha256": "1fa1478f575f38cbcb980d2a5fdcfd6c9e15087492ca0815bb2e6e242ef6d57d",
+      "bytes": 485,
+      "mtime_ns": 1794897790780824011
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-cancel-after-pending-Clang-O0/observer.o",
+      "sha256": "1b1375d292adfa74614759ccd2a654d0611670ee92201d824e67b97591534c29",
+      "bytes": 3712,
+      "mtime_ns": 1794897790776824083
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-cancel-after-pending-Clang-O0/program",
+      "sha256": "eb3db7043559e96c5904889118cd2a3378d1a1b5c98569f409dec4bfaa01c404",
+      "bytes": 21824,
+      "mtime_ns": 1794897791040819845
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-cancel-after-pending-Clang-O0/program.ll",
+      "sha256": "106da01ef92e5f285a0616ec9f7ae3719d48db5e94911087df3b5eb2062c5e46",
+      "bytes": 41404,
+      "mtime_ns": 1794897790984820572
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-cancel-after-pending-Clang-O0/report.json",
+      "sha256": "a3a503934f84f9d88ddb0eeb71795e04784136d40c78ae884dc79ef0ac0f1b32",
+      "bytes": 1825,
+      "mtime_ns": 1794897791048234469
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-cancel-after-pending-Clang-O0/source.zil",
+      "sha256": "85bd761f67cb4203e46998d2d256f32b0b67d390e8295d200517946bd767d62e",
+      "bytes": 908,
+      "mtime_ns": 1794897790748824586
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-cancel-before-poll-Clang-O0/link.sh",
+      "sha256": "d8ed4b76a80f1be23c5dc06508253961256a48aed087f91bd75b5037a48c17fb",
+      "bytes": 483,
+      "mtime_ns": 1794897790292832803
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-cancel-before-poll-Clang-O0/observer.o",
+      "sha256": "1b1375d292adfa74614759ccd2a654d0611670ee92201d824e67b97591534c29",
+      "bytes": 3712,
+      "mtime_ns": 1794897790292832803
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-cancel-before-poll-Clang-O0/program",
+      "sha256": "5c08740db32bffdd322aa114e4ec8ff2e700c8bedc53bae850ef532f01a7e48a",
+      "bytes": 21824,
+      "mtime_ns": 1794897790740824731
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-cancel-before-poll-Clang-O0/program.ll",
+      "sha256": "88aaa59756aaedaf843280ef6290d219e1b231beb5a25da300c2e4d7cb96f915",
+      "bytes": 39400,
+      "mtime_ns": 1794897790652826317
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-cancel-before-poll-Clang-O0/report.json",
+      "sha256": "d210227dc8fb6fec03739b245ee90bf4cc1bb8d4c9759360c41a0dd6a1998d06",
+      "bytes": 1815,
+      "mtime_ns": 1794897790748056357
+    },
+    {
+      "path": "task-owner-native/static-frame-owning-fnonce-cancel-before-poll-Clang-O0/source.zil",
+      "sha256": "d9161be29a359952cd42143ce300bb4caa9ba31ff526fe6209448a8880e1dc23",
+      "bytes": 887,
+      "mtime_ns": 1794897790268833236
+    },
+    {
+      "path": "task-pending-once-native/scalar-Clang-O0-false-false/candidate.txt",
+      "sha256": "7d94d95684c6b2c14c4664da70483b2fb92a2b6df62532db8faba0ec9b36b09c",
+      "bytes": 72969,
+      "mtime_ns": 1794897778901036223
+    },
+    {
+      "path": "task-pending-once-native/scalar-Clang-O0-false-false/core.txt",
+      "sha256": "f245351b99a655d01b75930ff8037c82a1fde7b676e5767251fe52566d0298c2",
+      "bytes": 1318163,
+      "mtime_ns": 1794897778585040263
+    },
+    {
+      "path": "task-pending-once-native/scalar-Clang-O0-false-false/ct-core.txt",
+      "sha256": "f7877bb290e54df0e47cbf909c2cae0d6101a16fcd26fa3a10223f2b4cd92ee4",
+      "bytes": 1333930,
+      "mtime_ns": 1794897778653039394
+    },
+    {
+      "path": "task-pending-once-native/scalar-Clang-O0-false-false/link.sh",
+      "sha256": "dc639ae7c59e093aa6b261b5b16764c3059df0d2a6c93b57eb32478d37e3fd81",
+      "bytes": 463,
+      "mtime_ns": 1794897778509041235
+    },
+    {
+      "path": "task-pending-once-native/scalar-Clang-O0-false-false/observer.o",
+      "sha256": "6467c24fa51887c439a8c0946d19d8af0347eac35e7c6cd80f7163ac80f57461",
+      "bytes": 10000,
+      "mtime_ns": 1794897778505041287
+    },
+    {
+      "path": "task-pending-once-native/scalar-Clang-O0-false-false/report.json",
+      "sha256": "62b39f9df36ecefdfc563fd03ce988f27a7265c2ad60bffa3d3aa432ea99bb1f",
+      "bytes": 1504,
+      "mtime_ns": 1794897778985035148
+    },
+    {
+      "path": "task-pending-once-native/scalar-Clang-O0-false-false/source-map.txt",
+      "sha256": "25076aa89cdaa1ca5bfcb2cfbcf9e2316e42315d1a93bfb1ef106733e2538684",
+      "bytes": 168063,
+      "mtime_ns": 1794897778591426613
+    },
+    {
+      "path": "task-pending-once-native/scalar-Clang-O0-false-false/source.zil",
+      "sha256": "f999a825c424d93fad37cdb5bb65d4b3162e4d0083854fece36342fd25f7b368",
+      "bytes": 3693,
+      "mtime_ns": 1794897778421042361
+    },
+    {
+      "path": "task-pending-once-native/scalar-Clang-O0-false-false/syntax.txt",
+      "sha256": "a976f22260393c69bd660f739f3cc608aa3c87a048188a635755493cc75d1c64",
+      "bytes": 892019,
+      "mtime_ns": 1794897778533040928
+    },
+    {
+      "path": "task-pending-once-native/scalar-Clang-O0-false-false/typed.txt",
+      "sha256": "5ed330ee93bd11041edf879d03b5a806dc8e7145c0fb1f5f2954012168606a08",
+      "bytes": 1478226,
+      "mtime_ns": 1794897778805037450
+    },
+    {
+      "path": "task-returned-async-native/Clang-O0-false/link.sh",
+      "sha256": "59fdee658c6a91885150f2abe827ed2e60777a58ff04379f50dfffc344cde04e",
+      "bytes": 452,
+      "mtime_ns": 1794897776145071463
+    },
+    {
+      "path": "task-returned-async-native/Clang-O0-false/observer.o",
+      "sha256": "0532c5fa339b51f15286030f77a7525e0aa102b2c3f9130a3fb56646c63fdce3",
+      "bytes": 7344,
+      "mtime_ns": 1794897776145071463
+    },
+    {
+      "path": "task-returned-async-native/Clang-O0-false/report.json",
+      "sha256": "5384a43935fa8651aa2015766e07837263feab2de5f1860a6717fe61dcce4177",
+      "bytes": 1049,
+      "mtime_ns": 1794897776477067219
+    },
+    {
+      "path": "task-returned-async-native/Clang-O0-false/source.zil",
+      "sha256": "45e6d1e45f3382912a3e167e0d5567f6a7061d4e7acf81e0643429b093c86fc9",
+      "bytes": 2474,
+      "mtime_ns": 1794897776097072077
+    }
+  ]
+}

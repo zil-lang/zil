@@ -1,0 +1,16 @@
+{
+  "status": "Pass",
+  "exit_code": 0,
+  "git_status": "",
+  "source_commit": "aa081629203eb7f9afdd2f65e7418d600a9a3e49",
+  "cli_sha256": "f0336fd63325d8dfabe9f9e4d3e596348bc1e28a52aa6125f3b3e5e08a783341",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "zil-cli"
+  ],
+  "build_log": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-lending-field-and-temporary-uses/build.log",
+  "completed_at_utc": "2026-11-17T10:03:08.534789+00:00"
+}
