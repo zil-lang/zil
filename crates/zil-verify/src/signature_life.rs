@@ -364,8 +364,7 @@ fn zero_resource_occurrence(module:&TypedModule,ty:&Type,span:Option<Span>,b:&mu
         },
         _=>return Ok(false),
     }
-    if b.task_input_scopes.is_none(){b.task_input_scopes=Some(crate::tasks::input_scope::build(module,&b.limits.clone(),b)?);}
-    Ok(crate::tasks::input_scope::domain(payload,b)?==crate::tasks::input_scope::Domain::Known(0))
+    Ok(crate::tasks::input_scope::module_domain(module,payload,b)?==crate::tasks::input_scope::Domain::Known(0))
 }
 /// A closure's captures have the same complete resource domains as ordinary
 /// inputs. Known0 schedules no class row, and creates no ownership or SyncDrop

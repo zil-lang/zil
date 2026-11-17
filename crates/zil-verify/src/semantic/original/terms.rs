@@ -33,9 +33,9 @@ pub(super) enum Arg {Type(Ty),Const(Const),Life(Life)}
 pub(super) struct Const {pub(super) carrier:Box<Ty>,pub(super) value:ConstValue}
 #[derive(Clone,Debug,PartialEq,Eq)]
 pub(super) enum ConstValue {Variable(SemanticDefinitionId,u32),Value(Constant),Unary(UnaryOp,Box<Const>),Binary(BinaryOp,Box<Const>,Box<Const>),Convert(Box<Const>)}
-#[derive(Clone)]
+#[derive(Clone,PartialEq,Eq)]
 pub(super) struct Frame {pub(super) definition:SemanticDefinitionId,pub(super) actuals:Vec<Arg>,pub(super) environment:Vec<Arg>}
-#[derive(Clone)]
+#[derive(Clone,PartialEq,Eq)]
 pub(super) struct Env {pub(super) lexical:Vec<Frame>,pub(super) bounds:Vec<Vec<Life>>,pub(super) invocation:Vec<Life>,pub(super) self_type:Option<(SemanticDefinitionId,Ty)>}
 impl Env {
     pub(super) fn current(&self)->Check<SemanticDefinitionId>{self.lexical.first().map(|frame|frame.definition).ok_or_else(||bad("original body has no lexical definition"))}

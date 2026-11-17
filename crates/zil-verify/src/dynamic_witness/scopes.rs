@@ -117,7 +117,7 @@ fn zero(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
         Type::Task { .. } => crate::tasks::require_closed_context(ty, None)?,
         _ => {}
     }
-    Ok(input_scope::domain(ty, b)? == Domain::Known(0))
+    Ok(input_scope::module_domain(module,ty, b)? == Domain::Known(0))
 }
 pub(super) fn function(
     module: &TypedModule,
@@ -136,10 +136,6 @@ pub(super) fn function(
             invocation_binder_count: header.invocation_binder_count,
         }
     } else {
-        if !module.closures.is_empty() && b.task_input_scopes.is_none() {
-            let limits = b.limits.clone();
-            b.task_input_scopes = Some(input_scope::build(module, &limits, b)?);
-        }
         for local in &f.parameters {
             b.spend(1)?;
             let ty = &f

@@ -331,6 +331,42 @@ pub(crate) fn domain(ty: &Type, b: &mut Budget) -> Check<Domain> {
     })
 }
 
+/// Every module-backed consumer obtains the same complete actual directory.
+/// Feature-routing flags may prefetch it, but their absence cannot turn a
+/// declared N0 Static environment into Unknown. This establishes only N;
+/// constructor sources, loans, cleanup and Static least-root remain separate.
+pub(crate) fn module_domain(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<Domain>{
+    if b.task_input_scopes.is_none()&&!module.closures.is_empty(){
+        b.task_input_scopes=Some(build(module,&b.limits.clone(),b)?);
+    }
+    domain(ty,b)
+}
+
+#[cfg(test)]
+mod module_scope_tests{
+    use super::*;
+    #[test]
+    fn static_zero_scope_is_built_on_demand_without_proving_its_literal_source(){
+        let(mut module,_)=crate::tests::baseline();
+        let text=Type::Address{mutable:false,inner:Box::new(Type::Slice{element:Box::new(Type::U8)})};
+        let header=StorageLifeContract{fixed_binder_count:0,invocation_binder_count:0,bindings:vec![],classes:vec![],static_bindings:vec![StoragePosition{base:StorageBase::Capture(0),path:vec![]}]};
+        let entry=&mut module.functions[0];entry.environment=Some(ClosureId(0));entry.foreign=None;entry.call_kind=CallKind::Direct;entry.parameters.clear();entry.return_type=Type::U8;entry.storage_life=Some(header.clone());
+        module.closures=vec![ClosureDefinition{id:ClosureId(0),function:FunctionId(0),captures:vec![text],parameters:vec![],result:Type::U8,kind:CallableKind::Fn,storage_life:Some(header),lending_captures:vec![]}];
+        let closure=Type::Closure(ClosureId(0));let mut b=Budget::new(&Limits::default());
+        assert!(!b.task_sources());assert!(!b.task_origin_roots);
+        assert_eq!(domain(&closure,&mut b).unwrap(),Domain::Unknown);
+        assert_eq!(module_domain(&module,&closure,&mut b).unwrap(),Domain::Known(0));
+        assert!(b.task_input_scopes.is_some());assert!(b.proven_static_occurrences.is_empty(),"N0 never publishes a literal/root proof");
+        for mutable in [false,true]{
+            let mut missing=module.clone();
+            if mutable{if let Type::Address{mutable,..}=&mut missing.closures[0].captures[0]{*mutable=true;}}
+            else{missing.closures[0].storage_life.as_mut().unwrap().static_bindings.clear();}
+            missing.functions[0].storage_life=missing.closures[0].storage_life.clone();
+            assert_eq!(module_domain(&missing,&closure,&mut Budget::new(&Limits::default())).unwrap(),Domain::Unknown);
+        }
+    }
+}
+
 /// Empty headers use ordinary executable ledgers only after reconstructing
 /// their actual complete type domains. Unknown metadata is never empty.
 pub(crate) fn empty_relation(c: &zil_ir::StorageLifeContract) -> bool {
@@ -348,11 +384,8 @@ pub(crate) fn empty_function(
     if !f.storage_life.as_ref().is_some_and(empty_relation) {
         return Ok(false);
     }
-    if b.task_input_scopes.is_none() {
-        b.task_input_scopes = Some(build(module, &b.limits.clone(), b)?);
-    }
     if let Some(id) = f.environment {
-        if domain(&Type::Closure(id), b)? != Domain::Known(0) {
+        if module_domain(module,&Type::Closure(id), b)? != Domain::Known(0) {
             return Ok(false);
         }
     }
@@ -366,11 +399,11 @@ pub(crate) fn empty_function(
         } else {
             &local.ty
         };
-        if domain(ty, b)? != Domain::Known(0) {
+        if module_domain(module,ty, b)? != Domain::Known(0) {
             return Ok(false);
         }
     }
-    Ok(domain(&f.return_type, b)? == Domain::Known(0))
+    Ok(module_domain(module,&f.return_type, b)? == Domain::Known(0))
 }
 
 /// Only an actual zero-domain owner is opaque to stored-target transport. The

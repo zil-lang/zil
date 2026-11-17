@@ -829,94 +829,216 @@ impl Engine<'_>{
     }
 }
 
-impl CheckedOriginal{
-    /// The restricted default-close route requires a closed universal source
-    /// worker graph. It never specializes an abstract incoming Task from its
-    /// concrete caller. More general retained/unknown input frames keep their
-    /// existing Closed or Suspend obligation.
-    pub(super) fn synchronous_task_births(&mut self,module:&TypedModule,context:&CheckedContext,index:&index::Index<'_>,active:&mut ActiveQueries,b:&mut Budget)->Check<BTreeSet<(SemanticDefinitionId,NodeId)>>{
-        let mut out=BTreeSet::new();let mut workers=BTreeMap::new();
-        let sites=self.intrinsic_calls.iter().filter(|(_,use_)|matches!(use_.kind,Intrinsic::TaskCreate|Intrinsic::TaskCreateOwned)).map(|(key,use_)|(*key,*use_)).collect::<Vec<_>>();b.spend(sites.len())?;
-        for((owner,site),use_)in sites{
-            let Some(worker)=use_.worker else{return Err(bad("original Task birth loses its exact worker source"));};
-            let function=index.definitions.get(&owner).ok_or_else(||bad("original Task birth is outside the complete source inventory"))?;
-            let Some(index::Node::Expression(node))=function.nodes.get(&site)else{return Err(bad("original Task birth has no exact source Call"));};
-            let CoreExprKind::Call{arguments,..}=&node.kind else{return Err(bad("original Task birth selects a non-Call source occurrence"));};
-            let prototype=self.prototypes.get(&worker).ok_or_else(||bad("original Task birth has no complete worker prototype"))?;
-            if arguments.len()!=prototype.parameters.len().saturating_add(1){return Err(bad("original Task birth changes its complete source inputs"));}
-            // Every source input and every physical field must be closed here;
-            // an abstract Task/registration or unknown callback is not a fact
-            // about its caller. Creation's failure/SyncDrop obligations remain.
-            let proved=if let Some(proved)=workers.get(&worker){*proved}else{let proved=self.closed_source_worker(module,context,index,worker,active,b)?;workers.insert(worker,proved);proved};
-            if proved{out.insert((owner,node.id));}
+// One original execution world and the exact incoming call-boundary source
+// worlds which can explain a transported Closure's declared parent. They carry
+// no runtime roots or cleanup capability; ambiguous creator domains stay unknown.
+#[derive(Clone,PartialEq,Eq)]
+struct SynchronousWorld {world:Env,sources:Vec<Env>}
+
+#[cfg(test)]
+mod source_world_tests{
+    use super::*;
+    #[test]
+    fn synchronous_creator_never_selects_between_distinct_full_parent_domains(){
+        let original=CheckedOriginal::default();let mut b=Budget::new(&Limits::default());
+        let parent=SemanticDefinitionId{module:zil_base::ModuleId(0),index:7};
+        let world=Env{lexical:vec![Frame{definition:parent,actuals:vec![Arg::Type(Ty::Atom(Type::I32)),Arg::Life(Life::Formal(parent,0))],environment:vec![Arg::Type(Ty::Atom(Type::I32))]}],bounds:vec![],invocation:vec![],self_type:None};
+        assert!(original.synchronous_parent(parent,&[world.clone(),world.clone()],&mut b).unwrap().is_some());
+        for part in 0..3{
+            let mut other=world.clone();
+            match part{0=>other.lexical[0].actuals[0]=Arg::Type(Ty::Atom(Type::Bool)),1=>other.lexical[0].actuals[1]=Arg::Life(Life::Formal(parent,1)),_=>other.lexical[0].environment[0]=Arg::Type(Ty::Atom(Type::Bool))}
+            assert!(original.synchronous_parent(parent,&[world.clone(),other.clone()],&mut b).unwrap().is_none());
+            assert!(original.synchronous_parent(parent,&[other,world.clone()],&mut b).unwrap().is_none(),"a first matching parent or sealed image cannot choose an instance");
         }
-        Ok(out)
     }
-    fn closed_source_type(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,pending:&mut Vec<SemanticDefinitionId>,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<bool>{
+}
+
+impl CheckedOriginal{
+    /// A birth is proved in the original creation site's universal Gamma. A
+    /// concrete caller never specializes an incoming Task into a safe birth.
+    pub(super) fn synchronous_task_births(&mut self,module:&TypedModule,context:&CheckedContext,index:&index::Index<'_>,active:&mut ActiveQueries,b:&mut Budget)->Check<BTreeSet<(SemanticDefinitionId,NodeId)>>{
+        let previous=self.current;
+        let result=(||{
+            let mut out=BTreeSet::new();
+            let sites=self.intrinsic_calls.iter().filter(|(_,use_)|matches!(use_.kind,Intrinsic::TaskCreate|Intrinsic::TaskCreateOwned)).map(|(key,use_)|(*key,*use_)).collect::<Vec<_>>();b.spend(sites.len())?;
+            for((owner,site),use_)in sites{
+                let Some(worker)=use_.worker else{return Err(bad("original Task birth loses its exact worker source"));};
+                let function=index.definitions.get(&owner).ok_or_else(||bad("original Task birth is outside the complete source inventory"))?;
+                let Some(index::Node::Expression(node))=function.nodes.get(&site)else{return Err(bad("original Task birth has no exact source Call"));};
+                let CoreExprKind::Call{arguments,..}=&node.kind else{return Err(bad("original Task birth selects a non-Call source occurrence"));};
+                let prototype=self.prototypes.get(&worker).ok_or_else(||bad("original Task birth has no complete worker prototype"))?;
+                if arguments.len()!=prototype.parameters.len().saturating_add(1){return Err(bad("original Task birth changes its complete source inputs"));}
+                self.current=Some(owner);
+                let caller=self.environment(module,context,owner,active,b)?;
+                let actuals=self.calls.get(&(owner,site)).ok_or_else(||bad("original Task birth lacks its complete worker mixed actuals"))?;
+                let actuals=self.apply_arguments(actuals,&caller,0,b)?;
+                let sources=vec![self.copy_environment(&caller,b)?];
+                let Some(world)=self.synchronous_environment(module,context,worker,&actuals,&sources,active,b)?else{continue;};
+                if self.closed_source_worker(module,context,index,SynchronousWorld{world,sources},active,b)?{out.insert((owner,node.id));}
+            }
+            Ok(out)
+        })();
+        self.current=previous;result
+    }
+
+    /// Select a declared parent only from actual original call boundaries.
+    /// Sealed shapes or a desired result never choose between different full
+    /// parent instantiations of the same original declaration.
+    fn synchronous_parent(&self,parent:SemanticDefinitionId,sources:&[Env],b:&mut Budget)->Check<Option<Env>>{
+        let mut selected:Option<Env>=None;
+        for source in sources{
+            b.spend(source.lexical.len())?;
+            let Some(at)=source.lexical.iter().position(|frame|frame.definition==parent)else{continue;};
+            let mut suffix=self.copy_environment(source,b)?;suffix.lexical.drain(..at);
+            if let Some(old)=&selected{
+                self.copy_environment(old,b)?;
+                if old!=&suffix{return Ok(None);}
+            }else{selected=Some(suffix);}
+        }
+        Ok(selected)
+    }
+    fn synchronous_environment(&mut self,module:&TypedModule,context:&CheckedContext,target:SemanticDefinitionId,actuals:&[Arg],sources:&[Env],active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Env>>{
+        let definition=context.definition(module,target,b)?;
+        if !definition.environment.is_empty(){return Ok(None);}
+        if actuals.len()!=definition.parameters.len(){return Err(bad("synchronous dependency changes its complete mixed argument arity"));}
+        for(formal,actual)in definition.parameters.iter().zip(actuals){b.spend(1)?;if !matches!((formal,actual),(SemanticFormal::Type{..},Arg::Type(_))|(SemanticFormal::Lifetime,Arg::Life(_))|(SemanticFormal::Const{..},Arg::Const(_))){return Err(bad("synchronous dependency changes a full-ordinal actual kind"));}}
+        let mut world=self.environment(module,context,target,active,b)?;
+        if let Some(parent)=definition.parent{
+            let Some(source)=self.synchronous_parent(parent,sources,b)?else{return Ok(None);};
+            if world.lexical.is_empty(){return Err(bad("synchronous dependency has no own original frame"));}
+            let own=world.lexical.remove(0);
+            world.lexical=source.lexical;world.lexical.insert(0,own);
+        }
+        world.lexical[0].actuals=self.resolve_arguments(actuals,0,b)?;
+        if let Some((owner,ty))=&world.self_type{world.self_type=Some((*owner,self.apply_type(ty,&world,b)?));}
+        Ok(Some(world))
+    }
+    fn synchronous_sources(&self,item:&SynchronousWorld,b:&mut Budget)->Check<Vec<Env>>{
+        let mut sources=Vec::new();
+        for source in item.sources.iter().chain(std::iter::once(&item.world)){
+            let source=self.copy_environment(source,b)?;
+            b.spend(sources.len().saturating_add(1))?;
+            for old in &sources{self.copy_environment(old,b)?;}
+            if !sources.contains(&source){sources.push(source);}
+        }Ok(sources)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn closed_source_type(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,item:&SynchronousWorld,pending:&mut Vec<SynchronousWorld>,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<bool>{
         b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original synchronous worker type depth exceeded"));}
         let ty=self.resolved(ty,b)?;
         Ok(match ty{
             Ty::Atom(Type::Unit|Type::Bool|Type::I8|Type::I16|Type::I32|Type::I64|Type::Isize|Type::U8|Type::U16|Type::U32|Type::U64|Type::Usize|Type::F32|Type::F64|Type::ByteBuffer)|Ty::SealedError(_)=>true,
-            Ty::Function(id)=>{pending.push(id);true},
-            Ty::Tuple(fields)=>{for field in fields{if !self.closed_source_type(module,context,&field,pending,active,b,depth+1)?{return Ok(false);}}true},
-            Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Array(inner,_)|Ty::Slice(inner)|Ty::Store(inner)=>self.closed_source_type(module,context,&inner,pending,active,b,depth+1)?,
-            Ty::ErrorUnion(error,result)=>self.closed_source_type(module,context,&error,pending,active,b,depth+1)?&&self.closed_source_type(module,context,&result,pending,active,b,depth+1)?,
-            Ty::Code{parameters,result,..}=>{for parameter in parameters{if !self.closed_source_type(module,context,&parameter,pending,active,b,depth+1)?{return Ok(false);}}self.closed_source_type(module,context,&result,pending,active,b,depth+1)?},
+            // A reference to code is not execution. Every actual Call below
+            // still requires a complete target, including indirect callables.
+            Ty::Function(_)=>true,
+            Ty::Tuple(fields)=>{for field in fields{if !self.closed_source_type(module,context,&field,item,pending,active,b,depth+1)?{return Ok(false);}}true},
+            Ty::Address{inner,..}|Ty::Desc{inner,..}|Ty::Managed(inner)|Ty::Array(inner,_)|Ty::Slice(inner)|Ty::Store(inner)=>self.closed_source_type(module,context,&inner,item,pending,active,b,depth+1)?,
+            Ty::ErrorUnion(error,result)=>self.closed_source_type(module,context,&error,item,pending,active,b,depth+1)?&&self.closed_source_type(module,context,&result,item,pending,active,b,depth+1)?,
+            Ty::Code{parameters,result,..}=>{for parameter in parameters{if !self.closed_source_type(module,context,&parameter,item,pending,active,b,depth+1)?{return Ok(false);}}self.closed_source_type(module,context,&result,item,pending,active,b,depth+1)?},
             Ty::Nominal(id,args)=>{
                 let nominal=context.definition(module,id,b)?;
                 let SemanticDefinitionBody::Nominal{body,..}=&nominal.body else{return Err(bad("synchronous source nominal has no original complete declaration"));};
                 let mut selected=self.environment(module,context,id,active,b)?;selected.lexical[0].actuals=args;
                 match body{
-                    SemanticNominalBody::Product{fields}=>for field in fields{let ty=self.ty(module,context,&field.ty,&selected,active,b)?;if !self.closed_source_type(module,context,&ty,pending,active,b,depth+1)?{return Ok(false);}},
-                    SemanticNominalBody::Enum{variants}=>for variant in variants{for field in &variant.fields{let ty=self.ty(module,context,field,&selected,active,b)?;if !self.closed_source_type(module,context,&ty,pending,active,b,depth+1)?{return Ok(false);}}},
+                    SemanticNominalBody::Product{fields}=>for field in fields{let ty=self.ty(module,context,&field.ty,&selected,active,b)?;if !self.closed_source_type(module,context,&ty,item,pending,active,b,depth+1)?{return Ok(false);}},
+                    SemanticNominalBody::Enum{variants}=>for variant in variants{for field in &variant.fields{let ty=self.ty(module,context,field,&selected,active,b)?;if !self.closed_source_type(module,context,&ty,item,pending,active,b,depth+1)?{return Ok(false);}}},
                 }
-                // A custom destructor's entire original dependency graph is
-                // part of default close, including scalar observer leaves.
                 let program=module.semantic.as_ref().ok_or_else(||bad("synchronous source Drop lacks its complete original directory"))?;
                 for scope in &program.definitions{b.spend(1)?;let SemanticDefinitionBody::Scope(SemanticScopeRecipe::BuiltinImpl{self_type,trait_kind:SemanticBuiltinTrait::Drop})=&scope.body else{continue;};let mut ty=self_type;while let SemanticTypeRecipe::Qualified{storage,..}=ty{b.spend(1)?;ty=storage;}
-                    if matches!(ty,SemanticTypeRecipe::Nominal{definition,..}if *definition==id){for method in &program.definitions{b.spend(1)?;if method.parent==Some(scope.id)&&method.kind==SemanticDefinitionKind::Method{pending.push(method.id);}}}
-                }
-                true
+                    if matches!(ty,SemanticTypeRecipe::Nominal{definition,..}if *definition==id){for method in &program.definitions{b.spend(1)?;if method.parent==Some(scope.id)&&method.kind==SemanticDefinitionKind::Method{
+                        let raw=self.environment(module,context,method.id,active,b)?;
+                        let mut sources=self.synchronous_sources(item,b)?;for source in &sources{self.copy_environment(source,b)?;}if !sources.contains(&raw){sources.push(self.copy_environment(&raw,b)?);}
+                        let actuals=self.resolve_arguments(&raw.lexical[0].actuals,0,b)?;
+                        let Some(world)=self.synchronous_environment(module,context,method.id,&actuals,&sources,active,b)?else{return Ok(false);};
+                        pending.push(SynchronousWorld{world,sources});
+                    }}}
+                }true
             },
-            Ty::Opaque(owner,args)=>{let hidden=self.opaque_hidden(module,context,owner,&args,active,b)?;self.closed_source_type(module,context,&hidden,pending,active,b,depth+1)?},
+            Ty::Opaque(owner,args)=>{
+                let sources=self.synchronous_sources(item,b)?;
+                let Some(world)=self.synchronous_environment(module,context,owner,&args,&sources,active,b)?else{return Ok(false);};
+                let hidden=self.opaque_hidden(module,context,owner,&args,active,b)?;
+                self.closed_source_type(module,context,&hidden,&SynchronousWorld{world,sources},pending,active,b,depth+1)?
+            },
             Ty::Closure(owner,args,sealed)=>{
-                pending.push(owner);
-                for(_,capture)in self.closure_capture_fields(module,context,owner,&args,&sealed,b)?{if !self.closed_source_type(module,context,&capture,pending,active,b,depth+1)?{return Ok(false);}}true
+                let parent=context.definition(module,owner,b)?.parent.ok_or_else(||bad("synchronous Closure has no exact original creator"))?;
+                let sources=self.synchronous_sources(item,b)?;
+                let Some(creator)=self.synchronous_parent(parent,&sources,b)?else{return Ok(false);};
+                let world=self.closure_creator_environment(module,context,owner,&args,&sealed,&creator,active,b)?;
+                let closure=SynchronousWorld{world,sources};
+                for(_,capture)in self.closure_capture_fields(module,context,owner,&args,&sealed,b)?{if !self.closed_source_type(module,context,&capture,&closure,pending,active,b,depth+1)?{return Ok(false);}}
+                pending.push(closure);true
             },
-            // Abstract variables, retained Tasks/registrations and erased
-            // callbacks do not supply a universally closed graph premise.
+            // Input Tasks/registrations, erased targets and abstract variables
+            // never acquire a known birth from a concrete calling programme.
             _=>false,
         })
     }
-    fn closed_source_worker(&mut self,module:&TypedModule,context:&CheckedContext,index:&index::Index<'_>,root:SemanticDefinitionId,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
+
+    #[allow(clippy::too_many_arguments)]
+    fn closed_source_callable(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,item:&SynchronousWorld,pending:&mut Vec<SynchronousWorld>,active:&mut ActiveQueries,b:&mut Budget,depth:usize)->Check<bool>{
+        b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("synchronous callable source depth exceeded"));}
+        match self.resolved(ty,b)?{
+            ref ty@Ty::Closure(..)=>self.closed_source_type(module,context,ty,item,pending,active,b,depth+1),
+            Ty::Opaque(owner,args)=>{
+                let sources=self.synchronous_sources(item,b)?;
+                let Some(world)=self.synchronous_environment(module,context,owner,&args,&sources,active,b)?else{return Ok(false);};
+                let hidden=self.opaque_hidden(module,context,owner,&args,active,b)?;
+                self.closed_source_callable(module,context,&hidden,&SynchronousWorld{world,sources},pending,active,b,depth+1)
+            },
+            Ty::Address{inner,..}=>self.closed_source_callable(module,context,&inner,item,pending,active,b,depth+1),
+            _=>Ok(false),
+        }
+    }
+    fn closed_source_worker(&mut self,module:&TypedModule,context:&CheckedContext,index:&index::Index<'_>,root:SynchronousWorld,active:&mut ActiveQueries,b:&mut Budget)->Check<bool>{
         fn scalar(ty:&Ty)->bool{matches!(ty,Ty::Atom(Type::Unit|Type::Bool|Type::I8|Type::I16|Type::I32|Type::I64|Type::Isize|Type::U8|Type::U16|Type::U32|Type::U64|Type::Usize|Type::F32|Type::F64))}
-        let mut pending=vec![root];let mut seen=BTreeSet::new();
-        while let Some(id)=pending.pop(){
-            b.spend(seen.len().saturating_add(1))?;if !seen.insert(id){continue;}
+        let mut pending=vec![root];let mut seen=Vec::<SynchronousWorld>::new();
+        while let Some(item)=pending.pop(){
+            self.copy_environment(&item.world,b)?;
+            for source in &item.sources{self.copy_environment(source,b)?;}
+            b.spend(seen.len().saturating_add(1))?;
+            let mut duplicate=false;
+            for old in &seen{self.copy_environment(&old.world,b)?;for source in &old.sources{self.copy_environment(source,b)?;}if old==&item{duplicate=true;break;}}
+            if duplicate{continue;}seen.push(item.clone());
+            let id=item.world.current()?;self.current=Some(id);
             let Some(function)=index.definitions.get(&id)else{return Ok(false);};
+            if !self.checked.contains(&id){return Err(bad("synchronous dependency has no complete original body proof"));}
             let prototype=self.prototypes.get(&id).ok_or_else(||bad("synchronous worker dependency lacks its original signature"))?;
-            let mut types=Vec::new();for ty in prototype.parameters.iter().chain(std::iter::once(&prototype.result)){types.push(self.resolved(ty,b)?);}
+            let call_kind=prototype.call_kind;
+            let mut types=Vec::new();for ty in prototype.parameters.iter().chain(std::iter::once(&prototype.result)){types.push(self.apply_type(ty,&item.world,b)?);}
             if !matches!(function.body,SemanticOriginalFunctionBody::Defined(_)){
-                // A scalar C observer cannot receive a Task/registration head,
-                // pointer, callback or environment. General foreign authority
-                // is not inferred from this finite leaf profile.
-                if !matches!(function.body,SemanticOriginalFunctionBody::External)||function.definition.kind!=SemanticDefinitionKind::Function||function.definition.parent.is_some()||prototype.call_kind!=CallKind::Direct||!types.iter().all(scalar){return Ok(false);}
+                if !matches!(function.body,SemanticOriginalFunctionBody::External)||function.definition.kind!=SemanticDefinitionKind::Function||function.definition.parent.is_some()||call_kind!=CallKind::Direct||!types.iter().all(scalar){return Ok(false);}
                 continue;
             }
-            for ty in &types{if !self.closed_source_type(module,context,ty,&mut pending,active,b,0)?{return Ok(false);}}
-            let captures=self.free_values.get(&id).map(|values|values.values().map(|value|self.resolved(&value.ty,b)).collect::<Check<Vec<_>>>()).transpose()?.unwrap_or_default();
-            for ty in captures{if !self.closed_source_type(module,context,&ty,&mut pending,active,b,0)?{return Ok(false);}}
+            for ty in &types{if !self.closed_source_type(module,context,ty,&item,&mut pending,active,b,0)?{return Ok(false);}}
+            let captures=self.free_values.get(&id).map(|values|values.values().map(|value|self.apply_type(&value.ty,&item.world,b)).collect::<Check<Vec<_>>>()).transpose()?.unwrap_or_default();
+            for ty in captures{if !self.closed_source_type(module,context,&ty,&item,&mut pending,active,b,0)?{return Ok(false);}}
+            b.spend(self.bindings.len())?;
+            let bindings=self.bindings.iter().filter(|((owner,_),_)|*owner==id).map(|(_,ty)|self.apply_type(ty,&item.world,b)).collect::<Check<Vec<_>>>()?;
+            for ty in bindings{if !self.closed_source_type(module,context,&ty,&item,&mut pending,active,b,0)?{return Ok(false);}}
             for node in function.expressions.values(){
                 b.spend(1)?;
-                if let Some(ty)=self.expressions.get(&(id,node.id)){let ty=self.resolved(ty,b)?;if !self.closed_source_type(module,context,&ty,&mut pending,active,b,0)?{return Ok(false);}}
+                if let Some(ty)=self.expressions.get(&(id,node.id)){let ty=self.apply_type(ty,&item.world,b)?;if !self.closed_source_type(module,context,&ty,&item,&mut pending,active,b,0)?{return Ok(false);}}
                 if !matches!(node.kind,CoreExprKind::Call{..}){continue;}
                 let(_,site)=self.original_call_site(id,node.id,b)?;
-                if let Some(use_)=self.intrinsic_calls.get(&(id,site)){
+                let target=if let Some(use_)=self.intrinsic_calls.get(&(id,site)){
                     if matches!(use_.kind,Intrinsic::AsyncStart|Intrinsic::AsyncValid|Intrinsic::AsyncRequest|Intrinsic::AsyncPoll|Intrinsic::AsyncFinish|Intrinsic::AsyncFinishChecked|Intrinsic::ThreadScope|Intrinsic::OwnedDyn|Intrinsic::CCallback){return Ok(false);}
-                    if let Some(worker)=use_.worker{pending.push(worker);}
-                }else if let Some(callee)=self.call_targets.get(&(id,site)){pending.push(*callee);}else{return Ok(false);}
+                    use_.worker
+                }else{self.call_targets.get(&(id,site)).copied()};
+                if let Some(target)=target{
+                    let actuals=self.calls.get(&(id,site)).ok_or_else(||bad("synchronous call lacks its complete original mixed actuals"))?;
+                    let actuals=self.apply_arguments(actuals,&item.world,0,b)?;
+                    let sources=self.synchronous_sources(&item,b)?;
+                    let Some(world)=self.synchronous_environment(module,context,target,&actuals,&sources,active,b)?else{return Ok(false);};
+                    pending.push(SynchronousWorld{world,sources});
+                }else if !self.intrinsic_calls.contains_key(&(id,site)){
+                    let Some(source)=self.callable_nodes.get(&(id,node.id))else{return Ok(false);};
+                    let Some(ty)=self.expressions.get(&(id,*source))else{return Ok(false);};
+                    let ty=self.apply_type(ty,&item.world,b)?;
+                    if !self.closed_source_callable(module,context,&ty,&item,&mut pending,active,b,0)?{return Ok(false);}
+                }
             }
-        }
-        Ok(true)
+        }Ok(true)
     }
 }

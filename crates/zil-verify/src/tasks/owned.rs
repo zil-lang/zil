@@ -307,7 +307,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
             super::require_closed_context(p, None)?;
             dynamic_metadata::ty(p, budget)?;
             Ok(matches!(
-                super::input_scope::domain(p, budget)?,
+                super::input_scope::module_domain(module,p, budget)?,
                 super::input_scope::Domain::Known(_)
             ))
         }
@@ -326,7 +326,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
         },
         Type::Closure(id) => {
             if !matches!(
-                super::input_scope::domain(t, budget)?,
+                super::input_scope::module_domain(module,t, budget)?,
                 super::input_scope::Domain::Known(_)
             ) {
                 return Ok(false);
@@ -343,7 +343,7 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
                         Type::Task { .. } => {
                             super::require_closed_context(payload, None)?;
                             if !matches!(
-                                super::input_scope::domain(payload, budget)?,
+                                super::input_scope::module_domain(module,payload, budget)?,
                                 super::input_scope::Domain::Known(_)
                             ) {
                                 return Ok(false);
