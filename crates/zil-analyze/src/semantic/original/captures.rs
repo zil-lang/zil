@@ -198,7 +198,11 @@ impl Solver<'_, '_> {
         operation: CallKind,
         b: &mut Budget,
     ) -> CompileResult<()> {
-        let name = if let CoreExprKind::Name(name) = &callee.kind { Some(name) } else { None };
+        let CoreExprKind::Name(name) = &callee.kind else {
+            return Err(unknown(
+                "owned original callable invocation needs its exact lexical head",
+            ));
+        };
         let mut once = requested_once;
         if let Some(reads) = self.capture_state.reads.get(&definition) {
             let body =
@@ -231,24 +235,21 @@ impl Solver<'_, '_> {
                 }
             }
         }
-        if let Some(name) = name {
-            let local = frame.locals.iter_mut().rev().find(|local| local.name == *name)
-                .ok_or_else(|| fail("original callable invocation has no real local occupant"))?;
-            b.spend(name.len(), WORK)?;
-            if !local.initialized || local.used {
-                return Err(fail("original callable receiver is uninitialized or already consumed"));
-            }
-            if once { local.used = true; local.live = false; }
-        } else {
-            // A genuine expression was evaluated once above and has its own
-            // original identity. No fabricated lexical local represents it.
-            b.lookup(frame.expressions.len(), WORK)?;
-            if !frame.expressions.contains_key(&callee.id) {
-                return Err(fail("temporary callable has no checked original expression"));
-            }
-            if once {
-                return Err(unknown("temporary consuming callable needs its exact end-of-expression cleanup"));
-            }
+        let local = frame
+            .locals
+            .iter_mut()
+            .rev()
+            .find(|local| local.name == *name)
+            .ok_or_else(|| fail("original callable invocation has no real local occupant"))?;
+        b.spend(name.len(), WORK)?;
+        if !local.initialized || local.used {
+            return Err(fail(
+                "original callable receiver is uninitialized or already consumed",
+            ));
+        }
+        if once {
+            local.used = true;
+            local.live = false;
         }
         self.capture_role(
             definition,
@@ -351,20 +352,21 @@ impl Checked {
         let CoreExprKind::Call { callee, .. } = &directory.get_expr(node, b)?.kind else {
             return Err(fail("borrowed closure receiver has another original operation"));
         };
+        if !matches!(callee.kind, CoreExprKind::Name(_)) {
+            return Err(unknown("borrowed known closure needs its exact lexical callee place"));
+        }
         b.lookup(self.local_reads.len(), WORK)?;
         b.lookup(self.environment_reads.len(), WORK)?;
         let local = self.local_reads.get(&(context.definition, callee.id)).copied();
         let captured = self.environment_reads.get(&(context.definition, callee.id)).copied();
         let anchor = match (local, captured) {
-            (Some(anchor), None) => Some(anchor),
-            (None, Some(ordinal)) => Some(LocalAnchor::Environment(ordinal)),
-            (None, None) if matches!(callee.kind, CoreExprKind::Call { .. }
-                | CoreExprKind::Closure { .. } | CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }) => None,
-            _ => return Err(fail("borrowed closure receiver has no unique original local, capture or expression")),
+            (Some(anchor), None) => anchor,
+            (None, Some(ordinal)) => LocalAnchor::Environment(ordinal),
+            _ => return Err(fail("borrowed closure receiver has no unique original local or capture read")),
         };
         let root = self.source_value(context, SemanticScopeRef::Ancestor(0),
             &SemanticOriginalTypeSource::Expression(callee.id), program, inventory, b)?;
-        Ok(borrow_places::Source { role: None, anchor, expression: anchor.is_none().then_some(callee.id),
+        Ok(borrow_places::Source { role: None, anchor: Some(anchor), expression: None,
             index: None, inner: root.copy(b)?, root, path: Vec::new(), indirect: false, slice: None })
     }
 }
