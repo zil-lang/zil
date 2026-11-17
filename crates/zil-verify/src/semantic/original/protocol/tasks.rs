@@ -1001,7 +1001,7 @@ impl Engine<'_>{
                 b.spend(source_width(&exit.sources))?;
                 let phase=if exit.unchanged{prior.states}else{exit.phase};
                 all|=phase;
-                match exit.exit{ProtocolExit::Return=>{},ProtocolExit::PollPending=>{poll=true;pending|=phase;},ProtocolExit::PollReady=>{poll=true;ready|=phase;}}
+                match exit.exit{ProtocolExit::Return|ProtocolExit::ErrorOk|ProtocolExit::ErrorErr=>{},ProtocolExit::PollPending=>{poll=true;pending|=phase;},ProtocolExit::PollReady=>{poll=true;ready|=phase;}}
                 if exit.unchanged{b.spend(source_width(&prior.sources))?;sources.extend(prior.sources.iter().cloned());}
                 else{
                     let summary=BTreeMap::from([(vec![],exit.sources.clone())]);
