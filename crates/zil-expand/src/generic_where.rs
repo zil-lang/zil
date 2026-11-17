@@ -59,10 +59,10 @@ fn nominal_bound<'a>(
             trait_bounds::Index::new(module, budget)?
         });
     }
-    index
-        .as_ref()
-        .expect("nominal index initialized")
-        .declaration(bound, budget)?;
+    let index = index.as_ref().expect("nominal index initialized");
+    if !index.closed_environment_bound(bound) {
+        index.declaration(bound, budget)?;
+    }
     Ok(())
 }
 
@@ -155,6 +155,7 @@ pub(super) fn normalize(module: &Module, budget: &mut Budget<'_>) -> R<Module> {
                     copy::is_bound(bound)
                         || stores::is_bound(bound)
                         || trait_bounds::value::is_bound(bound)
+                        || callable::closed_bound(bound)
                 })
             {
                 let mut declared = false;

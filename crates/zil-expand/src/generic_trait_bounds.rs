@@ -38,6 +38,7 @@ pub(super) struct Index<'a> {
     instantiated_copy_shapes: BTreeMap<String, Item>,
     pub(super) recipes: Vec<&'a Item>,
     scalar_traits: BTreeSet<&'a str>,
+    closed_environment_alias: bool,
 }
 
 pub(super) fn plain(ty: &TypeRef) -> Option<&str> {
@@ -171,8 +172,13 @@ impl<'a> Index<'a> {
         let mut has_generic_methods = false;
         let mut nominals = BTreeMap::new();
         let mut scalar_traits = BTreeSet::new();
+        let mut closed_environment_alias = false;
         for item in &module.items {
             budget.node(item.span, 0)?;
+            if let ItemKind::TypeAlias(alias) = &item.kind {
+                budget.text(&alias.name, item.span)?;
+                closed_environment_alias |= alias.name == "ClosedEnvironment";
+            }
             if matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_)) {
                 nominals.insert(name(item).expect("nominal name").to_owned(), item);
             }
@@ -244,6 +250,7 @@ impl<'a> Index<'a> {
             }
         }
         let mut index = Self {
+            closed_environment_alias,
             items: &module.items,
             origins,
             declarations,
@@ -508,6 +515,38 @@ impl<'a> Index<'a> {
         }
     }
 
+    // This is a lexical builtin test, not a proof of the capability. The
+    // complete original requirement remains in the semantic definition.
+    pub(super) fn closed_environment_bound(&self, bound: &TypeRef) -> bool {
+        callable::closed_bound(bound)
+            && !self.closed_environment_alias
+            && !self.declarations.contains_key("ClosedEnvironment")
+            && !self.nominals.contains_key("ClosedEnvironment")
+    }
+
+    // Source trait selection may use a declared premise, never a deferred
+    // actual-call obligation or a Value/Copy/layout approximation.
+    pub(super) fn closed_environment_premise(
+        &self,
+        subject: &TypeRef,
+        available: &Bounds,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        budget.ty(subject)?;
+        let key = subject_key(subject, budget)?;
+        let supplied = available.get(&key).into_iter().flatten().chain(
+            plain(subject).and_then(|name| available.get(name)).into_iter().flatten(),
+        );
+        for bound in supplied {
+            budget.node(subject.span, 0)?;
+            if matches!(bound, Bound::ClosedEnvironment) {
+                return Ok(());
+            }
+        }
+        Err(unsupported(subject.span,
+            "source trait selection needs an independent ClosedEnvironment premise"))
+    }
+
     pub(super) fn declaration(&self, bound: &TypeRef, budget: &mut Budget<'_>) -> R<&'a TraitDecl> {
         budget.ty(bound)?;
         let name = trait_instances::head(bound).ok_or_else(|| {
@@ -617,6 +656,8 @@ impl<'a> Index<'a> {
             for bound in bounds {
                 if let Some(capability) = value::bound(bound) {
                     self.value_bound(actual, &capability, available, variables, budget)?;
+                } else if self.closed_environment_bound(bound) {
+                    self.closed_environment_premise(actual, available, budget)?;
                 }
             }
             if bounds.iter().any(stores::is_bound) {
@@ -631,7 +672,8 @@ impl<'a> Index<'a> {
             if bounds.iter().any(copy::is_bound)
                 || !bounds
                     .iter()
-                    .any(|bound| stores::is_bound(bound) || value::is_bound(bound))
+                    .any(|bound| stores::is_bound(bound) || value::is_bound(bound)
+                        || self.closed_environment_bound(bound))
                     && !check::dependent(actual, variables)
             {
                 copy::require_registered(
@@ -741,6 +783,10 @@ impl<'a> Index<'a> {
                         budget.text(name, method.span)?;
                         named(name, method.span)
                     }
+                    Bound::ClosedEnvironment => {
+                        budget.text("ClosedEnvironment", method.span)?;
+                        named("ClosedEnvironment", method.span)
+                    }
                     Bound::Nominal(reference) => {
                         associated::application(reference, budget, method.span)?
                     }
@@ -837,6 +883,18 @@ impl<'a> Index<'a> {
                 if retained_callable && !callable::sync_drop_bound(bound) {
                     continue;
                 }
+                if self.closed_environment_bound(bound) {
+                    budget.ty(bound)?;
+                    prepay_shadow(parameters, "ClosedEnvironment", bound.span, budget)?;
+                    if parameters.iter().any(|p| p.name == "ClosedEnvironment")
+                        || names.contains(&Bound::ClosedEnvironment)
+                    {
+                        return Err(error(bound.span,
+                            "duplicate or shadowed ClosedEnvironment bound"));
+                    }
+                    names.push(Bound::ClosedEnvironment);
+                    continue;
+                }
                 if copy::is_bound(bound) {
                     budget.ty(bound)?;
                     prepay_shadow(parameters, copy::BOUND, bound.span, budget)?;
@@ -912,6 +970,8 @@ impl<'a> Index<'a> {
                                     supplied.push(Bound::StoreElement);
                                 } else if let Some(capability) = value::bound(bound) {
                                     supplied.push(capability);
+                                } else if self.closed_environment_bound(bound) {
+                                    supplied.push(Bound::ClosedEnvironment);
                                 } else if projected && !copy::is_bound(bound) {
                                     supplied.push(Bound::Nominal(
                                         self.pattern_reference(bound, budget)?,
@@ -1051,6 +1111,16 @@ impl<'a> Index<'a> {
                 // remains in Some; absence here is an unresolved obligation,
                 // never a supplied SyncDrop premise or an inferred F type.
                 if retained_callable && !found.contains_key(&parameter.name) {
+                    continue;
+                }
+                if self.closed_environment_bound(bound) {
+                    // Formation does not select an implementation using this
+                    // obligation. The original full actual vector and sealed
+                    // requirement are checked independently after emission.
+                    budget.ty(bound)?;
+                    let actual = found.get(&parameter.name).ok_or_else(||
+                        error(span, "ClosedEnvironment argument has no unique type"))?;
+                    budget.ty(actual)?;
                     continue;
                 }
                 if copy::is_bound(bound) {

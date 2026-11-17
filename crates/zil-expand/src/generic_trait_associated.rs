@@ -335,6 +335,8 @@ impl Index<'_> {
                     supplied.push(Bound::StoreElement);
                 } else if let Some(capability) = value::bound(&bound) {
                     supplied.push(capability);
+                } else if self.closed_environment_bound(&bound) {
+                    supplied.push(Bound::ClosedEnvironment);
                 } else {
                     supplied.push(Bound::Nominal(self.pattern_reference(&bound, budget)?));
                 }
@@ -981,7 +983,8 @@ impl Index<'_> {
             };
             for bound in &alias.bounds {
                 budget.ty(bound)?;
-                if !copy::is_bound(bound) && !stores::is_bound(bound) && !value::is_bound(bound) {
+                if !copy::is_bound(bound) && !stores::is_bound(bound) && !value::is_bound(bound)
+                    && !self.closed_environment_bound(bound) {
                     let reference = self.pattern_reference(bound, budget)?;
                     self.reference_arguments(&reference, bounds, variables, budget)?;
                 }
@@ -1000,6 +1003,8 @@ impl Index<'_> {
                     copy::require(value, &self.nominals, bounds, variables, budget)?;
                 } else if let Some(capability) = value::bound(bound) {
                     self.value_bound(value, &capability, bounds, variables, budget)?;
+                } else if self.closed_environment_bound(bound) {
+                    self.closed_environment_premise(value, bounds, budget)?;
                 } else if stores::is_bound(bound) {
                     self.store_element(
                         value,

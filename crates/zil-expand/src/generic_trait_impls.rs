@@ -352,6 +352,8 @@ impl<'a> Engine<'a> {
                                 &variables,
                                 &mut self.budget,
                             )?;
+                        } else if self.traits.closed_environment_bound(&bound) {
+                            self.traits.closed_environment_premise(value, &bounds, &mut self.budget)?;
                         } else if stores::is_bound(&bound) {
                             self.traits.store_element(
                                 value,
@@ -1107,6 +1109,7 @@ impl<'a> Engine<'a> {
                 if copy::is_bound(bound)
                     || stores::is_bound(bound)
                     || trait_bounds::value::is_bound(bound)
+                    || self.traits.closed_environment_bound(bound)
                 {
                     continue;
                 }

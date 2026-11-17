@@ -77,6 +77,11 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     let mut parameter_names = BTreeSet::new();
     let variables = type_parameters(function).map(|p| p.name.clone()).collect();
     let callable = callable::template(function, budget)?;
+    // Ordinary Type/Const/Life factories have no callable input role. Their
+    // opaque output still belongs to the existing closure/body checker; it
+    // must not enter an ordinary monomorphization key as an erased Impl.
+    let value_factory = callable.is_none()
+        && function.return_type.as_ref().is_some_and(|ty| callable::opaque_signature(ty).is_some());
     let nominal_lending = super::super::lifetimes::nominal_life(function, budget)?;
     let nominal_classes =
         source_life::qualified_signature(function, nominals, budget, nominal_lending)?;
@@ -85,7 +90,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         // A computed CT nominal retains its original definition's full life
         // ordinals. Compare those symbolic classes locally; they never become
         // an ordinary monomorphization cache key or a runtime permission.
-        callable.is_some() || ct_types.is_some() || nominal_classes,
+        callable.is_some() || value_factory || ct_types.is_some() || nominal_classes,
         budget,
     )?;
     let owned_factory = callable.as_ref().is_some_and(|bounds| bounds.owned_factory);
@@ -122,14 +127,14 @@ pub(super) fn validate_parametric_with_bounds<'l>(
                 "nested generic addresses are not supported",
             ));
         }
-        if owned_factory {
+        if owned_factory || value_factory {
             budget.ty(t)?;
         } else {
             role_check::key(t, class_scope, budget)?;
         }
         super::super::foreign::callback_type_tree(t, &variables, budget, 0)?;
     }
-    if callable.is_some() {
+    if callable.is_some() || value_factory {
         dependencies.register(&function.name, function.span, budget)?;
     }
     let definition_bound_context = supplied_bounds.is_some();
@@ -153,6 +158,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         definition_bound_context,
         callable,
         owned_dispatch,
+        value_factory,
         definition: &function.name,
         source_definition: source_definition.unwrap_or(function),
         definition_equations,
@@ -410,11 +416,9 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             }
         }
     }
-    if check
-        .callable
-        .as_ref()
-        .is_some_and(|bounds| bounds.owned_factory)
-    {
+    if value_factory {
+        check.value_factory_header(function)?;
+    } else if owned_factory {
         check.factory_header(function)?;
     }
     if let Some(profile) = check.callable.as_ref().and_then(|b| b.state_replacement) {
@@ -561,7 +565,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         FunctionBody::Expression(value) => {
             let result = check.result.clone();
             let actual = check.return_expression(value, &mut state)?;
-            if owned_factory {
+            if owned_factory || value_factory {
                 check.factory_same_result(&actual, &result, value.span)?;
             } else if check.callable.is_some()
                 || matches!(group(&result).kind, TypeKind::Error { .. })
@@ -1114,6 +1118,7 @@ struct Check<'s, 'b, 'l> {
     callable: Option<callable::CallableTemplates>,
     higher_rank: bool,
     owned_dispatch: bool,
+    value_factory: bool,
     definition: &'s str,
     dependencies: &'b mut helper_graph::Dependencies,
     bounds: trait_bounds::Bounds,
@@ -1747,6 +1752,10 @@ impl Check<'_, '_, '_> {
         }
         expected
     }
+    fn opaque_factory(&self) -> bool {
+        self.value_factory || self.callable.as_ref().is_some_and(|bounds| bounds.owned_factory)
+    }
+
     fn known_copy(&mut self, ty: &TypeRef) -> R<bool> {
         match known_copy(ty, &self.variables, self.nominals) {
             Some(true) => return Ok(true),
@@ -2413,12 +2422,7 @@ impl Check<'_, '_, '_> {
                 "callable forwarding must return the actual input instance, not a fresh factory environment",
             ));
         }
-        if self.factory_scopes.is_empty()
-            && self
-                .callable
-                .as_ref()
-                .is_some_and(|bounds| bounds.owned_factory)
-        {
+        if self.factory_scopes.is_empty() && self.opaque_factory() {
             self.factory_result_identity(expression, state)?;
         }
         if registration_owner == Some(false) {
@@ -5506,7 +5510,10 @@ impl Check<'_, '_, '_> {
         if self.class_scope.active {
             role_check::reject_callee_context(function, self.budget)?;
         }
-        if self.callable.is_some() && callable::template(function, self.budget)?.is_some() {
+        if (self.callable.is_some() || self.value_factory)
+            && (callable::template(function, self.budget)?.is_some()
+                || function.return_type.as_ref().is_some_and(|ty| callable::opaque_signature(ty).is_some()))
+        {
             self.dependencies
                 .edge(self.definition, &function.name, function.span, self.budget)?;
         }
@@ -5584,9 +5591,7 @@ impl Check<'_, '_, '_> {
             ));
         }
         if let (Some(result), Some(expected)) = (&function.return_type, expected)
-            && !self.callable.as_ref().is_some_and(|bounds| {
-                bounds.owned_factory && callable::opaque_signature(result).is_some()
-            })
+            && !(self.opaque_factory() && callable::opaque_signature(result).is_some())
             && let Some(expected) = stores::call_context(result, expected)
         {
             unify(
@@ -5968,10 +5973,7 @@ impl Check<'_, '_, '_> {
                 let aliases_a = self.alias_result_copy(e.span)?;
                 let rhs = self.expr(else_value, &mut b, Some(&lhs), borrowing)?;
                 let aliases_b = self.alias_result_copy(e.span)?;
-                if self
-                    .callable
-                    .as_ref()
-                    .is_some_and(|bounds| bounds.owned_factory)
+                if self.opaque_factory()
                     && callable::opaque_signature(&lhs).is_some()
                     && callable::opaque_signature(&rhs).is_some()
                 {
@@ -6199,14 +6201,11 @@ impl Check<'_, '_, '_> {
                 return_type,
                 body,
                 ..
-            } if self
-                .callable
-                .as_ref()
-                .is_some_and(|bounds| bounds.owned_factory)
+            } if self.opaque_factory()
                 || self.scoped_body_closure(e.span)?
                 || self.callable.is_some() =>
             {
-                let scoped_body = !self.callable.as_ref().is_some_and(|b| b.owned_factory);
+                let scoped_body = !self.opaque_factory();
                 let saved_cleanup = std::mem::replace(&mut self.defer_body, false);
                 let checked = self.factory_closure(
                     *move_capture,
@@ -6779,11 +6778,7 @@ impl Check<'_, '_, '_> {
                         Some(e) => self.return_expression(e, state)?,
                         None => unit(statement.span),
                     };
-                    if self
-                        .callable
-                        .as_ref()
-                        .is_some_and(|bounds| bounds.owned_factory)
-                    {
+                    if self.opaque_factory() {
                         self.factory_same_result(&actual, &expected, statement.span)?;
                     } else if self.callable.is_some()
                         || matches!(group(&expected).kind, TypeKind::Error { .. })

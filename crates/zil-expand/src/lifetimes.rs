@@ -137,7 +137,8 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                         && (copy_life(f)
                             || store_element_life(f)
                             || nominal_life(f, self.budget).map_err(|e| vec![e])?
-                            || callable_life(f));
+                            || callable_life(f)
+                            || value_factory_life(f));
                 for p in &f.generics {
                     if matches!(p.kind, s::GenericParamKind::Lifetime) {
                         self.budget.node(p.span, depth).map_err(|e| vec![e])?;
@@ -771,6 +772,19 @@ pub(super) fn callable_life(function: &s::Function) -> bool {
     lives > 0 && callables > 0
 }
 
+// Ordinary opaque Value factories have a real lexical mixed parameter
+// domain without a synthetic callable formal. This selects only source-life
+// transport; generic checking still proves every Value/capture/cleanup bound.
+pub(super) fn value_factory_life(function: &s::Function) -> bool {
+    function.return_type.as_ref().is_some_and(|ty| generics::callable::opaque_signature(ty).is_some())
+        && function.generics.iter().any(|p| matches!(p.kind, s::GenericParamKind::Lifetime))
+        && !function.generics.iter().any(|p| matches!(&p.kind,
+            s::GenericParamKind::Type(bounds) if bounds.iter().any(|bound|
+                matches!(&generics::callable::bound_inner(bound).kind,
+                    s::TypeKind::Named { path, .. } if matches!(path.as_slice(), [name]
+                        if matches!(name.as_str(), "Fn" | "FnMut" | "FnOnce"))))))
+}
+
 fn failure(span: Span, text: &str) -> Diagnostic {
     Diagnostic::error(Phase::Expand, "E-LIFE-DECLARATION", Some(span), text)
 }
@@ -818,7 +832,8 @@ pub(super) fn contract(
     let mutable_life = only_life(function)
         || copy_life(function)
         || nominal_life_charged(function, |work, span| spend(remaining, work, span))?
-        || callable_life(function);
+        || callable_life(function)
+        || value_factory_life(function);
     if !mutable_life || (!function.where_clause.is_empty() && !provider_life) {
         return Err(Diagnostic::unsupported(
             Phase::Expand,

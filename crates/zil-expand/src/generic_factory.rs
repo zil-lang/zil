@@ -1,4 +1,4 @@
-//! Definition-time checking for the one-owned-F factory. These symbolic
+//! Definition-time checking for callable and ordinary Value factories. These symbolic
 //! positions restrict source admission; concrete IR remains independently
 //! checked by Types, Analyze and Verify.
 use super::*;
@@ -19,6 +19,14 @@ pub(super) struct Scope {
 }
 
 impl Check<'_, '_, '_> {
+    fn factory_same_type(&mut self, actual: &TypeRef, expected: &TypeRef, span: Span) -> R<()> {
+        if self.value_factory {
+            role_check::same(actual, expected, span, self.class_scope, self.budget)
+        } else {
+            same(actual, expected, span, self.budget)
+        }
+    }
+
     pub(super) fn factory_same_result(
         &mut self,
         actual: &TypeRef,
@@ -41,9 +49,9 @@ impl Check<'_, '_, '_> {
             ));
         }
         for (a, e) in ap.iter().zip(ep) {
-            same(a, e, span, self.budget)?;
+            self.factory_same_type(a, e, span)?;
         }
-        same(ar, er, span, self.budget)
+        self.factory_same_type(ar, er, span)
     }
     fn factory_copy(&mut self, ty: &TypeRef) -> R<()> {
         copy::require(
@@ -56,6 +64,14 @@ impl Check<'_, '_, '_> {
     }
 
     fn factory_signature(&mut self, parameters: &[TypeRef], result: &TypeRef) -> R<()> {
+        if self.value_factory {
+            for ty in parameters.iter().chain(std::iter::once(result)) {
+                self.traits.value_bound(
+                    ty, &trait_bounds::Bound::Value, &self.bounds, &self.variables, self.budget,
+                )?;
+            }
+            return Ok(());
+        }
         for parameter in parameters {
             self.tick(parameter.span)?;
             let value = match &group(parameter).kind {
@@ -303,6 +319,49 @@ impl Check<'_, '_, '_> {
         Ok(true)
     }
 
+    pub(super) fn value_factory_header(&mut self, function: &Function) -> R<()> {
+        let (_, parameters, result) = function.return_type.as_ref()
+            .and_then(callable::opaque_signature)
+            .ok_or_else(|| error(function.span, "ordinary value factory lacks its original callable result"))?;
+        self.factory_signature(parameters, result)?;
+        for parameter in &function.params {
+            // A give formal owns its resource; an ordinary Task formal is
+            // only a description. This wrapper is a Value obligation, never
+            // a captured-owner fact or a synchronous cleanup permission.
+            if parameter.give {
+                self.budget.ty(&parameter.ty)?;
+                self.budget.node(parameter.span, 0)?;
+                self.budget.text("Managed", parameter.span)?;
+                let managed = |payload: TypeRef| TypeRef {
+                    span: parameter.span,
+                    kind: TypeKind::Named {
+                        path: vec!["Managed".into()],
+                        args: vec![GenericArg::Type(payload)],
+                    },
+                };
+                let owner = match &group(&parameter.ty).kind {
+                    // Give transfers only the success resource, not the
+                    // error carrier or the complete error union.
+                    TypeKind::Error { error, result } => {
+                        self.budget.node(parameter.span, 0)?;
+                        TypeRef {
+                            span: parameter.span,
+                            kind: TypeKind::Error {
+                                error: error.clone(),
+                                result: Box::new(managed(result.as_ref().clone())),
+                            },
+                        }
+                    }
+                    _ => managed(parameter.ty.clone()),
+                };
+                self.traits.value_bound(&owner, &trait_bounds::Bound::Value, &self.bounds, &self.variables, self.budget)?;
+            } else {
+                self.traits.value_bound(&parameter.ty, &trait_bounds::Bound::Value, &self.bounds, &self.variables, self.budget)?;
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn factory_header(&mut self, function: &Function) -> R<()> {
         let bounds = self.callable.as_ref().expect("factory bound");
         let [bound] = bounds.roles.as_slice() else {
@@ -409,13 +468,38 @@ impl Check<'_, '_, '_> {
             .expect("closure scope")
             .result
             .clone();
-        let actual = if let Some(expression) = expression {
+        let owns_task = if expected.is_none() {
+            match expression {
+                Some(expression) => self.task_transfer_expression(expression, state)?,
+                None => false,
+            }
+        } else { false };
+        let mut actual = if let Some(expression) = expression {
             self.expr(expression, state, expected.as_ref(), false)?
         } else {
             unit(span)
         };
+        // An unannotated closure result is a Value position. The actual give
+        // remains a consuming source operation and must not be inferred as a
+        // Copy Task description when the closure is first bound to a local.
+        if owns_task && stores::explicit_task_result(&actual) {
+            self.budget.ty(&actual)?;
+            self.budget.node(span, 0)?;
+            self.budget.text("Managed", span)?;
+            actual = TypeRef {
+                kind: TypeKind::Named {
+                    path: vec!["Managed".into()],
+                    args: vec![GenericArg::Type(actual)],
+                },
+                span,
+            };
+        }
         if let Some(expected) = expected {
-            same_return(&actual, &expected, span, self.budget)?;
+            if self.value_factory {
+                role_check::same_return(&actual, &expected, span, self.class_scope, self.budget)?;
+            } else {
+                same_return(&actual, &expected, span, self.budget)?;
+            }
         } else {
             self.budget.ty(&actual)?;
             self.result = actual.clone();
@@ -475,7 +559,7 @@ impl Check<'_, '_, '_> {
                 )
             })?;
             if let (Some(annotation), Some(hint)) = (&parameter.ty, hint) {
-                same(annotation, hint, parameter.span, self.budget)?;
+                self.factory_same_type(annotation, hint, parameter.span)?;
             }
             self.budget.ty(ty)?;
             types.push(ty.clone());
@@ -483,7 +567,7 @@ impl Check<'_, '_, '_> {
         }
         let result = annotation.or_else(|| context.map(|(_, _, result)| result));
         if let (Some(annotation), Some((_, _, expected))) = (annotation, context) {
-            same(annotation, expected, span, self.budget)?;
+            self.factory_same_type(annotation, expected, span)?;
         }
         if let Some(result) = result {
             self.budget.ty(result)?;
@@ -534,6 +618,9 @@ impl Check<'_, '_, '_> {
             let local = local.clone();
             if concrete_local && (!move_capture || usage.consumed || !self.known_copy(&local.ty)?) {
                 scoped_copy = false;
+            }
+            if self.value_factory {
+                self.traits.value_bound(&local.ty, &trait_bounds::Bound::Value, &self.bounds, &self.variables, self.budget)?;
             }
             if concrete_local && dependent(&local.ty, &self.variables) {
                 return Err(error(
@@ -670,12 +757,7 @@ impl Check<'_, '_, '_> {
         expression: &Expr,
         state: &State,
     ) -> R<()> {
-        if self.scoped_body_closures.is_none()
-            && !self
-                .callable
-                .as_ref()
-                .is_some_and(|bounds| bounds.owned_factory)
-        {
+        if self.scoped_body_closures.is_none() && !self.opaque_factory() {
             return Ok(());
         }
         if let Some(origin) = self.factory_origin(expression, state)? {

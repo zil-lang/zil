@@ -38,6 +38,7 @@ pub(crate) enum Bound {
     StoreElement,
     Value,
     SyncDrop,
+    ClosedEnvironment,
     Nominal(Reference),
 }
 impl PartialEq for Bound {
@@ -46,7 +47,8 @@ impl PartialEq for Bound {
             (Self::Copy, Self::Copy)
             | (Self::StoreElement, Self::StoreElement)
             | (Self::Value, Self::Value)
-            | (Self::SyncDrop, Self::SyncDrop) => true,
+            | (Self::SyncDrop, Self::SyncDrop)
+            | (Self::ClosedEnvironment, Self::ClosedEnvironment) => true,
             (Self::Nominal(a), Self::Nominal(b)) => a.key == b.key,
             _ => false,
         }
@@ -61,6 +63,7 @@ impl PartialEq<str> for Bound {
                 | (Self::StoreElement, "StoreElement")
                 | (Self::Value, "Value")
                 | (Self::SyncDrop, "SyncDrop")
+                | (Self::ClosedEnvironment, "ClosedEnvironment")
         )
     }
 }
@@ -287,6 +290,7 @@ pub(crate) fn validate_declaration(
             if !copy::is_bound(bound)
                 && !stores::is_bound(bound)
                 && !trait_bounds::value::is_bound(bound)
+                && !callable::closed_bound(bound)
             {
                 return Err(unsupported(
                     bound.span,

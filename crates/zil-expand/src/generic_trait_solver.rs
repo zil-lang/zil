@@ -293,6 +293,9 @@ impl<'a> Index<'a> {
         } else {
             (subject, bound)
         };
+        if self.closed_environment_bound(bound) {
+            return self.closed_environment_premise(subject, available, budget).map(|_| None);
+        }
         if copy::is_bound(bound) {
             return copy::require(subject, &self.nominals, available, variables, budget)
                 .map(|_| None);
@@ -1149,6 +1152,8 @@ impl Index<'_> {
                 bounds.push(Bound::StoreElement);
             } else if let Some(capability) = value::bound(bound) {
                 bounds.push(capability);
+            } else if self.closed_environment_bound(bound) {
+                bounds.push(Bound::ClosedEnvironment);
             } else {
                 let reference = self.pattern_reference(bound, budget)?;
                 self.reference_arguments(&reference, available, variables, budget)?;

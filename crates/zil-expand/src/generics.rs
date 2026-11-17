@@ -881,6 +881,7 @@ impl<'a> Engine<'a> {
                             } else {
                                 engine.budget.identity_work(f.generics.len(), f.span)?;
                                 if super::lifetimes::copy_life(f)
+                                    || super::lifetimes::value_factory_life(f)
                                     || super::lifetimes::store_element_life(f)
                                     || super::lifetimes::nominal_life(f, &mut engine.budget)?
                                 {
@@ -989,6 +990,7 @@ impl<'a> Engine<'a> {
                                 copy::is_bound(bound)
                                     || stores::is_bound(bound)
                                     || trait_bounds::value::is_bound(bound)
+                                    || callable::closed_bound(bound)
                             })
                     })
                     && !engine

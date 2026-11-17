@@ -471,3 +471,168 @@ fn callback_task_values_do_not_duplicate_or_change_the_complete_payload() {
         );
     }
 }
+
+#[test]
+fn ordinary_value_factories_return_symbolic_task_owners_without_a_callable_formal() {
+    let original = "fn retain<T:Value+ClosedEnvironment>(give selected:Task<T>)->impl FnOnce()->Managed<Task<T>>{return move()=>give selected;}fn main(){}";
+    let core = expand(original).unwrap_or_else(|errors| panic!("{errors:?}"));
+    assert!(core.unsupported.is_empty(), "{:?}", core.unsupported);
+    for body in [
+        "return move()=>give selected;",
+        "let saved=give selected;return move()=>give saved;",
+        "let output=move()=>give selected;return output;",
+        "let output=move()->Managed<Task<T>>=>give selected;if flag{return output;}else{return output;}",
+        "return if flag{move()=>give selected}else{move()=>give selected};",
+    ] {
+        let text = format!(
+            "fn retain<T:Value+ClosedEnvironment>(give selected:Task<T>,flag:bool)->impl FnOnce()->Managed<Task<T>>{{{body}}}fn main(){{}}"
+        );
+        if body.starts_with("return if") {
+            // Equal signatures do not merge two distinct opaque closure
+            // definitions; the original identity rule remains in force.
+            let errors = expand(&text).expect_err("different opaque definitions remain distinct");
+            assert!(
+                errors.iter().any(|error| error.phase == Phase::Expand
+                    && error.category == zil_base::ResultCategory::SafeReject
+                    && error.message == "opaque factory returns distinct closure definitions"),
+                "{errors:?}"
+            );
+            continue;
+        }
+        let core = expand(&text).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+        assert!(core.unsupported.is_empty(), "{:?}", core.unsupported);
+        let original = core
+            .semantic
+            .as_ref()
+            .unwrap()
+            .definitions
+            .iter()
+            .find(|definition| {
+                definition
+                    .identity
+                    .declaration_path
+                    .last()
+                    .is_some_and(|name| name == "retain")
+            })
+            .unwrap();
+        assert_eq!(original.parameters.len(), 1);
+        let zil_ir::SemanticFormal::Type { requirements } = &original.parameters[0] else {
+            panic!("ordinary T lost its original full requirement set");
+        };
+        assert!(
+            requirements.iter().any(|requirement| matches!(
+                requirement,
+                zil_ir::SemanticRequirementRecipe::Builtin {
+                    trait_kind: zil_ir::SemanticBuiltinTrait::ClosedEnvironment,
+                    ..
+                }
+            )),
+            "CE must remain a sealed original obligation"
+        );
+        let zil_ir::SemanticDefinitionBody::FunctionWithBody { signature, .. } = &original.body
+        else {
+            panic!()
+        };
+        let zil_ir::SemanticTypeRecipe::Managed(task) = &signature.parameters[0].ty else {
+            panic!("{:?}", signature.parameters[0]);
+        };
+        let zil_ir::SemanticTypeRecipe::Task { result, .. } = task.as_ref() else {
+            panic!("{task:?}")
+        };
+        assert!(
+            matches!(result.as_ref(), zil_ir::SemanticTypeRecipe::Formal(formal) if formal.ordinal == 0)
+        );
+    }
+}
+
+#[test]
+fn task_value_factory_preserves_mixed_and_phantom_source_formals() {
+    let text = "fn retain<life a,T:Value+ClosedEnvironment,const n:i32,P:Value,life unused>(give selected:Task<T,(&'a i32,&'a i32)>)->impl FnOnce()->Managed<Task<T,(&'a i32,&'a i32)>>{let result=move()=>give selected;return result;}fn main(){}";
+    let core = expand(text).unwrap_or_else(|errors| panic!("{errors:?}"));
+    assert!(core.unsupported.is_empty(), "{:?}", core.unsupported);
+    let original = core
+        .semantic
+        .as_ref()
+        .unwrap()
+        .definitions
+        .iter()
+        .find(|definition| {
+            definition
+                .identity
+                .declaration_path
+                .last()
+                .is_some_and(|name| name == "retain")
+        })
+        .unwrap();
+    assert!(matches!(
+        original.parameters.as_slice(),
+        [
+            zil_ir::SemanticFormal::Lifetime,
+            zil_ir::SemanticFormal::Type { .. },
+            zil_ir::SemanticFormal::Const { .. },
+            zil_ir::SemanticFormal::Type { .. },
+            zil_ir::SemanticFormal::Lifetime,
+        ]
+    ));
+    let zil_ir::SemanticDefinitionBody::FunctionWithBody { signature, .. } = &original.body else {
+        panic!()
+    };
+    let zil_ir::SemanticTypeRecipe::Managed(task) = &signature.parameters[0].ty else {
+        panic!()
+    };
+    let zil_ir::SemanticTypeRecipe::Task { result, retained } = task.as_ref() else {
+        panic!()
+    };
+    assert!(
+        matches!(result.as_ref(), zil_ir::SemanticTypeRecipe::Formal(formal) if formal.ordinal == 1)
+    );
+    assert_eq!(
+        retained.ports.len(),
+        2,
+        "equal outside classes do not erase either input port"
+    );
+}
+
+#[test]
+fn task_value_factories_require_full_value_type_and_single_owner_transfer() {
+    for text in [
+        "fn retain<T>(give selected:Task<T>)->impl FnOnce()->Managed<Task<T>>{return move()=>give selected;}fn main(){}",
+        "fn retain<T:Value+ClosedEnvironment,U:Value>(give selected:Task<T>)->impl FnOnce()->Managed<Task<U>>{return move()=>give selected;}fn main(){}",
+        "fn retain<T:Value+ClosedEnvironment>(give selected:Task<T>)->impl FnOnce()->Managed<Task<T>>{return move()=>{let duplicate=give selected;return give selected;};}fn main(){}",
+        "fn retain<T:Value+ClosedEnvironment>(selected:Task<T>)->impl FnOnce()->Managed<Task<T>>{return move()=>give selected;}fn main(){}",
+        "fn retain<life a,life b,T:Value+ClosedEnvironment>(give selected:Task<T,&'a i32>)->impl FnOnce()->Managed<Task<T,&'b i32>>{return move()=>give selected;}fn main(){}",
+    ] {
+        let errors = expand(text).expect_err("generic ownership must hold before specialization");
+        assert!(
+            errors.iter().any(|error| error.phase == Phase::Expand
+                && error.category == zil_base::ResultCategory::SafeReject),
+            "{text}: {errors:?}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|error| error.category == zil_base::ResultCategory::Unsupported),
+            "{text}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn ordinary_task_factory_keeps_where_ce_and_symbolic_array_result() {
+    for text in [
+        "fn retain<T:Value>(give selected:Task<T>)->impl FnOnce()->Managed<Task<T>> where T:ClosedEnvironment{return move()=>give selected;}fn main(){}",
+        "fn retain<T:Value+ClosedEnvironment,const n:i32>(give selected:Task<[T;n]>)->impl FnOnce()->Managed<Task<[T;n]>>{return move()=>give selected;}fn main(){}",
+    ] {
+        let core = expand(text).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+        assert!(core.unsupported.is_empty(), "{:?}", core.unsupported);
+        assert!(core.semantic.is_some());
+    }
+    let text = "fn retain<T:Value+ClosedEnvironment+ClosedEnvironment>(give selected:Task<T>)->impl FnOnce()->Managed<Task<T>>{return move()=>give selected;}fn main(){}";
+    let errors = expand(text).expect_err("duplicate sealed requirement is not a second premise");
+    assert!(
+        errors.iter().any(|error| error.phase == Phase::Expand
+            && error.category == zil_base::ResultCategory::SafeReject
+            && error.message == "duplicate or shadowed ClosedEnvironment bound"),
+        "{errors:?}"
+    );
+}
