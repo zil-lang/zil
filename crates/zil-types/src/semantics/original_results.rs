@@ -335,6 +335,7 @@ impl Proof {
                 left,
                 depth + 1,
                 &mut Vec::new(),
+                None,
             )?,
         };
         Ok(closed.then_some((definition, result)))
@@ -527,7 +528,7 @@ fn common_closed_sources(
             return Err(bad("opaque sources have different original complete types"));
         }
         common = Some(ty);
-        if !zero_original_domain(program, proof, target, ty, limits, left, 0, &mut Vec::new())? {
+        if !zero_original_domain(program, proof, target, ty, limits, left, 0, &mut Vec::new(), None)? {
             return Err(pending(
                 "common opaque sources lack a proved complete closed result domain",
             ));
@@ -564,6 +565,10 @@ fn original_definition<'a>(
             bad("closed original definition index changes its full declaration identity")
         })
 }
+struct CurrentDomainGamma<'a> {
+    contexts: &'a [SemanticDefinitionId],
+}
+
 fn zero_original_domain(
     program: &SemanticModule,
     proof: &Proof,
@@ -573,6 +578,7 @@ fn zero_original_domain(
     left: &mut usize,
     depth: usize,
     active: &mut Vec<(SemanticDefinitionId, SemanticTypeRecipe)>,
+    current: Option<&CurrentDomainGamma<'_>>,
 ) -> R<bool> {
     *left = left
         .checked_sub(active.len().saturating_add(1))
@@ -595,7 +601,7 @@ fn zero_original_domain(
     }
     active.push((owner, ty.clone()));
     let result =
-        zero_original_domain_inner(program, proof, owner, ty, limits, left, depth + 1, active);
+        zero_original_domain_inner(program, proof, owner, ty, limits, left, depth + 1, active, current);
     active.pop();
     result
 }
@@ -670,6 +676,105 @@ fn opaque_result<'a>(
     }
     Ok(Some((*definition, result)))
 }
+/// A generic opaque keeps its complete mixed application even if some
+/// arguments are absent from its runtime captures. This is an original
+/// zero-domain theorem, separate from ClosedEnvironment and from an actual
+/// closure/header proposal.
+fn zero_opaque_application(
+    program: &SemanticModule,
+    proof: &Proof,
+    owner: SemanticDefinitionId,
+    ty: &SemanticTypeRecipe,
+    limits: &Limits,
+    left: &mut usize,
+    depth: usize,
+    active: &mut Vec<(SemanticDefinitionId, SemanticTypeRecipe)>,
+    current: Option<&CurrentDomainGamma<'_>>,
+) -> R<bool> {
+    let SemanticTypeRecipe::Opaque { definition, arguments, hidden } = ty else {
+        return Ok(false);
+    };
+    let source = original_definition(program, proof, *definition, limits, left)?;
+    if source.parent.is_some()
+        || !source.environment.is_empty()
+        || source.parameters.len() != arguments.len()
+        || !proof.complete.contains(definition)
+        || !matches!(&source.body, SemanticDefinitionBody::FunctionWithBody {
+            signature: SemanticSignatureRecipe {
+                result: SemanticTypeRecipe::Opaque { definition: declared, .. }, ..
+            },
+            foreign: None,
+            body: SemanticOriginalFunctionBody::Defined(_), ..
+        } if declared == definition)
+    {
+        return Ok(false);
+    }
+    let result = proof.types.get(&(*definition, Query::Result))
+        .ok_or_else(|| bad("opaque zero-domain application lacks its complete all-return equation"))?;
+    {
+        let mut check = if let Some(gamma) = current.filter(|gamma| gamma.contexts.last() == Some(&owner)) {
+            // Reborrow only the currently checked declaration Gamma. This does
+            // not assert that its body, returns or cleanup are complete.
+            original_definition(program, proof, owner, limits, left)?;
+            *left = left.checked_sub(gamma.contexts.len().saturating_mul(
+                std::mem::size_of::<SemanticDefinitionId>()
+            ).saturating_add(1))
+                .ok_or_else(|| Diagnostic::limit(Phase::Types,
+                    "current original zero-domain Gamma work exceeded", None))?;
+            Check {
+                program, limits, left: &mut *left, proof: ProofAccess::Borrowed(proof),
+                active: BTreeSet::new(), captures: BTreeMap::new(), loops: Vec::new(),
+                trait_active: Vec::new(), contexts: gamma.contexts.to_vec(),
+                predicate_active: Vec::new(), stage_depth: 0, cleanup_depth: 0,
+                requested_snapshot: None, snapshot_sources: None, escape_active: Vec::new(),
+            }
+        } else {
+            super::nominal_where::borrowed_check(program, proof, owner, limits, left)?
+        };
+        // The full caller application discharges the declaration's original
+        // requirements. No result/header hint supplies a missing premise.
+        check.call_requirements(owner, source, arguments, depth + 1)?;
+        if !matches!(hidden.as_ref(), SemanticTypeRecipe::OriginalType {
+            scope: SemanticScopeRef::Ancestor(0),
+            source: SemanticOriginalTypeSource::Result,
+        }) {
+            check.contexts.push(*definition);
+            let equation = (|| {
+                let hidden = check.resolve(*definition, hidden, depth + 1)?;
+                check.same(&hidden, result)
+            })();
+            check.contexts.pop();
+            equation?;
+        }
+    }
+    // Validate complete kinds/carriers and the source-to-use lexical mapping
+    // before considering whether any original domain is empty.
+    let specialized = super::super::instantiate::ty(
+        program, proof, result,
+        super::super::instantiate::DomainMapping {
+            source: *definition, use_definition: owner, arguments, parent_call: None,
+        }, limits, left,
+    )?;
+    *left = left.checked_sub(arguments.len().saturating_add(1))
+        .ok_or_else(|| Diagnostic::limit(Phase::Types,
+            "opaque complete mixed zero-domain work exceeded", None))?;
+    let mut all = true;
+    for argument in arguments {
+        all &= match argument {
+            SemanticActualRecipe::Type(ty) =>
+                zero_original_domain(program, proof, owner, ty, limits, left, depth + 1, active, current)?,
+            SemanticActualRecipe::Const { carrier, value } => {
+                matches!(value, SemanticConstRecipe::Value(_) | SemanticConstRecipe::IntegerLiteral(_))
+                    && zero_original_domain(program, proof, owner, carrier, limits, left, depth + 1, active, current)?
+            }
+            // A phantom Life is still part of the original complete domain.
+            SemanticActualRecipe::Life(_) | SemanticActualRecipe::Infer => false,
+        };
+    }
+    all &= zero_original_domain(program, proof, owner, &specialized, limits, left, depth + 1, active, current)?;
+    Ok(all)
+}
+
 fn zero_original_domain_inner(
     program: &SemanticModule,
     proof: &Proof,
@@ -679,9 +784,10 @@ fn zero_original_domain_inner(
     left: &mut usize,
     depth: usize,
     active: &mut Vec<(SemanticDefinitionId, SemanticTypeRecipe)>,
+    current: Option<&CurrentDomainGamma<'_>>,
 ) -> R<bool> {
     let recurse = |scope, ty: &SemanticTypeRecipe, left: &mut usize, active: &mut Vec<_>| {
-        zero_original_domain(program, proof, scope, ty, limits, left, depth + 1, active)
+        zero_original_domain(program, proof, scope, ty, limits, left, depth + 1, active, current)
     };
     Ok(match ty {
         SemanticTypeRecipe::Atom(ty) => {
@@ -751,7 +857,9 @@ fn zero_original_domain_inner(
                         None => recurse(definition, result, left, active)?,
                     }
                 }
-                None => false,
+                None => zero_opaque_application(
+                    program, proof, owner, ty, limits, left, depth + 1, active, current,
+                )?,
             }
         }
         SemanticTypeRecipe::Closure {
@@ -1023,6 +1131,8 @@ impl Check<'_, '_> {
         ty: &SemanticTypeRecipe,
         depth: usize,
     ) -> R<bool> {
+        let current = (self.contexts.last().copied() == Some(owner))
+            .then_some(CurrentDomainGamma { contexts: &self.contexts });
         zero_original_domain(
             self.program,
             &self.proof,
@@ -1032,6 +1142,7 @@ impl Check<'_, '_> {
             self.left,
             depth + 1,
             &mut Vec::new(),
+            current.as_ref(),
         )
     }
 }
