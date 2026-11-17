@@ -217,7 +217,7 @@ impl Check<'_, '_> {
                         // A backedge obligation is tied to a real cyclic write,
                         // not another same-local replacement elsewhere.
                         if matches!(event, original::CleanupEvent::Backedge(_))
-                            && !self.cleanup_cyclic_write(function, block, offset, b)? { return Ok(false); }
+                            && !self.cleanup_cyclic_write(function, local, block, position, offset, b)? { return Ok(false); }
                         return Ok(true);
                     }
                 }
@@ -291,27 +291,48 @@ impl Check<'_, '_> {
         }
     }
 
-    fn cleanup_cyclic_write(&self, function: &TypedFunction, block: BlockId,
-        _position: usize, b: &mut Budget) -> CompileResult<bool> {
-        let mut pending = Vec::new();
+    #[allow(clippy::too_many_arguments)]
+    fn cleanup_cyclic_write(&self, function: &TypedFunction, local: LocalId,
+        block: BlockId, drop_position: usize, store_position: usize, b: &mut Budget) -> CompileResult<bool> {
+        let mut pending = vec![(block, store_position + 1)];
         let mut seen = BTreeSet::new();
-        let mut current = Some(block);
-        while let Some(next) = current.take().or_else(|| pending.pop()) {
+        while let Some((next, start)) = pending.pop() {
             b.lookup(seen.len(), WORK)?;
-            if !seen.insert(next) { continue; }
+            if !seen.insert((next, start)) { continue; }
             let body = function.blocks.get(next.0 as usize).filter(|body| body.id == next)
                 .ok_or_else(|| fail("original cleanup backedge has no actual CFG block"))?;
+            let mut ended = false;
+            for (position, instruction) in body.instructions.iter().enumerate().skip(start) {
+                b.spend(1, WORK)?;
+                if next == block && position == drop_position { return Ok(true); }
+                ended = match instruction.kind {
+                    InstructionKind::StorageDead(target) | InstructionKind::StorageLive(target)
+                    | InstructionKind::Store { local: target, .. } | InstructionKind::TakeLocal { local: target }
+                    | InstructionKind::TakeOwnedArrayElement { local: target, .. }
+                    | InstructionKind::StoreOwnedArrayElement { local: target, .. }
+                    | InstructionKind::DropOwnedArrayElement { local: target, .. }
+                    | InstructionKind::DropOwnedArray { local: target }
+                    | InstructionKind::DropManaged { local: target } | InstructionKind::DropClosure { local: target }
+                        => target == local,
+                    // A break/error/return leaves this original loop, even if
+                    // an outer loop later reaches a numerically identical block.
+                    InstructionKind::ScopeExit { kind: CleanupExitKind::Break | CleanupExitKind::Return
+                        | CleanupExitKind::Error, .. } => true,
+                    _ => false,
+                };
+                if ended { break; }
+            }
+            if ended { continue; }
             let targets = match body.terminator {
                 Terminator::Jump(next) => [Some(next), None],
                 Terminator::Branch { then_block, else_block, .. } => [Some(then_block), Some(else_block)],
                 _ => [None, None],
             };
             for target in targets.into_iter().flatten() {
-                b.spend(1, WORK)?;
-                if target == block { return Ok(true); }
-                pending.push(target);
+                self.push_value(&mut pending, (target, 0), b)?;
             }
         }
         Ok(false)
     }
+
 }

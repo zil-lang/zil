@@ -961,10 +961,11 @@ impl Proof<'_, '_> {
             state.alive = false;
         }
         if outcomes.len() == 1 && outcomes[0].0 == ProtocolExit::Return {
-            Ok(Data::default())
+            Ok(Data { sources: OwnerSources::opaque(arguments.iter().any(Data::borrow_exposure)),
+                outcomes: Vec::new() })
         } else {
             Ok(Data {
-                sources: OwnerSources::opaque(false),
+                sources: OwnerSources::opaque(arguments.iter().any(Data::borrow_exposure)),
                 outcomes,
             })
         }
