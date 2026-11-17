@@ -140,7 +140,9 @@ impl CheckedOriginal {
             self.remember_callable_retirement(env.current()?,place,CallableRetirement::SuspendedOwner,b)?;
             return Ok(());
         }
-        Err(bad("original cleanup edge has no original SyncDrop proof"))
+        let diagnostic_ty=self.resolved(ty,b)?;place.binder.charge_clone(b)?;
+        b.spend(place.fields.iter().map(String::len).sum::<usize>().saturating_add(4))?;
+        Err(bad("original cleanup edge has no original SyncDrop proof").with_note(format!("original cleanup {:?}, place {place:?}, type {diagnostic_ty:?}, capture_exit {capture_exit}, direct_consuming {direct}, original call kind {:?}",env.current()?,self.prototypes.get(&env.current()?).map(|p|p.call_kind))))
     }
     /// Prove concrete providers in their universal declaration, even with no
     /// actual instance. The stored creator/receiver validates source identity;

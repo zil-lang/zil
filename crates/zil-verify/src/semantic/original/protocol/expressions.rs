@@ -480,6 +480,7 @@ impl Engine<'_> {
         let receiver_sources=self.result_sources(state,receiver,b)?;
         let mut input_sources=Vec::new();for value in values{input_sources.push(self.result_sources(state,value,b)?);}
         let target=self.callable_targets.get(&node.id).copied();
+        let capture_before=if target.is_some()&&role.as_ref().is_some_and(|(kind,_)|matches!(kind,CallableKind::Fn|CallableKind::FnMut)){Some(state.copy(b)?)}else{None};
         if role.is_none()&&(tasks::owner_value(receiver)||values.iter().any(tasks::owner_value)){
             return Err(unsupported("original callable owner transfer lacks its complete checked signature role",Some(node.span)));
         }
@@ -508,6 +509,9 @@ impl Engine<'_> {
         }
         let mut result=self.result_value(node,state,b)?;
         if let Some(target)=target{if let Some(summary)=self.result_sources_by_function.get(&target){self.apply_result_sources(state,&mut result,summary,&input_sources,target,Some(&receiver_sources),b)?;}}
+        if let(Some(target),Some(before))=(target,capture_before.as_ref()){
+            if let Some(poll)=self.apply_capture_poststate(state,receiver,before,&receiver_sources,&input_sources,target,b)?{result=poll;}
+        }
         Ok(result)
     }
     fn result_value(&mut self, node: &SemanticOriginalExpr,state:&mut State, b: &mut Budget) -> Check<Value> {

@@ -9,7 +9,7 @@ mod walk;
 use intrinsics::Intrinsic;
 use state::*;
 
-pub(super) struct CaptureExit{root:Place,generation:u64,phase:u8,sources:Sources}
+pub(super) struct CaptureExit{root:Place,generation:u64,phase:u8,sources:Sources,exit:ProtocolExit,unchanged:bool}
 struct Engine<'a> {
     original: &'a CheckedOriginal,
     module: &'a TypedModule,
@@ -23,6 +23,7 @@ struct Engine<'a> {
     async_tasks: BTreeSet<Place>,
     retiring_captures:BTreeSet<Place>,
     capture_exits:Vec<CaptureExit>,
+    capture_inputs:BTreeMap<Place,u64>,
     synchronous_births:&'a mut tasks::SynchronousBirths,
     result_sources_by_function:&'a BTreeMap<SemanticDefinitionId,ResultSources>,
     returned_sources:Option<ResultSources>,
@@ -194,7 +195,7 @@ impl CheckedOriginal {
                 next: 0,
                 closed_tasks: BTreeSet::new(),
                 async_tasks: BTreeSet::new(),
-                retiring_captures:BTreeSet::new(),capture_exits:vec![],
+                retiring_captures:BTreeSet::new(),capture_exits:vec![],capture_inputs:BTreeMap::new(),
                 synchronous_births:&mut synchronous_births,
                 result_sources_by_function:&result_sources_by_function,
                 returned_sources:None,
@@ -273,6 +274,12 @@ impl CheckedOriginal {
                         "original captured registration needs its complete capture protocol relation",
                         None,
                     ));
+                }
+            }
+            b.spend(state.width())?;
+            for(root,owner)in &state.owners{
+                if matches!(root.binder,Binder::Capture{definition,..}if definition==id){
+                    engine.capture_inputs.insert(root.clone(),owner.generation);
                 }
             }
             let mut combinations = vec![(state, BTreeMap::new())];
@@ -542,8 +549,7 @@ impl<'a> Engine<'a> {
         }
         Ok(())
     }
-    fn check_exit(&mut self, mut state: State, value: Value, b: &mut Budget) -> Check<()> {
-        self.task_exit(&mut state, b)?;
+    fn check_exit(&mut self, state: State, value: Value, b: &mut Budget) -> Check<()> {
         let exits = if self.poll {
             &[ProtocolExit::PollPending, ProtocolExit::PollReady][..]
         } else {
@@ -554,6 +560,10 @@ impl<'a> Engine<'a> {
             if self.poll && !actual.refine(&value, exit, b)? {
                 continue;
             }
+            // Refine the actual returned tag before collecting the environment
+            // poststate. A Poll result transports this same generation relation
+            // to its caller; neither branch can borrow the other's Closed fact.
+            self.task_exit(&mut actual, exit, b)?;
             for role in &self.contracts {
                 b.spend(role.exits.len().saturating_add(2))?;
                 let input = self.inputs.get(&role.parameter).ok_or_else(|| {

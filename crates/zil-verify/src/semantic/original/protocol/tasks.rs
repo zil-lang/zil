@@ -532,14 +532,14 @@ impl<'a> Engine<'a> {
         }
         Ok(())
     }
-    pub(super) fn task_exit(&mut self, state: &mut State, b: &mut Budget) -> Check<()> {
+    pub(super) fn task_exit(&mut self, state: &mut State, exit:ProtocolExit, b: &mut Budget) -> Check<()> {
         // Snapshot before activation exit changes ownership. Closed is tied
         // to this generation; neither a later exit nor actual callers replace it.
         for(root,owner)in &state.owners{
             if owner.task&&owner.owned&&matches!(root.binder,Binder::Capture{definition,..}if definition==self.current){
                 root.binder.charge_clone(b)?;b.spend(root.fields.iter().map(String::len).sum::<usize>().saturating_add(source_width(&owner.sources)).saturating_add(3))?;
                 if self.capture_exits.len()>=b.limits.max_nodes{return Err(limit("original capture exit inventory exceeded"));}
-                self.capture_exits.push(CaptureExit{root:root.clone(),generation:owner.generation,phase:owner.states,sources:owner.sources.clone()});
+                self.capture_exits.push(CaptureExit{root:root.clone(),generation:owner.generation,phase:owner.states,sources:owner.sources.clone(),exit,unchanged:self.capture_inputs.get(root)==Some(&owner.generation)});
             }
         }
         b.spend(state.width())?;
@@ -955,6 +955,67 @@ impl Engine<'_>{
             for(path,mut sources)in incoming{if !previous.contains_key(&path){sources.insert(TaskSource::Unknown);previous.insert(path,sources);}}
         }else{self.returned_sources=Some(incoming);}
         Ok(())
+    }
+    /// Transport the checked original activation's complete capture poststate
+    /// to the exact call-before environment. This is a universal transformer,
+    /// not a concrete caller premise or an inference from equal capture types.
+    pub(super) fn apply_capture_poststate(&mut self,state:&mut State,receiver:&Value,before:&State,receiver_sources:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,b:&mut Budget)->Check<Option<Value>>{
+        fn leaves(value:&Value,path:&mut Vec<String>,out:&mut Vec<(Vec<String>,Place)>,b:&mut Budget)->Check<()>{
+            b.spend(path.iter().fold(1usize,|n,name|n.saturating_add(name.len())))?;
+            match value{
+                Value::Owner{root,..}=>{root.binder.charge_clone(b)?;b.spend(root.fields.iter().map(String::len).sum::<usize>())?;out.push((path.clone(),root.clone()));},
+                Value::Product(fields)=>for(name,value)in fields{path.push(name.clone());leaves(value,path,out,b)?;path.pop();},
+                _=>{},
+            }Ok(())
+        }
+        let original=self.original;
+        let Some(exits)=original.capture_exit_snapshots.get(&target)else{return Ok(None);};
+        let mut actuals=Vec::new();leaves(receiver,&mut vec![],&mut actuals,b)?;
+        b.spend(actuals.len().saturating_mul(actuals.len().checked_ilog2().map_or(1,|n|n as usize+1)))?;
+        let mut seen=BTreeSet::new();let mut relations=Vec::new();let mut poll=false;
+        for(path,root)in actuals{
+            let prior=before.owner(&root,b)?;if !prior.task{continue;}
+            if !seen.insert(root.clone()){return Err(bad("original closure activation aliases distinct captured owner roles"));}
+            let mut selected=Vec::new();
+            // Match the original captured Binder and full field path. The free
+            // name only supplies its canonical private responsibility selector.
+            b.spend(exits.len())?;
+            for exit in exits{
+                let Binder::Capture{definition,source}=&exit.root.binder else{continue;};
+                if *definition!=target{continue;}
+                source.charge_clone(b)?;
+                let Some(free)=original.free_values.get(&target)else{continue;};
+                b.spend(free.len())?;
+                for(name,binding)in free{
+                    b.spend(name.len())?;binding.identity.charge_clone(b)?;
+                    if binding.identity!=**source{continue;}
+                    let mut expected=vec![CheckedOriginal::capture_field(name,b)?];
+                    b.spend(exit.root.fields.iter().map(String::len).sum::<usize>().saturating_add(1))?;
+                    expected.extend_from_slice(&exit.root.fields);
+                    if expected==path{selected.push(exit);}
+                }
+            }
+            if selected.is_empty(){continue;} // Unknown effects stay Unknown.
+            let mut all=0;let mut pending=0;let mut ready=0;let mut sources=Sources::new();
+            for exit in selected{
+                b.spend(source_width(&exit.sources))?;
+                let phase=if exit.unchanged{prior.states}else{exit.phase};
+                all|=phase;
+                match exit.exit{ProtocolExit::Return=>{},ProtocolExit::PollPending=>{poll=true;pending|=phase;},ProtocolExit::PollReady=>{poll=true;ready|=phase;}}
+                if exit.unchanged{b.spend(source_width(&prior.sources))?;sources.extend(prior.sources.iter().cloned());}
+                else{
+                    let summary=BTreeMap::from([(vec![],exit.sources.clone())]);
+                    let mut value=Value::FreshTask(PendingTask{states:LIVE,sources:unknown_sources()});
+                    self.apply_result_sources(state,&mut value,&summary,inputs,target,Some(receiver_sources),b)?;
+                    let Value::FreshTask(value)=value else{unreachable!()};sources.extend(value.sources);
+                }
+            }
+            if all==0||sources.is_empty(){return Err(bad("original closure activation has an incomplete capture poststate"));}
+            let generation=self.update(state,&root,all,b)?;
+            state.owners.get_mut(&root).ok_or_else(||bad("original activation lost its exact caller capture"))?.sources=sources;
+            if poll{relations.push(Conditional{root,generation,pending,ready});}
+        }
+        Ok(if poll{Some(Value::Poll{relations,tag:None})}else{None})
     }
     pub(super) fn apply_result_sources(&self,state:&mut State,value:&mut Value,summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,receiver:Option<&ResultSources>,b:&mut Budget)->Check<()>{
         fn sources(path:&[String],summary:&ResultSources,inputs:&[ResultSources],target:SemanticDefinitionId,receiver:Option<&ResultSources>,original:&CheckedOriginal,b:&mut Budget)->Check<Sources>{
