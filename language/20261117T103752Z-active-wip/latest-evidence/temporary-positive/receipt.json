@@ -1,0 +1,163 @@
+{
+  "candidate": "aa081629203eb7f9afdd2f65e7418d600a9a3e49",
+  "cli_sha256": "f0336fd63325d8dfabe9f9e4d3e596348bc1e28a52aa6125f3b3e5e08a783341",
+  "source_sha256": "8bad7ee4eb57e3710d94a9427a55bf0d5d4263265c47ba4c994282b32916bb70",
+  "source": "/tmp/root-aa0816-temporary-native/source.zil",
+  "work_profile": "standard",
+  "scope": "Original full-expression temporary dereference, four native configurations; not full Alpha acceptance",
+  "rows": [
+    {
+      "backend": "clang",
+      "opt": "O0",
+      "command": [
+        "/tmp/root-aa0816-temporary-native/zil",
+        "build",
+        "/tmp/root-aa0816-temporary-native/source.zil",
+        "--work-profile",
+        "standard",
+        "--backend",
+        "clang",
+        "--opt",
+        "O0",
+        "-o",
+        "/tmp/root-aa0816-temporary-native/clang-O0/program",
+        "--emit-dir",
+        "/tmp/root-aa0816-temporary-native/clang-O0/phases",
+        "--json"
+      ],
+      "build_exit": 1,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-SOURCE-SEMANTICS",
+          "message": "elided callable result has no unique original input occurrence",
+          "span": {
+            "file": 0,
+            "start": 31,
+            "end": 35
+          },
+          "notes": []
+        }
+      ],
+      "passed": false
+    },
+    {
+      "backend": "clang",
+      "opt": "O2",
+      "command": [
+        "/tmp/root-aa0816-temporary-native/zil",
+        "build",
+        "/tmp/root-aa0816-temporary-native/source.zil",
+        "--work-profile",
+        "standard",
+        "--backend",
+        "clang",
+        "--opt",
+        "O2",
+        "-o",
+        "/tmp/root-aa0816-temporary-native/clang-O2/program",
+        "--emit-dir",
+        "/tmp/root-aa0816-temporary-native/clang-O2/phases",
+        "--json"
+      ],
+      "build_exit": 1,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-SOURCE-SEMANTICS",
+          "message": "elided callable result has no unique original input occurrence",
+          "span": {
+            "file": 0,
+            "start": 31,
+            "end": 35
+          },
+          "notes": []
+        }
+      ],
+      "passed": false
+    },
+    {
+      "backend": "llvm-api",
+      "opt": "O0",
+      "command": [
+        "/tmp/root-aa0816-temporary-native/zil",
+        "build",
+        "/tmp/root-aa0816-temporary-native/source.zil",
+        "--work-profile",
+        "standard",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O0",
+        "-o",
+        "/tmp/root-aa0816-temporary-native/llvm-api-O0/program",
+        "--emit-dir",
+        "/tmp/root-aa0816-temporary-native/llvm-api-O0/phases",
+        "--json"
+      ],
+      "build_exit": 1,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-SOURCE-SEMANTICS",
+          "message": "elided callable result has no unique original input occurrence",
+          "span": {
+            "file": 0,
+            "start": 31,
+            "end": 35
+          },
+          "notes": []
+        }
+      ],
+      "passed": false
+    },
+    {
+      "backend": "llvm-api",
+      "opt": "O2",
+      "command": [
+        "/tmp/root-aa0816-temporary-native/zil",
+        "build",
+        "/tmp/root-aa0816-temporary-native/source.zil",
+        "--work-profile",
+        "standard",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O2",
+        "-o",
+        "/tmp/root-aa0816-temporary-native/llvm-api-O2/program",
+        "--emit-dir",
+        "/tmp/root-aa0816-temporary-native/llvm-api-O2/phases",
+        "--json"
+      ],
+      "build_exit": 1,
+      "status": "SafeReject",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-SOURCE-SEMANTICS",
+          "message": "elided callable result has no unique original input occurrence",
+          "span": {
+            "file": 0,
+            "start": 31,
+            "end": 35
+          },
+          "notes": []
+        }
+      ],
+      "passed": false
+    }
+  ],
+  "passed": false
+}

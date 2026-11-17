@@ -1,0 +1,435 @@
+{
+  "candidate": "93e1cfc94db9b09fd752a4248e6e3188eff6c53a",
+  "cli_sha256": "486fb8f3b6e8d2779c3dd7cb9179caf7845ada4f7788111bcb70c596e1dfc0e8",
+  "work_profile": "alpha",
+  "scope": "Diagnostic of exact existing positive fixtures in SDK included modules; not native/raw acceptance",
+  "selected": 16,
+  "source_verified": 7,
+  "rows": [
+    {
+      "case": "fnmut-async-close",
+      "source_sha256": "4b35acd441f3c2b59d28a5f426d2e8ca5057c2f10ce0ffd8d36c1d264f8330d5",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/fnmut-async-close/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/fnmut-async-close/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend",
+          "span": null,
+          "notes": [
+            "original cleanup owner SemanticDefinitionId { module: ModuleId(0), index: 9 }; root Place { binder: Local { definition: SemanticDefinitionId { module: ModuleId(0), index: 9 }, node: NodeId(4), name: \"callback\" }, fields: [\"$capture:task\"] }; phase 7; universal sources {Unknown}"
+          ]
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "fnmut-async-poll-close",
+      "source_sha256": "27b0e13f49a3b9f72c4eb3229010dcf6fbb1d553ca32209548c4455338e2fe9b",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/fnmut-async-poll-close/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/fnmut-async-poll-close/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend",
+          "span": null,
+          "notes": [
+            "original cleanup owner SemanticDefinitionId { module: ModuleId(0), index: 9 }; root Place { binder: Local { definition: SemanticDefinitionId { module: ModuleId(0), index: 9 }, node: NodeId(4), name: \"callback\" }, fields: [\"$capture:task\"] }; phase 7; universal sources {Unknown}"
+          ]
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "child-frame-cleanup",
+      "source_sha256": "27e4320eea20cbac17787379bf350ba2cc2836c2fd6c7be4025d1055ae1e3d34",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/child-frame-cleanup/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/child-frame-cleanup/phases",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "verified": true
+    },
+    {
+      "case": "closed-task-fnonce",
+      "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/closed-task-fnonce/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/closed-task-fnonce/phases",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "verified": true
+    },
+    {
+      "case": "nested-callable-child-cleanup",
+      "source_sha256": "e3629fe8b018137e6ad5543c1da12bcb034fa75c62a1f5123ebe21ef5b3c52c5",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/nested-callable-child-cleanup/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/nested-callable-child-cleanup/phases",
+        "--json"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "instruction is outside the checked stored profile, including unreachable blocks",
+          "span": {
+            "file": 0,
+            "start": 2721,
+            "end": 2732
+          },
+          "notes": []
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "nested-once-callable-child-cleanup",
+      "source_sha256": "4ff7fb8fd51b1fb902daa1c01431e03fb6576e206ad9ff7a6543aeee1312bee9",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/nested-once-callable-child-cleanup/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/nested-once-callable-child-cleanup/phases",
+        "--json"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "instruction is outside the checked stored profile, including unreachable blocks",
+          "span": {
+            "file": 0,
+            "start": 2863,
+            "end": 2874
+          },
+          "notes": []
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "once-pending-callable-cleanup",
+      "source_sha256": "0ac7be1e29e0e0a3ad7a2b68c97570278531e2dc624478478da4680e264ab769",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/once-pending-callable-cleanup/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/once-pending-callable-cleanup/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original Callable requirement has different complete modes/kind [original definition Some(SemanticDefinitionId { module: ModuleId(0), index: 19 }), expression NodeId(16)] [original definition SemanticDefinitionId { module: ModuleId(0), index: 19 }]",
+          "span": {
+            "file": 0,
+            "start": 3009,
+            "end": 3043
+          },
+          "notes": []
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "once-pending-owned-result-cleanup",
+      "source_sha256": "c52e16735a3adb02308047c5d806835048b4ed09f680a5fce7f58a731e916411",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/once-pending-owned-result-cleanup/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/once-pending-owned-result-cleanup/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original Callable requirement has different complete modes/kind [original definition Some(SemanticDefinitionId { module: ModuleId(0), index: 19 }), expression NodeId(16)] [original definition SemanticDefinitionId { module: ModuleId(0), index: 19 }]",
+          "span": {
+            "file": 0,
+            "start": 3085,
+            "end": 3119
+          },
+          "notes": []
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "once-pending-returned-task-cleanup",
+      "source_sha256": "d8e6db8fa4241b1195dd4c889c84d36585277af4d714c808a96044428d435ffa",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/once-pending-returned-task-cleanup/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/once-pending-returned-task-cleanup/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original Callable requirement has different complete modes/kind [original definition SemanticDefinitionId { module: ModuleId(0), index: 16 }]",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "direct-default-local",
+      "source_sha256": "109b732b74f9bcc5b7e86de94c2d5dd648df3fa4a3d7e2a282e51f3f3564f3da",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/direct-default-local/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/direct-default-local/phases",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "verified": true
+    },
+    {
+      "case": "adapter-default-local",
+      "source_sha256": "569cb9251d329d09406f531f89ac728089b27edea95947059762067a9672b92e",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/adapter-default-local/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/adapter-default-local/phases",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "verified": true
+    },
+    {
+      "case": "returned-task-result-fnonce",
+      "source_sha256": "481c3efa48432814220cfe69beefe3ac4f02402fd5df7e93dcbf6e231dfba240",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/returned-task-result-fnonce/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/returned-task-result-fnonce/phases",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "verified": true
+    },
+    {
+      "case": "returned-second-task-fnonce",
+      "source_sha256": "a31ff69da4030a0bde25723abcdde2ebdc1327109507774c466c54ad647e4e6a",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/returned-second-task-fnonce/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/returned-second-task-fnonce/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend",
+          "span": null,
+          "notes": [
+            "original cleanup owner SemanticDefinitionId { module: ModuleId(0), index: 3 }; root Place { binder: Local { definition: SemanticDefinitionId { module: ModuleId(0), index: 3 }, node: NodeId(25), name: \"restored\" }, fields: [] }; phase 7; universal sources {Unknown}"
+          ]
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "equal-shared-task-classes",
+      "source_sha256": "e2d5b2b12ad60930a2613044916e88f74be07b9b9e6d0f818b19d9fe3cd75483",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/equal-shared-task-classes/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/equal-shared-task-classes/phases",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "verified": true
+    },
+    {
+      "case": "returned-shared-task-classes",
+      "source_sha256": "1ffb120ca8667712cfa79d10917b7c2abcbb7199da511ce200312092abdaaedd",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/returned-shared-task-classes/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/returned-shared-task-classes/phases",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-VERIFY-SEMANTIC",
+          "message": "original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend",
+          "span": null,
+          "notes": [
+            "original cleanup owner SemanticDefinitionId { module: ModuleId(0), index: 4 }; root Place { binder: Local { definition: SemanticDefinitionId { module: ModuleId(0), index: 4 }, node: NodeId(4), name: \"restored\" }, fields: [] }; phase 7; universal sources {Unknown}"
+          ]
+        }
+      ],
+      "verified": false
+    },
+    {
+      "case": "static-callable-input",
+      "source_sha256": "ce376838b851f4ac4529f189ba3254a225dfbafa8d9d357d472d62662f5309d2",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+        "check",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/static-callable-input/source.zil",
+        "--work-profile",
+        "alpha",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/static-callable-input/phases",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "verified": true
+    }
+  ]
+}

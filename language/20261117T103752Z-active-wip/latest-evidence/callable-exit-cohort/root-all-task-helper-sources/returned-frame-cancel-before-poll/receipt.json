@@ -1,0 +1,19 @@
+{
+  "case": "returned-frame-cancel-before-poll",
+  "source_sha256": "340ceecc8187cdc3f07b7bf64953857d090c29b4264de3f4bd18763ff5d4b5c6",
+  "exit_code": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/returned-frame-cancel-before-poll/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/returned-frame-cancel-before-poll/phases",
+    "--json"
+  ]
+}

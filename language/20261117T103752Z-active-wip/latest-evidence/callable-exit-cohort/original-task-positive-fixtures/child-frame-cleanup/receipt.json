@@ -1,0 +1,20 @@
+{
+  "case": "child-frame-cleanup",
+  "source_sha256": "27e4320eea20cbac17787379bf350ba2cc2836c2fd6c7be4025d1055ae1e3d34",
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/child-frame-cleanup/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/child-frame-cleanup/phases",
+    "--json"
+  ],
+  "exit": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "verified": true
+}

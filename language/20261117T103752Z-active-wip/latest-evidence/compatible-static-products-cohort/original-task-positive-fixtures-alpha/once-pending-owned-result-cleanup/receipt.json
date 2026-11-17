@@ -1,0 +1,33 @@
+{
+  "case": "once-pending-owned-result-cleanup",
+  "source_sha256": "c52e16735a3adb02308047c5d806835048b4ed09f680a5fce7f58a731e916411",
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/once-pending-owned-result-cleanup/source.zil",
+    "--work-profile",
+    "alpha",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/once-pending-owned-result-cleanup/phases",
+    "--json"
+  ],
+  "exit": 1,
+  "status": "SafeReject",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [
+    {
+      "phase": "verify",
+      "category": "SafeReject",
+      "code": "E-VERIFY-SEMANTIC",
+      "message": "original Callable requirement has different complete modes/kind [original definition Some(SemanticDefinitionId { module: ModuleId(0), index: 19 }), expression NodeId(16)] [original definition SemanticDefinitionId { module: ModuleId(0), index: 19 }]",
+      "span": {
+        "file": 0,
+        "start": 3085,
+        "end": 3119
+      },
+      "notes": []
+    }
+  ],
+  "verified": false
+}

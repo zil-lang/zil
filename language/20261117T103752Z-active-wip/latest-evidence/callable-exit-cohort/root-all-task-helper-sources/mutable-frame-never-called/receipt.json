@@ -1,0 +1,19 @@
+{
+  "case": "mutable-frame-never-called",
+  "source_sha256": "8e42eb809ba5346c0e1283599d6c5461bb1913e26448b38e5f812cb91c4470f8",
+  "exit_code": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-never-called/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/root-all-task-helper-sources/mutable-frame-never-called/phases",
+    "--json"
+  ]
+}

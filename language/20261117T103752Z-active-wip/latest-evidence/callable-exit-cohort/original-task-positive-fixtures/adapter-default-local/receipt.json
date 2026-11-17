@@ -1,0 +1,20 @@
+{
+  "case": "adapter-default-local",
+  "source_sha256": "569cb9251d329d09406f531f89ac728089b27edea95947059762067a9672b92e",
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/adapter-default-local/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/adapter-default-local/phases",
+    "--json"
+  ],
+  "exit": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "verified": true
+}

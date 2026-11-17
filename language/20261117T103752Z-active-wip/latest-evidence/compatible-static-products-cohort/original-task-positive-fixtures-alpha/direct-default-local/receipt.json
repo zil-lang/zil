@@ -1,0 +1,20 @@
+{
+  "case": "direct-default-local",
+  "source_sha256": "109b732b74f9bcc5b7e86de94c2d5dd648df3fa4a3d7e2a282e51f3f3564f3da",
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/direct-default-local/source.zil",
+    "--work-profile",
+    "alpha",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/direct-default-local/phases",
+    "--json"
+  ],
+  "exit": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "verified": true
+}

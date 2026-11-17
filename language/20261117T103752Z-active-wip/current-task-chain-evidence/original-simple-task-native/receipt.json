@@ -1,0 +1,555 @@
+{
+  "candidate": "33ddea19d7569f67a4630fc37eb71b446ccad133",
+  "cli_sha256": "417b03f481241b1ec3e7d0ce7674ac03b0441783a6446a7e4cb277520d7e2e93",
+  "work_profile": "standard",
+  "observer_source_sha256": "faad11be691182cd155d5c5ebe0e58c0409e9b50721f8dc2638780d8581b2f06",
+  "original_driver_sha256": null,
+  "contract": "Exact original existing helper Sources and SDK observer/output/Quiet/fail1 oracles; per-case execution supplements and does not replace original SDK assertions or final Alpha native plan",
+  "selected_source_cases": 2,
+  "case_prefix": null,
+  "exact_original_simple_fixtures": true,
+  "required_source_cases": [
+    "returned-task-result-fnonce",
+    "static-callable-input"
+  ],
+  "builds_selected": 8,
+  "builds_passed": 8,
+  "rows": [
+    {
+      "case": "returned-task-result-fnonce",
+      "backend": "clang",
+      "opt": "O0",
+      "source_sha256": "481c3efa48432814220cfe69beefe3ac4f02402fd5df7e93dcbf6e231dfba240",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/all-task-helper-sources/zil",
+        "build",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/returned-task-result-fnonce/source.zil",
+        "--work-profile",
+        "standard",
+        "--backend",
+        "clang",
+        "--opt",
+        "O0",
+        "--clang",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/clang-observer.sh",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/clang-O0/phases",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/clang-O0/program",
+        "--json"
+      ],
+      "build_exit": 0,
+      "status": "Success",
+      "diagnostics": [],
+      "observer_command": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-DZIL_TASK_EXPECTED_FRAMES=1",
+        "-DZIL_TASK_EXPECTED_QUIET=0",
+        "-DZIL_TASK_EXPECTED_QUIET_CALLS=0",
+        "-c",
+        "/workspace/zil-alpha-candidate/tests/language-readiness/task-aggregate-results/frame-observer.c",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/observer.o"
+      ],
+      "executions": [
+        {
+          "label": "normal",
+          "environment": {},
+          "expected_exit": 0,
+          "actual_exit": 0,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        },
+        {
+          "label": "allocation-failure",
+          "environment": {
+            "ZIL_TASK_AGGREGATE_FAIL": "1"
+          },
+          "expected_exit": 1,
+          "actual_exit": 1,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        }
+      ],
+      "passed": true,
+      "executable_sha256": "e9e6ef71c86ca2228c5b6b045eb19ba8e31f86c8bfcfb529c23552cfb9005587"
+    },
+    {
+      "case": "returned-task-result-fnonce",
+      "backend": "clang",
+      "opt": "O2",
+      "source_sha256": "481c3efa48432814220cfe69beefe3ac4f02402fd5df7e93dcbf6e231dfba240",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/all-task-helper-sources/zil",
+        "build",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/returned-task-result-fnonce/source.zil",
+        "--work-profile",
+        "standard",
+        "--backend",
+        "clang",
+        "--opt",
+        "O2",
+        "--clang",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/clang-observer.sh",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/clang-O2/phases",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/clang-O2/program",
+        "--json"
+      ],
+      "build_exit": 0,
+      "status": "Success",
+      "diagnostics": [],
+      "observer_command": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-DZIL_TASK_EXPECTED_FRAMES=1",
+        "-DZIL_TASK_EXPECTED_QUIET=0",
+        "-DZIL_TASK_EXPECTED_QUIET_CALLS=0",
+        "-c",
+        "/workspace/zil-alpha-candidate/tests/language-readiness/task-aggregate-results/frame-observer.c",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/observer.o"
+      ],
+      "executions": [
+        {
+          "label": "normal",
+          "environment": {},
+          "expected_exit": 0,
+          "actual_exit": 0,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        },
+        {
+          "label": "allocation-failure",
+          "environment": {
+            "ZIL_TASK_AGGREGATE_FAIL": "1"
+          },
+          "expected_exit": 1,
+          "actual_exit": 1,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        }
+      ],
+      "passed": true,
+      "executable_sha256": "c4a06374a23d0919b7dbfaf9f39b4d7cf04c65561c026ad399dedc9ef792008f"
+    },
+    {
+      "case": "returned-task-result-fnonce",
+      "backend": "llvm-api",
+      "opt": "O0",
+      "source_sha256": "481c3efa48432814220cfe69beefe3ac4f02402fd5df7e93dcbf6e231dfba240",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/all-task-helper-sources/zil",
+        "build",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/returned-task-result-fnonce/source.zil",
+        "--work-profile",
+        "standard",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O0",
+        "--clang",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/clang-observer.sh",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/llvm-api-O0/phases",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/llvm-api-O0/program",
+        "--json"
+      ],
+      "build_exit": 0,
+      "status": "Success",
+      "diagnostics": [],
+      "observer_command": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-DZIL_TASK_EXPECTED_FRAMES=1",
+        "-DZIL_TASK_EXPECTED_QUIET=0",
+        "-DZIL_TASK_EXPECTED_QUIET_CALLS=0",
+        "-c",
+        "/workspace/zil-alpha-candidate/tests/language-readiness/task-aggregate-results/frame-observer.c",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/observer.o"
+      ],
+      "executions": [
+        {
+          "label": "normal",
+          "environment": {},
+          "expected_exit": 0,
+          "actual_exit": 0,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        },
+        {
+          "label": "allocation-failure",
+          "environment": {
+            "ZIL_TASK_AGGREGATE_FAIL": "1"
+          },
+          "expected_exit": 1,
+          "actual_exit": 1,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        }
+      ],
+      "passed": true,
+      "executable_sha256": "0aee565861406a11ad45375fdafa17174953c1b0304f44d2fe48d552a923ce47"
+    },
+    {
+      "case": "returned-task-result-fnonce",
+      "backend": "llvm-api",
+      "opt": "O2",
+      "source_sha256": "481c3efa48432814220cfe69beefe3ac4f02402fd5df7e93dcbf6e231dfba240",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/all-task-helper-sources/zil",
+        "build",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/returned-task-result-fnonce/source.zil",
+        "--work-profile",
+        "standard",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O2",
+        "--clang",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/clang-observer.sh",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/llvm-api-O2/phases",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/llvm-api-O2/program",
+        "--json"
+      ],
+      "build_exit": 0,
+      "status": "Success",
+      "diagnostics": [],
+      "observer_command": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-DZIL_TASK_EXPECTED_FRAMES=1",
+        "-DZIL_TASK_EXPECTED_QUIET=0",
+        "-DZIL_TASK_EXPECTED_QUIET_CALLS=0",
+        "-c",
+        "/workspace/zil-alpha-candidate/tests/language-readiness/task-aggregate-results/frame-observer.c",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/returned-task-result-fnonce/observer.o"
+      ],
+      "executions": [
+        {
+          "label": "normal",
+          "environment": {},
+          "expected_exit": 0,
+          "actual_exit": 0,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        },
+        {
+          "label": "allocation-failure",
+          "environment": {
+            "ZIL_TASK_AGGREGATE_FAIL": "1"
+          },
+          "expected_exit": 1,
+          "actual_exit": 1,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        }
+      ],
+      "passed": true,
+      "executable_sha256": "87adf2c59bde06c15498d0c8d27d19159dc4b0b0bef853e0389d89147682bdfe"
+    },
+    {
+      "case": "static-callable-input",
+      "backend": "clang",
+      "opt": "O0",
+      "source_sha256": "ce376838b851f4ac4529f189ba3254a225dfbafa8d9d357d472d62662f5309d2",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/all-task-helper-sources/zil",
+        "build",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/static-callable-input/source.zil",
+        "--work-profile",
+        "standard",
+        "--backend",
+        "clang",
+        "--opt",
+        "O0",
+        "--clang",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/clang-observer.sh",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/clang-O0/phases",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/clang-O0/program",
+        "--json"
+      ],
+      "build_exit": 0,
+      "status": "Success",
+      "diagnostics": [],
+      "observer_command": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-DZIL_TASK_EXPECTED_FRAMES=1",
+        "-DZIL_TASK_EXPECTED_QUIET=0",
+        "-DZIL_TASK_EXPECTED_QUIET_CALLS=0",
+        "-c",
+        "/workspace/zil-alpha-candidate/tests/language-readiness/task-aggregate-results/frame-observer.c",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/observer.o"
+      ],
+      "executions": [
+        {
+          "label": "normal",
+          "environment": {},
+          "expected_exit": 0,
+          "actual_exit": 0,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        },
+        {
+          "label": "allocation-failure",
+          "environment": {
+            "ZIL_TASK_AGGREGATE_FAIL": "1"
+          },
+          "expected_exit": 1,
+          "actual_exit": 1,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        }
+      ],
+      "passed": true,
+      "executable_sha256": "20d75e12c3f6f1a639dedc7942fde9e0dfbb6803664d4394d271f6cb29816b83"
+    },
+    {
+      "case": "static-callable-input",
+      "backend": "clang",
+      "opt": "O2",
+      "source_sha256": "ce376838b851f4ac4529f189ba3254a225dfbafa8d9d357d472d62662f5309d2",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/all-task-helper-sources/zil",
+        "build",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/static-callable-input/source.zil",
+        "--work-profile",
+        "standard",
+        "--backend",
+        "clang",
+        "--opt",
+        "O2",
+        "--clang",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/clang-observer.sh",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/clang-O2/phases",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/clang-O2/program",
+        "--json"
+      ],
+      "build_exit": 0,
+      "status": "Success",
+      "diagnostics": [],
+      "observer_command": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-DZIL_TASK_EXPECTED_FRAMES=1",
+        "-DZIL_TASK_EXPECTED_QUIET=0",
+        "-DZIL_TASK_EXPECTED_QUIET_CALLS=0",
+        "-c",
+        "/workspace/zil-alpha-candidate/tests/language-readiness/task-aggregate-results/frame-observer.c",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/observer.o"
+      ],
+      "executions": [
+        {
+          "label": "normal",
+          "environment": {},
+          "expected_exit": 0,
+          "actual_exit": 0,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        },
+        {
+          "label": "allocation-failure",
+          "environment": {
+            "ZIL_TASK_AGGREGATE_FAIL": "1"
+          },
+          "expected_exit": 1,
+          "actual_exit": 1,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        }
+      ],
+      "passed": true,
+      "executable_sha256": "9556ff02eb20bc2e5d58406305ef40c7af82b415b2ad36fae219add5c29b87ba"
+    },
+    {
+      "case": "static-callable-input",
+      "backend": "llvm-api",
+      "opt": "O0",
+      "source_sha256": "ce376838b851f4ac4529f189ba3254a225dfbafa8d9d357d472d62662f5309d2",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/all-task-helper-sources/zil",
+        "build",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/static-callable-input/source.zil",
+        "--work-profile",
+        "standard",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O0",
+        "--clang",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/clang-observer.sh",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/llvm-api-O0/phases",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/llvm-api-O0/program",
+        "--json"
+      ],
+      "build_exit": 0,
+      "status": "Success",
+      "diagnostics": [],
+      "observer_command": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-DZIL_TASK_EXPECTED_FRAMES=1",
+        "-DZIL_TASK_EXPECTED_QUIET=0",
+        "-DZIL_TASK_EXPECTED_QUIET_CALLS=0",
+        "-c",
+        "/workspace/zil-alpha-candidate/tests/language-readiness/task-aggregate-results/frame-observer.c",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/observer.o"
+      ],
+      "executions": [
+        {
+          "label": "normal",
+          "environment": {},
+          "expected_exit": 0,
+          "actual_exit": 0,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        },
+        {
+          "label": "allocation-failure",
+          "environment": {
+            "ZIL_TASK_AGGREGATE_FAIL": "1"
+          },
+          "expected_exit": 1,
+          "actual_exit": 1,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        }
+      ],
+      "passed": true,
+      "executable_sha256": "d81c03c2c932969d90d4551f8832bd2b8079ae80bbb815f89d73a760566b640f"
+    },
+    {
+      "case": "static-callable-input",
+      "backend": "llvm-api",
+      "opt": "O2",
+      "source_sha256": "ce376838b851f4ac4529f189ba3254a225dfbafa8d9d357d472d62662f5309d2",
+      "command": [
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/all-task-helper-sources/zil",
+        "build",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-task-positive-fixtures/static-callable-input/source.zil",
+        "--work-profile",
+        "standard",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O2",
+        "--clang",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/clang-observer.sh",
+        "--emit-dir",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/llvm-api-O2/phases",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/llvm-api-O2/program",
+        "--json"
+      ],
+      "build_exit": 0,
+      "status": "Success",
+      "diagnostics": [],
+      "observer_command": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-DZIL_TASK_EXPECTED_FRAMES=1",
+        "-DZIL_TASK_EXPECTED_QUIET=0",
+        "-DZIL_TASK_EXPECTED_QUIET_CALLS=0",
+        "-c",
+        "/workspace/zil-alpha-candidate/tests/language-readiness/task-aggregate-results/frame-observer.c",
+        "-o",
+        "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-task-lifecycle-and-exact-success-preservation/original-simple-task-native/static-callable-input/observer.o"
+      ],
+      "executions": [
+        {
+          "label": "normal",
+          "environment": {},
+          "expected_exit": 0,
+          "actual_exit": 0,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        },
+        {
+          "label": "allocation-failure",
+          "environment": {
+            "ZIL_TASK_AGGREGATE_FAIL": "1"
+          },
+          "expected_exit": 1,
+          "actual_exit": 1,
+          "expected_stdout_hex": "",
+          "actual_stdout_hex": "",
+          "stderr_hex": "",
+          "passed": true
+        }
+      ],
+      "passed": true,
+      "executable_sha256": "58dd1b28593132af2b0e771888e17507432960278c17180d3750d4653cc8805c"
+    }
+  ]
+}

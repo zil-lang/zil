@@ -1,0 +1,16 @@
+{
+  "status": "Pass",
+  "exit_code": 0,
+  "git_status": "",
+  "source_commit": "93e1cfc94db9b09fd752a4248e6e3188eff6c53a",
+  "cli_sha256": "486fb8f3b6e8d2779c3dd7cb9179caf7845ada4f7788111bcb70c596e1dfc0e8",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "zil-cli"
+  ],
+  "build_log": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/build.log",
+  "completed_at_utc": "2026-11-17T10:34:38.388385+00:00"
+}

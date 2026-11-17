@@ -1,0 +1,19 @@
+{
+  "case": "static-frame-owning-fnmut",
+  "source_sha256": "6af8b9aaeb0a236746fbcb382229e2090ec5b515765729f31c54998831df1e7e",
+  "exit_code": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/static-frame-owning-fnmut/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/static-frame-owning-fnmut/phases",
+    "--json"
+  ]
+}

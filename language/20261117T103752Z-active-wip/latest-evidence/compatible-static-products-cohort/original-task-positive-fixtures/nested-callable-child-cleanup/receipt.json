@@ -1,0 +1,33 @@
+{
+  "case": "nested-callable-child-cleanup",
+  "source_sha256": "e3629fe8b018137e6ad5543c1da12bcb034fa75c62a1f5123ebe21ef5b3c52c5",
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures/nested-callable-child-cleanup/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures/nested-callable-child-cleanup/phases",
+    "--json"
+  ],
+  "exit": 3,
+  "status": "Unsupported",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [
+    {
+      "phase": "verify",
+      "category": "Unsupported",
+      "code": "E-UNSUPPORTED",
+      "message": "instruction is outside the checked stored profile, including unreachable blocks",
+      "span": {
+        "file": 0,
+        "start": 2721,
+        "end": 2732
+      },
+      "notes": []
+    }
+  ],
+  "verified": false
+}

@@ -1,0 +1,88 @@
+{
+  "candidate": "93e1cfc94db9b09fd752a4248e6e3188eff6c53a",
+  "cli_sha256": "486fb8f3b6e8d2779c3dd7cb9179caf7845ada4f7788111bcb70c596e1dfc0e8",
+  "source_sha256": "528d69dc979d081fe8ad35cc30d9b4fba34e522011af0fd4bf22f78244c83544",
+  "exit_code": 1,
+  "report": {
+    "status": "SafeReject",
+    "phase": "analyze",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "semantic program: original consuming operation lacks complete actual remaining-environment cleanup",
+        "span": null,
+        "notes": []
+      }
+    ],
+    "artifacts": {
+      "core": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/real-nested-static-probe/phases/core.txt",
+      "ct-core": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/real-nested-static-probe/phases/ct-core.txt",
+      "interfaces": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/real-nested-static-probe/phases/interfaces.txt",
+      "source-map": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/real-nested-static-probe/phases/source-map.txt",
+      "syntax": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/real-nested-static-probe/phases/syntax.txt",
+      "task-interfaces": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/real-nested-static-probe/phases/task-interfaces.txt",
+      "typed": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/real-nested-static-probe/phases/typed.txt"
+    },
+    "input_fingerprint": "045ca2ca54a7bc800caf0654a2afd458451dd08ad128984cb9bb556454073b7c",
+    "seconds": 0.066564928,
+    "cache_hit": false,
+    "commands": [],
+    "native_codegen": null,
+    "disk_cache": "disabled",
+    "query_events": [
+      {
+        "phase": "parse",
+        "disposition": "executed"
+      },
+      {
+        "phase": "expand",
+        "disposition": "executed"
+      },
+      {
+        "phase": "ct",
+        "disposition": "executed"
+      },
+      {
+        "phase": "types",
+        "disposition": "executed"
+      },
+      {
+        "phase": "analyze",
+        "disposition": "executed"
+      }
+    ],
+    "verification_runs": 0,
+    "source_files": {
+      "0": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/real-nested-static-probe/source.zil"
+    },
+    "scalar_interfaces": [
+      {
+        "module": 0,
+        "signature_fingerprint": "5611f829e38090a6c943ad7c027958cde67321fcadeec9f1c1a12d1e7e072f5f",
+        "implementation_fingerprint": "528d69dc979d081fe8ad35cc30d9b4fba34e522011af0fd4bf22f78244c83544",
+        "contract_fingerprint": null,
+        "result_origins": null,
+        "callable_contracts": null,
+        "callable_returns": null,
+        "exports": []
+      }
+    ],
+    "work_profile": "standard",
+    "work_profile_revision": "standard-10m-v1",
+    "effective_limits": {
+      "max_source_bytes": 16777216,
+      "max_tokens": 1000000,
+      "max_nodes": 1000000,
+      "max_functions": 10000,
+      "max_blocks": 100000,
+      "max_instructions": 1000000,
+      "max_locals": 100000,
+      "max_values": 1000000,
+      "max_analysis_steps": 10000000,
+      "max_ct_steps": 1000000,
+      "max_call_depth": 256
+    }
+  }
+}

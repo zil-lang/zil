@@ -1,0 +1,11 @@
+{
+  "candidate": "93e1cfc94db9b09fd752a4248e6e3188eff6c53a",
+  "cli_sha256": "486fb8f3b6e8d2779c3dd7cb9179caf7845ada4f7788111bcb70c596e1dfc0e8",
+  "exit_code": 101,
+  "passed": 23,
+  "failed": 13,
+  "ignored": 0,
+  "selected": 36,
+  "seconds": 39.73,
+  "accepted": false
+}

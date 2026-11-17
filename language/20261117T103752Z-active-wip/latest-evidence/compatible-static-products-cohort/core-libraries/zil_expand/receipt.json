@@ -1,0 +1,1 @@
+{"library": "zil_expand", "exit": 0, "command": ["/workspace/.zil-env/target-language-alpha/debug/deps/zil_expand-76413a37baf3401c", "--test-threads=2", "--show-output"], "executable_sha256": "a5e89b0c947ad2b6f9cfb33d7287a7a73417c15d98726220d10348394d3a56c5", "seconds": 1.8420004844665527, "passed": 184, "failed": 0, "ignored": 0}

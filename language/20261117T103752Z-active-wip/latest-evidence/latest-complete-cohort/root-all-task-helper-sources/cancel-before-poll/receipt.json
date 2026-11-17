@@ -1,0 +1,19 @@
+{
+  "case": "cancel-before-poll",
+  "source_sha256": "08b923f24efaf5150e67a2a9a311293390824668560d7490c201d84cb7b2aecf",
+  "exit_code": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/cancel-before-poll/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/cancel-before-poll/phases",
+    "--json"
+  ]
+}

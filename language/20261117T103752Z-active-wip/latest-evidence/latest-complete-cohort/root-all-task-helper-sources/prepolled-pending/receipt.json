@@ -1,0 +1,19 @@
+{
+  "case": "prepolled-pending",
+  "source_sha256": "d7445085448dfb70d7904ddfd1e6c8776a0287b60bae56ca7c457c6ad477a5ee",
+  "exit_code": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/prepolled-pending/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/prepolled-pending/phases",
+    "--json"
+  ]
+}

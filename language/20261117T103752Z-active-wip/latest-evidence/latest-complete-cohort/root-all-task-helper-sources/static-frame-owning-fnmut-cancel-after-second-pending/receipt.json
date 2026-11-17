@@ -1,0 +1,19 @@
+{
+  "case": "static-frame-owning-fnmut-cancel-after-second-pending",
+  "source_sha256": "08e83641ff19757ba18438d84a6bc189eef088d1a7eb9b14e4884aa1c7699454",
+  "exit_code": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/static-frame-owning-fnmut-cancel-after-second-pending/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/static-frame-owning-fnmut-cancel-after-second-pending/phases",
+    "--json"
+  ]
+}

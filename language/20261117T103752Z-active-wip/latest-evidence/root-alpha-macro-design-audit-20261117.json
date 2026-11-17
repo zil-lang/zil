@@ -1,0 +1,170 @@
+{
+  "recorded_at": "2026-11-17T09:31:01.543377+00:00",
+  "request": "Relearn the language design and audit the macro implementation direction before continuing Alpha work",
+  "authority": [
+    "/workspace/zil-public-integration/_zil_design.md",
+    "/workspace/zil-public-integration/spec/semantic-scopes.md",
+    "/workspace/zil-public-integration/spec/task-owned-aggregates.md",
+    "/workspace/zil-public-integration/validation/language-alpha-profile.json"
+  ],
+  "source_at_review": "6e0606b929480fbdab9585474509a663528edac3",
+  "conclusion": "Keep existing language semantics and compiler architecture; repair loss of complete facts at existing boundaries rather than rewrite the project or add a new universal solver.",
+  "confirmed_failure_patterns": [
+    {
+      "confusion": "Body entry ABI versus full consuming-operation effect",
+      "consequence": "Opaque FnOnce upper and ordinary callers disagree; generic Direct promises could be misread as mere body properties.",
+      "implemented_response": "Source complete-operation candidate/effect fixed point plus Types input/all-return checking and independent A/V obligations; exact validation pending."
+    },
+    {
+      "confusion": "Original generic premises versus actual caller facts",
+      "consequence": "A concrete closed/synchronous instance can appear to justify an original definition that lacks the premise.",
+      "implemented_response": "Definition checks remain in original scope; actual captured state separately instantiated and verified."
+    },
+    {
+      "confusion": "Logical class domain versus physical borrowed leaves",
+      "consequence": "A Static tuple has no variable class but still has an actual address; type-only zero-domain paths reject or erase its obligation.",
+      "implemented_response": "Preserve complete tuple geometry and independently check every original and actual source; nominal zero/Copy predicates are not relaxed."
+    }
+  ],
+  "design_clarification_patch": "/tmp/root-alpha-semantic-boundaries-ready.patch",
+  "design_clarification_sha256": "27b8ff6d00a37cb8ce7a7b46f78d4c7ed9197147978b3d3eb65fecde2a6855b3",
+  "execution_changes": [
+    "Frozen and reviewed complete cohorts are saved immediately and checked as an immutable candidate; no READY queue waiting for unrelated designs.",
+    "Producer, transport, projection, call, return, replacement and cleanup consumers of a changed fact remain one implementation obligation; remove lossy shortcuts within the existing interfaces.",
+    "Independent A/V proofs stay separate; public original/Typed evidence and exact contracts are shared.",
+    "One diagnostic candidate is allowed where existing receipts cannot identify a real consumer; it is explicitly not an accepted feature.",
+    "Compare exact Source success sets and retain all prior successes; new passes cannot offset regressions.",
+    "No broader theoretical audit after this review unless a concrete failure or code difference justifies it.",
+    "Exclusive nonoverlapping implementation paths no longer wait for integrator edit permission; record before hashes and freeze exact patches for immediate backup.",
+    "Root runs separate frozen-CLI Source diagnostics in disjoint output directories while integrator owns heavy builds and candidate changes.",
+    "Check live agent status before claiming review is running; completed agents require followup_task rather than a message."
+  ],
+  "latest_executed_task_evidence": {
+    "candidate": "d22520672d6d476e5479424e4efceb0b911f1fea",
+    "profiles": [
+      "standard-10m-v1",
+      "alpha-64m-v2"
+    ],
+    "positive_sources": 16,
+    "source_verify_successes": 10,
+    "remaining": {
+      "types_scoped_callable": 3,
+      "verify_nested_cleanup": 2,
+      "verify_returned_shared_child_domain": 1
+    },
+    "source_success_preservation": "old eight union new FnMut two all retained; Source/CLI identities checked separately",
+    "not_a_full_alpha_result": true
+  },
+  "alpha_final_coverage": {
+    "contract": "validation/language-alpha-profile.json",
+    "functional_capability_refs": [
+      "values-and-patterns",
+      "generic-libraries",
+      "ownership-composition",
+      "dynamic-abstraction",
+      "resource-graphs",
+      "async-ownership",
+      "threads-and-synchronization",
+      "foreign-lifecycle",
+      "standard-library",
+      "project-workflow",
+      "native-delivery"
+    ],
+    "additional_required": [
+      "compile-time generation and immutable-stage queries",
+      "foundation thirteen positives and four intended semantic negatives",
+      "Task original sixteen, full SDK and helper sources",
+      "original 528d Static capture program and existing controls",
+      "raw/Wire and unused-definition safety controls",
+      "both backends O0/O2 actual normal and failure cleanup",
+      "project build/run/test/dependency workflow",
+      "precise-candidate non-author review",
+      "independent restore/build/run evidence"
+    ],
+    "status": "Not accepted; existing successes from different commits are not pooled into a release claim."
+  },
+  "review": "Root public-design and Analyze-side audit; independent Astra public-design challenge agrees no architecture rewrite is warranted.",
+  "post_audit_actual_candidate": {
+    "candidate": "6e0606b929480fbdab9585474509a663528edac3",
+    "check_all_targets": 0,
+    "cli_build": 0,
+    "cli_sha256": "e3c8e8abda797295f5831427e15709efff65786c5bbb89bfcb426140e36951f1",
+    "task16_standard_and_alpha_successes": 7,
+    "regressions_from_last_success_set": [
+      "fnmut-async-close",
+      "fnmut-async-poll-close",
+      "returned-second-task-fnonce"
+    ],
+    "promotion": "rejected; baseline remains the full ten-case success union",
+    "static528d": "Types Unsupported environment-lending classification; no Verify/native",
+    "confirmed_cross_layer_findings": [
+      "Public FnOnce now emits the correct consuming call; a pre-finish lending proposal incorrectly rejects it before actual Static source classification. Move the use restriction to the existing completed-source boundary, still before Typed publication.",
+      "Another actual-entry signature consumer equates body ABI with full FnOnce operation upper; preserve exact actual-body ABI while checking the separate operation promise.",
+      "Correctly inferred Direct caller removes old spurious Suspend fallback; FnMut actual exit state and subsequent cleanup must be transported instead of reinstating a false Suspend effect."
+    ],
+    "next_action": "Finish these existing complete-chain consumers and the independent Verify review revisions, then validate one successor against exact prior-success sets and full Alpha gates.",
+    "additional_same_candidate_gates": {
+      "root-all-task-helper-sources": {
+        "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/receipt.json",
+        "profile": "standard",
+        "selected": 30,
+        "source_verified": 21
+      },
+      "root-foundation": {
+        "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-foundation/receipt.json",
+        "profile": "standard",
+        "positive": {
+          "passed": 10,
+          "total": 13
+        },
+        "negative": {
+          "passed": 4,
+          "total": 4
+        }
+      },
+      "root-foundation-alpha": {
+        "receipt": "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-foundation-alpha/receipt.json",
+        "profile": "alpha",
+        "positive": {
+          "passed": 11,
+          "total": 13
+        },
+        "negative": {
+          "passed": 4,
+          "total": 4
+        }
+      }
+    },
+    "new_cross_family_regressions": [
+      "CT scalar program: callable retirement session binding to another actual module (Verify owner assigned)",
+      "Owning collections: physical field occurrence missing full class map (Types complete-domain owner assigned)"
+    ],
+    "standard_pressure_only": "Iteration exceeds standard 10M but passes explicit existing alpha64M; no quota change or semantic failure suppression."
+  },
+  "temporary_callable_expectation_decision": {
+    "original_case": "stored_environment_lending.rs: MAKE + fn main()->i32{return *make(3)()}",
+    "previous_expectation": "assert_ne(Success), a historical unsupported-profile expectation",
+    "normative_basis": "Full-expression temporary lifetime; shared borrow must remain live through its final read; _zil_design.md 2.2/9.4/15.2",
+    "checked_existing_order": "Actual temporary StorageLive/Store, SharedCall, ReadAddress, then scope Drop/StorageDead and Return; existing emission binds the real local and point.",
+    "decision": "Retain original Source bytes as a positive four-backend/optimization native case with exit3. Preserve real local escapes, consuming return-from-destroyed-environment, and overlap negatives.",
+    "not_claimed": "No A/V/native pass established yet; any unsupported actual consumer remains a functional gap, not a successful safety rejection.",
+    "scope": "No new temporary-lifetime subsystem or name-based temporary classifier."
+  },
+  "latest_focused_followup": {
+    "candidate": "aa081629203eb7f9afdd2f65e7418d600a9a3e49",
+    "cli_sha256": "f0336fd63325d8dfabe9f9e4d3e596348bc1e28a52aa6125f3b3e5e08a783341",
+    "owning_collections": {
+      "status": "Success",
+      "verification_runs": 1,
+      "receipt": "/tmp/root-collections-aa0816.receipt.json"
+    },
+    "static_original_528d": {
+      "types": "passed with public FnOnce consuming opcode",
+      "analyze": "SafeReject: exact physical tuple field selector missing",
+      "fix_commit": "e53f39e73f333750075c42a368cd6a8950d40834",
+      "fix_status": "independently reviewed, not yet rebuilt"
+    },
+    "full_alpha": "not accepted; no success pooling across candidates"
+  },
+  "updated_at": "2026-11-17T10:20:33.882582+00:00"
+}

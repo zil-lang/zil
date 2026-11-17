@@ -1,0 +1,38 @@
+{
+  "backend": "clang",
+  "opt": "O2",
+  "command": [
+    "/tmp/root-aa0816-temporary-native/zil",
+    "build",
+    "/tmp/root-aa0816-temporary-native/source.zil",
+    "--work-profile",
+    "standard",
+    "--backend",
+    "clang",
+    "--opt",
+    "O2",
+    "-o",
+    "/tmp/root-aa0816-temporary-native/clang-O2/program",
+    "--emit-dir",
+    "/tmp/root-aa0816-temporary-native/clang-O2/phases",
+    "--json"
+  ],
+  "build_exit": 1,
+  "status": "SafeReject",
+  "verification_runs": 0,
+  "diagnostics": [
+    {
+      "phase": "expand",
+      "category": "SafeReject",
+      "code": "E-SOURCE-SEMANTICS",
+      "message": "elided callable result has no unique original input occurrence",
+      "span": {
+        "file": 0,
+        "start": 31,
+        "end": 35
+      },
+      "notes": []
+    }
+  ],
+  "passed": false
+}

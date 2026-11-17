@@ -1,0 +1,25 @@
+{
+  "candidate": "ee66b10c1bfff43bee9b251cd678c795341a256b",
+  "cli_sha256": "59127a13614081aff67c2a4a32a55ea47fee028475a5c6ed7e11d76498c6f354",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "task_owner_transport",
+    "--",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 101,
+  "passed": 21,
+  "failed": 15,
+  "ignored": 0,
+  "selected": 36,
+  "seconds": 34.95,
+  "accepted": false
+}

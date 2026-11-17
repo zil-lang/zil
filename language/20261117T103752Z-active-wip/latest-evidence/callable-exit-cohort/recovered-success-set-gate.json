@@ -1,0 +1,587 @@
+{
+  "scope": "Success-set preservation only, not Alpha acceptance",
+  "candidate": "ee66b10c1bfff43bee9b251cd678c795341a256b",
+  "profiles": {
+    "standard": {
+      "source_verified": 7,
+      "required": 10,
+      "preserved": 7,
+      "rows": [
+        {
+          "case": "child-frame-cleanup",
+          "source_sha_equal": true,
+          "preserved": true,
+          "actual": {
+            "case": "child-frame-cleanup",
+            "source_sha256": "27e4320eea20cbac17787379bf350ba2cc2836c2fd6c7be4025d1055ae1e3d34",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/child-frame-cleanup/source.zil",
+              "--work-profile",
+              "standard",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/child-frame-cleanup/phases",
+              "--json"
+            ],
+            "exit": 0,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "verified": true
+          }
+        },
+        {
+          "case": "closed-task-fnonce",
+          "source_sha_equal": true,
+          "preserved": true,
+          "actual": {
+            "case": "closed-task-fnonce",
+            "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/closed-task-fnonce/source.zil",
+              "--work-profile",
+              "standard",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/closed-task-fnonce/phases",
+              "--json"
+            ],
+            "exit": 0,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "verified": true
+          }
+        },
+        {
+          "case": "direct-default-local",
+          "source_sha_equal": true,
+          "preserved": true,
+          "actual": {
+            "case": "direct-default-local",
+            "source_sha256": "109b732b74f9bcc5b7e86de94c2d5dd648df3fa4a3d7e2a282e51f3f3564f3da",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/direct-default-local/source.zil",
+              "--work-profile",
+              "standard",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/direct-default-local/phases",
+              "--json"
+            ],
+            "exit": 0,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "verified": true
+          }
+        },
+        {
+          "case": "adapter-default-local",
+          "source_sha_equal": true,
+          "preserved": true,
+          "actual": {
+            "case": "adapter-default-local",
+            "source_sha256": "569cb9251d329d09406f531f89ac728089b27edea95947059762067a9672b92e",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/adapter-default-local/source.zil",
+              "--work-profile",
+              "standard",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/adapter-default-local/phases",
+              "--json"
+            ],
+            "exit": 0,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "verified": true
+          }
+        },
+        {
+          "case": "returned-task-result-fnonce",
+          "source_sha_equal": true,
+          "preserved": true,
+          "actual": {
+            "case": "returned-task-result-fnonce",
+            "source_sha256": "481c3efa48432814220cfe69beefe3ac4f02402fd5df7e93dcbf6e231dfba240",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/returned-task-result-fnonce/source.zil",
+              "--work-profile",
+              "standard",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/returned-task-result-fnonce/phases",
+              "--json"
+            ],
+            "exit": 0,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "verified": true
+          }
+        },
+        {
+          "case": "returned-second-task-fnonce",
+          "source_sha_equal": true,
+          "preserved": false,
+          "actual": {
+            "case": "returned-second-task-fnonce",
+            "source_sha256": "a31ff69da4030a0bde25723abcdde2ebdc1327109507774c466c54ad647e4e6a",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/returned-second-task-fnonce/source.zil",
+              "--work-profile",
+              "standard",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/returned-second-task-fnonce/phases",
+              "--json"
+            ],
+            "exit": 1,
+            "status": "SafeReject",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [
+              {
+                "phase": "verify",
+                "category": "SafeReject",
+                "code": "E-VERIFY-SEMANTIC",
+                "message": "original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend",
+                "span": null,
+                "notes": [
+                  "original cleanup owner SemanticDefinitionId { module: ModuleId(0), index: 3 }; root Place { binder: Local { definition: SemanticDefinitionId { module: ModuleId(0), index: 3 }, node: NodeId(25), name: \"restored\" }, fields: [] }; phase 7; universal sources {Unknown}"
+                ]
+              }
+            ],
+            "verified": false
+          }
+        },
+        {
+          "case": "equal-shared-task-classes",
+          "source_sha_equal": true,
+          "preserved": true,
+          "actual": {
+            "case": "equal-shared-task-classes",
+            "source_sha256": "e2d5b2b12ad60930a2613044916e88f74be07b9b9e6d0f818b19d9fe3cd75483",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/equal-shared-task-classes/source.zil",
+              "--work-profile",
+              "standard",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/equal-shared-task-classes/phases",
+              "--json"
+            ],
+            "exit": 0,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "verified": true
+          }
+        },
+        {
+          "case": "static-callable-input",
+          "source_sha_equal": true,
+          "preserved": true,
+          "actual": {
+            "case": "static-callable-input",
+            "source_sha256": "ce376838b851f4ac4529f189ba3254a225dfbafa8d9d357d472d62662f5309d2",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/static-callable-input/source.zil",
+              "--work-profile",
+              "standard",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/static-callable-input/phases",
+              "--json"
+            ],
+            "exit": 0,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "verified": true
+          }
+        },
+        {
+          "case": "fnmut-async-close",
+          "source_sha_equal": true,
+          "preserved": false,
+          "actual": {
+            "case": "fnmut-async-close",
+            "source_sha256": "4b35acd441f3c2b59d28a5f426d2e8ca5057c2f10ce0ffd8d36c1d264f8330d5",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/fnmut-async-close/source.zil",
+              "--work-profile",
+              "standard",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/fnmut-async-close/phases",
+              "--json"
+            ],
+            "exit": 1,
+            "status": "SafeReject",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [
+              {
+                "phase": "verify",
+                "category": "SafeReject",
+                "code": "E-VERIFY-SEMANTIC",
+                "message": "original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend",
+                "span": null,
+                "notes": [
+                  "original cleanup owner SemanticDefinitionId { module: ModuleId(0), index: 9 }; root Place { binder: Local { definition: SemanticDefinitionId { module: ModuleId(0), index: 9 }, node: NodeId(4), name: \"callback\" }, fields: [\"$capture:task\"] }; phase 7; universal sources {Unknown}"
+                ]
+              }
+            ],
+            "verified": false
+          }
+        },
+        {
+          "case": "fnmut-async-poll-close",
+          "source_sha_equal": true,
+          "preserved": false,
+          "actual": {
+            "case": "fnmut-async-poll-close",
+            "source_sha256": "27b0e13f49a3b9f72c4eb3229010dcf6fbb1d553ca32209548c4455338e2fe9b",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/fnmut-async-poll-close/source.zil",
+              "--work-profile",
+              "standard",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures/fnmut-async-poll-close/phases",
+              "--json"
+            ],
+            "exit": 1,
+            "status": "SafeReject",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [
+              {
+                "phase": "verify",
+                "category": "SafeReject",
+                "code": "E-VERIFY-SEMANTIC",
+                "message": "original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend",
+                "span": null,
+                "notes": [
+                  "original cleanup owner SemanticDefinitionId { module: ModuleId(0), index: 9 }; root Place { binder: Local { definition: SemanticDefinitionId { module: ModuleId(0), index: 9 }, node: NodeId(4), name: \"callback\" }, fields: [\"$capture:task\"] }; phase 7; universal sources {Unknown}"
+                ]
+              }
+            ],
+            "verified": false
+          }
+        }
+      ]
+    },
+    "alpha": {
+      "source_verified": 7,
+      "required": 10,
+      "preserved": 7,
+      "rows": [
+        {
+          "case": "child-frame-cleanup",
+          "source_sha_equal": true,
+          "preserved": true,
+          "actual": {
+            "case": "child-frame-cleanup",
+            "source_sha256": "27e4320eea20cbac17787379bf350ba2cc2836c2fd6c7be4025d1055ae1e3d34",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/child-frame-cleanup/source.zil",
+              "--work-profile",
+              "alpha",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/child-frame-cleanup/phases",
+              "--json"
+            ],
+            "exit": 0,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "verified": true
+          }
+        },
+        {
+          "case": "closed-task-fnonce",
+          "source_sha_equal": true,
+          "preserved": true,
+          "actual": {
+            "case": "closed-task-fnonce",
+            "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/closed-task-fnonce/source.zil",
+              "--work-profile",
+              "alpha",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/closed-task-fnonce/phases",
+              "--json"
+            ],
+            "exit": 0,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "verified": true
+          }
+        },
+        {
+          "case": "direct-default-local",
+          "source_sha_equal": true,
+          "preserved": true,
+          "actual": {
+            "case": "direct-default-local",
+            "source_sha256": "109b732b74f9bcc5b7e86de94c2d5dd648df3fa4a3d7e2a282e51f3f3564f3da",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/direct-default-local/source.zil",
+              "--work-profile",
+              "alpha",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/direct-default-local/phases",
+              "--json"
+            ],
+            "exit": 0,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "verified": true
+          }
+        },
+        {
+          "case": "adapter-default-local",
+          "source_sha_equal": true,
+          "preserved": true,
+          "actual": {
+            "case": "adapter-default-local",
+            "source_sha256": "569cb9251d329d09406f531f89ac728089b27edea95947059762067a9672b92e",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/adapter-default-local/source.zil",
+              "--work-profile",
+              "alpha",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/adapter-default-local/phases",
+              "--json"
+            ],
+            "exit": 0,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "verified": true
+          }
+        },
+        {
+          "case": "returned-task-result-fnonce",
+          "source_sha_equal": true,
+          "preserved": true,
+          "actual": {
+            "case": "returned-task-result-fnonce",
+            "source_sha256": "481c3efa48432814220cfe69beefe3ac4f02402fd5df7e93dcbf6e231dfba240",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/returned-task-result-fnonce/source.zil",
+              "--work-profile",
+              "alpha",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/returned-task-result-fnonce/phases",
+              "--json"
+            ],
+            "exit": 0,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "verified": true
+          }
+        },
+        {
+          "case": "returned-second-task-fnonce",
+          "source_sha_equal": true,
+          "preserved": false,
+          "actual": {
+            "case": "returned-second-task-fnonce",
+            "source_sha256": "a31ff69da4030a0bde25723abcdde2ebdc1327109507774c466c54ad647e4e6a",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/returned-second-task-fnonce/source.zil",
+              "--work-profile",
+              "alpha",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/returned-second-task-fnonce/phases",
+              "--json"
+            ],
+            "exit": 1,
+            "status": "SafeReject",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [
+              {
+                "phase": "verify",
+                "category": "SafeReject",
+                "code": "E-VERIFY-SEMANTIC",
+                "message": "original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend",
+                "span": null,
+                "notes": [
+                  "original cleanup owner SemanticDefinitionId { module: ModuleId(0), index: 3 }; root Place { binder: Local { definition: SemanticDefinitionId { module: ModuleId(0), index: 3 }, node: NodeId(25), name: \"restored\" }, fields: [] }; phase 7; universal sources {Unknown}"
+                ]
+              }
+            ],
+            "verified": false
+          }
+        },
+        {
+          "case": "equal-shared-task-classes",
+          "source_sha_equal": true,
+          "preserved": true,
+          "actual": {
+            "case": "equal-shared-task-classes",
+            "source_sha256": "e2d5b2b12ad60930a2613044916e88f74be07b9b9e6d0f818b19d9fe3cd75483",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/equal-shared-task-classes/source.zil",
+              "--work-profile",
+              "alpha",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/equal-shared-task-classes/phases",
+              "--json"
+            ],
+            "exit": 0,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "verified": true
+          }
+        },
+        {
+          "case": "static-callable-input",
+          "source_sha_equal": true,
+          "preserved": true,
+          "actual": {
+            "case": "static-callable-input",
+            "source_sha256": "ce376838b851f4ac4529f189ba3254a225dfbafa8d9d357d472d62662f5309d2",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/static-callable-input/source.zil",
+              "--work-profile",
+              "alpha",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/static-callable-input/phases",
+              "--json"
+            ],
+            "exit": 0,
+            "status": "Success",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [],
+            "verified": true
+          }
+        },
+        {
+          "case": "fnmut-async-close",
+          "source_sha_equal": true,
+          "preserved": false,
+          "actual": {
+            "case": "fnmut-async-close",
+            "source_sha256": "4b35acd441f3c2b59d28a5f426d2e8ca5057c2f10ce0ffd8d36c1d264f8330d5",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/fnmut-async-close/source.zil",
+              "--work-profile",
+              "alpha",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/fnmut-async-close/phases",
+              "--json"
+            ],
+            "exit": 1,
+            "status": "SafeReject",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [
+              {
+                "phase": "verify",
+                "category": "SafeReject",
+                "code": "E-VERIFY-SEMANTIC",
+                "message": "original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend",
+                "span": null,
+                "notes": [
+                  "original cleanup owner SemanticDefinitionId { module: ModuleId(0), index: 9 }; root Place { binder: Local { definition: SemanticDefinitionId { module: ModuleId(0), index: 9 }, node: NodeId(4), name: \"callback\" }, fields: [\"$capture:task\"] }; phase 7; universal sources {Unknown}"
+                ]
+              }
+            ],
+            "verified": false
+          }
+        },
+        {
+          "case": "fnmut-async-poll-close",
+          "source_sha_equal": true,
+          "preserved": false,
+          "actual": {
+            "case": "fnmut-async-poll-close",
+            "source_sha256": "27b0e13f49a3b9f72c4eb3229010dcf6fbb1d553ca32209548c4455338e2fe9b",
+            "command": [
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/frozen-cli/zil",
+              "check",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/fnmut-async-poll-close/source.zil",
+              "--work-profile",
+              "alpha",
+              "--emit-dir",
+              "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-callable-exits-and-tuple-geometry/original-task-positive-fixtures-alpha/fnmut-async-poll-close/phases",
+              "--json"
+            ],
+            "exit": 1,
+            "status": "SafeReject",
+            "phase": "verify",
+            "verification_runs": 1,
+            "diagnostics": [
+              {
+                "phase": "verify",
+                "category": "SafeReject",
+                "code": "E-VERIFY-SEMANTIC",
+                "message": "original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend",
+                "span": null,
+                "notes": [
+                  "original cleanup owner SemanticDefinitionId { module: ModuleId(0), index: 9 }; root Place { binder: Local { definition: SemanticDefinitionId { module: ModuleId(0), index: 9 }, node: NodeId(4), name: \"callback\" }, fields: [\"$capture:task\"] }; phase 7; universal sources {Unknown}"
+                ]
+              }
+            ],
+            "verified": false
+          }
+        }
+      ]
+    }
+  },
+  "passed": false
+}

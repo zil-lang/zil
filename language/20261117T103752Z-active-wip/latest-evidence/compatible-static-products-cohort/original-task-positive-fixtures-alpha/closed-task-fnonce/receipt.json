@@ -1,0 +1,20 @@
+{
+  "case": "closed-task-fnonce",
+  "source_sha256": "0bbfb9b7e302389c9498300abff45eaa43d4d755f94478d2276ce0f58eb6617f",
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/closed-task-fnonce/source.zil",
+    "--work-profile",
+    "alpha",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures-alpha/closed-task-fnonce/phases",
+    "--json"
+  ],
+  "exit": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "verified": true
+}

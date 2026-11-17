@@ -1,0 +1,19 @@
+{
+  "case": "static-frame-owning-fnmut-cancel-before-poll",
+  "source_sha256": "09c0454f00030fabc345ff71b651dee29a02a0cb2f4ac74bd4148aee03be8d27",
+  "exit_code": 0,
+  "status": "Success",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [],
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/static-frame-owning-fnmut-cancel-before-poll/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-complete-consuming-operations-and-static-domains/root-all-task-helper-sources/static-frame-owning-fnmut-cancel-before-poll/phases",
+    "--json"
+  ]
+}

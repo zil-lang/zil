@@ -1,0 +1,1 @@
+{"library": "zil_types", "exit": 0, "command": ["/workspace/.zil-env/target-language-alpha/debug/deps/zil_types-0b59acc52379c858", "--test-threads=2", "--show-output"], "executable_sha256": "3fea18bfdcb95d80aa9e65ffc7269b38453677bd2b7ccbac5fce83efd0f777d3", "seconds": 8.470608234405518, "passed": 102, "failed": 0, "ignored": 0}

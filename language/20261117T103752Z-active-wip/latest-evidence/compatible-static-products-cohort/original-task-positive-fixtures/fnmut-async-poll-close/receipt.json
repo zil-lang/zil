@@ -1,0 +1,31 @@
+{
+  "case": "fnmut-async-poll-close",
+  "source_sha256": "27b0e13f49a3b9f72c4eb3229010dcf6fbb1d553ca32209548c4455338e2fe9b",
+  "command": [
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/frozen-cli/zil",
+    "check",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures/fnmut-async-poll-close/source.zil",
+    "--work-profile",
+    "standard",
+    "--emit-dir",
+    "/workspace/zil-alpha-candidate/out/runs/alpha-resume-compatible-static-callables-and-product-interface-fixed/original-task-positive-fixtures/fnmut-async-poll-close/phases",
+    "--json"
+  ],
+  "exit": 1,
+  "status": "SafeReject",
+  "phase": "verify",
+  "verification_runs": 1,
+  "diagnostics": [
+    {
+      "phase": "verify",
+      "category": "SafeReject",
+      "code": "E-VERIFY-SEMANTIC",
+      "message": "original Task cleanup edge lacks Closed, a complete synchronous birth source, and cannot suspend",
+      "span": null,
+      "notes": [
+        "original cleanup owner SemanticDefinitionId { module: ModuleId(0), index: 9 }; root Place { binder: Local { definition: SemanticDefinitionId { module: ModuleId(0), index: 9 }, node: NodeId(4), name: \"callback\" }, fields: [\"$capture:task\"] }; phase 7; universal sources {Unknown}"
+      ]
+    }
+  ],
+  "verified": false
+}

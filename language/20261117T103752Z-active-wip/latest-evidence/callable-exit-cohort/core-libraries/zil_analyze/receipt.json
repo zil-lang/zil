@@ -1,0 +1,1 @@
+{"library": "zil_analyze", "exit": 101, "command": ["/workspace/.zil-env/target-language-alpha/debug/deps/zil_analyze-5128daaa4e21a95d", "--test-threads=2", "--show-output"], "executable_sha256": "c15093fe88f3cfc3abdd97110259f4863e170d0ffaa1b276424eaabc0bc1a5cf", "seconds": 8.097788572311401, "passed": 321, "failed": 2, "ignored": 0}
