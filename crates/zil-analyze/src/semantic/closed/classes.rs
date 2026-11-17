@@ -1163,14 +1163,14 @@ impl Check<'_, '_> {
                     b,
                 )?;
             }
-            for row in &value.life.retained {
+            for row in self.signature_retained_classes(value, b)? {
                 b.spend(row.path.len().saturating_add(1), WORK)?;
                 if row.binder == class {
                     self.push_value(&mut children, (row.path.as_slice(), row.class), b)?;
                 }
             }
         } else if self.task_domain(&value.ty, b)?.is_some() && !value.life.retained.is_empty() {
-            for row in &value.life.retained {
+            for row in self.signature_retained_classes(value, b)? {
                 b.spend(row.path.len().saturating_add(1), WORK)?;
                 if row.binder == class {
                     self.push_value(&mut children, (row.path.as_slice(), row.class), b)?;
@@ -3468,7 +3468,7 @@ impl Check<'_, '_> {
                 || self.dyn_sum_type(&value.ty, b)?
                 || self.task_domain(&value.ty, b)?.is_some()
             {
-                for child in &value.life.retained {
+                for child in self.signature_retained_classes(value, b)? {
                     if child.path.first() != Some(&LifeTypeProjection::Pointee)
                         && !(self.dyn_sum_type(&value.ty, b)?
                             && child.path.as_slice()
@@ -3534,6 +3534,78 @@ impl Check<'_, '_> {
             ));
         }
         Ok(())
+    }
+
+    // A whole Managed<Task> has its child's full domain but is not another
+    // signature class boundary. Keep its complete transport forest, and omit
+    // only the wrapper occurrence whose exact child map is independently
+    // present. The real Task occurrence, including phantom coordinates, stays.
+    fn signature_retained_classes<'v>(
+        &self,
+        value: &'v Value,
+        b: &mut Budget,
+    ) -> CompileResult<Vec<&'v StorageRetainedBinding>> {
+        let mut selected = Vec::new();
+        for row in &value.life.retained {
+            b.spend(row.path.len().saturating_add(1), WORK)?;
+            let mut child = Some(&value.ty);
+            for step in &row.path {
+                child = match (child, step) {
+                    (Some(Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner)),
+                        LifeTypeProjection::Pointee) => Some(inner),
+                    (Some(Type::ErrorUnion { error, result }),
+                        LifeTypeProjection::Place(PlaceProjection::ErrorArm(is_error))) =>
+                        Some(if *is_error { error } else { result }),
+                    (Some(Type::Tuple(fields)),
+                        LifeTypeProjection::Place(PlaceProjection::Field(index))) =>
+                        fields.get(*index as usize),
+                    (Some(Type::Record { fields, .. } | Type::Package { fields, .. }),
+                        LifeTypeProjection::Place(PlaceProjection::Field(index))) =>
+                        fields.get(*index as usize).map(|(_, ty)| ty),
+                    (Some(Type::Enum { variants, .. }),
+                        LifeTypeProjection::Place(PlaceProjection::Variant(field))) =>
+                        variants.get(field.variant as usize)
+                            .and_then(|(_, fields)| fields.get(field.index as usize)),
+                    (Some(Type::Array { element, .. } | Type::Slice { element }
+                        | Type::OwnedStore { element }), LifeTypeProjection::Element) => Some(element),
+                    _ => None,
+                };
+            }
+            let Some(Type::Managed(payload)) = child else {
+                self.push_value(&mut selected, row, b)?;
+                continue;
+            };
+            let Type::Task { retained_life, .. } = payload.as_ref() else {
+                self.push_value(&mut selected, row, b)?;
+                continue;
+            };
+            if row.class >= retained_life.binder_count || row.binder >= value.life.binder_count {
+                return Err(fail("Task wrapper transport leaves its complete class domain"));
+            }
+            let mut actual = None;
+            let mut wrapper = false;
+            for candidate in &value.life.retained {
+                b.spend(candidate.path.len().saturating_add(1), WORK)?;
+                if candidate.class == row.class && candidate.path == row.path {
+                    if wrapper {
+                        return Err(fail("Task wrapper repeats its whole class transport"));
+                    }
+                    wrapper = true;
+                }
+                if candidate.class == row.class
+                    && candidate.path.len() == row.path.len() + 1
+                    && candidate.path[..row.path.len()] == row.path
+                    && candidate.path.last() == Some(&LifeTypeProjection::Pointee)
+                    && actual.replace(candidate.binder).is_some()
+                {
+                    return Err(fail("Task wrapper repeats its complete child class transport"));
+                }
+            }
+            if actual != Some(row.binder) {
+                return Err(fail("Task wrapper changes its exact child to whole class transport"));
+            }
+        }
+        Ok(selected)
     }
 }
 
