@@ -2,6 +2,24 @@
 //! class ordinals remain child-local; physical paths distinguish their loans.
 use super::*;
 
+/// Only an inline shared pointer product uses this copying lane. slots()
+/// alone also describes affine/owning products and is not Copy admission.
+pub(super) fn shared_value(module:&TypedModule,ty:&Type,span:Option<Span>,b:&mut Budget)->Check<bool>{
+    if !matches!(ty,Type::Tuple(_)){return Ok(false);}
+    let mut pending=vec![(ty,0usize)];let mut pointer=false;
+    while let Some((current,depth))=pending.pop(){
+        b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("shared Tuple type qualification depth exceeded"));}
+        match current{
+            Type::Tuple(fields)=>{b.spend(fields.len())?;pending.extend(fields.iter().map(|field|(field,depth+1)));},
+            Type::Address{mutable:false,..}=>{crate::check_function_signature_type(module,current,span,b)?;pointer=true;},
+            other if other.is_copy_value()=>crate::check_type(other,span)?,
+            _=>return Ok(false),
+        }
+    }
+    if pointer{b.nested_callable_sources=true;}
+    Ok(pointer)
+}
+
 pub(super) fn borrowed_child(ty: &Type, b: &mut Budget) -> Check<bool> {
     if let Some(actual) = anonymous_tuple::layout(ty, b)? {
         return Ok(!actual.owned);
@@ -378,5 +396,166 @@ mod physical_tests{
             assert!(projection(f,&retagged,&mut b).is_err(),"pointer child cannot be retagged as a scalar projection");
             assert!(state.locals[1].address.sources.iter().all(|source|source.base==HoldRoot::Parameter(0)&&source.static_dependency==StaticProvenance::NotStatic),"a physical leaf never invents a Static literal from its shape");
         }
+    }
+}
+
+pub(super) fn result_path(ty:&Type,path:&[PlaceProjection],b:&mut Budget)->Check<()>{
+    let slots=slots(ty,b)?.ok_or_else(||err("physical result has no complete Tuple slot directory"))?;
+    b.spend(slots.len().saturating_mul(path.len().saturating_add(1)))?;
+    if !slots.iter().any(|(actual,mode)|actual==path&&*mode==StoredBorrowMode::SharedAddress){return Err(err("shared result source selects no exact readonly physical slot"));}
+    Ok(())
+}
+/// Sources remain data; these rows record only actual loan ancestry. Empty
+/// parents are known only when a real Return supplied the row for this path.
+pub(super) fn return_parents(module:&TypedModule,f:&TypedFunction,payload:&Payload,solution:&Solution,summary:&mut Summary,b:&mut Budget)->Check<()>{
+    let shared=shared_value(module,&f.return_type,Some(f.span),b)?;
+    if shared{
+        for(path,_)in slots(&f.return_type,b)?.ok_or_else(||err("shared Return lacks its full slot directory"))?{
+            if leaf(payload,&path,b)?.is_none_or(|permission|permission.sources.is_empty()){summary.complete=false;}
+        }
+    }
+    for(path,permission)in &payload.leaves{
+        if path.is_empty() || payload.enum_variants.present()&&!payload.enum_variants.slot_active(path)
+            || option_address::candidate(&f.return_type)&&payload.option_variants.mask()==1{continue;}
+        if permission.sources.is_empty(){continue;}
+        let parents=dyn_returns::parents(permission,&solution.loans,b)?;
+        dyn_returns::check_parent_escape(f,&parents,b)?;
+        b.spend(summary.physical_result_parents.len().saturating_mul(path.len().saturating_add(1)))?;
+        if let Some((_,known))=summary.physical_result_parents.iter_mut().find(|(known,_)|known==path){add_sources(known,&parents,b)?;}else{
+            b.spend(path.len().saturating_add(1))?;source_work(&parents,b)?;
+            summary.physical_result_parents.push((path.to_vec(),parents));
+        }
+        if shared && receiver::returned_head(permission,solution,b)?{
+            b.spend(summary.receiver_results.len().saturating_mul(path.len().saturating_add(1)))?;
+            if !summary.receiver_results.contains(path){b.spend(path.len().saturating_add(1))?;summary.receiver_results.push(path.clone());}
+        }
+    }
+    Ok(())
+}
+pub(super) fn parents_at(summary:&Summary,path:&[PlaceProjection],permission:&mut Permission,b:&mut Budget,mut actual:impl FnMut(&Source,&mut Budget)->Check<Permission>)->Check<bool>{
+    if !summary.complete{return Ok(false);}
+    b.spend(summary.physical_result_parents.len().saturating_mul(path.len().saturating_add(1)))?;
+    let mut rows=summary.physical_result_parents.iter().filter(|(known,_)|known==path);
+    let(_,parents)=rows.next().ok_or_else(||err("physical result lacks its actual complete parent row"))?;
+    if rows.next().is_some(){return Err(err("physical result repeats its actual parent row"));}
+    let mut known=true;
+    for parent in parents{
+        let parent=actual(parent,b)?;
+        if parent.sources.is_empty(){known=false;}
+        // A head is an ancestor, never another data target.
+        add_loans(&mut permission.loans,&parent.loans,b)?;
+    }
+    Ok(known)
+}
+#[allow(clippy::too_many_arguments)]
+pub(super) fn call_result(module:&TypedModule,f:&TypedFunction,i:&Instruction,state:&mut Frame,values:&[Payload],summaries:&[Summary],sites:&WriteSites,loans:&mut [Loan],out:&mut Payload,b:&mut Budget)->Check<bool>{
+    let Some((definition,arguments))=stored_callables::called(module,f,&i.kind)else{return Ok(false);};
+    if !shared_value(module,&definition.result,Some(i.span),b)?{return Ok(false);}
+    let result=i.result.ok_or_else(||err("shared Tuple callback has no actual result"))?;
+    type_work(&definition.result,&b.limits.clone(),b)?;type_work(vt(f,result)?,&b.limits.clone(),b)?;
+    if vt(f,result)?!=&definition.result{return Err(err("shared callback result changes its complete actual type"));}
+    let summary=summaries.get(definition.function.0 as usize).ok_or_else(||err("shared callback summary is absent"))?;
+    if !summary.complete{state.pending_external_update=true;return Ok(true);}
+    let expected=slots(&definition.result,b)?.ok_or_else(||err("shared callback lacks its full physical directory"))?;
+    if summary.result.len()!=expected.len(){return Err(err("shared callback result omits an actual physical field"));}
+    let consumed=captured_owner::consuming_value(&i.kind);
+    let receiver=if consumed.is_none(){captured_owner::receiver(f,i,values,b)?}else{Permission::default()};
+    let actual=|source:&Source,b:&mut Budget|->Check<Permission>{
+        if let Some(value)=consumed{
+            let environment=values.get(value.0 as usize).ok_or_else(||err("consumed callback environment is absent"))?;
+            captured_owner::substitute_value(module,f,source,&definition.captures,environment,arguments,values,state,b)
+        }else{captured_owner::substitute(module,f,source,&definition.captures,&receiver,arguments,values,state,b)}
+    };
+    let mut prepared=Payload::default();let mut complete=true;
+    for(path,_)in expected{
+        b.spend(summary.result.len().saturating_mul(path.len().saturating_add(1)))?;
+        let mut rows=summary.result.iter().filter(|(known,_)|*known==path);
+        let(_,sources)=rows.next().ok_or_else(||err("shared callback lacks an exact actual data row"))?;
+        if rows.next().is_some(){return Err(err("shared callback repeats an actual data row"));}
+        let mut permission=Permission::default();
+        for source in sources{join_permission(&mut permission,&actual(source,b)?,b)?;}
+        complete&=parents_at(summary,&path,&mut permission,b,&actual)?;
+        if permission.sources.is_empty(){complete=false;}
+        b.spend(summary.receiver_results.len().saturating_mul(path.len().saturating_add(1)))?;
+        if summary.receiver_results.contains(&path){
+            if consumed.is_some(){return Err(err("consuming callback result retains its retired invocation head"));}
+            let head=retain_written_slot(&receiver,i,receiver::HEAD_SITE,&Vec::new(),sites,loans,b)?;
+            add_loans(&mut permission.loans,&head.loans,b)?;
+        }
+        add_leaf(&mut prepared,&path,&permission,b)?;
+    }
+    if !complete{state.pending_external_update=true;}
+    *out=prepared;
+    Ok(true)
+}
+
+#[cfg(test)]
+mod shared_boundary_tests {
+    use super::*;
+    fn source(base:HoldRoot,leaf:Path)->Source{Source{base,leaf,inline:vec![],retained_port:None,heap_parents:vec![],heap_element:None,static_dependency:StaticProvenance::NotStatic}}
+    fn permission(source:Source,id:usize)->Permission{Permission{sources:vec![source],loans:vec![id]}}
+    fn inst(f:&TypedFunction,result:Option<u32>,kind:InstructionKind)->Instruction{Instruction{result:result.map(ValueId),kind,span:f.span}}
+    fn roundtrip(module:&TypedModule)->TypedModule{let limits=Limits::default();let bytes=zil_ir::wire::encode_module_candidate(module,&CandidatePlan::empty_for(module),&limits).unwrap();zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0}
+    fn module()->TypedModule{
+        let(mut module,_)=crate::tests::baseline();let template=module.functions[0].clone();module.functions.clear();module.closures.clear();
+        let pointer=Type::Address{mutable:false,inner:Box::new(Type::I32)};
+        for id in 0..2{
+            let header=StorageLifeContract{fixed_binder_count:1,invocation_binder_count:1,bindings:vec![StorageLifeBinding{position:StoragePosition{base:StorageBase::Capture(0),path:vec![]},binder:StorageBinder::Fixed(0)},StorageLifeBinding{position:StoragePosition{base:StorageBase::Receiver,path:vec![]},binder:StorageBinder::Invocation(0)},StorageLifeBinding{position:StoragePosition{base:StorageBase::Result,path:vec![]},binder:StorageBinder::Invocation(0)}],static_bindings:vec![],classes:vec![]};
+            let mut entry=template.clone();entry.id=FunctionId(id);entry.name=format!("get{id}");entry.environment=Some(ClosureId(id));entry.parameters.clear();entry.locals.clear();entry.return_type=pointer.clone();entry.values=vec![pointer.clone()];entry.storage_life=Some(header.clone());entry.blocks.truncate(1);entry.blocks[0].instructions=vec![inst(&entry,Some(0),InstructionKind::ReadCapture{index:0})];entry.blocks[0].terminator=Terminator::Return(Some(ValueId(0)));
+            module.closures.push(ClosureDefinition{id:ClosureId(id),function:entry.id,captures:vec![pointer.clone()],parameters:vec![],result:pointer.clone(),kind:CallableKind::Fn,storage_life:Some(header),lending_captures:vec![]});module.functions.push(entry);
+        }
+        let mut helper=template.clone();helper.id=FunctionId(2);helper.name="tuple_helper".into();helper.environment=None;helper.storage_life=None;helper.parameters=vec![LocalId(0),LocalId(1)];helper.return_type=Type::Tuple(vec![pointer.clone(),pointer.clone()]);helper.locals=(0..2).map(|id|LocalDecl{id:LocalId(id),name:format!("code{id}"),ty:Type::Address{mutable:false,inner:Box::new(Type::Closure(ClosureId(id)))},mutable:false,span:template.span}).collect();helper.values=vec![helper.locals[0].ty.clone(),helper.locals[1].ty.clone(),pointer.clone(),pointer.clone(),helper.return_type.clone()];helper.blocks.truncate(1);helper.blocks[0].instructions=vec![inst(&helper,Some(2),InstructionKind::CallClosureBorrowed{callee:ValueId(0),kind:CallableKind::Fn,arguments:vec![]}),inst(&helper,Some(3),InstructionKind::CallClosureBorrowed{callee:ValueId(1),kind:CallableKind::Fn,arguments:vec![]}),inst(&helper,Some(4),InstructionKind::MakeAggregate{fields:vec![ValueId(2),ValueId(3)]})];helper.blocks[0].terminator=Terminator::Return(Some(ValueId(4)));module.functions.push(helper);
+        module
+    }
+    // Runtime-component control: entry permissions and the two leaf getter
+    // summaries are input facts, not public certificates or whole-module WF.
+    // The helper's two *new* head loans are created by real invocation steps.
+    #[test]
+    fn shared_tuple_results_preserve_each_real_callee_head_through_direct_and_all_callable_modes_raw_wire(){
+        let module=module();let limits=Limits::default();
+        for module in [&module,&roundtrip(&module)]{
+            let f=&module.functions[2];let mut b=Budget::new(&limits);b.function_count=module.functions.len();b.closure_receiver_borrows=true;b.nested_callable_sources=true;
+            let mut loans=vec![Loan::default();f.values.len()];let mut entry=Frame::default();let mut inputs=vec![Payload::default();2];
+            for id in 0..2{
+                let head=source(HoldRoot::Parameter(id),vec![]);let hid=loans.len();loans.push(Loan{sources:vec![head.clone()],..Loan::default()});inputs[id as usize].address=permission(head,hid);
+                let data=source(HoldRoot::Parameter(id),vec![PlaceProjection::Field(0)]);let did=loans.len();loans.push(Loan{sources:vec![data.clone()],..Loan::default()});add_leaf(&mut inputs[id as usize],&[PlaceProjection::Field(0)],&permission(data,did),&mut b).unwrap();
+            }
+            entry.locals=inputs.clone();entry.external=inputs.clone();let mut state=entry.clone();let mut values=vec![Payload::default();f.values.len()];values[..2].clone_from_slice(&inputs);
+            let sites=write_sites(module,f,&mut loans,&mut b).unwrap();let mut dyn_sites=dyn_leases::Sites::default();let mut summaries=vec![Summary::default();3];
+            for id in 0..2{summaries[id].complete=true;summaries[id].result=vec![(vec![],vec![source(HoldRoot::Capture(0),vec![])])];}
+            for operation in &f.blocks[0].instructions{crate::check_instruction(module,f,operation,&mut b).unwrap();let result=step(module,f,operation,&mut state,&values,&summaries,&sites,&mut dyn_sites,&mut loans,false,&mut b).unwrap();values[operation.result.unwrap().0 as usize]=result;}
+            let solution=Solution{values:values.clone(),outputs:vec![state.clone()],entry:entry.clone(),loans,sites,dyn_sites};let mut summary=Summary{complete:true,..Summary::default()};summary.result=values[4].leaves.iter().map(|(path,p)|(path.clone(),p.sources.clone())).collect();return_parents(module,f,&values[4],&solution,&mut summary,&mut b).unwrap();
+            for field in 0..2{
+                let path=vec![PlaceProjection::Field(field)];let parents=&summary.physical_result_parents.iter().find(|(key,_)|key==&path).unwrap().1;
+                assert!(parents.contains(&source(HoldRoot::Parameter(field),vec![])),"actual helper-created head must survive separately from data");
+                assert!(!parents.contains(&source(HoldRoot::Parameter(1-field),vec![])),"same-type sibling cannot supply this field's head");
+                assert_eq!(summary.result[field as usize].1,vec![source(HoldRoot::Parameter(field),vec![PlaceProjection::Field(0)])]);
+            }
+            let mut local_escape=solution;let lease=local_escape.sites[0].3;local_escape.loans[lease].sources=vec![source(HoldRoot::Local(LocalId(0)),vec![])];
+            assert!(return_parents(module,f,&values[4],&local_escape,&mut Summary{complete:true,..Summary::default()},&mut b).is_err());
+            let mut caller=f.clone();caller.id=FunctionId(3);caller.name="tuple_caller".into();caller.environment=None;caller.parameters.clear();caller.locals=(0..4).map(|id|LocalDecl{id:LocalId(id),name:format!("local{id}"),ty:if id<2{Type::Closure(ClosureId(id))}else{Type::I32},mutable:true,span:caller.span}).collect();caller.values=vec![f.values[0].clone(),f.values[1].clone(),f.return_type.clone()];
+            let mut caller_loans=vec![Loan::default();12];let mut before=Frame{locals:vec![Payload::default();4],..Frame::default()};let mut actuals=vec![Payload::default();3];
+            for id in 0..2{
+                let hid=5+id as usize*2;let did=hid+1;let head=source(HoldRoot::Local(LocalId(id)),vec![]);caller_loans[hid].sources=vec![head.clone()];actuals[id as usize].address=permission(head,hid);
+                let data=source(HoldRoot::Local(LocalId(id+2)),vec![]);caller_loans[did].sources=vec![data.clone()];let p=permission(data,did);add_leaf(&mut actuals[id as usize],&[PlaceProjection::Field(0)],&p,&mut b).unwrap();add_leaf(&mut before.locals[id as usize],&[PlaceProjection::Field(0)],&p,&mut b).unwrap();
+            }
+            let direct=inst(&caller,Some(2),InstructionKind::Call{function:FunctionId(2),arguments:vec![ValueId(0),ValueId(1)]});let mut all=summaries.clone();all[2]=summary.clone();let mut current=before.clone();let result=step(module,&caller,&direct,&mut current,&actuals,&all,&Vec::new(),&mut dyn_leases::Sites::default(),&mut caller_loans,false,&mut b).unwrap();
+            for field in 0..2{let p=leaf(&result,&[PlaceProjection::Field(field)],&mut b).unwrap().unwrap();assert_eq!(p.sources,vec![source(HoldRoot::Local(LocalId(field+2)),vec![])]);assert!(p.loans.contains(&(5+field as usize*2)));assert!(!p.loans.contains(&(5+(1-field)as usize*2)));}
+            for mode in 0..6{
+                let mut module=module.clone();let kind=if mode==1||mode==4{CallableKind::FnMut}else if mode==3{CallableKind::FnOnce}else{CallableKind::Fn};module.functions[2].environment=Some(ClosureId(2));module.closures.push(ClosureDefinition{id:ClosureId(2),function:FunctionId(2),captures:vec![],parameters:vec![f.values[0].clone(),f.values[1].clone()],result:f.return_type.clone(),kind,storage_life:None,lending_captures:vec![]});
+                let mut caller=caller.clone();caller.locals.push(LocalDecl{id:LocalId(4),name:"receiver".into(),ty:Type::Closure(ClosureId(2)),mutable:true,span:caller.span});
+                let mut actuals=actuals.clone();actuals[2]=Payload::default();caller.values[2]=if mode==3||mode==5{Type::Closure(ClosureId(2))}else{Type::Address{mutable:mode==1,inner:Box::new(Type::Closure(ClosureId(2)))}};caller.values.push(f.return_type.clone());
+                let operation=inst(&caller,Some(3),if mode==3{InstructionKind::CallClosureOnce{callee:ValueId(2),arguments:vec![ValueId(0),ValueId(1)]}}else if mode==5{InstructionKind::CallClosure{callee:ValueId(2),arguments:vec![ValueId(0),ValueId(1)]}}else if mode==2{InstructionKind::CallClosureShared{callee:LocalId(4),arguments:vec![ValueId(0),ValueId(1)]}}else if mode==4{InstructionKind::CallClosureMut{callee:LocalId(4),arguments:vec![ValueId(0),ValueId(1)]}}else{InstructionKind::CallClosureBorrowed{callee:ValueId(2),kind,arguments:vec![ValueId(0),ValueId(1)]}});
+                actuals[2].address=permission(source(HoldRoot::Local(LocalId(4)),vec![]),9);let mut before=before.clone();before.locals.push(Payload::default());let mut out=Payload::default();assert!(call_result(&module,&caller,&operation,&mut before,&actuals,&all,&Vec::new(),&mut caller_loans,&mut out,&mut b).unwrap());
+                assert_eq!(out.leaves,result.leaves,"mode {mode} must transport the same separately grounded data and parents");
+                let mut missing=all.clone();missing[2].physical_result_parents.pop();assert!(call_result(&module,&caller,&operation,&mut before,&actuals,&missing,&Vec::new(),&mut caller_loans,&mut Payload::default(),&mut b).is_err());
+            }
+        }
+    }
+    #[test]
+    fn shared_tuple_type_eligibility_keeps_copy_ct_owner_and_exclusive_consumers_separate(){
+        let(module,_)=crate::tests::baseline();let limits=Limits::default();let pointer=Type::Address{mutable:false,inner:Box::new(Type::Slice{element:Box::new(Type::U8)})};let tuple=Type::Tuple(vec![pointer.clone(),Type::I32]);let mut b=Budget::new(&limits);
+        assert!(shared_value(&module,&tuple,None,&mut b).unwrap());assert!(b.nested_callable_sources);assert!(!tuple.is_copy_value());assert!(crate::check_type(&tuple,None).is_err());
+        assert!(!shared_value(&module,&Type::Tuple(vec![Type::Address{mutable:true,inner:Box::new(Type::I32)}]),None,&mut b).unwrap());assert!(!shared_value(&module,&Type::Tuple(vec![pointer,Type::Managed(Box::new(Type::I32))]),None,&mut b).unwrap());
     }
 }

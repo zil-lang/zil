@@ -1,7 +1,7 @@
 //! Actual closure invocation loans. Public Receiver rows constrain the result;
 //! only independently reconstructed instructions and receiver operands supply it.
 use super::*;
-const HEAD_SITE: u32 = u32::MAX - 1;
+pub(super) const HEAD_SITE: u32 = u32::MAX - 1;
 
 pub(super) fn declared(definition: &ClosureDefinition) -> bool {
     definition

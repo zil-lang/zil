@@ -138,14 +138,14 @@ impl Values {
             budget.spend(left.roots.len())?;
             budget.spend(right.roots.len())?;
             let page = Self::edit_page(left, budget)?;
-            for (index,(a, b)) in page.roots.iter_mut().zip(&right.roots).enumerate() {
+            for (a, b) in page.roots.iter_mut().zip(&right.roots) {
                 // Keep this kernel's ORIGINAL per-Content alias/COW/merge.
                 // Page sharing cannot replace its external alias test.
                 if !Arc::ptr_eq(a, b) {
                     if Arc::strong_count(a) > 1 {
                         a.cost(budget)?;
                     }
-                    changed |= transfer_context(Arc::make_mut(a).merge(b, budget),"SSA value",page.base+index,0,budget)?;
+                    changed |= Arc::make_mut(a).merge(b, budget)?;
                 }
             }
         }

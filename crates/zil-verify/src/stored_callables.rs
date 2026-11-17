@@ -439,6 +439,11 @@ pub(super) fn captured_profile(
     d: &ClosureDefinition,
     b: &mut Budget,
 ) -> Check<()> {
+    for ty in d.captures.iter().chain(&d.parameters).chain(std::iter::once(&d.result)){
+        if super::stored_flow::shared_tuple_value(module,ty,None,b)? && d.storage_life.is_none(){
+            return Err(unsupported("shared pointer Tuple callback requires its complete actual environment relation",None));
+        }
+    }
     // Retaining an owner is a Task environment composition even when its
     // complete lifetime directory is Known0. It still carries real cleanup
     // debt and needs the ordinary Task carrier/source consumers.
@@ -459,6 +464,7 @@ pub(super) fn captured_profile(
     for ty in &d.parameters {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
         if !borrowed_capture_input(ty)
+            && !super::stored_flow::shared_tuple_value(module,ty,None,b)?
             && !complete_value_input(module,ty,b)?
             && !super::stored_flow::context_capture_type(module, ty, b)?
             && !inline_qualified_capture(module, ty, b)?
@@ -489,6 +495,7 @@ pub(super) fn captured_profile(
         };
         b.task_retained_environments |= matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{retained_life,..} if !retained_life.ports.is_empty()));
         if !(borrowed_capture_input(ty)
+            || super::stored_flow::shared_tuple_value(module,ty,None,b)?
             || complete_value_input(module,ty,b)?
             || matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Task{..}) && matches!(d.kind,CallableKind::FnOnce | CallableKind::FnMut))
             || super::stored_owned::owner(ty)
@@ -513,7 +520,8 @@ pub(super) fn captured_profile(
             ));
         }
     }
-    let value_result = captured_value_candidate(d) && !task_result(d);
+    let shared_result=super::stored_flow::shared_tuple_value(module,&d.result,None,b)?;
+    let value_result = captured_value_candidate(d) && !task_result(d) && !shared_result;
     if value_result {
         super::stored_flow::type_work(&d.result, &b.limits.clone(), b)?;
         if !super::signature_life::closed_owned_parameter(&d.result) {
@@ -524,7 +532,7 @@ pub(super) fn captured_profile(
         }
         super::owned_callbacks::signature(module, d, b)?;
     }
-    if !(value_result
+    if !(value_result || shared_result
         || (d.lending_captures.is_empty() && (scalar(&d.result) || super::tasks::is_close_poll(&d.result)))
         || lending(d)
         || task_result(d)

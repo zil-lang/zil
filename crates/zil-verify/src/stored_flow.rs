@@ -129,6 +129,7 @@ pub(super) fn qualified_function(f: &TypedFunction, b: &mut Budget) -> Check<boo
         if shared_array_value(ty) {
             return Ok(true);
         }
+        if compound::slots(ty,b)?.is_some(){return Ok(true);}
         match ty {
             // Their actual capture/retained declarations can carry targets
             // outside this type spelling. Keep their functions in the proof.
@@ -207,6 +208,8 @@ pub(super) fn compound_operation(
 ) -> Check<bool> {
     compound::operation(f, i, b)
 }
+pub(super) fn shared_tuple_value(module:&TypedModule,ty:&Type,span:Option<Span>,b:&mut Budget)->Check<bool>{compound::shared_value(module,ty,span,b)}
+pub(super) fn compound_targets(ty:&Type,b:&mut Budget)->Check<bool>{Ok(compound::slots(ty,b)?.is_some())}
 
 pub(super) fn failure_shape(ty: &Type, b: &mut Budget) -> Check<bool> {
     if !b.task_failure_carriers {
@@ -628,6 +631,8 @@ struct Summary {
     contract_after: Vec<(u32, dyn_ports::Rows)>,
     dyn_capture_after: Vec<(u32, dyn_ports::Rows)>,
     result: Vec<(Path, Vec<Source>)>,
+    // Actual non-root physical result ancestors, kept separate from data.
+    physical_result_parents: Vec<(Path, Vec<Source>)>,
     receiver_results: Vec<Path>,
     dyn_result_parents: Vec<Source>,
     task_ports: Vec<(Vec<ContractProjection>, Vec<Source>)>,
@@ -2815,6 +2820,9 @@ fn seed_payload(
         }
     }
     compound::seed(ty, base, &mut p, loans, b)?;
+    if let Type::Address{inner,..}=ty && shared_tuple_value(module,inner,None,b)?{
+        compound::seed(inner,base,&mut p,loans,b)?;
+    }
     task_address::seed(module, ty, base, &mut p, loans, b)?;
     Ok(p)
 }
@@ -3912,6 +3920,7 @@ static_dependency: StaticProvenance::NotStatic,
                 heap_element: None,
             });
         }
+        _ if compound::call_result(module,f,i,state,values,summaries,sites,loans,&mut out,b)? => {}
         kind if super::stored_callables::called(module, f, kind)
             .is_some_and(|(definition, _)| definition.storage_life.as_ref().is_some_and(|life|
                 signature_life::outer(life, StorageBase::Result).is_some() || stored_callables::static_result(definition))
@@ -4032,6 +4041,7 @@ static_dependency: StaticProvenance::NotStatic,
                 task_address::join(&mut out, &state.locals[local.0 as usize], b)?;
             }
             if qualified(&f.locals[local.0 as usize].ty).is_some()
+                || shared_tuple_value(module,&f.locals[local.0 as usize].ty,Some(i.span),b)?
                 || shared_array_value(&f.locals[local.0 as usize].ty)
                 || fixed_environment(module, &f.locals[local.0 as usize].ty, b)
             {
@@ -4328,6 +4338,15 @@ static_dependency: StaticProvenance::NotStatic,
                         add_loans(&mut p.loans, &actual.address.loans, b)?;
                     }
                 }
+                let shared_result=shared_tuple_value(module,&callee.return_type,Some(i.span),b)?;
+                let active=!path.is_empty() && ((out.enum_variants.present() && out.enum_variants.slot_active(path))
+                    || (!out.enum_variants.present() && (!option_address::candidate(&callee.return_type) || out.option_variants.mask()&2!=0)));
+                b.spend(summaries[function.0 as usize].physical_result_parents.len().saturating_mul(path.len().saturating_add(1)))?;
+                if active && (shared_result || summaries[function.0 as usize].physical_result_parents.iter().any(|(known,_)|known==path)){
+                    if shared_result{compound::result_path(&callee.return_type,path,b)?;}
+                    let known=compound::parents_at(&summaries[function.0 as usize],path,&mut p,b,|source,b|instantiate(module,f,source,arguments,values,state,b))?;
+                    if !known || shared_result&&p.sources.is_empty(){state.pending_external_update=true;}
+                }
                 if path.is_empty() {
                     out.address = p;
                 } else if (out.enum_variants.present() && out.enum_variants.slot_active(path))
@@ -4545,6 +4564,13 @@ static_dependency: StaticProvenance::NotStatic,
                 }
             }
 
+            if shared_tuple_value(module,inner,Some(i.span),b)?{
+                for(path,_)in compound::slots(inner,b)?.ok_or_else(||err("shared Tuple read omits its full physical directory"))?{
+                    let permission=select(state,&val(*address)?.address,&path,b)?;
+                    if permission.sources.is_empty(){state.pending_external_update=true;}
+                    add_leaf(&mut out,&path,&permission,b)?;
+                }
+            }
             let Type::Address { inner, .. } = vt(f, *address)? else {
                 return Err(err("read transfer has no actual Address"));
             };
@@ -6599,6 +6625,8 @@ fn windows(
     Ok(())
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
+    b.spend(s.physical_result_parents.len())?;
+    for(path,parents)in &s.physical_result_parents{b.spend(path.len())?;source_work(parents,b)?;}
     reference_cells::after_work(&s.reference_after,b)?;
     {
         b.spend(s.head_accesses.len())?;
@@ -7016,6 +7044,7 @@ fn summarize(
         }
         if *reachable && let Terminator::Return(Some(id)) = block.terminator {
             let payload = &solution.values[id.0 as usize];
+            compound::return_parents(module,f,payload,solution,&mut summary,b)?;
             summary
                 .returned_enum_variants
                 .join(&payload.enum_variants, b)?;
@@ -7291,6 +7320,8 @@ fn check_with_mask(
             let ordinary_value = super::stored_owned::ordinary_store_value(module,ty, b)?
                 || super::stored_owned::ordinary_byte_value(ty, b)?
                 || pure_copy::complete_owned_value(module,ty, b)?
+                || shared_tuple_value(module,ty,Some(f.span),b)?
+                || matches!(ty,Type::Address{inner,..}if shared_tuple_value(module,inner,Some(f.span),b)?)
                 || pure_copy::callable_tuple(module,ty,b)?
                 || callable_cells::admitted_value(module,ty,b)?
                 || ordinary_owner_address(module, ty, b)?;

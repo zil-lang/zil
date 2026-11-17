@@ -51,7 +51,7 @@ fn stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bo
             | Type::Array { element: inner, .. }
             | Type::Slice { element: inner }
             | Type::Opaque { hidden: inner, .. } => pending.push(inner),
-            Type::Tuple(fields) => pending.extend(fields),
+            Type::Tuple(fields) => { found|=stored_flow::compound_targets(ty,budget)?;pending.extend(fields); },
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 pending.extend(fields.iter().map(|(_, ty)| ty));
             }

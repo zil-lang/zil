@@ -332,6 +332,9 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
+            if stored_flow::shared_tuple_value(module,ty,None,budget)? && closure.storage_life.is_none(){
+                return Err(unsupported("shared pointer Tuple capture requires its complete actual environment relation",None));
+            }
             budget.task_retained_environments |= closure.kind == CallableKind::FnMut
                 && matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. }));
             if matches!(ty, Type::Address { mutable: true, inner }
@@ -508,6 +511,9 @@ pub(super) fn check_definitions(
                 check_local_type(ty, None, module, budget)?;
             }
         }
+        if stored_flow::shared_tuple_value(module,&closure.result,None,budget)? && closure.storage_life.is_none(){
+            return Err(unsupported("shared pointer Tuple result requires its complete actual environment relation",None));
+        }
         let owning_signature = owned_callbacks::signature(module, closure, budget)?;
         if owning_signature {
             // Store resource definitions were checked before raw closure
@@ -557,6 +563,9 @@ pub(super) fn check_definitions(
                     // Raw type preflight already bounded this tree. Verify the
                     // actual finite element shape, not a producer signature bit.
                     slices::check_pointee(inner, None)?;
+                } else if stored_flow::shared_tuple_value(module,ty,None,budget)? {
+                    if closure.storage_life.is_none(){return Err(unsupported("shared pointer Tuple parameter requires its complete actual environment relation",None));}
+                    // Actual source/loan checks remain with the stored ledger.
                 } else {
                     check_type(ty, None).map_err(|error| {
                         error.with_note("while checking the actual closure parameter")
@@ -567,6 +576,7 @@ pub(super) fn check_definitions(
                 || invocation
                 || explicit_result_relation
                 || stored_callables::task_result(closure)
+                || stored_flow::shared_tuple_value(module,&closure.result,None,budget)?
             {
                 check_local_type(&closure.result, None, module, budget).map_err(|error| {
                     error.with_note("while checking the actual related closure result")

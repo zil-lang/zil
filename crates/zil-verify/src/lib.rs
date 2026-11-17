@@ -2099,6 +2099,8 @@ fn check_function_signature_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
+    if stored_flow::shared_tuple_value(module,ty,span,budget)?
+        || matches!(ty,Type::Address{inner,..}if stored_flow::shared_tuple_value(module,inner,span,budget)?){return Ok(());}
     if budget.raw_reference_cells&&let Type::Address{inner,..}=ty&&matches!(inner.as_ref(),Type::Address{..}){
         // Each actual pointee still goes through its existing complete checker.
         // The full raw referent class directory is checked by signature_life
@@ -2214,6 +2216,8 @@ fn check_local_type(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> Check<bool> {
+    if stored_flow::shared_tuple_value(module,ty,span,budget)?
+        || matches!(ty,Type::Address{inner,..}if stored_flow::shared_tuple_value(module,inner,span,budget)?){return Ok(false);}
     if budget.raw_reference_cells&&matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Address{..})){
         check_function_signature_type(module,ty,span,budget)?;return Ok(false);
     }
@@ -3137,6 +3141,8 @@ fn check_instruction(
                 && dynamic_store::package_inline_store(inner, budget)?
             {
                 packages::check_ordinary_type(module, inner, span, budget)?;
+            } else if stored_flow::shared_tuple_value(module,inner,span,budget)? {
+                // Real fields keep their complete stored permissions.
             } else if matches!(
                 inner,
                 Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -3179,6 +3185,8 @@ fn check_instruction(
                 && dynamic_store::package_inline_store(inner, budget)?
             {
                 packages::check_ordinary_type(module, inner, span, budget)?;
+            } else if stored_flow::shared_tuple_value(module,inner,span,budget)? {
+                // Real fields keep their complete stored permissions.
             } else if matches!(
                 inner,
                 Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -3331,6 +3339,10 @@ fn check_instruction(
                 && dynamic_store::package_inline_store(field, budget)?
             {
                 packages::check_ordinary_type(module, field, span, budget)?;
+            } else if stored_flow::shared_tuple_value(module,field,span,budget)? {
+                // The actual projection retains the complete child type.
+            } else if matches!(field,Type::Address{mutable:false,..}) && stored_flow::shared_tuple_value(module,projected,span,budget)? {
+                check_function_signature_type(module,field,span,budget)?;
             } else if budget.sums
                 && matches!(
                     field,
@@ -3448,6 +3460,7 @@ fn check_instruction(
         InstructionKind::ReadAddress { address } => match value_type(function, *address, span)? {
             Type::Address { inner, .. }
                 if inner.is_copy_value()
+                    || stored_flow::shared_tuple_value(module,inner,span,budget)?
                     || stored_flow::shared_array_shape(inner, budget)?
                     || stored_flow::pure_read(module, inner, budget)?
                     || stored_flow::pure_inline(module, inner, budget)? =>
@@ -3725,7 +3738,7 @@ fn check_instruction(
                     "Copy aggregate construction cannot create an owning array",
                 ));
             }
-            if !stored_flow::shared_array_shape(ty, budget)? {
+            if !stored_flow::shared_array_shape(ty, budget)? && !stored_flow::shared_tuple_value(module,ty,span,budget)? {
                 check_type(ty, span)?;
             }
             let physical = match ty {
