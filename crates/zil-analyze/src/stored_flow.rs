@@ -9954,7 +9954,24 @@ mod tests {
             ContractProjection::RetainedPort(0),
             ContractProjection::RetainedClass(0),
         ] {
-            module.closures[0]
+            let mut wrong_namespace = module.closures[0].clone();
+            wrong_namespace
+                .storage_life
+                .as_mut()
+                .unwrap()
+                .static_bindings[0]
+                .path = vec![projection];
+            assert!(
+                !capture_static_leaf(
+                    Some((&wrong_namespace, 0)),
+                    &path,
+                    StoredBorrowMode::SharedAddress,
+                    &mut b,
+                )
+                .unwrap()
+            );
+        }
+        module.closures[0]
             .storage_life
             .as_mut()
             .unwrap()
