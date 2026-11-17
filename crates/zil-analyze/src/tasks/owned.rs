@@ -193,6 +193,72 @@ fn frame_tag_local_instruction(
     Ok(true)
 }
 
+fn frame_package_instruction(
+    module: &TypedModule,
+    f: &TypedFunction,
+    instruction: &Instruction,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let (local, index) = match instruction.kind {
+        InstructionKind::ReadPackageField { local, index }
+        | InstructionKind::DescribePackageField { local, index } => (local, index),
+        _ => return Ok(false),
+    };
+    let root = local_type(f, local, Some(instruction.span))?;
+    budget.type_work(root, false, "Task complete package projection root")?;
+    let Type::Package { fields, .. } = crate::resources::package_storage(root) else {
+        return Err(fail(
+            instruction.span,
+            "Task field operation requires its actual package local",
+        ));
+    };
+    if !complete_aggregate(module, root, budget)? {
+        return Err(fail(
+            instruction.span,
+            "Task field operation has no complete physical package",
+        ));
+    }
+    let field = fields
+        .get(index as usize)
+        .map(|(_, ty)| ty)
+        .ok_or_else(|| {
+            fail(
+                instruction.span,
+                "Task field index is outside its actual package",
+            )
+        })?;
+    let output = instruction.result.ok_or_else(|| {
+        fail(
+            instruction.span,
+            "Task field operation has no actual result",
+        )
+    })?;
+    let result = value_type(f, output, Some(instruction.span))?;
+    budget.type_work(field, false, "Task actual package field")?;
+    budget.type_work(result, false, "Task actual package field result")?;
+    let valid = match (&instruction.kind, field, result) {
+        (InstructionKind::ReadPackageField { .. }, field, result) => {
+            field.is_copy_value() && field == result
+        }
+        (
+            InstructionKind::DescribePackageField { .. },
+            Type::Managed(payload),
+            Type::Desc(actual),
+        ) => payload == actual,
+        _ => false,
+    };
+    if !valid {
+        return Err(fail(
+            instruction.span,
+            "Task package projection changes the actual field mode or complete type",
+        ));
+    }
+    // This selects the existing typed GEP/load or field description only.
+    // Local-shell liveness, source/root/epoch, permissions and every fixed
+    // class remain obligations of the ordinary resource and stored kernels.
+    Ok(true)
+}
+
 fn static_byte_view(t: &Type) -> bool {
     matches!(t, Type::Address { mutable: false, inner }
         if inner.as_ref() == &Type::U8
@@ -280,8 +346,9 @@ fn complete_aggregate(module: &TypedModule, t: &Type, budget: &mut Budget) -> Co
         budget.spend(1, "complete task aggregate")?;
         match t {
             t if scalar(t) => {}
+            Type::BorrowedStorage { storage, .. } => work.push(storage),
             Type::Managed(payload) => {
-                if matches!(payload.as_ref(), Type::OwnedStore { .. } | Type::Task { .. }) {
+                if matches!(payload.as_ref(), Type::OwnedStore { .. } | Type::Task { .. } | Type::AsyncRegistration { .. }) {
                     if !pollable_storage(module, t, budget)? {
                         return Ok(false);
                     }
@@ -335,6 +402,7 @@ fn aggregate_resources<'a>(
         budget.spend(1, "complete task aggregate")?;
         match t {
             Type::Managed(_) => leaves.push(t),
+            Type::BorrowedStorage { storage, .. } => work.push(storage),
             Type::Closure(id) => {
                 budget.lookup(closures.len(), "frame concrete cleanup graph membership")?;
                 if !closures.insert(*id) {
@@ -659,6 +727,9 @@ fn pollable_storage_at(module: &TypedModule, t: &Type, budget: &mut Budget,
     budget.type_work(t, false, "pollable frame actual type")?;
     budget.spend(1, "pollable frame actual storage")?;
     match t {
+        Type::BorrowedStorage { storage, .. } => {
+            pollable_storage_at(module, storage, budget, depth + 1, active)
+        }
         Type::Record { fields, .. } | Type::Package { fields, .. } => {
             budget.spend(fields.len(), "pollable frame complete product")?;
             for (_, field) in fields {
@@ -1225,8 +1296,26 @@ fn helper_graph_uncached(
             continue;
         }
         let task_driver = driving && task_driver_signature(f)?;
-        let borrowed_driver =
-            task_driver || handoff || driving && borrowed_driver_signature(f, budget)?;
+        // A Direct factory may build a real Task and explicitly drive its
+        // failed prepared inputs to Closed before returning. Its result only
+        // selects this physical walk: every local, SSA, leaf teardown and
+        // instruction below is still checked on the same transitive graph.
+        // TaskYield/SuspendCall remain absent from this Direct operation set.
+        let task_factory = driving
+            && matches!(
+                f.result_mode,
+                PassingMode::Infer | PassingMode::Give | PassingMode::Create
+            )
+            && match &f.return_type {
+                Type::Managed(payload) => matches!(payload.as_ref(), Type::Task { .. }),
+                Type::ErrorUnion { result, .. } => matches!(result.as_ref(), Type::Managed(payload)
+                    if matches!(payload.as_ref(), Type::Task { .. })),
+                _ => false,
+            };
+        let borrowed_driver = task_driver
+            || task_factory
+            || handoff
+            || driving && borrowed_driver_signature(f, budget)?;
         // This contract is only a premise selector. The resource and protocol
         // kernels independently require the original owner to be consumed and
         // prove checked finish observes Closed; the annotation cannot retire it.
@@ -1273,6 +1362,7 @@ fn helper_graph_uncached(
                 if frame_store_instruction(module, f, i, budget)?
                     || frame_closure_instruction(module, f, i, budget)?
                     || frame_tag_local_instruction(module, f, i, budget)?
+                    || frame_package_instruction(module, f, i, budget)?
                     || frame_static_read_instruction(module, f, i, budget)?
                 {
                     continue;
@@ -1283,7 +1373,11 @@ fn helper_graph_uncached(
                     | InstructionKind::TaskRequestCancel { .. }
                     | InstructionKind::TaskPollClose { .. }
                     | InstructionKind::TaskFinishDestroy { .. }
-                        if task_driver => {}
+                        if task_driver || task_factory => {}
+                    InstructionKind::TaskCreate { .. }
+                    | InstructionKind::TaskCreateOwned { .. }
+                    | InstructionKind::AsyncRegistrationStart { .. }
+                        if task_factory => {}
                     InstructionKind::Call { function, .. }
                     | InstructionKind::ForeignCall { function, .. } => {
                         pending.push((*function, borrowed_driver))
@@ -1299,7 +1393,7 @@ fn helper_graph_uncached(
                         if borrowed_driver => {}
                     InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
                     | InstructionKind::AsyncRegistrationFinishDestroy { .. }
-                        if closed_retirement => {}
+                        if closed_retirement || task_factory => {}
                     InstructionKind::Constant(_)
                     | InstructionKind::Load(_)
                     | InstructionKind::Store { .. }
@@ -1333,6 +1427,7 @@ fn helper_graph_uncached(
                     | InstructionKind::ErrorTag { .. }
                     | InstructionKind::TakeErrorUnion { .. }
                     | InstructionKind::TakeTupleField { .. }
+                    | InstructionKind::TakeVariantField { .. }
                     | InstructionKind::UnpackTuple { .. }
                     | InstructionKind::DropErrorUnion { .. }
                     | InstructionKind::ConvertNumber { .. }
@@ -1465,6 +1560,7 @@ pub(super) fn profile(
             if frame_store_instruction(module, f, i, budget)?
                 || frame_closure_instruction(module, f, i, budget)?
                 || frame_tag_local_instruction(module, f, i, budget)?
+                || frame_package_instruction(module, f, i, budget)?
                 || frame_static_read_instruction(module, f, i, budget)?
             {
                 continue;
@@ -1604,4 +1700,192 @@ pub(crate) fn once_cleanup_resumable(
         return Ok(false);
     }
     pollable_storage(module, ty, budget)
+}
+
+#[cfg(test)]
+mod frame_consumer_tests {
+    use super::*;
+    #[allow(dead_code)]
+    mod fixture {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
+        ));
+    }
+
+    #[test]
+    fn package_frame_description_preserves_actual_field_mode_and_qualified_owner() {
+        let payload = Type::Record {
+            name: "ResultToken".into(),
+            fields: vec![("code".into(), Type::I32)],
+        };
+        let owner = Type::Managed(Box::new(payload.clone()));
+        let packet = Type::BorrowedStorage {
+            storage: Box::new(Type::Package {
+                name: "Packet".into(),
+                fields: vec![("token".into(), owner.clone()), ("code".into(), Type::I32)],
+            }),
+            life: zil_ir::StorageLifeShape {
+                binder_count: 1,
+                slots: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        };
+        let mut module = fixture::module();
+        module.functions.truncate(1);
+        let f = &mut module.functions[0];
+        f.locals.truncate(1);
+        f.locals[0].id = LocalId(0);
+        f.locals[0].ty = packet.clone();
+        f.values = vec![Type::Desc(Box::new(payload.clone()))];
+        let describe = fixture::instruction(
+            Some(0),
+            InstructionKind::DescribePackageField {
+                local: LocalId(0),
+                index: 0,
+            },
+        );
+        let mut budget = Budget::new(&Limits::default());
+        assert!(
+            frame_package_instruction(&module, &module.functions[0], &describe, &mut budget)
+                .unwrap()
+        );
+        assert_eq!(
+            aggregate_resources(&module, &packet, &mut budget).unwrap(),
+            vec![&owner]
+        );
+        // The mode and complete nominal payload matter even when both
+        // alternatives would be represented by machine pointers.
+        for output in [
+            owner.clone(),
+            Type::I32,
+            Type::Desc(Box::new(Type::Record {
+                name: "DifferentToken".into(),
+                fields: vec![("code".into(), Type::I32)],
+            })),
+        ] {
+            module.functions[0].values[0] = output;
+            assert!(
+                frame_package_instruction(
+                    &module,
+                    &module.functions[0],
+                    &describe,
+                    &mut Budget::new(&Limits::default())
+                )
+                .is_err()
+            );
+        }
+        let read = fixture::instruction(
+            Some(0),
+            InstructionKind::ReadPackageField {
+                local: LocalId(0),
+                index: 0,
+            },
+        );
+        module.functions[0].values[0] = owner;
+        assert!(
+            frame_package_instruction(
+                &module,
+                &module.functions[0],
+                &read,
+                &mut Budget::new(&Limits::default())
+            )
+            .is_err(),
+            "an owning field cannot be copied"
+        );
+        module.functions[0].values[0] = Type::I32;
+        let scalar = fixture::instruction(
+            Some(0),
+            InstructionKind::ReadPackageField {
+                local: LocalId(0),
+                index: 1,
+            },
+        );
+        assert!(
+            frame_package_instruction(
+                &module,
+                &module.functions[0],
+                &scalar,
+                &mut Budget::new(&Limits::default())
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn frame_closure_missing_actual_domain_is_never_an_empty_scope_proof() {
+        let mut module = fixture::module();
+        module.functions.truncate(1);
+        module.functions[0].environment = Some(ClosureId(0));
+        module.functions[0].storage_life = None;
+        module.functions[0].parameters.clear();
+        module.functions[0].return_type = Type::I32;
+        let closure = zil_ir::ClosureDefinition {
+            id: ClosureId(0),
+            function: FunctionId(0),
+            captures: vec![],
+            parameters: vec![],
+            result: Type::I32,
+            kind: CallableKind::FnOnce,
+            lending_captures: vec![],
+            storage_life: None,
+        };
+        module.closures = vec![closure.clone()];
+        let mut budget = Budget::new(&Limits::default());
+        assert!(!frame_closure_domain(&module, &closure, &mut budget).unwrap());
+        assert!(!pollable_storage(&module, &Type::Closure(ClosureId(0)), &mut budget).unwrap());
+    }
+
+    #[test]
+    fn direct_task_factory_has_no_saved_yield_or_suspend_call_activation() {
+        let mut module = fixture::module();
+        module.functions.truncate(1);
+        module.closures.clear();
+        let task = Type::Task {
+            result: Box::new(Type::I32),
+            retained_life: zil_ir::RetainedLifeShape {
+                binder_count: 0,
+                ports: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        };
+        module.resources = vec![zil_ir::ResourceDefinition {
+            name: format!("{TASK_RESOURCE_NAME_PREFIX}{}", task.fingerprint()),
+            payload: task.clone(),
+            teardown: None,
+        }];
+        let f = &mut module.functions[0];
+        f.parameters.clear();
+        f.locals.clear();
+        f.values.clear();
+        f.storage_life = None;
+        f.callable_return_contract = None;
+        f.reference_return_bound = None;
+        f.return_type = Type::Managed(Box::new(task));
+        f.blocks.truncate(1);
+        for kind in [
+            InstructionKind::TaskYield,
+            InstructionKind::SuspendCall {
+                function: FunctionId(0),
+                arguments: vec![],
+            },
+        ] {
+            module.functions[0].blocks[0].instructions = vec![fixture::instruction(None, kind)];
+            let errors = helper_graph(
+                &module,
+                FunctionId(0),
+                &mut Budget::new(&Limits::default()),
+                None,
+                true,
+            )
+            .unwrap_err();
+            assert!(errors.iter().any(|error| {
+                error
+                    .message
+                    .contains("asynchronous or external-user operation")
+            }));
+        }
+    }
 }
