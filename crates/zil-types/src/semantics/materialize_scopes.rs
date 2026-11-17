@@ -10,14 +10,12 @@ enum SourceFailure {
     Invalid(Diagnostic),
 }
 type SourceResult<T> = Result<T, SourceFailure>;
-impl From<SourceFailure> for Diagnostic {
-    fn from(error: SourceFailure) -> Self {
-        match error {
-            SourceFailure::Unavailable(error) | SourceFailure::Invalid(error) => error,
+impl SourceFailure {
+    fn into_diagnostic(self) -> Diagnostic {
+        match self {
+            Self::Unavailable(error) | Self::Invalid(error) => error,
         }
     }
-}
-impl SourceFailure {
     // actual_in_domains has no original query resolver. Its Unsupported
     // exits mean missing lexical/value/Invocation correspondence; malformed
     // substitutions and resource failures retain their original diagnostics.
@@ -96,7 +94,8 @@ impl<'a> Eval<'a, '_, '_> {
         depth: usize,
     ) -> R<bool> {
         self.node(depth)?;
-        let source = self.source_specialize(scope, recipe, &mut BTreeSet::new(), depth + 1)?;
+        let source = self.source_specialize(scope, recipe, &mut BTreeSet::new(), depth + 1)
+            .map_err(SourceFailure::into_diagnostic)?;
         match source.recipe {
             SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType { scope, source: query }) => {
                 let expanded = self.original_type(source.scope, scope, &query, depth + 1)?;
@@ -598,7 +597,7 @@ impl<'a> Eval<'a, '_, '_> {
             &SemanticActualRecipe::Type(recipe.clone()),
             &mut BTreeSet::new(),
             depth + 1,
-        )?;
+        ).map_err(SourceFailure::into_diagnostic)?;
         let SemanticActualRecipe::Type(recipe) = source.recipe else {
             unreachable!()
         };
@@ -655,7 +654,8 @@ impl<'a> Eval<'a, '_, '_> {
         }
         let mut active = BTreeSet::new();
         let (source, actuals) =
-            self.source_parent_solution(caller, call, holder, &mut active, depth + 1)?;
+            self.source_parent_solution(caller, call, holder, &mut active, depth + 1)
+                .map_err(SourceFailure::into_diagnostic)?;
         let recipe = actuals
             .get(formal as usize)
             .ok_or_else(|| bad("inferred parent omits its complete mixed formal"))?;
@@ -692,7 +692,8 @@ impl Eval<'_, '_, '_> {
             }
         }
         let (source, recipes) =
-            self.source_parent_solution(caller, call, holder, &mut BTreeSet::new(), 0)?;
+            self.source_parent_solution(caller, call, holder, &mut BTreeSet::new(), 0)
+                .map_err(SourceFailure::into_diagnostic)?;
         if recipes.len() != request.actuals.len() {
             return Err(bad("method parent boundary changes its full mixed arity"));
         }
