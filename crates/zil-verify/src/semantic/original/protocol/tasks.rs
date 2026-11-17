@@ -43,8 +43,16 @@ impl SynchronousBirths{
             b.spend(1)?;
             fn add(task:&PendingTask,out:&mut Sources,b:&mut Budget)->Check<()>{b.spend(task.width())?;if task.states&!(CLOSED|DEAD)!=0{if task.sources.is_empty(){out.insert(TaskSource::Unknown);}else{out.extend(task.sources.iter().cloned());}}Ok(())}
             match(shape,value){
-                (Shape::Task{..},Value::Owner{root,..})=>{let owner=state.owner(root,b)?;if !owner.task{out.insert(TaskSource::Unknown);}else if owner.states&!(CLOSED|DEAD)!=0{b.spend(source_width(&owner.sources))?;if owner.sources.is_empty(){out.insert(TaskSource::Unknown);}else{out.extend(owner.sources.iter().cloned());}}},
-                (Shape::Task{..},Value::FreshTask(task))|(Shape::FallibleTask,Value::FallibleTask(task))=>add(task,out,b)?,
+                (Shape::Task{borrowed:expected_borrow},Value::Owner{root,borrowed})=>{
+                    let owner=state.owner(root,b)?;
+                    // A weak description and a strong borrow share this shape.
+                    // Neither carries a stable-generation lease here; even a
+                    // currently Closed borrowed occupant is not a transferred
+                    // frame owner whose future source is fixed by this proof.
+                    if !owner.task||*expected_borrow||*borrowed||!owner.owned{out.insert(TaskSource::Unknown);}
+                    else if owner.states&!(CLOSED|DEAD)!=0{b.spend(source_width(&owner.sources))?;if owner.sources.is_empty(){out.insert(TaskSource::Unknown);}else{out.extend(owner.sources.iter().cloned());}}
+                },
+                (Shape::Task{borrowed:false},Value::FreshTask(task))|(Shape::FallibleTask,Value::FallibleTask(task))=>add(task,out,b)?,
                 (Shape::Product(expected),Value::Product(actual))=>{
                     b.spend(expected.len().saturating_mul(actual.len().saturating_add(1)))?;
                     if expected.len()!=actual.len(){out.insert(TaskSource::Unknown);return Ok(());}
@@ -987,9 +995,15 @@ mod source_world_tests{
             proof.observe(target,std::slice::from_ref(&shape),&[value],&state,&mut b).unwrap();request(&mut proof,target,1,&mut b);
             assert_eq!(proof.finish(&mut b).is_ok(),hostile==0,"worker selector/capture omission {hostile}");
         }
-        let mut proof=SynchronousBirths{conditional:BTreeSet::from([target]),..SynchronousBirths::default()};
+        let mut borrowed_fresh=SynchronousBirths{known:BTreeSet::from([base]),conditional:BTreeSet::from([target]),..SynchronousBirths::default()};
+        borrowed_fresh.observe(target,&[Shape::Task{borrowed:true}],&[pending(BTreeSet::from([source(base)]))],&state,&mut b).unwrap();request(&mut borrowed_fresh,target,1,&mut b);assert!(borrowed_fresh.finish(&mut b).is_err(),"fresh owning expression cannot erase required borrowed activation shape");
         let root=root_place(&Binder::Parameter{definition:target.0,ordinal:0});let mut state=State::default();state.owners.insert(root.clone(),Owner{states:CLOSED,generation:5,task:true,owned:true,sources:unknown_sources()});
-        proof.observe(target,&[Shape::Task{borrowed:true}],&[Value::Owner{root,borrowed:true}],&state,&mut b).unwrap();request(&mut proof,target,1,&mut b);assert!(proof.finish(&mut b).is_ok(),"only this exact already Closed generation has no future Task-source dependency");
+        for(expected_borrow,borrowed,owned)in [(false,false,true),(true,true,true),(true,false,true),(false,true,true),(false,false,false)]{
+            state.owners.get_mut(&root).unwrap().owned=owned;
+            let mut proof=SynchronousBirths{conditional:BTreeSet::from([target]),..SynchronousBirths::default()};
+            proof.observe(target,&[Shape::Task{borrowed:expected_borrow}],&[Value::Owner{root:root.clone(),borrowed}],&state,&mut b).unwrap();request(&mut proof,target,1,&mut b);
+            assert_eq!(proof.finish(&mut b).is_ok(),!expected_borrow&&!borrowed&&owned,"only the exact already Closed owning transfer fixes this generation; borrowed/weak views carry no stable future occupant proof");
+        }
     }
     #[test]
     fn synchronous_creator_never_selects_between_distinct_full_parent_domains(){
