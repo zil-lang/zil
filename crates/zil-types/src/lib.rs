@@ -909,6 +909,9 @@ struct Builder<'a, 'c> {
     managed_captures: BTreeMap<LocalId, (u32, Type)>,
     closure_captures: BTreeMap<LocalId, (u32, Type)>,
     owned_sum_captures: BTreeMap<LocalId, u32>,
+    // Original generic-F factory admission is separate from lazy use-mode
+    // bookkeeping, which ordinary forwarding calls may also instantiate.
+    owning_factory_template: bool,
     factory_modes: Option<owning_factory::Modes>,
     forwarding_modes: bool,
     closure_slots: BTreeMap<LocalId, ClosureId>,
@@ -1119,6 +1122,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         closures: &'c mut closures::State,
     ) -> Self {
         let first_closure = closures.pending.len();
+        let owning_factory_template = factory_bound.is_some() && factory_modes.is_some();
         Self {
             task_return_inferred: false,
             draft_result_owner: None,
@@ -1160,6 +1164,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             managed_captures: BTreeMap::new(),
             closure_captures: BTreeMap::new(),
             owned_sum_captures: BTreeMap::new(),
+            owning_factory_template,
             factory_modes,
             forwarding_modes: false,
             closure_slots: BTreeMap::new(),
@@ -3600,6 +3605,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 dyn_declarations: self.dyn_declarations,
             },
             self.factory_modes.as_ref().map(|modes| &modes.locals),
+            source_expression.map(|expression| (self.function.id, expression)),
         )?;
         if let Some(expression) = source_expression {
             self.closures
@@ -4185,6 +4191,14 @@ impl<'a, 'c> Builder<'a, 'c> {
     ) -> R<(ValueId, Type)> {
         // Evaluate the callee once, before any argument, even for a conditional
         // or hygienic Sequence expression that produces a closure value.
+        let original_kind = self.factory_declared_kind(callee)?;
+        let apply_original_kind = |declared: Option<CallableKind>| -> R<Option<CallableKind>> {
+            if original_kind.zip(declared).is_some_and(|(original, declared)| original != declared) {
+                return Err(error("E-CLOSURE-MODE", span,
+                    "callable declaration changes its exact original use mode"));
+            }
+            Ok(original_kind.or(declared))
+        };
         let mut local_expression = callee;
         let mut groups = 0usize;
         while let CoreExprKind::Group(inner) = &local_expression.kind {
@@ -4207,11 +4221,11 @@ impl<'a, 'c> Builder<'a, 'c> {
         let field_callee = self.package_callable_callee(callee)?;
         // An owning environment is not a Copy callee value. Shared and
         // Exclusive invocation borrow the actual local; Consume transfers it.
-        let declared_capture = self.factory_declared_kind(local_expression)?;
+        let declared_capture = apply_original_kind(self.factory_declared_kind(local_expression)?)?;
         let local_requires_place = if let Some(local) = existing_place
             && let Type::Closure(id) = self.function.locals[local.0 as usize].ty
         {
-            let declared = self.declared_state_kind(local_expression, None, id)?;
+            let declared = apply_original_kind(self.declared_state_kind(local_expression, None, id)?)?;
             self.closures.snapshot(
                 self.helper_bounds
                     .len()
@@ -4255,8 +4269,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         {
             self.semantic_local_callee(callee, local)?;
             existing_place = None;
-            let kind = self
-                .declared_state_kind(local_expression, None, id)?
+            let kind = apply_original_kind(self.declared_state_kind(local_expression, None, id)?)?
                 .unwrap_or_else(|| self.closures.pending[id.0 as usize].callable_kind());
             if kind == CallableKind::FnOnce {
                 let (value, ty) = self.take_closure_slot(local, span)?;
@@ -4315,6 +4328,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         {
             declared_kind = self.factory_value_kind(value, span)?;
         }
+        let declared_kind = apply_original_kind(declared_kind)?;
         let kind = declared_kind.unwrap_or_else(|| {
             field_callee.map_or_else(
                 || {

@@ -193,21 +193,22 @@ impl Builder<'_, '_> {
         &mut self,
         expression: &CoreExpr,
     ) -> R<Option<CallableKind>> {
-        let Some(modes) = &self.factory_modes else {
-            return Ok(None);
-        };
-        self.closures.snapshot(
-            helpers::plan::tree_work(modes.locals.len()),
-            expression.span,
+        let original = self.closures.original_callable_kind(
+            self.function.id, expression.id, expression.span,
         )?;
-        if let CoreExprKind::Name(name) = &expression.kind {
-            Ok(self
-                .lookup(name)
-                .and_then(|local| modes.locals.get(&local))
-                .copied())
-        } else {
-            Ok(None)
+        let declared = if let Some(modes) = &self.factory_modes {
+            self.closures.snapshot(
+                helpers::plan::tree_work(modes.locals.len()), expression.span,
+            )?;
+            if let CoreExprKind::Name(name) = &expression.kind {
+                self.lookup(name).and_then(|local| modes.locals.get(&local)).copied()
+            } else { None }
+        } else { None };
+        if original.zip(declared).is_some_and(|(original, declared)| original != declared) {
+            return Err(error("E-CLOSURE-MODE", expression.span,
+                "callable position changes its complete original declaration mode"));
         }
+        Ok(original.or(declared))
     }
 
     pub(super) fn factory_value_kind(

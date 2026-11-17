@@ -69,6 +69,10 @@ pub(crate) struct Frame {
     stack: Vec<NodeId>,
     live_locals: BTreeMap<LocalId, Point>,
 }
+#[path = "emission_callable_modes.rs"]
+mod callable_modes;
+pub(crate) use callable_modes::CallableBodyModes;
+
 #[derive(Default)]
 pub(crate) struct Ledger {
     pub(crate) ordinary_stats: std::rc::Rc<std::cell::RefCell<stored::OrdinaryStats>>,
@@ -79,6 +83,8 @@ pub(crate) struct Ledger {
     pub(super) frozen: Option<std::rc::Rc<super::frozen_context::FrozenSource>>,
     pub(super) original: super::original_context::Slot,
     pub frames: BTreeMap<FunctionId, Frame>,
+    /// Pure original use facts, bound to this request's immutable context.
+    original_callable_modes: std::cell::RefCell<Option<std::rc::Rc<callable_modes::Directory>>>,
     /// Full nominal proposals attached only to genuine TaskPoll results.
     pub(crate) formed_polls: BTreeMap<(FunctionId, ValueId), LifeNominalInstance>,
     /// Bound only by relocation of the exact source request and emitted call.

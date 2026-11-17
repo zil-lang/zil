@@ -186,17 +186,19 @@ pub(super) fn self_contained(
     closures: &[closures::Pending],
     root: ClosureId,
     work: &mut usize,
+    limits: &Limits,
     span: Span,
 ) -> R<()> {
-    environment_shape(closures, root, work, span, false, false).map(|_| ())
+    environment_shape(closures, root, work, limits, span, false, false).map(|_| ())
 }
 pub(super) fn closed_or_constant(
     closures: &[closures::Pending],
     root: ClosureId,
     work: &mut usize,
+    limits: &Limits,
     span: Span,
 ) -> R<bool> {
-    environment_shape(closures, root, work, span, false, true)
+    environment_shape(closures, root, work, limits, span, false, true)
 }
 
 /// Source-side formation only. Escaping leaves still require actual CFG source
@@ -205,14 +207,16 @@ pub(super) fn transportable(
     closures: &[closures::Pending],
     root: ClosureId,
     work: &mut usize,
+    limits: &Limits,
     span: Span,
 ) -> R<()> {
-    environment_shape(closures, root, work, span, true, false).map(|_| ())
+    environment_shape(closures, root, work, limits, span, true, false).map(|_| ())
 }
 fn environment_shape(
     closures: &[closures::Pending],
     root: ClosureId,
     work: &mut usize,
+    limits: &Limits,
     span: Span,
     borrowed_leaves: bool,
     constant_candidates: bool,
@@ -260,6 +264,19 @@ fn environment_shape(
                     if borrowed_leaves => {}
                 ty if capture.moved && owned_shapes::sum(ty) => {}
                 ty if ty.is_copy_value() => {}
+                ty if capture.moved && !capture.borrowed
+                    && stored::shared_compound(ty, work, limits, span)? =>
+                {
+                    if constant_candidates {
+                        // This is only a candidate. The existing deferred
+                        // original/actual Static-source proof must discharge
+                        // every compound leaf before CE can be published.
+                        deferred = true;
+                    } else if !borrowed_leaves {
+                        return Err(unsupported(span,
+                            "shared compound environment requires its complete original source proof"));
+                    }
+                }
                 _ => {
                     return Err(unsupported(
                         span,
@@ -722,7 +739,7 @@ impl Builder<'_, '_> {
                 "opaque callable return requires a closure environment",
             ));
         };
-        if self.factory_modes.is_some()
+        if self.owning_factory_template
             && self
                 .function
                 .parameters
@@ -735,19 +752,36 @@ impl Builder<'_, '_> {
             ));
         }
         let bound = self.factory_bound.as_ref().expect("factory return").clone();
-        let pending = &mut self.closures.pending[id.0 as usize];
-        if pending.inference.arity() != bound.parameters.len() {
-            return Err(error(
-                "E-CALL-ARITY",
+        let (actual_kind, entry) = {
+            let pending = &mut self.closures.pending[id.0 as usize];
+            if pending.inference.arity() != bound.parameters.len() {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "returned closure differs from the public callable signature",
+                ));
+            }
+            for (index, ty) in bound.parameters.iter().enumerate() {
+                pending.inference.argument(index, ty, span)?;
+            }
+            pending.inference.expect_result(&bound.result, span)?;
+            (pending.callable_kind(), pending.function)
+        };
+        // An ordinary factory may explicitly expose a freshly constructed Fn
+        // environment through a consuming FnOnce interface. Its natural kind
+        // is not rewritten. Generic-F opaque factories and existing opaque
+        // values retain their exact declared mode; same ClosureId is no mint.
+        let contextual_once = if !self.owning_factory_template
+            && actual_kind == CallableKind::Fn && bound.kind == CallableKind::FnOnce
+        {
+            self.closures.snapshot(
+                self.closures.semantic_emission.frames.len().saturating_add(1).ilog2() as usize + 1,
                 span,
-                "returned closure differs from the public callable signature",
-            ));
-        }
-        for (index, ty) in bound.parameters.iter().enumerate() {
-            pending.inference.argument(index, ty, span)?;
-        }
-        pending.inference.expect_result(&bound.result, span)?;
-        if pending.callable_kind() != bound.kind {
+            )?;
+            self.closures.semantic_emission.frames.get(&entry)
+                .is_some_and(|frame| frame.parent == Some((self.function.id, id)))
+        } else { false };
+        if actual_kind != bound.kind && !contextual_once {
             return Err(error(
                 "E-TYPE-MISMATCH",
                 span,
@@ -786,6 +820,11 @@ impl Builder<'_, '_> {
                 if matches!(ty, Type::Address { mutable: true, .. } | Type::Desc(_)) {
                     writes.push(index as u32);
                 }
+            } else if stored::shared_compound(&ty, &mut self.match_work_left, self.limits, span)? {
+                // Preserve the complete captured carrier as a dependency.
+                // Static/variable source paths and result relations are still
+                // rebuilt from the original environment; this is not CE/N0.
+                hold.push(index as u32);
             } else if !ty.is_copy_value() {
                 return Err(unsupported(
                     span,

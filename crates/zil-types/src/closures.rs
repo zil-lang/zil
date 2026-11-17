@@ -367,7 +367,8 @@ fn tuple_pattern_takes_owner(
         // UnpackTuple creates an owned hidden target for a discarded field;
         // its cleanup also consumes the captured environment's owner.
         (CorePatternKind::Name(_) | CorePatternKind::Wildcard, ty) => {
-            Ok(!ty.is_copy_value() && dynamic_store::contains_inline_carrier(ty))
+            Ok(!ty.is_copy_value() && (dynamic_store::contains_inline_carrier(ty)
+                || matches!(ty, Type::Closure(_))))
         }
         (CorePatternKind::Tuple(patterns), Type::Tuple(fields))
             if patterns.len() == fields.len() =>
@@ -742,14 +743,21 @@ impl State {
         self.deferred_closed.insert(id, span);
         Ok(())
     }
+    pub(super) fn original_callable_kind(
+        &mut self, function: FunctionId, callee: NodeId, span: Span,
+    ) -> R<Option<CallableKind>> {
+        self.semantic_emission.original_callable_kind(
+            function, callee, &self.limits, &mut self.work_left, span,
+        )
+    }
     pub(super) fn factory_self_contained(&mut self, id: ClosureId, span: Span) -> R<()> {
-        if retained::closed_or_constant(&self.pending, id, &mut self.work_left, span)? {
+        if retained::closed_or_constant(&self.pending, id, &mut self.work_left, &self.limits, span)? {
             self.record_static_closed(id, span)?;
         }
         Ok(())
     }
     pub(super) fn factory_transportable(&mut self, id: ClosureId, span: Span) -> R<()> {
-        retained::transportable(&self.pending, id, &mut self.work_left, span)
+        retained::transportable(&self.pending, id, &mut self.work_left, &self.limits, span)
     }
     pub(super) fn transported_borrows(&mut self, id: ClosureId, span: Span) -> R<(bool, bool)> {
         retained::transported_borrows(&self.pending, id, &mut self.work_left, span)
@@ -1121,7 +1129,14 @@ impl State {
         imports: Option<&program::Imports<'_>>,
         catalog: Catalog<'_>,
         declared: Option<&BTreeMap<LocalId, CallableKind>>,
+        source: Option<(FunctionId, NodeId)>,
     ) -> R<ClosureId> {
+        let original_modes = match source {
+            Some((creator, expression)) => self.semantic_emission.original_closure_modes(
+                creator, expression, &self.limits, &mut self.work_left, input.span,
+            )?,
+            None => None,
+        };
         let function = self.allocate_function(input.span)?;
         let id = ClosureId(
             u32::try_from(self.pending.len())
@@ -1142,6 +1157,7 @@ impl State {
                 resource_writes: &self.resource_writes,
                 closures: &self.pending,
                 declared,
+                original_modes,
                 dyn_interfaces: catalog.dyn_interfaces,
                 dyn_declarations: catalog.dyn_declarations,
             },
@@ -1261,9 +1277,9 @@ impl State {
             }
             if let Type::Closure(id) = capture.stored_type() {
                 if capture.moved {
-                    retained::transportable(&self.pending, id, checker.work_left, capture.span)?;
+                    retained::transportable(&self.pending, id, checker.work_left, &self.limits, capture.span)?;
                 } else {
-                    retained::self_contained(&self.pending, id, checker.work_left, capture.span)?;
+                    retained::self_contained(&self.pending, id, checker.work_left, &self.limits, capture.span)?;
                 }
                 if self.pending[id.0 as usize].owns_leaf_store {
                     *checker.work_left = checker.work_left.checked_sub(1).ok_or_else(|| {
@@ -2919,6 +2935,10 @@ impl Inference {
 #[derive(Clone, Copy)]
 enum LocalType {
     Scalar(Variable),
+    // A projected aggregate value keeps the real parent's view permission
+    // across aliases and further projections. This is not an Address shape
+    // and contributes no new type or lifetime equation.
+    Projected(Variable, bool),
     Address(Variable, bool),
     Resource(Variable, bool),
     Closure(ClosureId, Option<bool>, Option<CallableKind>),
@@ -2928,9 +2948,19 @@ enum LocalType {
     SliceLength,
 }
 impl LocalType {
+    fn projection_permission(self) -> Option<bool> {
+        match self {
+            Self::Address(_, mutable) | Self::Projected(_, mutable) => Some(mutable),
+            Self::Resource(_, false) => Some(false),
+            Self::Closure(_, permission, _) | Self::Nested(_, permission) => permission,
+            Self::Scalar(_) | Self::Resource(_, true) | Self::SliceLength => None,
+        }
+    }
     fn scalar(self, span: Span) -> R<Variable> {
         match self {
             Self::Scalar(variable) => Ok(variable),
+            Self::Projected(..) => Err(unsupported(span,
+                "projected aggregate view requires an explicit permission-preserving consumer")),
             Self::Address(..)
             | Self::Resource(..)
             | Self::Closure(..)
@@ -2941,15 +2971,45 @@ impl LocalType {
             )),
         }
     }
+    // The only extraction used by projections/patterns returns the view
+    // qualifier with the variable. Ordinary scalar consumers cannot erase it.
+    fn projection_subject(self, span: Span) -> R<(Variable, Option<bool>)> {
+        match self {
+            Self::Projected(variable, permission) => Ok((variable, Some(permission))),
+            Self::Scalar(variable) => Ok((variable, None)),
+            _ => Err(unsupported(span, "pattern subject requires its complete aggregate value or view")),
+        }
+    }
+    fn merge(self, other: Self, graph: &mut Graph, span: Span) -> R<Self> {
+        if matches!(self, Self::Projected(..)) || matches!(other, Self::Projected(..)) {
+            let (a, ap) = self.projection_subject(span)?;
+            let (b, bp) = other.projection_subject(span)?;
+            graph.unify(a, b, span)?;
+            return Ok(Self::Projected(a, ap.unwrap_or(true) && bp.unwrap_or(true)));
+        }
+        self.unify(other, graph, span)?;
+        Ok(self)
+    }
     fn aggregate_component(self, graph: &mut Graph, span: Span) -> R<Variable> {
         match self {
+            Self::Projected(..) => Err(unsupported(span,
+                "reconstructing an owned aggregate cannot erase a projected parent view")),
             Self::Address(inner, mutable) => {
                 let whole = graph.fresh(VALUE, false);
                 graph.address(whole, inner, Some(mutable), span)?;
                 Ok(whole)
             }
-            value => value.scalar(span),
+            value @ (Self::Scalar(_) | Self::Resource(..) | Self::Closure(..)
+                | Self::Nested(..) | Self::SliceLength) => value.scalar(span),
         }
+    }
+    // Only annotation consumers return and retain the complete value view.
+    // Value-consuming parameter/construction checks use bind(), which cannot
+    // silently turn a projected aggregate into an owned argument/result.
+    fn bind_annotation(self, graph: &mut Graph, ty: &Type, span: Span) -> R<Self> {
+        if let Self::Projected(variable, _) = self { graph.bind(variable, ty, span)?; }
+        else { self.bind(graph, ty, span)?; }
+        Ok(self)
     }
     fn bind(self, graph: &mut Graph, ty: &Type, span: Span) -> R<()> {
         match (self, ty) {
@@ -2962,6 +3022,8 @@ impl LocalType {
             {
                 Ok(())
             }
+            (Self::Projected(..), _) => Err(unsupported(span,
+                "owned value binding requires a complete projected-view transport")),
             (Self::Scalar(variable), _) => graph.bind(variable, ty, span),
             (Self::Resource(variable, _), Type::Desc(payload))
             | (Self::Resource(variable, true), Type::Managed(payload)) => {
@@ -3009,6 +3071,7 @@ impl LocalType {
                 Ok(())
             }
             (Self::Scalar(a), Self::Scalar(b)) => graph.unify(a, b, span),
+            (Self::Projected(a, ap), Self::Projected(b, bp)) if ap == bp => graph.unify(a, b, span),
             (Self::Address(a, am), Self::Address(b, bm)) if am == bm => graph.unify(a, b, span),
             (Self::Resource(a, am), Self::Resource(b, bm)) if am == bm => graph.unify(a, b, span),
             _ => Err(error(
@@ -3028,6 +3091,7 @@ struct Functions<'a> {
     imports: Option<&'a program::Imports<'a>>,
     resource_writes: &'a resource_effects::Writes,
     declared: Option<&'a BTreeMap<LocalId, CallableKind>>,
+    original_modes: Option<semantics::emission::CallableBodyModes>,
 }
 struct InferBuilder<'a, 'b> {
     dyn_interfaces: &'a [DynInterface],
@@ -3042,6 +3106,7 @@ struct InferBuilder<'a, 'b> {
     prepared: std::collections::BTreeSet<String>,
     outer: &'a BTreeMap<String, (LocalId, Type)>,
     declared: Option<&'a BTreeMap<LocalId, CallableKind>>,
+    original_modes: Option<semantics::emission::CallableBodyModes>,
     captures: Vec<Capture>,
     captured_variables: BTreeMap<LocalId, LocalType>,
     package_descriptions: Vec<(Variable, LocalId)>,
@@ -3067,7 +3132,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         };
         self.graph.reserve_type(expected, 0, span)?;
         let variable = match actual {
-            LocalType::Scalar(v) | LocalType::Address(v, _) | LocalType::Resource(v, _) => Some(v),
+            LocalType::Scalar(v) | LocalType::Projected(v, _) | LocalType::Address(v, _) | LocalType::Resource(v, _) => Some(v),
             _ => None,
         };
         if let Some(variable) = variable
@@ -3119,6 +3184,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             prepared: std::collections::BTreeSet::new(),
             outer,
             declared: functions.declared,
+            original_modes: functions.original_modes,
             captures: vec![],
             captured_variables: BTreeMap::new(),
             package_descriptions: Vec::new(),
@@ -3561,60 +3627,30 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     ..
                 } => {
                     let variable = self.expr_expected(initializer, ty.as_ref(), depth + 1)?;
-                    if let Some(ty) = ty {
-                        variable.bind(&mut self.graph, ty, statement.span)?;
-                    }
-                    let value = variable.scalar(statement.span)?;
+                    let variable = if let Some(ty) = ty {
+                        variable.bind_annotation(&mut self.graph, ty, statement.span)?
+                    } else { variable };
+                    let (value, permission) = variable.projection_subject(statement.span)?;
                     if self.pattern_needs_mutable(pattern, depth + 1)? {
                         self.mark_address_write(initializer, depth + 1)?;
                     }
-                    // Classify each actual child: `ref` can coexist with a
-                    // by-value owner binding in the same Tuple pattern.
-                    if let CoreExprKind::Name(name) = &initializer.kind
-                        && self.lookup(name).is_none()
-                        && self.outer.get(name).is_some_and(|(_, ty)| {
-                            matches!(ty, Type::Tuple(_))
-                                && dynamic_store::contains_inline_carrier(ty)
-                        })
+                    // The initializer's actual selected Tuple, not the root
+                    // capture's possibly larger container, decides which
+                    // pattern leaves transfer ownership. Groups and member
+                    // paths keep their same real capture root.
+                    if let Some(ty) = self.graph.ty(value)?
+                        && owned_shapes::tuple(&ty)
+                        && tuple_pattern_takes_owner(pattern, &ty, self.work_left, 0, self.limits.max_call_depth)?
                     {
-                        *self.work_left = self
-                            .work_left
-                            .checked_sub(
-                                self.captures
-                                    .len()
-                                    .saturating_mul(name.len().saturating_add(1)),
-                            )
-                            .ok_or_else(|| {
-                                limit(
-                                    "owned Tuple capture transfer budget exceeded",
-                                    initializer.span,
-                                )
-                            })?;
-                        if let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name) {
-                            inference::charge_type_snapshot(
-                                &capture.ty,
-                                initializer.span,
-                                self.limits,
-                                self.work_left,
-                                2,
-                            )?;
-                            if owned_shapes::tuple(&capture.ty)
-                                && tuple_pattern_takes_owner(
-                                    pattern,
-                                    &capture.ty,
-                                    self.work_left,
-                                    0,
-                                    self.limits.max_call_depth,
-                                )?
-                            {
-                                capture.moved = true;
-                                capture.borrowed = false;
-                                capture.consumed = true;
-                            }
+                        if permission.is_some() {
+                            return Err(error("E-CLOSURE-MODE", initializer.span,
+                                "owning Tuple pattern cannot take a borrowed aggregate child"));
                         }
+                        self.callable_capture_use(initializer, CallableKind::FnOnce)?;
                     }
                     for (name, variable, span) in self.graph.pattern_bind(pattern, value)? {
-                        let value = self.pattern_local(variable, span)?;
+                        let local = self.pattern_local(variable, span)?;
+                        let value = self.qualify_projected(local, permission, span)?;
                         if self
                             .scopes
                             .last_mut()
@@ -3640,10 +3676,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         return Err(unsupported(statement.span, "uninitialized closure binding"));
                     };
                     let variable = self.expr_expected(expression, ty.as_ref(), depth + 1)?;
-                    self.transferred_closure(expression, variable);
-                    if let Some(ty) = ty {
-                        variable.bind(&mut self.graph, ty, statement.span)?;
-                    }
+                    self.transferred_closure(expression, variable)?;
+                    let variable = if let Some(ty) = ty {
+                        variable.bind_annotation(&mut self.graph, ty, statement.span)?
+                    } else { variable };
                     if self
                         .scopes
                         .last_mut()
@@ -3665,7 +3701,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         _ => None,
                     };
                     let value_type = self.expr_expected(value, hint.as_ref(), depth + 1)?;
-                    self.transferred_closure(value, value_type);
+                    self.transferred_closure(value, value_type)?;
                     if let Some(expected @ Type::Address { .. }) = hint.as_ref() {
                         value_type.bind(&mut self.graph, expected, value.span)?;
                     } else {
@@ -3752,13 +3788,15 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     then_body,
                     else_body,
                 } => {
-                    let variable = self.expr(value, depth + 1)?.scalar(value.span)?;
+                    let subject = self.expr(value, depth + 1)?;
+                    let (variable, permission) = subject.projection_subject(value.span)?;
                     if self.pattern_needs_mutable(pattern, depth + 1)? {
                         self.mark_address_write(value, depth + 1)?;
                     }
                     self.scopes.push(BTreeMap::new());
                     for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
-                        let value = self.pattern_local(variable, span)?;
+                        let local = self.pattern_local(variable, span)?;
+                        let value = self.qualify_projected(local, permission, span)?;
                         self.scopes
                             .last_mut()
                             .expect("pattern scope")
@@ -3775,13 +3813,15 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     value,
                     body,
                 } => {
-                    let variable = self.expr(value, depth + 1)?.scalar(value.span)?;
+                    let subject = self.expr(value, depth + 1)?;
+                    let (variable, permission) = subject.projection_subject(value.span)?;
                     if self.pattern_needs_mutable(pattern, depth + 1)? {
                         self.mark_address_write(value, depth + 1)?;
                     }
                     self.scopes.push(BTreeMap::new());
                     for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
-                        let value = self.pattern_local(variable, span)?;
+                        let local = self.pattern_local(variable, span)?;
+                        let value = self.qualify_projected(local, permission, span)?;
                         self.scopes
                             .last_mut()
                             .expect("pattern scope")
@@ -3810,7 +3850,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     self.scopes.pop();
                 }
                 CoreStatementKind::Match { value, arms } => {
-                    let variable = self.expr(value, depth + 1)?.scalar(value.span)?;
+                    let subject = self.expr(value, depth + 1)?;
+                    let (variable, permission) = subject.projection_subject(value.span)?;
                     for arm in arms {
                         if self.pattern_needs_mutable(&arm.pattern, depth + 1)? {
                             self.mark_address_write(value, depth + 1)?;
@@ -3819,7 +3860,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         for (name, variable, span) in
                             self.graph.pattern_bind(&arm.pattern, variable)?
                         {
-                            let value = self.pattern_local(variable, span)?;
+                            let local = self.pattern_local(variable, span)?;
+                            let value = self.qualify_projected(local, permission, span)?;
                             self.scopes
                                 .last_mut()
                                 .expect("pattern scope")
@@ -3858,16 +3900,78 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             capture.written = true;
         }
     }
-    fn transferred_closure(&mut self, expression: &CoreExpr, term: LocalType) {
-        if matches!(term, LocalType::Closure(_, None, _))
-            && let CoreExprKind::Name(name) = &expression.kind
-            && self.lookup(name).is_none()
-            && let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name)
-        {
-            capture.moved = true;
-            capture.borrowed = false;
-            capture.consumed = true;
+    // This only proposes capture ownership from an actual syntactic place and
+    // its already-checked original use. Borrow/dereference boundaries stop the
+    // walk; they cannot turn a view into ownership of its parent environment.
+    fn callable_capture_use(&mut self, expression: &CoreExpr, kind: CallableKind) -> R<()> {
+        let mut root = expression;
+        let mut depth = 0usize;
+        loop {
+            self.visit(depth, root.span)?;
+            match &root.kind {
+                CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => root = value,
+                CoreExprKind::Member { object, .. } | CoreExprKind::Index { object, .. } => root = object,
+                CoreExprKind::Name(name) => {
+                    *self.work_left = self.work_left.checked_sub(self.scopes.len())
+                        .ok_or_else(|| limit("callable capture scope work exceeded", root.span))?;
+                    *self.work_left = self.work_left.checked_sub(self.scopes.iter().map(|s| s.len()).sum::<usize>().saturating_add(self.captures.len()).saturating_mul(name.len().saturating_add(1)))
+                        .ok_or_else(|| limit("callable capture origin work exceeded", root.span))?;
+                    if self.lookup(name).is_none()
+                        && let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name)
+                    {
+                        if kind == CallableKind::FnOnce {
+                            if matches!(stored::physical(&capture.ty), Type::Address { .. } | Type::Desc(_)) {
+                                return Err(error("E-CLOSURE-MODE", expression.span,
+                                    "consuming callable projection cannot take its borrowed parent"));
+                            }
+                            capture.moved = true;
+                            capture.borrowed = false;
+                            // The complete original body's exit inventory, not
+                            // one intermediate take, decides repeatability.
+                            let entry = self.original_modes.as_ref().map(|modes| modes.entry_kind());
+                            capture.consumed |= entry.is_none_or(|kind| kind == CallableKind::FnOnce);
+                            capture.written |= entry == Some(CallableKind::FnMut);
+                        } else if kind == CallableKind::FnMut { capture.written = true; }
+                    }
+                    return Ok(());
+                }
+                _ => return Ok(()),
+            }
+            depth += 1;
         }
+    }
+    fn transferred_closure(&mut self, expression: &CoreExpr, term: LocalType) -> R<()> {
+        let owned = match term {
+            LocalType::Closure(_, None, _) => true,
+            LocalType::Scalar(variable) => {
+                let mut source = expression;
+                let mut depth = 0;
+                loop {
+                    match &source.kind {
+                        CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
+                            self.visit(depth, source.span)?;
+                            depth += 1;
+                            source = value;
+                        }
+                        CoreExprKind::Name(name) => {
+                            *self.work_left = self.work_left.checked_sub(self.scopes.len())
+                                .ok_or_else(|| limit("capture alias scope work exceeded", source.span))?;
+                            let work = self.scopes.iter().map(|scope| scope.len()).sum::<usize>()
+                                .saturating_add(helpers::plan::tree_work(self.outer.len()))
+                                .saturating_mul(name.len().saturating_add(1));
+                            *self.work_left = self.work_left.checked_sub(work)
+                                .ok_or_else(|| limit("capture alias lookup work exceeded", source.span))?;
+                            break self.outer.contains_key(name) && self.lookup(name).is_none()
+                                && self.graph.ty(variable)?.as_ref().is_some_and(owned_shapes::tuple);
+                        }
+                        _ => break false,
+                    }
+                }
+            },
+            _ => false,
+        };
+        if owned { self.callable_capture_use(expression, CallableKind::FnOnce)?; }
+        Ok(())
     }
     fn transferred_factory_branch(&mut self, expression: &CoreExpr, term: LocalType) -> R<()> {
         let (LocalType::Closure(_, None, Some(_)), CoreExprKind::Name(name)) =
@@ -3901,7 +4005,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     expression.span,
                 )
             })?;
-        self.transferred_closure(expression, term);
+        self.transferred_closure(expression, term)?;
         Ok(())
     }
     fn helper_argument(
@@ -3988,7 +4092,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     return Err(mismatch());
                 }
                 if wanted.is_none() {
-                    self.transferred_closure(expression, value);
+                    self.transferred_closure(expression, value)?;
                 }
             }
             _ => return Err(mismatch()),
@@ -4045,9 +4149,34 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.graph.reserve_type(signature, 0, span)?;
         Ok(signature.clone())
     }
+    fn qualify_projected(&mut self, child: LocalType, permission: Option<bool>, span: Span) -> R<LocalType> {
+        let Some(permission) = permission else { return Ok(child); };
+        let combine = |old: Option<bool>| old.map_or(permission, |old| old && permission);
+        Ok(match child {
+            LocalType::Closure(id, old, declared) => LocalType::Closure(id, Some(combine(old)), declared),
+            LocalType::Nested(index, old) => LocalType::Nested(index, Some(combine(old))),
+            LocalType::Projected(variable, old) => LocalType::Projected(variable, old && permission),
+            LocalType::Address(_, true) if !permission => return Err(error(
+                "E-ADDRESS-PERMISSION", span,
+                "shared aggregate view cannot grant an exclusive child address")),
+            LocalType::Resource(_, true) => return Err(unsupported(span,
+                "borrowed aggregate projection cannot manufacture a managed child owner")),
+            LocalType::Scalar(variable) => {
+                // Only a complete existing Copy theorem may end a parent view
+                // here. Unknown/qualified/non-Copy children keep the barrier.
+                if self.graph.ty(variable)?.is_some_and(|ty| ty.is_copy_value()) { child }
+                else { LocalType::Projected(variable, permission) }
+            }
+            other @ (LocalType::Address(..) | LocalType::Resource(_, false)
+                | LocalType::SliceLength) => other,
+        })
+    }
     fn project(&mut self, value: LocalType, projection: Projection, span: Span) -> R<LocalType> {
+        // Selecting a callable child never promotes a view to an owned callee.
+        let permission = value.projection_permission();
         let base = match value {
-            LocalType::Address(variable, _) | LocalType::Resource(variable, _) => variable,
+            LocalType::Address(variable, _) | LocalType::Resource(variable, _)
+                | LocalType::Projected(variable, _) => variable,
             _ => value.scalar(span)?,
         };
         let result = self.graph.fresh(VALUE, false);
@@ -4070,10 +4199,15 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     }
                 }
             }
-            return Ok(projected);
+            return self.qualify_projected(projected, permission, span);
         }
         self.graph.project(base, projection, result, span)?;
-        Ok(self.address_local(result, span)?.unwrap_or(LocalType::Scalar(result)))
+        let projected = if let Some(Type::Closure(id)) = self.graph.ty(result)? {
+            LocalType::Closure(id, None, None)
+        } else {
+            self.address_local(result, span)?.unwrap_or(LocalType::Scalar(result))
+        };
+        self.qualify_projected(projected, permission, span)
     }
     fn give(&mut self, operand: &CoreExpr, value: LocalType, span: Span) -> R<LocalType> {
         if let CoreExprKind::Member { object, member, .. } = &operand.kind
@@ -4106,7 +4240,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             value,
             LocalType::Closure(_, None, _) | LocalType::Nested(_, None)
         ) {
-            self.transferred_closure(operand, value);
+            self.transferred_closure(operand, value)?;
             return Ok(value);
         }
         if matches!(value, LocalType::Address(_, true)) {
@@ -4264,14 +4398,24 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
     fn place(&mut self, expression: &CoreExpr, depth: usize) -> R<LocalType> {
         self.visit(depth, expression.span)?;
         match &expression.kind {
-            CoreExprKind::Name(name) => self.name(name, true, expression.span),
+            CoreExprKind::Name(name) => {
+                let value = self.name(name, true, expression.span)?;
+                if matches!(value, LocalType::Projected(_, false)) {
+                    return Err(error("E-ADDRESS-PERMISSION", expression.span,
+                        "a shared aggregate projection is not a writable place"));
+                }
+                Ok(value)
+            },
             CoreExprKind::Unary {
                 op: UnaryOp::Dereference,
                 operand,
             } => {
                 self.mark_address_write(operand, depth + 1)?;
                 match self.expr(operand, depth + 1)? {
-                    LocalType::Address(variable, true) => Ok(LocalType::Scalar(variable)),
+                    LocalType::Address(variable, true) => {
+                        let child = self.pattern_local(variable, expression.span)?;
+                        self.qualify_projected(child, Some(true), expression.span)
+                    },
                     _ => Err(error(
                         "E-ADDRESS-PERMISSION",
                         expression.span,
@@ -4554,8 +4698,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             unreachable!("expression dispatcher variant");
         };
         let term = self.expr_expected(value, Some(ty), depth + 1)?;
-        term.bind(&mut self.graph, ty, span)?;
-        Ok(term)
+        term.bind_annotation(&mut self.graph, ty, span)
     }
 
     #[inline(never)]
@@ -4719,11 +4862,15 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
         if *op == UnaryOp::Dereference {
             return match value {
-                LocalType::Address(variable, _) => Ok(LocalType::Scalar(variable)),
+                LocalType::Address(variable, permission) => {
+                    let child = self.pattern_local(variable, span)?;
+                    self.qualify_projected(child, Some(permission), span)
+                },
                 LocalType::Scalar(variable) => {
                     let inner = self.graph.fresh(VALUE, false);
                     self.graph.address(variable, inner, None, span)?;
-                    Ok(LocalType::Scalar(inner))
+                    let child = self.pattern_local(inner, span)?;
+                    self.qualify_projected(child, Some(false), span)
                 }
                 _ => Err(error(
                     "E-OPERATOR-TYPE",
@@ -5273,7 +5420,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     "wide atomic body has wrong sealed cell signature",
                 ));
             }
-            self.transferred_closure(body, term);
+            self.transferred_closure(body, term)?;
             return self.known(&Type::Tuple(vec![Type::Bool, Type::I32]), span);
         }
         if let CoreExprKind::Name(name) = &callee.kind
@@ -5379,7 +5526,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     "cell body has wrong sealed cell signature",
                 ));
             }
-            self.transferred_closure(body, term);
+            self.transferred_closure(body, term)?;
             return self.known(&Type::Tuple(vec![Type::Bool, Type::I32]), span);
         }
         if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
@@ -5784,7 +5931,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         "concrete captured closure is absent",
                     )
                 })?;
-                let kind = declared.unwrap_or_else(|| pending.callable_kind());
+                let original_kind = match &self.original_modes {
+                    Some(modes) => modes.kind(expression.id, self.work_left, span)?,
+                    None => None,
+                };
+                if original_kind.zip(declared).is_some_and(|(a, b)| a != b) {
+                    return Err(error("E-CLOSURE-MODE", span, "closure constraint changes its original declared invocation mode"));
+                }
+                let kind = original_kind.or(declared).unwrap_or_else(|| pending.callable_kind());
                 if permission.is_some()
                     && (kind == CallableKind::FnOnce
                         || (kind == CallableKind::FnMut && permission == Some(false)))
@@ -5812,21 +5966,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         "captured closure result is unresolved",
                     )
                 })?;
-                if let CoreExprKind::Name(name) = &callee.kind
-                    && self.lookup(name).is_none()
-                    && let Some(capture) = self
-                        .captures
-                        .iter_mut()
-                        .find(|capture| capture.name == *name)
-                {
-                    if kind == CallableKind::FnOnce {
-                        capture.moved = true;
-                        capture.borrowed = false;
-                        capture.consumed = true;
-                    } else if kind == CallableKind::FnMut {
-                        capture.written = true;
-                    }
-                }
+                self.callable_capture_use(callee, kind)?;
                 for (argument, parameter) in arguments.iter().zip(parameters) {
                     let parameter = parameter.ok_or_else(|| {
                         error(
@@ -5840,7 +5980,18 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 return self.known(&result, span);
             }
-            if let LocalType::Nested(index, _) = callee_type {
+            if let LocalType::Nested(index, permission) = callee_type {
+                if let Some(modes) = &self.original_modes
+                    && let Some(kind) = modes.kind(expression.id, self.work_left, span)?
+                {
+                    if permission.is_some() && (kind == CallableKind::FnOnce
+                        || kind == CallableKind::FnMut && permission == Some(false))
+                    {
+                        return Err(error("E-CLOSURE-MODE", span,
+                            "borrowed nested closure lacks its original call permission"));
+                    }
+                    self.callable_capture_use(callee, kind)?;
+                }
                 let Type::FunctionPointer { parameters, result } =
                     self.nested_signature(index, span)?
                 else {
@@ -6086,9 +6237,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             unreachable!("expression dispatcher variant");
         };
         let base = self.expr(base, depth + 1)?;
-        if let Some(ty) = ty {
-            base.bind(&mut self.graph, ty, span)?;
-        }
+        let base = if let Some(ty) = ty {
+            base.bind_annotation(&mut self.graph, ty, span)?
+        } else { base };
         for (name, value) in fields {
             let target = self.project(base, Projection::Field(name.clone()), value.span)?;
             let value = self.expr(value, depth + 1)?;
@@ -6184,13 +6335,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         condition_type.bind(&mut self.graph, &Type::Bool, condition.span)?;
         let then_type = self.expr_expected(then_value, expected, depth + 1)?;
         let else_type = self.expr_expected(else_value, expected, depth + 1)?;
-        then_type.unify(else_type, &mut self.graph, span)?;
+        let merged = then_type.merge(else_type, &mut self.graph, span)?;
         // An owned declared F leaves the selected captured position
         // before the conditional value is bound or called. Nested
         // conditionals handle their own arms during the visit above.
         self.transferred_factory_branch(then_value, then_type)?;
         self.transferred_factory_branch(else_value, else_type)?;
-        Ok(then_type)
+        Ok(merged)
     }
 
     #[inline(never)]
@@ -6266,7 +6417,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.nested_depth += 1;
         let outer_nested_root = self.nested_root;
         self.nested_root = self.nested_root.or(Some(expression.id));
+        let outer_original_modes = self.original_modes.take();
+        self.original_modes = match &outer_original_modes {
+            Some(modes) => modes.nested(expression.id, self.work_left, span)?,
+            None => None,
+        };
         self.block(body, depth + 1)?;
+        self.original_modes = outer_original_modes;
         self.nested_root = outer_nested_root;
         self.nested_depth -= 1;
         self.nested_moves -= usize::from(*move_capture);
