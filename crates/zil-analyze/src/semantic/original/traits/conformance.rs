@@ -102,7 +102,6 @@ impl Solver<'_, '_> {
                 owner: method,
                 lifetimes,
                 implicits,
-                receiver: None,
             },
             b,
         )?;

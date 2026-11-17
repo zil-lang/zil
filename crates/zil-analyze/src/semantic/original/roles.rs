@@ -6,21 +6,7 @@ pub(super) struct RoleFrame {
     pub(super) owner: SemanticDefinitionId,
     pub(super) lifetimes: Vec<Term>,
     pub(super) implicits: BTreeMap<u32, Term>,
-    pub(super) receiver: Option<(Term, usize)>,
 }
-
-/// This is the access window of the callable subject in this signature only.
-/// Parameter elision, Fixed captures and Static results keep their own roles.
-pub(in crate::semantic) fn receiver_result(signature: &SemanticSignatureRecipe, kind: CallableKind) -> bool {
-    matches!(kind, CallableKind::Fn | CallableKind::FnMut)
-        && matches!(&signature.result, SemanticTypeRecipe::Address {
-            mutable: false,
-            lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::OuterOccurrence {
-                operand: SemanticRecipeOperand::Receiver, path, mode: StoredBorrowMode::SharedAddress,
-            }), ..
-        } if path.is_empty())
-}
-
 pub(super) struct BoundFrame {
     pub(super) owner: SemanticDefinitionId,
     pub(super) lifetimes: Vec<Term>,
@@ -139,19 +125,12 @@ impl Solver<'_, '_> {
             let life = self.term(Kind::Life(Life::Role(frame.definition, serial, index)), b)?;
             Self::push(&mut lifetimes, life, b)?;
         }
-        // A distinct position beyond the signature's Invocation vector.
-        // Only the exact root Receiver recipe can read it through this frame.
-        let receiver = if receiver_result(signature, kind) {
-            Some(self.term(Kind::Life(Life::Role(frame.definition, serial,
-                signature.invocation_lifetimes)), b)?)
-        } else { None };
         Self::push(
             &mut self.role_frames,
             RoleFrame {
                 owner: frame.definition,
                 lifetimes,
                 implicits: BTreeMap::new(),
-                receiver: None,
             },
             b,
         )?;
@@ -178,9 +157,6 @@ impl Solver<'_, '_> {
                 Self::push(&mut parameters, ty, b)?;
                 Self::push(&mut modes, parameter.mode, b)?;
             }
-            if let Some(role) = self.role_frames.last_mut() {
-                role.receiver = receiver.map(|term| (term, depth + 2));
-            }
             let result = self.recipe(frame, &signature.result, b, depth + 1)?;
             Ok(CallableNeed {
                 // Signature instantiations also use a callee-named Frame.
@@ -194,7 +170,6 @@ impl Solver<'_, '_> {
                 call_kind: signature.call_kind,
                 parameter_modes: modes,
                 result_mode: signature.result_mode,
-                receiver,
             })
         })();
         self.role_frames
@@ -435,8 +410,7 @@ impl Solver<'_, '_> {
                     call_kind,
                 } = &self.state.arena[term]
                 {
-                    if need.receiver.is_some()
-                        || *call_kind != need.call_kind
+                    if *call_kind != need.call_kind
                         || *result_mode != need.result_mode
                         || *modes != need.parameter_modes
                         || parameters.len() != need.parameters.len()
@@ -555,24 +529,16 @@ impl Solver<'_, '_> {
                         0,
                     )?;
                 }
-                if need.receiver.is_some() {
-                    // The actual source keeps its own sigma/Fixed identity.
-                    // This proves an upper bound from every genuine captured
-                    // return, rather than equating it with the role window.
-                    self.state.receiver_sources(definition, self.inventory, b)?
-                        .ok_or_else(|| fail("callable Receiver result has no complete captured return proof"))?;
-                    let expected = self.type_root(need.result, b)?;
-                    let actual = self.type_root(result, b)?;
-                    let (Kind::Address { mutable: false, inner: wanted, .. },
-                         Kind::Address { mutable: false, inner: returned, .. }) =
-                        (&self.state.arena[expected], &self.state.arena[actual]) else {
-                        return Err(fail("callable Receiver result changes its shared outer constructor"));
-                    };
-                    self.unify(*wanted, *returned, 0, b)?;
-                } else {
-                    self.role_match(need.result, result, &input_lives,
-                        &mut forward, &mut backward, true, b, 0)?;
-                }
+                self.role_match(
+                    need.result,
+                    result,
+                    &input_lives,
+                    &mut forward,
+                    &mut backward,
+                    true,
+                    b,
+                    0,
+                )?;
             }
             pending = std::mem::take(&mut self.callable_needs);
         }
@@ -673,15 +639,6 @@ impl Solver<'_, '_> {
                     }
                 }
             }
-            if let Some(receiver) = available.receiver {
-                if need.receiver.is_none() { return Err(fail("callable Receiver premise changes its result source role")); }
-                let Kind::Life(life) = self.state.arena[self.root(receiver, b)?] else {
-                    return Err(fail("callable Receiver premise loses its scoped life"));
-                };
-                input_lives.insert(life);
-            } else if need.receiver.is_some() {
-                return Err(fail("callable premise supplies no signature-local Receiver window"));
-            }
             let mut forward = BTreeMap::new();
             let mut backward = BTreeMap::new();
             for (actual, expected) in available.parameters.into_iter().zip(&need.parameters) {
@@ -711,139 +668,5 @@ impl Solver<'_, '_> {
         b.lookup(self.state.frames.len(), WORK)?;
         self.state.frames.insert(owner, frame);
         checked
-    }
-}
-
-impl Checked {
-    /// Re-read every original return against its independently checked borrow
-    /// or captured-address read. A header, environment type or candidate class
-    /// is never a source premise for this theorem.
-    pub(in crate::semantic) fn receiver_sources(
-        &self, owner: SemanticDefinitionId, inventory: &Inventory<'_>, b: &mut Budget,
-    ) -> CompileResult<Option<BTreeSet<u32>>> {
-        let declaration = inventory.definition(owner, b)?;
-        if declaration.kind != SemanticDefinitionKind::Closure { return Ok(None); }
-        let SemanticDefinitionBody::FunctionWithBody {
-            body: SemanticOriginalFunctionBody::Defined(body), ..
-        } = &declaration.body else { return Ok(None); };
-        let frame = self.frames.get(&owner)
-            .ok_or_else(|| fail("Receiver source has no independently completed original body"))?;
-        if !matches!(self.arena[self.root(frame.result, b)?], Kind::Address { mutable: false, .. }) {
-            return Ok(None);
-        }
-        let mut sources = BTreeSet::new();
-        let mut returns = 0usize;
-        if !self.receiver_block_sources(owner, body, &mut sources, &mut returns, b, 0)?
-            || returns == 0 || sources.is_empty() { return Ok(None); }
-        Ok(Some(sources))
-    }
-
-    fn receiver_block_sources(
-        &self, owner: SemanticDefinitionId, block: &SemanticOriginalBlock,
-        sources: &mut BTreeSet<u32>, returns: &mut usize, b: &mut Budget, depth: usize,
-    ) -> CompileResult<bool> {
-        if depth > b.partial_depth { return Err(resource("Receiver original exit depth exceeded")); }
-        for statement in &block.statements {
-            b.spend(1, WORK)?;
-            match &statement.kind {
-                CoreStatementKind::Return(Some(value)) => {
-                    *returns = (*returns).saturating_add(1);
-                    if !self.receiver_expression_source(owner, value, sources, b, depth + 1)? { return Ok(false); }
-                }
-                CoreStatementKind::Return(None) => return Ok(false),
-                CoreStatementKind::If { then_body, else_body, .. }
-                | CoreStatementKind::IfLet { then_body, else_body, .. } => {
-                    if !self.receiver_block_sources(owner, then_body, sources, returns, b, depth + 1)? { return Ok(false); }
-                    if let Some(body) = else_body
-                        && !self.receiver_block_sources(owner, body, sources, returns, b, depth + 1)? { return Ok(false); }
-                }
-                CoreStatementKind::Match { arms, .. } => {
-                    for arm in arms {
-                        if !self.receiver_block_sources(owner, &arm.body, sources, returns, b, depth + 1)? { return Ok(false); }
-                    }
-                }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body)
-                | CoreStatementKind::Loop(body) | CoreStatementKind::While { body, .. }
-                | CoreStatementKind::WhileLet { body, .. } | CoreStatementKind::ForRange { body, .. }
-                | CoreStatementKind::ForEach { body, .. } | CoreStatementKind::With { body, .. } => {
-                    if !self.receiver_block_sources(owner, body, sources, returns, b, depth + 1)? { return Ok(false); }
-                }
-                // A closure expression has its own body/return inventory.
-                // Unsupported syntax has already failed the original checker.
-                _ => {}
-            }
-        }
-        Ok(true)
-    }
-
-    fn receiver_expression_source(
-        &self, owner: SemanticDefinitionId, value: &SemanticOriginalExpr,
-        sources: &mut BTreeSet<u32>, b: &mut Budget, depth: usize,
-    ) -> CompileResult<bool> {
-        b.spend(1, WORK)?;
-        if depth > b.partial_depth { return Err(resource("Receiver original source depth exceeded")); }
-        match &value.kind {
-            CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } =>
-                self.receiver_expression_source(owner, inner, sources, b, depth + 1),
-            CoreExprKind::If { then_value, else_value, .. } => Ok(
-                self.receiver_expression_source(owner, then_value, sources, b, depth + 1)?
-                && self.receiver_expression_source(owner, else_value, sources, b, depth + 1)?),
-            CoreExprKind::Unary { op: UnaryOp::Borrow, .. } => {
-                b.lookup(self.borrows.len(), WORK)?;
-                let Some(source) = self.borrows.get(&(owner, value.id)) else { return Ok(false); };
-                let Some(LocalAnchor::Environment(ordinal)) = source.anchor else { return Ok(false); };
-                if source.expression.is_some() || source.index.is_some() { return Ok(false); }
-                b.lookup(sources.len(), WORK)?;
-                sources.insert(ordinal);
-                Ok(true)
-            }
-            CoreExprKind::Name(_) => {
-                b.lookup(self.environment_reads.len(), WORK)?;
-                let Some(ordinal) = self.environment_reads.get(&(owner, value.id)) else { return Ok(false); };
-                let frame = self.frames.get(&owner).ok_or_else(|| fail("Receiver return frame absent"))?;
-                b.lookup(frame.expressions.len(), WORK)?;
-                let Some(term) = frame.expressions.get(&value.id) else { return Ok(false); };
-                if !matches!(self.arena[self.root(*term, b)?], Kind::Address { mutable: false, .. }) { return Ok(false); }
-                b.lookup(sources.len(), WORK)?;
-                sources.insert(*ordinal);
-                Ok(true)
-            }
-            _ => Ok(false),
-        }
-    }
-}
-
-impl Solver<'_, '_> {
-    pub(super) fn known_receiver_output(
-        &mut self, owner: SemanticDefinitionId, node: NodeId, subject: Term,
-        definition: SemanticDefinitionId, once: bool, result: Term, b: &mut Budget,
-    ) -> CompileResult<Term> {
-        let result_root = self.type_root(result, b)?;
-        let Kind::Address { mutable: false, life, inner } = self.state.arena[result_root] else { return Ok(result); };
-        if once { return Ok(result); }
-        let mut source = self.root(subject, b)?;
-        let mut required = false;
-        for _ in 0..=b.partial_depth {
-            let Kind::CallResult { caller, node, hidden } = self.state.arena[source] else { break; };
-            b.lookup(self.state.calls.len(), WORK)?;
-            let call = self.state.calls.get(&(caller, node))
-                .ok_or_else(|| fail("Receiver role has no checked original factory call"))?;
-            let factory = self.inventory.definition(call.target, b)?;
-            let mut roles = Vec::new();
-            declared_roles(&factory.requirements, &mut Vec::new(), &mut roles, b, 0)?;
-            required |= roles.iter().any(|role| receiver_result(role.signature, role.kind)
-                && matches!(role.ty, SemanticTypeRecipe::OriginalType {
-                    scope: SemanticScopeRef::Ancestor(0), source: SemanticOriginalTypeSource::Result }));
-            source = self.root(hidden, b)?;
-        }
-        let local_view = matches!(self.state.arena[self.root(life, b)?],
-            Kind::Life(Life::Implicit(actual, _)) if actual == definition);
-        if !required && !local_view { return Ok(result); }
-        self.state.receiver_sources(definition, self.inventory, b)?
-            .ok_or_else(|| fail("Receiver invocation lacks a complete original captured source proof"))?;
-        let receiver = self.term(Kind::Life(Life::Receiver(owner, node)), b)?;
-        // An upper-bound result is a new view of this call, while the entry's
-        // own borrow occurrence and every retained inner class stay intact.
-        self.term(Kind::Address { mutable: false, life: receiver, inner }, b)
     }
 }

@@ -13,7 +13,6 @@ impl Check<'_, '_> {
         recipe: &SemanticTypeRecipe,
         invocations: u32,
         bounds: &[u32],
-        receiver: Option<&Class>,
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Value> {
@@ -53,20 +52,15 @@ impl Check<'_, '_> {
                             .ok_or_else(|| fail("callable protected role namespace overflow"))?;
                         Class::Role(context.id, base)
                     }
-                    SemanticLifeRecipe::OuterOccurrence {
-                        operand: SemanticRecipeOperand::Receiver, path,
-                        mode: StoredBorrowMode::SharedAddress,
-                    } if path.is_empty() && !*mutable => receiver.cloned()
-                        .ok_or_else(|| fail("Receiver occurrence leaves its callable result scope"))?,
                     _ => self.life(context, life, b, depth + 1)?,
                 };
                 let inner =
-                    self.signature_value(context, inner, invocations, bounds, None, b, depth + 1)?;
+                    self.signature_value(context, inner, invocations, bounds, b, depth + 1)?;
                 value::address(*mutable, class, inner, b)
             }
             SemanticTypeRecipe::Slice(element) => {
                 let element =
-                    self.signature_value(context, element, invocations, bounds, None, b, depth + 1)?;
+                    self.signature_value(context, element, invocations, bounds, b, depth + 1)?;
                 if !element.classes.is_empty() {
                     return Err(unknown(
                         "callable slice requires its complete element-domain embedding",
@@ -81,7 +75,7 @@ impl Check<'_, '_> {
                 let mut types = Vec::new();
                 for field in fields {
                     let field =
-                        self.signature_value(context, field, invocations, bounds, None, b, depth + 1)?;
+                        self.signature_value(context, field, invocations, bounds, b, depth + 1)?;
                     if !field.classes.is_empty() {
                         return Err(unknown(
                             "callable tuple requires its complete child occurrence embedding",
@@ -227,7 +221,6 @@ impl Check<'_, '_> {
                 &parameter.ty,
                 signature.invocation_lifetimes,
                 &bounds,
-                None,
                 b,
                 0,
             )?;
@@ -246,19 +239,13 @@ impl Check<'_, '_> {
             }
             self.push_value(&mut parameters, value, b)?;
         }
-        let receiver = if original::receiver_result(signature, kind) {
-            let ordinal = bounds.iter().try_fold(signature.invocation_lifetimes,
-                |count, bound| count.checked_add(*bound))
-                .ok_or_else(|| fail("callable Receiver role namespace overflow"))?;
-            Some(Class::Role(context.id, ordinal))
-        } else { None };
-        if receiver.is_some() {
-            self.original.receiver_sources(actual_instance.definition, self.inventory, b)?
-                .ok_or_else(|| fail("callable Receiver role has no complete original captured returns"))?;
-        }
         let result = self.signature_value(
-            context, &signature.result, signature.invocation_lifetimes,
-            &bounds, receiver.as_ref(), b, 0,
+            context,
+            &signature.result,
+            signature.invocation_lifetimes,
+            &bounds,
+            b,
+            0,
         )?;
         let mut relation = BTreeMap::new();
         let mut reverse = BTreeMap::new();
@@ -348,22 +335,13 @@ impl Check<'_, '_> {
                 let binding =
                     binding.ok_or_else(|| fail("callable occurrence lost its actual binding"))?;
                 b.spend(actual.bindings.len(), WORK)?;
-                let receiver_window = base == StorageBase::Result && slot.path.is_empty()
-                    && receiver.as_ref() == Some(class);
-                let receiver_input = receiver_window
+                let receiver_input = matches!(class, Class::Role(_, index) if *index < signature.invocation_lifetimes)
                     && matches!(kind, CallableKind::Fn | CallableKind::FnMut)
                     && actual.bindings.iter().any(|row| {
                         row.position.base == StorageBase::Receiver
                             && row.position.path.is_empty()
                             && row.binder == binding
                     });
-                if receiver_window && matches!(binding, StorageBinder::Fixed(index)
-                    if subject.classes.get(index as usize).is_some()) {
-                    // The complete Fixed source survives; only its exposed
-                    // result view is bounded by this signature's access window.
-                    used_bindings += 1;
-                    continue;
-                }
                 self.role_occurrence(
                     class,
                     binding,

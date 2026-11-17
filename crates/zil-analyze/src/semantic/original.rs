@@ -38,7 +38,6 @@ mod registration;
 mod registration_start;
 pub(super) mod resources;
 mod roles;
-pub(super) use roles::receiver_result;
 pub(super) mod sealed;
 pub(super) mod slice_borrows;
 mod slices;
@@ -227,7 +226,6 @@ struct CallableNeed {
     call_kind: CallKind,
     parameter_modes: Vec<PassingMode>,
     result_mode: PassingMode,
-    receiver: Option<Term>,
 }
 struct Literal {
     owner: SemanticDefinitionId,
@@ -1621,7 +1619,6 @@ impl Solver<'_, '_> {
                 owner: target,
                 lifetimes,
                 implicits,
-                receiver: None,
             },
             b,
         )?;
@@ -2133,12 +2130,7 @@ impl Solver<'_, '_> {
                             "original nested generic application needs every mixed layer interpreted",
                         ));
                     }
-                    let evaluated_head = matches!(head.kind,
-                        CoreExprKind::Call { .. } | CoreExprKind::Closure { .. }
-                        | CoreExprKind::If { .. } | CoreExprKind::Sequence { .. });
-                    let local = if evaluated_head {
-                        Some(self.expression(frame, head, b, depth + 1)?)
-                    } else if let CoreExprKind::Name(name) = &head.kind {
+                    let local = if let CoreExprKind::Name(name) = &head.kind {
                         self.local(frame, name, b)?
                     } else {
                         self.place(frame, head, false, b, depth + 1)?
@@ -2197,7 +2189,7 @@ impl Solver<'_, '_> {
                             // through expression. Only this known-Closure path
                             // observes a callee without either evaluation.
                             b.lookup(frame.expressions.len(), WORK)?;
-                            if !evaluated_head && frame.expressions.insert(head.id, callee_value).is_some() {
+                            if frame.expressions.insert(head.id, callee_value).is_some() {
                                 return Err(fail("original callable head node is reused"));
                             }
                             if let CoreExprKind::Name(name) = &head.kind {
@@ -2239,8 +2231,6 @@ impl Solver<'_, '_> {
                             let parameters = opened;
                             let result =
                                 self.open_invocations(result, target, &lives, b, depth + 1)?;
-                            let result = self.known_receiver_output(frame.definition, value.id,
-                                callee_value, target, requested_once, result, b)?;
                             b.spend(
                                 self.state.calls.len().saturating_add(parameters.len() + 1),
                                 WORK,
@@ -2890,7 +2880,6 @@ impl Solver<'_, '_> {
                             owner: frame.definition,
                             lifetimes: lives,
                             implicits: BTreeMap::new(),
-                            receiver: None,
                         },
                         b,
                     )?;
