@@ -125,6 +125,12 @@ pub(super) fn create(
     b: &mut Budget,
 ) -> Check<()> {
     let d = &module.closures[id.0 as usize];
+    b.spend(captures.len())?;
+    for(index,value)in captures.iter().enumerate(){
+        let actual=values.get(value.0 as usize).ok_or_else(||err("capture auxiliary input is absent"))?;
+        let ty=d.captures.get(index).ok_or_else(||err("capture auxiliary type is absent"))?;
+        value_transport::attach_aux(out,&[PlaceProjection::Field(index as u32)],ty,actual,b)?;
+    }
     for (path, _) in leaves(module, id, b)? {
         let Some((PlaceProjection::Field(index), tail)) = path.split_first() else {
             return Err(err("actual environment leaf has no capture field"));
@@ -208,7 +214,7 @@ pub(super) fn retain(
     Ok(())
 }
 
-fn actual_input_position(
+pub(super) fn actual_input_position(
     module: &TypedModule,
     f: &TypedFunction,
     source: &Source,
@@ -306,7 +312,7 @@ pub(super) fn check_summary(
     let actual_leaves =
         crate::retained::sources::capture_leaves(module, contract.closure, &limits, b)?;
     let physical = leaves(module, contract.closure, b)?;
-    for (actual_leaf, (path, _)) in actual_leaves
+    for (actual_leaf, (path, ty)) in actual_leaves
         .iter()
         .filter(|leaf| {
             !matches!(
@@ -322,12 +328,13 @@ pub(super) fn check_summary(
                 .len()
                 .saturating_mul(path.len().saturating_add(1)),
         )?;
-        let sources = summary
-            .result
-            .iter()
-            .find(|(p, _)| p == path)
-            .map(|(_, sources)| sources)
-            .ok_or_else(|| err("returned environment leaf has no independently grounded row"))?;
+        let description=matches!(ty,Type::Desc(_));
+        let described=if description{
+            b.spend(summary.field_result_facts.len().saturating_mul(path.len().saturating_add(1)))?;
+            summary.field_result_facts.iter().find(|(key,_)|key==path).map(|(_,facts)|&facts.description.sources).filter(|row|!row.is_empty())
+        }else{None};
+        let sources=described.or_else(||summary.result.iter().find(|(key,_)|key==path).map(|(_,sources)|sources))
+            .ok_or_else(||err("returned environment leaf has no independently grounded row"))?;
         if sources.is_empty() {
             return Err(err("returned environment leaf has no actual source"));
         }
@@ -358,9 +365,7 @@ pub(super) fn check_summary(
                 for atom in &upper.sources {
                     if let StorageSource::Static { leaf, mode } = atom {
                         type_work(leaf, &b.limits.clone(), b)?;
-                        found |= *mode == StoredBorrowMode::SharedAddress
-                            && matches!(actual_leaf.ty, Type::Address { mutable: false, .. })
-                            && leaf == actual_leaf.ty;
+                        found |= matches!((mode,actual_leaf.ty),(StoredBorrowMode::SharedAddress,Type::Address{mutable:false,..})|(StoredBorrowMode::ReadOnlyDescription,Type::Desc(_))) && leaf == actual_leaf.ty;
                     }
                 }
                 if !found {
@@ -368,7 +373,7 @@ pub(super) fn check_summary(
                         "actual static capture is omitted by its complete typed upper",
                     ));
                 }
-                static_parents(f, path, solution, graph, b)?;
+                static_parents(f, path,description, solution, graph, b)?;
                 continue;
             }
             let actual = actual_input_position(module, f, source, b)?;
@@ -401,6 +406,7 @@ pub(super) fn check_summary(
 fn static_parents(
     f: &TypedFunction,
     path: &[PlaceProjection],
+    description:bool,
     solution: &Solution,
     graph: &FunctionGraph,
     b: &mut Budget,
@@ -413,8 +419,9 @@ fn static_parents(
         let Terminator::Return(Some(value)) = block.terminator else {
             continue;
         };
-        let actual = leaf(&solution.values[value.0 as usize], path, b)?
-            .ok_or_else(|| err("static capture Return has no actual leaf"))?;
+        let payload=&solution.values[value.0 as usize];
+        let described=if description{value_transport::facts(payload,path,b)?.map(|facts|&facts.description).filter(|row|!row.sources.is_empty())}else{None};
+        let actual=described.or(leaf(payload,path,b)?).ok_or_else(||err("static capture Return has no actual leaf"))?;
         b.spend(actual.sources.len())?;
         if !actual
             .sources

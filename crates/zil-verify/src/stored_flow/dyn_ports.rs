@@ -360,9 +360,11 @@ pub(super) fn empty_actual(
     port: u32,
     b: &mut Budget,
 ) -> Check<bool> {
-    if carrier.is_empty() && !payload.dyn_views.is_empty() {
-        b.spend(payload.dyn_views.len())?;
-        for view in &payload.dyn_views {
+    let current_address=matches!(vt(f,argument)?,Type::Address{inner,..}if !matches!(inner.as_ref(),Type::Dyn{..}));
+    let views=if current_address{&[][..]}else{value_transport::views_at(payload,carrier,b)?};
+    if !views.is_empty() {
+        b.spend(views.len())?;
+        for view in views {
             if let Some(table) = view.table {
                 b.spend(module.dyn_vtables.len())?;
                 let table = module
@@ -475,6 +477,23 @@ pub(super) fn call(
     loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<()> {
+    call_with(module, callee, instruction, summary, state, out, sites, loans, b,
+        |source, b| instantiate(module, f, source, args, values, state, b))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn call_with(
+    module: &TypedModule,
+    callee: &TypedFunction,
+    instruction: &Instruction,
+    summary: &Summary,
+    state: &Frame,
+    out: &mut Payload,
+    sites: &mut dyn_leases::Sites,
+    loans: &mut Vec<Loan>,
+    b: &mut Budget,
+    mut resolve: impl FnMut(&Source, &mut Budget) -> Check<Permission>,
+) -> Check<()> {
     if !b.dyn_contexts {
         return Ok(());
     }
@@ -484,7 +503,7 @@ pub(super) fn call(
     for (path, source) in &summary.dyn_ports.0 {
         let mut permission = Permission::default();
         let static_evidence = if summary.complete {
-            dyn_returns::actual_static_sources(module, f, source, args, values, state, b)?
+            dyn_returns::actual_static_sources_with(source, b, &mut resolve)?
         } else {
             Vec::new()
         };
@@ -508,7 +527,7 @@ pub(super) fn call(
         }
         let mut retained_heads = Vec::new();
         for head in &heads {
-            let permission = instantiate(module, f, head, args, values, state, b)?;
+            let permission = resolve(head, b)?;
             access_head(&permission, false, b)?;
             dyn_returns::initialized(state, &permission, b)?;
             b.spend(width(head).saturating_add(path.len()).saturating_add(2))?;
@@ -525,7 +544,7 @@ pub(super) fn call(
             add_loans(&mut retained_heads, &retained.loans, b)?;
         }
         for original in originals {
-            let mut actual = instantiate(module, f, original, args, values, state, b)?;
+            let mut actual = resolve(original, b)?;
             if summary.complete
                 && !dyn_returns::actual_target(&source.permission.sources, original, b)?
             {
@@ -561,7 +580,7 @@ pub(super) fn call(
         }
         add_loans(&mut permission.loans, &retained_heads, b)?;
         for parent in &source.parent_sources {
-            let actual = instantiate(module, f, parent, args, values, state, b)?;
+            let actual = resolve(parent, b)?;
             add_loans(&mut permission.loans, &actual.loans, b)?;
         }
         insert(
@@ -730,9 +749,11 @@ pub(super) fn select_actual(
     if item.retained_life.ports.get(port as usize).is_none() {
         return Err(bad("actual Dyn endpoint port is absent"));
     }
-    if places.is_empty() && !payload.dyn_views.is_empty() {
+    let current_address=matches!(vt(f,argument)?,Type::Address{inner,..}if !matches!(inner.as_ref(),Type::Dyn{..}));
+    let views=if current_address{&[][..]}else{value_transport::views_at(payload,places,b)?};
+    if !views.is_empty() {
         let mut out = Permission::default();
-        for view in &payload.dyn_views {
+        for view in views {
             join_permission(&mut out, &view_port(module, view, port, state, b)?, b)?;
         }
         return Ok(out);

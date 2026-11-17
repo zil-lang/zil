@@ -713,16 +713,11 @@ pub(super) fn callable_tuple(module: &TypedModule, ty: &Type, b: &mut Budget) ->
 // Physical callback capture rows have a real private Field path. Logical
 // carrier namespaces must use their own complete transport, never disappear
 // into that path or an empty target permission.
-pub(super) fn physical_tuple_payload(p: &Payload, b: &mut Budget) -> Check<()> {
-    payload_work(p, b)?;
-    if !p.address.sources.is_empty() || !p.address.loans.is_empty()
-        || !p.store_description.sources.is_empty() || !p.store_description.loans.is_empty()
-        || !p.task_ports.is_empty() || !p.dyn_ports.0.is_empty() || !p.dyn_views.is_empty()
-        || p.option_variants.mask() != 0
-    {
-        return Err(unsupported("ordinary callable Tuple requires its independent logical carrier transport", None));
-    }
-    Ok(())
+pub(super) fn physical_tuple_payload(p:&Payload,b:&mut Budget)->Check<()>{
+    // Eligibility is proved against the actual complete type at the operation
+    // boundary. Transport visits all channels; logical facts are not discarded
+    // or rejected merely because a field is embedded in an owning value.
+    payload_work(p,b)
 }
 
 // Ordinary affine products may have no stored targets while still owning
@@ -745,28 +740,21 @@ pub(super) fn ordinary_tuple_transfer(f:&TypedFunction,i:&Instruction,state:&mut
             for(index,value)in fields.iter().enumerate(){
                 let payload=values.get(value.0 as usize).ok_or_else(||err("ordinary owning Tuple input is absent"))?;
                 physical_tuple_payload(payload,b)?;
-                for(tail,permission)in &payload.leaves{b.spend(tail.len().saturating_add(1))?;let mut path=vec![PlaceProjection::Field(index as u32)];path.extend(tail);add_leaf(out,&path,permission,b)?;}
+                value_transport::attach(out,&[PlaceProjection::Field(index as u32)],vt(f,*value)?,payload,b)?;
             }
         },
         InstructionKind::UnpackTuple{local,fields}=>{
             let payload=copy_payload(&state.locals[local.0 as usize],b)?;
             physical_tuple_payload(&payload,b)?;
             for(index,target)in fields.iter().enumerate(){
-                let prefix=[PlaceProjection::Field(index as u32)];let mut child=Payload::default();
-                child.enum_variants=payload.enum_variants.project(&prefix,b)?;
-                for(path,permission)in &payload.leaves{b.spend(path.len().saturating_add(1))?;if let Some(tail)=path.strip_prefix(&prefix){add_leaf(&mut child,tail,permission,b)?;}}
+                let child=value_transport::project(&payload,&[PlaceProjection::Field(index as u32)],&f.locals[target.0 as usize].ty,b)?;
                 clear_local_holes(state,*target,b)?;state.locals[target.0 as usize]=child;
             }
             state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;
         },
         InstructionKind::TakeTupleField{local,path}=>{
-            let holder=&mut state.locals[local.0 as usize];physical_tuple_payload(holder,b)?;out.enum_variants=holder.enum_variants.project(path,b)?;
-            b.spend(holder.leaves.len())?;let mut remaining=Vec::with_capacity(holder.leaves.len());
-            for(actual,permission)in std::mem::take(&mut holder.leaves).into_vec(b)?{
-                b.spend(actual.len().saturating_add(path.len()))?;
-                if let Some(tail)=actual.strip_prefix(path.as_slice()){add_leaf(out,tail,&permission,b)?;}else{b.spend(1)?;remaining.push((actual,permission));}
-            }
-            holder.leaves=leaf_rows::Rows::from_vec(remaining,b)?;
+            let holder=&mut state.locals[local.0 as usize];physical_tuple_payload(holder,b)?;
+            *out=value_transport::take(holder,path,vt(f,i.result.ok_or_else(||err("actual Tuple take has no result"))?)?,b)?;
         },
         InstructionKind::DropTuple{local}=>{physical_tuple_payload(&state.locals[local.0 as usize],b)?;state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;},
         _=>return Err(err("ordinary owning Tuple transfer has another actual opcode")),

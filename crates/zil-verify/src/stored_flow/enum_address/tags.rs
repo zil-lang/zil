@@ -25,6 +25,7 @@ fn children<'a>(ty: &'a Type, b: &mut Budget) -> Check<Vec<(PlaceProjection, &'a
             result.extend(fields.iter().enumerate().map(|(i,(_,t))|(PlaceProjection::Field(i as u32),t)));
         }
         Type::Enum { variants, .. } => {
+            b.spend(variants.len())?;
             for (variant,(_,fields)) in variants.iter().enumerate() {
                 b.spend(fields.len())?;
                 result.extend(fields.iter().enumerate().map(|(index,t)|
@@ -57,9 +58,10 @@ impl Variants {
         Self::tree(ty,None,Vec::new(),depth,b)
     }
     pub(in crate::stored_flow) fn full_parameter(index:u32,ty:&Type,b:&mut Budget)->Check<Self>{
-        Self::tree(ty,Some(index),Vec::new(),0,b)
+        Self::tree(ty,Some(option_address::Input::Parameter(index)),Vec::new(),0,b)
     }
-    fn tree(ty:&Type,input:Option<u32>,path:Path,depth:usize,b:&mut Budget)->Check<Self>{
+    pub(in crate::stored_flow) fn full_input(input:option_address::Input,ty:&Type,b:&mut Budget)->Check<Self>{Self::tree(ty,Some(input),Vec::new(),0,b)}
+    fn tree(ty:&Type,input:Option<option_address::Input>,path:Path,depth:usize,b:&mut Budget)->Check<Self>{
         b.spend(path.len().saturating_add(1))?;
         if depth>b.limits.max_call_depth.min(128){return Err(limit("complete Task tag tree depth exceeded"));}
         let count=domain(ty);
@@ -108,6 +110,21 @@ impl Variants {
             current=child;
         }
         current.work(b)?;Ok(current.clone())
+    }
+    pub(in crate::stored_flow) fn join_child(&mut self,path:&[PlaceProjection],child:&Self,b:&mut Budget)->Check<()>{
+        let Some((step,tail))=path.split_first()else{self.join(child,b)?;return Ok(());};
+        b.spend(self.nested.len().saturating_add(1))?;
+        if let Some((_,actual))=self.nested.iter_mut().find(|(key,_)|key.as_slice()==[*step]){actual.join_child(tail,child,b)?;}
+        else if child.present(){let mut nested=Self::default();nested.join_child(tail,child,b)?;b.spend(2)?;self.nested.push((vec![*step],nested));}
+        Ok(())
+    }
+    pub(in crate::stored_flow) fn replace_child(&mut self,path:&[PlaceProjection],child:&Self,b:&mut Budget)->Check<()> {
+        let Some((step,tail))=path.split_first()else{child.work(b)?;*self=child.clone();return Ok(());};
+        b.spend(self.nested.len().saturating_add(1))?;
+        if let Some((_,row))=self.nested.iter_mut().find(|(key,_)|key.as_slice()==[*step]){row.replace_child(tail,child,b)?;}
+        else if child.present(){let mut row=Self::default();row.replace_child(tail,child,b)?;b.spend(2)?;self.nested.push((vec![*step],row));}
+        self.nested.retain(|(_,row)|row.present());
+        Ok(())
     }
     fn attach(&mut self,step:PlaceProjection,child:&Self,b:&mut Budget)->Check<()> {
         if child.present(){child.work(b)?;self.nested.push((vec![step],child.clone()));}Ok(())

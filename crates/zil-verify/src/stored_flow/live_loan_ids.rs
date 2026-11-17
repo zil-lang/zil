@@ -75,6 +75,9 @@ mod tests {
             for (_, p) in &payload.leaves {
                 add_loans(&mut loans, &p.loans, b)?;
             }
+            value_transport::visit_fields(payload,b,|permission,b|add_loans(&mut loans,&permission.loans,b))?;
+            for view in &payload.dyn_views{add_loans(&mut loans,&view.head.loans,b)?;}
+            for(_,port)in &payload.dyn_ports.0{add_loans(&mut loans,&port.permission.loans,b)?;}
             Ok(())
         };
         if let Some(ids) = indexed {

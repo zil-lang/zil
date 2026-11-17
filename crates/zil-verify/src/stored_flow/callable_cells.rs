@@ -50,9 +50,9 @@ pub(super) fn admitted_value(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<
     crate::resources::arrays::check_internal_single_slot_type_for(module,ty,None,b)?;
     Ok(true)
 }
-fn drop_field(holder: &mut Payload, index: u32, b: &mut Budget) -> Check<Payload> {
+fn drop_field(holder: &mut Payload, index: u32, ty:&Type, b: &mut Budget) -> Check<Payload> {
     pure_copy::physical_tuple_payload(holder, b)?;
-    take_package_field_leaves(holder, index, b)
+    value_transport::take(holder,&[PlaceProjection::Field(index)],ty,b)
 }
 pub(super) fn transfer(
     f: &TypedFunction,
@@ -69,19 +69,14 @@ pub(super) fn transfer(
                     .get(value.0 as usize)
                     .ok_or_else(|| err("callback cell input is absent"))?;
                 pure_copy::physical_tuple_payload(actual, b)?;
-                for (tail, permission) in &actual.leaves {
-                    b.spend(tail.len().saturating_add(1))?;
-                    let mut path = vec![PlaceProjection::Field(index as u32)];
-                    path.extend(tail);
-                    add_leaf(out, &path, permission, b)?;
-                }
+                value_transport::attach(out,&[PlaceProjection::Field(index as u32)],vt(f,*value)?,actual,b)?;
             }
         }
         InstructionKind::TakeOwnedArrayElement { local, index } => {
-            *out = drop_field(&mut state.locals[local.0 as usize], *index, b)?;
+            *out = drop_field(&mut state.locals[local.0 as usize], *index, value_transport::field_type(&f.locals[local.0 as usize].ty,*index)?, b)?;
         }
         InstructionKind::DropOwnedArrayElement { local, index } => {
-            drop_field(&mut state.locals[local.0 as usize], *index, b)?;
+            drop_field(&mut state.locals[local.0 as usize], *index, value_transport::field_type(&f.locals[local.0 as usize].ty,*index)?, b)?;
         }
         InstructionKind::StoreOwnedArrayElement {
             local,
@@ -93,15 +88,10 @@ pub(super) fn transfer(
                 .ok_or_else(|| err("callback cell replacement is absent"))?;
             pure_copy::physical_tuple_payload(actual, b)?;
             let holder = &mut state.locals[local.0 as usize];
-            drop_field(holder, *index, b)?;
+            drop_field(holder, *index, value_transport::field_type(&f.locals[local.0 as usize].ty,*index)?, b)?;
             // Resource checking independently requires the element vacant and
             // consumes exactly this replacement. No live old owner is erased.
-            for (tail, permission) in &actual.leaves {
-                b.spend(tail.len().saturating_add(1))?;
-                let mut path = vec![PlaceProjection::Field(*index)];
-                path.extend(tail);
-                add_leaf(holder, &path, permission, b)?;
-            }
+            value_transport::attach(holder,&[PlaceProjection::Field(*index)],vt(f,*value)?,actual,b)?;
         }
         InstructionKind::BorrowOwnedArrayElement { local, index, .. } => {
             let holder = &state.locals[local.0 as usize];
@@ -116,12 +106,9 @@ pub(super) fn transfer(
                 retained_port: None,
                 static_dependency: StaticProvenance::NotStatic,
             });
-            for (path, permission) in &holder.leaves {
-                b.spend(path.len().saturating_add(1))?;
-                if let Some(tail) = path.strip_prefix(&[PlaceProjection::Field(*index)]) {
-                    add_leaf(out, tail, permission, b)?;
-                }
-            }
+            let mut child=value_transport::project(holder,&[PlaceProjection::Field(*index)],value_transport::field_type(&f.locals[local.0 as usize].ty,*index)?,b)?;
+            // This is a pointer to current cell storage, not a copied child.
+            child.field_facts.clear();child.address=out.address.clone();*out=child;
         }
         InstructionKind::DropOwnedArray { local } => {
             pure_copy::physical_tuple_payload(&state.locals[local.0 as usize], b)?;

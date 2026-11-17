@@ -28,6 +28,10 @@ mod replacements;
 mod persistent_slots;
 #[derive(Clone,PartialEq,Eq)]
 struct State {locals:Vec<Option<CheckedType>>}
+/// Constructed only after this interpreter checks the actual complete body.
+/// A catalogue entry, metadata flag or equal Type cannot manufacture it.
+pub(super) struct BodyChecked {instance:SemanticInstanceId,definition:SemanticDefinitionId,function:FunctionId,environment:EvalEnv,result:CheckedType}
+impl BodyChecked {pub(super) fn into_parts(self)->(SemanticInstanceId,SemanticDefinitionId,FunctionId,EvalEnv,CheckedType){(self.instance,self.definition,self.function,self.environment,self.result)}}
 pub(crate) fn check_program(module:&TypedModule,b:&mut Budget)->Check<()> {
     check_program_mode(module,None,b)
 }
@@ -48,9 +52,7 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
     context.prepare_task_contexts(module,&mut external,&mut active,b)?;
     b.diagnostic_stage("frozen specialization boundaries");
     if let Some(frozen)=frozen {frozen.specializations(module,&context,&mut active,b)?;}
-    let mut checked_instances=std::collections::BTreeSet::new();
-    let mut checked_worlds=Vec::new();
-    let mut checked_results=Vec::new();
+    let mut directory=completion::Builder::register(module,b)?;
     let mut ordered=Vec::new();
     for instance in &program.instances {
         let mut depth=0usize;let mut parent=instance.parent;
@@ -75,58 +77,50 @@ pub(super) fn check_program_mode(module:&TypedModule,frozen:Option<&FrozenContex
             b.diagnostic_stage("actual world signature");
             let signature=context.evaluate_signature(module,signature,&environment,&mut external,&mut active,b)?;
             b.diagnostic_stage("actual world body");
-            context.function(module,instance,function,&signature,&environment,&mut external,&mut active,b)?;
-            context.mark_task_worker_checked(module,instance,&signature,b)?;
-            checked_instances.insert(instance.id);
-            b.spend(environment.lexical.len().saturating_add(1))?;
-            checked_worlds.push((instance.id,environment));
-            b.spend(1)?;checked_results.push((instance.id,signature.result));
+            let body=context.function(module,instance,function,signature,environment,&mut external,&mut active,b)?;
+            directory.record(body,b)?;
         }
     }
+    b.diagnostic_stage("actual external methods");
+    context.prepare_static_definitions(module,directory.worlds(),&mut external,&mut active,b)?;
+    context.finish_external_methods(module,&mut external,&mut active,b)?;
+    context.defer_callable_shapes(module,&mut external,directory.checked(),b)?;
+    context.complete_static_members(module,directory.checked(),directory.worlds(),b)?;
+    // External shape requests are obligations, not proof tokens. No Some
+    // program is published while its actual entry/static memory is pending.
+    if !external.callable_shapes.is_empty()||!external.pending_statics.is_empty() {
+        return Err(unsupported("semantic external signature still has undischarged actual entry/static obligations",None));
+    }
+    b.diagnostic_stage("actual constructor publication");
+    context.publish_constructor_classes(module,directory.worlds(),b)?;
+    context.publish_local_role_transfers(module,directory.worlds(),b)?;
     b.diagnostic_stage("actual closure boundaries");
     for boundary in context.closure_boundaries.borrow().iter() {
         b.spend(1)?;
-        if !checked_instances.contains(&boundary.child)||!context.seals.borrow().contains_key(&boundary.child){return Err(bad("actual Closure boundary has no completely checked child entry and creator seal"));}
+        if !directory.checked().contains(&boundary.child)||!context.seals.borrow().contains_key(&boundary.child){return Err(bad("actual Closure boundary has no completely checked child entry and creator seal"));}
     }
     for cursor in context.pending_closures.borrow().iter() {
         b.spend(cursor.arguments.len().saturating_add(cursor.sealed.len()).saturating_add(cursor.environment.lexical.len()).saturating_add(cursor.expected.classes.len()))?;
         let instance=context.instance(module,cursor.instance,b)?;
         let definition=context.definition(module,instance.definition,b)?;
-        if !checked_instances.contains(&instance.id)||!context.seals.borrow().contains_key(&instance.id) {return Err(unsupported("pending Closure type cursor has no complete actual creator seal and checked entry",None));}
+        if !directory.checked().contains(&instance.id)||!context.seals.borrow().contains_key(&instance.id) {return Err(unsupported("pending Closure type cursor has no complete actual creator seal and checked entry",None));}
         let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target else {return Err(bad("pending Closure cursor selects a nonexecutable scope"));};
         let entry=module.functions.get(function.0 as usize).ok_or_else(||bad("pending Closure entry is absent"))?;
         let closure=entry.environment.ok_or_else(||bad("pending Closure entry lacks its environment identity"))?;
         let relation=entry.storage_life.as_ref().ok_or_else(||bad("pending Closure entry complete header is Unknown"))?;
         if cursor.expected.ty!=Type::Closure(closure)||cursor.expected.life.binder_count!=relation.fixed_binder_count||cursor.expected.classes.len()!=relation.fixed_binder_count as usize||cursor.arguments.len()!=definition.parameters.len()||cursor.sealed.len()!=definition.environment.len() {return Err(bad("pending Closure cursor contradicts its fully checked actual entry/domain"));}
-        b.spend(checked_worlds.len())?;
-        let actual=checked_worlds.iter().find(|(id,_)|*id==instance.id).ok_or_else(||bad("pending Closure cursor has no exact completed original world"))?;
+        b.spend(directory.worlds().len())?;
+        let actual=directory.worlds().iter().find(|(id,_)|*id==instance.id).ok_or_else(||bad("pending Closure cursor has no exact completed original world"))?;
         context.finish_closure_cursor(module,cursor,&actual.1,b)?;
         // The caller-side cursor may instantiate the generic creator's rigid
         // lifetime into another caller domain. Its original recipe and every
         // actual Call substitution are checked separately; no global union
         // equates those outside images with the rigid creator's identities.
     }
-    b.diagnostic_stage("actual external methods");
-    context.prepare_static_definitions(module,&checked_worlds,&mut external,&mut active,b)?;
-    context.finish_external_methods(module,&mut external,&mut active,b)?;
-    context.defer_callable_shapes(module,&mut external,&checked_instances,b)?;
-    context.complete_static_members(module,&checked_instances,&checked_worlds,b)?;
-    // External shape requests are obligations, not proof tokens. No Some
-    // program is published while its actual entry/static memory is pending.
-    if !external.callable_shapes.is_empty()||!external.pending_statics.is_empty() {
-        return Err(unsupported("semantic external signature still has undischarged actual entry/static obligations",None));
-    }
-    // Scope-only tables cannot hide actual class-bearing functions. A complete
-    // semantic program accounts for every nonforeign Typed function.
-    for function in &module.functions {
-        b.spend(program.instances.len())?;
-        if function.foreign.is_none()&&!program.instances.iter().any(|row|matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id)) if id==function.id)) {return Err(bad("semantic programme omits an actual function instance"));}
-    }
-    b.diagnostic_stage("actual constructor publication");
-    context.publish_constructor_classes(module,&checked_worlds,b)?;
-    context.publish_local_role_transfers(module,&checked_worlds,b)?;
     b.spend(1)?;
-    b.semantic_checked=Some(std::rc::Rc::new(dynamic_witness::semantic_patterns::Session::new(module,context,active,checked_worlds,checked_results)));
+    let directory=directory.seal(module,b)?;
+    context.published.set(true);
+    b.semantic_checked=Some(std::rc::Rc::new(dynamic_witness::semantic_patterns::Session::new(module,context,active,directory)));
     Ok(())
 }
 impl CheckedContext {
@@ -188,7 +182,8 @@ impl CheckedContext {
             _=>Ok(false),
         }
     }
-    fn function(&self,module:&TypedModule,instance:&SemanticInstance,function:FunctionId,signature:&CheckedSignature,environment:&EvalEnv,external:&mut dynamic_witness::semantic_external::Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
+    fn function(&self,module:&TypedModule,instance:&SemanticInstance,function:FunctionId,checked_signature:CheckedSignature,checked_environment:EvalEnv,external:&mut dynamic_witness::semantic_external::Proofs,active:&mut ActiveQueries,b:&mut Budget)->Check<BodyChecked> {
+        let signature=&checked_signature;let environment=&checked_environment;
         let f=module.functions.get(function.0 as usize).ok_or_else(||bad("semantic actual function is absent"))?;
         let original_definition=self.definition(module,instance.definition,b)?;
         let SemanticDefinitionBody::FunctionWithBody{protocol_contracts,foreign,resume_bound,..}=&original_definition.body else{return Err(bad("actual protocol bridge lacks its original body"));};
@@ -210,7 +205,8 @@ impl CheckedContext {
         if f.foreign.is_some() {
             let definition=self.definition(module,instance.definition,b)?;
             if !matches!(definition.body,SemanticDefinitionBody::FunctionWithBody{body:SemanticOriginalFunctionBody::External,..}){return Err(bad("actual foreign declaration replaces an original user body"));}
-            return Ok(());
+            self.mark_task_worker_checked(module,instance,signature,b)?;
+            return Ok(BodyChecked{instance:instance.id,definition:instance.definition,function,environment:checked_environment,result:checked_signature.result});
         }
         let mut states=vec![None;f.blocks.len()];
         let entry=f.entry.0 as usize;
@@ -450,7 +446,8 @@ impl CheckedContext {
                 if changed {queue.push_back(target);}
             }
         }
-        Ok(())
+        self.mark_task_worker_checked(module,instance,signature,b)?;
+        Ok(BodyChecked{instance:instance.id,definition:instance.definition,function,environment:checked_environment,result:checked_signature.result})
     }
     fn seal_closure(&self,module:&TypedModule,creator:&SemanticInstance,site:&SemanticSite,closure:ClosureId,captures:&[ValueId],values:&[Option<CheckedType>],environment:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedType> {
         let creator_definition=self.definition(module,creator.definition,b)?;

@@ -370,62 +370,19 @@ fn error_types<'a>(
     Ok(Some(union))
 }
 
-fn error_transfer(
-    _f: &TypedFunction,
-    i: &Instruction,
-    _ty: &Type,
-    values: &[Payload],
-    b: &mut Budget,
-) -> Check<Payload> {
-    let mut out = Payload::default();
-    match i.kind {
-        InstructionKind::MakeErrorUnion { value, is_error } => {
-            let actual = values
-                .get(value.0 as usize)
-                .ok_or_else(|| err("borrowed error construction lacks its actual input"))?;
-            out.enum_variants = Variants {
-                domain: 2,
-                constructed: vec![u32::from(is_error)],
-                ..Variants::default()
-            };
-            let prefix = PlaceProjection::ErrorArm(is_error);
-            if actual.enum_variants.present() {
-                actual.enum_variants.work(b)?;
-                out.enum_variants
-                    .nested
-                    .push((vec![prefix], actual.enum_variants.clone()));
-            }
-            for (path, p) in &actual.leaves {
-                b.spend(path.len().saturating_add(2))?;
-                let mut full = vec![prefix];
-                full.extend_from_slice(path);
-                add_leaf(&mut out, &full, p, b)?;
-            }
+fn error_transfer(f:&TypedFunction,i:&Instruction,_ty:&Type,values:&[Payload],b:&mut Budget)->Check<Payload>{
+    let mut out=Payload::default();
+    match i.kind{
+        InstructionKind::MakeErrorUnion{value,is_error}=>{
+            let actual=values.get(value.0 as usize).ok_or_else(||err("borrowed error construction lacks its actual input"))?;
+            out.enum_variants=Variants{domain:2,constructed:vec![u32::from(is_error)],..Variants::default()};
+            value_transport::attach(&mut out,&[PlaceProjection::ErrorArm(is_error)],vt(f,value)?,actual,b)?;
         }
-        InstructionKind::ReadErrorUnion { value, is_error } => {
-            let actual = values
-                .get(value.0 as usize)
-                .ok_or_else(|| err("borrowed error projection lacks its actual source"))?;
-            let prefix = PlaceProjection::ErrorArm(is_error);
-            b.spend(actual.enum_variants.nested.len())?;
-            if let Some((_, tags)) = actual
-                .enum_variants
-                .nested
-                .iter()
-                .find(|(path, _)| path.as_slice() == [prefix])
-            {
-                tags.work(b)?;
-                out.enum_variants = tags.clone();
-            }
-            for (path, p) in &actual.leaves {
-                b.spend(path.len().saturating_add(1))?;
-                if path.first() == Some(&prefix) {
-                    add_leaf(&mut out, &path[1..], p, b)?;
-                }
-            }
+        InstructionKind::ReadErrorUnion{value,is_error}=>{
+            out=value_transport::project(values.get(value.0 as usize).ok_or_else(||err("borrowed error projection lacks its actual source"))?,&[PlaceProjection::ErrorArm(is_error)],vt(f,i.result.ok_or_else(||err("borrowed error projection result is absent"))?)?,b)?;
         }
-        InstructionKind::ErrorTag { .. } => {}
-        _ => unreachable!(),
+        InstructionKind::ErrorTag{..}=>{},
+        _=>return Err(err("borrowed error transport selects another actual operation")),
     }
     Ok(out)
 }
@@ -537,7 +494,7 @@ pub(super) fn types<'a>(
 pub(super) struct Variants {
     domain: u32,
     constructed: Vec<u32>,
-    inputs: Vec<(u32, Path)>,
+    inputs: Vec<(option_address::Input, Path)>,
     nested: Vec<(Path, Variants)>,
 }
 impl Variants {
@@ -617,6 +574,7 @@ impl Variants {
                 self.inputs.len().saturating_add(1),
                 input.1.len().saturating_add(1),
             )?)?;
+            for(_,path)in &self.inputs{b.spend(path.len().saturating_add(input.1.len()).saturating_add(1))?;}
             if let Err(at) = self.inputs.binary_search(input) {
                 self.inputs.insert(at, input.clone());
                 changed = true;
@@ -638,9 +596,9 @@ impl Variants {
         Ok(changed)
     }
     pub(super) fn parameter(index: u32, ty: &Type, b: &mut Budget) -> Check<Self> {
-        Self::input(index, ty, Vec::new(), b)
+        Self::input(option_address::Input::Parameter(index), ty, Vec::new(), b)
     }
-    fn input(index: u32, ty: &Type, selector: Path, b: &mut Budget) -> Check<Self> {
+    fn input(index: option_address::Input, ty: &Type, selector: Path, b: &mut Budget) -> Check<Self> {
         b.spend(selector.len().saturating_add(2))?;
         if let Type::ErrorUnion { error, result } = ty {
             let mut nested = Vec::new();
@@ -673,59 +631,41 @@ impl Variants {
             ..Self::default()
         })
     }
-    pub(super) fn substitute(
-        &self,
-        arguments: &[ValueId],
-        values: &[Payload],
-        b: &mut Budget,
-    ) -> Check<Self> {
-        if !self.present() {
-            return Ok(Self::default());
-        }
+    pub(super) fn substitute_with(
+        &self,b:&mut Budget,
+        actual:&mut impl FnMut(option_address::Input,&[PlaceProjection],&mut Budget)->Check<Self>,
+    )->Check<(Self,bool)>{
+        if !self.present(){return Ok((Self::default(),true));}
         self.work(b)?;
-        let mut out = Self {
-            domain: self.domain,
-            constructed: self.constructed.clone(),
-            ..Self::default()
-        };
-        for (input, path) in &self.inputs {
+        let mut out=Self{domain:self.domain,constructed:self.constructed.clone(),..Self::default()};
+        let mut known=true;
+        for(input,path)in &self.inputs{
             b.spend(path.len().saturating_add(1))?;
-            let payload = arguments
-                .get(*input as usize)
-                .and_then(|v| values.get(v.0 as usize))
-                .ok_or_else(|| err("Enum result dependency has no actual argument"))?;
-            let empty = Self::default();
-            let mut selected = &payload.enum_variants;
-            for step in path {
-                b.spend(selected.nested.len())?;
-                let Some((_, child)) = selected
-                    .nested
-                    .iter()
-                    .find(|(p, _)| p.as_slice() == [*step])
-                else {
-                    selected = &empty;
-                    break;
-                };
-                selected = child;
-            }
-            let root = Self {
-                domain: selected.domain,
-                constructed: selected.constructed.clone(),
-                inputs: selected.inputs.clone(),
-                ..Self::default()
-            };
-            out.join(&root, b)?;
+            let selected=actual(*input,path,b)?;
+            known&=selected.domain==self.domain&&(!selected.constructed.is_empty()||!selected.inputs.is_empty());
+            selected.work(b)?;
+            let root=Self{domain:selected.domain,constructed:selected.constructed.clone(),inputs:selected.inputs.clone(),..Self::default()};
+            out.join(&root,b)?;
         }
-        for (path, child) in &self.nested {
-            if matches!(path.as_slice(), [PlaceProjection::ErrorArm(arm)] if !out.active(u32::from(*arm)))
-            {
-                continue;
-            }
-            out.nested
-                .push((path.clone(), child.substitute(arguments, values, b)?));
+        for(path,child)in &self.nested{
+            if matches!(path.as_slice(),[PlaceProjection::ErrorArm(arm)]if !out.active(u32::from(*arm))){continue;}
+            let(value,ready)=child.substitute_with(b,actual)?;known&=ready;
+            b.spend(path.len().saturating_add(1))?;out.nested.push((path.clone(),value));
         }
-        Ok(out)
+        Ok((out,known))
     }
+    pub(super) fn substitute_known(&self,arguments:&[ValueId],values:&[Payload],b:&mut Budget)->Check<(Self,bool)>{
+        self.substitute_with(b,&mut |input,path,b|{
+            let option_address::Input::Parameter(input)=input else{return Ok(Self::default());};
+            let payload=arguments.get(input as usize).and_then(|v|values.get(v.0 as usize)).ok_or_else(||err("Enum result dependency has no actual argument"))?;
+            payload.enum_variants.project(path,b)
+        })
+    }
+    pub(super) fn substitute(&self,arguments:&[ValueId],values:&[Payload],b:&mut Budget)->Check<Self>{
+        let(value,known)=self.substitute_known(arguments,values,b)?;
+        Ok(if known{value}else{Self::default()})
+    }
+
 }
 
 pub(super) fn transfer(

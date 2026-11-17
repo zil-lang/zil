@@ -10,12 +10,18 @@ pub(crate) struct Session {
     frozen_execution:Option<(usize,Box<TypedModule>)>,
     context:semantic::CheckedContext,
     active:RefCell<semantic::ActiveQueries>,
-    worlds:Vec<(SemanticInstanceId,EvalEnv)>,
-    results:Vec<(SemanticInstanceId,CheckedType)>,
+    directory:semantic::completion::Completed,
 }
 impl Session {
-    pub(crate) fn new(module:&TypedModule,context:semantic::CheckedContext,active:semantic::ActiveQueries,worlds:Vec<(SemanticInstanceId,EvalEnv)>,results:Vec<(SemanticInstanceId,CheckedType)>)->Self{
-        Self{module:module as *const TypedModule as usize,frozen_execution:None,context,active:RefCell::new(active),worlds,results}
+    pub(crate) fn finish_late_closure_cursor(&self,module:&TypedModule,context:&semantic::CheckedContext,cursor:&semantic::ClosureCursor,b:&mut Budget)->Check<()>{
+        b.spend(2)?;
+        if self.module!=module as *const TypedModule as usize||!context.same_static_identity(&self.context.static_identity()){
+            return Err(bad("late closure query selects another completed module or original context"));
+        }
+        context.finish_late_closure_cursor(module,cursor,self.directory.worlds(),b)
+    }
+    pub(crate) fn new(module:&TypedModule,context:semantic::CheckedContext,active:semantic::ActiveQueries,directory:semantic::completion::Completed)->Self{
+        Self{module:module as *const TypedModule as usize,frozen_execution:None,context,active:RefCell::new(active),directory}
     }
 }
 
@@ -37,7 +43,7 @@ pub(crate) fn closed_task_input(module:&TypedModule,function:&TypedFunction,posi
     let Some(session)=b.semantic_checked.clone()else{return Ok(false);};
     if session.module!=module as *const TypedModule as usize{return Err(bad("ClosedEnvironment source session belongs to another module"));}
     let mut worlds=0usize;
-    for(id,_)in &session.worlds{
+    for(id,_)in session.directory.worlds(){
         let instance=session.context.instance(module,*id,b)?;
         if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){continue;}
         if !session.context.closed_input_original(module,instance.definition,ordinal,&position.path,&mut session.active.borrow_mut(),b)?{return Ok(false);}
@@ -56,7 +62,7 @@ pub(crate) fn finish_original_callable_retirements(module:&TypedModule,b:&mut Bu
         if *execution!=module as *const TypedModule as usize{return Err(bad("callable retirement frozen view belongs to another execution module"));}
         view.as_ref()
     };
-    session.context.finish_original_callable_retirements(proof,&session.worlds,b)
+    session.context.finish_original_callable_retirements(proof,session.directory.worlds(),b)
 }
 
 /// Only the completed exact-module semantic session exposes ordinary member
@@ -76,11 +82,10 @@ pub(crate) fn return_borrow_view(module:&TypedModule,function:&TypedFunction,blo
     let Some(session)=b.semantic_checked.clone()else{return Ok(false);};
     if session.module!=module as *const TypedModule as usize{return Ok(false);}
     let mut worlds=0usize;let mut directed=false;
-    for(id,environment)in &session.worlds{
+    for(id,environment)in session.directory.worlds(){
         let instance=session.context.instance(module,*id,b)?;
         if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){continue;}
-        b.spend(session.results.len())?;
-        let result=&session.results.iter().find(|(world,_)|world==id).ok_or_else(||bad("completed return view loses its exact original result frame"))?.1;
+        let result=session.directory.result(*id,b)?;
         let Some(view)=session.context.return_borrow_view(module,function,instance,block,value,result,environment,b)?else{return Ok(false);};
         directed|=view;worlds+=1;
     }
@@ -95,15 +100,33 @@ pub(crate) fn return_slot_borrow_view(module:&TypedModule,function:&TypedFunctio
     let Some(session)=b.semantic_checked.clone()else{return Ok(false);};
     if session.module!=module as *const TypedModule as usize{return Ok(false);}
     let mut worlds=0usize;
-    for(id,environment)in &session.worlds{
+    for(id,environment)in session.directory.worlds(){
         let instance=session.context.instance(module,*id,b)?;
         if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){continue;}
-        b.spend(session.results.len())?;
-        let result=&session.results.iter().find(|(world,_)|world==id).ok_or_else(||bad("stored Return source loses its completed original result frame"))?.1;
+        let result=session.directory.result(*id,b)?;
         if !session.context.return_slot_borrow_view(module,function,instance,parameter,path,result,environment,b)?{return Ok(false);}
         worlds+=1;
     }
     Ok(worlds!=0)
+}
+
+/// Every actual Return has already been replayed against its original full
+/// result, in every exact executable world. This grants no source or parent;
+/// those remain reconstructed by the stored-memory kernel.
+pub(crate) fn checked_result_boundary(module:&TypedModule,function:&TypedFunction,b:&mut Budget)->Check<bool>{
+    if module.semantic.is_none(){return Ok(false);}
+    let Some(session)=b.semantic_checked.clone()else{return Ok(false);};
+    if session.module!=module as *const TypedModule as usize{return Err(bad("result boundary selects another immutable semantic module"));}
+    let mut count=0usize;
+    for(id,environment)in session.directory.worlds(){
+        let instance=session.context.instance(module,*id,b)?;
+        if instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){continue;}
+        let result=session.directory.result(*id,b)?;
+        if result.ty!=function.return_type{return Err(bad("completed original result changes its actual full type"));}
+        if !session.context.checked_result_returns(module,function,instance,result,environment,b)?{return Ok(false);}
+        count+=1;
+    }
+    Ok(count!=0)
 }
 
 /// Exact shared-local transitions from the completed original programme and

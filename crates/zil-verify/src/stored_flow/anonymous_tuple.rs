@@ -347,20 +347,7 @@ pub(super) fn unpack(
 ) -> Check<()> {
     let payload = copy_payload(&state.locals[local.0 as usize], b)?;
     for (index, target) in fields.iter().enumerate() {
-        let mut child = Payload::default();
-        for (path, permission) in &payload.leaves {
-            b.spend(path.len().saturating_add(1))?;
-            if let Some((PlaceProjection::Field(field), tail)) = path.split_first()
-                && *field as usize == index
-            {
-                if tail.is_empty() && matches!(f.locals[target.0 as usize].ty, Type::Address { .. })
-                {
-                    join_permission(&mut child.address, permission, b)?;
-                } else {
-                    add_leaf(&mut child, tail, permission, b)?;
-                }
-            }
-        }
+        let child=value_transport::project(&payload,&[PlaceProjection::Field(index as u32)],&f.locals[target.0 as usize].ty,b)?;
         clear_local_holes(state, *target, b)?;
         state.locals[target.0 as usize] = child;
     }

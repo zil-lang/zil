@@ -27,13 +27,23 @@ pub(super) fn actual_static_sources(
     state: &Frame,
     b: &mut Budget,
 ) -> Check<Vec<Source>> {
+    actual_static_sources_with(actual, b, |source, b| {
+        instantiate(module, f, source, args, values, state, b)
+    })
+}
+
+pub(super) fn actual_static_sources_with(
+    actual: &dyn_ports::Port,
+    b: &mut Budget,
+    mut resolve: impl FnMut(&Source, &mut Budget) -> Check<Permission>,
+) -> Check<Vec<Source>> {
     let mut evidence = Vec::new();
     source_work(&actual.permission.sources, b)?;
     for source in &actual.permission.sources {
         if source.static_dependency == StaticProvenance::UpperOnly {
             continue;
         }
-        let permission = instantiate(module, f, source, args, values, state, b)?;
+        let permission = resolve(source, b)?;
         for source in &permission.sources {
             b.spend(1)?;
             if static_target(source) {

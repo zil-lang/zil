@@ -371,31 +371,33 @@ pub(super) fn substitute(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn apply(
+pub(super) fn prepare_after(
     module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
-    state: &mut Frame,
+    state: &Frame,
     values: &[Payload],
     summaries: &[Summary],
     sites: &WriteSites,
     loans: &mut [Loan],
     b: &mut Budget,
-) -> Check<()> {
+) -> Check<after_state::Prepared> {
     let Some((definition, arguments)) = mutable_call(module, f, &i.kind) else {
-        return Ok(());
+        return Ok(after_state::Prepared::default());
     };
     if let Some(value) = consuming_value(&i.kind) {
-        return apply_consumed(
+        return prepare_consumed(
             module, f, i, value, definition, arguments, state, values, summaries, sites, loans, b,
         );
     }
     let summary = &summaries[definition.function.0 as usize];
     if summary.capture_after.is_empty() {
-        return Ok(());
+        b.spend(definition.captures.len())?;
+        return Ok(after_state::Prepared{rows:vec![],pending:!summary.complete&&definition.captures.iter().any(|ty|shape(ty).is_some_and(|shape|!shape.slots.is_empty()))});
     }
     let receiver = receiver(f, i, values, b)?;
     let mut updates = Vec::new();
+    let mut pending=false;
     // Derive every replacement from one pre-call state (a swap must not read
     // its own preceding write). Old SSA pointers keep their original payload.
     for (index, tail, sources) in &summary.capture_after {
@@ -420,6 +422,7 @@ pub(super) fn apply(
                 b,
             )?;
         }
+        if !summary.complete||permission.sources.is_empty(){pending=true;continue;}
         let retained = retain_written_slot(&permission, i, u32::MAX, &path, sites, loans, b)?;
         // Update both the retained environment row and the actual original
         // holder referenced by an exclusive capture, from one pre-call state.
@@ -470,21 +473,7 @@ pub(super) fn apply(
             ));
         }
     }
-    for (base, path, permission, unique) in updates {
-        let holder = match base {
-            HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
-            HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
-            HoldRoot::Capture(index) => state.captures.get_mut(index as usize),
-            HoldRoot::Static => None,
-        }
-        .ok_or_else(|| err("mutable closure receiver location is absent"))?;
-        if unique && let Some(row) = holder.leaves.position(&path, b)? {
-            *holder.leaves.permission_mut(row) = permission;
-        } else {
-            add_leaf(holder, &path, &permission, b)?;
-        }
-    }
-    Ok(())
+    Ok(after_state::Prepared{rows:updates,pending})
 }
 
 /// A physical pointee slot of a captured exclusive address. These private
@@ -594,23 +583,25 @@ pub(super) fn substitute_value(
     Ok(actual)
 }
 #[allow(clippy::too_many_arguments)]
-fn apply_consumed(
+fn prepare_consumed(
     module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     value: ValueId,
     definition: &ClosureDefinition,
     arguments: &[ValueId],
-    state: &mut Frame,
+    state: &Frame,
     values: &[Payload],
     summaries: &[Summary],
     sites: &WriteSites,
     loans: &mut [Loan],
     b: &mut Budget,
-) -> Check<()> {
+) -> Check<after_state::Prepared> {
     let environment = &values[value.0 as usize];
     let summary = &summaries[definition.function.0 as usize];
     let mut updates = Vec::new();
+    b.spend(definition.captures.len())?;
+    let mut pending=!summary.complete&&definition.captures.iter().any(|ty|matches!(ty,Type::Address{mutable:true,..})&&shape(ty).is_some_and(|shape|!shape.slots.is_empty()));
     for (capture, path, sources) in &summary.capture_after {
         if !matches!(
             definition.captures.get(*capture as usize),
@@ -636,8 +627,8 @@ fn apply_consumed(
                 b,
             )?;
         }
-        if permission.sources.is_empty() {
-            state.pending_external_update = true;
+        if !summary.complete||permission.sources.is_empty() {
+            pending = true;
             continue;
         }
         let mut site = vec![PlaceProjection::Field(*capture)];
@@ -664,21 +655,7 @@ fn apply_consumed(
             ));
         }
     }
-    for (base, path, permission, unique) in updates {
-        let holder = match base {
-            HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
-            HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
-            HoldRoot::Capture(index) => state.captures.get_mut(index as usize),
-            HoldRoot::Static => None,
-        }
-        .ok_or_else(|| err("consumed capture's output memory is absent"))?;
-        if unique && let Some(row) = holder.leaves.position(&path, b)? {
-            *holder.leaves.permission_mut(row) = permission;
-        } else {
-            add_leaf(holder, &path, &permission, b)?;
-        }
-    }
-    Ok(())
+    Ok(after_state::Prepared{rows:updates,pending})
 }
 
 /// An internal owner is not an empty external pointer permission. Keep this

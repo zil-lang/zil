@@ -416,14 +416,7 @@ pub(super) fn create(
             if vt(f, *argument)? != input { return Err(err("plain Task failure input type differs")); }
             let actual = values.get(argument.0 as usize).ok_or_else(||err("plain Task failure input is absent"))?;
             let prefix = [PlaceProjection::ErrorArm(true), PlaceProjection::Field(1), PlaceProjection::Field(ordinal as u32)];
-            if matches!(input, Type::Address { .. }) {
-                add_leaf(out, &prefix, &actual.address, b)?;
-            } else { pure_copy::physical_tuple_payload(actual, b)?; }
-            for (tail, permission) in &actual.leaves {
-                b.spend(prefix.len().saturating_add(tail.len()))?;
-                let mut path = prefix.to_vec(); path.extend(tail);
-                add_leaf(out, &path, permission, b)?;
-            }
+            value_transport::attach(out,&prefix,input,actual,b)?;
         }
         return Ok(());
     }
@@ -439,6 +432,8 @@ pub(super) fn create(
     }
     for (ordinal, argument) in arguments.iter().enumerate() {
         b.spend(1)?;
+        let actual=values.get(argument.0 as usize).ok_or_else(||err("failure auxiliary input is absent"))?;
+        value_transport::attach_aux(out,&[PlaceProjection::ErrorArm(true),PlaceProjection::Field(1),PlaceProjection::Field(ordinal as u32)],vt(f,*argument)?,actual,b)?;
         if matches!(vt(f, *argument)?, Type::Address { .. }) {
             let original = values
                 .get(argument.0 as usize)
@@ -461,9 +456,17 @@ pub(super) fn take_view(
     state: &mut Frame,
     address: &Permission,
     shape: &StorageLifeShape,
+    ty: &Type,
     out: &mut Payload,
     b: &mut Budget,
 ) -> Check<()> {
+    let whole=if address.sources.is_empty(){None}else{
+        let position=slot_position(address,&[PlaceProjection::Field(1)],b)?;
+        let holder=match position.base{HoldRoot::Local(local)=>state.locals.get(local.0 as usize),HoldRoot::Parameter(index)=>state.external.get(index as usize),HoldRoot::Capture(index)=>state.captures.get(index as usize),HoldRoot::Static=>None}.ok_or_else(||err("failure Inputs target memory is absent"))?;
+        let actual=value_transport::project(holder,&position.inline,ty,b)?;
+        join_payload(out,&actual,b)?;
+        Some(position)
+    };
     for slot in &shape.slots {
         b.spend(slot.path.len().saturating_add(1))?;
         let Some(child) = slot.path.strip_prefix(&[PlaceProjection::Field(1)]) else {
@@ -488,6 +491,10 @@ pub(super) fn take_view(
                 .retain(|(path, _)| path != &position.inline, b)?;
         }
         add_sources(&mut state.vacant, &[position], b)?;
+    }
+    if let Some(position)=whole{
+        let holder=match position.base{HoldRoot::Local(local)=>state.locals.get_mut(local.0 as usize),HoldRoot::Parameter(index)=>state.external.get_mut(index as usize),HoldRoot::Capture(index)=>state.captures.get_mut(index as usize),HoldRoot::Static=>None}.ok_or_else(||err("failure Inputs target memory disappeared"))?;
+        value_transport::remove(holder,&position.inline,b)?;
     }
     Ok(())
 }
@@ -519,12 +526,7 @@ pub(super) fn wrapper(
             value,
             is_error: true,
         } if error_carrier(vt(f, *value)?) => {
-            for (path, p) in &values[value.0 as usize].leaves {
-                b.spend(path.len().saturating_add(1))?;
-                if let Some(child) = path.strip_prefix(&selected) {
-                    add_leaf(&mut out, child, p, b)?;
-                }
-            }
+            out=value_transport::project(&values[value.0 as usize],&selected,vt(f,i.result.ok_or_else(||err("failure extraction result is absent"))?)?,b)?;
         }
         InstructionKind::TakeVariantField { local, path }
             if path.as_slice() == selected && error_carrier(&f.locals[local.0 as usize].ty) =>
@@ -533,16 +535,7 @@ pub(super) fn wrapper(
                 .locals
                 .get_mut(local.0 as usize)
                 .ok_or_else(|| err("failure carrier local is absent"))?;
-            b.spend(parent.leaves.len())?;
-            for (path, p) in &parent.leaves {
-                b.spend(path.len().saturating_add(1))?;
-                if let Some(child) = path.strip_prefix(&selected) {
-                    add_leaf(&mut out, child, p, b)?;
-                }
-            }
-            parent
-                .leaves
-                .retain(|(path, _)| !path.starts_with(&selected), b)?;
+            out=value_transport::take(parent,&selected,vt(f,i.result.ok_or_else(||err("failure take result is absent"))?)?,b)?;
         }
         InstructionKind::MakeErrorUnion {
             value,
@@ -551,12 +544,7 @@ pub(super) fn wrapper(
             .result
             .is_some_and(|r| error_carrier(&f.values[r.0 as usize])) =>
         {
-            for (path, p) in &values[value.0 as usize].leaves {
-                b.spend(path.len().saturating_add(2))?;
-                let mut combined = selected.to_vec();
-                combined.extend(path);
-                add_leaf(&mut out, &combined, p, b)?;
-            }
+            value_transport::attach(&mut out,&selected,vt(f,*value)?,&values[value.0 as usize],b)?;
         }
         InstructionKind::PlaceTagLocal { local, path }
             if path.is_empty() && error_carrier(&f.locals[local.0 as usize].ty) => {}
@@ -618,14 +606,7 @@ pub(super) fn unpack_value(
     let mut incoming = Vec::new();
     for (index, _) in types.iter().enumerate() {
         b.spend(1)?;
-        let mut value = Payload::default();
-        if let Some(permission) = leaf(
-            &state.locals[local.0 as usize],
-            &[PlaceProjection::Field(index as u32)],
-            b,
-        )? {
-            join_permission(&mut value.address, permission, b)?;
-        }
+        let value=value_transport::project(&state.locals[local.0 as usize],&[PlaceProjection::Field(index as u32)],&types[index],b)?;
         incoming.push(value);
     }
     state.locals[local.0 as usize] = Payload::default();

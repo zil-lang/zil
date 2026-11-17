@@ -180,7 +180,7 @@ pub(super) fn work(p: &Payload, b: &mut Budget) -> Check<()> {
     }
     Ok(())
 }
-fn insert(
+pub(super) fn insert(
     out: &mut Payload,
     path: &[ContractProjection],
     permission: &Permission,
@@ -1049,6 +1049,17 @@ pub(super) fn checked_sources(
             targets.dedup();
             row.retained.push((path.clone(), targets));
             row.payload_parents.extend(anchors(module, f,ValueId(id as u32),permission,&s.loans,&out.reference_inputs,b)?);
+        }
+        value_transport::visit_fields(p,b,|permission,b|{
+            permission_work(permission,b)?;
+            // Field views/descriptions retain ancestry; they do not create a
+            // new Task retained data port or pointer namespace.
+            row.payload_parents.extend(anchors(module,f,ValueId(id as u32),permission,&s.loans,&out.reference_inputs,b)?);
+            Ok(())
+        })?;
+        for(path,facts)in &p.field_facts{
+            b.spend(path.len().saturating_add(facts.address.sources.len()))?;
+            row.public.extend(facts.address.sources.iter().map(|source|source.base));
         }
         for count in [
             row.pointer.len(),

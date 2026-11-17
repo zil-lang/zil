@@ -235,7 +235,7 @@ impl CheckedContext {
                 classes,
                 statics,
             };
-            self.register_closure_cursor(instance.id, caller, &actuals, &sealed, &value, b)?;
+            self.register_closure_cursor(module,instance.id, caller, &actuals, &sealed, &value, b)?;
             if let Some(previous) = &selected {
                 if previous != &value {
                     return Err(bad(

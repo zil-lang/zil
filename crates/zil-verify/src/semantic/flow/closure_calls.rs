@@ -164,7 +164,7 @@ impl CheckedContext {
                 // The pending creator is expressed in this actual entry
                 // world's complete parent domain. The caller receiver is a
                 // separate outside image, checked by the joint boundary below.
-                self.register_closure_cursor(instance.id,&parent,&world.lexical[0].actuals,&world.lexical[0].environment,&owner,b)?;
+                self.register_closure_cursor(module,instance.id,&parent,&world.lexical[0].actuals,&world.lexical[0].environment,&owner,b)?;
             }
             boundary.value(self,environment,&owner,receiver,b)?;
             if crate::signature_life::outer(header,StorageBase::Receiver).is_some(){

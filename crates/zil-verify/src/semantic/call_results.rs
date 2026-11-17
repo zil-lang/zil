@@ -119,3 +119,27 @@ impl CheckedContext {
         self.outlives(environment,source,target,b)
     }
 }
+
+impl CheckedContext{
+    pub(crate) fn checked_result_returns(&self,module:&TypedModule,function:&TypedFunction,instance:&SemanticInstance,result:&CheckedType,environment:&EvalEnv,b:&mut Budget)->Check<bool>{
+        let frame=self.frame(environment,SemanticScopeRef::Ancestor(0),b)?;
+        if frame.key!=ScopeKey::Instance(instance.id)||frame.definition!=instance.definition||instance.target!=SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id)){return Err(bad("result boundary changes its exact original instance"));}
+        let mut pending=vec![function.entry];let mut seen=std::collections::BTreeSet::new();let mut returns=0usize;
+        while let Some(id)=pending.pop(){
+            b.spend(seen.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
+            if !seen.insert(id){continue;}
+            let block=function.blocks.get(id.0 as usize).filter(|row|row.id==id).ok_or_else(||bad("result boundary selects an absent actual block"))?;
+            match block.terminator{
+                Terminator::Return(Some(value))=>{
+                    let occurrences=self.occurrences.borrow();let actual=occurrences.get(&(frame.key,OperandKey::Value(value))).ok_or_else(||bad("result boundary lacks its completed actual Return occurrence"))?;
+                    if !self.compatible(environment,actual,result,b)?{return Err(bad("result boundary changes the complete original Return domain"));}returns+=1;
+                },
+                Terminator::Return(None)=>{if result.ty!=Type::Unit{return Err(bad("result boundary has a non-Unit empty Return"));}returns+=1;},
+                Terminator::Jump(target)=>pending.push(target),
+                Terminator::Branch{then_block,else_block,..}=>pending.extend([then_block,else_block]),
+                Terminator::Trap|Terminator::Unreachable=>{},
+            }
+        }
+        Ok(returns!=0)
+    }
+}

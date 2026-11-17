@@ -305,7 +305,12 @@ fn captured_value_candidate(d: &ClosureDefinition) -> bool {
         && d.lending_captures.is_empty()
         && matches!(
             d.result,
-            Type::Managed(_)
+            Type::Closure(_)
+                | Type::Desc(_)
+                | Type::Dyn { .. }
+                | Type::OwnedDyn { .. }
+                | Type::BorrowedStorage { .. }
+                | Type::Managed(_)
                 | Type::Tuple(_)
                 | Type::Record { .. }
                 | Type::Package { .. }
@@ -429,8 +434,10 @@ fn described_mutex_capture(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bo
 pub(super) fn complete_value_input(module:&TypedModule,ty:&Type,b:&mut Budget)->Check<bool>{
     let (value,borrowed)=if let Type::Address{inner,..}=ty{(inner.as_ref(),true)}else{(ty,false)};
     if matches!(value,Type::Address{..}|Type::Desc(_)){return Ok(false);}
-    if !borrowed && !(super::signature_life::closed_owned_parameter(value)||matches!(value,Type::FunctionPointer{..}|Type::ForeignCallback{..})){return Ok(false);}
-    if super::dynamic_witness::intrinsic_domain(module,value,b)?.0!=0{return Ok(false);}
+    // This is complete-value qualification, not Copy, SyncDrop or a source
+    // theorem. Preserve every opaque/phantom class in its actual directory.
+    let _=borrowed;
+    super::dynamic_witness::intrinsic_domain(module,value,b)?;
     super::dynamic_witness::structural_actual(module,value,DynStructuralBound::Value,b)?;
     Ok(true)
 }
@@ -524,12 +531,8 @@ pub(super) fn captured_profile(
     let value_result = captured_value_candidate(d) && !task_result(d) && !shared_result;
     if value_result {
         super::stored_flow::type_work(&d.result, &b.limits.clone(), b)?;
-        if !super::signature_life::closed_owned_parameter(&d.result) {
-            return Err(unsupported(
-                "captured Fixed value result contains borrowing, qualified or opaque data",
-                None,
-            ));
-        }
+        super::dynamic_witness::intrinsic_domain(module,&d.result,b)?;
+        super::dynamic_witness::structural_actual(module,&d.result,DynStructuralBound::Value,b)?;
         super::owned_callbacks::signature(module, d, b)?;
     }
     if !(value_result || shared_result

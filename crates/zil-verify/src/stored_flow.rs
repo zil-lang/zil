@@ -11,6 +11,9 @@ mod byte_queries;
 #[path = "stored_flow/captured_owner.rs"]
 mod captured_owner;
 mod compound;
+mod call_results;
+mod after_state;
+mod value_transport;
 mod dyn_captures;
 mod dyn_closed;
 mod dyn_leases;
@@ -594,6 +597,9 @@ struct Payload {
     // retains its actual outer address and pointee leaves. It grants no public
     // projection, is never a signature class selector, and is not serialized.
     leaves: leaf_rows::Rows,
+    // Root-only facts of actual embedded occupants, keyed by physical place.
+    // Logical class paths and Frame epochs are deliberately absent here.
+    field_facts: Vec<(Path,value_transport::FieldFacts)>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Frame {
@@ -633,6 +639,8 @@ struct Summary {
     result: Vec<(Path, Vec<Source>)>,
     // Actual non-root physical result ancestors, kept separate from data.
     physical_result_parents: Vec<(Path, Vec<Source>)>,
+    field_result_facts: Vec<(Path,value_transport::ResultFacts)>,
+    value_after:value_transport::After,
     receiver_results: Vec<Path>,
     dyn_result_parents: Vec<Source>,
     task_ports: Vec<(Vec<ContractProjection>, Vec<Source>)>,
@@ -794,6 +802,7 @@ fn permission_work(p: &Permission, b: &mut Budget) -> Check<()> {
     b.spend(p.loans.len())
 }
 fn payload_work(p: &Payload, b: &mut Budget) -> Check<()> {
+    value_transport::work(p,b)?;
     p.enum_variants.work(b)?;
     p.option_variants.work(b)?;
     permission_work(&p.address, b)?;
@@ -993,21 +1002,6 @@ fn add_leaf(
         Ok(true)
     }
 }
-fn take_package_field_leaves(holder: &mut Payload, index: u32, b: &mut Budget) -> Check<Payload> {
-    b.spend(holder.leaves.len())?;
-    let mut result = Payload::default();
-    let mut retained = Vec::new();
-    for (path, permission) in std::mem::take(&mut holder.leaves).into_vec(b)? {
-        b.spend(path.len().saturating_add(1))?;
-        if path.first() == Some(&PlaceProjection::Field(index)) {
-            result.leaves.push((path[1..].to_vec(), permission), b)?;
-        } else {
-            retained.push((path, permission));
-        }
-    }
-    holder.leaves = leaf_rows::Rows::from_vec(retained, b)?;
-    Ok(result)
-}
 fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool> {
     let mut changed = join_permission(&mut to.address, &from.address, b)?;
     // Description transfers independently establish the real manager root.
@@ -1021,6 +1015,7 @@ fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool>
         changed |= to.creation_complete != joined;
         to.creation_complete = joined;
     }
+    changed |= value_transport::join(to,from,b)?;
     changed |= to.enum_variants.join(&from.enum_variants, b)?;
     changed |= to.option_variants.join(&from.option_variants, b)?;
     for (path, p) in &from.leaves {
@@ -2246,7 +2241,8 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
                 && (qualified(ty).is_some()
                     || addressed(ty).is_some()
                     || shared_array_value(ty)
-                    || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner)))
+                    || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner))
+            || matches!(ty,Type::Address{..})&&!p.field_facts.is_empty())
             {
                 return Err(err("stored signature requires complete class relation"));
             }
@@ -2857,6 +2853,7 @@ fn seed(
         b.spend(1)?;
         let ty = &f.locals[local.0 as usize].ty;
         let mut p = seed_payload(module, ty, HoldRoot::Parameter(position as u32), loans, b)?;
+        value_transport::seed_parameter(module,ty,position as u32,&mut p,b)?;
         if enum_address::ordinary(module, ty, b)? {
             p.enum_variants = enum_address::Variants::parameter(position as u32, ty, b)?;
         } else if option_address::candidate(ty) {
@@ -2890,6 +2887,7 @@ fn seed(
             || b.dyn_contexts && matches!(ty, Type::Address { .. }) && !p.dyn_ports.0.is_empty()
             || fixed_environment(module, ty, b)
             || matches!(ty, Type::Address { inner, .. } if shared_array_value(inner))
+            || matches!(ty,Type::Address{..})&&!p.field_facts.is_empty()
         {
             state.external[position] = copy_payload(&p, b)?;
         }
@@ -2900,6 +2898,8 @@ fn seed(
         for (index, ty) in d.captures.iter().enumerate() {
             let base = HoldRoot::Capture(index as u32);
             let mut payload = seed_payload(module, ty, base, loans, b)?;
+            value_transport::seed_capture(module,ty,index as u32,&mut payload,b)?;
+            if b.task_sources(){payload.enum_variants=enum_address::Variants::full_input(option_address::Input::Capture(index as u32),ty,b)?;}
             dyn_ports::seed(module, ty, base, &mut payload, loans, b)?;
             if fixed_environment(module, ty, b) {
                 seed_environment(module, ty, base, &mut payload, loans, b)?;
@@ -3462,6 +3462,21 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
+    let value_updates=match &i.kind{
+        InstructionKind::Call{function,..}|InstructionKind::SuspendCall{function,..}=>{
+            let callee=module.functions.get(function.0 as usize).ok_or_else(||err("value after-state function is absent"))?;
+            let before=call_results::Before::function(module,f,i,values,state,b)?;
+            value_transport::prepare_after(&before,callee,&summaries[function.0 as usize],i,sites,loans,b)?
+        },
+        kind if stored_callables::called(module,f,kind).is_some()=>{
+            let(definition,_)=stored_callables::called(module,f,kind).ok_or_else(||err("value after-state callback is absent"))?;
+            let callee=module.functions.get(definition.function.0 as usize).ok_or_else(||err("value after-state callback entry is absent"))?;
+            let before=call_results::Before::closure(module,f,i,values,state,b)?;
+            value_transport::prepare_after(&before,callee,&summaries[definition.function.0 as usize],i,sites,loans,b)?
+        },
+        _=>value_transport::PreparedAfter::default(),
+    };
+    let capture_updates=captured_owner::prepare_after(module,f,i,state,values,summaries,sites,loans,b)?;
     let reference_updates=reference_cells::prepare_call(module,f,i,summaries,values,state,dyn_sites,loans,b)?;
     let dyn_capture_updates =
         dyn_captures::prepare_after(module, f, i, state, values, summaries, dyn_sites, loans, b)?;
@@ -3496,14 +3511,7 @@ fn step(
             clear_local_holes(state, *local, b)?;
         }
         InstructionKind::ExtractField { aggregate, index } if anonymous_tuple::operation(f, i, b)? => {
-            let scalar_address = matches!(vt(f, i.result.ok_or_else(||err("anonymous snapshot result absent"))?)?, Type::Address { .. });
-            for (path, permission) in &val(*aggregate)?.leaves {
-                b.spend(path.len().saturating_add(1))?;
-                if let Some((PlaceProjection::Field(field), tail)) = path.split_first() && field == index {
-                    if scalar_address && tail.is_empty() {join_permission(&mut out.address, permission, b)?;}
-                    else {add_leaf(&mut out, tail, permission, b)?;}
-                }
-            }
+            out=value_transport::project(val(*aggregate)?,&[PlaceProjection::Field(*index)],vt(f,i.result.ok_or_else(||err("anonymous snapshot result is absent"))?)?,b)?;
         }
         InstructionKind::UnpackTuple { local, fields } if compound::operation(f, i, b)? => {
             compound::unpack(f,*local, fields, state, b)?;
@@ -3543,7 +3551,7 @@ fn step(
             let Type::BorrowedStorage { life, .. } = inner.as_ref() else {
                 unreachable!()
             };
-            task_failure::take_view(state, &val(*storage)?.address, life, &mut out, b)?;
+            task_failure::take_view(state, &val(*storage)?.address, life, vt(f,i.result.ok_or_else(||err("failure Inputs view result is absent"))?)?, &mut out, b)?;
         }
         _ if replacements::operation(&i.kind) => {
             replacements::step(f, i, state, values, sites, loans, b)?;
@@ -3614,7 +3622,7 @@ static_dependency: StaticProvenance::NotStatic,
                 .locals
                 .get_mut(local.0 as usize)
                 .ok_or_else(|| err("taken Package field local is absent"))?;
-            out = take_package_field_leaves(holder, *index, b)?;
+            out = value_transport::take(holder,&[PlaceProjection::Field(*index)],value_transport::field_type(&f.locals[local.0 as usize].ty,*index)?,b)?;
             b.spend(state.vacant.len())?;
             state.vacant.retain(|slot| {
                 !(slot.base == HoldRoot::Local(*local)
@@ -3626,7 +3634,7 @@ static_dependency: StaticProvenance::NotStatic,
                 .locals
                 .get_mut(local.0 as usize)
                 .ok_or_else(|| err("dropped Package field local is absent"))?;
-            take_package_field_leaves(holder, *index, b)?;
+            value_transport::take(holder,&[PlaceProjection::Field(*index)],value_transport::field_type(&f.locals[local.0 as usize].ty,*index)?,b)?;
             b.spend(state.vacant.len())?;
             state.vacant.retain(|slot| {
                 !(slot.base == HoldRoot::Local(*local)
@@ -3643,13 +3651,8 @@ static_dependency: StaticProvenance::NotStatic,
                 .locals
                 .get_mut(local.0 as usize)
                 .ok_or_else(|| err("stored Package field local is absent"))?;
-            take_package_field_leaves(holder, *index, b)?;
-            for (path, permission) in &source.leaves {
-                b.spend(path.len().saturating_add(1))?;
-                let mut complete = vec![PlaceProjection::Field(*index)];
-                complete.extend(path);
-                add_leaf(holder, &complete, permission, b)?;
-            }
+            value_transport::take(holder,&[PlaceProjection::Field(*index)],value_transport::field_type(&f.locals[local.0 as usize].ty,*index)?,b)?;
+            value_transport::attach(holder,&[PlaceProjection::Field(*index)],vt(f,*value)?,&source,b)?;
             b.spend(state.vacant.len())?;
             state.vacant.retain(|slot| {
                 !(slot.base == HoldRoot::Local(*local)
@@ -3920,13 +3923,15 @@ static_dependency: StaticProvenance::NotStatic,
                 heap_element: None,
             });
         }
-        _ if compound::call_result(module,f,i,state,values,summaries,sites,loans,&mut out,b)? => {}
+        _ if call_results::call_result_with_dyn(module,f,i,state,values,summaries,sites,dyn_sites,loans,&mut out,b)? => {}
         kind if super::stored_callables::called(module, f, kind)
             .is_some_and(|(definition, _)| definition.storage_life.as_ref().is_some_and(|life|
                 signature_life::outer(life, StorageBase::Result).is_some() || stored_callables::static_result(definition))
                 && matches!(definition.result, Type::Address { .. })) =>
         {
-            receiver::receiver_result(module, f, i, state, values, summaries, sites, loans, &mut out, b)?;
+            let mut pending=false;
+            receiver::receiver_result(module, f, i, state, values, summaries, sites, loans, &mut out, &mut pending,b)?;
+            state.pending_external_update|=pending;
         }
         kind if super::stored_callables::called(module, f, kind)
             .is_some_and(|(definition, _)| super::stored_callables::lending(definition)) =>
@@ -4281,13 +4286,7 @@ static_dependency: StaticProvenance::NotStatic,
                 .functions
                 .get(function.0 as usize)
                 .ok_or_else(|| err("call target absent"))?;
-            let suspend=matches!(i.kind,InstructionKind::SuspendCall{..});
-            if callee.foreign.is_some()||callee.environment.is_some()
-                || callee.call_kind!=if suspend{CallKind::Suspend}else{CallKind::Direct}
-                || suspend&&f.call_kind!=CallKind::Suspend
-            {
-                return Err(err("stored static call changes its independently checked actual ABI"));
-            }
+            let before=call_results::Before::function(module,f,i,values,state,b)?;
             dyn_ports::call(
                 module,
                 f,
@@ -4312,18 +4311,18 @@ static_dependency: StaticProvenance::NotStatic,
                 &mut out,
                 b,
             )?;
-            out.enum_variants = summaries[function.0 as usize]
-                .returned_enum_variants
-                .substitute(arguments, values, b)?;
-            out.option_variants = summaries[function.0 as usize]
-                .returned_variants
-                .substitute(arguments, values, b)?;
+            let(enum_variants,enum_known)=summaries[function.0 as usize].returned_enum_variants.substitute_known(arguments,values,b)?;
+            out.enum_variants=if enum_known{enum_variants}else{enum_address::Variants::default()};
+            let(variants,variants_known)=summaries[function.0 as usize].returned_variants.substitute_known(arguments,values,b)?;
+            out.option_variants=if variants_known{variants}else{option_address::Variants::default()};
+            let mut result_pending=!variants_known||!enum_known;
             for (path, sources) in &summaries[function.0 as usize].result {
+                call_results::destination(module,&callee.return_type,path,b)?;
                 let mut p = Permission::default();
                 for source in sources {
                     join_permission(
                         &mut p,
-                        &instantiate(module, f, source, arguments, values, state, b)?,
+                        &before.source(source,b)?,
                         b,
                     )?;
                     if path.is_empty()
@@ -4343,9 +4342,9 @@ static_dependency: StaticProvenance::NotStatic,
                     || (!out.enum_variants.present() && (!option_address::candidate(&callee.return_type) || out.option_variants.mask()&2!=0)));
                 b.spend(summaries[function.0 as usize].physical_result_parents.len().saturating_mul(path.len().saturating_add(1)))?;
                 if active && (shared_result || summaries[function.0 as usize].physical_result_parents.iter().any(|(known,_)|known==path)){
-                    if shared_result{compound::result_path(&callee.return_type,path,b)?;}
-                    let known=compound::parents_at(&summaries[function.0 as usize],path,&mut p,b,|source,b|instantiate(module,f,source,arguments,values,state,b))?;
-                    if !known || shared_result&&p.sources.is_empty(){state.pending_external_update=true;}
+                    if shared_result{call_results::result_path(&callee.return_type,path,b)?;}
+                    let known=before.parents(&summaries[function.0 as usize],path,&mut p,b)?;
+                    if !known || shared_result&&p.sources.is_empty(){result_pending=true;}
                 }
                 if path.is_empty() {
                     out.address = p;
@@ -4359,7 +4358,7 @@ static_dependency: StaticProvenance::NotStatic,
             }
             if b.raw_reference_cells || b.dyn_contexts || b.closure_receiver_borrows {
                 for parent in &summaries[function.0 as usize].dyn_result_parents {
-                    let actual = instantiate(module, f, parent, arguments, values, state, b)?;
+                    let actual = before.source(parent,b)?;
                     if b.closure_receiver_borrows && receiver::helper_head(callee, parent) {
                         b.spend(actual.loans.len())?;
                         for id in &actual.loans {
@@ -4371,6 +4370,9 @@ static_dependency: StaticProvenance::NotStatic,
                     add_loans(&mut out.address.loans, &actual.loans, b)?;
                 }
             }
+            if !summaries[function.0 as usize].field_result_facts.is_empty(){result_pending|=!before.field_results(&summaries[function.0 as usize],&callee.return_type,i,sites,loans,&mut out,b)?;}
+            drop(before);
+            state.pending_external_update|=result_pending;
             let dyn_updates = dyn_ports::prepare_after(
                 module,
                 f,
@@ -4384,101 +4386,8 @@ static_dependency: StaticProvenance::NotStatic,
                 loans,
                 b,
             )?;
-            let mut updates = Vec::new();
-            for (parameter, path, sources) in &summaries[function.0 as usize].external_after {
-                let index = *parameter as usize;
-                let local = *callee.parameters.get(index)
-                    .ok_or_else(|| err("external summary parameter is absent"))?;
-                let ty = &callee.locals[local.0 as usize].ty;
-                let captured = captured_owner::external_capture_tail(module, ty, path, b)?;
-                let borrowed = matches!(ty,
-                    Type::Address { mutable: true, inner } if qualified(inner).is_some() || returned_environment::closure(inner).is_some());
-                if captured.is_none() && !borrowed { continue; }
-                let actual = val(*arguments.get(index)
-                    .ok_or_else(|| err("external summary actual argument is absent"))?)?;
-                let mut permission = Permission::default();
-                for source in sources {
-                    join_permission(&mut permission,
-                        &instantiate(module, f, source, arguments, values, state, b)?, b)?;
-                }
-                if permission.sources.is_empty() {
-                    // Bottom during the interprocedural fixed point is not an
-                    // empty after-state. Preserve an explicit unproved debt.
-                    state.pending_external_update = true;
-                    continue;
-                }
-                b.spend(path.len().saturating_add(permission.sources.len()))?;
-                let summary = &summaries[function.0 as usize];
-                b.spend(summary.external_stable.len().saturating_mul(path.len().saturating_add(1)))?;
-                let stable = summary.external_stable.iter().any(|(p, row)| p == parameter && row == path);
-                let retained = if stable {
-                    let previous = if matches!(ty, Type::Address { .. }) {
-                        select(state, &actual.address, path, b)?
-                    } else {
-                        let row = leaf(actual, path, b)?
-                            .ok_or_else(|| err("stable environment after-row is absent"))?;
-                        permission_work(row, b)?;
-                        row.clone()
-                    };
-                    permission_work(&previous, b)?;
-                    permission_work(&permission, b)?;
-                    if previous != permission {
-                        return Err(err("stable external row changed its actual targets or loan identity"));
-                    }
-                    permission
-                } else {
-                    retain_written_slot(&permission, i, *parameter, path, sites, loans, b)?
-                };
-                if let Some((capture, tail)) = captured {
-                    let head = if matches!(ty, Type::Address { .. }) {
-                        select(state, &actual.address, &[PlaceProjection::Field(capture)], b)?
-                    } else {
-                        let head = leaf(actual, &[PlaceProjection::Field(capture)], b)?
-                            .ok_or_else(|| err("by-value environment lacks its actual captured pointer"))?;
-                        permission_work(head, b)?;
-                        head.clone()
-                    };
-                    if head.sources.is_empty() {
-                        return Err(err("captured pointee update has no actual target"));
-                    }
-                    for root in &head.sources {
-                        let holder = match root.base {
-                            HoldRoot::Local(local) => state.locals.get(local.0 as usize),
-                            HoldRoot::Parameter(index) => state.external.get(index as usize),
-                            HoldRoot::Capture(index) => state.captures.get(index as usize),
-                            HoldRoot::Static => None,
-                        }.ok_or_else(|| err("captured pointee update target memory is absent"))?;
-                        let complete = symbolic_slot_path(holder, root, tail, b)?
-                            .ok_or_else(|| err("captured pointee update lacks a complete actual target directory"))?;
-                        permission_work(&retained, b)?;
-                        updates.push((root.base, complete, retained.clone(), head.sources.len() == 1));
-                    }
-                }
-                if borrowed {
-                    let [root] = actual.address.sources.as_slice() else {
-                        return Err(err("external update needs one exact actual carrier source"));
-                    };
-                    if !root.leaf.is_empty() {
-                        return Err(err("external update crosses a target boundary"));
-                    }
-                    let actual_path = if root.inline.is_empty() { path.clone() }
-                        else { slot_position(&actual.address, path, b)?.inline };
-                    updates.push((root.base, actual_path, retained, true));
-                }
-            }
-            for (base, path, permission, unique) in updates {
-                let holder = match base {
-                    HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
-                    HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
-                    HoldRoot::Capture(index) => state.captures.get_mut(index as usize),
-                    HoldRoot::Static => None,
-                }.ok_or_else(|| err("updated caller carrier location is absent"))?;
-                if unique && let Some(row) = holder.leaves.position(&path, b)? {
-                    *holder.leaves.permission_mut(row) = permission;
-                } else {
-                    add_leaf(holder, &path, &permission, b)?;
-                }
-            }
+            let updates=after_state::function(module,f,callee,i,&summaries[function.0 as usize],arguments,values,state,sites,loans,b)?;
+            after_state::publish(state,updates,b)?;
             dyn_ports::publish_after(state, dyn_updates, b)?;
         }
         _ if failure_wrapper.is_some() => {
@@ -4565,6 +4474,8 @@ static_dependency: StaticProvenance::NotStatic,
             }
 
             if shared_tuple_value(module,inner,Some(i.span),b)?{
+                let snapshot=value_transport::read(state,&val(*address)?.address,inner,b)?;
+                value_transport::join(&mut out,&snapshot,b)?;
                 for(path,_)in compound::slots(inner,b)?.ok_or_else(||err("shared Tuple read omits its full physical directory"))?{
                     let permission=select(state,&val(*address)?.address,&path,b)?;
                     if permission.sources.is_empty(){state.pending_external_update=true;}
@@ -4626,7 +4537,8 @@ static_dependency: StaticProvenance::NotStatic,
     if let Some(permission) = owned_byte_views::seed_description(module, f, i, values, b)? {
         out.store_description = permission;
     }
-    captured_owner::apply(module, f, i, state, values, summaries, sites, loans, b)?;
+    after_state::publish(state,capture_updates,b)?;
+    value_transport::publish_after(state,value_updates,b)?;
     dyn_captures::publish_after(state, dyn_capture_updates, b)?;
     reference_cells::publish(state,reference_updates,b)?;
     if b.qualified_head_returns
@@ -5281,6 +5193,7 @@ fn live_loans(
         } else {
             &state.locals[id - solution.values.len()]
         };
+        value_transport::visit_fields(payload,b,|permission,b|{loans.add(&permission.loans,b)?;Ok(())})?;
         loans.add(&payload.address.loans, b)?;
         if b.raw_reference_cells{loans.add(&reference_cells::held(state,&payload.address,b)?,b)?;}
         if b.store_descriptions()||!payload.store_description.loans.is_empty(){
@@ -5379,6 +5292,7 @@ fn live_loans_main_fullscan(
         } else {
             &state.locals[id - solution.values.len()]
         };
+        value_transport::visit_fields(payload,b,|permission,b|{add_loans_by_scan(&mut loans,&permission.loans,b)?;Ok(())})?;
         add_loans_by_scan(&mut loans, &payload.address.loans, b)?;
         if b.raw_reference_cells{add_loans_by_scan(&mut loans,&reference_cells::held(state,&payload.address,b)?,b)?;}
         if b.store_descriptions()||!payload.store_description.loans.is_empty(){
@@ -6625,6 +6539,9 @@ fn windows(
     Ok(())
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
+    value_transport::after_work(&s.value_after,b)?;
+    b.spend(s.field_result_facts.len())?;
+    for(path,facts)in &s.field_result_facts{b.spend(path.len())?;value_transport::result_work(facts,b)?;}
     b.spend(s.physical_result_parents.len())?;
     for(path,parents)in &s.physical_result_parents{b.spend(path.len())?;source_work(parents,b)?;}
     reference_cells::after_work(&s.reference_after,b)?;
@@ -6795,6 +6712,7 @@ fn summarize(
         if b.dyn_contexts && !dyn_returns::complete(module, ty, p, b)? {
             summary.complete = false;
         }
+        if p.field_facts.iter().any(|(_,facts)|facts.creation==Some(false)){summary.complete=false;}
         if p.creation_complete == Some(false) {
             summary.complete = false;
         }
@@ -6946,6 +6864,7 @@ fn summarize(
         }
         if *reachable && matches!(block.terminator, Terminator::Return(_)) {
             captured_owner::summarize(module, f, &solution.outputs[bi], &mut summary, b)?;
+            value_transport::summarize_after(module,f,&solution.entry,&solution.outputs[bi],solution,&mut summary,b)?;
         }
         if (b.stored_slot_updates || b.replacements || b.dyn_contexts || b.closure_receiver_borrows)
             && *reachable
@@ -7044,7 +6963,8 @@ fn summarize(
         }
         if *reachable && let Terminator::Return(Some(id)) = block.terminator {
             let payload = &solution.values[id.0 as usize];
-            compound::return_parents(module,f,payload,solution,&mut summary,b)?;
+            call_results::return_parents(module,f,payload,solution,&mut summary,b)?;
+            value_transport::summarize(module,f,payload,solution,&mut summary,b)?;
             summary
                 .returned_enum_variants
                 .join(&payload.enum_variants, b)?;
@@ -7682,7 +7602,7 @@ fn solve_check(
                 .as_ref()
                 .ok_or_else(|| err("returned invocation view lacks its complete relation"))?;
             if receiver_definition.is_none()
-                || relations.get(StorageBase::Result, path, b)?
+                || value_transport::result_bound(module,f,path,&mut relations,b)?
                     != signature_life::outer(c, StorageBase::Receiver)
                         .ok_or_else(|| err("returned invocation view omits Receiver"))?
             {
@@ -7848,6 +7768,7 @@ fn solve_check(
         let solution = solved[index]
             .as_ref()
             .ok_or_else(|| err("independent solver omitted a function"))?;
+        value_transport::validate_results(module,f,s,solution,&graphs[index],&mut relations,b)?;
         if let Some(calls) = &mut package_calls {
             let rows = package_return_candidates(
                 module,
@@ -7919,6 +7840,7 @@ fn solve_check(
             for (index, value) in solution.values.iter().enumerate() {
                 source_work(&value.address.sources, b)?;
                 let mut sources = value.address.sources.clone();
+                value_transport::visit_fields(value,b,|permission,b|{add_sources(&mut sources,&permission.sources,b)?;Ok(())})?;
                 if (b.shared_byte_borrow
                     && matches!(&f.values[index], Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer))
                     || (b.store_descriptions()||!value.store_description.sources.is_empty()) && matches!(&f.values[index], Type::Desc(_))
@@ -7949,7 +7871,9 @@ fn solve_check(
             return Err(err("candidate must cover each actual value once"));
         }
         for (v, (p, claim)) in solution.values.iter().zip(claimed).enumerate() {
-            if b.masked_stored_tasks()
+            let mut field_heap=false;
+            value_transport::visit_fields(p,b,|permission,b|{b.spend(permission.sources.len())?;field_heap|=permission.sources.iter().any(|source|source.heap_element.is_some());Ok(())})?;
+            if b.masked_stored_tasks() && !field_heap
                 && !matches!(f.values[v], Type::BorrowedStorage { .. })
                 && !p
                     .address
@@ -7973,6 +7897,13 @@ fn solve_check(
                 Vec::new()
             };
             let mut actual = BTreeSet::new();
+            let mut field_sources=Vec::new();
+            for(path,facts)in &p.field_facts{
+                b.spend(path.len().saturating_add(1))?;
+                // Descriptions and extra view heads retain private ancestry;
+                // they are not strong public address targets.
+                add_sources(&mut field_sources,&facts.address.sources,b)?;
+            }
             let weak_description = matches!(&f.values[v], Type::Desc(payload)
                 if !matches!(payload.as_ref(), Type::ByteBuffer | Type::Task { .. }
                     | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }));
@@ -7982,6 +7913,7 @@ fn solve_check(
                 .iter()
                 .chain(p.store_description.sources.iter())
                 .chain(receiver_sources.iter())
+                .chain(field_sources.iter())
                 .chain(p.leaves.iter().flat_map(|(_, p)| &p.sources))
                 .chain(p.task_ports.iter().flat_map(|(_, p)| &p.sources))
                 .chain(

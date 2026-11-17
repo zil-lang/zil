@@ -265,16 +265,7 @@ pub(super) fn construct(
         if vt(f, *value)? != child {
             return Err(err("compound construction changes actual child type"));
         }
-        if matches!(child,Type::Address{..}){
-            let actual=&values.get(value.0 as usize).ok_or_else(||err("compound pointer field SSA is absent"))?.address;
-            add_leaf(out,&[PlaceProjection::Field(index as u32)],actual,b)?;
-        }
-        for (tail, permission) in &values[value.0 as usize].leaves {
-            b.spend(tail.len().saturating_add(1))?;
-            let mut path = vec![PlaceProjection::Field(index as u32)];
-            path.extend(tail);
-            add_leaf(out, &path, permission, b)?;
-        }
+        value_transport::attach(out,&[PlaceProjection::Field(index as u32)],child,values.get(value.0 as usize).ok_or_else(||err("compound child SSA is absent"))?,b)?;
     }
     Ok(())
 }
@@ -288,10 +279,8 @@ pub(super) fn update(f:&TypedFunction,i:&Instruction,values:&[Payload],b:&mut Bu
     let source=values.get(aggregate.0 as usize).ok_or_else(||err("compound update source SSA is absent"))?;
     let replacement=values.get(value.0 as usize).ok_or_else(||err("compound update replacement SSA is absent"))?;
     let mut out=copy_payload(source,b)?;
-    out.leaves.retain(|(path,_)|!matches!(path.first(),Some(PlaceProjection::Field(field))if *field==index),b)?;
     let Type::Tuple(children)=vt(f,aggregate)? else{unreachable!()};
-    if matches!(children[index as usize],Type::Address{..}){add_leaf(&mut out,&[PlaceProjection::Field(index)],&replacement.address,b)?;}
-    for(tail,permission)in &replacement.leaves{b.spend(tail.len().saturating_add(1))?;let mut path=vec![PlaceProjection::Field(index)];path.extend(tail);add_leaf(&mut out,&path,permission,b)?;}
+    value_transport::replace(&mut out,&[PlaceProjection::Field(index)],&children[index as usize],replacement,b)?;
     Ok(out)
 }
 
@@ -299,16 +288,7 @@ pub(super) fn update(f:&TypedFunction,i:&Instruction,values:&[Payload],b:&mut Bu
 /// unpacking. Only a real Address child receives an outer pointer permission;
 /// a qualified/opaque child retains its complete field directory instead.
 pub(super) fn field_payload(source:&Payload,index:u32,ty:&Type,b:&mut Budget)->Check<Payload>{
-    let mut child=Payload::default();
-    for(path,permission)in &source.leaves{
-        b.spend(path.len().saturating_add(1))?;
-        if let Some((PlaceProjection::Field(field),tail))=path.split_first(){
-            if *field!=index{continue;}
-            if tail.is_empty()&&matches!(ty,Type::Address{..}){join_permission(&mut child.address,permission,b)?;}
-            else{add_leaf(&mut child,tail,permission,b)?;}
-        }
-    }
-    Ok(child)
+    value_transport::project(source,&[PlaceProjection::Field(index)],ty,b)
 }
 
 pub(super) fn seed(
@@ -399,99 +379,11 @@ mod physical_tests{
     }
 }
 
-pub(super) fn result_path(ty:&Type,path:&[PlaceProjection],b:&mut Budget)->Check<()>{
-    let slots=slots(ty,b)?.ok_or_else(||err("physical result has no complete Tuple slot directory"))?;
-    b.spend(slots.len().saturating_mul(path.len().saturating_add(1)))?;
-    if !slots.iter().any(|(actual,mode)|actual==path&&*mode==StoredBorrowMode::SharedAddress){return Err(err("shared result source selects no exact readonly physical slot"));}
-    Ok(())
-}
-/// Sources remain data; these rows record only actual loan ancestry. Empty
-/// parents are known only when a real Return supplied the row for this path.
-pub(super) fn return_parents(module:&TypedModule,f:&TypedFunction,payload:&Payload,solution:&Solution,summary:&mut Summary,b:&mut Budget)->Check<()>{
-    let shared=shared_value(module,&f.return_type,Some(f.span),b)?;
-    if shared{
-        for(path,_)in slots(&f.return_type,b)?.ok_or_else(||err("shared Return lacks its full slot directory"))?{
-            if leaf(payload,&path,b)?.is_none_or(|permission|permission.sources.is_empty()){summary.complete=false;}
-        }
-    }
-    for(path,permission)in &payload.leaves{
-        if path.is_empty() || payload.enum_variants.present()&&!payload.enum_variants.slot_active(path)
-            || option_address::candidate(&f.return_type)&&payload.option_variants.mask()==1{continue;}
-        if permission.sources.is_empty(){continue;}
-        let parents=dyn_returns::parents(permission,&solution.loans,b)?;
-        dyn_returns::check_parent_escape(f,&parents,b)?;
-        b.spend(summary.physical_result_parents.len().saturating_mul(path.len().saturating_add(1)))?;
-        if let Some((_,known))=summary.physical_result_parents.iter_mut().find(|(known,_)|known==path){add_sources(known,&parents,b)?;}else{
-            b.spend(path.len().saturating_add(1))?;source_work(&parents,b)?;
-            summary.physical_result_parents.push((path.to_vec(),parents));
-        }
-        if shared && receiver::returned_head(permission,solution,b)?{
-            b.spend(summary.receiver_results.len().saturating_mul(path.len().saturating_add(1)))?;
-            if !summary.receiver_results.contains(path){b.spend(path.len().saturating_add(1))?;summary.receiver_results.push(path.clone());}
-        }
-    }
-    Ok(())
-}
-pub(super) fn parents_at(summary:&Summary,path:&[PlaceProjection],permission:&mut Permission,b:&mut Budget,mut actual:impl FnMut(&Source,&mut Budget)->Check<Permission>)->Check<bool>{
-    if !summary.complete{return Ok(false);}
-    b.spend(summary.physical_result_parents.len().saturating_mul(path.len().saturating_add(1)))?;
-    let mut rows=summary.physical_result_parents.iter().filter(|(known,_)|known==path);
-    let(_,parents)=rows.next().ok_or_else(||err("physical result lacks its actual complete parent row"))?;
-    if rows.next().is_some(){return Err(err("physical result repeats its actual parent row"));}
-    let mut known=true;
-    for parent in parents{
-        let parent=actual(parent,b)?;
-        if parent.sources.is_empty(){known=false;}
-        // A head is an ancestor, never another data target.
-        add_loans(&mut permission.loans,&parent.loans,b)?;
-    }
-    Ok(known)
-}
-#[allow(clippy::too_many_arguments)]
-pub(super) fn call_result(module:&TypedModule,f:&TypedFunction,i:&Instruction,state:&mut Frame,values:&[Payload],summaries:&[Summary],sites:&WriteSites,loans:&mut [Loan],out:&mut Payload,b:&mut Budget)->Check<bool>{
-    let Some((definition,arguments))=stored_callables::called(module,f,&i.kind)else{return Ok(false);};
-    if !shared_value(module,&definition.result,Some(i.span),b)?{return Ok(false);}
-    let result=i.result.ok_or_else(||err("shared Tuple callback has no actual result"))?;
-    type_work(&definition.result,&b.limits.clone(),b)?;type_work(vt(f,result)?,&b.limits.clone(),b)?;
-    if vt(f,result)?!=&definition.result{return Err(err("shared callback result changes its complete actual type"));}
-    let summary=summaries.get(definition.function.0 as usize).ok_or_else(||err("shared callback summary is absent"))?;
-    if !summary.complete{state.pending_external_update=true;return Ok(true);}
-    let expected=slots(&definition.result,b)?.ok_or_else(||err("shared callback lacks its full physical directory"))?;
-    if summary.result.len()!=expected.len(){return Err(err("shared callback result omits an actual physical field"));}
-    let consumed=captured_owner::consuming_value(&i.kind);
-    let receiver=if consumed.is_none(){captured_owner::receiver(f,i,values,b)?}else{Permission::default()};
-    let actual=|source:&Source,b:&mut Budget|->Check<Permission>{
-        if let Some(value)=consumed{
-            let environment=values.get(value.0 as usize).ok_or_else(||err("consumed callback environment is absent"))?;
-            captured_owner::substitute_value(module,f,source,&definition.captures,environment,arguments,values,state,b)
-        }else{captured_owner::substitute(module,f,source,&definition.captures,&receiver,arguments,values,state,b)}
-    };
-    let mut prepared=Payload::default();let mut complete=true;
-    for(path,_)in expected{
-        b.spend(summary.result.len().saturating_mul(path.len().saturating_add(1)))?;
-        let mut rows=summary.result.iter().filter(|(known,_)|*known==path);
-        let(_,sources)=rows.next().ok_or_else(||err("shared callback lacks an exact actual data row"))?;
-        if rows.next().is_some(){return Err(err("shared callback repeats an actual data row"));}
-        let mut permission=Permission::default();
-        for source in sources{join_permission(&mut permission,&actual(source,b)?,b)?;}
-        complete&=parents_at(summary,&path,&mut permission,b,&actual)?;
-        if permission.sources.is_empty(){complete=false;}
-        b.spend(summary.receiver_results.len().saturating_mul(path.len().saturating_add(1)))?;
-        if summary.receiver_results.contains(&path){
-            if consumed.is_some(){return Err(err("consuming callback result retains its retired invocation head"));}
-            let head=retain_written_slot(&receiver,i,receiver::HEAD_SITE,&Vec::new(),sites,loans,b)?;
-            add_loans(&mut permission.loans,&head.loans,b)?;
-        }
-        add_leaf(&mut prepared,&path,&permission,b)?;
-    }
-    if !complete{state.pending_external_update=true;}
-    *out=prepared;
-    Ok(true)
-}
 
 #[cfg(test)]
 mod shared_boundary_tests {
     use super::*;
+    use super::super::call_results::{return_parents,call_result};
     fn source(base:HoldRoot,leaf:Path)->Source{Source{base,leaf,inline:vec![],retained_port:None,heap_parents:vec![],heap_element:None,static_dependency:StaticProvenance::NotStatic}}
     fn permission(source:Source,id:usize)->Permission{Permission{sources:vec![source],loans:vec![id]}}
     fn inst(f:&TypedFunction,result:Option<u32>,kind:InstructionKind)->Instruction{Instruction{result:result.map(ValueId),kind,span:f.span}}

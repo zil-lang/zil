@@ -30,6 +30,7 @@ mod catalogue;
 mod sites;
 mod instances;
 mod flow;
+pub(crate) mod completion;
 mod capture_heads;
 mod receiver_heads;
 mod closure_boundaries;
@@ -70,6 +71,7 @@ pub(crate) struct CheckedContext {
     occurrences: RefCell<BTreeMap<(ScopeKey, OperandKey), CheckedType>>,
     seals: RefCell<BTreeMap<SemanticInstanceId, Vec<CheckedActual>>>,
     pending_closures: RefCell<Vec<ClosureCursor>>,
+    published:Cell<bool>,
     origin_aliases: RefCell<BTreeMap<IntrinsicOrigin, IntrinsicOrigin>>,
     original: RefCell<Option<original::CheckedOriginal>>,
     closure_boundaries: RefCell<Vec<ClosureBoundary>>,
@@ -88,7 +90,7 @@ struct ClosureBoundary {
     value: CheckedType,
 }
 
-struct ClosureCursor {
+pub(crate) struct ClosureCursor {
     instance: SemanticInstanceId,
     environment: EvalEnv,
     arguments: Vec<CheckedActual>,
@@ -188,11 +190,29 @@ impl CheckedContext {
         Ok(cell)
     }
 
-    pub(crate) fn register_closure_cursor(&self,instance:SemanticInstanceId,environment:&EvalEnv,arguments:&[CheckedActual],sealed:&[CheckedActual],expected:&CheckedType,b:&mut Budget)->Check<()> {
+    pub(crate) fn register_closure_cursor(&self,module:&TypedModule,instance:SemanticInstanceId,environment:&EvalEnv,arguments:&[CheckedActual],sealed:&[CheckedActual],expected:&CheckedType,b:&mut Budget)->Check<()> {
         expected.charge_clone(b)?;
         b.spend(arguments.len().saturating_add(sealed.len()).saturating_add(expected.classes.len()).saturating_add(environment.lexical.len()))?;
-        self.pending_closures.borrow_mut().push(ClosureCursor{instance,environment:environment.clone(),arguments:arguments.to_vec(),sealed:sealed.to_vec(),expected:expected.clone()});
+        let cursor=ClosureCursor{instance,environment:environment.clone(),arguments:arguments.to_vec(),sealed:sealed.to_vec(),expected:expected.clone()};
+        if self.published.get(){
+            let session=b.semantic_checked.clone().ok_or_else(||bad("published closure query lacks its completed exact-module session"))?;
+            session.finish_late_closure_cursor(module,self,&cursor,b)?;
+        }
+        self.pending_closures.borrow_mut().push(cursor);
         Ok(())
+    }
+    pub(crate) fn finish_late_closure_cursor(&self,module:&TypedModule,cursor:&ClosureCursor,worlds:&[(SemanticInstanceId,EvalEnv)],b:&mut Budget)->Check<()>{
+        if !self.published.get(){return Err(bad("late closure query uses an unpublished original context"));}
+        let instance=self.instance(module,cursor.instance,b)?;
+        let definition=self.definition(module,instance.definition,b)?;
+        let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function))=instance.target else{return Err(bad("late closure cursor selects a nonexecutable scope"));};
+        let entry=module.functions.get(function.0 as usize).filter(|entry|entry.id==function).ok_or_else(||bad("late closure cursor entry is absent"))?;
+        let closure=entry.environment.ok_or_else(||bad("late closure cursor omits its environment identity"))?;
+        let relation=entry.storage_life.as_ref().ok_or_else(||bad("late closure cursor full header is Unknown"))?;
+        if !self.seals.borrow().contains_key(&instance.id)||cursor.expected.ty!=Type::Closure(closure)||cursor.expected.life.binder_count!=relation.fixed_binder_count||cursor.expected.classes.len()!=relation.fixed_binder_count as usize||cursor.arguments.len()!=definition.parameters.len()||cursor.sealed.len()!=definition.environment.len(){return Err(bad("late closure cursor contradicts its completed entry/seal/domain"));}
+        b.spend(worlds.len())?;
+        let actual=worlds.iter().find(|(id,_)|*id==instance.id).ok_or_else(||bad("late closure cursor has no independently completed original world"))?;
+        self.finish_closure_cursor(module,cursor,&actual.1,b)
     }
     pub(crate) fn definition<'m>(
         &self,

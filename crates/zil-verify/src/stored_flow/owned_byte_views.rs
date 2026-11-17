@@ -521,6 +521,7 @@ impl Sites {
         access_tail(p,true,live,loans,&delegated,requirements,b)
     }
     fn boundary_payload(&self,value:&Payload,live:&[usize],loans:&[Loan],requirements:&mut Vec<(Source,Source)>,span:Span,b:&mut Budget)->Check<()>{
+        value_transport::visit_fields(value,b,|permission,b|self.boundary_permission(permission,live,loans,requirements,span,b))?;
         self.boundary_permission(&value.address,live,loans,requirements,span,b)?;
         self.boundary_permission(&value.store_description,live,loans,requirements,span,b)?;
         b.spend(value.leaves.len().saturating_add(value.task_ports.len()).saturating_add(value.dyn_ports.0.len()).saturating_add(value.dyn_views.len()))?;
