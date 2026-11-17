@@ -1,269 +1,286 @@
 {
-  "schema": "zil.native-direct-edit-current-chain.v1",
-  "source": "0d59085766dd8f8601d1cc399e2ed7f1e2050608",
-  "production_source": "0d59085766dd8f8601d1cc399e2ed7f1e2050608",
-  "binary_sha256": "780f92f7505dbff58ed734acc6edcbfdd3e72ce11760fba83d99e97f061359d0",
+  "schema": "zil.native-direct-firstedit-result.v3",
+  "source": "fdab589a19507301cd6fcfa3ab39d54451c870f3",
+  "binary_sha256": "0c91121ee97e0b42dc1620fa9cf5264c3ebe020001e095cb61bb014086f21b29",
   "actual_main": "9170bb4210554392e36eb7528596612596ebef80",
-  "scope": "Original5105functions/102files/843875sourcebytes, two balanced blocks; native O2/CGU16/compilerjobs1, explicit bounded-class-imports128-v3 defaultoff. Closeprocess/edit/newprocess first request; resident request clock, startup separate. Not CLI exit or OS-cold.",
-  "result": "Direct firstedit STILL SLOWER than Rust; comprehensive/main merge gates OPEN.",
+  "result": "Firstedit still slower than Rust",
+  "scope": "Original5105functions/102files/843875bytes, original257input domain; actualmain/currentcandidate/Rust only. Native O2/CGU16/compilerjobs1; explicit default-off bounded-class-imports128-v3. Closeprocess, edit, then newprocess first resident request. Startup separate; not full ordinaryCLI or OS-cold.",
   "execution_complete": true,
-  "counts": {
-    "formal_workflow_requests": 30,
-    "quality_profile_build_requests": 12,
-    "functional_cells": 10,
-    "sustained_runtime_cases": 4
-  },
   "functional_quality_valid": true,
   "runtime_candidate_rust_accepted": true,
   "accepted": false,
-  "main": "ResourceLimit at original defaults, excluded from ratios; no main performance or merge acceptance",
-  "compile_ms": {
-    "cold": {
-      "wall_ms_by_block": {
-        "candidate": [
-          4687.045987,
-          4139.394275
-        ],
-        "rust": [
-          6810.018065,
-          9012.240841
-        ]
-      },
-      "median_ms": {
-        "candidate": 4413.220131,
-        "rust": 7911.1294530000005
-      },
-      "candidate_over_rust_paired_GM": 0.5622474288267608
-    },
-    "unchanged": {
-      "wall_ms_by_block": {
-        "candidate": [
-          38.427194,
-          57.351516
-        ],
-        "rust": [
-          39.60152,
-          35.999706
-        ]
-      },
-      "median_ms": {
-        "candidate": 47.889354999999995,
-        "rust": 37.800613
-      },
-      "candidate_over_rust_paired_GM": 1.243329914386812
-    },
-    "private-001": {
-      "wall_ms_by_block": {
-        "candidate": [
-          2917.660092,
-          2836.835692
-        ],
-        "rust": [
-          1143.447593,
-          1674.486188
-        ]
-      },
-      "median_ms": {
-        "candidate": 2877.2478920000003,
-        "rust": 1408.9668905
-      },
-      "candidate_over_rust_paired_GM": 2.0791485593162276
-    },
-    "recovery": {
-      "wall_ms_by_block": {
-        "candidate": [
-          1800.132636,
-          2232.709853
-        ],
-        "rust": [
-          6357.685076,
-          6414.531847
-        ]
-      },
-      "median_ms": {
-        "candidate": 2016.4212444999998,
-        "rust": 6386.1084615
-      },
-      "candidate_over_rust_paired_GM": 0.3139325940395489
-    },
-    "error": {
-      "wall_ms_by_block": {
-        "candidate": [
-          1406.158365,
-          1971.622584
-        ],
-        "rust": [
-          1854.847416,
-          1957.117181
-        ]
-      },
-      "median_ms": {
-        "candidate": 1688.8904745,
-        "rust": 1905.9822985
-      },
-      "candidate_over_rust_paired_GM": 0.8739095796007118
-    }
+  "counts": {
+    "formal_workflow_requests": 30,
+    "runtime_profile_build_requests": 12,
+    "functional_cells": 10,
+    "sustained_runtime_cases": 4
   },
   "runtime_ms": {
     "5105/cold": {
-      "candidate": 32.8423395,
-      "rust": 215.0291555
+      "candidate": 29.868631,
+      "rust": 194.005274
     },
     "5105/unchanged": {
-      "candidate": 32.4302855,
-      "rust": 202.528074
+      "candidate": 29.6897405,
+      "rust": 186.780524
     },
     "5105/private-001": {
-      "candidate": 35.5977025,
-      "rust": 206.87486
+      "candidate": 30.8203835,
+      "rust": 187.728772
     },
     "5105/recovery": {
-      "candidate": 35.6328215,
-      "rust": 217.999597
+      "candidate": 30.758461,
+      "rust": 189.1545035
     }
   },
   "user_disk_boundary_peak_physical_bytes": [
     {
       "block": 0,
-      "candidate": 30359552,
+      "candidate": 30371840,
       "rust": 76734464
     },
     {
       "block": 1,
-      "candidate": 30371840,
+      "candidate": 30359552,
       "rust": 61546496
     }
   ],
+  "disk_accounting": "Peak of simultaneous per-arm totals in original workflow snapshots, global inode dedup st_blocks*512. Not sum of independent category peaks; not transient peaks; SDK/host/evidence excluded.",
   "direct_firstedit_costs": [
     {
       "block": 0,
-      "wall_ms": 2917.660092,
+      "wall_ms": 1946.919293,
+      "cpu_seconds": 1.89,
       "phases_ms": {
-        "analyze": 138.601618,
-        "codegen": 858.678834,
-        "ct": 114.933698,
-        "expand": 351.358422,
-        "lower": 6.386375,
-        "parse": 0.223292,
-        "types": 775.506958,
-        "verify": 81.298706
+        "analyze": 97.877911,
+        "codegen": 672.438747,
+        "ct": 398.338812,
+        "expand": 244.748279,
+        "lower": 3.24415,
+        "parse": 0.124272,
+        "types": 118.73075,
+        "verify": 70.582462
       },
       "backend_ms": {
-        "diagnostic": 21.679028,
-        "link_execution": 51.343507,
-        "link_key": 29.813229,
-        "machine_emit": 202.962362,
-        "machine": 504.087,
-        "machine_preflight": 43.762075,
-        "machine_transform": 296.854015,
-        "object": 181.669281,
-        "other": 1.227979,
-        "partition": 68.300555,
-        "total": 858.120579
+        "diagnostic": 19.633554,
+        "link_execution": 31.697452,
+        "link_key": 28.751654,
+        "machine_emit": 214.864101,
+        "machine": 386.834415,
+        "machine_preflight": 33.008986,
+        "machine_transform": 168.434583,
+        "object": 148.873359,
+        "other": 1.770529,
+        "partition": 54.477618,
+        "total": 672.038581
       },
-      "analyze": {
-        "candidate_inputs_built": 244,
-        "candidate_input_projection_reuses": 4857,
-        "candidate_output_projection_reuses": 4857
+      "function_cache_decoding": {
+        "decoded_functions": 374,
+        "reused_decoded_functions": 4727,
+        "reused_result_projections": 4727
       },
-      "verify": {
-        "function_proofs_checked": 2167,
-        "function_proofs_reused": 2936
+      "producer": {
+        "fused_distributed_items": 5105,
+        "fused_lifetime_items": 5105,
+        "fused_lifetime_nodes": 272908
       }
     },
     {
       "block": 1,
-      "wall_ms": 2836.835692,
+      "wall_ms": 2258.565506,
+      "cpu_seconds": 2.21,
       "phases_ms": {
-        "analyze": 137.700904,
-        "codegen": 1001.127449,
-        "ct": 134.795347,
-        "expand": 444.089139,
-        "lower": 3.830097,
-        "parse": 3.966095,
-        "types": 141.094081,
-        "verify": 92.093121
+        "analyze": 334.949907,
+        "codegen": 913.520684,
+        "ct": 79.391312,
+        "expand": 273.70206,
+        "lower": 4.775175,
+        "parse": 0.120907,
+        "types": 120.181093,
+        "verify": 70.05253
       },
       "backend_ms": {
-        "diagnostic": 53.590631,
-        "link_execution": 31.546767,
-        "link_key": 30.127339,
-        "machine_emit": 246.731236,
-        "machine": 568.02539,
-        "machine_preflight": 38.194909,
-        "machine_transform": 316.11115,
-        "object": 192.732017,
-        "other": 1.440379,
-        "partition": 122.816461,
-        "total": 1000.278984
+        "diagnostic": 42.031749,
+        "link_execution": 28.738897,
+        "link_key": 31.458573,
+        "machine_emit": 299.890266,
+        "machine": 554.647573,
+        "machine_preflight": 34.374845,
+        "machine_transform": 250.035702,
+        "object": 162.110464,
+        "other": 1.578629,
+        "partition": 92.519251,
+        "total": 913.085136
       },
-      "analyze": {
-        "candidate_inputs_built": 244,
-        "candidate_input_projection_reuses": 4857,
-        "candidate_output_projection_reuses": 4857
+      "function_cache_decoding": {
+        "decoded_functions": 374,
+        "reused_decoded_functions": 4727,
+        "reused_result_projections": 4727
       },
-      "verify": {
-        "function_proofs_checked": 2167,
-        "function_proofs_reused": 2936
+      "producer": {
+        "fused_distributed_items": 5105,
+        "fused_lifetime_items": 5105,
+        "fused_lifetime_nodes": 272908
       }
     }
   ],
   "changes": [
-    "Analyze exact current scalar-leaf projection sharing; fresh function IDs/names bind every result",
-    "Independently implemented Verify current-invocation success templates; exact body/plan/current world and valid relative diagnostic spans; original fee replay, ordinary failure fallback",
-    "Current CGU fused definition/class-declaration pruning, immutable body-owner reference sharing; one complete ORIGINAL validation before any deletion, actual-unit preflight/Builder/fullO2 retained",
-    "Immutable scalar source-site transport retains original binding and current ordinal prefix; replaces three same-address AST transport traversals and map reinsertion. Original work/temppeak/releases replay only on full transport fit; low-budget ordinary interleaving and mutable clone/rewrite paths retained. Optional rows bounded64KiB/current temporary headroom."
+    "Types raw-cache restore retains a completed result-body projection only after exact decoder byte equality except outerID/name; current identity appended fresh, all original target/manifest/aggregate six fees/currentTypes/Verify obligations retained.",
+    "IR plan Writer shares completed current immutable block/hold columns with current outerID encoding; full ordered writer fallback on insufficient aggregate budget or unmatched owners.",
+    "Current Source Probe collects scalar Lifetime demand on actual immutable normalized Item owner, pays original node/work/depth fees at original Lifetime position; rich/mismatched/tight cases use ordinary walker. Scope names share until mutation, original fees retained.",
+    "Machine integer-range facts retained across rounds only for exact current body/signature/inputbounds; original per-round fees retained. Scalar planning shares exact caller bodies and original partial fuel behavior, combines leaf/summary edits before COW, preserves complete original machine preflight.",
+    "CGU materialization shares same-body direct-call rewrites within one current mapping; bounded-class layout key hashes complete current headers plus shared-body digests, allocation independent. No old Source-to-Machine permission or enabled-by-default research flag."
   ],
-  "checks": {
-    "gates38_source": "0d59085766dd8f8601d1cc399e2ed7f1e2050608",
-    "gates38_pass": {
-      "strict_alltargets_Dwarnings": true,
-      "driver": 234,
-      "native_publication": 2,
+  "gates": {
+    "out/runs/direct-firstedit-native-gates-39-fdab589a1950": {
+      "publication": false,
       "fmt": true,
-      "release_incremental0": true
+      "expand": [
+        [
+          "ok",
+          "135",
+          "0",
+          "0"
+        ]
+      ],
+      "ir": [
+        [
+          "ok",
+          "94",
+          "0",
+          "0"
+        ]
+      ],
+      "backend": [
+        [
+          "ok",
+          "364",
+          "0",
+          "0"
+        ]
+      ],
+      "types": [
+        [
+          "ok",
+          "118",
+          "0",
+          "0"
+        ]
+      ],
+      "strict": true,
+      "driver": false
     },
-    "reused": "Unchanged Analyze310/Verify657/backend359 gates36 source5a; IR93/Types118/API105/tools27+2 gates35 source8ad; Expand130 earlier unchanged subtree. No repeat whole old matrix.",
-    "source_site_checks": "Original clone executor equals optimized current parser-owned walk across all six fees/remaining budget and N/N-1 work/nodes/temporary/depth, empty-site and nested/grouped-type cases, independent parser restart, corrupt cache/current Source checks.",
-    "reviews": "Astra implemented source-site chain; nonauthor root reviewed exact current-owner/ordinal-prefix/ledger/fallback and ordinaryclone boundaries before source0d freeze. Prior A/V independent reviews retained in window15 result."
-  },
-  "remaining_bottlenecks": "Formal firstedit: block0 Types775.5ms and backend858.7ms; block1 backend1001.1ms (machine568.0/partition122.8/object192.7). Current Source/Core, CT and machine planning/partition reconstruction remain. Source-site transport removal did not establish end-to-end speed improvement: window16 still2.877/Rust1.409s; no causal attribution from crosswindow/block variation. Industrial/defaultmain/fullCLI gates remain open.",
-  "raw": "out/runs/direct-firstedit-performance-direct-16",
-  "limitations": "Generated large executable only; industrial multi-crate/proc-macro/build.rs/minute/GB scenarios unmeasured. Disk request-boundary peaks exclude SDK/host/evidence; no transient peak or universal claim. SDK18 reused, LLVM not rebuilt, no full evidence pack. Prior13/12/10/09/08 and check54a/native7e/98fa/021997 remain source-bound.",
-  "disk_accounting": "Maximum of simultaneous per-arm totals at observed request boundaries, globally inode-deduplicated st_blocks*512. Only original30 workflow rows; quality wrappers separate. Never sum category maxima from different instants. SDK/evidence/host excluded; not transient peak.",
-  "prior_disk_aggregation_corrections": [
-    {
-      "window": "13",
-      "source": "8ad2bfb5c9604dfdd761dd9fd48ebab7a94fe547",
-      "corrected_same_snapshot_peaks": [
-        {
-          "block": 0,
-          "candidate": 30367744,
-          "rust": 61546496
-        },
-        {
-          "block": 1,
-          "candidate": 30339072,
-          "rust": 61546496
-        }
+    "out/runs/direct-firstedit-native-gates-40-fdab589a1950": {
+      "publication": [
+        [
+          "FAILED",
+          "0",
+          "2",
+          "0"
+        ]
+      ],
+      "driver": [
+        [
+          "ok",
+          "234",
+          "0",
+          "0"
+        ]
       ]
     },
-    {
-      "window": "15",
-      "source": "1be7f77757fe32c22acdb1b3975981828cc3b131",
-      "corrected_same_snapshot_peaks": [
-        {
-          "block": 0,
-          "candidate": 30367744,
-          "rust": 61546496
-        },
-        {
-          "block": 1,
-          "candidate": 30355456,
-          "rust": 61550592
-        }
-      ]
+    "out/runs/direct-firstedit-native-gates-41-fdab589a1950": {
+      "publication": [
+        [
+          "ok",
+          "2",
+          "0",
+          "0"
+        ]
+      ],
+      "release": true
     }
+  },
+  "unchanged_checks_reused": "Analyze310/Verify657 gates36, API105 gates35; original independent implementations unchanged. RelevantIR/Types/Expand/Backend/Driver/nativepublication/strict/fmt/release run once as a coherent batch.",
+  "review": "Nonauthor Parfit reviewed root Types/IR/driver patch; root reviewed Astra backend and Kuhn frontend patches. Exact quotas, all current input bindings and full O2 preserved.",
+  "raw": "out/runs/direct-firstedit-performance-direct-17",
+  "previous_formal_result": "https://github.com/zil-lang/zil/blob/061ca0628c6695d368ee9e047e67f6353e40e672/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json",
+  "unresolved": "Actualmain defaultResourceLimit remains failure and excluded from ratios. Industrialmulti-crate/proc-macro/build.rs/minute/GB/currentnative ordinaryCLI coverage incomplete; no main merge; comprehensive Rust goal open.",
+  "diagnostic_only": {
+    "path": "out/runs/native-direct-profile-17/private-001.json",
+    "no_Rust_ratio": true,
+    "semantic_cache_publication": {
+      "serialized_functions": 5,
+      "reused_functions": 5100,
+      "serialized_function_plans": 248,
+      "reused_function_plans": 4857
+    },
+    "segments_ms": {
+      "analyze": 99.52,
+      "codegen": 586.287,
+      "ct": 82.621,
+      "discovery_receipt_publication": 3.172,
+      "expand_assembly": 33.629,
+      "expand_context": 3.794,
+      "expand_materialization": 77.589,
+      "expand_other": 22.808,
+      "expand_production": 94.847,
+      "expand_reuse": 3.559,
+      "function_cache_publication": 16.069,
+      "function_cache_read": 69.468,
+      "function_checkpoint": 0.02,
+      "lower": 2.887,
+      "owner_binding": 0.036,
+      "parse": 0.12,
+      "producer_checkpoint": 0.013,
+      "project_setup": 1.271,
+      "semantic_cache_read": 7.524,
+      "semantic_candidate_publication": 109.947,
+      "source_ingress": 79.724,
+      "types_cfg_execute": 0.081,
+      "types_cfg_reuse": 21.222,
+      "types_cfg_store": 0.044,
+      "types_context": 13.862,
+      "types_core_comparison": 0.0,
+      "types_graph_maintenance": 0.0,
+      "types_input_inventory": 1.979,
+      "types_other": 47.107,
+      "types_projection_context": 2.389,
+      "types_query_evaluation": 19.302,
+      "types_shape": 11.135,
+      "verify": 62.613
+    },
+    "unassigned_ms": 18.1
+  },
+  "infrastructure_failures_preserved": [
+    "gates39 driver/publication: host disk full before test execution; completed tests reused, host scratch retired.",
+    "gates40 nativepublication: outer sandbox bwrap uid-map read-only; identical gate41 outside outer sandbox passed both tests with native-link isolation unchanged."
   ],
-  "previous_formal_result": "https://github.com/zil-lang/zil/blob/41a0d6d958039a213e8fd68494ea2b69f6a8515e/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json (window15 compilation/runtime unchanged; its disk aggregate corrected here)"
+  "all_relevant_checks_passed": true,
+  "diagnostic_profile_disabled_control": {
+    "path": "out/runs/native-direct-profile-18/private-001.json",
+    "request_ms": 1889.705457,
+    "scope": "Two extra standalone diagnostic requests with profiling off, same-length fixture path. Not formal Rust comparison; phase variation does not establish causal attribution to profiling or any single stage."
+  },
+  "compile_median_ms": {
+    "cold": {
+      "candidate": 3583.5624895,
+      "rust": 6069.4414560000005
+    },
+    "unchanged": {
+      "candidate": 31.930059,
+      "rust": 13.9200525
+    },
+    "private-001": {
+      "candidate": 2102.7423995,
+      "rust": 1219.606451
+    },
+    "recovery": {
+      "candidate": 1634.0686114999999,
+      "rust": 5846.945461
+    },
+    "error": {
+      "candidate": 1304.7348895,
+      "rust": 1698.7493220000001
+    }
+  }
 }

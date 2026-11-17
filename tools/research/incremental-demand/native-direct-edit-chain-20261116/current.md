@@ -1,10 +1,9 @@
 # 原生直接首改当前结果
 
-正式源码 `0d59085766dd8f8601d1cc399e2ed7f1e2050608`，window16原30请求/10功能格/4运行格完整，运行质量通过。同nativeO2/CGU16/compilerjobs1、原5105函数/102文件/257域；独立Verify/原预算/完整O2/研究默认关保持。
+正式源码 `fdab589a19507301cd6fcfa3ab39d54451c870f3`，window17原30工作流请求、另12运行包装构建。功能质量=True，运行质量=True。同原5105函数/257输入、O2/CGU16/compilerjobs1，显式研究开关默认关。
 
-- 冷编译 **4.413s / Rust7.911s**；直接首改 **2.877s / Rust1.409s，仍落后**。
-- 用户缓存/产物同一时点边界峰 **28.95–28.96MiB / Rust58.70–73.18MiB**。修正了此前分类不同时点峰值相加的略高估；原始快照不改，已全局inode去重，非工业GB级或瞬时峰。
-- Analyze每块4857输入/输出投影复用、独立Verify2936当前成功复用保持。新只读来源运输省去三次同地址AST遍历及映射重插，完整初始来源绑定、逻辑有效范围/全部原费用和低额度错误顺序保持；原克隆/改写路径保留。
-- 当前Source/Core、CT及机器规划/分区仍重建。首改第一块Types775.5ms/后端858.7ms，第二块后端1001.1ms（机器568.0/分区122.8/对象192.7）。本窗没有证明整链提速；不以局部删遍历或跨窗口漂移宣称达标。
+重启首改 **2.103s / Rust 1.220s**，仍落后；冷编译3.584s / Rust 6.069s。resident请求和启动分开，不冒充普通CLI全进程或OS冷缓存。
 
-本批strict/driver234/native发布2/fmt/release全部过；未变Analyze310/Verify657/backend359/IR93/Types118/API105/Expand130按差异复用。窗口15的1be数据固定在41a0d6d95，不转记新源；其磁盘合计修正见当前记录。实际main9170默认ResourceLimit保留，无main比值，全面/main/工业多crate/proc-macro/build.rs/分钟级门开放。resident请求与启动单列，不冒充普通CLI完整退出或OS冷。SDK18复用，不建LLVM、不全量打包。[精简记录](current.json)。
+本批串通Source/Core重复遍历、Types恢复结果投影、计划序列化、机器范围/标量规划与共享改写、CGU物化/布局键。保留当前完整输入、原费用和失败顺序、独立Verify、完整O2。相关回归/严格检查/release统一验收，未变的A/V/API收据按差异复用。
+
+同一时点去重后用户缓存边界峰：[当前JSON](current.json)。实际main默认ResourceLimit保持失败，工业大工程/普通CLI和全面目标仍未完成，未合入main。旧0d/window16与其他旧数字均留在[固定历史结果](https://github.com/zil-lang/zil/blob/061ca0628c6695d368ee9e047e67f6353e40e672/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json)，不转记新源码。

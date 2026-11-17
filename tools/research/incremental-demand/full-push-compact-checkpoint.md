@@ -1,9 +1,11 @@
-# 编译效率恢复入口
+# 原生直接首改当前结果
 
-唯一施工分支 `research/full-push-native`。最后正式源码 **0d59085766dd8f8601d1cc399e2ed7f1e2050608**，二进制SHA256 `780f92f7505dbff58ed734acc6edcbfdd3e72ce11760fba83d99e97f061359d0`；window16原30请求/10功能格/4运行格完整且运行质量过。直接首改 **2.877s / Rust1.409s，仍落后**，冷4.413/R7.911s。[当前精简结果](native-direct-edit-chain-20261116/current.md)。旧15/13/12/10/09/08、check54a、原生7e、98fa/021997数字不转记此源。
+正式源码 `fdab589a19507301cd6fcfa3ab39d54451c870f3`，window17原30工作流请求、另12运行包装构建。功能质量=True，运行质量=True。同原5105函数/257输入、O2/CGU16/compilerjobs1，显式研究开关默认关。
 
-闭合参数范围/实际CFG压缩/跨CGU纯事实/原始解码共享、Analyze投影共享与独立Verify当前叶函数复用、CGU合并剪枝后，又完成本次不可变标量来源表运输优化。原始完整来源绑定保持，仅省同地址的三次运输遍历及映射重插；逻辑前缀、原费用/临时峰/释放和紧额度原错误顺序保持，真正克隆/改写路径不变。gates38strict/driver234/native发布2/fmt/release过；未变A310/V657/backend359等按差异复用，先读现存收据，不重排全套旧测试。
+重启首改 **2.103s / Rust 1.220s**，仍落后；冷编译3.584s / Rust 6.069s。resident请求和启动分开，不冒充普通CLI全进程或OS冷缓存。
 
-仍全5105Source/Core与CT及机器规划/分区重建，按结果JSON阶段分账继续实际消费者链。性能计数不替代绝对等待目标，不因profile/分块波动推定原因。本轮Astra已完成此链实现并由root独立复核，代理已暂停/关闭，无待等任务。
+本批串通Source/Core重复遍历、Types恢复结果投影、计划序列化、机器范围/标量规划与共享改写、CGU物化/布局键。保留当前完整输入、原费用和失败顺序、独立Verify、完整O2。相关回归/严格检查/release统一验收，未变的A/V/API收据按差异复用。
 
-磁盘按同一时点全局inode去重后求边界峰；13/15旧分类峰相加的略高估已修正。SDK18/native-link复用，不建LLVM、不全量打包。只比较实际main/当前/Rust，同nativeO2/CGU16/compilerjobs1，原输入/257域/完整运行门/当前输入绑定/原预算/独立Verify保持，研究默认关。resident请求/启动分开，普通CLI另计。工业多crate/proc-macro/build.rs与分钟/GB级未测，实际main9170默认ResourceLimit保留，全面/main门开放；goal/archive不合main。
+同一时点去重后用户缓存边界峰：[当前JSON](current.json)。实际main默认ResourceLimit保持失败，工业大工程/普通CLI和全面目标仍未完成，未合入main。旧0d/window16与其他旧数字均留在[固定历史结果](https://github.com/zil-lang/zil/blob/061ca0628c6695d368ee9e047e67f6353e40e672/tools/research/incremental-demand/native-direct-edit-chain-20261116/current.json)，不转记新源码。
+
+SDK18/native-link继续复用，不建LLVM，不全量打包。唯一施工分支research/full-push-native；现有gates39+40+41/window17先读，不重复旧整套检查。全部代理已关闭，无待等任务。goal/archive不合main。
