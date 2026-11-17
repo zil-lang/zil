@@ -1792,6 +1792,7 @@ pub(super) fn qualifications(
                     && !replacements::operation(&i.kind)
                     && !pure_copy::operation(&i.kind)
                     && !pure_copy::ordinary_owned_union(module,f, i, b)?
+                    && !pure_copy::ordinary_owned_tuple(module,f, i, b)?
                     && !pure_copy::ordinary_copy_field_borrow(f, i, b)?
                     && !pure_copy::ordinary_package_borrow(f, i, b)?
                     && !pure_copy::ordinary_package_read(f, i, b)?
@@ -3505,6 +3506,9 @@ fn step(
             // linear owner, and the unique checked release of the same head.
         }
 
+        _ if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{
+            pure_copy::ordinary_tuple_transfer(f,i,state,values,&mut out,b)?;
+        }
         InstructionKind::UnpackTuple { local, fields } if unpack_failure => {
             task_failure::unpack_value(f, *local, fields, state, b)?;
         }
@@ -4983,6 +4987,11 @@ fn reverse(
         {
             live.assign(f.values.len() + local.0 as usize, true)?;
         }
+        InstructionKind::UnpackTuple{local,ref fields} if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{
+            for target in fields{b.spend(1)?;live.assign(f.values.len()+target.0 as usize,false)?;}
+            live.assign(f.values.len()+local.0 as usize,true)?;
+        }
+        InstructionKind::TakeTupleField{local,..}|InstructionKind::DropTuple{local}if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{live.assign(f.values.len()+local.0 as usize,true)?;}
         InstructionKind::CallClosureShared { callee, .. }
         | InstructionKind::CallClosureMut { callee, .. }
             if fixed_environment(module, &f.locals[callee.0 as usize].ty, b) =>
@@ -5037,6 +5046,11 @@ fn reverse_bool(
         {
             live[f.values.len() + local.0 as usize] = true;
         }
+        InstructionKind::UnpackTuple{local,ref fields} if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{
+            for target in fields{b.spend(1)?;live[f.values.len()+target.0 as usize]=false;}
+            live[f.values.len()+local.0 as usize]=true;
+        }
+        InstructionKind::TakeTupleField{local,..}|InstructionKind::DropTuple{local}if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{live[f.values.len()+local.0 as usize]=true;}
         InstructionKind::CallClosureShared { callee, .. }
         | InstructionKind::CallClosureMut { callee, .. }
             if fixed_environment(module, &f.locals[callee.0 as usize].ty, b) =>
@@ -5807,6 +5821,13 @@ fn windows(
                             loans: Vec::new(),
                         };
                         checks.check(&actual, true, requirements, b)?;
+                    }
+                    InstructionKind::UnpackTuple{local,..}|InstructionKind::DropTuple{local}|InstructionKind::TakeTupleField{local,..}
+                        if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{
+                        let path=match &i.kind{InstructionKind::TakeTupleField{path,..}=>{b.spend(path.len())?;path.clone()},_=>Vec::new()};
+                        b.spend(1)?;
+                        let actual=Permission{sources:vec![Source{static_dependency:StaticProvenance::NotStatic,retained_port:None,base:HoldRoot::Local(*local),leaf:Vec::new(),inline:path,heap_parents:Vec::new(),heap_element:None}],loans:Vec::new()};
+                        checks.check(&actual,true,requirements,b)?;
                     }
                     InstructionKind::DropErrorUnion { local } if ordinary_error_places => {
                         b.spend(1)?;

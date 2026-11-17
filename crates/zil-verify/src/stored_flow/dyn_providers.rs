@@ -187,6 +187,14 @@ pub(super) fn observe(
         InstructionKind::ReadPackageField { local, .. } => {
             record(rows, &dyn_closed::head(f, *local, state, b)?, false, b)?
         }
+        InstructionKind::BorrowPlaceLocal{local,path,..}if ordinary_error_borrow(module,f,i,b)?=>{
+            let mut permission=dyn_closed::head(f,*local,state,b)?;
+            for source in &mut permission.sources {b.spend(path.len())?;source.inline.extend_from_slice(path);}
+            record(rows,&permission,false,b)?;
+        }
+        InstructionKind::UnpackTuple{local,..}if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{
+            record(rows,&dyn_closed::head(f,*local,state,b)?,true,b)?;
+        }
         InstructionKind::TakePackageField { local, .. }
         | InstructionKind::StorePackageField { local, .. }
         | InstructionKind::TakeTupleField { local, .. } => {
@@ -489,6 +497,9 @@ pub(super) fn effects(
                 | InstructionKind::TakeTupleField { .. }
                 | InstructionKind::MakeDynBorrow { .. }
                 | InstructionKind::BorrowDynOwned { .. } => {}
+                InstructionKind::MakeOwnedTuple{..}|InstructionKind::UnpackTuple{..}
+                    if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{},
+                InstructionKind::BorrowPlaceLocal{..}if ordinary_error_borrow(module,f,i,b)?=>{},
                 InstructionKind::MakeClosure { .. }
                 | InstructionKind::ReadCapture { .. }
                 | InstructionKind::TakeCapture { .. }

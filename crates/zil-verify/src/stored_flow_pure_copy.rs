@@ -680,6 +680,53 @@ fn complete_owned_fields(module:&TypedModule,pending:Vec<(&Type,usize)>,b:&mut B
     Ok(true)
 }
 
+// Ordinary affine products may have no stored targets while still owning
+// resources. Complete actual type and Sum checks precede their transfers;
+// neither this lane nor a zero domain discharges tag/init/debt/cleanup facts.
+pub(super) fn ordinary_owned_tuple(module:&TypedModule,f:&TypedFunction,i:&Instruction,b:&mut Budget)->Check<bool>{
+    let ty=match &i.kind{
+        InstructionKind::MakeOwnedTuple{..}=>vt(f,i.result.ok_or_else(||err("ordinary owning Tuple constructor lacks result"))?)?,
+        InstructionKind::UnpackTuple{local,..}|InstructionKind::DropTuple{local}|InstructionKind::TakeTupleField{local,..}=>&f.locals.get(local.0 as usize).ok_or_else(||err("ordinary owning Tuple has no actual local"))?.ty,
+        _=>return Ok(false),
+    };
+    if !matches!(ty,Type::Tuple(_))||ty.is_copy_value()||!complete_owned_value(module,ty,b)?{return Ok(false);}
+    crate::sums::check_instruction(f,i,&b.limits.clone(),b)?;
+    Ok(true)
+}
+
+pub(super) fn ordinary_tuple_transfer(f:&TypedFunction,i:&Instruction,state:&mut Frame,values:&[Payload],out:&mut Payload,b:&mut Budget)->Check<()>{
+    match &i.kind{
+        InstructionKind::MakeOwnedTuple{fields}=>{
+            for(index,value)in fields.iter().enumerate(){
+                let payload=values.get(value.0 as usize).ok_or_else(||err("ordinary owning Tuple input is absent"))?;
+                for(tail,permission)in &payload.leaves{b.spend(tail.len().saturating_add(1))?;let mut path=vec![PlaceProjection::Field(index as u32)];path.extend(tail);add_leaf(out,&path,permission,b)?;}
+            }
+        },
+        InstructionKind::UnpackTuple{local,fields}=>{
+            let payload=copy_payload(&state.locals[local.0 as usize],b)?;
+            for(index,target)in fields.iter().enumerate(){
+                let prefix=[PlaceProjection::Field(index as u32)];let mut child=Payload::default();
+                child.enum_variants=payload.enum_variants.project(&prefix,b)?;
+                for(path,permission)in &payload.leaves{b.spend(path.len().saturating_add(1))?;if let Some(tail)=path.strip_prefix(&prefix){add_leaf(&mut child,tail,permission,b)?;}}
+                clear_local_holes(state,*target,b)?;state.locals[target.0 as usize]=child;
+            }
+            state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;
+        },
+        InstructionKind::TakeTupleField{local,path}=>{
+            let holder=&mut state.locals[local.0 as usize];out.enum_variants=holder.enum_variants.project(path,b)?;
+            b.spend(holder.leaves.len())?;let mut remaining=Vec::with_capacity(holder.leaves.len());
+            for(actual,permission)in std::mem::take(&mut holder.leaves).into_vec(b)?{
+                b.spend(actual.len().saturating_add(path.len()))?;
+                if let Some(tail)=actual.strip_prefix(path.as_slice()){add_leaf(out,tail,&permission,b)?;}else{b.spend(1)?;remaining.push((actual,permission));}
+            }
+            holder.leaves=leaf_rows::Rows::from_vec(remaining,b)?;
+        },
+        InstructionKind::DropTuple{local}=>{state.locals[local.0 as usize]=Payload::default();clear_local_holes(state,*local,b)?;},
+        _=>return Err(err("ordinary owning Tuple transfer has another actual opcode")),
+    }
+    let _=f;Ok(())
+}
+
 // Only shared Copy endpoints of a complete address-free ordinary Package
 // can enter this no-stored-target lane. Current lifetime and moved-field
 // facts remain checked against the real local by the independent flow.
@@ -782,6 +829,12 @@ pub(super) fn ordinary_error_borrow(
         // Both arms must be target-free before an ordinary selected-arm view
         // can omit stored permissions. An inactive sibling is not evidence.
         ordinary(parent, b, 0)?;
+    } else if b.task_sources() && matches!(other,Type::Managed(inner)if matches!(inner.as_ref(),Type::Task{..})) {
+        // This does not classify the union or its Task arm as target-free.
+        // Only the selected pure Copy arm is borrowed below. The sibling's
+        // complete Task domain, actual ports, parents and phase stay in the
+        // existing Task and affine-sum consumers and in the same local state.
+        crate::dynamic_witness::intrinsic_domain(module,other,b)?;
     } else if !matches!(other, Type::Package { .. }) || !ordinary_union_shape(module,parent, b)? {
         return Ok(false);
     }
@@ -1115,6 +1168,55 @@ mod owned_observation_tests{
             assert!(qualified_package_description(f, &describe(0, 4), &mut b).is_err());
             assert!(qualified_package_description(f, &describe(3, 3), &mut b).is_err(),
                 "the complete Record payload must not hide an Address as Copy");
+        }
+    }
+    #[test]
+    fn copy_error_arm_keeps_the_actual_task_sibling_outside_the_target_free_lane_raw_wire(){
+        let limits=Limits::default();
+        for count in [0,1]{
+            let(mut module,_)=crate::tests::baseline();
+            let error=Type::Enum{name:"@std.task:v1:TaskCreateError".into(),variants:vec![("Allocation".into(),vec![])]};
+            let leaf=Type::Address{mutable:false,inner:Box::new(Type::I32)};
+            let task=Type::Managed(Box::new(Type::Task{result:Box::new(Type::I32),retained_life:RetainedLifeShape{binder_count:count,ports:(0..count).map(|binder|RetainedBorrowPort{leaf:leaf.clone(),mode:StoredBorrowMode::SharedAddress,binder}).collect(),retained:(0..count).map(|class|StorageRetainedBinding{path:vec![LifeTypeProjection::Parameter(0)],class,binder:class}).collect(),nominal_arguments:vec![]}}));
+            module.functions[0].locals[0].ty=Type::ErrorUnion{error:Box::new(error.clone()),result:Box::new(task)};
+            module.functions[0].values=vec![Type::Address{mutable:false,inner:Box::new(error.clone())},Type::Address{mutable:true,inner:Box::new(error)},Type::Address{mutable:false,inner:Box::new(Type::Unit)}];
+            let bytes=zil_ir::wire::encode_module_candidate(&module,&CandidatePlan::empty_for(&module),&limits).unwrap();let(wire,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+            for actual in [&module,&wire]{
+                let f=&actual.functions[0];let mut b=Budget::new(&limits);b.task_borrowed_results=true;
+                let borrow=|value,mutable,selected|Instruction{result:Some(ValueId(value)),kind:InstructionKind::BorrowPlaceLocal{local:LocalId(0),path:vec![PlaceProjection::ErrorArm(selected)],mutable},span:f.span};
+                assert!(ordinary_error_borrow(actual,f,&borrow(0,false,true),&mut b).unwrap());
+                assert!(!complete_owned_value(actual,&f.locals[0].ty,&mut b).unwrap(),"the Task-bearing union is not relabeled target-free");
+                assert!(!ordinary_error_borrow(actual,f,&borrow(1,true,true),&mut b).unwrap());
+                assert!(ordinary_error_borrow(actual,f,&borrow(2,false,true),&mut b).is_err());
+                assert!(!ordinary_error_borrow(actual,f,&borrow(0,false,false),&mut b).unwrap());
+            }
+        }
+    }
+    #[test]
+    fn ordinary_owned_tuple_uses_exact_distinct_destinations_and_transports_real_leaf_parents_raw_wire(){
+        let limits=Limits::default();let(mut module,_)=crate::tests::baseline();
+        let owner=Type::Managed(Box::new(Type::Record{name:"Quiet".into(),fields:vec![("value".into(),Type::I32)]}));
+        let tuple=Type::Tuple(vec![owner.clone(),Type::I32]);
+        module.functions[0].locals[0].ty=tuple.clone();
+        for(id,ty)in [(1,owner.clone()),(2,Type::I32)]{let mut local=module.functions[0].locals[0].clone();local.id=LocalId(id);local.ty=ty;module.functions[0].locals.push(local);}
+        module.functions[0].values=vec![owner,Type::I32,tuple];
+        let bytes=zil_ir::wire::encode_module_candidate(&module,&CandidatePlan::empty_for(&module),&limits).unwrap();let(wire,_)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+        for actual in [&module,&wire]{
+            let f=&actual.functions[0];let mut b=Budget::new(&limits);b.function_count=actual.functions.len();
+            let instruction=|result:Option<u32>,kind:InstructionKind|Instruction{result:result.map(ValueId),kind,span:f.span};
+            let unpack=instruction(None,InstructionKind::UnpackTuple{local:LocalId(0),fields:vec![LocalId(1),LocalId(2)]});
+            let make=instruction(Some(2),InstructionKind::MakeOwnedTuple{fields:vec![ValueId(0),ValueId(1)]});
+            let take=instruction(Some(0),InstructionKind::TakeTupleField{local:LocalId(0),path:vec![PlaceProjection::Field(0)]});
+            let drop=instruction(None,InstructionKind::DropTuple{local:LocalId(0)});
+            for i in [&unpack,&make,&take,&drop]{assert!(ordinary_owned_tuple(actual,f,i,&mut b).unwrap());}
+            let alias=instruction(None,InstructionKind::UnpackTuple{local:LocalId(0),fields:vec![LocalId(1),LocalId(1)]});assert!(ordinary_owned_tuple(actual,f,&alias,&mut b).is_err());
+            let mismatch=instruction(None,InstructionKind::UnpackTuple{local:LocalId(0),fields:vec![LocalId(2),LocalId(1)]});assert!(ordinary_owned_tuple(actual,f,&mismatch,&mut b).is_err());
+            // A private transfer control: existing field facts are supplied
+            // explicitly, never inferred from this target-free metadata test.
+            let permission=Permission{sources:vec![Source{base:HoldRoot::Parameter(7),leaf:vec![],inline:vec![],heap_parents:vec![],heap_element:None,retained_port:None,static_dependency:StaticProvenance::NotStatic}],loans:vec![11,12]};
+            let mut state=Frame{locals:vec![Payload::default();3],..Frame::default()};add_leaf(&mut state.locals[0],&[PlaceProjection::Field(0),PlaceProjection::Field(3)],&permission,&mut b).unwrap();
+            ordinary_tuple_transfer(f,&unpack,&mut state,&[],&mut Payload::default(),&mut b).unwrap();
+            assert_eq!(leaf(&state.locals[1],&[PlaceProjection::Field(3)],&mut b).unwrap(),Some(&permission));assert!(state.locals[0].leaves.is_empty());
         }
     }
     // These test qualification and selected result identity, not an executed
