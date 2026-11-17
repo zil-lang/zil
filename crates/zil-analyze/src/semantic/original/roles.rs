@@ -759,14 +759,14 @@ impl Checked {
             b.lookup(frame.expressions.len(), WORK)?;
             let Some(term) = frame.expressions.get(&value.id) else { return Ok(None); };
             if self.root(*term, b)? != self.root(frame.result, b)?
-                || !self.receiver_expression_source(owner, value.id, inventory, &mut sources, &mut BTreeSet::new(), b, 0)? {
+                || !self.receiver_expression_source(owner, value.id, inventory, &mut sources, &mut BTreeSet::new(), &mut BTreeSet::new(), b, 0)? {
                 return Ok(None);
             }
         } else {
             for value in returns {
                 b.spend(1, WORK)?;
                 let Some(value) = value else { return Ok(None); };
-                if !self.receiver_expression_source(owner, value.id, inventory, &mut sources, &mut BTreeSet::new(), b, 0)? { return Ok(None); }
+                if !self.receiver_expression_source(owner, value.id, inventory, &mut sources, &mut BTreeSet::new(), &mut BTreeSet::new(), b, 0)? { return Ok(None); }
             }
         }
         // A literal-only result has no capture root. Its separate genuine
@@ -791,12 +791,23 @@ impl Checked {
     fn receiver_expression_source(
         &self, owner: SemanticDefinitionId, node: NodeId, inventory: &Inventory<'_>,
         sources: &mut BTreeSet<u32>, active: &mut BTreeSet<(SemanticDefinitionId, NodeId)>,
+        grounded: &mut BTreeSet<(SemanticDefinitionId, NodeId)>,
         b: &mut Budget, depth: usize,
     ) -> CompileResult<bool> {
         b.spend(1, WORK)?;
         if depth > b.partial_depth { return Err(resource("Receiver original source depth exceeded")); }
         b.lookup(active.len(), WORK)?;
-        if !active.insert((owner, node)) { return Err(unknown("Receiver source has a cyclic original alias")); }
+        if !active.insert((owner, node)) {
+            // Only a real read of an initializer-grounded binding closes this
+            // dependency. Its complete write inventory is still being checked
+            // by the owning traversal; an arbitrary source cycle proves nothing.
+            b.lookup(self.local_reads.len(), WORK)?;
+            if let Some(LocalAnchor::Binding(binding)) = self.local_reads.get(&(owner,node)) {
+                b.lookup(grounded.len(), WORK)?;
+                if grounded.contains(&(owner,*binding)) { return Ok(true); }
+            }
+            return Err(unknown("Receiver source cycle has no independently grounded binding"));
+        }
         let answer = (|| -> CompileResult<bool> {
             b.lookup(self.string_literals.len(), WORK)?;
             if self.string_literals.contains_key(&(owner, node)) { return Ok(true); }
@@ -814,10 +825,10 @@ impl Checked {
                 // inherit an earlier captured/external permission.
                 if !source.indirect && !source.slice.is_some_and(|slice| slice.address) { return Ok(false); }
                 if let Some(expression) = source.expression {
-                    return self.receiver_expression_source(owner, expression, inventory, sources, active, b, depth + 1);
+                    return self.receiver_expression_source(owner, expression, inventory, sources, active, grounded, b, depth + 1);
                 }
                 if let Some(LocalAnchor::Binding(binding)) = source.anchor {
-                    return self.receiver_binding_sources(owner, binding, inventory, sources, active, b, depth + 1);
+                    return self.receiver_binding_sources(owner, binding, inventory, sources, active, grounded, b, depth + 1);
                 }
                 return Ok(false);
             }
@@ -843,15 +854,15 @@ impl Checked {
                 | CoreExprKind::Member { object: inner, .. }
                 | CoreExprKind::Index { object: inner, .. }
                 | CoreExprKind::Unary { op: UnaryOp::Dereference, operand: inner } =>
-                    return self.receiver_expression_source(owner, inner.id, inventory, sources, active, b, depth + 1),
+                    return self.receiver_expression_source(owner, inner.id, inventory, sources, active, grounded, b, depth + 1),
                 CoreExprKind::If { then_value, else_value, .. } => return Ok(
-                    self.receiver_expression_source(owner, then_value.id, inventory, sources, active, b, depth + 1)?
-                    && self.receiver_expression_source(owner, else_value.id, inventory, sources, active, b, depth + 1)?),
+                    self.receiver_expression_source(owner, then_value.id, inventory, sources, active, grounded, b, depth + 1)?
+                    && self.receiver_expression_source(owner, else_value.id, inventory, sources, active, grounded, b, depth + 1)?),
                 CoreExprKind::Name(_) => {
                     b.lookup(self.local_reads.len(), WORK)?;
                     return match self.local_reads.get(&(owner, node)) {
                         Some(LocalAnchor::Binding(binding)) => self.receiver_binding_sources(owner, *binding,
-                            inventory, sources, active, b, depth + 1),
+                            inventory, sources, active, grounded, b, depth + 1),
                         _ => Ok(false),
                     };
                 }
@@ -875,13 +886,13 @@ impl Checked {
                     if self.root(input.target, b)? != life { continue; }
                     found = true;
                     if !self.receiver_expression_source(owner, input.source.node, inventory,
-                        sources, active, b, depth + 1)? { return Ok(false); }
+                        sources, active, grounded, b, depth + 1)? { return Ok(false); }
                 }
             }
             if found { return Ok(true); }
             if matches!(self.arena[life], Kind::Life(Life::Receiver(scope, call)) if scope == owner && call == node) {
                 let CoreExprKind::Call { callee, .. } = &value.kind else { return Ok(false); };
-                return self.receiver_expression_source(owner, callee.id, inventory, sources, active, b, depth + 1);
+                return self.receiver_expression_source(owner, callee.id, inventory, sources, active, grounded, b, depth + 1);
             }
             Ok(false)
         })();
@@ -892,18 +903,23 @@ impl Checked {
     fn receiver_binding_sources(
         &self, owner: SemanticDefinitionId, binding: NodeId, inventory: &Inventory<'_>,
         sources: &mut BTreeSet<u32>, active: &mut BTreeSet<(SemanticDefinitionId, NodeId)>,
+        grounded: &mut BTreeSet<(SemanticDefinitionId, NodeId)>,
         b: &mut Budget, depth: usize,
     ) -> CompileResult<bool> {
         if depth > b.partial_depth { return Err(resource("Receiver binding source depth exceeded")); }
+        b.lookup(grounded.len(), WORK)?;
+        if grounded.contains(&(owner,binding)) { return Ok(true); }
         let directory = inventory.original_index(owner, b)?;
         let statement = directory.get_stmt(binding, b)?;
         let CoreStatementKind::Binding { initializer: Some(initializer), .. } = &statement.kind else { return Ok(false); };
-        if !self.receiver_expression_source(owner, initializer.id, inventory, sources, active, b, depth + 1)? { return Ok(false); }
+        if !self.receiver_expression_source(owner, initializer.id, inventory, sources, active, grounded, b, depth + 1)? { return Ok(false); }
+        b.lookup(grounded.len(), WORK)?;
+        grounded.insert((owner,binding));
         for ((scope, _), write) in &self.cleanup_writes {
             b.spend(write.path.len().saturating_add(1), WORK)?;
             if *scope == owner && write.anchor == LocalAnchor::Binding(binding) {
                 if !write.path.is_empty() { return Ok(false); }
-                if !self.receiver_expression_source(owner, write.value, inventory, sources, active, b, depth + 1)? { return Ok(false); }
+                if !self.receiver_expression_source(owner, write.value, inventory, sources, active, grounded, b, depth + 1)? { return Ok(false); }
             }
         }
         Ok(true)
@@ -1015,8 +1031,19 @@ impl Solver<'_, '_> {
         if matches!(self.state.arena[source], Kind::CallResult { .. }) {
             return Err(resource("Receiver callable provenance exceeds its finite depth"));
         }
-        let local_view = matches!(self.state.arena[self.root(life, b)?],
+        let mut local_view = matches!(self.state.arena[self.root(life, b)?],
             Kind::Life(Life::Implicit(actual, _)) | Kind::Life(Life::ClosureReceiver(actual)) if actual == definition);
+        // Invocation opening may have substituted the local occurrence. Its
+        // completed declaration still identifies the original upper bound;
+        // the resulting lifetime label cannot establish that fact itself.
+        b.lookup(self.state.frames.len(), WORK)?;
+        if let Some(frame) = self.state.frames.get(&definition) {
+            let result = self.type_root(frame.result, b)?;
+            if let Kind::Address { mutable: false, life, .. } = self.state.arena[result] {
+                local_view |= matches!(self.state.arena[self.root(life, b)?],
+                    Kind::Life(Life::Implicit(actual, _)) | Kind::Life(Life::ClosureReceiver(actual)) if actual == definition);
+            }
+        }
         if !required && !local_view { return Ok(result); }
         self.state.receiver_sources(definition, self.inventory, b)?
             .ok_or_else(|| fail("Receiver invocation lacks a complete original captured source proof"))?;

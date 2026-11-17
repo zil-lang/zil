@@ -492,4 +492,38 @@ impl Check<'_, '_> {
         }
         Ok(())
     }
+
+    /// Authenticate every concrete invocation, including scalar-result calls
+    /// that never request the shorter Receiver result view.
+    pub(super) fn known_call_place(
+        &self, instance: &SemanticInstance, function: &TypedFunction,
+        at: (BlockId, usize), instruction: &Instruction,
+        source: &original::borrow_places::Source, b: &mut Budget,
+    ) -> CompileResult<()> {
+        match instruction.kind {
+            InstructionKind::CallClosureOnce { callee, .. } =>
+                self.consuming_receiver_place(instance, function, at, callee, source, b),
+            InstructionKind::CallClosure { callee, .. } => {
+                operations::available_before(function, (at.0, at.1, SemanticSiteEdge::Before), callee, b)?;
+                if source.expression.is_some() {
+                    self.consuming_receiver_place(instance, function, at, callee, source, b)?;
+                } else {
+                    self.abstract_copy_place(instance, function, callee, source, &source.path, b, 0)?;
+                    if !self.abstract_copy_type(&source.inner.ty, b, 0)? {
+                        return Err(fail("copied concrete receiver lacks its complete Copy environment proof"));
+                    }
+                }
+                let actual = self.ssa_value(instance, function, callee, b, 0)?;
+                if !self.capture_values_equal(&actual, &source.inner, b)? {
+                    return Err(fail("copied concrete invocation changes its original full receiver domain"));
+                }
+                Ok(())
+            }
+            InstructionKind::CallClosureShared { .. }
+            | InstructionKind::CallClosureMut { .. }
+            | InstructionKind::CallClosureBorrowed { .. } =>
+                self.known_receiver_place(instance, function, at, instruction, source, b),
+            _ => Err(fail("concrete invocation loses its exact callable operation")),
+        }
+    }
 }

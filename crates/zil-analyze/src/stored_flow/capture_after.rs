@@ -350,13 +350,13 @@ pub(super) fn invoke(
     {
         return Ok(());
     }
-    let (base, receiver) = match &i.kind {
+    let (location, receiver) = match &i.kind {
         InstructionKind::CallClosureMut { callee, .. } => {
             let receiver = state
                 .locals
                 .get(callee)
                 .ok_or_else(|| failure("mutable receiver actual environment absent"))?;
-            (Some(HoldRoot::Local(*callee)), snapshot(receiver, b)?)
+            (Some((local_capture_base(state, *callee, b)?, Vec::new())), snapshot(receiver, b)?)
         }
         InstructionKind::CallClosureBorrowed {
             callee,
@@ -371,21 +371,19 @@ pub(super) fn invoke(
                 .ok_or_else(|| failure("mutable borrowed receiver has no actual head"))?;
             if roots.next().is_some()
                 || !head.stored.is_empty()
-                || !head.place.is_empty()
-                || head.heap_element.is_some()
+                || head.heap_element.is_some() || !head.heap_parents.is_empty()
+                || head.retained_port.is_some()
             {
                 return Err(failure(
                     "mutable borrowed receiver requires one complete actual environment head",
                 ));
             }
             let receiver = Value {
-                environment: copy_permission_rows(
-                    environment_memory::rows(state, head.base, b)?,
-                    b,
-                )?,
+                environment: environment_memory::at(state, head.base, &head.place, b)?,
                 ..Value::default()
             };
-            (Some(head.base), receiver)
+            fee(b, head.place.len())?;
+            (Some((head.base, head.place.clone())), receiver)
         }
         InstructionKind::CallClosureOnce { callee, .. } => {
             (None, snapshot(&values[callee.0 as usize], b)?)
@@ -460,8 +458,8 @@ pub(super) fn invoke(
         b.stored_exclusive_loans |= mutable;
     }
     publish_contexts(module, d, state, &receiver.environment, &rows, b)?;
-    if let Some(base) = base {
-        environment_memory::publish(state, base, rows, b)?;
+    if let Some((base, path)) = location {
+        environment_memory::publish(state, base, &path, rows, b)?;
     }
     Ok(())
 }
@@ -558,7 +556,7 @@ pub(super) fn publish_contexts(
             } else {
                 union(previous, &replacement, b)?;
             }
-            environment_memory::publish(state, base, rows, b)?;
+            environment_memory::publish(state, base, &[], rows, b)?;
         } else {
             let rows = actual_slot_rows_mut(state, base, b)?;
             let previous = rows.get_mut(&path).ok_or_else(|| {

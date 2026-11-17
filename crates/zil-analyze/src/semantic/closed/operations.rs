@@ -1266,6 +1266,10 @@ impl Check<'_, '_> {
                         {
                             return Err(fail("borrowed known closure entry has another complete callable role"));
                         }
+                        let original_receiver = self.original.borrowed_closure_receiver(
+                            instance, site.recipe, self.program, self.inventory, b)?;
+                        self.known_call_place(instance, point.function,
+                            (point.block.id, point.instruction), instruction, &original_receiver, b)?;
                         b.spend(callee.parameters.len(), WORK)?;
                         for parameter in &callee.parameters {
                             crate::dyn_metadata::ty(parameter, b)?;

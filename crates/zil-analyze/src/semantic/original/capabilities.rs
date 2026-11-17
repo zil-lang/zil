@@ -490,7 +490,7 @@ impl Solver<'_, '_> {
                 if *caller != owner {
                     continue;
                 }
-                if call.closure {
+                if call.receiver.is_some() {
                     let callee = self.inventory.definition(call.target, b)?;
                     let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &callee.body
                     else {

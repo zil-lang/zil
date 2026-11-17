@@ -72,7 +72,20 @@ pub(crate) fn admit_callback_head(
             return Err(error("Product field identity is empty or duplicated"));
         }
     }
-    crate::dynamic_store::callback_element(module, package_storage(ty), budget)?;
+    let mut complete = true;
+    for (_, field) in fields {
+        budget.spend(1, "complete callback head field")?;
+        if let Type::Closure(id) = field {
+            complete &= crate::callable_fields::environment(module, *id, budget)?;
+        }
+    }
+    if complete {
+        // Ordinary frame qualification includes externally rooted captures.
+        // It is deliberately not the Store element self-contained profile.
+        admit_owned(module, ty, budget)?;
+    } else {
+        crate::dynamic_store::callback_element(module, package_storage(ty), budget)?;
+    }
     Ok(true)
 }
 
@@ -230,6 +243,15 @@ fn admit_shape(
                 _ if qualified && crate::stored_flow::shared_record_child(ty, budget)? => {}
                 _ if qualified && crate::stored_flow::shared_array_shape(ty, budget)? => {}
                 ty if ty.is_copy_value() => {}
+                Type::Closure(id) if module.is_some_and(|_| stores) => {
+                    let actual = module.expect("ordinary Product has an actual module");
+                    if !crate::callable_fields::environment(actual, *id, budget)? {
+                        return Err(error("Product callback lacks its independently complete environment"));
+                    }
+                    // This keeps the separate field debt. It grants neither
+                    // Store qualification nor Copy, SyncDrop or fresh origin.
+                    owned = true;
+                }
                 _ => {
                     if borrowed {
                         return Err(vec![Diagnostic::unsupported(

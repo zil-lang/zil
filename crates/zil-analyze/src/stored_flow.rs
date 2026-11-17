@@ -1487,6 +1487,39 @@ fn take_package_field_slots(
     Ok(extracted)
 }
 
+fn take_package_field_value(holder: &mut Value, index: u32, b: &mut Budget) -> CompileResult<Value> {
+    let physical = [PlaceProjection::Field(index)];
+    let logical = [ContractProjection::Place(PlaceProjection::Field(index))];
+    let mut out = Value::default();
+    out.slots = take_package_field_slots(holder, index, b)?;
+    out.environment = environment_memory::replace_value(holder, &physical, BTreeMap::new(), b)?;
+    for permission in out.environment.values() { union(&mut out.held, permission, b)?; }
+    out.task_ports = environment_memory::replace(&mut holder.task_ports, &logical, BTreeMap::new(), b)?;
+    out.dyn_ports = environment_memory::replace(&mut holder.dyn_ports, &logical, BTreeMap::new(), b)?;
+    Ok(out)
+}
+
+fn store_package_field_value(holder: &mut Value, index: u32, source: &Value, ty: &Type, b: &mut Budget)
+    -> CompileResult<()> {
+    environment_memory::complete_held(source, b)?;
+    take_package_field_value(holder, index, b)?;
+    let physical = [PlaceProjection::Field(index)];
+    let logical = [ContractProjection::Place(PlaceProjection::Field(index))];
+    environment_memory::replace_value(holder, &physical, copy_permission_rows(&source.environment, b)?, b)?;
+    let mut slots = copy_permission_rows(&source.slots, b)?;
+    if matches!(ty, Type::Address { .. }) {
+        if slots.insert(Vec::new(), copy_permission(&source.pointer, b)?).is_some() {
+            return Err(failure("actual Address field repeats its complete root permission"));
+        }
+    } else if !source.pointer.targets.is_empty() || !source.pointer.loans.is_empty() {
+        return Err(failure("owning field replacement carries an unproved address root"));
+    }
+    environment_memory::replace(&mut holder.slots, &physical, slots, b)?;
+    environment_memory::replace(&mut holder.task_ports, &logical, copy_permission_rows(&source.task_ports, b)?, b)?;
+    environment_memory::replace(&mut holder.dyn_ports, &logical, copy_permission_rows(&source.dyn_ports, b)?, b)?;
+    Ok(())
+}
+
 pub(super) fn shape_work(ty: &Type, limits: &Limits, b: &mut Budget) -> CompileResult<()> {
     fee(b, 1)?;
     let mut pending = vec![(ty, 0usize)];
@@ -3282,31 +3315,75 @@ fn environment_path(
     path.extend_from_slice(leaf);
     Ok(path)
 }
+/// Enumerate actual inline callable positions. An Address field is a pointer,
+/// not an inline environment; only the entry's outer Address is opened here.
+fn environment_roots(ty: &Type, b: &mut Budget) -> CompileResult<Vec<(ClosureId, Path)>> {
+    let ty = if let Type::Address { inner, .. } = ty { inner.as_ref() } else { ty };
+    let mut pending = vec![(ty, Vec::new(), 0usize)];
+    let mut out = Vec::new();
+    while let Some((ty, path, depth)) = pending.pop() {
+        fee(b, path.len().saturating_add(1))?;
+        if depth > b.partial_depth { return Err(failure("inline callable inventory exceeds finite depth")); }
+        match ty {
+            Type::Closure(id) => out.push((*id, path)),
+            Type::BorrowedStorage { storage, .. } | Type::Opaque { hidden: storage, .. } =>
+                pending.push((storage, path, depth + 1)),
+            Type::Tuple(fields) => {
+                for (index, field) in fields.iter().enumerate() {
+                    fee(b, path.len().saturating_add(2))?;
+                    let mut child = path.clone(); child.push(PlaceProjection::Field(u32::try_from(index)
+                        .map_err(|_| failure("inline callable field ordinal overflow"))?));
+                    pending.push((field, child, depth + 1));
+                }
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                for (index, (_, field)) in fields.iter().enumerate() {
+                    fee(b, path.len().saturating_add(2))?;
+                    let mut child = path.clone(); child.push(PlaceProjection::Field(u32::try_from(index)
+                        .map_err(|_| failure("inline callable field ordinal overflow"))?));
+                    pending.push((field, child, depth + 1));
+                }
+            }
+            Type::Array { element, length } => {
+                fee(b,(*length as usize).saturating_mul(path.len().saturating_add(2)))?;
+                for index in 0..*length {
+                    let mut child=path.clone(); child.push(PlaceProjection::Field(index));
+                    pending.push((element,child,depth+1));
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (variant,(_,fields)) in variants.iter().enumerate() {
+                    for (index,field) in fields.iter().enumerate() {
+                        fee(b,path.len().saturating_add(2))?;
+                        let mut child=path.clone();
+                        child.push(PlaceProjection::Variant(zil_ir::VariantProjection {
+                            variant:u32::try_from(variant).map_err(|_|failure("inline variant ordinal overflow"))?,
+                            index:u32::try_from(index).map_err(|_|failure("inline field ordinal overflow"))?,
+                        }));
+                        pending.push((field,child,depth+1));
+                    }
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                for (arm,field) in [(true,error.as_ref()),(false,result.as_ref())] {
+                    fee(b,path.len().saturating_add(2))?;
+                    let mut child=path.clone();child.push(PlaceProjection::ErrorArm(arm));
+                    pending.push((field,child,depth+1));
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(out)
+}
 fn environment_value(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
-    if super::stored_callables::fixed_value(module, ty) {
-        return Ok(true);
+    for (id, _) in environment_roots(ty, b)? {
+        b.lookup(b.returned_borrowed_environments.len(), "actual returned environment identity lookup")?;
+        if super::stored_callables::finite(module, id) || b.returned_borrowed_environments.contains(&id) {
+            return Ok(true);
+        }
     }
-    // Concrete ordinary environments still have actual frame memory. This
-    // selects its producer/field proof, not a known-zero semantic domain.
-    if super::stored_callables::value(module, ty) {
-        return Ok(true);
-    }
-    if b.returned_borrowed_environments.is_empty() {
-        return Ok(false);
-    }
-    let ty = if let Type::Address { inner, .. } = ty {
-        inner.as_ref()
-    } else {
-        ty
-    };
-    let Type::Closure(id) = ty else {
-        return Ok(false);
-    };
-    b.lookup(
-        b.returned_borrowed_environments.len(),
-        "actual returned environment identity lookup",
-    )?;
-    Ok(b.returned_borrowed_environments.contains(id))
+    Ok(false)
 }
 
 fn capture_static_leaf(
@@ -3359,31 +3436,29 @@ fn seed_target(base: HoldRoot, path: &[PlaceProjection], is_static: bool) -> Tar
 }
 
 fn seed_environment(
-    module: &TypedModule,
-    ty: &Type,
-    base: HoldRoot,
-    static_context: Option<(&ClosureDefinition, u32)>,
-    value: &mut Value,
-    loans: &mut Vec<Loan>,
-    b: &mut Budget,
+    module: &TypedModule, ty: &Type, base: HoldRoot,
+    static_context: Option<(&ClosureDefinition, u32)>, value: &mut Value,
+    loans: &mut Vec<Loan>, b: &mut Budget,
 ) -> CompileResult<()> {
-    let ty = if let Type::Address { inner, .. } = ty {
-        inner.as_ref()
-    } else {
-        ty
-    };
-    let Type::Closure(id) = ty else { return Ok(()) };
-    let d = module
-        .closures
-        .get(id.0 as usize)
-        .ok_or_else(|| failure("environment parameter definition absent"))?;
-    if d.storage_life.is_none()
-        && !b.returned_borrowed_environments.contains(id)
-        && !super::stored_callables::finite(module, *id)
-    {
-        return Ok(());
+    for (id, prefix) in environment_roots(ty, b)? {
+        let d = module.closures.get(id.0 as usize).filter(|d| d.id == id)
+            .ok_or_else(|| failure("environment parameter definition absent"))?;
+        b.lookup(b.returned_borrowed_environments.len(), "actual inline environment identity lookup")?;
+        if d.storage_life.is_none() && !b.returned_borrowed_environments.contains(&id)
+            && !super::stored_callables::finite(module, id) {
+            return Err(failure("inline callable lacks its complete actual environment domain"));
+        }
+        seed_inline_environment(module, d, prefix, base, static_context, value, loans, b)?;
     }
-    fee(b, d.captures.len())?;
+    Ok(())
+}
+fn seed_inline_environment(
+    module: &TypedModule, d: &ClosureDefinition, initial: Path, base: HoldRoot,
+    static_context: Option<(&ClosureDefinition, u32)>, value: &mut Value,
+    loans: &mut Vec<Loan>, b: &mut Budget,
+) -> CompileResult<()> {
+    let offset = initial.len();
+    fee(b, d.captures.len().saturating_add(1))?;
     let mut add = |path: Path,
                    mutable: bool,
                    is_static: bool,
@@ -3406,7 +3481,7 @@ fn seed_environment(
         };
         environment_leaf(value, path, &permission, b)
     };
-    let mut pending = vec![(d, Vec::new(), 0usize)];
+    let mut pending = vec![(d, initial, 0usize)];
     while let Some((definition, prefix, depth)) = pending.pop() {
         fee(b, definition.captures.len().saturating_add(prefix.len()))?;
         if depth > b.partial_depth {
@@ -3416,14 +3491,16 @@ fn seed_environment(
             let mut path = prefix.clone();
             fee(b, path.len().saturating_add(1))?;
             path.push(PlaceProjection::Field(index as u32));
-            if let Type::Closure(child) = capture {
-                let definition = module
-                    .closures
-                    .get(child.0 as usize)
-                    .ok_or_else(|| failure("nested environment seed definition absent"))?;
-                pending.push((definition, path, depth + 1));
-                continue;
+            if !matches!(capture,Type::Address { .. }) {
+                for (child,relative) in environment_roots(capture,b)? {
+                    let definition=module.closures.get(child.0 as usize).filter(|d|d.id==child)
+                        .ok_or_else(||failure("nested environment seed definition absent"))?;
+                    fee(b,path.len().saturating_add(relative.len()))?;
+                    let mut nested=path.clone();nested.extend(relative);
+                    pending.push((definition,nested,depth+1));
+                }
             }
+            if matches!(capture,Type::Closure(_)) {continue;}
             let mut rows = Vec::new();
             if let Type::Address { mutable, .. } = capture {
                 fee(b, 1)?;
@@ -3451,7 +3528,7 @@ fn seed_environment(
                 let local_static =
                     capture_static_leaf(Some((definition, index as u32)), &leaf, mode, b)?;
                 let root_static = if definition.id != d.id {
-                    match nested.split_first() {
+                    match nested[offset..].split_first() {
                         Some((PlaceProjection::Field(capture), tail)) => {
                             capture_static_leaf(Some((d, *capture)), tail, mode, b)?
                         }
@@ -3686,7 +3763,7 @@ fn seed(
             loans,
             b,
         )?;
-        if matches!(&f.locals[local.0 as usize].ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Closure(_)))
+        if matches!(&f.locals[local.0 as usize].ty, Type::Address { .. })
             && !value.environment.is_empty()
         {
             b.stored_slot_updates |= matches!(
@@ -3748,9 +3825,7 @@ fn seed(
                 loans,
                 b,
             )?;
-            if matches!(ty, Type::Closure(_))
-                || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)))
-            {
+            if environment_value(module, ty, b)? {
                 seed_environment(
                     module,
                     ty,
@@ -4504,7 +4579,11 @@ fn transfer(
                 .locals
                 .get_mut(local)
                 .ok_or_else(|| failure("taken Package field has no live local shell"))?;
-            out.slots = take_package_field_slots(holder, *index, b)?;
+            out = take_package_field_value(holder, *index, b)?;
+            if i.result.is_some_and(|result| matches!(f.values.get(result.0 as usize), Some(Type::Address { .. }))) {
+                out.pointer = out.slots.remove(&Vec::new())
+                    .ok_or_else(|| failure("taken Address field has no exact root permission"))?;
+            }
             fee(b, state.vacant.len())?;
             state.vacant.retain(|target| {
                 !(target.base == HoldRoot::Local(*local)
@@ -4514,7 +4593,7 @@ fn transfer(
         InstructionKind::DropPackageField { local, index } => {
             ordered(b, state.locals.len(), 0)?;
             if let Some(holder) = state.locals.get_mut(local) {
-                take_package_field_slots(holder, *index, b)?;
+                take_package_field_value(holder, *index, b)?;
             }
             fee(b, state.vacant.len())?;
             state.vacant.retain(|target| {
@@ -4527,23 +4606,11 @@ fn transfer(
             index,
             value,
         } => {
-            if !get(*value)?.environment.is_empty() {
-                return Err(vec![Diagnostic::unsupported(Phase::Analyze,
-                    "callable field replacement requires its complete current subenvironment publication",
-                    Some(i.span))]);
-            }
-
-            let source = snapshot(get(*value)?, b)?;
+            let source = get(*value)?;
             ordered(b, state.locals.len(), 0)?;
-            let holder = state.locals.entry(*local).or_default();
-            take_package_field_slots(holder, *index, b)?;
-            for (path, permission) in source.slots {
-                fee(b, path.len().saturating_add(1))?;
-                let mut complete = vec![PlaceProjection::Field(*index)];
-                complete.extend(path);
-                ordered(b, holder.slots.len(), complete.len())?;
-                holder.slots.insert(complete, permission);
-            }
+            let holder = state.locals.get_mut(local)
+                .ok_or_else(|| failure("stored callable field has no live actual shell"))?;
+            store_package_field_value(holder, *index, source, value_type(f, *value)?, b)?;
             fee(b, state.vacant.len())?;
             state.vacant.retain(|target| {
                 !(target.base == HoldRoot::Local(*local)
@@ -4740,6 +4807,10 @@ fn transfer(
             // unified directory; no class count substitutes for its contents.
             for (index, field) in fields.iter().enumerate() {
                 let source = get(*field)?;
+                let logical = [ContractProjection::Place(PlaceProjection::Field(u32::try_from(index)
+                    .map_err(|_| failure("aggregate port field ordinal overflow"))?))];
+                environment_memory::replace(&mut out.task_ports, &logical, copy_permission_rows(&source.task_ports, b)?, b)?;
+                environment_memory::replace(&mut out.dyn_ports, &logical, copy_permission_rows(&source.dyn_ports, b)?, b)?;
                 for (tail, permission) in &source.environment {
                     fee(b, tail.len().saturating_add(1))?;
                     let mut path = vec![PlaceProjection::Field(u32::try_from(index)
@@ -5062,9 +5133,11 @@ fn transfer(
                     .parameters
                     .get(index)
                     .ok_or_else(|| failure("external summary parameter is absent"))?;
-                if !matches!(&callee.locals[local.0 as usize].ty,
-                    Type::Address { mutable: true, inner } if carrier(inner).is_some() || matches!(inner.as_ref(),Type::Closure(_)))
-                {
+                if !match &callee.locals[local.0 as usize].ty {
+                    Type::Address { mutable: true, inner } => carrier(inner).is_some()
+                        || environment_value(module, inner, b)?,
+                    _ => false,
+                } {
                     continue;
                 }
                 let actual = get(*arguments
@@ -5112,7 +5185,12 @@ fn transfer(
                     let mut actual_path=root.place.clone();
                     actual_path.extend(path);
                     updates.push((root.base, actual_path, copy_permission(&permission,b)?, match &callee.locals[local.0 as usize].ty {
-                        Type::Address { inner, .. } => match inner.as_ref() { Type::Closure(id) => Some(*id), _ => None },
+                        Type::Address { inner, .. } => match inner.as_ref() {
+                            Type::Closure(id) => {
+                                fee(b, root.place.len())?;
+                                Some((*id,root.place.clone()))
+                            }, _ => None,
+                        },
                         _ => None,
                     },strong));
                 }
@@ -5121,13 +5199,18 @@ fn transfer(
             // before publishing any external carrier updates below.
             raw_references::after_call(callee, summary, arguments, values, state, i, slot_ids, loans, b)?;
             let mut environments = BTreeMap::new();
+            let mut environment_contexts = BTreeMap::new();
             for (base, path, permission, environment,strong) in updates {
-                if let Some(id) = environment {
+                if let Some((id,prefix)) = environment {
+                    ordered(b,environment_contexts.len(),prefix.len())?;
+                    if let Some(previous)=environment_contexts.insert((base,prefix),id) {
+                        if previous!=id {return Err(failure("external update changes the actual field environment identity"));}
+                    }
                     ordered(b, environments.len(), 0)?;
                     if let std::collections::btree_map::Entry::Vacant(entry)=environments.entry(base) {
-                        entry.insert((id,copy_permission_rows(environment_memory::rows(state,base,b)?,b)?));
+                        entry.insert(copy_permission_rows(environment_memory::rows(state,base,b)?,b)?);
                     }
-                    let (_,rows)=environments.get_mut(&base).unwrap();
+                    let rows=environments.get_mut(&base).unwrap();
                     ordered(b,rows.len(),path.len())?;
                     if strong {rows.insert(path,permission);} else {
                         let previous=rows.get_mut(&path).ok_or_else(||failure("weak environment update omits an actual previous row"))?;
@@ -5145,11 +5228,18 @@ fn transfer(
             for (definition,before,after) in moved_contexts {
                 capture_after::publish_contexts(module,definition,state,&before,&after,b)?;
             }
-            for (base,(id,rows)) in environments {
+            for (base,rows) in environments {
                 let before=copy_permission_rows(environment_memory::rows(state,base,b)?,b)?;
-                let definition=module.closures.get(id.0 as usize).ok_or_else(||failure("external mutable environment definition absent"))?;
-                capture_after::publish_contexts(module,definition,state,&before,&rows,b)?;
-                environment_memory::publish(state,base,rows,b)?;
+                for ((context_base,prefix),id) in &environment_contexts {
+                    fee(b,prefix.len().saturating_add(1))?;
+                    if *context_base!=base {continue;}
+                    let definition=module.closures.get(id.0 as usize).filter(|d|d.id==*id)
+                        .ok_or_else(||failure("external mutable environment definition absent"))?;
+                    let original=environment_memory::project(&before,prefix,b)?;
+                    let after=environment_memory::project(&rows,prefix,b)?;
+                    capture_after::publish_contexts(module,definition,state,&original,&after,b)?;
+                }
+                environment_memory::publish(state,base,&[],rows,b)?;
             }
             if callee.foreign.is_some()
                 || callee.environment.is_some()
@@ -5585,7 +5675,12 @@ fn transfer(
                 base:state.capture_views.get(local).copied().map_or(HoldRoot::Local(*local),HoldRoot::Capture),
                 stored:Vec::new(),place:vec![PlaceProjection::Field(*index)],heap_parents:Vec::new(),heap_element:None,
             });
-            let base = state.capture_views.get(local).copied().map_or(HoldRoot::Local(*local), HoldRoot::Capture);
+            let base = local_capture_base(state, *local, b)?;
+            let parent = state.locals.get(local)
+                .ok_or_else(|| failure("borrowed callback field has no current actual parent"))?;
+            let logical = [ContractProjection::Place(PlaceProjection::Field(*index))];
+            out.task_ports = environment_memory::project(&parent.task_ports, &logical, b)?;
+            out.dyn_ports = environment_memory::project(&parent.dyn_ports, &logical, b)?;
             for (path, permission) in environment_memory::rows(state, base, b)? {
                 fee(b, path.len().saturating_add(1))?;
                 if let Some((PlaceProjection::Field(field), tail)) = path.split_first() {
@@ -5593,7 +5688,14 @@ fn transfer(
                 }
             }
         }
-        _ if pure_copy::ordinary_package_read(f, i, b)? => {}
+        InstructionKind::ReadPackageField { local, index }
+            if pure_copy::ordinary_package_read(module, f, i, b)? => {
+            if i.result.is_some_and(|result| matches!(f.values.get(result.0 as usize),Some(Type::Closure(_)))) {
+                let mut parent=snapshot(state.locals.get(local)
+                    .ok_or_else(||failure("callback Copy field parent is unavailable"))?,b)?;
+                out=take_package_field_value(&mut parent,*index,b)?;
+            }
+        }
         _ if task_transfer.is_some() => {
             out = task_transfer.unwrap();
         }
@@ -5606,7 +5708,7 @@ fn transfer(
         InstructionKind::UnpackTuple{local,fields} if compound_unpack(module,f,i,b)?=>{
             let mut source=state.locals.remove(local).ok_or_else(||failure("compound unpack source unavailable"))?;
             for (index,field) in fields.iter().enumerate(){
-                let mut child=Value{slots:take_package_field_slots(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?,..Value::default()};
+                let mut child=take_package_field_value(&mut source,u32::try_from(index).map_err(|_|failure("compound field overflow"))?,b)?;
                 if matches!(&f.locals[field.0 as usize].ty,Type::Address{..}) {
                     // A summary may still be empty in this fixed-point iteration.
                     // Final address uses and returns independently demand real
@@ -5614,7 +5716,6 @@ fn transfer(
                     child.pointer=child.slots.remove(&Vec::new()).unwrap_or_default();
                     if !child.slots.is_empty(){return Err(failure("anonymous Tuple address child has stray inline source slots"))}
                 }
-                union(&mut child.held,&source.held,b)?;
                 ordered(b,state.locals.len(),0)?;state.locals.insert(*field,child);
             }
         }
@@ -5622,8 +5723,7 @@ fn transfer(
             let Some(PlaceProjection::Field(index))=path.first() else{return Err(failure("compound take lacks actual field"))};
             if path.len()!=1{return Err(failure("compound take nested path needs its actual position consumer"))}
             let holder=state.locals.get_mut(local).ok_or_else(||failure("compound take source unavailable"))?;
-            out.slots=take_package_field_slots(holder,*index,b)?;
-            union(&mut out.held,&holder.held,b)?;
+            out=take_package_field_value(holder,*index,b)?;
         }
         InstructionKind::ExtractField {aggregate,index} if compound_extract(module,f,i,b)?=>{
             let parent=value_type(f,*aggregate)?;
@@ -5633,37 +5733,16 @@ fn transfer(
                 let child=fields.get(*index as usize).ok_or_else(||failure("compound extraction field absent"))?;
                 let result=i.result.ok_or_else(||failure("compound extraction result absent"))?;
                 if value_type(f,result)?!=child{return Err(failure("compound extraction changes complete child type"))}
-                let source=get(*aggregate)?;
-                for (path,permission) in &source.slots{
-                    fee(b,path.len().saturating_add(1))?;
-                    if let Some((PlaceProjection::Field(field),tail))=path.split_first() && field==index {
-                        if matches!(child,Type::Address{..}) && tail.is_empty(){
-                            union(&mut out.pointer,permission,b)?;
-                        }else{
-                            union(out.slots.entry(tail.to_vec()).or_default(),permission,b)?;
-                        }
-                    }
+                let mut source=snapshot(get(*aggregate)?, b)?;
+                out=take_package_field_value(&mut source,*index,b)?;
+                if matches!(child,Type::Address{..}) {
+                    out.pointer=out.slots.remove(&Vec::new()).unwrap_or_default();
                 }
-                union(&mut out.held,&source.held,b)?;
             }
         }
         InstructionKind::UpdateField { aggregate, index, value } if compound_update(module, f, i, b)? => {
             out = snapshot(get(*aggregate)?, b)?;
-            let prefix = [PlaceProjection::Field(*index)];
-            for path in out.slots.keys() { fee(b, path.len().saturating_add(1))?; }
-            out.slots.retain(|path, _| !path.starts_with(&prefix));
-            let replacement = get(*value)?;
-            if matches!(value_type(f, *value)?, Type::Address { .. }) {
-                ordered(b, out.slots.len(), 1)?;
-                union(out.slots.entry(prefix.to_vec()).or_default(), &replacement.pointer, b)?;
-            }
-            for (tail, permission) in &replacement.slots {
-                fee(b, tail.len().saturating_add(1))?;
-                let mut path = prefix.to_vec(); path.extend_from_slice(tail);
-                ordered(b, out.slots.len(), path.len())?;
-                union(out.slots.entry(path).or_default(), permission, b)?;
-            }
-            union(&mut out.held, &replacement.held, b)?;
+            store_package_field_value(&mut out,*index,get(*value)?,value_type(f,*value)?,b)?;
         }
         _ if pure_copy::operation(&i.kind) => {
             if !pure_copy::ordinary_owned_union(f, i, b)? {
@@ -6386,6 +6465,8 @@ fn reverse(
         InstructionKind::Load(local)
         | InstructionKind::DropMutexGuard { local }
         | InstructionKind::BorrowPlaceLocal { local, .. }
+        | InstructionKind::BorrowPackageField { local, .. }
+        | InstructionKind::ReadPackageField { local, .. }
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local } => {
             live.put(f.values.len() + local.0 as usize, true)?
@@ -6442,6 +6523,8 @@ fn reverse_bool(
         InstructionKind::Load(local)
         | InstructionKind::DropMutexGuard { local }
         | InstructionKind::BorrowPlaceLocal { local, .. }
+        | InstructionKind::BorrowPackageField { local, .. }
+        | InstructionKind::ReadPackageField { local, .. }
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local } => {
             live[f.values.len() + local.0 as usize] = true
@@ -6896,8 +6979,19 @@ fn windows(
                         };
                         access.check(&actual, true, apart, b)?;
                     }
+                    InstructionKind::BorrowPackageField { local, index, mutable }
+                        if pure_copy::ordinary_package_borrow(module, f, i, b)? => {
+                        fee(b,2)?;
+                        let actual=Permission {
+                            targets:BTreeSet::from([Target { retained_port:None,
+                                base:local_capture_base(&state,*local,b)?,stored:Vec::new(),
+                                place:vec![PlaceProjection::Field(*index)],heap_parents:Vec::new(),heap_element:None }]),
+                            loans:Loans::new(),
+                        };
+                        access.check(&actual,*mutable,apart,b)?;
+                    }
                     InstructionKind::ReadPackageField { local, index }
-                        if pure_copy::ordinary_package_read(f, i, b)? =>
+                        if pure_copy::ordinary_package_read(module, f, i, b)? =>
                     {
                         fee(b, 2)?;
                         let actual = Permission {
@@ -9043,7 +9137,7 @@ fn actual_instructions(
             let unpack_failure = failure_unpack(f, i, b)?;
             let byte_description = owned_byte_views::description_instruction(module, f, i, b)?;
             let byte_query = byte_queries::instruction(module, f, i, b)?;
-            let package_read = pure_copy::ordinary_package_read(f, i, b)?;
+            let package_read = pure_copy::ordinary_package_read(module, f, i, b)?;
             let package_description = pure_copy::ordinary_package_description(f, i, b)?;
             let error_borrow = ordinary_error_borrow(f, i, b)?;
             let compound_take = compound_move(module, f, i, b)?
@@ -10306,7 +10400,7 @@ mod tests {
         }
         println!("owned Fixed Analyze N={low}; N-1/fresh/warm identical");
         assert_eq!(
-            low, 12_632,
+            low, 12_635,
             "complete bounded identity/ownership work changed"
         );
     }

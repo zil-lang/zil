@@ -243,7 +243,7 @@ struct Call {
     target: SemanticDefinitionId,
     actuals: Vec<Term>,
     parameters: Vec<Term>,
-    closure: bool,
+    receiver: Option<Borrow>,
 }
 struct CodeCall {
     code: Term,
@@ -2215,29 +2215,33 @@ impl Solver<'_, '_> {
                                     "original indirect call needs its full callable premise",
                                 ));
                             };
-                            // Abstract receivers register through their exact
-                            // borrow_place/receiver path; thin code registers
-                            // through expression. Only this known-Closure path
-                            // observes a callee without either evaluation.
-                            b.lookup(frame.expressions.len(), WORK)?;
-                            if !evaluated_head && frame.expressions.insert(head.id, callee_value).is_some() {
-                                return Err(fail("original callable head node is reused"));
-                            }
-                            if let CoreExprKind::Name(name) = &head.kind {
-                                b.spend(frame.locals.iter().map(|local|
-                                    local.name.len().saturating_add(name.len() + 1)).sum::<usize>(), WORK)?;
-                                let index = frame.locals.iter().rposition(|local| local.name == *name)
-                                    .ok_or_else(|| fail("original known callable has no exact lexical binding"))?;
-                                self.record_environment_read(frame, index, head.id, b)?;
-                                if index < frame.inherited {
-                                    b.lookup(frame.captured.len(), WORK)?;
-                                    frame.captured.insert(index, callee_value);
+                            // Resolve a real original owning/borrowed place once.
+                            // This is the same complete source used by the actual
+                            // field projection, not a Name/temporary reconstruction.
+                            let receiver_place = if evaluated_head { None }
+                                else { Some(self.borrow_place(frame, head, b, depth + 1)?) };
+                            let receiver = if let Some(place) = &receiver_place {
+                                b.spend(place.path.len().saturating_add(8), WORK)?;
+                                let inner = if let Some((_, inner)) = borrowed { inner } else { place.inner };
+                                if borrowed.is_some() && (place.indirect || !place.path.is_empty()) {
+                                    return Err(unknown("stored callable address needs its complete post-load pointer source"));
                                 }
-                            }
+                                Borrow { role: None, anchor: place.anchor, expression: place.expression,
+                                    index: place.index, root: place.root, path: place.path.clone(),
+                                    indirect: place.indirect || borrowed.is_some(), inner, slice: None }
+                            } else {
+                                b.lookup(frame.expressions.len(), WORK)?;
+                                if frame.expressions.get(&head.id).copied() != Some(callee_value) {
+                                    return Err(fail("temporary callable head loses its exact evaluated original expression"));
+                                }
+                                Borrow { role: None, anchor: None, expression: Some(head.id), index: None,
+                                    root: callee_value, path: Vec::new(), indirect: borrowed.is_some(),
+                                    inner: borrowed.map_or(callee_value, |(_, inner)| inner), slice: None }
+                            };
                             let subject = borrowed.map_or(callee_value, |(_, inner)| inner);
                             let (requested_once, operation) = self.known_call_operation(subject, target, b)?;
                             let consuming = self.known_capture_call(frame, head, target, requested_once, operation,
-                                borrowed.map(|(mutable, _)| mutable), b)?;
+                                borrowed.map(|(mutable, _)| mutable), receiver_place.as_ref(), b)?;
                             if consuming { self.prepare_call_value(frame.definition, head.id, callee_value, b)?; }
                             let declaration = self.inventory.definition(target, b)?;
                             let SemanticDefinitionBody::FunctionWithBody { signature, .. } =
@@ -2278,7 +2282,7 @@ impl Solver<'_, '_> {
                                     target,
                                     actuals: Vec::new(),
                                     parameters: parameters.clone(),
-                                    closure: true,
+                                    receiver: Some(receiver),
                                 },
                             );
                             (parameters, result)
@@ -2593,7 +2597,7 @@ impl Solver<'_, '_> {
                                         target,
                                         actuals,
                                         parameters: parameters.clone(),
-                                        closure: false,
+                                        receiver: None,
                                     },
                                 );
                                 (parameters, result)
@@ -5064,8 +5068,9 @@ impl Solver<'_, '_> {
                 }
                 Ok(true)
             }
-            Kind::Closure { environment, .. } => match predicate {
-                Predicate::Copy | Predicate::StoreElement => Ok(false),
+            Kind::Closure { definition, environment, .. } => match predicate {
+                Predicate::Copy => self.closure_copy(*definition, b, depth + 1),
+                Predicate::StoreElement => Ok(false),
                 Predicate::Value => Ok(true),
                 Predicate::SyncDrop => {
                     for captured in environment {
@@ -5608,7 +5613,7 @@ impl Checked {
             let actual = self.argument(*actual, context, program, inventory, b, 0)?;
             Solver::push(&mut actuals, actual, b)?;
         }
-        Ok((call.target, call.closure, actuals, call.operation))
+        Ok((call.target, call.receiver.is_some(), actuals, call.operation))
     }
 }
 

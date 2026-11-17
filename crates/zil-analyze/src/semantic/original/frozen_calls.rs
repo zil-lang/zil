@@ -17,7 +17,7 @@ impl Checked {
             .calls
             .get(&(caller.definition, node))
             .ok_or_else(|| fail("selected CT call has no independently checked original call"))?;
-        if call.closure
+        if call.receiver.is_some()
             || call.target != target.definition
             || call.actuals.len() != target.actuals.len()
         {

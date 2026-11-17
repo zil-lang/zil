@@ -538,7 +538,7 @@ fn two_input_state_constructor(
     }
     // The one shared ClosureId proves a type property only. No parameter or
     // SSA responsibility is deduplicated here or in the ordinary resource pass.
-    callable_fields::self_contained(module, *first, budget)?;
+    callable_fields::inline(module, *first, budget)?;
     Ok(true)
 }
 
@@ -624,7 +624,7 @@ fn two_type_state_constructor(
             )]);
         }
         budget.spend(1, "two-type State capture root")?;
-        callable_fields::self_contained(module, id, budget)?;
+        callable_fields::inline(module, id, budget)?;
     }
     Ok(true)
 }
@@ -729,7 +729,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     Some(function.span),
                 )]);
             }
-            callable_fields::self_contained(module, id, budget)?;
+            callable_fields::inline(module, id, budget)?;
             continue;
         }
         if function.callable_contract.is_none()

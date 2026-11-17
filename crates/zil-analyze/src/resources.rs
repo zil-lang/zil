@@ -2634,8 +2634,16 @@ impl Flow<'_> {
                     let result = i.result.and_then(|v| f.values.get(v.0 as usize));
                     if matches!(i.kind, InstructionKind::ReadPackageField { .. }) {
                         budget.type_work(ty, true, "package field read type checks")?;
-                        if !ty.is_copy_value() || result != Some(ty) {
+                        if !(ty.is_copy_value() || crate::callable_fields::copy_value(self.module, ty, budget, 0)?)
+                            || result != Some(ty) {
                             return Err(error("package read requires a matching Copy field"));
+                        }
+                        if matches!(ty, Type::Closure(_)) {
+                            let fact = copied(state, Place::PackageField { local: *local, index: *index }, budget)?;
+                            if check && !exact(&fact, Life::Available) {
+                                return Err(error("callback Copy read requires its live environment on every path"));
+                            }
+                            if out_shape.is_some_and(|shape| shape.owned) { produced = Some(fact); }
                         }
                     } else if let InstructionKind::BorrowPackageField { mutable, .. } = i.kind {
                         budget.type_work(ty, true, "package field address type checks")?;

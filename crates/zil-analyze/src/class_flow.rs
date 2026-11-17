@@ -2022,14 +2022,27 @@ fn check_with(
                         )?;
                     }
                 }
-                InstructionKind::BorrowPackageField { .. }
+                InstructionKind::BorrowPackageField { local, index, .. }
                     if super::stored_flow::ordinary_package_borrow(module, f, i, b)? =>
                 {
-                    if let Some(out) = out
-                        && let Some(outer) = out.outer
-                    {
-                        e.address_origin(outer, b)?;
+                    if let Some(out) = out {
+                        if let Some(outer) = out.outer { e.address_origin(outer, b)?; }
+                        link_projection(&f.locals[local.0 as usize].ty, &locals[local.0 as usize], out,
+                            LifeTypeProjection::Place(PlaceProjection::Field(*index)), &mut e, b)?;
                     }
+                }
+                InstructionKind::ReadPackageField { local, index }
+                | InstructionKind::TakePackageField { local, index }
+                    if !matches!(i.kind, InstructionKind::TakePackageField { index: 1, .. })
+                        || !b.task_failure_carriers || super::stored_flow::failure_projection(f, i, b)?.is_none() => {
+                    if let Some(out) = out {
+                        link_projection(&f.locals[local.0 as usize].ty, &locals[local.0 as usize], out,
+                            LifeTypeProjection::Place(PlaceProjection::Field(*index)), &mut e, b)?;
+                    }
+                }
+                InstructionKind::StorePackageField { local, index, value } => {
+                    link_projection(&f.locals[local.0 as usize].ty, &locals[local.0 as usize], &values[value.0 as usize],
+                        LifeTypeProjection::Place(PlaceProjection::Field(*index)), &mut e, b)?;
                 }
                 InstructionKind::BorrowPlaceLocal { .. }
                     if super::stored_flow::ordinary_error_borrow(f, i, b)? =>

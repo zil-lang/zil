@@ -962,7 +962,26 @@ impl Check<'_, '_> {
                 return Err(fail("Receiver lending directory changes the complete original capture sources"));
             }
         }
-        if !closure.lending_captures.is_empty() && !receiver_result {
+        let strong_lending = !receiver_result && !closure.lending_captures.is_empty()
+            && matches!(crate::signature_life::outer(contract, StorageBase::Result), Some(StorageBinder::Fixed(_)))
+            && matches!(closure.result, Type::Address { mutable: false, .. });
+        if strong_lending {
+            let original = self.original.receiver_sources(instance.definition, self.inventory, b)?
+                .ok_or_else(|| fail("Fixed lending header has no complete original captured return proof"))?;
+            let mut physical = BTreeSet::new();
+            for ordinal in original {
+                b.lookup(creator_bindings.len(), WORK)?;
+                let binding = creator_bindings.get(&ordinal)
+                    .ok_or_else(|| fail("Fixed lending source has no exact creator capture"))?;
+                b.lookup(physical.len(), WORK)?;
+                physical.insert(binding.capture);
+            }
+            b.spend(physical.len().saturating_add(closure.lending_captures.len()), WORK)?;
+            if physical.iter().copied().ne(closure.lending_captures.iter().copied()) {
+                return Err(fail("Fixed lending directory changes its original captured return sources"));
+            }
+        }
+        if !closure.lending_captures.is_empty() && !receiver_result && !strong_lending {
             if !static_result
                 || !closure.lending_captures.windows(2).all(|pair| pair[0] < pair[1]) {
                 return Err(unknown("consuming Static result needs its whole original capture and return relation"));
@@ -2667,6 +2686,19 @@ impl Check<'_, '_> {
                 }
                 Ok(expected)
             }
+            InstructionKind::BorrowPackageField { local, index: field, mutable } => {
+                if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
+                    return Ok(value);
+                }
+                operations::initialized_local_before(function, (block, index), *local, b)?;
+                let parent = self.local_value(instance, function, *local, (block, index), b, depth + 1)?;
+                let child = self.closure_child_value(&parent, PlaceProjection::Field(*field), b)?;
+                let output = value::address(*mutable, Class::Reborrow(function.id, id), child, b)?;
+                if !geometry::same_type(&output.ty, ty, b)? {
+                    return Err(fail("borrowed field changes its complete original child type"));
+                }
+                Ok(output)
+            }
             InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. } => {
                 if let Some(value) = self.source_borrow(instance, function, id, b, depth + 1)? {
                     return Ok(value);
@@ -3169,7 +3201,14 @@ impl Check<'_, '_> {
         }
         if receiver_view {
             if !crate::stored_callables::receiver_access_head(closure) {
-                return Err(fail("original Receiver view loses its actual invocation access head"));
+                if !crate::stored_callables::constant_result(closure) {
+                    return Err(fail("original Receiver view loses its actual invocation access head"));
+                }
+                // A genuinely Static byte source independently outlives this
+                // shorter window. Neither an empty capture list nor N=0
+                // establishes that stronger source theorem.
+                self.static_byte_returns(self.inventory.function(
+                    &SemanticFunctionTarget::Typed(closure.function), b)?, &closure.result, b)?;
             }
             self.capture_directory(*id, b)?;
             let SemanticInstanceTarget::Function(target) = &instance.target else {
@@ -3246,6 +3285,57 @@ impl Check<'_, '_> {
             if let Some(previous) = b.semantic_receiver_views.insert(key, (block, index)) {
                 if previous != (block, index) { return Err(fail("Receiver view changes its exact actual call site")); }
             }
+            return Ok(output);
+        }
+        if matches!(output.ty, Type::Address { mutable: false, .. })
+            && matches!(closure.storage_life.as_ref().and_then(|contract|
+                crate::signature_life::outer(contract,StorageBase::Result)),Some(StorageBinder::Fixed(_)))
+            && geometry::same_type(&output.ty, ty, b)?
+            && geometry::same_type(&closure.result, ty, b)? {
+            self.capture_directory(*id, b)?;
+            let contract = closure.storage_life.as_ref()
+                .ok_or_else(|| fail("Fixed callable result omits its complete actual header"))?;
+            if receiver.classes.len() != contract.fixed_binder_count as usize {
+                return Err(fail("Fixed callable result omits its captured class domain"));
+            }
+            let mut covered = BTreeSet::new();
+            for slot in &output.life.slots {
+                let mut selected = None;
+                for row in &contract.bindings {
+                    b.spend(row.position.path.len().saturating_add(slot.path.len()).saturating_add(1), WORK)?;
+                    if row.position.base == StorageBase::Result && row.position.path == slot.path {
+                        if selected.replace(row.binder).is_some() {
+                            return Err(fail("Fixed result repeats an outer occurrence"));
+                        }
+                    }
+                }
+                let Some(StorageBinder::Fixed(index)) = selected else {
+                    return Err(unknown("concrete shared result needs its complete input or invocation transport"));
+                };
+                self.fixed_result_class(receiver, &output, index, slot.binder, b)?;
+                b.lookup(covered.len(), WORK)?; covered.insert(slot.binder);
+            }
+            for child in &output.life.retained {
+                let mut selected = None;
+                for row in &contract.classes {
+                    b.spend(row.position.path.len().saturating_add(child.path.len()).saturating_add(1), WORK)?;
+                    if row.position.base == StorageBase::Result && row.position.path == child.path
+                        && row.position.class == child.class {
+                        if selected.replace(row.binder).is_some() {
+                            return Err(fail("Fixed result repeats an invariant occurrence"));
+                        }
+                    }
+                }
+                let Some(StorageBinder::Fixed(index)) = selected else {
+                    return Err(unknown("concrete shared result needs its complete invariant parameter transport"));
+                };
+                self.fixed_result_class(receiver, &output, index, child.binder, b)?;
+                b.lookup(covered.len(), WORK)?; covered.insert(child.binder);
+            }
+            if covered.len() != output.classes.len() {
+                return Err(fail("Fixed result omits an invariant or phantom class"));
+            }
+            self.pointee(&output, b)?;
             return Ok(output);
         }
         if self.task_domain(ty, b)?.is_some() {
@@ -3327,6 +3417,20 @@ impl Check<'_, '_> {
             .function(&SemanticFunctionTarget::Typed(closure.function), b)?;
         self.static_byte_returns(target, ty, b)?;
         Ok(output)
+    }
+
+    fn fixed_result_class(
+        &self, receiver: &Value, output: &Value, captured: u32, result: u32, b: &mut Budget,
+    ) -> CompileResult<()> {
+        let source = receiver.classes.get(captured as usize)
+            .ok_or_else(|| fail("Fixed result selects no captured class"))?;
+        let actual = output.classes.get(result as usize)
+            .ok_or_else(|| fail("Fixed result leaves its complete result domain"))?;
+        b.spend(2, WORK)?;
+        if self.capture_class_image(source.clone(), b)? != self.capture_class_image(actual.clone(), b)? {
+            return Err(fail("Fixed result changes an original captured class source"));
+        }
+        Ok(())
     }
 
     /// Physical byte leaves only: a closure or owning head does not expose its

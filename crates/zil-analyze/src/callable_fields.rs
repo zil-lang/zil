@@ -2,6 +2,47 @@
 //! producer admission reads the actual capture graph and never an empty claim.
 use super::*;
 
+/// Qualification for inline frame memory, distinct from the Store element's
+/// stronger self-contained theorem. The original/creator/header proof and
+/// actual permissions remain mandatory for every externally rooted capture.
+pub(super) fn environment(
+    module: &TypedModule, id: ClosureId, budget: &mut Budget,
+) -> CompileResult<bool> {
+    budget.lookup(budget.semantic_closures_proven.len(), "complete inline callback environment")?;
+    budget.spend(1, "actual inline callback identity")?;
+    Ok(budget.semantic_closures_proven.contains(&id)
+        && module.closures.get(id.0 as usize).is_some_and(|d| d.id == id)
+        && crate::stored_callables::finite(module, id))
+}
+
+pub(super) fn inline(
+    module: &TypedModule, id: ClosureId, budget: &mut Budget,
+) -> CompileResult<()> {
+    if environment(module, id, budget)? { Ok(()) }
+    else { self_contained(module, id, budget) }
+}
+
+pub(super) fn copy_value(
+    module: &TypedModule, ty: &Type, budget: &mut Budget, depth: usize,
+) -> CompileResult<bool> {
+    budget.spend(1, "complete callback Copy node")?;
+    if depth > budget.partial_depth {
+        return Err(vec![Diagnostic::limit(Phase::Analyze, "callback Copy capture depth", None)]);
+    }
+    let Type::Closure(id) = ty else {
+        budget.type_work(ty, true, "complete callback Copy leaf")?;
+        return Ok(ty.is_copy_value());
+    };
+    if !environment(module, *id, budget)? { return Ok(false); }
+    let definition = &module.closures[id.0 as usize];
+    if definition.kind != CallableKind::Fn { return Ok(false); }
+    budget.spend(definition.captures.len(), "callback Copy capture directory")?;
+    for capture in &definition.captures {
+        if !copy_value(module, capture, budget, depth + 1)? { return Ok(false); }
+    }
+    Ok(true)
+}
+
 pub(super) fn self_contained(
     module: &TypedModule,
     root: ClosureId,
@@ -84,7 +125,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 budget.spend(fields.len(), "callback State field table")?;
                 for (_, field) in fields {
                     if let Type::Closure(id) = field {
-                        self_contained(module, *id, budget)?;
+                        inline(module, *id, budget)?;
                     }
                 }
             }

@@ -189,6 +189,45 @@ impl Solver<'_, '_> {
         }
         Ok(())
     }
+    pub(super) fn closure_copy(
+        &self, definition: SemanticDefinitionId, b: &mut Budget, depth: usize,
+    ) -> CompileResult<bool> {
+        self.step(depth, b)?;
+        let declaration = self.inventory.definition(definition, b)?;
+        if declaration.kind != SemanticDefinitionKind::Closure { return Ok(false); }
+        b.lookup(self.state.frames.len(), WORK)?;
+        let frame = self.state.frames.get(&definition)
+            .ok_or_else(|| fail("closure Copy needs its completed original capture inventory"))?;
+        let mut captured = Vec::new();
+        for index in frame.captured.keys() {
+            b.spend(1, WORK)?;
+            let local = frame.locals.get(*index)
+                .ok_or_else(|| fail("closure Copy leaves its complete original lexical capture domain"))?;
+            Self::push(&mut captured, local.ty, b)?;
+        }
+        if self.owns_captures(definition, b)? {
+            for term in captured {
+                if !self.satisfies(term, Predicate::Copy, b, depth + 1)? { return Ok(false); }
+            }
+            return Ok(true);
+        }
+        // A non-move environment copies only independently shared capture
+        // accesses. Exclusive capture borrows and writes retain affine state.
+        b.lookup(self.mutating_closures.len(), WORK)?;
+        if self.mutating_closures.contains(&definition) { return Ok(false); }
+        for ((owner, node), source) in &self.state.borrows {
+            b.spend(1, WORK)?;
+            if *owner != definition || !matches!(source.anchor, Some(LocalAnchor::Environment(_))) { continue; }
+            b.lookup(frame.expressions.len(), WORK)?;
+            let value = frame.expressions.get(node)
+                .ok_or_else(|| fail("closure Copy capture borrow lacks its real original expression"))?;
+            if matches!(self.state.arena[self.type_root(*value, b)?], Kind::Address { mutable: true, .. }) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub(super) fn known_capture_call(
         &mut self,
         frame: &mut Frame,
@@ -197,6 +236,7 @@ impl Solver<'_, '_> {
         requested_once: bool,
         operation: CallKind,
         borrowed: Option<bool>,
+        place: Option<&borrow_places::Place>,
         b: &mut Budget,
     ) -> CompileResult<bool> {
         let name = if let CoreExprKind::Name(name) = &callee.kind { Some(name) } else { None };
@@ -248,12 +288,20 @@ impl Solver<'_, '_> {
                 return Err(fail("borrowed original callable cannot consume its environment or mutate a shared head"));
             }
         }
+        if !once && borrowed.is_none() && self.mutating_closures.contains(&definition)
+            && place.is_some_and(|place| !place.mutable) {
+            return Err(fail("original mutable callable requires its actual writable place"));
+        }
+        if once && !matches!(callee.kind, CoreExprKind::Name(_)) {
+            if let Some(place) = place { self.consume_place(frame, place, b)?; }
+        }
         if let Some(name) = name {
             let local = frame.locals.iter_mut().rev().find(|local| local.name == *name)
                 .ok_or_else(|| fail("original callable invocation has no real local occupant"))?;
             b.spend(name.len(), WORK)?;
-            if !local.initialized || local.used {
-                return Err(fail("original callable receiver is uninitialized or already consumed"));
+            if !local.initialized { return Err(fail("original callable receiver is uninitialized")); }
+            if local.used {
+                Self::push(&mut self.needs, Need { term: local.ty, predicate: Predicate::Copy }, b)?;
             }
             if once { local.used = true; local.live = false; }
         } else {
@@ -359,30 +407,14 @@ impl Checked {
         }
         let node = node.ok_or_else(|| fail("borrowed closure call has no original expression"))?;
         b.lookup(self.calls.len(), WORK)?;
-        if !self.calls.get(&(context.definition, node)).is_some_and(|call| call.closure) {
-            return Err(fail("borrowed closure receiver has no independently resolved original call"));
-        }
-        let directory = inventory.original_index(context.definition, b)?;
-        let CoreExprKind::Call { callee, .. } = &directory.get_expr(node, b)?.kind else {
-            return Err(fail("borrowed closure receiver has another original operation"));
-        };
-        b.lookup(self.local_reads.len(), WORK)?;
-        b.lookup(self.environment_reads.len(), WORK)?;
-        let local = self.local_reads.get(&(context.definition, callee.id)).copied();
-        let captured = self.environment_reads.get(&(context.definition, callee.id)).copied();
-        let anchor = match (local, captured) {
-            (Some(anchor), None) => Some(anchor),
-            (None, Some(ordinal)) => Some(LocalAnchor::Environment(ordinal)),
-            (None, None) if matches!(callee.kind, CoreExprKind::Call { .. }
-                | CoreExprKind::Closure { .. } | CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }) => None,
-            _ => return Err(fail("borrowed closure receiver has no unique original local, capture or expression")),
-        };
-        let root = self.source_value(context, SemanticScopeRef::Ancestor(0),
-            &SemanticOriginalTypeSource::Expression(callee.id), program, inventory, b)?;
-        let indirect = matches!(root.ty, Type::Address { .. });
-        let inner = if indirect { crate::semantic::value::pointee(&root, inventory, b)? }
-            else { root.copy(b)? };
-        Ok(borrow_places::Source { role: None, anchor, expression: anchor.is_none().then_some(callee.id),
-            index: None, inner, root, path: Vec::new(), indirect, slice: None })
+        let call = self.calls.get(&(context.definition, node))
+            .ok_or_else(|| fail("callable receiver has no independently resolved original call"))?;
+        let source = call.receiver.as_ref()
+            .ok_or_else(|| fail("ordinary static call cannot invent a callable receiver place"))?;
+        b.spend(source.path.len().saturating_add(8), WORK)?;
+        Ok(borrow_places::Source { role: None, anchor: source.anchor, expression: source.expression,
+            index: source.index, root: self.value(source.root, context, program, inventory, b, 0)?,
+            inner: self.value(source.inner, context, program, inventory, b, 0)?,
+            path: source.path.clone(), indirect: source.indirect, slice: source.slice })
     }
 }

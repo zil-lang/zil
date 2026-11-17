@@ -275,7 +275,7 @@ impl Checked {
             Kind::Life(Life::Receiver(owner, node)) => {
                 let scope = self.context(*owner, context, inventory, b)?;
                 b.lookup(self.calls.len().saturating_add(self.abstract_calls.len()), WORK)?;
-                let callable = self.calls.get(&(*owner, *node)).is_some_and(|call| call.closure)
+                let callable = self.calls.get(&(*owner, *node)).is_some_and(|call| call.receiver.is_some())
                     || self.abstract_calls.get(&(*owner, *node)).is_some_and(|call|
                         roles::receiver_result(&call.signature, call.kind));
                 if callable {
@@ -941,7 +941,7 @@ impl Checked {
                     }
                 }
             }
-        } else if !call.closure
+        } else if !call.receiver.is_some()
             || !matches!(
                 instruction.kind,
                 InstructionKind::CallClosure { .. }

@@ -93,21 +93,11 @@ impl Solver<'_, '_> {
         if let Kind::Life(Life::Receiver(owner, node)) = self.state.arena[upper] {
             b.lookup(self.state.abstract_calls.len().saturating_add(self.state.calls.len()), WORK)?;
             let receiver = if let Some(call) = self.state.abstract_calls.get(&(owner, node)) {
-                if roles::receiver_result(&call.signature, call.kind) { Some(call.receiver) } else { None }
-            } else if self.state.calls.get(&(owner, node)).is_some_and(|call| call.closure) {
-                b.lookup(self.indexes.len(), WORK)?;
-                let directory = self.indexes.get(&owner)
-                    .ok_or_else(|| fail("Receiver upper has no original expression directory"))?;
-                let CoreExprKind::Call { callee, .. } = &directory.get_expr(node, b)?.kind else {
-                    return Err(fail("Receiver upper selects another original operation"));
-                };
-                let expressions = if owner == frame.definition { &frame.expressions } else {
-                    b.lookup(self.state.frames.len(), WORK)?;
-                    &self.state.frames.get(&owner)
-                        .ok_or_else(|| fail("Receiver upper has no completed original frame"))?.expressions
-                };
-                b.lookup(expressions.len(), WORK)?;
-                expressions.get(&callee.id).copied()
+                if roles::receiver_result(&call.signature, call.kind) {
+                    Some(call.place.as_ref().filter(|place| place.indirect).map_or(call.receiver, |place| place.root))
+                } else { None }
+            } else if let Some(source) = self.state.calls.get(&(owner, node)).and_then(|call| call.receiver.as_ref()) {
+                Some(if source.indirect { source.root } else { source.inner })
             } else { None };
             if let Some(receiver) = receiver {
                 let root = self.type_root(receiver, b)?;

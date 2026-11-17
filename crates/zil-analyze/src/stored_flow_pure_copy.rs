@@ -159,13 +159,13 @@ pub(super) fn ordinary_package_borrow(
     let callable = if let Type::Closure(id) = field {
         b.lookup(b.semantic_closures_proven.len(), "complete original Package callback field")?;
         b.spend(module.closures.len().saturating_add(1), "actual Package callback field identity")?;
-        !mutable && b.semantic_closures_proven.contains(id)
+        b.semantic_closures_proven.contains(id)
             && module.closures.get(id.0 as usize).is_some_and(|d|
-                d.id == *id && d.kind == CallableKind::Fn && super::super::stored_callables::finite(module, *id))
+                d.id == *id && (d.kind == CallableKind::Fn || mutable && d.kind == CallableKind::FnMut)
+                    && super::super::stored_callables::finite(module, *id))
     } else { false };
-    let ordinary = !mutable
-        && (callable || field.is_copy_value() && pure(field, b, 0)?
-            || owned::ordinary_value(module, field, b)?);
+    let ordinary = callable || !mutable
+        && (field.is_copy_value() && pure(field, b, 0)? || owned::ordinary_value(module, field, b)?);
     if ordinary {
         resources::product::admit_owned(module, parent, b)?;
     } else {
@@ -197,6 +197,7 @@ pub(super) fn ordinary_package_borrow(
 // An ordinary owner can be observed without carrying any stored target into
 // its Copy result. Qualified parent shells keep their separate transfer path.
 pub(super) fn ordinary_package_read(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     b: &mut Budget,
@@ -217,7 +218,9 @@ pub(super) fn ordinary_package_read(
         .ok_or_else(|| failure("ordinary Package read field is absent"))?
         .1;
     b.type_work(field, true, "ordinary Package Copy observation")?;
-    if !field.is_copy_value() || !pure(field, b, 0)? {
+    let callable = matches!(field,Type::Closure(_))
+        && crate::callable_fields::copy_value(module, field, b, 0)?;
+    if !callable && (!field.is_copy_value() || !pure(field, b, 0)?) {
         return Err(failure(
             "ordinary Package read requires a complete pure Copy field",
         ));
