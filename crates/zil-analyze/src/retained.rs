@@ -238,13 +238,17 @@ pub(super) fn check_function(
             parameters_supported = false;
         }
     }
+    // A public bound may hide a stronger reusable entry, just as in the
+    // forwarding lane. Its consuming operation still cannot return a view
+    // borrowed from the environment that it retires.
     if function.environment.is_some()
         || function.foreign.is_some()
         || function.callable_contract.is_some()
         || function.result_mode != PassingMode::Infer
         || function.return_type != Type::Closure(contract.closure)
         || definition.id != contract.closure
-        || definition.kind != contract.kind
+        || !super::forward::compatible(definition.kind, contract.kind)
+        || !definition.lending_captures.is_empty() && contract.kind == CallableKind::FnOnce
         || contract.kind == CallableKind::FunctionPointer
         || !parameters_supported
     {

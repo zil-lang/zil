@@ -733,8 +733,11 @@ pub(super) fn types(
             // full P/R, no lending/receiver bound and every resource child.
             // Actual invocation/debt/remaining-capture cleanup stay separate.
             borrowed_owned_definition(module, d, b)?;
+        // Constant results use the existing actual Static-source/parent proof;
+        // they do not borrow the receiver being consumed by this operation.
         } else if !matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
-            || !(scalar(&d.result) || super::tasks::is_close_poll(&d.result) || fixed_result(d) || invocation_result(d))
+            || !(scalar(&d.result) || super::tasks::is_close_poll(&d.result)
+                || fixed_result(d) || invocation_result(d) || constant_result(d))
             || !d.lending_captures.is_empty() && !fixed_result(d)
         {
             return Err(vec![Diagnostic::unsupported(
