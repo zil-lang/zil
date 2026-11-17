@@ -79,6 +79,7 @@ struct RawRecord {
 }
 type Inventory = (Vec<RawRecord>, BTreeMap<FunctionId, usize>);
 pub(crate) struct Request {
+    validation: Option<std::rc::Rc<std::cell::RefCell<zil_llvm_api::PreflightSession>>>,
     directory: PathBuf,
     manifest: String,
     context: Vec<u8>,
@@ -98,6 +99,12 @@ pub(crate) struct Request {
     pub(crate) misses: usize,
 }
 impl Request {
+    pub(crate) fn use_preflight(
+        &mut self,
+        validation: std::rc::Rc<std::cell::RefCell<zil_llvm_api::PreflightSession>>,
+    ) {
+        self.validation = Some(validation);
+    }
     pub(crate) fn new(root: &Path, target: &TargetProfile) -> Option<Self> {
         if target.triple != "x86_64-unknown-linux-gnu" {
             return None;
@@ -120,6 +127,7 @@ impl Request {
         identity.text(&version)?;
         let directory = root.join(Fingerprint::of(&identity.0).to_hex());
         Some(Self {
+            validation: None,
             directory,
             manifest: String::new(),
             context: vec![],
@@ -327,7 +335,14 @@ impl Request {
                 };
                 if machine.name != symbol(raw.id)
                     || !scalar_bodies::cacheable(&raw)
-                    || !valid_machine(machine, &raw, functions, target, &output.intrinsics)
+                    || !valid_machine(
+                        machine,
+                        &raw,
+                        functions,
+                        target,
+                        &output.intrinsics,
+                        self.validation.as_deref(),
+                    )
                 {
                     return None;
                 }
@@ -478,6 +493,7 @@ fn valid_machine(
     functions: &BTreeMap<FunctionId, &TypedFunction>,
     target: &TargetProfile,
     intrinsics: &BTreeSet<(&'static str, u32)>,
+    validation: Option<&std::cell::RefCell<zil_llvm_api::PreflightSession>>,
 ) -> bool {
     // Reject malformed raw models as a cache miss before any reservation is
     // charged. These local declarations check structure only; the mandatory
@@ -588,11 +604,16 @@ fn valid_machine(
             }));
         }
     }
-    zil_llvm_api::validate_module(&m::Module {
-        triple: "x86_64-unknown-linux-gnu".into(),
+    let module = m::Module {
+        triple: target.triple.clone(),
         fingerprint: String::new(),
         items: items.into(),
-    })
+    };
+    if let Some(validation) = validation {
+        validation.borrow_mut().validate(&module)
+    } else {
+        zil_llvm_api::validate_module(&module)
+    }
     .is_ok()
 }
 

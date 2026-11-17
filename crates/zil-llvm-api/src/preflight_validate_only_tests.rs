@@ -188,6 +188,7 @@ fn borrowed_result_types_preserve_aggregate_projection_and_gep() {
         named: BTreeMap::from([(name.as_str(), fields)]),
         symbols: BTreeMap::new(),
         valid_named: RefCell::new(BTreeMap::new()),
+        reads: RefCell::new(None),
     };
     let Item::Function(f) = &model.items[1] else {
         unreachable!()
@@ -602,6 +603,7 @@ fn scratch_world(module: &Module) -> World<'_> {
             })
             .collect(),
         valid_named: RefCell::new(BTreeMap::new()),
+        reads: RefCell::new(None),
     }
 }
 

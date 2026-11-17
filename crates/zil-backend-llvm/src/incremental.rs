@@ -55,6 +55,8 @@ pub struct BackendSessionSummary {
     pub reused_call_class_keys: usize,
     pub rebuilt_call_class_keys: usize,
     pub machine_preflights_checked: usize,
+    pub machine_body_preflights_checked: usize,
+    pub machine_body_preflights_reused: usize,
     pub machine_preflights_reused: usize,
     pub reused_partition_layout: bool,
     pub checked_add_functions_checked: usize,

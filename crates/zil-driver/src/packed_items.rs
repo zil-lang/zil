@@ -85,10 +85,14 @@ struct Location {
 struct PackRecord {
     length: usize,
     stamp: Option<FileStamp>,
+    // One bounded current pack snapshot; never semantic reuse authority.
+    // Unique payloads obey the original aggregate physical allowance, including
+    // stale bytes. Cloned epochs share allocations, never chain old epochs.
+    bytes: Option<Arc<Vec<u8>>>,
 }
 
-type VerifiedPack = (Arc<[u8]>, Option<FileStamp>);
-type CheckedPack = Option<(Option<Arc<[u8]>>, Option<FileStamp>)>;
+type VerifiedPack = (Arc<Vec<u8>>, Option<FileStamp>);
+type CheckedPack = Option<VerifiedPack>;
 
 /// Only the most recently published or restored current item set is remembered.
 /// Old manifests carry their own locations; no process-global item index exists.
@@ -101,26 +105,6 @@ pub(crate) struct Epoch {
     shared: Option<Arc<Epoch>>,
 }
 impl Epoch {
-    fn unstamped(&self) -> Self {
-        Self {
-            namespace: self.namespace.clone(),
-            locations: self.locations.clone(),
-            packs: self
-                .packs
-                .iter()
-                .map(|(key, record)| {
-                    (
-                        *key,
-                        PackRecord {
-                            length: record.length,
-                            stamp: None,
-                        },
-                    )
-                })
-                .collect(),
-            shared: None,
-        }
-    }
     pub(crate) fn hint(
         root: &Path,
         bytes: &[u8],
@@ -133,10 +117,7 @@ impl Epoch {
         let manifest = read_manifest(root, bytes, bounds, cancellation)?;
         Some(Self {
             namespace: Some(root.to_path_buf()),
-            shared: manifest
-                .shared
-                .as_ref()
-                .map(|epoch| Arc::new(epoch.unstamped())),
+            shared: manifest.shared,
             locations: manifest.locations,
             packs: manifest
                 .packs
@@ -147,6 +128,7 @@ impl Epoch {
                         PackRecord {
                             length,
                             stamp: None,
+                            bytes: None,
                         },
                     )
                 })
@@ -304,29 +286,75 @@ impl Manifest {
             shared: None,
         })
     }
+    #[cfg(test)]
     fn encode(&self, bounds: Bounds) -> Option<Vec<u8>> {
-        let total = self
-            .locations
-            .values()
-            .try_fold(0usize, |sum, item| sum.checked_add(item.length))?;
-        let mut bytes = Vec::new();
+        Self::encode_parts(&self.logical, &self.locations, &self.packs, bounds)
+    }
+    fn encode_parts(
+        logical: &[u8],
+        locations: &BTreeMap<Fingerprint, Location>,
+        packs: &BTreeMap<Fingerprint, usize>,
+        bounds: Bounds,
+    ) -> Option<Vec<u8>> {
+        // Validate the same invariants as decode before allocating the output.
+        // Sorted unique tables are guaranteed by BTreeMap; do not reconstruct
+        // them and copy the logical payload just to discard a decoded manifest.
+        if logical.len() > bounds.maximum
+            || locations.is_empty()
+            || locations.len() > bounds.max_items
+            || packs.is_empty()
+            || packs.len() > locations.len()
+        {
+            return None;
+        }
+        let mut physical = 0usize;
+        for length in packs.values() {
+            let payload = length.checked_sub(PACK_HEADER).filter(|size| *size > 0)?;
+            physical = physical
+                .checked_add(payload)
+                .filter(|size| *size <= bounds.maximum)?;
+        }
+        let mut total = 0usize;
+        let mut referenced = BTreeSet::new();
+        for item in locations.values() {
+            if item.length == 0
+                || item.offset.checked_add(item.length)?
+                    > packs.get(&item.pack)?.checked_sub(PACK_HEADER)?
+            {
+                return None;
+            }
+            total = total
+                .checked_add(item.length)
+                .filter(|size| *size <= bounds.maximum)?;
+            referenced.insert(item.pack);
+        }
+        if referenced.len() != packs.len() {
+            return None;
+        }
+        let size = MANIFEST_HEADER
+            .checked_add(packs.len().checked_mul(PACK_ROW)?)?
+            .checked_add(locations.len().checked_mul(ITEM_ROW)?)?
+            .checked_add(logical.len())?;
+        if size > bounds.manifest_maximum()? {
+            return None;
+        }
+        let mut bytes = Vec::with_capacity(size);
         bytes.extend_from_slice(MANIFEST_MAGIC);
-        push_number(&mut bytes, self.logical.len())?;
+        push_number(&mut bytes, logical.len())?;
         push_number(&mut bytes, total)?;
-        push_count(&mut bytes, self.locations.len())?;
-        push_count(&mut bytes, self.packs.len())?;
-        for (key, length) in &self.packs {
+        push_count(&mut bytes, locations.len())?;
+        push_count(&mut bytes, packs.len())?;
+        for (key, length) in packs {
             bytes.extend_from_slice(&key.0);
             push_number(&mut bytes, *length)?;
         }
-        for (key, item) in &self.locations {
+        for (key, item) in locations {
             bytes.extend_from_slice(&key.0);
             bytes.extend_from_slice(&item.pack.0);
             push_number(&mut bytes, item.offset)?;
             push_number(&mut bytes, item.length)?;
         }
-        bytes.extend_from_slice(&self.logical);
-        Self::decode(&bytes, bounds)?;
+        bytes.extend_from_slice(logical);
         Some(bytes)
     }
 }
@@ -404,7 +432,14 @@ fn read_manifest(
         }
         let (data, stamp) = inspect_pack(root, key, length, meta_bounds)?;
         loaded.insert(key, data);
-        records.insert(key, PackRecord { length, stamp });
+        records.insert(
+            key,
+            PackRecord {
+                length,
+                stamp,
+                bytes: loaded.get(&key).cloned(),
+            },
+        );
     }
     let mut envelope = Vec::with_capacity(total);
     for row in rows {
@@ -434,22 +469,22 @@ fn read_manifest(
 
 fn share_manifest(
     context: &PublishContext<'_>,
-    envelope: &[u8],
+    envelope: Vec<u8>,
     bounds: Bounds,
     previous: Option<&Epoch>,
     stats: &mut PublicationStats,
 ) -> Option<(Vec<u8>, Option<Arc<Epoch>>)> {
     if envelope.len() < SHARED_THRESHOLD {
-        return Some((envelope.to_vec(), None));
+        return Some((envelope, None));
     }
     let encode = publication_start(context.profile);
-    let pieces: Vec<_> = chunks(envelope).collect();
+    let pieces: Vec<_> = chunks(&envelope).collect();
     let meta_bounds = metadata_bounds(bounds, envelope.len(), pieces.len())?;
     let mut descriptor =
         Vec::with_capacity(SHARED_HEADER.checked_add(pieces.len().checked_mul(PACK_ROW)?)?);
     descriptor.extend_from_slice(SHARED_MAGIC);
     push_number(&mut descriptor, envelope.len())?;
-    descriptor.extend_from_slice(&Fingerprint::of(envelope).0);
+    descriptor.extend_from_slice(&Fingerprint::of(&envelope).0);
     push_count(&mut descriptor, pieces.len())?;
     let mut items = Vec::with_capacity(pieces.len());
     for piece in pieces {
@@ -459,7 +494,7 @@ fn share_manifest(
         let key = Fingerprint::of(piece);
         descriptor.extend_from_slice(&key.0);
         push_number(&mut descriptor, piece.len())?;
-        items.push((key, Arc::from(piece)));
+        items.push((key, piece));
     }
     stats.encode_ns += publication_elapsed(encode);
     let empty = Epoch::default();
@@ -477,15 +512,12 @@ fn share_manifest(
         true,
     )?;
     let encode = publication_start(context.profile);
-    descriptor.extend_from_slice(
-        &Manifest {
-            logical: Vec::new(),
-            locations: locations.clone(),
-            packs,
-            shared: None,
-        }
-        .encode(meta_bounds)?,
-    );
+    descriptor.extend_from_slice(&Manifest::encode_parts(
+        &[],
+        &locations,
+        &packs,
+        meta_bounds,
+    )?);
     if descriptor.len() > bounds.manifest_maximum()? {
         return None;
     }
@@ -536,7 +568,7 @@ fn inspect_pack(
     }
     let after = stamp(&file);
     let remembered = after.filter(|after| after == &before);
-    Some((bytes.into(), remembered))
+    Some((Arc::new(bytes), remembered))
 }
 fn segment(bytes: &[u8], item: Location) -> Option<&[u8]> {
     let start = PACK_HEADER.checked_add(item.offset)?;
@@ -587,9 +619,9 @@ impl Reader {
     pub(crate) fn take_logical(&mut self) -> Vec<u8> {
         std::mem::take(&mut self.manifest.logical)
     }
-    /// Reuse only the locator already parsed by this request. Unlike epoch(),
-    /// this carries no verified file stamps: publication still rechecks packs.
-    /// It does not reread shared manifest chunks or retain their raw buffers.
+    /// Reuse this request's bounded locators and loaded raw pack snapshots.
+    /// Publication rechecks file stamps and complete current segment bytes;
+    /// unread packs remain hints and must still be inspected from disk.
     pub(crate) fn hint_epoch(&self) -> Epoch {
         Epoch {
             namespace: Some(self.root.clone()),
@@ -603,16 +635,13 @@ impl Reader {
                         *key,
                         PackRecord {
                             length: *length,
-                            stamp: None,
+                            stamp: self.loaded.get(key).and_then(|(_, stamp)| stamp.clone()),
+                            bytes: self.loaded.get(key).map(|(bytes, _)| bytes.clone()),
                         },
                     )
                 })
                 .collect(),
-            shared: self
-                .manifest
-                .shared
-                .as_ref()
-                .map(|epoch| Arc::new(epoch.unstamped())),
+            shared: self.manifest.shared.clone(),
         }
     }
     pub(crate) fn load(&mut self, key: Fingerprint) -> Option<Arc<[u8]>> {
@@ -666,6 +695,7 @@ impl Reader {
                     PackRecord {
                         length: bytes.len(),
                         stamp: stamp.clone(),
+                        bytes: Some(bytes.clone()),
                     },
                 )
             })
@@ -737,17 +767,11 @@ fn publish_with_hook(
         records,
     } = place_items(&context, items, bounds, epoch, &mut stats, false)?;
     let encode = publication_start(context.profile);
-    let envelope = Manifest {
-        logical: logical.to_vec(),
-        locations: locations.clone(),
-        packs,
-        shared: None,
-    }
-    .encode(bounds)?;
+    let envelope = Manifest::encode_parts(logical, &locations, &packs, bounds)?;
     stats.encode_ns += publication_elapsed(encode);
     let (envelope, shared) = share_manifest(
         &context,
-        &envelope,
+        envelope,
         bounds,
         epoch.shared.as_deref(),
         &mut stats,
@@ -783,9 +807,9 @@ struct Placement {
 
 // Body and metadata chunks use the same complete pack bounds and current
 // file checks. Placement does not publish a root or install a pending epoch.
-fn place_items(
+fn place_items<B: AsRef<[u8]>>(
     context: &PublishContext<'_>,
-    items: Vec<(Fingerprint, Arc<[u8]>)>,
+    items: Vec<(Fingerprint, B)>,
     bounds: Bounds,
     epoch: &Epoch,
     stats: &mut PublicationStats,
@@ -796,19 +820,19 @@ fn place_items(
     }
     let encode = publication_start(context.profile);
     let logical_items = items.len();
-    let mut current = BTreeMap::new();
+    let mut current = BTreeMap::<Fingerprint, B>::new();
     let mut current_total = 0usize;
     for (key, bytes) in items {
-        if context.cancellation.is_cancelled() || bytes.is_empty() {
+        if context.cancellation.is_cancelled() || bytes.as_ref().is_empty() {
             return None;
         }
         if let Some(previous) = current.get(&key) {
-            if previous != &bytes {
+            if previous.as_ref() != bytes.as_ref() {
                 return None;
             }
         } else {
             current_total = current_total
-                .checked_add(bytes.len())
+                .checked_add(bytes.as_ref().len())
                 .filter(|size| *size <= bounds.maximum)?;
             current.insert(key, bytes);
         }
@@ -822,7 +846,7 @@ fn place_items(
         for (key, bytes) in &current {
             if let Some(item) = epoch.locations.get(key)
                 && let Some(record) = epoch.packs.get(&item.pack)
-                && item.length == bytes.len()
+                && item.length == bytes.as_ref().len()
                 && record.length <= bounds.pack_maximum()?
                 && item.offset.checked_add(item.length)?
                     <= record.length.checked_sub(PACK_HEADER)?
@@ -887,6 +911,9 @@ fn place_items(
     let mut records = BTreeMap::new();
     let mut dirty = BTreeSet::new();
     for key in current.keys() {
+        if context.cancellation.is_cancelled() {
+            return None;
+        }
         let io = publication_start(context.profile);
         let found = (|| {
             if compact {
@@ -896,30 +923,28 @@ fn place_items(
             let record = epoch.packs.get(&item.pack)?;
             let value = checked.entry(item.pack).or_insert_with(|| {
                 let now = stamp(&path(context.packs.root(), item.pack));
-                if now.is_some() && now == record.stamp {
-                    Some((None, now))
+                if now.is_some()
+                    && now == record.stamp
+                    && let Some(bytes) = &record.bytes
+                {
+                    Some((bytes.clone(), now))
                 } else {
                     inspect_pack(context.packs.root(), item.pack, record.length, bounds)
-                        .map(|(bytes, stamp)| (Some(bytes), stamp))
                 }
             });
             let (pack_bytes, stamp) = value.as_ref()?;
-            if let Some(pack_bytes) = pack_bytes {
-                let stored = segment(pack_bytes, item)?;
-                // A digest selects an item; bind the actual complete current
-                // payload as well before retaining its physical association.
-                if stored != current.get(key)?.as_ref() || Fingerprint::of(stored) != *key {
-                    return None;
-                }
+            let stored = segment(pack_bytes, item)?;
+            // Even an unchanged file stamp only validates the raw snapshot.
+            // Bind complete current bytes, including on the warm path.
+            if stored != current.get(key)?.as_ref() || Fingerprint::of(stored) != *key {
+                return None;
             }
             packs.insert(item.pack, record.length);
-            records.insert(
-                item.pack,
-                PackRecord {
-                    length: record.length,
-                    stamp: stamp.clone(),
-                },
-            );
+            records.entry(item.pack).or_insert_with(|| PackRecord {
+                length: record.length,
+                stamp: stamp.clone(),
+                bytes: Some(pack_bytes.clone()),
+            });
             Some(item)
         })();
         stats.item_io_ns += publication_elapsed(io);
@@ -935,9 +960,9 @@ fn place_items(
     let old_payload = packs.values().try_fold(0usize, |sum, length| {
         sum.checked_add(length.checked_sub(PACK_HEADER)?)
     })?;
-    let dirty_bytes = dirty
-        .iter()
-        .try_fold(0usize, |sum, key| sum.checked_add(current[key].len()))?;
+    let dirty_bytes = dirty.iter().try_fold(0usize, |sum, key| {
+        sum.checked_add(current[key].as_ref().len())
+    })?;
     if old_payload.checked_add(dirty_bytes)? > bounds.maximum {
         stats.compacted_items = current.len().checked_sub(dirty.len())?;
         locations.clear();
@@ -947,16 +972,16 @@ fn place_items(
     }
     if !dirty.is_empty() {
         let encode = publication_start(context.profile);
-        let data_len = dirty
-            .iter()
-            .try_fold(0usize, |sum, key| sum.checked_add(current[key].len()))?;
+        let data_len = dirty.iter().try_fold(0usize, |sum, key| {
+            sum.checked_add(current[key].as_ref().len())
+        })?;
         let mut bytes = Vec::with_capacity(PACK_HEADER.checked_add(data_len)?);
         bytes.extend_from_slice(PACK_MAGIC);
         push_number(&mut bytes, data_len)?;
         push_count(&mut bytes, dirty.len())?;
         let mut offsets = Vec::with_capacity(dirty.len());
         for key in &dirty {
-            let item = &current[key];
+            let item = current[key].as_ref();
             if context.cancellation.is_cancelled() || Fingerprint::of(item) != *key {
                 return None;
             }
@@ -968,10 +993,10 @@ fn place_items(
         let io = publication_start(context.profile);
         let existing = inspect_pack(context.packs.root(), pack, bytes.len(), bounds);
         stats.item_io_ns += publication_elapsed(io);
-        let stamp = if let Some((_, stamp)) =
-            existing.filter(|(existing, _)| existing.as_ref() == bytes.as_slice())
+        let (pack_bytes, stamp) = if let Some(verified) =
+            existing.filter(|(existing, _)| existing.as_slice() == bytes.as_slice())
         {
-            stamp
+            verified
         } else {
             let guard = publication_start(context.profile);
             context.packs.validate_write().ok()?;
@@ -981,14 +1006,16 @@ fn place_items(
                 .write_candidate_cancellable(pack, &bytes, context.cancellation)
                 .ok()?;
             let written_stamp = stamp(&path(context.packs.root(), pack))?;
-            let (_, verified_stamp) =
-                inspect_pack(context.packs.root(), pack, bytes.len(), bounds)?;
+            let verified = inspect_pack(context.packs.root(), pack, bytes.len(), bounds)?;
+            if verified.0.as_slice() != bytes.as_slice() {
+                return None;
+            }
             stats.item_io_ns += publication_elapsed(io);
             stats.physical_pack_writes = 1;
             stats.physical_pack_bytes = usize::try_from(written_stamp.length).ok()?;
             stats.written_items = dirty.len();
             stats.written_bytes = data_len;
-            verified_stamp
+            verified
         };
         for (key, offset, length) in offsets {
             locations.insert(
@@ -1006,6 +1033,7 @@ fn place_items(
             PackRecord {
                 length: bytes.len(),
                 stamp,
+                bytes: Some(pack_bytes),
             },
         );
     }

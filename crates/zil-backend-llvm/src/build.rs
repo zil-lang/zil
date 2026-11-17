@@ -503,6 +503,9 @@ pub fn build_view_with_cancellation_and_session(
             .and_then(|root| crate::emit::raw_products::Request::new(root, lir.target))
     })
     .flatten();
+    if let Some(raw) = raw_emission.as_mut() {
+        raw.use_preflight(machine_preflight.body_session());
+    }
     let (mut machine, collected_closed, mut task_work) =
         crate::emit::lower_output_with_raw_products(
             verified,
@@ -646,12 +649,13 @@ pub fn build_view_with_cancellation_and_session(
                         previous,
                     )
                     && !symbols.is_empty()
-                    && let Some(reduction) = crate::machine_closed_graph::prune(
+                    && let Some(reduction) = crate::machine_closed_graph::prune_with_preflight(
                         &mut reduced,
                         lir,
                         &mut symbols,
                         &transform_policy.protected,
                         cancelled,
+                        &mut machine_preflight,
                     )
                     .map_err(api_error)?
                     && !symbols.is_empty()
@@ -1274,9 +1278,13 @@ pub fn build_view_with_cancellation_and_session(
                 // Fused pruning validates this COMPLETE original unpruned unit before
                 // any nonempty deletion. Its resulting unit still goes through
                 // current API preflight/Builder/full O2/LLVM verification below.
-                let Some(stats) =
-                    crate::machine_closed_prune::prune_closed_unit(unit, &class_symbols, cancelled)
-                        .map_err(api_error)?
+                let Some(stats) = crate::machine_closed_prune::prune_closed_unit_with_preflight(
+                    unit,
+                    &class_symbols,
+                    cancelled,
+                    &mut machine_preflight,
+                )
+                .map_err(api_error)?
                 else {
                     return Err(vec![Diagnostic::new(
                         Phase::Link,
@@ -1330,6 +1338,10 @@ pub fn build_view_with_cancellation_and_session(
     let (plan, llvm, pending_layout, stable_diagnostic, private_closures, partition_layout_key) =
         partitioned;
     if let Some(session) = session.as_deref_mut() {
+        let (checked_bodies, reused_bodies) =
+            machine_preflight.body_session().borrow().body_counts();
+        session.summary.machine_body_preflights_checked = checked_bodies;
+        session.summary.machine_body_preflights_reused = reused_bodies;
         session.summary.machine_preflights_checked = machine_preflight.executions;
         session.summary.machine_preflights_reused = machine_preflight.reuses;
         session.summary.checked_add_functions_checked = checked_add_work.0;

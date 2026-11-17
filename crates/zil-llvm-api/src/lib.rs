@@ -7,6 +7,7 @@ mod late_closed;
 pub mod model;
 pub use late_closed::{LateClosedPlan, LateClosedReport};
 mod preflight;
+pub use preflight::PreflightSession;
 mod preflight_receipt;
 mod shared_vec;
 pub use preflight_receipt::{PreflightReceipt, validate_module_with_receipt};

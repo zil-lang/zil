@@ -323,10 +323,25 @@ fn observe(
 /// declarations are discovered by the same actual global-reference walk as
 /// definitions, so there is no second graph, intermediate clone or validation.
 /// Unknown values refuse both deletions; cancellation never publishes either.
+#[cfg(test)]
 pub(crate) fn prune_closed_unit(
     module: &mut Module,
     classes: &BTreeSet<String>,
     cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<Option<Stats>, zil_llvm_api::Error> {
+    prune_closed_unit_with_preflight(
+        module,
+        classes,
+        cancelled,
+        &mut crate::machine_preflight::CurrentPreflight::default(),
+    )
+}
+
+pub(crate) fn prune_closed_unit_with_preflight(
+    module: &mut Module,
+    classes: &BTreeSet<String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
 ) -> Result<Option<Stats>, zil_llvm_api::Error> {
     if cancelled() {
         return Ok(None);
@@ -340,7 +355,7 @@ pub(crate) fn prune_closed_unit(
         }
         if let Item::Function(f) = item {
             if names.insert(f.name.as_str(), index).is_some() {
-                zil_llvm_api::validate_module(module)?;
+                preflight.check(module)?;
                 return Ok(Some(Stats::default()));
             }
             if f.blocks.is_some() && !f.linkage.is_local() {
@@ -439,7 +454,7 @@ pub(crate) fn prune_closed_unit(
         return Ok(None);
     }
     // Includes every dead body and unused prototype, before either deletion.
-    zil_llvm_api::validate_module(module)?;
+    preflight.check(module)?;
     let mut retained = Vec::with_capacity(module.items.len() - count);
     for (index, item) in module.items.iter().enumerate() {
         if cancelled() {

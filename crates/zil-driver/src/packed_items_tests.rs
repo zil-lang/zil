@@ -768,3 +768,115 @@ fn repeated_logical_reads_share_current_checked_bytes_and_cancel_still_wins() {
     fs::write(file, b"corrupt after the current reader").unwrap();
     assert!(fixture.reader(91).load(key).is_none());
 }
+
+#[test]
+fn stamped_publication_still_rejects_wrong_current_bytes_for_the_same_key() {
+    let fixture = Fixture::new(512);
+    let original = item(b"original");
+    let mut epoch = Epoch::default();
+    fixture.publish(1, b"logical", std::slice::from_ref(&original), &mut epoch);
+    let manifest = fixture.manifest(1);
+    let locations = epoch.locations.clone();
+    let wrong: Arc<[u8]> = Arc::from(&b"modified"[..]);
+    // Same key, length and unchanged physical stamp must not bypass equality.
+    assert!(
+        fixture
+            .publish_with_hook(
+                1,
+                b"replacement",
+                &[(original.0, wrong)],
+                &mut epoch,
+                &CancellationToken::default(),
+                || {},
+            )
+            .is_none()
+    );
+    assert_eq!(fixture.manifest(1), manifest);
+    assert_eq!(epoch.locations, locations);
+    contents(&mut fixture.reader(1), &[original]);
+}
+
+#[test]
+fn restored_hint_shares_one_pack_snapshot_and_rechecks_changed_files() {
+    let fixture = Fixture::new(512);
+    let items = vec![item(b"first body"), item(b"second body")];
+    let mut epoch = Epoch::default();
+    fixture.publish(1, b"logical", &items, &mut epoch);
+    let mut reader = fixture.reader(1);
+    contents(&mut reader, &items);
+    let mut hint = reader.hint_epoch();
+    let key = *hint.packs.keys().next().unwrap();
+    let snapshot = reader.loaded[&key].0.clone();
+    assert!(Arc::ptr_eq(
+        hint.packs[&key].bytes.as_ref().unwrap(),
+        &snapshot
+    ));
+    let warm = fixture.publish(2, b"logical", &items, &mut hint);
+    assert_eq!(warm.physical_pack_writes, 0);
+    assert!(Arc::ptr_eq(
+        hint.packs[&key].bytes.as_ref().unwrap(),
+        &snapshot
+    ));
+    // Retaining the raw bytes cannot mask a missing or changed cache file.
+    fs::write(path(&fixture.packs, key), b"corrupt").unwrap();
+    let repaired = fixture.publish(3, b"logical", &items, &mut hint);
+    assert_eq!(repaired.physical_pack_writes, 1);
+    assert!(!Arc::ptr_eq(
+        hint.packs[&key].bytes.as_ref().unwrap(),
+        &snapshot
+    ));
+    contents(&mut fixture.reader(3), &items);
+    contents(&mut fixture.reader(1), &items);
+}
+
+#[test]
+fn direct_manifest_encoding_preserves_decoder_bounds_and_exact_bytes() {
+    let fixture = Fixture::new(512);
+    let items = vec![item(b"first body"), item(b"second body")];
+    let mut epoch = Epoch::default();
+    fixture.publish(1, b"logical", &items, &mut epoch);
+    let original = fixture.manifest(1);
+    let mut manifest = Manifest::decode(&original, fixture.bounds).unwrap();
+    assert_eq!(manifest.encode(fixture.bounds).unwrap(), original);
+    let first = items[0].0;
+    let saved = manifest.locations[&first];
+    manifest.locations.get_mut(&first).unwrap().length = 0;
+    assert!(manifest.encode(fixture.bounds).is_none());
+    manifest.locations.insert(
+        first,
+        Location {
+            offset: usize::MAX,
+            ..saved
+        },
+    );
+    assert!(manifest.encode(fixture.bounds).is_none());
+    manifest.locations.insert(first, saved);
+    let pack_len = manifest.packs[&saved.pack];
+    manifest.packs.insert(saved.pack, PACK_HEADER);
+    assert!(manifest.encode(fixture.bounds).is_none());
+    manifest.packs.insert(saved.pack, pack_len);
+    manifest
+        .packs
+        .insert(Fingerprint::of(b"unreferenced pack"), PACK_HEADER + 1);
+    assert!(manifest.encode(fixture.bounds).is_none());
+    manifest
+        .packs
+        .remove(&Fingerprint::of(b"unreferenced pack"));
+    assert!(
+        manifest
+            .encode(Bounds {
+                maximum: 1,
+                ..fixture.bounds
+            })
+            .is_none()
+    );
+    assert!(
+        manifest
+            .encode(Bounds {
+                max_items: 1,
+                ..fixture.bounds
+            })
+            .is_none()
+    );
+    assert_eq!(manifest.encode(fixture.bounds).unwrap(), original);
+}

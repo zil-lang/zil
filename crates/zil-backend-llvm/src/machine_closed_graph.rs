@@ -12,12 +12,31 @@ pub(crate) struct Reduction {
     pub(crate) witness: std::sync::Arc<String>,
 }
 
+#[cfg(test)]
 pub(crate) fn prune(
     module: &mut Module,
     lir: &LirView<'_>,
     classes: &mut BTreeSet<String>,
     protected: &BTreeSet<String>,
     cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<Option<Reduction>, zil_llvm_api::Error> {
+    prune_with_preflight(
+        module,
+        lir,
+        classes,
+        protected,
+        cancelled,
+        &mut crate::machine_preflight::CurrentPreflight::default(),
+    )
+}
+
+pub(crate) fn prune_with_preflight(
+    module: &mut Module,
+    lir: &LirView<'_>,
+    classes: &mut BTreeSet<String>,
+    protected: &BTreeSet<String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    preflight: &mut crate::machine_preflight::CurrentPreflight,
 ) -> Result<Option<Reduction>, zil_llvm_api::Error> {
     // These are actual current source definitions or freshly minted current
     // classes. Unknown/native/foreign symbols and protected roles stay roots.
@@ -60,8 +79,12 @@ pub(crate) fn prune(
         std::slice::from_mut(&mut staged),
         &candidates,
     );
-    let Some(stats) =
-        crate::machine_closed_prune::prune_closed_unit(&mut staged, classes, cancelled)?
+    let Some(stats) = crate::machine_closed_prune::prune_closed_unit_with_preflight(
+        &mut staged,
+        classes,
+        cancelled,
+        preflight,
+    )?
     else {
         return Ok(None);
     };

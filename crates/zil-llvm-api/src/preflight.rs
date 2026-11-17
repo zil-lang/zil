@@ -4,6 +4,10 @@ use super::model::*;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
+#[path = "preflight_session.rs"]
+mod session;
+pub use session::PreflightSession;
+
 type Result<T> = std::result::Result<T, String>;
 #[derive(Clone, Debug)]
 pub(crate) struct Schedule {
@@ -126,8 +130,22 @@ struct World<'a> {
     // Request-local successful DAG summaries, including maximum nesting height.
     // A shallow success alone cannot authorize a deeper use of the same type.
     valid_named: RefCell<BTreeMap<String, usize>>,
+    reads: RefCell<Option<BTreeSet<&'a str>>>,
 }
 impl<'a> World<'a> {
+    fn symbol(&self, name: &str) -> Option<&&'a Item> {
+        let result = self.symbols.get_key_value(name);
+        let mut reads = self.reads.borrow_mut();
+        if let Some(observed) = reads.as_mut() {
+            if observed.len() >= 16_384 || name.len() > 1_000_000 {
+                // Optional reuse declines; the original validation continues.
+                *reads = None;
+            } else if let Some((name, _)) = result {
+                observed.insert(*name);
+            }
+        }
+        result.map(|(_, item)| item)
+    }
     fn ty(
         &self,
         t: &Ty,
@@ -284,7 +302,7 @@ impl<'a> World<'a> {
                 if *t != Ty::Ptr {
                     return fail("global address requires ptr type");
                 }
-                if !self.symbols.contains_key(name.as_str()) {
+                if self.symbol(name.as_str()).is_none() {
                     return fail(format!("undefined symbol @{name}"));
                 }
             }
@@ -563,7 +581,7 @@ impl<'a> World<'a> {
                     self.arg(a, defs, false)?;
                 }
                 if let Val::Global(name) = callee {
-                    let Some(Item::Function(f)) = self.symbols.get(name.as_str()) else {
+                    let Some(Item::Function(f)) = self.symbol(name.as_str()) else {
                         return fail("calling a global that is not a function");
                     };
                     let sig = &f.signature;
@@ -1136,6 +1154,14 @@ pub(super) fn inputs(module: &Module) -> (&str, &SharedVec<Item>) {
 }
 
 fn validate_inputs<const COLLECT_SCHEDULE: bool>(triple: &str, items: &[Item]) -> Result<Schedule> {
+    validate_inputs_cached::<COLLECT_SCHEDULE>(triple, items, None)
+}
+
+fn validate_inputs_cached<const COLLECT_SCHEDULE: bool>(
+    triple: &str,
+    items: &[Item],
+    mut session: Option<&mut PreflightSession>,
+) -> Result<Schedule> {
     if !matches!(
         triple,
         "x86_64-unknown-linux-gnu" | "x86_64-pc-windows-msvc"
@@ -1146,6 +1172,7 @@ fn validate_inputs<const COLLECT_SCHEDULE: bool>(triple: &str, items: &[Item]) -
         named: BTreeMap::new(),
         symbols: BTreeMap::new(),
         valid_named: RefCell::new(BTreeMap::new()),
+        reads: RefCell::new(None),
     };
     for item in items {
         match item {
@@ -1161,6 +1188,14 @@ fn validate_inputs<const COLLECT_SCHEDULE: bool>(triple: &str, items: &[Item]) -
             }
         }
     }
+    if session
+        .as_deref_mut()
+        .is_some_and(|session| !session.prepare(triple, &world))
+    {
+        session = None;
+    }
+    let mut pending_bodies = Vec::new();
+    let mut pending_cost = 0usize;
     let mut functions = BTreeMap::new();
     let mut scratch = FunctionScratch::default();
     // A body can be shared by several current emitted functions. The whole
@@ -1216,7 +1251,31 @@ fn validate_inputs<const COLLECT_SCHEDULE: bool>(triple: &str, items: &[Item]) -
                     if let Some(cached) = cached {
                         cached.schedule.clone()
                     } else {
-                        let schedule = function::<COLLECT_SCHEDULE>(&world, f, &mut scratch)?;
+                        let reused = !COLLECT_SCHEDULE
+                            && session
+                                .as_deref_mut()
+                                .is_some_and(|session| session.reuses(f, &world));
+                        let schedule = if reused {
+                            Vec::new()
+                        } else {
+                            if session.is_some() {
+                                *world.reads.borrow_mut() = Some(BTreeSet::new());
+                            }
+                            let result = function::<COLLECT_SCHEDULE>(&world, f, &mut scratch);
+                            if result.is_ok()
+                                && let Some(session) = session.as_deref_mut()
+                                && let Some(body) = session.capture(f, &world)
+                                && pending_bodies.len() < 4096
+                                && let Some(cost) = pending_cost
+                                    .checked_add(body.cost())
+                                    .filter(|cost| *cost <= 1_000_000)
+                            {
+                                pending_cost = cost;
+                                pending_bodies.push(body);
+                            }
+                            *world.reads.borrow_mut() = None;
+                            result?
+                        };
                         checked_bodies.entry(key).or_default().push(CheckedBody {
                             function: f,
                             schedule: schedule.clone(),
@@ -1231,6 +1290,9 @@ fn validate_inputs<const COLLECT_SCHEDULE: bool>(triple: &str, items: &[Item]) -
                 }
             }
         }
+    }
+    if let Some(session) = session {
+        session.commit(pending_bodies, &world);
     }
     Ok(Schedule { functions })
 }
@@ -1304,6 +1366,7 @@ mod named_layout_tests {
                 .collect(),
             symbols: BTreeMap::new(),
             valid_named: RefCell::new(BTreeMap::new()),
+            reads: RefCell::new(None),
         }
     }
     fn diamond(count: usize) -> Vec<(String, Vec<Ty>)> {

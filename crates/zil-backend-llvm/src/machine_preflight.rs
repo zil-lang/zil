@@ -5,11 +5,17 @@ use zil_llvm_api::model::Module;
 #[derive(Default)]
 pub(crate) struct CurrentPreflight {
     checked: Option<Module>,
+    bodies: std::rc::Rc<std::cell::RefCell<zil_llvm_api::PreflightSession>>,
     pub(crate) executions: usize,
     pub(crate) reuses: usize,
     pub(crate) elapsed_ns: u64,
 }
 impl CurrentPreflight {
+    pub(crate) fn body_session(
+        &self,
+    ) -> std::rc::Rc<std::cell::RefCell<zil_llvm_api::PreflightSession>> {
+        self.bodies.clone()
+    }
     pub(crate) fn check(&mut self, current: &Module) -> Result<(), zil_llvm_api::Error> {
         // SharedVec owns immutable items. Keeping this owner alive forces every
         // subsequent mutation through COW, including edits inside a Function.
@@ -24,7 +30,7 @@ impl CurrentPreflight {
         }
         self.executions += 1;
         let start = std::time::Instant::now();
-        let result = zil_llvm_api::validate_module(current);
+        let result = self.bodies.borrow_mut().validate(current);
         self.elapsed_ns += crate::object_cache::elapsed_ns(start);
         result?;
         self.checked = Some(current.clone());

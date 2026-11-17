@@ -23,6 +23,7 @@ impl Drop for Directory {
 
 fn request(root: &Path) -> Request {
     Request {
+        validation: None,
         directory: root.join("test-installed-identity"),
         manifest: String::new(),
         context: vec![],
@@ -219,7 +220,23 @@ fn restarted_raw_products_match_original_emitter_and_edit_only_one_representativ
     let edited = fixture(true);
     let current = lir(&edited);
     let mut restored = request(&directory.0);
+    let mut checker = crate::machine_preflight::CurrentPreflight::default();
+    restored.use_preflight(checker.body_session());
     let actual = lower(&edited, &current, Some(&mut restored)).unwrap();
+    let before = checker.body_session().borrow().body_counts();
+    assert_eq!(before, (3, 0));
+    checker.check(&actual.0).unwrap();
+    let after = checker.body_session().borrow().body_counts();
+    assert_eq!(
+        after.0 - before.0,
+        1,
+        "only the freshly produced changed body is newly checked"
+    );
+    assert_eq!(
+        after.1 - before.1,
+        3,
+        "all restored raw bodies already passed this current checker"
+    );
     assert_eq!(actual, lower(&edited, &current, None).unwrap());
     assert_eq!((restored.hits, restored.misses), (3, 1));
     assert_eq!(restored.current.len(), 4);
