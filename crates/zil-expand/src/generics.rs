@@ -337,12 +337,24 @@ pub(super) fn validate_plain_products(
     };
     let mut names_budget = Budget::new(&remaining);
     names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
-    super::lifetimes::validate_scalar_products(items, &mut names_budget, reuse)?;
+    if !super::lifetimes::validate_scalar_products(items, &mut names_budget, reuse)? {
+        return Ok(false);
+    }
     // Headers remain a separate whole-project phase, after all Lifetimes.
     // Only a complete successful all-false scalar outcome can replay.
     let mut closed = true;
     for product in items {
         let span = product.span();
+        if product.recovered() {
+            if !reuse.replay_recovered_group(
+                crate::incremental::Stage::Headers,
+                span,
+                &mut names_budget,
+            ) {
+                return Ok(false);
+            }
+            continue;
+        }
         if reuse.replay_scalar_headers(span, &mut names_budget) {
             continue;
         }

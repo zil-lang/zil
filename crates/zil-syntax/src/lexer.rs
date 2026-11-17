@@ -17,7 +17,8 @@ pub fn lex_with_limits(source: &SourceUnit, limits: &Limits) -> LexResult {
     let mut lexer = Lexer {
         source,
         offset: 0,
-        tokens: Vec::new(),
+        // A bounded initial tape avoids repeated growth on ordinary modules.
+        tokens: Vec::with_capacity(source.text.len().min(limits.max_tokens).min(4096)),
         diagnostics: Vec::new(),
         previous: None,
     };
@@ -100,9 +101,16 @@ impl Lexer<'_> {
         ));
     }
     fn consume_while(&mut self, predicate: impl Fn(char) -> bool) {
-        while self.peek().is_some_and(&predicate) {
-            self.bump();
+        // Consume one UTF-8 iterator, rather than constructing two iterators
+        // and checking the same boundary for every code point.
+        let mut consumed = 0;
+        for c in self.remaining().chars() {
+            if !predicate(c) {
+                break;
+            }
+            consumed += c.len_utf8();
         }
+        self.offset += consumed;
     }
     fn next_token(&mut self) {
         let start = self.offset;
@@ -132,12 +140,9 @@ impl Lexer<'_> {
             self.quoted(start, '"', TokenKind::String);
         } else if c == '\'' {
             self.apostrophe(start);
-        } else if let Some((text, symbol)) = SYMBOLS
-            .iter()
-            .find(|(text, _)| self.remaining().starts_with(text))
-        {
-            self.offset += text.len();
-            self.push(TokenKind::Symbol(*symbol), start);
+        } else if let Some((width, symbol)) = symbol(self.remaining().as_bytes()) {
+            self.offset += width;
+            self.push(TokenKind::Symbol(symbol), start);
         } else {
             self.bump();
             self.error(
@@ -372,6 +377,84 @@ fn digit_group(text: &str, radix: u32) -> bool {
         && text.chars().all(|c| c == '_' || c.is_digit(radix))
 }
 
+// Dispatch on the current byte before considering a longer spelling. All
+// punctuation is ASCII; non-ASCII input stays on the pinned Unicode/error path.
+// The arms preserve maximal munch, including wrapping operators and ellipsis.
+fn symbol(bytes: &[u8]) -> Option<(usize, Symbol)> {
+    use Symbol::*;
+    let first = *bytes.first()?;
+    let second = bytes.get(1).copied();
+    let pair = match (first, second) {
+        (b'.', Some(b'.')) => {
+            return Some(if bytes.get(2) == Some(&b'.') {
+                (3, Ellipsis)
+            } else {
+                (2, DotDot)
+            });
+        }
+        (b':', Some(b':')) => Some(ColonColon),
+        (b'-', Some(b'>')) => Some(Arrow),
+        (b'=', Some(b'>')) => Some(FatArrow),
+        (b'|', Some(b'>')) => Some(Pipe),
+        (b'+', Some(b'%')) => Some(PlusWrapping),
+        (b'-', Some(b'%')) => Some(MinusWrapping),
+        (b'*', Some(b'%')) => Some(StarWrapping),
+        (b'&', Some(b'&')) => Some(AmpAmp),
+        (b'|', Some(b'|')) => Some(BarBar),
+        (b'=', Some(b'=')) => Some(EqEq),
+        (b'!', Some(b'=')) => Some(BangEq),
+        (b'<', Some(b'=')) => Some(LtEq),
+        (b'>', Some(b'=')) => Some(GtEq),
+        (b'<', Some(b'<')) => Some(Shl),
+        (b'>', Some(b'>')) => Some(Shr),
+        (b'+', Some(b'=')) => Some(PlusEq),
+        (b'-', Some(b'=')) => Some(MinusEq),
+        (b'*', Some(b'=')) => Some(StarEq),
+        (b'/', Some(b'=')) => Some(SlashEq),
+        (b'%', Some(b'=')) => Some(PercentEq),
+        (b'&', Some(b'=')) => Some(AmpEq),
+        (b'|', Some(b'=')) => Some(BarEq),
+        (b'^', Some(b'=')) => Some(CaretEq),
+        _ => None,
+    };
+    if let Some(pair) = pair {
+        return Some((2, pair));
+    }
+    Some((
+        1,
+        match first {
+            b'(' => LParen,
+            b')' => RParen,
+            b'[' => LBracket,
+            b']' => RBracket,
+            b'{' => LBrace,
+            b'}' => RBrace,
+            b',' => Comma,
+            b';' => Semicolon,
+            b':' => Colon,
+            b'.' => Dot,
+            b'#' => Hash,
+            b'$' => Dollar,
+            b'?' => Question,
+            b'+' => Plus,
+            b'-' => Minus,
+            b'*' => Star,
+            b'/' => Slash,
+            b'%' => Percent,
+            b'&' => Amp,
+            b'|' => Bar,
+            b'^' => Caret,
+            b'~' => Tilde,
+            b'!' => Bang,
+            b'=' => Eq,
+            b'<' => Lt,
+            b'>' => Gt,
+            _ => return None,
+        },
+    ))
+}
+
+#[cfg(test)]
 const SYMBOLS: &[(&str, Symbol)] = &[
     ("...", Symbol::Ellipsis),
     ("..", Symbol::DotDot),
@@ -433,6 +516,76 @@ mod tests {
     fn source(text: &str) -> SourceUnit {
         SourceUnit::new(FileId(2), ModuleId(1), "lexer.zil", text)
     }
+    #[test]
+    fn dispatch_preserves_all_longest_punctuation_prefixes() {
+        // The original ordered vocabulary is an independent maximal-munch
+        // oracle. Cover every two-byte ASCII prefix plus a third dot, so
+        // truncation, conflicting operators and ordinary trailing bytes count.
+        for a in 0..=127u8 {
+            for b in 0..=127u8 {
+                for tail in [b'.', b'=', b'a'] {
+                    let bytes = [a, b, tail];
+                    for length in 0..=bytes.len() {
+                        let input = &bytes[..length];
+                        let expected = SYMBOLS
+                            .iter()
+                            .find(|(text, _)| input.starts_with(text.as_bytes()))
+                            .map(|(text, symbol)| (text.len(), *symbol));
+                        assert_eq!(symbol(input), expected, "{input:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn iterator_scans_preserve_utf8_boundaries_and_budget_errors() {
+        for text in [
+            "abc_9变\u{301}+x",
+            " //注释\r\n变量",
+            "x\u{a0}\t y",
+            "1e+2 + 0xFFu8",
+            "'世'\n\"x\"",
+        ] {
+            let source = source(text);
+            let result = lex(&source);
+            assert!(
+                result.diagnostics.is_empty(),
+                "{text}: {:?}",
+                result.diagnostics
+            );
+            assert_eq!(
+                result
+                    .tokens
+                    .iter()
+                    .map(|token| token.text(text))
+                    .collect::<String>(),
+                text
+            );
+            for limit in 0..result.tokens.len().saturating_sub(1) {
+                let limits = Limits {
+                    max_tokens: limit,
+                    ..Limits::default()
+                };
+                let limited = lex_with_limits(&source, &limits);
+                assert!(
+                    limited
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+                );
+                assert_eq!(
+                    limited
+                        .tokens
+                        .iter()
+                        .map(|token| token.text(text))
+                        .collect::<String>(),
+                    text
+                );
+            }
+        }
+    }
+
     #[test]
     fn lossless_utf8_nested_comments_crlf() {
         let src = source("fn 读取() { /* 外\n /* 内 */ */\r\nlet a = \"x\\n\" //尾\n}");

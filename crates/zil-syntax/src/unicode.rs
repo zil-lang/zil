@@ -21,10 +21,18 @@ fn contains(ranges: &[(u32, u32)], c: char) -> bool {
 }
 
 pub fn is_xid_start(c: char) -> bool {
-    c == '_' || contains(XID_START, c)
+    if c.is_ascii() {
+        c.is_ascii_alphabetic() || c == '_'
+    } else {
+        contains(XID_START, c)
+    }
 }
 pub fn is_xid_continue(c: char) -> bool {
-    contains(XID_CONTINUE, c)
+    if c.is_ascii() {
+        c.is_ascii_alphanumeric() || c == '_'
+    } else {
+        contains(XID_CONTINUE, c)
+    }
 }
 
 const XID_START: &[(u32, u32)] = &[
@@ -1529,3 +1537,16 @@ const XID_CONTINUE: &[(u32, u32)] = &[
     (0x31350, 0x33479),
     (0xE0100, 0xE01EF),
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn ascii_dispatch_matches_pinned_unicode_ranges() {
+        for byte in 0..=127u8 {
+            let c = char::from(byte);
+            assert_eq!(is_xid_start(c), c == '_' || contains(XID_START, c));
+            assert_eq!(is_xid_continue(c), contains(XID_CONTINUE, c));
+        }
+    }
+}

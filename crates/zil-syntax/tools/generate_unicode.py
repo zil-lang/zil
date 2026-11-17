@@ -45,8 +45,8 @@ out = [
     "    }).is_ok()",
     "}",
     "",
-    "pub fn is_xid_start(c: char) -> bool { c == '_' || contains(XID_START, c) }",
-    "pub fn is_xid_continue(c: char) -> bool { contains(XID_CONTINUE, c) }",
+    "pub fn is_xid_start(c: char) -> bool { if c.is_ascii() { c.is_ascii_alphabetic() || c == '_' } else { contains(XID_START, c) } }",
+    "pub fn is_xid_continue(c: char) -> bool { if c.is_ascii() { c.is_ascii_alphanumeric() || c == '_' } else { contains(XID_CONTINUE, c) } }",
     "",
 ]
 for name, ranges in properties.items():
@@ -54,5 +54,19 @@ for name, ranges in properties.items():
     out.extend(f"    (0x{lo:X}, 0x{hi:X})," for lo, hi in ranges)
     out.append("];\n")
 target = Path(__file__).resolve().parents[1] / "src/unicode.rs"
+out.append("""
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn ascii_dispatch_matches_pinned_unicode_ranges() {
+        for byte in 0..=127u8 {
+            let c = char::from(byte);
+            assert_eq!(is_xid_start(c), c == '_' || contains(XID_START, c));
+            assert_eq!(is_xid_continue(c), contains(XID_CONTINUE, c));
+        }
+    }
+}
+""")
 target.write_text("\n".join(out), encoding="utf-8")
 print(f"Wrote {target}: " + ", ".join(f"{k}={len(v)} ranges" for k, v in properties.items()))

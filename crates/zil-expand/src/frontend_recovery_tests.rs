@@ -667,3 +667,117 @@ fn projected_namespace_still_binds_complete_local_source_before_recovery() {
     assert_eq!(session.last_stats().recovered_frontend_modules, 1);
     assert_eq!(session.last_stats().lower_modules, 1);
 }
+
+#[test]
+fn recovered_wide_modules_keep_original_demands_without_per_item_stage_products() {
+    let limits = Limits::default();
+    let wide = (0..64)
+        .map(|i| format!("pub fn f{i}(x:i32)->i32{{let y=x+{i};return y;}}"))
+        .collect::<String>();
+    let unchanged = format!("import dep; extern \"C\" fn foreign(x:i32)->i32; {wide}");
+    for fused in [false, true] {
+        let original = vec![
+            parsed(0, "fn main()->i32=>1;"),
+            parsed(1, &unchanged),
+            parsed(2, &wide),
+        ];
+        let mut cold = ExpandSession::default();
+        run(&mut cold, &original, &limits, fused).unwrap().unwrap();
+        let products = cold.encode_frontend_products(&limits).unwrap();
+        let current = vec![
+            parsed(0, "fn main()->i32=>2;"),
+            parsed(1, &unchanged),
+            parsed(2, &wide),
+        ];
+        let mut restored = ExpandSession::default();
+        assert!(restored.restore_frontend_products(products.clone(), &limits));
+        let actual = run(&mut restored, &current, &limits, fused)
+            .unwrap()
+            .unwrap();
+        let reference = run(&mut ExpandSession::default(), &current, &limits, fused)
+            .unwrap()
+            .unwrap();
+        assert_eq!(actual, reference);
+        assert_eq!(restored.last_stats().recovered_frontend_modules, 2);
+        for id in [ModuleId(1), ModuleId(2)] {
+            let entry = &restored.entries[&id];
+            // Recovery has no normalized AST surrogate and creates no recipe,
+            // per-function header outcome, or per-function fee map allocation.
+            assert!(entry.normalized.is_empty());
+            assert!(entry.scalar_headers.is_empty());
+            assert_eq!(entry.receipts.len(), 2);
+            let stages = entry.recovered_stages.as_ref().unwrap();
+            for stage in [
+                Stage::Preflight,
+                Stage::Normalize,
+                Stage::Prepare,
+                Stage::Lifetimes,
+                Stage::Headers,
+                Stage::Distribute,
+                Stage::Restore,
+                Stage::RestoreItem,
+            ] {
+                let (actual, count) = stages.receipt(stage);
+                let expected = cold.entries[&id]
+                    .receipts
+                    .iter()
+                    .filter(|((actual, _), _)| *actual == stage)
+                    .fold((0, 0, 0), |(nodes, work, count), (_, demand)| {
+                        (nodes + demand.nodes, work + demand.work, count + 1)
+                    });
+                assert_eq!((actual.nodes, actual.work, count), expected);
+            }
+        }
+        // A recovered process republishes exactly the original raw module bytes
+        // without rebuilding its per-function tables or increasing disk data.
+        let republished = restored.encode_frontend_products(&limits).unwrap();
+        for id in [ModuleId(1), ModuleId(2)] {
+            assert!(Arc::ptr_eq(
+                &products.modules[&id],
+                &republished.modules[&id]
+            ));
+        }
+    }
+}
+
+#[test]
+fn raw_source_slice_is_borrowed_bounded_and_never_a_recovery_admission() {
+    let limits = Limits::default();
+    let source = "// source 字节\nfn main()->i32=>1;";
+    let input = vec![parsed(0, source)];
+    let mut session = ExpandSession::default();
+    run(&mut session, &input, &limits, false).unwrap().unwrap();
+    let products = session.encode_frontend_products(&limits).unwrap();
+    let text = products.source_text(ModuleId(0)).unwrap();
+    assert_eq!(text, source.as_bytes());
+    let bytes = &products.modules[&ModuleId(0)];
+    let offset = text.as_ptr() as usize - bytes.as_ptr() as usize;
+    assert_eq!(&bytes[offset..offset + text.len()], text);
+    assert!(products.source_text(ModuleId(1)).is_none());
+    for length in 0..offset + text.len() {
+        let truncated = FrontendProducts {
+            context: products.context.clone(),
+            modules: BTreeMap::from([(ModuleId(0), bytes[..length].into())]),
+        };
+        assert!(truncated.source_text(ModuleId(0)).is_none());
+    }
+    let mut swapped = products.clone();
+    swapped.modules.insert(ModuleId(1), bytes.clone());
+    assert!(swapped.source_text(ModuleId(1)).is_none());
+    // A complete prefix alone can factor storage. It must not authorize body
+    // recovery: the unchanged complete decoder rejects the missing suffix.
+    let partial = FrontendProducts {
+        context: products.context.clone(),
+        modules: BTreeMap::from([(ModuleId(0), bytes[..offset + text.len()].into())]),
+    };
+    assert_eq!(partial.source_text(ModuleId(0)), Some(source.as_bytes()));
+    let mut restored = ExpandSession::default();
+    assert!(restored.restore_frontend_products(partial, &limits));
+    assert_eq!(
+        run(&mut restored, &input, &limits, false).unwrap().unwrap(),
+        run(&mut ExpandSession::default(), &input, &limits, false)
+            .unwrap()
+            .unwrap()
+    );
+    assert_eq!(restored.last_stats().recovered_frontend_modules, 0);
+}

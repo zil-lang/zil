@@ -1220,6 +1220,13 @@ fn normalize_scalar(
     use scalar_products::{Declaration, NormalizedProduct};
     let mut normalized = Vec::<NormalizedProduct<'_>>::new();
     for module in modules {
+        if reuse.recovered_group(module.span.file) {
+            if !reuse.replay_recovered_group(Stage::Normalize, module.span, &mut budget) {
+                return Ok(None);
+            }
+            normalized.push(NormalizedProduct::RecoveredModule(module.span));
+            continue;
+        }
         let mut visitor = Visitor {
             scalar_file: reuse.fuse_distribution().then_some(module.span.file),
             default_nominal: None,
@@ -1282,6 +1289,16 @@ fn normalize_scalar(
         (0..modules.len()).map(|_| Vec::new()).collect();
     for mut item in normalized {
         let span = item.span();
+        if item.recovered() {
+            if !reuse.fuse_distribution()
+                && !reuse.replay_recovered_group(Stage::Distribute, span, &mut budget)
+            {
+                return Ok(None);
+            }
+            // Original function names are already in the current inventory.
+            // No per-function normalized wrapper or position slot is needed.
+            continue;
+        }
         if reuse.fuse_distribution() {
             // This is the closed, parser-owned scalar production domain only.
             // Current Preflight has checked every original node, attribute,
@@ -1326,9 +1343,10 @@ fn normalize_scalar(
     }
     let mut output = Vec::with_capacity(modules.len());
     for ((module, edges), items) in modules.iter().zip(imports).zip(positions) {
-        if let Some(recovered) = reuse.recovered_module(module.span.file)
-            && reuse.replay(Stage::Restore, module.span, &mut budget)
-        {
+        if let Some(recovered) = reuse.recovered_module(module.span.file) {
+            if !reuse.replay(Stage::Restore, module.span, &mut budget) {
+                return Ok(None);
+            }
             reuse.retain_restored();
             output.push(recovered);
             continue;

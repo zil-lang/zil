@@ -124,6 +124,15 @@ fn fused_cached_cfg_copy_matches_original_rebase_and_preserves_raw_owners() {
 
 #[test]
 fn fresh_restart_first_edit_reconstructs_current_inputs_and_consumes_persisted_items() {
+    restart_first_edit(false);
+}
+
+#[test]
+fn fresh_restart_first_edit_consumes_lazy_dictionary_rows_with_current_diagnostics() {
+    restart_first_edit(true);
+}
+
+fn restart_first_edit(dictionary: bool) {
     let target = TargetProfile::default();
     let limits = Limits::default();
     let mut texts = vec![text(12); 4];
@@ -137,7 +146,13 @@ fn fresh_restart_first_edit_reconstructs_current_inputs_and_consumes_persisted_i
         .apply_with_function_cache(&prepared, &target, &limits, None, &mut functions)
         .unwrap();
     assert_eq!(functions.last_stats().body_key_current_projections, 48);
-    let items = encode(&functions);
+    let items = if dictionary {
+        functions
+            .encode_dictionary_products(&target, &limits, &mut Default::default())
+            .unwrap()
+    } else {
+        encode(&functions)
+    };
     let frontend = producer.encode_frontend_products(&limits).unwrap();
     // No successful producer, raw inference, key memo or push Context survives.
     drop((producer, raw, functions, push, initial, prepared, first));
@@ -192,6 +207,40 @@ fn fresh_restart_first_edit_reconstructs_current_inputs_and_consumes_persisted_i
         stats.cfg_relocated_functions, 47,
         "canonical raw CFGs still need current absolute placements"
     );
+    for product in functions
+        .last_products()
+        .iter()
+        .filter(|product| product.reused)
+    {
+        let current = update
+            .program
+            .module
+            .functions
+            .iter()
+            .find(|function| function.id == product.id)
+            .unwrap();
+        let (canonical, encoding) = product
+            .canonical_function_and_encoding(current, &limits, usize::MAX)
+            .unwrap();
+        let encoding = encoding.unwrap();
+        let expected = zil_ir::wire::encode_raw_function(&canonical, &limits).unwrap();
+        assert_eq!(encoding.shared_bytes(), expected.shared_bytes());
+        let (_, exact) = product
+            .canonical_function_and_encoding(current, &limits, encoding.byte_len())
+            .unwrap();
+        assert!(exact.is_some());
+        let (still_canonical, short) = product
+            .canonical_function_and_encoding(current, &limits, encoding.byte_len() - 1)
+            .unwrap();
+        assert_eq!(still_canonical, canonical);
+        assert!(short.is_none());
+        let mut different = limits.clone();
+        different.max_ct_steps -= 1;
+        let (_, incompatible) = product
+            .canonical_function_and_encoding(current, &different, usize::MAX)
+            .unwrap();
+        assert!(incompatible.is_none());
+    }
     let mut counts = FunctionEncodingStats::default();
     functions
         .encode_item_products(&target, &limits, &mut counts)
@@ -216,6 +265,55 @@ fn fresh_restart_first_edit_reconstructs_current_inputs_and_consumes_persisted_i
         (1, 1)
     );
     assert_eq!(update.stats.post_functions_rechecked, 1);
+}
+
+#[test]
+fn producer_owner_restart_keys_consume_current_observations_and_current_signature_reads() {
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let mut producer = ExpandSession::default();
+    let mut raw = RawInferenceSession::default();
+    let mut functions = FunctionSession::default();
+    let owners = BTreeMap::from([(ModuleId(0), ("project".into(), "m0.zil".into()))]);
+    let original = "fn callee(x:i32)->i32=>x+1; fn caller(x:i32)->i32=>callee(x);";
+    let first = expand(&mut producer, &[original.into()]);
+    let prepared = prepare(&first, &mut raw);
+    let actual = functions
+        .check_prepared_program_with_producer_owners(&prepared, &target, &limits, &owners)
+        .unwrap();
+    assert_eq!(
+        actual,
+        check_program(first.program(), &target, &limits).unwrap()
+    );
+    assert_eq!(functions.last_stats().body_key_current_projections, 2);
+    assert_eq!(functions.last_stats().body_key_executions, 0);
+    assert_eq!(functions.last_stats().body_key_visited_nodes, 0);
+    let second = expand(&mut producer, &[original.replace("x+1", "x+2")]);
+    let prepared = prepare(&second, &mut raw);
+    let actual = functions
+        .check_prepared_program_with_producer_owners(&prepared, &target, &limits, &owners)
+        .unwrap();
+    assert_eq!(
+        actual,
+        check_program(second.program(), &target, &limits).unwrap()
+    );
+    assert_eq!(functions.last_stats().producer_version_reuses, 1);
+    assert_eq!(functions.last_stats().body_key_current_projections, 1);
+    assert_eq!(functions.last_stats().body_key_executions, 0);
+    let changed = expand(
+        &mut producer,
+        &[original.replace("callee(x:i32)", "callee(x:i32,y:i32)")],
+    );
+    let prepared = prepare(&changed, &mut raw);
+    assert_eq!(
+        functions.check_prepared_program_with_producer_owners(&prepared, &target, &limits, &owners),
+        check_program(changed.program(), &target, &limits)
+    );
+    assert!(
+        functions
+            .check_prepared_program_with_producer_owners(&prepared, &target, &limits, &owners)
+            .is_err()
+    );
 }
 
 #[test]

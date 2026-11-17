@@ -110,6 +110,9 @@ impl Declaration {
 // allocating another per-declaration owner. This request-local table is bounded.
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum NormalizedProduct<'a> {
+    // Explicit raw module product, never an Item or pretend normalized AST.
+    // Only ordered stage consumers may debit it; a miss retries current input.
+    RecoveredModule(Span),
     View(Arc<super::scalar_walk::BodyView>),
     Owned(Item),
     Shared(Arc<Item>),
@@ -125,8 +128,12 @@ pub(crate) enum NormalizedProduct<'a> {
     },
 }
 impl NormalizedProduct<'_> {
+    pub(crate) fn recovered(&self) -> bool {
+        matches!(self, Self::RecoveredModule(_))
+    }
     pub(crate) fn span(&self) -> Span {
         match self {
+            Self::RecoveredModule(span) => *span,
             Self::View(view) => view.item().span,
             Self::Owned(item) => item.span,
             Self::Shared(item) => item.span,
@@ -135,6 +142,7 @@ impl NormalizedProduct<'_> {
     }
     pub(super) fn function_name(&self) -> Option<&str> {
         match self {
+            Self::RecoveredModule(_) => None,
             Self::View(view) => Some(&view.name),
             Self::Owned(item) => match &item.kind {
                 ItemKind::Function(function) => Some(&function.name),
@@ -194,6 +202,7 @@ impl NormalizedProduct<'_> {
             Self::Owned(item) => Ok(item),
             Self::Shared(item) => Ok(item),
             Self::Deferred { .. } => unreachable!("materialized normalized product"),
+            Self::RecoveredModule(_) => unreachable!("raw group is consumed before AST access"),
         }
     }
     pub(super) fn into_owned(mut self, reuse: &mut Reuse<'_>) -> CompileResult<Item> {
@@ -218,6 +227,7 @@ impl NormalizedProduct<'_> {
                 }
             },
             Self::Deferred { .. } => unreachable!("materialized normalized product"),
+            Self::RecoveredModule(_) => unreachable!("raw group is consumed before AST access"),
         }
     }
 }
@@ -230,6 +240,9 @@ pub(crate) enum Input<'i, 'a> {
     Product(&'i mut NormalizedProduct<'a>),
 }
 impl Input<'_, '_> {
+    pub(crate) fn recovered(&self) -> bool {
+        matches!(self, Self::Product(product) if product.recovered())
+    }
     pub(crate) fn view(&self) -> Option<Arc<super::scalar_walk::BodyView>> {
         match self {
             Self::Product(NormalizedProduct::View(view)) => Some(view.clone()),

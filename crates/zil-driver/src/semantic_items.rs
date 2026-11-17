@@ -356,11 +356,30 @@ impl SemanticPublicationSession {
                 .and_then(|rows| rows.get(function.id.0 as usize))
                 .filter(|product| product.id == function.id)
                 .or_else(|| self.products.get(&function.id));
+            let old_bytes = slots
+                .get(index)
+                .and_then(|slot| slot.get())
+                .map_or(0, |raw| raw.byte_len());
+            let retained_other = retained_bytes.saturating_sub(old_bytes);
+            let product_binding = (!(equal_raw && prior.is_some()))
+                .then(|| {
+                    product.and_then(|product| {
+                        product.canonical_function_and_encoding(
+                            function,
+                            limits,
+                            limits
+                                .max_source_bytes
+                                .saturating_sub(retained_other.saturating_add(retained_plan_bytes)),
+                        )
+                    })
+                })
+                .flatten();
             let body = if equal_raw && prior.is_some() {
                 prior.cloned()
             } else {
-                product
-                    .and_then(|product| product.canonical_function(function))
+                product_binding
+                    .as_ref()
+                    .map(|(body, _)| body.clone())
                     .or_else(|| {
                         relative_bindings
                             .then(|| relative_function(function))
@@ -368,10 +387,6 @@ impl SemanticPublicationSession {
                             .map(Arc::new)
                     })
             };
-            let old_bytes = slots
-                .get(index)
-                .and_then(|slot| slot.get())
-                .map_or(0, |raw| raw.byte_len());
             let (body, mut slot) = if let Some(body) = body {
                 // Full function equality includes every header, local, value,
                 // block and relative span. A product digest never selects bytes.
@@ -391,21 +406,12 @@ impl SemanticPublicationSession {
                     .unwrap_or_else(|| Arc::new(OnceLock::new()));
                 (None, slot)
             };
-            let retained_other = retained_bytes.saturating_sub(old_bytes);
             if slot.get().is_none()
                 && let Some(body) = &body
-                && let Some(raw) = product.and_then(|product| {
-                    product.canonical_encoding(
-                        function,
-                        limits,
-                        limits
-                            .max_source_bytes
-                            .saturating_sub(retained_other.saturating_add(retained_plan_bytes)),
-                    )
+                && let Some(raw) = product_binding.and_then(|(_, encoding)| encoding)
+                && raw.decoded_function().is_some_and(|owner| {
+                    Arc::ptr_eq(owner, body) || owner.as_ref() == body.as_ref()
                 })
-                && raw
-                    .decoded_function()
-                    .is_some_and(|owner| owner.as_ref() == body.as_ref())
             {
                 // A function-cache restore can precede any whole semantic
                 // candidate. Carry its actual decoder association into the

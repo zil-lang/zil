@@ -29,12 +29,13 @@ pub(super) fn validate_items_cached<'i>(
         budget,
         reuse,
     )
+    .map(|_| ())
 }
 pub(super) fn validate_scalar_products(
     items: &mut [modules::scalar_products::NormalizedProduct<'_>],
     budget: &mut generics::Budget<'_>,
     reuse: &mut crate::incremental::Reuse<'_>,
-) -> CompileResult<()> {
+) -> CompileResult<bool> {
     let result = validate_inputs(
         items
             .iter_mut()
@@ -49,7 +50,7 @@ fn validate_inputs<'i, 'p: 'i>(
     items: impl IntoIterator<Item = modules::scalar_products::Input<'i, 'p>>,
     budget: &mut generics::Budget<'_>,
     mut reuse: Option<&mut crate::incremental::Reuse<'_>>,
-) -> CompileResult<()> {
+) -> CompileResult<bool> {
     struct Walk<'a, 'l> {
         view: Option<std::sync::Arc<modules::scalar_walk::BodyView>>,
         budget: &'a mut generics::Budget<'l>,
@@ -410,6 +411,18 @@ fn validate_inputs<'i, 'p: 'i>(
     };
     for mut input in items {
         let span = input.span();
+        if input.recovered() {
+            if !reuse.as_deref_mut().is_some_and(|reuse| {
+                reuse.replay_recovered_group(
+                    crate::incremental::Stage::Lifetimes,
+                    span,
+                    walk.budget,
+                )
+            }) {
+                return Ok(false);
+            }
+            continue;
+        }
         if reuse.as_deref_mut().is_some_and(|reuse| {
             reuse.replay(crate::incremental::Stage::Lifetimes, span, walk.budget)
         }) {
@@ -439,7 +452,7 @@ fn validate_inputs<'i, 'p: 'i>(
             );
         }
     }
-    Ok(())
+    Ok(true)
 }
 
 /// Lower only the retained lexical relation. This raw type is still checked

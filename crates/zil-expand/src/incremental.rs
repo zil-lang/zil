@@ -555,7 +555,7 @@ pub(crate) enum Stage {
     Restore,
     RestoreItem,
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct Receipt {
     nodes: usize,
     work: usize,
@@ -700,6 +700,7 @@ struct Entry {
     // its actual Lower entry allowance before a cached product can escape.
     relocated_lower: bool,
     recovered_lower: bool,
+    recovered_stages: Option<Arc<recovery::RecoveredStages>>,
     output_imports: Vec<CoreImport>,
     recovery_encoding: Arc<std::sync::OnceLock<Arc<[u8]>>>,
     revision: ModuleRevision,
@@ -949,6 +950,7 @@ impl ExpandSession {
                     lower: None,
                     relocated_lower: false,
                     recovered_lower: false,
+                    recovered_stages: None,
                     output_imports: Vec::new(),
                     recovery_encoding: Arc::default(),
                     revision: ModuleRevision(Arc::new(())),
@@ -1021,6 +1023,7 @@ impl ExpandSession {
                 entry.lower = None;
                 entry.relocated_lower = false;
                 entry.recovered_lower = false;
+                entry.recovered_stages = None;
                 entry.recovery_encoding = Arc::default();
                 entry.revision = ModuleRevision(Arc::new(()));
                 if !same_namespace {
@@ -1706,6 +1709,40 @@ impl Reuse<'_> {
     }
     pub(crate) fn cold_scalar_request(&self) -> bool {
         self.prior_entries.is_empty() && !self.entries.values().any(|e| e.recovered_lower)
+    }
+    pub(crate) fn recovered_group(&mut self, file: FileId) -> bool {
+        let entry = self.entry(file);
+        entry.recovered_lower && entry.recovered_stages.is_some()
+    }
+    // A module group occupies its original position in each separate ledger.
+    // Since every debit is nonnegative, a fitting total has the identical
+    // result as every original ordered row. Insufficient totals return a miss
+    // before modifying the ledger; the full current producer supplies errors.
+    pub(crate) fn replay_recovered_group(
+        &mut self,
+        stage: Stage,
+        span: Span,
+        budget: &mut generics::Budget<'_>,
+    ) -> bool {
+        let Some(stages) = self.entry(span.file).recovered_stages.as_ref() else {
+            return false;
+        };
+        let (receipt, count) = stages.receipt(stage);
+        let mut remaining = budget.remaining_limits();
+        let Some(nodes) = remaining.max_nodes.checked_sub(receipt.nodes) else {
+            self.stats.receipt_budget_misses += 1;
+            return false;
+        };
+        let Some(work) = remaining.max_analysis_steps.checked_sub(receipt.work) else {
+            self.stats.receipt_budget_misses += 1;
+            return false;
+        };
+        remaining.max_nodes = nodes;
+        remaining.max_analysis_steps = work;
+        budget.adopt_remaining(&remaining);
+        self.stats.receipt_hits += count as u64;
+        self.stats.receipt_nodes += receipt.nodes as u64;
+        true
     }
     pub(crate) fn recovered_module(&mut self, file: FileId) -> Option<modules::ScalarModule> {
         let entry = self.entry(file);

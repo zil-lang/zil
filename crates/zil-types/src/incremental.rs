@@ -48,13 +48,36 @@ impl FunctionProduct {
         limits: &Limits,
         maximum_bytes: usize,
     ) -> Option<zil_ir::wire::RawFunctionEncoding> {
-        let function = self.canonical_function(current)?;
-        self.canonical
-            .as_ref()?
-            .entry
-            .encoding
-            .get()?
-            .bind_decoded_owner(function, limits, maximum_bytes)
+        self.canonical_function_and_encoding(current, limits, maximum_bytes)?
+            .1
+    }
+
+    /// Obtain the canonical raw owner and its optional existing encoding in one
+    /// binding operation. Consumers needing both must not repeat the current
+    /// equality check and diagnostic-label allocation through the two APIs.
+    /// Absence of a compatible encoding still leaves the ordinary writer the
+    /// complete current canonical value; neither return value grants authority.
+    pub fn canonical_function_and_encoding(
+        &self,
+        current: &TypedFunction,
+        limits: &Limits,
+        maximum_bytes: usize,
+    ) -> Option<(
+        Arc<TypedFunction>,
+        Option<zil_ir::wire::RawFunctionEncoding>,
+    )> {
+        let handle = self.canonical.as_ref()?;
+        if handle.current.as_ref() != current {
+            return None;
+        }
+        // Instantiate a lazy dictionary encoding first, so its real decoder
+        // owner also becomes the canonical owner instead of allocating twice.
+        let raw = handle.entry.raw_encoding();
+        let function = handle.function_for_label(&current.name)?;
+        let encoding = raw.and_then(|encoding| {
+            encoding.bind_decoded_owner(function.clone(), limits, maximum_bytes)
+        });
+        Some((function, encoding))
     }
 
     /// Only the exact current raw function bound by the successful closed
@@ -70,14 +93,19 @@ impl FunctionProduct {
         if handle.current.as_ref() != current {
             return None;
         }
-        let function = handle.entry.canonical()?.clone();
-        if function.name == current.name {
+        handle.function_for_label(&current.name)
+    }
+}
+impl CanonicalHandle {
+    fn function_for_label(&self, label: &str) -> Option<Arc<TypedFunction>> {
+        let function = self.entry.canonical()?.clone();
+        if function.name == label {
             return Some(function);
         }
         // The only post-builder scalar rewrite is the diagnostic label.
         // Updating it copies small headers, while all body arrays stay shared.
         let mut labeled = function.as_ref().clone();
-        labeled.name = current.name.clone();
+        labeled.name = label.to_owned();
         Some(Arc::new(labeled))
     }
 }
@@ -125,10 +153,17 @@ fn scalar_result_fingerprint(function: &TypedFunction, origin: Span) -> Option<F
 // Keep outer identity last so exact decoder-shared bodies can retain the
 // completed structural projection. This is raw result identity, not a proof.
 fn scalar_result_finish(body: FingerprintBuilder, function: &TypedFunction) -> Fingerprint {
+    scalar_result_finish_identity(body, function.id, &function.name)
+}
+
+fn scalar_result_finish_identity(
+    body: FingerprintBuilder,
+    id: FunctionId,
+    name: &str,
+) -> Fingerprint {
     use std::fmt::Write;
     let mut writer = FingerprintWriter(body);
-    write!(&mut writer, "identity:{:?}", (function.id, &function.name))
-        .expect("infallible fingerprint sink");
+    write!(&mut writer, "identity:{:?}", (id, name)).expect("infallible fingerprint sink");
     writer.0.digest()
 }
 
@@ -419,9 +454,14 @@ fn elapsed_cost(start: Option<Instant>) -> u64 {
 
 struct Entry {
     restored: bool,
-    // Retain a real bound CFG. Same-span requests share its immutable vectors;
-    // source-relative transport is produced lazily and never used as authority.
+    // Retain the real raw CFG owner: current-bound for ordinary entries, shared
+    // normalized decoder output for dictionary rows. Same-span bound requests
+    // use last_bound; none of these raw owners grants checking authority.
     function: Arc<TypedFunction>,
+    // A dictionary row shares the actual normalized decoder owner. Its outer
+    // identity is small transport metadata, instantiated only for a consumer.
+    // The full manifest and all original logical costs are validated eagerly.
+    dictionary_identity: Option<DictionaryIdentity>,
     origin: Span,
     last_bound: Mutex<Option<Arc<TypedFunction>>>,
     canonical: OnceLock<Option<Arc<TypedFunction>>>,
@@ -430,10 +470,26 @@ struct Entry {
     encoding: OnceLock<zil_ir::wire::RawFunctionEncoding>,
     encoding_fingerprint: OnceLock<Fingerprint>,
 }
+struct DictionaryIdentity {
+    id: FunctionId,
+    name: String,
+    template: Arc<DictionaryTemplate>,
+}
+struct DictionaryTemplate {
+    body_key: Fingerprint,
+    raw: zil_ir::wire::RawFunctionEncoding,
+    limits: Arc<Limits>,
+}
 impl Entry {
     fn canonical(&self) -> Option<&Arc<TypedFunction>> {
         self.canonical
             .get_or_init(|| {
+                if let Some(identity) = &self.dictionary_identity {
+                    let mut function = self.function.as_ref().clone();
+                    function.id = identity.id;
+                    function.name = identity.name.clone();
+                    return Some(Arc::new(function));
+                }
                 let length = self.origin.end.checked_sub(self.origin.start)?;
                 let canonical_span = Span::new(FileId(0), 0, length);
                 if self.origin == canonical_span {
@@ -442,6 +498,22 @@ impl Entry {
                 relocated_copy(&self.function, self.origin, canonical_span).map(Arc::new)
             })
             .as_ref()
+    }
+
+    fn raw_encoding(&self) -> Option<&zil_ir::wire::RawFunctionEncoding> {
+        if self.encoding.get().is_none()
+            && let Some(identity) = &self.dictionary_identity
+        {
+            let (function, encoding) = identity.template.raw.rebind_decoded_scalar_identity(
+                identity.id,
+                &identity.name,
+                &identity.template.limits,
+                identity.template.limits.max_nodes,
+            )?;
+            let _ = self.canonical.set(Some(function));
+            let _ = self.encoding.set(encoding);
+        }
+        self.encoding.get()
     }
 }
 
@@ -799,6 +871,7 @@ impl FunctionSession {
             if bytes.len() > limits.max_source_bytes {
                 return None;
             }
+            let _ = entry.raw_encoding();
             functions.push((entry.canonical()?.as_ref(), &entry.encoding));
         }
         let module = TypedModule {
@@ -917,6 +990,7 @@ fn decode(
                     result_fingerprint: scalar_result_fingerprint(&function, function.span)?,
                     origin: function.span,
                     function: Arc::new(function),
+                    dictionary_identity: None,
                     last_bound: Mutex::new(None),
                     canonical: OnceLock::new(),
                     cost,
@@ -1114,20 +1188,28 @@ impl Reuse<'_> {
             .cloned();
         let source = cached.as_ref().unwrap_or(&entry.function).as_ref();
         let relocated = source.span != function.span;
-        let typed = if relocated {
+        let mut typed = if relocated {
             let Some(typed) = relocated_copy(source, source.span, function.span) else {
                 return Ok(None);
             };
-            *entry
-                .last_bound
-                .lock()
-                .unwrap_or_else(|error| error.into_inner()) = Some(Arc::new(typed.clone()));
             typed
         } else {
             source.clone()
         };
+        if let Some(identity) = &entry.dictionary_identity {
+            typed.id = identity.id;
+            if typed.name != identity.name {
+                typed.name = identity.name.clone();
+            }
+        }
         if !state.replay_accounting(replay) {
             return Ok(None);
+        }
+        if relocated {
+            *entry
+                .last_bound
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) = Some(Arc::new(typed.clone()));
         }
         if relocated {
             self.stats.cfg_relocated_functions += 1;
@@ -1193,6 +1275,7 @@ impl Reuse<'_> {
                 result_fingerprint,
                 origin: source.span,
                 function: Arc::new(function.clone()),
+                dictionary_identity: None,
                 last_bound: Mutex::new(None),
                 canonical: OnceLock::new(),
                 cost,
@@ -1229,9 +1312,16 @@ impl ProducerRequest<'_> {
         }
         let mut next = BTreeMap::new();
         let mut result = BTreeMap::new();
+        let inputs = self
+            .prepared
+            .current_inputs(limits)
+            .filter(|inputs| inputs.matches(program, limits));
+        let mut input_index = 0usize;
         for module in &program.modules {
             for function in &module.core.functions {
                 stats.inventory_functions_visited += 1;
+                let input = inputs.and_then(|inputs| inputs.body(input_index));
+                input_index += 1;
                 if !worthwhile(function) {
                     continue;
                 }
@@ -1272,15 +1362,43 @@ impl ProducerRequest<'_> {
                         Some(())
                     };
                     let before = stats.body_key_ns;
-                    let key = function_key(
-                        module,
-                        function,
-                        tables,
-                        &context,
-                        limits,
-                        stats,
-                        Some(&mut observe),
-                    );
+                    let projection_started = start_cost(stats.cost_profiled);
+                    let projected = input.and_then(|input| {
+                        current_input_key(
+                            module,
+                            function,
+                            tables,
+                            &context,
+                            input,
+                            &mut BTreeSet::new(),
+                            Some(&mut observe),
+                        )
+                    });
+                    let elapsed = elapsed_cost(projection_started);
+                    stats.body_key_ns += elapsed;
+                    stats.evaluator_ns += elapsed;
+                    let key = if let Some(key) = projected {
+                        stats.body_key_current_projections += 1;
+                        Some(key)
+                    } else {
+                        // Unsupported current projections take the original
+                        // bounded visitor and its actual signature read set.
+                        reads.clear();
+                        let mut observe = |module, name: &str| {
+                            let value = *context.declarations.get(&module)?.get(name)?;
+                            reads.insert((module, name.to_owned()), value);
+                            Some(())
+                        };
+                        function_key(
+                            module,
+                            function,
+                            tables,
+                            &context,
+                            limits,
+                            stats,
+                            Some(&mut observe),
+                        )
+                    };
                     excluded_ns += stats.body_key_ns - before;
                     if let Some(key) = key {
                         result.insert((module.core.module_id, function.name.clone()), key);
@@ -1756,7 +1874,15 @@ fn keys_recording(
             let projected = inputs
                 .and_then(|inputs| inputs.body(index))
                 .and_then(|input| {
-                    current_input_key(module, function, tables, &context, input, &mut observed)
+                    current_input_key(
+                        module,
+                        function,
+                        tables,
+                        &context,
+                        input,
+                        &mut observed,
+                        None,
+                    )
                 });
             let projection_ns = elapsed_cost(projection_started);
             stats.body_key_ns += projection_ns;
@@ -1804,6 +1930,7 @@ fn current_input_key(
     context: &KeyContext,
     input: &inference::BodyInput,
     observed: &mut BTreeSet<FunctionId>,
+    mut observe: SignatureObserver<'_>,
 ) -> Option<Fingerprint> {
     if !worthwhile(function) {
         return None;
@@ -1850,6 +1977,9 @@ fn current_input_key(
             return None;
         }
         observed.insert(signature.id?);
+        if let Some(observe) = &mut observe {
+            observe(callee_module, name)?;
+        }
         callee_module.hash(&mut hash);
         name.hash(&mut hash);
         hash.update(&context.declarations.get(&callee_module)?.get(name)?.0);

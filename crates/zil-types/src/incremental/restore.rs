@@ -192,6 +192,7 @@ fn decode_items(
                 origin: function.span,
                 canonical: OnceLock::from(Some(function.clone())),
                 function,
+                dictionary_identity: None,
                 last_bound: Mutex::new(None),
                 cost: item.cost,
                 encoding: OnceLock::from(raw_encoding),

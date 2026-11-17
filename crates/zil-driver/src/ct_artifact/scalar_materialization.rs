@@ -342,6 +342,25 @@ fn raw_placement(parsed: &ParsedSource) -> Vec<u8> {
     }
     bytes
 }
+/// Split the exact stored source text out of a raw receipt. The frontend
+/// transport may refer to identical bytes in its own product; reconstruction
+/// restores this original format before any current CT admission takes place.
+impl ScalarMaterializationSession {
+    pub(crate) fn split_raw_receipt<'a>(
+        bytes: &'a [u8],
+        source_text: &[u8],
+    ) -> Option<(&'a [u8], &'a [u8])> {
+        if bytes.get(..8)? != b"ZILCTMR1" {
+            return None;
+        }
+        let path = usize::try_from(u64::from_le_bytes(bytes.get(64..72)?.try_into().ok()?)).ok()?;
+        let text = usize::try_from(u64::from_le_bytes(bytes.get(72..80)?.try_into().ok()?)).ok()?;
+        let start = 80usize.checked_add(path)?;
+        let end = start.checked_add(text)?;
+        (bytes.get(start..end)? == source_text).then(|| (&bytes[..start], &bytes[end..]))
+    }
+}
+
 fn decode_raw_receipt(bytes: &[u8], parsed: &ParsedSource, limits: &Limits) -> Option<Arc<Entry>> {
     if bytes.len() > limits.max_source_bytes || bytes.get(..8)? != b"ZILCTMR1" {
         return None;

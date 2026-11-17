@@ -3,7 +3,7 @@
 //! A dictionary is transport only: current Types and independent Verify still
 //! decide whether any restored raw result is usable.
 use super::*;
-use zil_ir::wire::{RawFunctionDecodingStats, RawFunctionEncoding};
+use zil_ir::wire::RawFunctionDecodingStats;
 
 pub(super) const MAGIC: &[u8; 8] = b"ZILFND02";
 const FIXED_ROW: usize = 136;
@@ -27,7 +27,16 @@ impl FunctionSession {
         let mut remaining_nodes = limits.max_nodes.checked_sub(count)?;
         let mut logical_bytes = legacy_bytes(count, target, limits)?;
         let mut retained = self.entries.values().fold(0usize, |n, entry| {
-            n.saturating_add(entry.encoding.get().map_or(0, |e| e.byte_len()))
+            n.saturating_add(entry.dictionary_identity.as_ref().map_or_else(
+                || entry.encoding.get().map_or(0, |e| e.byte_len()),
+                |identity| {
+                    identity
+                        .template
+                        .raw
+                        .byte_len()
+                        .saturating_add(identity.name.len())
+                },
+            ))
         });
         let mut manifest = Vec::new();
         manifest.extend_from_slice(MAGIC);
@@ -35,34 +44,58 @@ impl FunctionSession {
         manifest.extend_from_slice(&u32::try_from(count).ok()?.to_le_bytes());
         let mut bodies: BTreeMap<Fingerprint, FunctionItem> = BTreeMap::new();
         for (input_key, entry) in self.entries.iter() {
-            let encoding = if let Some(raw) = entry
-                .encoding
-                .get()
-                .filter(|raw| raw.matches_limits(limits))
+            let (id, name, key, body, length, wire_nodes) = if let Some(identity) = entry
+                .dictionary_identity
+                .as_ref()
+                .filter(|identity| identity.template.raw.matches_limits(limits))
             {
+                // The private row was validated against this exact normalized
+                // decoder and all logical quotas on restore. Republishing it
+                // needs neither a per-row TypedFunction nor a rebased encoding.
                 stats.reused_functions += 1;
-                raw.clone()
+                (
+                    identity.id,
+                    identity.name.clone(),
+                    identity.template.body_key,
+                    identity.template.raw.shared_bytes(),
+                    identity
+                        .template
+                        .raw
+                        .byte_len()
+                        .checked_add(identity.name.len())?,
+                    identity.template.raw.node_cost(),
+                )
             } else {
-                stats.serialized_functions += 1;
-                let raw =
-                    zil_ir::wire::encode_raw_function(entry.canonical()?.as_ref(), limits).ok()?;
-                let length = raw.byte_len();
-                if entry.encoding.get().is_none()
-                    && retained
-                        .checked_add(length)
-                        .is_some_and(|n| n <= limits.max_source_bytes)
-                    && entry.encoding.set(raw.clone()).is_ok()
+                let encoding = if let Some(raw) = entry
+                    .raw_encoding()
+                    .filter(|raw| raw.matches_limits(limits))
                 {
-                    retained += length;
-                }
-                raw
+                    stats.reused_functions += 1;
+                    raw.clone()
+                } else {
+                    stats.serialized_functions += 1;
+                    let raw =
+                        zil_ir::wire::encode_raw_function(entry.canonical()?.as_ref(), limits)
+                            .ok()?;
+                    let length = raw.byte_len();
+                    if entry.encoding.get().is_none()
+                        && retained
+                            .checked_add(length)
+                            .is_some_and(|n| n <= limits.max_source_bytes)
+                        && entry.encoding.set(raw.clone()).is_ok()
+                    {
+                        retained += length;
+                    }
+                    raw
+                };
+                let length = encoding.byte_len();
+                let (id, name, key, body) = encoding.dictionary_fragment()?;
+                (id, name, key, body, length, encoding.node_cost())
             };
-            let length = encoding.byte_len();
-            remaining_nodes = remaining_nodes.checked_sub(encoding.node_cost())?;
+            remaining_nodes = remaining_nodes.checked_sub(wire_nodes)?;
             logical_bytes = logical_bytes
                 .checked_add(length)
                 .filter(|n| *n <= limits.max_source_bytes)?;
-            let (id, name, key, body) = encoding.dictionary_fragment()?;
             if let Some(previous) = bodies.get(&key) {
                 if !Arc::ptr_eq(&previous.bytes, &body) && previous.bytes != body {
                     return None;
@@ -73,26 +106,26 @@ impl FunctionSession {
                     FunctionItem {
                         input_key: *input_key,
                         cost: entry.cost,
-                        wire_nodes: encoding.node_cost(),
+                        wire_nodes,
                         content_fingerprint: key,
                         bytes: body,
                     },
                 );
             }
-            let length = manifest
+            let row_end = manifest
                 .len()
                 .checked_add(FIXED_ROW)?
                 .checked_add(name.len())?;
-            if length > limits.max_source_bytes {
+            if row_end > limits.max_source_bytes {
                 return None;
             }
             manifest.extend_from_slice(&input_key.0);
             for fee in entry.cost {
                 manifest.extend_from_slice(&u64::try_from(fee).ok()?.to_le_bytes());
             }
-            manifest.extend_from_slice(&u64::try_from(encoding.node_cost()).ok()?.to_le_bytes());
+            manifest.extend_from_slice(&u64::try_from(wire_nodes).ok()?.to_le_bytes());
             manifest.extend_from_slice(&key.0);
-            manifest.extend_from_slice(&u64::try_from(encoding.byte_len()).ok()?.to_le_bytes());
+            manifest.extend_from_slice(&u64::try_from(length).ok()?.to_le_bytes());
             manifest.extend_from_slice(&id.0.to_le_bytes());
             manifest.extend_from_slice(&u32::try_from(name.len()).ok()?.to_le_bytes());
             manifest.extend_from_slice(name.as_bytes());
@@ -186,9 +219,10 @@ pub(super) fn decode(
     if position != manifest.len() {
         return None;
     }
-    let mut decoded = BTreeMap::<Fingerprint, (RawFunctionEncoding, FingerprintBuilder)>::new();
+    let mut decoded = BTreeMap::<Fingerprint, (Arc<DictionaryTemplate>, FingerprintBuilder)>::new();
     let mut entries = BTreeMap::new();
     let mut remaining = limits.max_nodes.checked_sub(count)?;
+    let shared_limits = Arc::new(limits.clone());
     for row in rows {
         if let std::collections::btree_map::Entry::Vacant(slot) = decoded.entry(row.body) {
             let data = load(row.body)?;
@@ -209,31 +243,51 @@ pub(super) fn decode(
                 return None;
             }
             let projection = scalar_result_body(&function, function.span)?;
-            slot.insert((raw, projection));
+            slot.insert((
+                Arc::new(DictionaryTemplate {
+                    body_key: row.body,
+                    raw,
+                    limits: shared_limits.clone(),
+                }),
+                projection,
+            ));
             stats.decoded_functions += 1;
         } else {
             stats.reused_decoded_functions += 1;
             stats.reused_result_projections += 1;
         }
-        let (raw, projection) = decoded.get(&row.body)?;
+        let (template, projection) = decoded.get(&row.body)?;
+        let raw = &template.raw;
         if raw.node_cost() != row.nodes || raw.byte_len().checked_add(row.name.len())? != row.bytes
         {
             return None;
         }
-        let (function, encoding) =
-            raw.rebind_decoded_scalar_identity(row.id, row.name, limits, remaining)?;
+        // Reader already checked the complete normalized scalar owner. The
+        // table checked UTF-8/u32 name lengths and aggregate byte/node costs.
+        // Rebinding only id/name cannot fail any further structural condition;
+        // retain that metadata until a real canonical transport consumer asks.
+        let function = raw.decoded_function()?.clone();
         remaining = remaining.checked_sub(row.nodes)?;
         entries.insert(
             row.key,
             Arc::new(Entry {
                 restored: true,
-                result_fingerprint: scalar_result_finish(projection.clone(), &function),
+                result_fingerprint: scalar_result_finish_identity(
+                    projection.clone(),
+                    row.id,
+                    row.name,
+                ),
                 origin: function.span,
-                canonical: OnceLock::from(Some(function.clone())),
+                canonical: OnceLock::new(),
                 function,
+                dictionary_identity: Some(DictionaryIdentity {
+                    id: row.id,
+                    name: row.name.to_owned(),
+                    template: template.clone(),
+                }),
                 last_bound: Mutex::new(None),
                 cost: row.cost,
-                encoding: OnceLock::from(encoding),
+                encoding: OnceLock::new(),
                 encoding_fingerprint: OnceLock::new(),
             }),
         );
@@ -308,9 +362,27 @@ mod tests {
             ),
             (1, 1, 1)
         );
+        let entries: Vec<_> = restored.entries.values().collect();
+        assert!(Arc::ptr_eq(&entries[0].function, &entries[1].function));
+        assert_eq!(entries[0].function.id, FunctionId(0));
+        assert!(entries[0].function.name.is_empty());
+        assert!(
+            entries
+                .iter()
+                .all(|entry| { entry.canonical.get().is_none() && entry.encoding.get().is_none() })
+        );
+        let lazy_republished = restored
+            .encode_dictionary_products(&target, &limits, &mut Default::default())
+            .unwrap();
+        assert_eq!(lazy_republished.manifest, products.manifest);
+        assert!(
+            entries
+                .iter()
+                .all(|entry| { entry.canonical.get().is_none() && entry.encoding.get().is_none() })
+        );
         for (key, old) in session.entries.iter() {
             let current = &restored.entries[key];
-            assert_eq!(old.function, current.function);
+            assert_eq!(old.canonical(), current.canonical());
             assert_eq!(old.result_fingerprint, current.result_fingerprint);
             assert_eq!(old.cost, current.cost);
         }
@@ -319,6 +391,22 @@ mod tests {
             .unwrap();
         assert_eq!(products.manifest, next.manifest);
         assert!(Arc::ptr_eq(&products.items[0].bytes, &next.items[0].bytes));
+        // Both legacy consumers must still get every original id/name/body and
+        // the same logical wire bytes when they really ask for materialization.
+        assert_eq!(
+            restored.encode_work_products(&target, &limits),
+            session.encode_work_products(&target, &limits)
+        );
+        let original = session
+            .encode_item_products(&target, &limits, &mut Default::default())
+            .unwrap();
+        let ordinary = restored
+            .encode_item_products(&target, &limits, &mut Default::default())
+            .unwrap();
+        assert_eq!(ordinary.manifest, original.manifest);
+        for (actual, expected) in ordinary.items.iter().zip(original.items) {
+            assert_eq!(actual.bytes, expected.bytes);
+        }
     }
 
     #[test]

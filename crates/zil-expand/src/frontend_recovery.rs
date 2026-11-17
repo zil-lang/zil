@@ -15,6 +15,30 @@ pub struct FrontendProducts {
     pub modules: BTreeMap<ModuleId, Arc<[u8]>>,
 }
 
+impl FrontendProducts {
+    /// Borrow the actual source field for reversible storage factoring. Only
+    /// the raw prefix is parsed; this does not admit the module, its suffix,
+    /// receipts, environment or any current compiler input. Every length is
+    /// bounded by the supplied byte slice and no text or body is allocated.
+    pub fn source_text(&self, id: ModuleId) -> Option<&[u8]> {
+        let bytes = self.modules.get(&id)?;
+        let limits = Limits {
+            max_source_bytes: bytes.len(),
+            ..Limits::default()
+        };
+        let mut nodes = 0;
+        let mut reader = Reader::new(bytes, &limits, &mut nodes)?;
+        if reader.take(8)? != b"ZILCORE1" || reader.u32()? != id.0 {
+            return None;
+        }
+        reader.u32()?; // FileId
+        std::str::from_utf8(reader.text_bytes()?).ok()?; // source path
+        let text = reader.text_bytes()?;
+        std::str::from_utf8(text).ok()?;
+        Some(text)
+    }
+}
+
 // One immutable encoding per successful bound environment. Checkpoints share
 // it; only the existing scalar-products predicate can carry it to a new epoch.
 pub(super) type ContextEncoding = Arc<std::sync::OnceLock<Option<Arc<[u8]>>>>;
@@ -141,6 +165,23 @@ fn context(environment: &Environment) -> Option<Vec<u8>> {
         }
     }
     Some(w.bytes)
+}
+
+// Recovered modules consume the same ordered, nonnegative stage demands as
+// ordinary scalar declarations. Keep only eight totals, rather than rebuilding
+// a recipe, closed-header outcome and tree-map rows for every unchanged item.
+// These are raw demands, bound by admit() to current parsed inputs, not proof
+// authority. A total that does not fit abandons recovery for the original walk.
+#[derive(Default)]
+pub(super) struct RecoveredStages {
+    totals: [Receipt; 8],
+    counts: [usize; 8],
+}
+impl RecoveredStages {
+    pub(super) fn receipt(&self, stage: Stage) -> (Receipt, usize) {
+        let index = usize::from(stage_tag(stage));
+        (self.totals[index], self.counts[index])
+    }
 }
 
 impl ExpandSession {
@@ -347,6 +388,15 @@ fn decode(
         }
     }
     let mut entry = current.clone();
+    let module = &current.parsed.parsed().module;
+    let declarations = module
+        .items
+        .iter()
+        .filter(|item| !matches!(item.kind, s::ItemKind::Import(_)))
+        .count();
+    let mut stages = RecoveredStages::default();
+    let mut cursors = [0; 8];
+    let mut previous = None;
     let mut receipts = BTreeMap::new();
     for _ in 0..r.count()? {
         let stage = read_stage(r.byte()?)?;
@@ -355,92 +405,80 @@ fn decode(
             nodes: r.number()?,
             work: r.number()?,
         };
-        if start > current.parsed.source().text.len()
-            || receipts.insert((stage, start), receipt).is_some()
-        {
+        // The writer's canonical order excludes duplicates and ensures that
+        // each per-item stage has exactly the complete declaration sequence.
+        if previous.is_some_and(|key| key >= (stage, start)) {
+            return None;
+        }
+        previous = Some((stage, start));
+        let index = usize::from(stage_tag(stage));
+        if matches!(stage, Stage::Preflight | Stage::Restore) {
+            if start != module.span.start || stages.counts[index] != 0 {
+                return None;
+            }
+            receipts.insert((stage, start), receipt);
+        } else {
+            while module
+                .items
+                .get(cursors[index])
+                .is_some_and(|item| matches!(item.kind, s::ItemKind::Import(_)))
+            {
+                cursors[index] += 1;
+            }
+            if module.items.get(cursors[index])?.span.start != start {
+                return None;
+            }
+            cursors[index] += 1;
+        }
+        stages.totals[index].nodes = stages.totals[index].nodes.checked_add(receipt.nodes)?;
+        stages.totals[index].work = stages.totals[index].work.checked_add(receipt.work)?;
+        stages.counts[index] = stages.counts[index].checked_add(1)?;
+    }
+    for stage in [
+        Stage::Preflight,
+        Stage::Normalize,
+        Stage::Prepare,
+        Stage::Lifetimes,
+        Stage::Headers,
+        Stage::Distribute,
+        Stage::Restore,
+        Stage::RestoreItem,
+    ] {
+        let required = match stage {
+            Stage::Preflight | Stage::Restore => 1,
+            Stage::Distribute if environment.fused_distribution => 0,
+            _ => declarations,
+        };
+        if stages.receipt(stage).1 != required {
             return None;
         }
     }
-    let mut normalized = BTreeMap::new();
-    let mut headers = BTreeMap::new();
-    for _ in 0..r.count()? {
+    let count = r.count()?;
+    if count != declarations {
+        return None;
+    }
+    let mut previous_ordinal = None;
+    for _ in 0..count {
         let start = r.number()?;
         let ordinal = r.number()?;
-        let item = current.parsed.parsed().module.items.get(ordinal)?;
+        if previous_ordinal.is_some_and(|previous| previous >= ordinal) {
+            return None;
+        }
+        previous_ordinal = Some(ordinal);
+        let item = module.items.get(ordinal)?;
         if item.span.start != start {
             return None;
         }
-        let declaration = match r.byte()? {
+        match r.byte()? {
             0 if matches!(item.kind, s::ItemKind::Function(_)) => {
-                modules::scalar_products::Declaration::Function(r.text()?)
+                // Validate the same raw text field without allocating a name
+                // that no resumed consumer needs on a successful module hit.
+                std::str::from_utf8(r.text_bytes()?).ok()?;
             }
-            1 if matches!(item.kind, s::ItemKind::Extern { .. }) => {
-                modules::scalar_products::Declaration::Extern
-            }
+            1 if matches!(item.kind, s::ItemKind::Extern { .. }) => {}
             _ => return None,
-        };
-        // Required stage records are complete, including zero fees. Unknown or
-        // incomplete products fall back before they can skip any visitor.
-        for stage in [
-            Stage::Normalize,
-            Stage::Prepare,
-            Stage::Lifetimes,
-            Stage::Headers,
-            Stage::RestoreItem,
-        ] {
-            receipts.get(&(stage, start))?;
         }
-        if !environment.fused_distribution {
-            receipts.get(&(Stage::Distribute, start))?;
-        }
-        let recipe = NormalizedRecipe {
-            parsed: current.parsed.clone(),
-            ordinal,
-            span: item.span,
-            module: current.parsed.source().module_id,
-            environment: environment.clone(),
-            declaration,
-            view: None,
-        };
-        if normalized
-            .insert(start, NormalizedCache::Deferred(Arc::new(recipe)))
-            .is_some()
-        {
-            return None;
-        }
-        headers.insert(
-            start,
-            ScalarHeaderOutcome {
-                has_where: false,
-                has_defaults: false,
-                has_associated: false,
-                has_generic_methods: false,
-                has_impl_recipes: false,
-                has_inherent: false,
-                has_alias: false,
-                has_parameters: false,
-                has_primitive_binders: false,
-                has_enum_profiles: false,
-                needs_source_identity: false,
-                has_borrowed_keys: false,
-            },
-        );
     }
-    if normalized.len()
-        != current
-            .parsed
-            .parsed()
-            .module
-            .items
-            .iter()
-            .filter(|i| !matches!(i.kind, s::ItemKind::Import(_)))
-            .count()
-    {
-        return None;
-    }
-    let span = current.parsed.parsed().module.span;
-    receipts.get(&(Stage::Preflight, span.start))?;
-    receipts.get(&(Stage::Restore, span.start))?;
     let import_count = r.count()?;
     let mut imports = Vec::with_capacity(import_count.min(INITIAL_ITEMS));
     for _ in 0..import_count {
@@ -456,7 +494,7 @@ fn decode(
         r.number()?,
     ];
     let count = r.count()?;
-    if count > limits.max_functions || count != normalized.len() {
+    if count > limits.max_functions || count != declarations {
         return None;
     }
     let mut functions = Vec::with_capacity(count.min(INITIAL_ITEMS));
@@ -535,8 +573,7 @@ fn decode(
         unsupported: vec![],
     };
     entry.receipts = Arc::new(receipts);
-    entry.normalized = Arc::new(normalized);
-    entry.scalar_headers = Arc::new(headers);
+    entry.recovered_stages = Some(Arc::new(stages));
     entry.output_imports = imports;
     entry.lower = Some((
         limits.clone(),

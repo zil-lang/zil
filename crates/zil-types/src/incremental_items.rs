@@ -86,13 +86,13 @@ impl FunctionSession {
             return None;
         }
         let retained_bytes = self.entries.values().fold(0usize, |total, entry| {
-            total.saturating_add(entry.encoding.get().map_or(0, |e| e.shared_bytes().len()))
+            total.saturating_add(entry.raw_encoding().map_or(0, |e| e.byte_len()))
         });
         let mut cache_bytes = limits.max_source_bytes.saturating_sub(retained_bytes);
         let mut items = Vec::with_capacity(count);
         for (key, entry) in self.entries.iter() {
             let (data, wire_nodes, content_fingerprint) = if let Some(encoding) =
-                entry.encoding.get().filter(|e| e.matches_limits(limits))
+                entry.raw_encoding().filter(|e| e.matches_limits(limits))
             {
                 stats.reused_functions += 1;
                 let data = encoding.shared_bytes();

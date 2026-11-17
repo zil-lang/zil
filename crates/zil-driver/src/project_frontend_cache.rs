@@ -69,7 +69,7 @@ impl Store {
                 return None;
             };
             let mut r = Reader(&manifest);
-            if r.take(8)? != b"ZILFEC01" {
+            if r.take(8)? != b"ZILFEC02" {
                 return None;
             }
             let context = r.blob()?.to_vec();
@@ -77,7 +77,10 @@ impl Store {
             if count > options.limits.max_functions || count > r.0.len() / 44 {
                 return None;
             }
-            let mut total = manifest.len();
+            // Charge the original logical manifest, including the complete CT
+            // source bytes, before allocating a reconstructed receipt.
+            let mut total = 16usize.checked_add(context.len())?;
+            total = total.checked_add(count.checked_mul(44)?)?;
             let mut products = FrontendProducts {
                 context,
                 modules: BTreeMap::new(),
@@ -88,8 +91,9 @@ impl Store {
                 let id = ModuleId(u32::try_from(r.number()?).ok()?);
                 let checksum = Fingerprint(r.take(32)?.try_into().ok()?);
                 let length = r.number()?;
-                let ct_bytes: Arc<[u8]> = r.blob()?.into();
-                total = total.checked_add(length)?;
+                let ct_length = r.number()?;
+                let ct_record = r.blob()?;
+                total = total.checked_add(length)?.checked_add(ct_length)?;
                 if total > self.maximum || options.cancellation.is_cancelled() {
                     return None;
                 }
@@ -105,8 +109,11 @@ impl Store {
                     return None;
                 }
                 loaded.insert(id, bytes);
-                if !ct_bytes.is_empty() {
-                    ct.insert(id, ct_bytes);
+                if ct_length != 0 {
+                    let receipt = restore_receipt(ct_record, ct_length, products.source_text(id))?;
+                    ct.insert(id, receipt.into());
+                } else if !ct_record.is_empty() {
+                    return None;
                 }
             }
             if !r.0.is_empty() {
@@ -150,17 +157,25 @@ impl Store {
             return None;
         }
         let mut manifest = Vec::new();
-        manifest.extend_from_slice(b"ZILFEC01");
+        manifest.extend_from_slice(b"ZILFEC02");
         blob(&mut manifest, &products.context)?;
         number(&mut manifest, products.modules.len())?;
         let mut total = products.context.len();
+        let mut logical_manifest = 16usize
+            .checked_add(products.context.len())?
+            .checked_add(products.modules.len().checked_mul(44)?)?;
         for (id, bytes) in &products.modules {
             number(&mut manifest, id.0 as usize)?;
             manifest.extend_from_slice(&Fingerprint::of(bytes).0);
             number(&mut manifest, bytes.len())?;
-            blob(&mut manifest, ct.get(id).map_or(&[], |b| b.as_ref()))?;
+            let receipt = ct.get(id).map_or(&[], |b| b.as_ref());
+            number(&mut manifest, receipt.len())?;
+            let compact = compact_receipt(receipt, products.source_text(*id))?;
+            blob(&mut manifest, &compact)?;
+            logical_manifest = logical_manifest.checked_add(receipt.len())?;
             total = total.checked_add(bytes.len())?;
-            if total.checked_add(manifest.len())? > self.maximum {
+            if total.checked_add(logical_manifest)? > self.maximum || manifest.len() > self.maximum
+            {
                 return None;
             }
         }
@@ -230,6 +245,59 @@ impl Store {
         Some(())
     }
 }
+// The CT decoder still receives its original complete bytes. This transport
+// merely factors source text already stored in the checksummed frontend slot.
+// Unknown shapes use a literal; no current-source hash becomes an authority.
+fn compact_receipt(bytes: &[u8], source: Option<&[u8]>) -> Option<Vec<u8>> {
+    if bytes.is_empty() {
+        return Some(Vec::new());
+    }
+    if let Some(source) = source
+        && source.len() > 8
+        && let Some((prefix, suffix)) =
+            super::super::ct_artifact::ScalarMaterializationSession::split_raw_receipt(
+                bytes, source,
+            )
+    {
+        let mut out = vec![1];
+        blob(&mut out, prefix)?;
+        blob(&mut out, suffix)?;
+        return Some(out);
+    }
+    let mut out = Vec::with_capacity(bytes.len().checked_add(1)?);
+    out.push(0);
+    out.extend_from_slice(bytes);
+    Some(out)
+}
+
+fn restore_receipt(record: &[u8], length: usize, source: Option<&[u8]>) -> Option<Vec<u8>> {
+    let (&tag, record) = record.split_first()?;
+    match tag {
+        0 => (record.len() == length).then(|| record.to_vec()),
+        1 => {
+            let source = source?;
+            let mut reader = Reader(record);
+            let prefix = reader.blob()?;
+            let suffix = reader.blob()?;
+            if !reader.0.is_empty()
+                || prefix
+                    .len()
+                    .checked_add(source.len())?
+                    .checked_add(suffix.len())?
+                    != length
+            {
+                return None;
+            }
+            let mut out = Vec::with_capacity(length);
+            out.extend_from_slice(prefix);
+            out.extend_from_slice(source);
+            out.extend_from_slice(suffix);
+            Some(out)
+        }
+        _ => None,
+    }
+}
+
 fn number(out: &mut Vec<u8>, n: usize) -> Option<()> {
     out.extend_from_slice(&u32::try_from(n).ok()?.to_le_bytes());
     Some(())
@@ -361,6 +429,81 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.directory);
         }
+    }
+
+    #[test]
+    fn factored_ct_source_restores_exact_original_receipt_and_rejects_bad_lengths() {
+        let source = b"pub fn main()->i32=>42;";
+        let path = b"main.zil";
+        let mut receipt = b"ZILCTMR1".to_vec();
+        for value in [
+            64u64,
+            0,
+            0,
+            17,
+            0,
+            0,
+            0,
+            path.len() as u64,
+            source.len() as u64,
+        ] {
+            receipt.extend_from_slice(&value.to_le_bytes());
+        }
+        receipt.extend_from_slice(path);
+        receipt.extend_from_slice(source);
+        receipt.extend_from_slice(b"complete placement bytes");
+        let compact = compact_receipt(&receipt, Some(source)).unwrap();
+        assert_eq!(compact[0], 1);
+        assert!(compact.len() < receipt.len());
+        assert_eq!(
+            restore_receipt(&compact, receipt.len(), Some(source)).unwrap(),
+            receipt
+        );
+        assert!(restore_receipt(&compact, receipt.len() - 1, Some(source)).is_none());
+        assert!(restore_receipt(&compact, receipt.len() + 1, Some(source)).is_none());
+        assert!(restore_receipt(&compact, receipt.len(), None).is_none());
+        let mut trailing = compact.clone();
+        trailing.push(0);
+        assert!(restore_receipt(&trailing, receipt.len(), Some(source)).is_none());
+        for end in 0..compact.len() {
+            assert!(restore_receipt(&compact[..end], receipt.len(), Some(source)).is_none());
+        }
+        // Unknown/mismatched source cannot factor or silently replace bytes.
+        let literal = compact_receipt(&receipt, Some(b"different text")).unwrap();
+        assert_eq!(literal[0], 0);
+        assert_eq!(
+            restore_receipt(&literal, receipt.len(), None).unwrap(),
+            receipt
+        );
+        let mut overflow = compact;
+        overflow[1..5].copy_from_slice(&u32::MAX.to_le_bytes());
+        assert!(restore_receipt(&overflow, receipt.len(), Some(source)).is_none());
+    }
+
+    #[test]
+    fn compact_receipts_do_not_relax_the_original_logical_cache_bound() {
+        let mut fixture = Fixture::new();
+        let mut products = fixture.products();
+        products.modules.retain(|id, _| id.0 == 0);
+        fixture.publish(&products);
+        let mut manifest = fixture.manifest(&fixture.store.root);
+        let length_offset = 16 + products.context.len() + 40;
+        manifest[length_offset..length_offset + 4].copy_from_slice(&u32::MAX.to_le_bytes());
+        ArtifactCache::with_limit(&fixture.store.root, fixture.store.maximum)
+            .write_candidate_cancellable(
+                fixture.store.key,
+                &manifest,
+                &fixture.options.cancellation,
+            )
+            .unwrap();
+        fixture.store.maximum = manifest.len() + 4;
+        let mut producer = zil_expand::ExpandSession::default();
+        let mut materializer =
+            super::super::super::ct_artifact::ScalarMaterializationSession::default();
+        fixture
+            .store
+            .load(&fixture.options, &mut producer, &mut materializer);
+        assert!(fixture.store.loaded.borrow().is_empty());
     }
 
     #[test]

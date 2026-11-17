@@ -244,12 +244,13 @@ fn probe_items<'a, 'i>(
         limits,
         reuse,
     )
+    .map(|probe| probe.expect("borrowed probe has no recovered groups"))
 }
 fn probe_inputs<'a, 'i, 'p: 'i>(
     items: impl IntoIterator<Item = crate::modules::scalar_products::Input<'i, 'p>>,
     limits: &'a Limits,
     mut reuse: Option<&mut crate::incremental::Reuse<'_>>,
-) -> CompileResult<Probe<'a>> {
+) -> CompileResult<Option<Probe<'a>>> {
     let mut probe = Probe {
         budget: Budget::new(limits),
         present: false,
@@ -259,6 +260,18 @@ fn probe_inputs<'a, 'i, 'p: 'i>(
     };
     for mut input in items {
         let span = input.span();
+        if input.recovered() {
+            if !reuse.as_deref_mut().is_some_and(|reuse| {
+                reuse.replay_recovered_group(
+                    crate::incremental::Stage::Prepare,
+                    span,
+                    &mut probe.budget,
+                )
+            }) {
+                return Ok(None);
+            }
+            continue;
+        }
         if reuse.as_deref_mut().is_some_and(|reuse| {
             reuse.replay(crate::incremental::Stage::Prepare, span, &mut probe.budget)
         }) {
@@ -306,7 +319,7 @@ fn probe_inputs<'a, 'i, 'p: 'i>(
             );
         }
     }
-    Ok(probe)
+    Ok(Some(probe))
 }
 /// Preserve whole-project Probe order on scalar products. A miss materializes
 /// its genuine normalized Item before the real Probe spends formal budget.
@@ -315,13 +328,16 @@ pub(super) fn prepare_plain_products(
     limits: &Limits,
     reuse: &mut crate::incremental::Reuse<'_>,
 ) -> CompileResult<Option<Limits>> {
-    let probe = probe_inputs(
+    let Some(probe) = probe_inputs(
         items
             .iter_mut()
             .map(crate::modules::scalar_products::Input::Product),
         limits,
         Some(reuse),
-    )?;
+    )?
+    else {
+        return Ok(None);
+    };
     Ok((!probe.present && !probe.tasks).then(|| probe.budget.remaining_limits()))
 }
 #[cfg(test)]

@@ -425,6 +425,11 @@ fn canonical_products_are_sealed_to_the_current_raw_result_not_public_fields() {
     product.function = Some(Arc::new(forged.clone()));
     assert!(product.canonical_identity(&forged).is_none());
     assert!(product.canonical_function(&forged).is_none());
+    assert!(
+        product
+            .canonical_function_and_encoding(&forged, &Limits::default(), usize::MAX)
+            .is_none()
+    );
     let produced = expand(&mut producer, &[parse_functions(&format!("\n{original}"))]);
     let prepared = preparation::infer_produced_program_for_ct(&produced, &Limits::default())
         .unwrap()
@@ -440,6 +445,13 @@ fn canonical_products_are_sealed_to_the_current_raw_result_not_public_fields() {
         Span::new(FileId(0), 0, current.span.end - current.span.start)
     );
     assert_eq!(canonical.name, current.name);
+    let (combined, encoding) = current_product
+        .canonical_function_and_encoding(current, &Limits::default(), usize::MAX)
+        .unwrap();
+    assert_eq!(combined, canonical);
+    // An unencoded cold result remains a valid canonical raw input; the
+    // ordinary writer still runs rather than treating absence as authority.
+    assert!(encoding.is_none());
 }
 
 #[test]
