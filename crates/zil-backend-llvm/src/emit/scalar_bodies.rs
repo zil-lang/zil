@@ -27,11 +27,14 @@ impl Owners {
             std::ptr::from_ref(&*function.blocks),
         )
     }
+    fn addresses(self) -> (usize, usize, usize) {
+        (self.0 as usize, self.1 as usize, self.2 as usize)
+    }
     pub(super) fn same(left: &TypedFunction, right: &TypedFunction) -> bool {
         left.locals.ptr_eq(&right.locals)
             && left.values.ptr_eq(&right.values)
             && left.blocks.ptr_eq(&right.blocks)
-            && incremental::same_body_input(left, right)
+            && incremental::same_body_header(left, right)
     }
 }
 // Current semantic equality is established ONCE before the pure consumers.
@@ -43,22 +46,72 @@ pub(super) enum Key {
     Owner(Owners),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
+struct Observation {
+    function: usize,
+    cost: Option<usize>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Inputs {
-    _functions: zil_ir::PersistentVec<TypedFunction>,
+    // These strong roots keep both function addresses and all three body
+    // owners alive. A changed LIR wrapper must bind its complete header too.
+    functions: zil_ir::PersistentVec<TypedFunction>,
     identities: HashMap<usize, usize>,
+    by_id: HashMap<FunctionId, usize>,
+    owners: HashMap<(usize, usize, usize), usize>,
+    observations: Vec<Observation>,
+    #[cfg(test)]
+    owner_reuses: usize,
 }
 impl Inputs {
     pub(super) fn new(functions: &zil_ir::PersistentVec<TypedFunction>) -> Self {
         let selector = RandomState::new();
         let mut buckets = HashMap::<u64, Vec<(&TypedFunction, usize)>>::new();
-        let mut identities = HashMap::new();
+        let mut inputs = Self {
+            functions: functions.clone(),
+            identities: HashMap::new(),
+            by_id: HashMap::new(),
+            owners: HashMap::new(),
+            observations: Vec::new(),
+            #[cfg(test)]
+            owner_reuses: 0,
+        };
+        // Selectors belong to this construction's RandomState, not to later
+        // consumers. Retained observations contain actual cost, never a hash
+        // certificate. Storage is bounded by the current function inventory.
+        let mut selectors = Vec::<Option<u64>>::new();
         let mut fuel = 1_000_000usize;
-        for function in functions {
-            let Some(cost) = cost(function).filter(|cost| *cost <= fuel) else {
+        for (index, function) in functions.iter().enumerate() {
+            inputs.by_id.insert(function.id, index);
+            let observed = if let Some(row) = inputs.observation(function) {
+                #[cfg(test)]
+                {
+                    inputs.owner_reuses += 1;
+                }
+                row
+            } else {
+                let row = inputs.observations.len();
+                inputs.observations.push(Observation {
+                    function: index,
+                    cost: cost(function),
+                });
+                selectors.push(None);
+                inputs
+                    .owners
+                    .entry(Owners::of(function).addresses())
+                    .or_insert(row);
+                row
+            };
+            let Some(cost) = inputs.observations[observed]
+                .cost
+                .filter(|cost| *cost <= fuel)
+            else {
                 continue;
             };
+            // Preserve the original optional fuel and ordered collision costs,
+            // including for shared owners. Only the actual scans disappear.
             fuel -= cost;
-            let hash = selector.hash_one(Selector(function));
+            let hash =
+                *selectors[observed].get_or_insert_with(|| selector.hash_one(Selector(function)));
             let mut identity = None;
             if let Some(rows) = buckets.get(&hash) {
                 for &(prior, id) in rows {
@@ -72,28 +125,52 @@ impl Inputs {
                     }
                 }
             }
-            let next = identities.len();
+            let next = inputs.identities.len();
             let id = identity.unwrap_or(next);
             if identity.is_none() {
                 buckets.entry(hash).or_default().push((function, id));
             }
-            identities.insert(std::ptr::from_ref(function) as usize, id);
+            inputs
+                .identities
+                .insert(std::ptr::from_ref(function) as usize, id);
         }
-        Self {
-            _functions: functions.clone(),
-            identities,
+        inputs
+    }
+    fn observation(&self, function: &TypedFunction) -> Option<usize> {
+        // One representative per owner tuple bounds lookup even when many
+        // different outer headers happen to share these same arrays. A header
+        // mismatch takes the original scan, never a growing candidate bucket.
+        let row = *self.owners.get(&Owners::of(function).addresses())?;
+        Owners::same(&self.functions[self.observations[row].function], function).then_some(row)
+    }
+    fn observed_cost(&self, function: &TypedFunction) -> Option<Option<usize>> {
+        Some(self.observations[self.observation(function)?].cost)
+    }
+    fn identity(&self, function: &TypedFunction) -> Option<usize> {
+        if let Some(id) = self
+            .identities
+            .get(&(std::ptr::from_ref(function) as usize))
+        {
+            return Some(*id);
         }
+        // Source and LIR can wrap the exact same arrays in different function
+        // allocations. Use the CURRENT source row's admission (including fuel
+        // exhaustion), not some sibling's semantic identity or a bare ID.
+        let original = &self.functions[*self.by_id.get(&function.id)?];
+        if !Owners::same(original, function) {
+            return None;
+        }
+        self.identities
+            .get(&(std::ptr::from_ref(original) as usize))
+            .copied()
     }
 }
 pub(super) fn key(inputs: Option<&Inputs>, function: &TypedFunction) -> Key {
     inputs
-        .and_then(|inputs| {
-            inputs
-                .identities
-                .get(&(std::ptr::from_ref(function) as usize))
-        })
-        .map_or_else(|| Key::Owner(Owners::of(function)), |id| Key::Semantic(*id))
+        .and_then(|inputs| inputs.identity(function))
+        .map_or_else(|| Key::Owner(Owners::of(function)), Key::Semantic)
 }
+
 pub(super) fn same(inputs: Option<&Inputs>, left: &TypedFunction, right: &TypedFunction) -> bool {
     match (key(inputs, left), key(inputs, right)) {
         (Key::Semantic(a), Key::Semantic(b)) => a == b,
@@ -184,7 +261,17 @@ fn cost(function: &TypedFunction) -> Option<usize> {
 }
 
 pub(super) fn cacheable(function: &TypedFunction) -> bool {
-    cost(function).is_some()
+    cacheable_with_inputs(None, function)
+}
+
+pub(super) fn cacheable_with_inputs(inputs: Option<&Inputs>, function: &TypedFunction) -> bool {
+    current_cost(inputs, function).is_some()
+}
+
+fn current_cost(inputs: Option<&Inputs>, function: &TypedFunction) -> Option<usize> {
+    inputs
+        .and_then(|inputs| inputs.observed_cost(function))
+        .unwrap_or_else(|| cost(function))
 }
 
 struct Selector<'a>(&'a TypedFunction);
@@ -276,7 +363,7 @@ impl<'a> Cache<'a> {
             self.owner_hits += 1;
             return Ok(rebind(&self.products[index].output, function.id));
         }
-        let cost = cost(function);
+        let cost = current_cost(self.inputs.as_deref(), function);
         let Some(cost) = cost.filter(|cost| *cost <= self.fuel) else {
             return lower();
         };
@@ -337,3 +424,7 @@ pub(super) fn rebind(output: &FunctionBatch, id: FunctionId) -> FunctionBatch {
     machine.name = symbol(id);
     output
 }
+
+#[cfg(test)]
+#[path = "scalar_bodies_tests.rs"]
+mod tests;

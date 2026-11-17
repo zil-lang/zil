@@ -92,6 +92,26 @@ fn has_scoped_thread(function: &zil_ir::TypedFunction) -> bool {
         .flat_map(|b| &b.instructions)
         .any(|i| matches!(i.kind, zil_ir::InstructionKind::WithScopedThread { .. }))
 }
+// Request-local boolean observations; current functions keep the block owners
+// alive. Header changes cannot affect this instruction-only linker predicate.
+fn scoped_thread_presence<'a>(
+    function: &'a zil_ir::TypedFunction,
+    bodies: &mut std::collections::HashMap<
+        *const Vec<zil_ir::BasicBlock>,
+        (&'a zil_ir::TypedFunction, bool),
+    >,
+) -> (bool, bool) {
+    let key = std::ptr::from_ref(&*function.blocks);
+    if let Some((_, present)) = bodies
+        .get(&key)
+        .filter(|(previous, _)| previous.blocks.ptr_eq(&function.blocks))
+    {
+        return (*present, true);
+    }
+    let present = has_scoped_thread(function);
+    bodies.insert(key, (function, present));
+    (present, false)
+}
 impl BackendSession {
     pub fn summary(&self) -> &BackendSessionSummary {
         &self.summary
@@ -101,10 +121,22 @@ impl BackendSession {
         functions: &zil_ir::PersistentVec<zil_ir::TypedFunction>,
     ) -> bool {
         let inventory = &mut self.scoped_threads;
+        let mut bodies = std::collections::HashMap::new();
+        self.summary.scoped_thread_functions_checked = 0;
+        self.summary.scoped_thread_functions_reused = functions.len();
         if inventory.functions.len() != functions.len() {
-            inventory.present = functions.iter().map(has_scoped_thread).collect();
+            inventory.present = functions
+                .iter()
+                .map(|function| {
+                    let (present, reused) = scoped_thread_presence(function, &mut bodies);
+                    if !reused {
+                        self.summary.scoped_thread_functions_checked += 1;
+                        self.summary.scoped_thread_functions_reused -= 1;
+                    }
+                    present
+                })
+                .collect();
             inventory.count = inventory.present.iter().filter(|value| **value).count();
-            self.summary.scoped_thread_functions_checked = functions.len();
         } else {
             let changed = functions.changed_indices(&inventory.functions);
             self.summary.scoped_thread_functions_reused = functions.len();
@@ -115,9 +147,11 @@ impl BackendSession {
                 {
                     continue;
                 }
-                self.summary.scoped_thread_functions_checked += 1;
-                self.summary.scoped_thread_functions_reused -= 1;
-                let present = has_scoped_thread(&functions[index]);
+                let (present, reused) = scoped_thread_presence(&functions[index], &mut bodies);
+                if !reused {
+                    self.summary.scoped_thread_functions_checked += 1;
+                    self.summary.scoped_thread_functions_reused -= 1;
+                }
                 inventory.count -= usize::from(inventory.present[index]);
                 inventory.count += usize::from(present);
                 inventory.present.replace(index, present);

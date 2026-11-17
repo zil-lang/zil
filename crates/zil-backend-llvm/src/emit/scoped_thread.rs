@@ -63,14 +63,14 @@ fn store(ty: m::Ty, value: m::Val, slot: &str, align: u32) -> m::Event {
         },
     )
 }
-pub(super) fn present(lir: &LirView<'_>) -> bool {
-    lir.functions
+fn needs_runtime(function: &TypedFunction) -> bool {
+    function
+        .blocks
         .iter()
-        .flat_map(|f| &f.blocks)
-        .flat_map(|b| &b.instructions)
-        .any(|i| {
+        .flat_map(|block| &block.instructions)
+        .any(|instruction| {
             matches!(
-                i.kind,
+                instruction.kind,
                 InstructionKind::WithScopedThread { .. }
                     | InstructionKind::WithSyncCell { .. }
                     | InstructionKind::SyncI32 { .. }
@@ -80,9 +80,92 @@ pub(super) fn present(lir: &LirView<'_>) -> bool {
             )
         })
 }
+pub(super) fn present(lir: &LirView<'_>) -> bool {
+    // Every key's immutable owner remains borrowed from this current LIR.
+    // Only instructions are read here: outer IDs and value types cannot change
+    // this boolean. Failed/unsupported runtime decisions are never cached.
+    let mut seen = std::collections::HashMap::new();
+    for function in lir.functions {
+        let key = std::ptr::from_ref(&*function.blocks);
+        if let Some(previous) = seen.get(&key)
+            && function.blocks.ptr_eq(previous)
+        {
+            continue;
+        }
+        if needs_runtime(function) {
+            return true;
+        }
+        seen.insert(key, function.blocks.clone());
+    }
+    false
+}
+
+#[derive(Clone, Copy, Default)]
+struct RuntimeNeeds {
+    present: bool,
+    threads: bool,
+    mutexes: bool,
+}
+fn runtime_needs(function: &TypedFunction) -> RuntimeNeeds {
+    let mut needs = RuntimeNeeds::default();
+    for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+        match instruction.kind {
+            InstructionKind::WithScopedThread { .. } => {
+                needs.present = true;
+                needs.threads = true;
+            }
+            InstructionKind::WithSyncCell { kind, .. } => {
+                needs.present = true;
+                needs.mutexes |= kind == SyncCellKind::MutexI32;
+            }
+            InstructionKind::SyncI32 { address, .. } => {
+                needs.present = true;
+                needs.mutexes |= matches!(function.values.get(address.0 as usize),
+                    Some(Type::Address { inner, .. }) if matches!(inner.as_ref(), Type::SyncCell(SyncCellKind::MutexI32)));
+            }
+            InstructionKind::SyncI32CompareExchange { .. }
+            | InstructionKind::SyncInteger { .. }
+            | InstructionKind::SyncIntegerCompareExchange { .. } => needs.present = true,
+            _ => {}
+        }
+    }
+    needs
+}
+fn current_runtime_needs(lir: &LirView<'_>) -> RuntimeNeeds {
+    let mut bodies = std::collections::HashMap::<_, (&TypedFunction, RuntimeNeeds)>::new();
+    let mut all = RuntimeNeeds::default();
+    for function in lir.functions {
+        // Mutex selection reads values[address], so blocks alone are NOT the
+        // complete input. Both immutable owners must be current and equal.
+        let key = (
+            std::ptr::from_ref(&*function.blocks),
+            std::ptr::from_ref(&*function.values),
+        );
+        let needs = if let Some((_, needs)) = bodies.get(&key).filter(|(previous, _)| {
+            previous.blocks.ptr_eq(&function.blocks) && previous.values.ptr_eq(&function.values)
+        }) {
+            *needs
+        } else {
+            let needs = runtime_needs(function);
+            bodies.insert(key, (function, needs));
+            needs
+        };
+        all.present |= needs.present;
+        all.threads |= needs.threads;
+        all.mutexes |= needs.mutexes;
+    }
+    all
+}
 pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
     let mut code = m::Code::new();
-    if !present(lir) {
+    // The one exact fold supplies presence and declaration selection. It has
+    // no diagnostics or ledger effects; target and ABI errors remain ordered.
+    let RuntimeNeeds {
+        present,
+        threads,
+        mutexes,
+    } = current_runtime_needs(lir);
+    if !present {
         return Ok(code);
     }
     if lir.target.triple != "x86_64-unknown-linux-gnu" {
@@ -94,24 +177,6 @@ pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
     }
     // On this target pthread_t is unsigned long (i64), with pointer-aligned
     // storage; start_routine has the actual C void* (void*) calling convention.
-    let mut threads = false;
-    let mut mutexes = false;
-    for function in lir.functions {
-        for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
-            match instruction.kind {
-                InstructionKind::WithScopedThread { .. } => threads = true,
-                InstructionKind::WithSyncCell {
-                    kind: SyncCellKind::MutexI32,
-                    ..
-                } => mutexes = true,
-                InstructionKind::SyncI32 { address, .. } => {
-                    mutexes |= matches!(function.values.get(address.0 as usize),
-                        Some(Type::Address { inner, .. }) if matches!(inner.as_ref(), Type::SyncCell(SyncCellKind::MutexI32)));
-                }
-                _ => {}
-            }
-        }
-    }
     let mut declarations = Vec::new();
     if threads {
         declarations.push(("pthread_create", m::Ty::Int(32), vec![m::Ty::Ptr; 4]));

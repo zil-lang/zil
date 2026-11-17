@@ -299,7 +299,7 @@ fn same_input(previous: &TypedFunction, current: &TypedFunction) -> bool {
 // For request-local scalar production, only the outer defined symbol changes
 // with id/name. Actual call IDs are never rebound. Every executable input below
 // remains compared in full and current global facts are fixed for the request.
-pub(super) fn same_body_input(previous: &TypedFunction, current: &TypedFunction) -> bool {
+pub(super) fn same_body_header(previous: &TypedFunction, current: &TypedFunction) -> bool {
     let TypedFunction {
         storage_life,
         call_kind,
@@ -314,9 +314,9 @@ pub(super) fn same_body_input(previous: &TypedFunction, current: &TypedFunction)
         parameters,
         return_type,
         result_mode,
-        locals,
-        values,
-        blocks,
+        locals: _,
+        values: _,
+        blocks: _,
         entry,
         span: _,
     } = current;
@@ -331,8 +331,14 @@ pub(super) fn same_body_input(previous: &TypedFunction, current: &TypedFunction)
         && previous.parameters == *parameters
         && previous.return_type == *return_type
         && previous.result_mode == *result_mode
-        && previous.values == *values
         && previous.entry == *entry
+}
+
+pub(super) fn same_body_input(previous: &TypedFunction, current: &TypedFunction) -> bool {
+    let locals = &current.locals;
+    let blocks = &current.blocks;
+    same_body_header(previous, current)
+        && previous.values == current.values
         && (previous.locals.ptr_eq(locals)
             || (previous.locals.len() == locals.len()
                 && previous.locals.iter().zip(locals).all(|(old, new)| {

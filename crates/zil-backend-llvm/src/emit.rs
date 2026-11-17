@@ -402,6 +402,7 @@ pub(crate) fn lower_output_with_raw_products(
         let mut scalar_bodies = scalar_bodies::Cache::default();
         scalar_bodies.set_inputs(session.body_inputs.clone());
         if let Some(raw) = raw_products.as_deref_mut() {
+            raw.set_inputs(session.body_inputs.clone());
             raw.bind(
                 session.raw_context(),
                 verified.limits(),

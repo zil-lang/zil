@@ -79,6 +79,7 @@ struct RawRecord {
 }
 type Inventory = (Vec<RawRecord>, BTreeMap<FunctionId, usize>);
 pub(crate) struct Request {
+    inputs: Option<Arc<scalar_bodies::Inputs>>,
     validation: Option<std::rc::Rc<std::cell::RefCell<zil_llvm_api::PreflightSession>>>,
     directory: PathBuf,
     manifest: String,
@@ -99,6 +100,9 @@ pub(crate) struct Request {
     pub(crate) misses: usize,
 }
 impl Request {
+    pub(super) fn set_inputs(&mut self, inputs: Option<Arc<scalar_bodies::Inputs>>) {
+        self.inputs = inputs;
+    }
     pub(crate) fn use_preflight(
         &mut self,
         validation: std::rc::Rc<std::cell::RefCell<zil_llvm_api::PreflightSession>>,
@@ -127,6 +131,7 @@ impl Request {
         identity.text(&version)?;
         let directory = root.join(Fingerprint::of(&identity.0).to_hex());
         Some(Self {
+            inputs: None,
             validation: None,
             directory,
             manifest: String::new(),
@@ -411,7 +416,7 @@ impl Request {
         let record = if let Some(record) = retained {
             record
         } else {
-            if !scalar_bodies::cacheable(function) {
+            if !scalar_bodies::cacheable_with_inputs(self.inputs.as_deref(), function) {
                 return None;
             }
             let input = zil_ir::wire::encode_raw_function(function, &self.limits)
@@ -548,7 +553,7 @@ fn valid_machine(
             }
         }
     }
-    let mut declarations = BTreeMap::<String, m::Signature>::new();
+    let mut declarations = BTreeMap::<&str, &m::Signature>::new();
     for block in function.blocks.iter().flatten() {
         for instruction in &block.instructions {
             if let m::Op::Call {
@@ -565,38 +570,38 @@ fn valid_machine(
                 if vararg.is_some() {
                     return false;
                 }
-                let signature = m::Signature {
-                    result: result.clone(),
-                    result_attrs: result_attrs.clone(),
-                    params: args
-                        .iter()
-                        .map(|arg| m::Param {
-                            ty: arg.ty.clone(),
-                            name: None,
-                            attrs: arg.attrs.clone(),
-                        })
-                        .collect(),
-                    variadic: false,
+                let Some(signature) = permitted.get(name) else {
+                    return false;
                 };
-                if permitted
-                    .get(name)
-                    .is_none_or(|current: &m::Signature| !current.same_abi(&signature))
+                // Compare exactly the same ABI as the former temporary
+                // Signature, directly against borrowed operands. Names are
+                // intentionally absent from a call ABI. Every occurrence is
+                // checked, including later calls to an already seen callee.
+                if signature.variadic
+                    || signature.result != *result
+                    || signature.result_attrs != *result_attrs
+                    || signature.params.len() != args.len()
+                    || !signature
+                        .params
+                        .iter()
+                        .zip(args)
+                        .all(|(param, arg)| param.ty == arg.ty && param.attrs == arg.attrs)
                 {
                     return false;
                 }
-                if let Some(old) = declarations.insert(name.clone(), signature.clone())
-                    && old != signature
-                {
-                    return false;
-                }
+                declarations.entry(name).or_insert(signature);
             }
         }
     }
     let mut items = vec![m::Item::Function(function.clone())];
     for (name, signature) in declarations {
         if name != function.name {
+            let mut signature = signature.clone();
+            for param in &mut signature.params {
+                param.name = None;
+            }
             items.push(m::Item::Function(m::Function {
-                name,
+                name: name.to_owned(),
                 linkage: m::Linkage::External,
                 signature,
                 attrs: vec![],

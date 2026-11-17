@@ -23,6 +23,7 @@ impl Drop for Directory {
 
 fn request(root: &Path) -> Request {
     Request {
+        inputs: None,
         validation: None,
         directory: root.join("test-installed-identity"),
         manifest: String::new(),
@@ -218,11 +219,24 @@ fn restarted_raw_products_match_original_emitter_and_edit_only_one_representativ
     cold.pending().unwrap().commit(&directory.0);
     // These are new owners and a fresh Session: no in-memory producer survives.
     let edited = fixture(true);
-    let current = lir(&edited);
+    let mut current = lir(&edited);
+    // Real lowering may wrap the verified arrays in distinct function nodes.
+    // Those wrappers must reach current semantic admissions and raw staging.
+    current.functions = current.functions.iter().cloned().collect();
+    assert!(!std::ptr::eq(
+        &current.functions[0],
+        &edited.module().functions[0]
+    ));
     let mut restored = request(&directory.0);
     let mut checker = crate::machine_preflight::CurrentPreflight::default();
     restored.use_preflight(checker.body_session());
     let actual = lower(&edited, &current, Some(&mut restored)).unwrap();
+    for (source, lowered) in edited.module().functions.iter().zip(&current.functions) {
+        let inputs = restored.inputs.as_deref();
+        let source_key = scalar_bodies::key(inputs, source);
+        assert!(matches!(source_key, scalar_bodies::Key::Semantic(_)));
+        assert_eq!(scalar_bodies::key(inputs, lowered), source_key);
+    }
     let before = checker.body_session().borrow().body_counts();
     assert_eq!(before, (3, 0));
     checker.check(&actual.0).unwrap();
@@ -341,6 +355,107 @@ fn function_input_with_call() -> TypedFunction {
         arguments: vec![],
     };
     caller
+}
+
+#[test]
+fn repeated_raw_calls_check_every_abi_occurrence_and_current_callee() {
+    let mut source = function(0, 3);
+    source.blocks[0].instructions.truncate(1);
+    source.values = vec![Type::I32; 129].into();
+    for id in 1..=128 {
+        source.blocks[0].instructions.push(Instruction {
+            result: Some(ValueId(id)),
+            kind: InstructionKind::Call {
+                function: FunctionId(9),
+                arguments: vec![ValueId(0)],
+            },
+            span: Span::default(),
+        });
+    }
+    source.blocks[0].terminator = Terminator::Return(Some(ValueId(128)));
+    let callee = function(9, 2);
+    let mut instructions = (0..128)
+        .map(|id| {
+            m::Inst::new(
+                Some(format!("r{id}")),
+                m::Op::Call {
+                    result: m::Ty::Int(32),
+                    result_attrs: vec![],
+                    callee: m::Val::Global(symbol(callee.id)),
+                    args: vec![m::Arg::new(m::Ty::Int(32), m::Val::Local("input".into()))],
+                    vararg: None,
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    instructions.push(m::Inst::new(
+        None,
+        m::Op::Return(Some(m::Arg::new(
+            m::Ty::Int(32),
+            m::Val::Local("r127".into()),
+        ))),
+    ));
+    let machine = m::Function {
+        name: symbol(source.id),
+        linkage: m::Linkage::External,
+        signature: m::Signature::new(
+            m::Ty::Int(32),
+            vec![m::Param {
+                ty: m::Ty::Int(32),
+                name: Some("input".into()),
+                attrs: vec![],
+            }],
+        ),
+        attrs: vec![],
+        blocks: Some(
+            vec![m::Block {
+                name: "entry".into(),
+                instructions,
+            }]
+            .into(),
+        ),
+    };
+    let check = |machine: &m::Function, callee: &TypedFunction| {
+        valid_machine(
+            machine,
+            &source,
+            &BTreeMap::from([(callee.id, callee)]),
+            &TargetProfile::host_llvm(),
+            &BTreeSet::new(),
+            None,
+        )
+    };
+    assert!(check(&machine, &callee));
+    for fault in 0..5 {
+        let mut invalid = machine.clone();
+        let m::Op::Call {
+            result,
+            result_attrs,
+            args,
+            vararg,
+            ..
+        } = &mut invalid.blocks.as_mut().unwrap()[0].instructions[127].op
+        else {
+            unreachable!()
+        };
+        match fault {
+            0 => args[0].attrs.push(m::Attr::SignExt),
+            1 => result_attrs.push(m::Attr::SignExt),
+            2 => *result = m::Ty::Int(64),
+            3 => *vararg = Some(vec![]),
+            _ => args.clear(),
+        }
+        assert!(
+            !check(&invalid, &callee),
+            "late repeated call fault {fault}"
+        );
+    }
+    let mut changed = callee.clone();
+    changed.return_type = Type::I64;
+    assert!(!check(&machine, &changed));
+    changed = callee.clone();
+    changed.id = FunctionId(10);
+    assert!(!check(&machine, &changed));
 }
 
 #[test]
