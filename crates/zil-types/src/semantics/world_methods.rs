@@ -1,6 +1,7 @@
 //! Actual method boundaries consume the independently checked original provider
 //! theorem. Concrete receiver images never prove generic conformance.
 use super::*;
+use std::collections::BTreeSet;
 #[path = "world_callable_views.rs"]
 mod callable_views;
 #[path = "world_invocation.rs"]
@@ -1032,7 +1033,7 @@ fn receiver_result(
             false
         } else {
             if !matches!(result.binder, StorageBinder::Fixed(_))
-                || !super::headers::receiver_head(world.program, world.ledger,
+                || !super::super::headers::receiver_head(world.program, world.ledger,
                     child.definition, world.limits, world.left)?
             { return Err(bad("receiver view lacks a complete captured Fixed result upper")); }
             let roles::Source::Class(target_source) = &target_source else {

@@ -184,7 +184,7 @@ impl super::super::original_walk::Context for ReceiverReturns<'_, '_> {
             self.proof.types.get(&(self.owner, Query::Expression(value.id)))
         else { self.valid = false; return Ok(()); };
         crate::dyn_metadata::semantic_operand_snapshot(lifetime, self.limits, self.left, 1)?;
-        crate::dyn_metadata::semantic_operand_snapshot(inner, self.limits, self.left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(inner.as_ref(), self.limits, self.left, 1)?;
         if matches!(lifetime, SemanticOuterLifeRecipe::Static) { return Ok(()); }
         *self.left = self.left.checked_sub(self.proof.return_borrows.len().saturating_add(1).ilog2() as usize + 1)
             .ok_or_else(|| Diagnostic::limit(Phase::Types, "receiver return source lookup exceeded", None))?;
@@ -280,7 +280,11 @@ impl Check<'_, '_> {
                 crate::dyn_metadata::semantic_operand_snapshot(&role.ty, self.limits, self.left, 1)?;
                 for sources in [&previous.sources, &role.sources] {
                     for source in sources {
-                        crate::dyn_metadata::semantic_operand_snapshot(source, self.limits, self.left, 1)?;
+                        crate::dyn_metadata::semantic_operand_snapshot(&source.lifetime, self.limits, self.left, 1)?;
+                        // The exact occurrence and escape discriminator carry
+                        // only fixed-size node/owner/ordinal identities.
+                        *self.left = self.left.checked_sub(2).ok_or_else(||
+                            Diagnostic::limit(Phase::Types, "receiver source identity snapshot exceeded", None))?;
                     }
                 }
                 if previous.binding != role.binding || previous.kind != role.kind
@@ -979,7 +983,7 @@ impl Check<'_, '_> {
             if let Some(role) = self.proof.return_borrows.get(&(owner, expression.id)) {
                 let role = snapshot_role(role, self.limits, self.left)?;
                 crate::dyn_metadata::semantic_operand_snapshot(source, self.limits, self.left, 1)?;
-                crate::dyn_metadata::semantic_operand_snapshot(inner, self.limits, self.left, 1)?;
+                crate::dyn_metadata::semantic_operand_snapshot(inner.as_ref(), self.limits, self.left, 1)?;
                 if matches!(role.root, ViewBorrowRoot::Capture(_))
                     && is_receiver_upper(&role.target_lifetime)
                     && &role.occurrence_lifetime == source && role.inner == **inner
