@@ -1874,6 +1874,7 @@ pub(super) fn qualifications(
                 if pure_copy::operation(&i.kind)
                     && !array_index::candidate(f, i)
                     && !compound::projection(f, i, b)?
+                    && !compound::operation(f, i, b)?
                     && !anonymous_tuple::operation(f, i, b)?
                     && enum_address::types(module, f, i, b)?.is_none()
                     && option_address::types(module, f, i, b)?.is_none()
@@ -3536,6 +3537,7 @@ fn step(
         _ if replacements::operation(&i.kind) => {
             replacements::step(f, i, state, values, sites, loans, b)?;
         }
+        InstructionKind::UpdateField{..} if compound::operation(f,i,b)?=>{out=compound::update(f,i,values,b)?;}
         InstructionKind::ExtractField { aggregate, index } if compound::projection(f, i, b)? => {
             let ty=vt(f,i.result.ok_or_else(||err("compound field projection lacks its actual result"))?)?;
             out=compound::field_payload(val(*aggregate)?,*index,ty,b)?;

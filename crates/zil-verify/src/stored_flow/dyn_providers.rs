@@ -497,6 +497,7 @@ pub(super) fn effects(
                 | InstructionKind::TakeTupleField { .. }
                 | InstructionKind::MakeDynBorrow { .. }
                 | InstructionKind::BorrowDynOwned { .. } => {}
+                InstructionKind::UpdateField{..}if compound::operation(f,i,b)?=>{},
                 InstructionKind::MakeOwnedTuple{..}|InstructionKind::UnpackTuple{..}
                     if pure_copy::ordinary_owned_tuple(module,f,i,b)?=>{},
                 InstructionKind::BorrowPlaceLocal{..}if ordinary_error_borrow(module,f,i,b)?=>{},

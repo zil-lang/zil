@@ -141,6 +141,12 @@ pub(in crate::stored_flow) fn transfer(
         InstructionKind::ReadErrorUnion{value,is_error}|InstructionKind::TakeErrorUnion{value,is_error}=>{
             return get(*value)?.project(&[PlaceProjection::ErrorArm(*is_error)],b).map(Some);
         }
+        InstructionKind::UpdateField{aggregate,index,value}=>{
+            let source=get(*aggregate)?;source.work(b)?;out=source.clone();
+            b.spend(out.nested.len())?;
+            out.nested.retain(|(path,_)|path.as_slice()!=[PlaceProjection::Field(*index)]);
+            out.attach(PlaceProjection::Field(*index),get(*value)?,b)?;
+        }
         InstructionKind::ExtractField{aggregate,index}=>{
             return get(*aggregate)?.project(&[PlaceProjection::Field(*index)],b).map(Some);
         }

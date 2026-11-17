@@ -31,6 +31,7 @@ pub(super) fn operation(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> C
             i.result
                 .ok_or_else(|| err("compound constructor lacks result"))?,
         )?,
+        InstructionKind::UpdateField{aggregate,..}=>vt(f,*aggregate)?,
         InstructionKind::UnpackTuple { local, .. } | InstructionKind::DropTuple { local } => {
             &f.locals[local.0 as usize].ty
         }
@@ -38,6 +39,14 @@ pub(super) fn operation(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> C
     };
     if !matches!(ty, Type::Tuple(_)) || slots(ty, b)?.is_none() {
         return Ok(false);
+    }
+    if let InstructionKind::UpdateField{index,value,..}=&i.kind{
+        let Type::Tuple(children)=ty else{unreachable!()};
+        let child=children.get(*index as usize).ok_or_else(||err("compound field update ordinal is absent"))?;
+        let output=vt(f,i.result.ok_or_else(||err("compound field update lacks result"))?)?;
+        type_work(ty,&b.limits.clone(),b)?;type_work(output,&b.limits.clone(),b)?;
+        type_work(child,&b.limits.clone(),b)?;type_work(vt(f,*value)?,&b.limits.clone(),b)?;
+        if output!=ty||vt(f,*value)?!=child{return Err(err("compound field update changes complete parent or child type"));}
     }
     if let InstructionKind::UnpackTuple { local, fields } = &i.kind {
         let Type::Tuple(children) = ty else {
@@ -252,6 +261,22 @@ pub(super) fn construct(
     Ok(())
 }
 
+/// Functional field replacement retains every untouched physical permission,
+/// removes the complete overwritten subtree, then installs only the actual
+/// replacement SSA's sources and loan parents. Static is never inferred here.
+pub(super) fn update(f:&TypedFunction,i:&Instruction,values:&[Payload],b:&mut Budget)->Check<Payload>{
+    if !operation(f,i,b)?{return Err(err("field update lacks its complete compound operation"));}
+    let InstructionKind::UpdateField{aggregate,index,value}=i.kind else{return Err(err("compound update selects another actual opcode"));};
+    let source=values.get(aggregate.0 as usize).ok_or_else(||err("compound update source SSA is absent"))?;
+    let replacement=values.get(value.0 as usize).ok_or_else(||err("compound update replacement SSA is absent"))?;
+    let mut out=copy_payload(source,b)?;
+    out.leaves.retain(|(path,_)|!matches!(path.first(),Some(PlaceProjection::Field(field))if *field==index),b)?;
+    let Type::Tuple(children)=vt(f,aggregate)? else{unreachable!()};
+    if matches!(children[index as usize],Type::Address{..}){add_leaf(&mut out,&[PlaceProjection::Field(index)],&replacement.address,b)?;}
+    for(tail,permission)in &replacement.leaves{b.spend(tail.len().saturating_add(1))?;let mut path=vec![PlaceProjection::Field(index)];path.extend(tail);add_leaf(&mut out,&path,permission,b)?;}
+    Ok(out)
+}
+
 /// Project the actual physical field once for both SSA extraction and owned
 /// unpacking. Only a real Address child receives an outer pointer permission;
 /// a qualified/opaque child retains its complete field directory instead.
@@ -323,16 +348,29 @@ mod physical_tests{
     fn raw_tuple_pointer_fields_preserve_actual_source_and_loan_parents_through_construct_project_and_unpack_raw_wire(){
         let limits=Limits::default();let(mut module,_)=crate::tests::baseline();let template=module.functions[0].clone();
         let address=Type::Address{mutable:false,inner:Box::new(Type::I32)};let tuple=Type::Tuple(vec![address.clone(),Type::I32]);
-        let f=&mut module.functions[0];f.parameters.clear();f.values=vec![address.clone(),Type::I32,tuple.clone(),address.clone()];f.locals=(0..3).map(|index|LocalDecl{id:LocalId(index),name:format!("p{index}"),ty:if index==0{tuple.clone()}else if index==1{address.clone()}else{Type::I32},mutable:true,span:template.span}).collect();
+        let f=&mut module.functions[0];f.parameters.clear();f.values=vec![address.clone(),Type::I32,tuple.clone(),address.clone(),tuple.clone(),tuple.clone(),address.clone()];f.locals=(0..3).map(|index|LocalDecl{id:LocalId(index),name:format!("p{index}"),ty:if index==0{tuple.clone()}else if index==1{address.clone()}else{Type::I32},mutable:true,span:template.span}).collect();
         let plan=CandidatePlan::empty_for(&module);
         for wire in [false,true]{
             let bytes=zil_ir::wire::encode_module_candidate(&module,&plan,&limits).unwrap();let decoded=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap().0;
             let f=if wire{&decoded.functions[0]}else{&module.functions[0]};let mut b=Budget::new(&limits);
             assert_eq!(slots(&tuple,&mut b).unwrap(),Some(vec![(vec![PlaceProjection::Field(0)],StoredBorrowMode::SharedAddress)]));
             let permission=Permission{sources:vec![Source{base:HoldRoot::Parameter(0),static_dependency:StaticProvenance::NotStatic,leaf:vec![],inline:vec![],retained_port:None,heap_element:None,heap_parents:vec![]}],loans:vec![0,2]};
-            let mut values=vec![Payload::default();4];values[0].address=permission.clone();
+            let mut values=vec![Payload::default();7];values[0].address=permission.clone();
             let i=Instruction{result:Some(ValueId(2)),kind:InstructionKind::MakeAggregate{fields:vec![ValueId(0),ValueId(1)]},span:f.span};let mut made=Payload::default();construct(f,&i,&[ValueId(0),ValueId(1)],&values,&mut made,&mut b).unwrap();
             let selected=field_payload(&made,0,&address,&mut b).unwrap();assert_eq!(selected.address,permission);assert!(selected.leaves.is_empty());
+            // A scalar sibling update preserves the original physical pointer.
+            // Replacing the pointer removes the old literal and all old loans.
+            values[2]=copy_payload(&made,&mut b).unwrap();
+            let scalar=Instruction{result:Some(ValueId(4)),kind:InstructionKind::UpdateField{aggregate:ValueId(2),index:1,value:ValueId(1)},span:f.span};
+            let unchanged=update(f,&scalar,&values,&mut b).unwrap();assert_eq!(field_payload(&unchanged,0,&address,&mut b).unwrap().address,permission);
+            let mut literal=permission.clone();literal.sources[0].base=HoldRoot::Static;literal.sources[0].static_dependency=StaticProvenance::Literal;literal.loans=vec![];
+            let mut captured=Payload::default();add_leaf(&mut captured,&[PlaceProjection::Field(0)],&literal,&mut b).unwrap();values[2]=captured;
+            let literal_unchanged=update(f,&scalar,&values,&mut b).unwrap();assert_eq!(field_payload(&literal_unchanged,0,&address,&mut b).unwrap().address,literal);
+            let mut replacement=permission.clone();replacement.sources[0].base=HoldRoot::Parameter(1);replacement.loans=vec![4];values[6].address=replacement.clone();
+            let replace=Instruction{result:Some(ValueId(5)),kind:InstructionKind::UpdateField{aggregate:ValueId(2),index:0,value:ValueId(6)},span:f.span};
+            let replaced=update(f,&replace,&values,&mut b).unwrap();assert_eq!(field_payload(&replaced,0,&address,&mut b).unwrap().address,replacement,"old Static literal and loan ancestry cannot survive replacement");
+            for(index,value)in [(0,ValueId(1)),(2,ValueId(6))]{let hostile=Instruction{result:Some(ValueId(5)),kind:InstructionKind::UpdateField{aggregate:ValueId(2),index,value},span:f.span};assert!(operation(f,&hostile,&mut b).is_err());}
+
             assert!(field_payload(&made,1,&Type::I32,&mut b).unwrap().address.sources.is_empty());
             let mut state=Frame{locals:vec![made,Payload::default(),Payload::default()],..Frame::default()};unpack(f,LocalId(0),&[LocalId(1),LocalId(2)],&mut state,&mut b).unwrap();assert_eq!(state.locals[1].address,permission);assert!(state.locals[0].leaves.is_empty());
             assert!(construct(f,&i,&[ValueId(1),ValueId(0)],&values,&mut Payload::default(),&mut b).is_err(),"constructor cannot swap differently typed fields");
