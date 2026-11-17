@@ -19,6 +19,99 @@ impl Meter<'_> {
     fn sort(self, count: usize) -> Result<()> {
         self.pay(count.saturating_mul(count.max(1).ilog2() as usize + 1))
     }
+    fn same_name(self, a: &str, b: &str) -> Result<bool> {
+        self.pay(1)?;
+        if a.len() != b.len() {
+            return Ok(false);
+        }
+        self.pay(a.len())?;
+        Ok(a == b)
+    }
+    fn same_type(self, a: &Ty, b: &Ty) -> Result<bool> {
+        if self.0.is_none() {
+            return Ok(a == b);
+        }
+        self.pay(1)?;
+        Ok(match (a, b) {
+            (Ty::Void, Ty::Void) | (Ty::Ptr, Ty::Ptr) | (Ty::F32, Ty::F32) | (Ty::F64, Ty::F64) => {
+                true
+            }
+            (Ty::Int(a), Ty::Int(b)) => a == b,
+            (Ty::Named(a), Ty::Named(b)) => self.same_name(a, b)?,
+            (Ty::Array(n, a), Ty::Array(m, b)) => n == m && self.same_type(a, b)?,
+            (Ty::Struct(a), Ty::Struct(b)) => {
+                if a.len() != b.len() {
+                    return Ok(false);
+                }
+                for (a, b) in a.iter().zip(b) {
+                    if !self.same_type(a, b)? {
+                        return Ok(false);
+                    }
+                }
+                true
+            }
+            _ => false,
+        })
+    }
+    fn same_arg(self, a: &Arg, b: &Arg) -> Result<bool> {
+        if !self.same_type(&a.ty, &b.ty)? || !self.same_value(&a.value, &b.value)? {
+            return Ok(false);
+        }
+        self.pay(a.attrs.len().saturating_add(b.attrs.len()))?;
+        Ok(a.attrs == b.attrs)
+    }
+    fn same_args(self, a: &[Arg], b: &[Arg]) -> Result<bool> {
+        self.pay(1)?;
+        if a.len() != b.len() {
+            return Ok(false);
+        }
+        for (a, b) in a.iter().zip(b) {
+            if !self.same_arg(a, b)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+    fn same_value(self, a: &Val, b: &Val) -> Result<bool> {
+        if self.0.is_none() {
+            return Ok(a == b);
+        }
+        self.pay(1)?;
+        Ok(match (a, b) {
+            (Val::Local(a), Val::Local(b))
+            | (Val::Global(a), Val::Global(b))
+            | (Val::Invalid(a), Val::Invalid(b)) => self.same_name(a, b)?,
+            (Val::Int(a), Val::Int(b)) => a == b,
+            (Val::F32(a), Val::F32(b)) => a == b,
+            (Val::F64(a), Val::F64(b)) => a == b,
+            (Val::Bool(a), Val::Bool(b)) => a == b,
+            (Val::Null, Val::Null)
+            | (Val::Zero, Val::Zero)
+            | (Val::Undef, Val::Undef)
+            | (Val::Poison, Val::Poison) => true,
+            (Val::Array(a), Val::Array(b)) => self.same_args(a, b)?,
+            (Val::Bytes(a), Val::Bytes(b)) => {
+                if a.len() != b.len() {
+                    return Ok(false);
+                }
+                self.pay(a.len())?;
+                a == b
+            }
+            (
+                Val::Gep {
+                    ty: a,
+                    ptr: ap,
+                    indices: ai,
+                },
+                Val::Gep {
+                    ty: b,
+                    ptr: bp,
+                    indices: bi,
+                },
+            ) => self.same_type(a, b)? && self.same_value(ap, bp)? && self.same_args(ai, bi)?,
+            _ => false,
+        })
+    }
     fn local_uses<'a>(self, value: &'a Val, output: &mut Vec<&'a str>) -> Result<()> {
         self.pay(1)?;
         match value {
@@ -324,7 +417,7 @@ impl<'a> World<'a> {
                 let d = defs
                     .get(name.as_str())
                     .ok_or_else(|| format!("undefined SSA value %{name}"))?;
-                if d.ty != t {
+                if !self.meter.same_type(d.ty, t)? {
                     return fail(format!("SSA type mismatch for %{name}: {} != {t}", d.ty));
                 }
             }
@@ -366,7 +459,7 @@ impl<'a> World<'a> {
                     return fail("array initializer length mismatch");
                 }
                 for a in values {
-                    if a.ty != **element {
+                    if !self.meter.same_type(&a.ty, element)? {
                         return fail("array initializer element type mismatch");
                     }
                     if !a.attrs.is_empty() {
@@ -592,7 +685,10 @@ impl<'a> World<'a> {
             Op::Insert { arg, field, index } => {
                 self.arg(arg, defs, false)?;
                 self.arg(field, defs, false)?;
-                if self.indexed(&arg.ty, *index)? != &field.ty {
+                if !self
+                    .meter
+                    .same_type(self.indexed(&arg.ty, *index)?, &field.ty)?
+                {
                     return fail("insertvalue field type mismatch");
                 }
             }
@@ -619,7 +715,7 @@ impl<'a> World<'a> {
                         return fail("calling a global that is not a function");
                     };
                     let sig = &f.signature;
-                    if sig.result != *result
+                    if !self.meter.same_type(&sig.result, result)?
                         || sig.result_attrs != *result_attrs
                         || args.len() < sig.params.len()
                         || (!sig.variadic && args.len() != sig.params.len())
@@ -629,14 +725,19 @@ impl<'a> World<'a> {
                     if sig.variadic != vararg.is_some() {
                         return fail("variadic call signature missing/mismatched");
                     }
-                    if let Some(ts) = vararg
-                        && *ts != sig.params.iter().map(|p| p.ty.clone()).collect::<Vec<_>>()
-                    {
-                        return fail("variadic fixed parameter mismatch");
+                    if let Some(ts) = vararg {
+                        if ts.len() != sig.params.len() {
+                            return fail("variadic fixed parameter mismatch");
+                        }
+                        for (ty, parameter) in ts.iter().zip(&sig.params) {
+                            if !self.meter.same_type(ty, &parameter.ty)? {
+                                return fail("variadic fixed parameter mismatch");
+                            }
+                        }
                     }
                     for (p, a) in sig.params.iter().zip(args) {
                         self.meter.pay(1 + p.attrs.len() + a.attrs.len())?;
-                        if p.ty != a.ty || p.attrs != a.attrs {
+                        if !self.meter.same_type(&p.ty, &a.ty)? || p.attrs != a.attrs {
                             return fail(format!("call parameter ABI mismatch for @{name}"));
                         }
                     }
@@ -658,7 +759,7 @@ impl<'a> World<'a> {
                 }
             }
             Op::Return(Some(a)) => {
-                if a.ty != signature.result {
+                if !self.meter.same_type(&a.ty, &signature.result)? {
                     return fail("return type mismatch");
                 }
                 self.arg(a, defs, false)?;
@@ -1074,6 +1175,7 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
             if let Op::Phi { incoming, .. } = &i.op {
                 let mut incoming_ids = vec![];
                 for (v, p) in incoming {
+                    world.meter.pay(1 + p.len())?;
                     let p = *labels.get(p.as_str()).ok_or("phi incoming block missing")?;
                     incoming_ids.push(p);
                     uses.clear();
@@ -1099,13 +1201,12 @@ fn function_in<'a, const COLLECT_SCHEDULE: bool>(
                 }
                 for (idx, (v, p)) in incoming.iter().enumerate() {
                     world.meter.pay(idx.saturating_add(1))?;
-                    if incoming[..idx]
-                        .iter()
-                        .any(|(old, block)| block == p && old != v)
-                    {
-                        return fail(
-                            "duplicate phi edges from a predecessor carry different values",
-                        );
+                    for (old, block) in &incoming[..idx] {
+                        if world.meter.same_name(block, p)? && !world.meter.same_value(old, v)? {
+                            return fail(
+                                "duplicate phi edges from a predecessor carry different values",
+                            );
+                        }
                     }
                 }
             } else {

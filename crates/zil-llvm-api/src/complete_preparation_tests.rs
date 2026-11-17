@@ -170,3 +170,104 @@ fn preparation_charges_cyclic_cfg_and_unreachable_ssa_schedule() {
         .unwrap_err();
     assert!(failure.contains("CFG budget exhausted"));
 }
+
+#[test]
+fn repeated_phi_name_queries_pay_for_every_actual_name_scan() {
+    let length = 8192;
+    let count = 16;
+    let entry = "e".repeat(length);
+    let mut instructions = (0..count)
+        .map(|index| {
+            Inst::new(
+                Some(format!("p{index}")),
+                Op::Phi {
+                    ty: Ty::Int(32),
+                    incoming: vec![(Val::Int(7), entry.clone())],
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    instructions.push(Inst::new(None, Op::Return(None)));
+    let mut module = complete_module();
+    let Item::Function(function) = &mut module.items[3] else {
+        unreachable!()
+    };
+    function.blocks = Some(vec![
+        Block {
+            name: entry,
+            instructions: vec![Inst::new(None, Op::Branch("join".into()))],
+        },
+        Block {
+            name: "join".into(),
+            instructions,
+        },
+    ]);
+    validate_only(&module).unwrap();
+    assert!(
+        measured(&module) >= length * count,
+        "repeated actual queries cannot reuse a one-time name charge"
+    );
+}
+
+#[test]
+fn each_phi_operand_pays_its_whole_type_comparison() {
+    let width = 4096;
+    let incoming_count = 16;
+    let ty = Ty::structure(vec![Ty::Int(8); width]);
+    let mut blocks = vec![Block {
+        name: "entry".into(),
+        instructions: vec![Inst::new(None, Op::Branch("select0".into()))],
+    }];
+    for index in 0..incoming_count {
+        blocks.push(Block {
+            name: format!("select{index}"),
+            instructions: vec![Inst::new(
+                None,
+                if index + 1 == incoming_count {
+                    Op::Branch(format!("pred{index}"))
+                } else {
+                    Op::CondBranch {
+                        condition: Val::Bool(true),
+                        yes: format!("pred{index}"),
+                        no: format!("select{}", index + 1),
+                    }
+                },
+            )],
+        });
+        blocks.push(Block {
+            name: format!("pred{index}"),
+            instructions: vec![Inst::new(None, Op::Branch("join".into()))],
+        });
+    }
+    blocks.push(Block {
+        name: "join".into(),
+        instructions: vec![
+            Inst::new(
+                Some("merged".into()),
+                Op::Phi {
+                    ty: ty.clone(),
+                    incoming: (0..incoming_count)
+                        .map(|index| (Val::Local("argument".into()), format!("pred{index}")))
+                        .collect(),
+                },
+            ),
+            Inst::new(None, Op::Return(None)),
+        ],
+    });
+    let module = Module {
+        triple: "x86_64-unknown-linux-gnu".into(),
+        fingerprint: "wide-phi".into(),
+        items: vec![Item::Function(Function {
+            name: "join".into(),
+            linkage: Linkage::External,
+            signature: Signature::new(Ty::Void, vec![Param::new(ty, "argument")]),
+            attrs: vec![],
+            blocks: Some(blocks),
+        })],
+    };
+    validate_only(&module).unwrap();
+    assert!(
+        measured(&module) >= width * incoming_count,
+        "a shared type header cannot pay once for repeated structural comparisons"
+    );
+}
