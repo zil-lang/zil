@@ -103,7 +103,11 @@ pub(super) fn transferred(d: &ClosureDefinition) -> bool {
 // A scheduling tag, never qualification. definitions() rechecks the complete
 // actual inputs, result, captures and entry before this ledger uses the value.
 fn borrowed_owned_candidate(d: &ClosureDefinition) -> bool {
-    d.lending_captures.is_empty()
+    // Canonical Poll<Unit> already has its independent close-result lane.
+    // Its Copy tag/payload is not an owned result responsibility. This exact,
+    // bounded physical constructor comparison grants no Ready/Closed fact.
+    !super::tasks::is_close_poll(&d.result)
+        && d.lending_captures.is_empty()
         && d.kind != CallableKind::FunctionPointer
         && matches!(
             d.result,
