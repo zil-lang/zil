@@ -2,6 +2,7 @@
 //! forged `Type::Unsupported` values in the public IR.
 use super::*;
 use std::collections::BTreeSet;
+use zil_base::NodeId;
 mod methods;
 mod package_effects;
 mod patterns;

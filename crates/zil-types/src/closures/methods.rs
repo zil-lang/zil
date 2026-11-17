@@ -14,7 +14,8 @@ impl InferBuilder<'_, '_> {
         span: Span,
     ) -> R<Option<LocalType>> {
         let variable = match base {
-            LocalType::Scalar(v) | LocalType::Address(v, _) | LocalType::Resource(v, _) => v,
+            LocalType::Scalar(v) | LocalType::Address(v, _) | LocalType::Resource(v, _)
+                | LocalType::Projected(v, _) => v,
             LocalType::SliceLength | LocalType::Closure(..) | LocalType::Nested(..) => {
                 return Ok(None);
             }
@@ -74,6 +75,10 @@ impl InferBuilder<'_, '_> {
                 ));
             }
             if mutable {
+                if base.projection_permission() == Some(false) {
+                    return Err(error("E-ADDRESS-PERMISSION", object.span,
+                        "shared projected dyn receiver cannot grant exclusive slot access"));
+                }
                 self.mark_address_write(object, depth + 1)?;
             }
             for (argument, parameter) in arguments.iter().zip(&parameters) {
@@ -105,6 +110,18 @@ impl InferBuilder<'_, '_> {
         }
         let receiver = &signature.parameters[0];
         let receiver_value = match (receiver, base, &actual) {
+            (Type::Address { mutable, .. }, LocalType::Projected(v, available), ty)
+                if !matches!(ty, Type::Address { .. }) =>
+            {
+                if *mutable && !available {
+                    return Err(error("E-ADDRESS-PERMISSION", object.span,
+                        "shared aggregate view cannot grant an exclusive method receiver"));
+                }
+                // A real parent view may be borrowed for this receiver only;
+                // binding below still checks the complete pointee signature.
+                // A by-value/Desc receiver keeps Projected and bind rejects it.
+                LocalType::Address(v, *mutable)
+            }
             (Type::Address { mutable, .. }, LocalType::Scalar(v), ty)
                 if !matches!(ty, Type::Address { .. }) =>
             {
