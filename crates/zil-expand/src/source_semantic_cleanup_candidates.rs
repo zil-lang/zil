@@ -1513,7 +1513,7 @@ fn opaque_bounds<'a>(
     }
     Ok(())
 }
-fn propose_inner(modules: &mut [(ModuleId, SemanticModule)], budget: &mut Budget<'_>) -> R<()> {
+fn propose_inner(modules: &mut [(ModuleId, SemanticModule)], budget: &mut Budget<'_>) -> R<bool> {
     let mut definitions = Vec::new();
     for (_, module) in modules.iter() {
         for definition in &module.definitions {
@@ -1567,7 +1567,8 @@ fn propose_inner(modules: &mut [(ModuleId, SemanticModule)], budget: &mut Budget
         rows: &mut [SemanticRequirementRecipe],
         budget: &mut Budget<'_>,
         depth: usize,
-    ) -> R<()> {
+    ) -> R<bool> {
+        let mut changed = false;
         for row in rows {
             budget.node(Span::default(), depth)?;
             match row {
@@ -1579,30 +1580,35 @@ fn propose_inner(modules: &mut [(ModuleId, SemanticModule)], budget: &mut Budget
                         },
                     kind: CallableKind::FnOnce,
                     signature,
-                } => signature.call_kind = CallKind::Suspend,
+                } => {
+                    changed |= signature.call_kind != CallKind::Suspend;
+                    signature.call_kind = CallKind::Suspend;
+                }
                 SemanticRequirementRecipe::ForAll { requirements, .. } => {
-                    publish(requirements, budget, depth + 1)?
+                    changed |= publish(requirements, budget, depth + 1)?
                 }
                 _ => {}
             }
         }
-        Ok(())
+        Ok(changed)
     }
+    let mut changed = false;
     for (_, module) in modules {
         for definition in &mut module.definitions {
             budget.identity_work(selected.len(), Span::default())?;
             if selected.contains(&definition.id) {
-                publish(&mut definition.requirements, budget, 0)?;
+                changed |= publish(&mut definition.requirements, budget, 0)?;
             }
         }
     }
-    budget.drop_lineage_vec(selected, Span::default())
+    budget.drop_lineage_vec(selected, Span::default())?;
+    Ok(changed)
 }
 
 pub(super) fn propose(
     modules: &mut [(ModuleId, SemanticModule)],
     budget: &mut Budget<'_>,
-) -> R<()> {
+) -> R<bool> {
     let mark = budget.lineage_checkpoint();
     let result = propose_inner(modules, budget);
     // The only publication is CallKind on existing original signatures; all

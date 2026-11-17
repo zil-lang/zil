@@ -488,9 +488,76 @@ impl<'a> Scan<'a, '_, '_, '_> {
             SemanticTypeRecipe::Managed(inner)
             | SemanticTypeRecipe::Address { inner, .. }
             | SemanticTypeRecipe::Desc { inner, .. }
-            | SemanticTypeRecipe::Qualified { storage: inner, .. }
-            | SemanticTypeRecipe::Opaque { hidden: inner, .. } => {
+            | SemanticTypeRecipe::Qualified { storage: inner, .. } => {
                 self.bound_type(owner, inner, context, depth + 1, span)?
+            }
+            SemanticTypeRecipe::Opaque {
+                definition,
+                arguments,
+                hidden,
+                ..
+            } => {
+                let Some(declaration) =
+                    declaration_index(self.definitions, *definition, self.budget, span)?
+                else {
+                    return Ok(Target::Unknown);
+                };
+                let subject = SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source: SemanticOriginalTypeSource::Result,
+                };
+                let mut found = Vec::new();
+                self.premise_prototypes(declaration, &subject, &mut found, depth + 1, span)?;
+                if found.is_empty() {
+                    self.budget.drop_lineage_vec(found, span)?;
+                    return self.bound_type(owner, hidden, context, depth + 1, span);
+                }
+                let application = self.application(
+                    declaration,
+                    owner,
+                    Arguments::Semantic(arguments),
+                    context,
+                    span,
+                )?;
+                let mut selected = None;
+                if let Some(application) = application {
+                    for (signature, frames) in &mut found {
+                        let frame = self.quantifiers.len();
+                        self.budget
+                            .lineage_push(self.quantifiers, std::mem::take(frames), span)?;
+                        let index = self.prototypes.len();
+                        self.budget.lineage_push(
+                            self.prototypes,
+                            Prototype::Code {
+                                owner: declaration,
+                                signature: *signature,
+                                context: Some(application),
+                                frames: Some(frame),
+                            },
+                            span,
+                        )?;
+                        let next = Target::Prototype(index, signature.call_kind);
+                        selected = Some(match selected {
+                            None => next,
+                            Some(previous) => {
+                                let index = self.alternatives.len();
+                                self.budget.lineage_push(
+                                    self.alternatives,
+                                    (previous, next),
+                                    span,
+                                )?;
+                                Target::Alternatives(index)
+                            }
+                        });
+                    }
+                }
+                for (_, frames) in &mut found {
+                    self.budget.drop_lineage_vec(std::mem::take(frames), span)?;
+                }
+                self.budget.drop_lineage_vec(found, span)?;
+                // The public complete operation, not its hidden body entry,
+                // determines the caller's effect and result prototype.
+                selected.unwrap_or(Target::Unknown)
             }
             SemanticTypeRecipe::OwnedStore(element) => {
                 // Keep the original element's complete nominal application
@@ -2015,11 +2082,12 @@ pub(super) fn observe_call_prototypes(
     Ok(observations)
 }
 
-pub(super) fn propose(
+fn propose_round(
     modules: &mut [(ModuleId, SemanticModule)],
     originals: &SourceDeclarationInventory<'_>,
     budget: &mut Budget<'_>,
-) -> R<()> {
+) -> R<bool> {
+    let mut changed = false;
     let mut definitions = Vec::new();
     for (_, module) in modules.iter() {
         for definition in &module.definitions {
@@ -2041,7 +2109,8 @@ pub(super) fn propose(
         }
         let vertex = Vertex {
             explicit,
-            suspend: explicit == Some(CallKind::Suspend),
+            suspend: explicit == Some(CallKind::Suspend)
+                || (explicit.is_none() && signature(definition).is_some_and(|signature| signature.call_kind == CallKind::Suspend)),
             edges: Vec::new(),
             consumes: Vec::new(),
             forwards: Vec::new(),
@@ -2230,9 +2299,9 @@ pub(super) fn propose(
             for role in &promoted {
                 if role.owner != index { continue; }
                 if let Some(SemanticFormal::Type { requirements }) = definition.parameters.get_mut(role.ordinal as usize) {
-                    promote_once(requirements, role.ordinal, budget, 0)?;
+                    changed |= promote_once(requirements, role.ordinal, budget, 0)?;
                 }
-                promote_once(&mut definition.requirements, role.ordinal, budget, 0)?;
+                changed |= promote_once(&mut definition.requirements, role.ordinal, budget, 0)?;
             }
             index += 1;
             let kind = vertex.explicit.unwrap_or(if vertex.suspend {
@@ -2243,6 +2312,7 @@ pub(super) fn propose(
             if let SemanticDefinitionBody::FunctionWithBody { signature, .. }
             | SemanticDefinitionBody::Function { signature, .. } = &mut definition.body
             {
+                changed |= signature.call_kind != kind;
                 signature.call_kind = kind;
             }
         }
@@ -2257,7 +2327,25 @@ pub(super) fn propose(
     // Every actual consume use of a promoted role already belongs to a
     // Suspend vertex. Thus publication cannot introduce a new function effect
     // edge, and never bootstraps a Suspend premise from its own invocation.
-    cleanup_candidates::propose(modules, budget)
+    Ok(changed)
+}
+
+pub(super) fn propose(
+    modules: &mut [(ModuleId, SemanticModule)],
+    originals: &SourceDeclarationInventory<'_>,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    // A new opaque operation upper can affect an ordinary caller, whose new
+    // body upper can in turn affect another returned callable. Use the same
+    // bounded original graph to closure, not one extra scan or hidden-entry
+    // substitution. Every published bit changes only Direct -> Suspend;
+    // explicitly Direct bodies remain fixed by their original declaration.
+    loop {
+        budget.node(Span::default(), 0)?;
+        let effects_changed = propose_round(modules, originals, budget)?;
+        let cleanup_changed = cleanup_candidates::propose(modules, budget)?;
+        if !effects_changed && !cleanup_changed { return Ok(()); }
+    }
 }
 
 #[cfg(test)]
@@ -2528,6 +2616,11 @@ fn sync_inner()->impl Fn()->i32{return move()=>42;}
 fn sync_outer()->impl FnOnce()->i32{let inner=sync_inner();return move()=>inner();}
 fn task_inner(give task:Task<i32>)->impl FnMut()->i32{return move()=>{task_valid(task);return 0;};}
 fn task_outer(give task:Task<i32>)->impl FnOnce()->i32{var inner=task_inner(give task);return move()=>inner();}
+fn invoke(give task:Task<i32>)->i32{let callback=observed(give task);return callback();}
+fn layer(give task:Task<i32>)->impl FnOnce()->i32{return move()=>invoke(give task);}
+fn invoke_layer(give task:Task<i32>)->i32{let callback=layer(give task);return callback();}
+fn invoke_sync()->i32{let callback=literal();return callback();}
+fn explicit_direct(give task:Task<i32>)->i32 contract{effects(io);}{let callback=observed(give task);return callback();}
 fn through_tuple(give task:Task<i32>)->impl FnOnce()->Managed<Task<i32>>{return move()=>{let pair=(give task,);let (selected,)=pair;return give selected;};}
 fn main(){}
 "#,
@@ -2546,6 +2639,7 @@ fn main(){}
             ("through_tuple", CallKind::Direct),
             ("sync_outer", CallKind::Direct),
             ("task_outer", CallKind::Suspend),
+            ("layer", CallKind::Suspend),
         ] {
             let definition = function(&module, name);
             let mut found = false;
@@ -2566,6 +2660,22 @@ fn main(){}
             }
             assert!(found, "{name}");
             assert_eq!(signature(definition).unwrap().call_kind, CallKind::Direct);
+        }
+        // Both ordinary callers and callers of a second returned factory
+        // must see the published operation, even without their own yield.
+        for name in ["invoke", "invoke_layer"] {
+            assert_eq!(
+                signature(function(&module, name)).unwrap().call_kind,
+                CallKind::Suspend,
+                "{name}"
+            );
+        }
+        for name in ["invoke_sync", "explicit_direct"] {
+            assert_eq!(
+                signature(function(&module, name)).unwrap().call_kind,
+                CallKind::Direct,
+                "{name}"
+            );
         }
         // Candidate formation does not establish the close helper's Closed
         // precondition, nor permit any actual Direct consume to suspend.
