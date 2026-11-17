@@ -285,8 +285,14 @@ impl RawAnalysisBase {
                 return None;
             }
             let (_, inventory) = facts.get(input)?;
+            // plan_shape reads only these input lengths and the immutable
+            // plan columns. Literal operands and diagnostic placement are not
+            // its dependencies; they remain bound by the separate full input
+            // comparison and per-function header/aggregate quota checks.
             let shape_key = (
-                body_owners(input),
+                input.locals.len(),
+                input.values.len(),
+                input.blocks.len(),
                 std::ptr::from_ref(&*row.plan.blocks) as usize,
                 std::ptr::from_ref(&*row.plan.holds) as usize,
             );

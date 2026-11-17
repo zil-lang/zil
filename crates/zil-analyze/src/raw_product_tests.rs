@@ -330,3 +330,45 @@ fn raw_restart_foreign_unsafe_diagnostic_placement_is_exact() {
             || restored.last_stats().product_global_obligations_executed != 0
     );
 }
+
+#[test]
+fn raw_plan_shape_reuse_tracks_actual_lengths_and_rejects_other_local_bounds() {
+    let mut source = (*program()).clone();
+    source.module.functions = (0..3).map(|id| function(id, 7 + id as i32)).collect();
+    let source = Arc::new(source);
+    let limits = Limits::default();
+    let mut raw = seed(&source, &limits);
+    let first = raw.rows[0].plan.clone();
+    for row in &mut raw.rows {
+        assert_eq!(row.plan.blocks, first.blocks);
+        assert_eq!(row.plan.holds, first.holds);
+        let mut plan = row.plan.as_ref().clone();
+        plan.blocks = first.blocks.clone();
+        plan.holds = first.holds.clone();
+        row.plan = Arc::new(plan);
+    }
+    let mut restored = AnalysisSession::default();
+    check(&mut restored, &source, &limits, &raw).unwrap();
+    assert_eq!(restored.last_stats().raw_plan_shapes_checked, 1);
+    assert_eq!(restored.last_stats().raw_plan_shapes_reused, 2);
+    // The same immutable plan column references local0. It fits the first
+    // candidate's local collection but must miss for the next empty collection.
+    let mut input = raw.rows[0].input.as_ref().clone();
+    input.locals.push(LocalDecl {
+        id: LocalId(0),
+        name: "bound".into(),
+        ty: Type::I32,
+        mutable: false,
+        span: Span::default(),
+    });
+    raw.rows[0].input = Arc::new(input);
+    let mut plan = first.as_ref().clone();
+    plan.blocks[0].initialized_in = vec![LocalId(0)];
+    plan.blocks[0].initialized_out = vec![LocalId(0)];
+    for row in &mut raw.rows {
+        let mut shared = plan.clone();
+        shared.function = row.input.id;
+        row.plan = Arc::new(shared);
+    }
+    assert!(raw.epoch(&source, &limits).is_none());
+}

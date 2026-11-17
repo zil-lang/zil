@@ -4,7 +4,9 @@
 //! reuse; all successful compilations still obtain current independent Verify.
 use super::*;
 use std::collections::HashMap;
+use std::collections::hash_map::RandomState;
 use std::fs::OpenOptions;
+use std::hash::{BuildHasher, Hash, Hasher};
 use std::io::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
 use zil_analyze::{RawAnalysisBase, RawAnalysisRow};
@@ -150,6 +152,7 @@ struct Template {
     input: Arc<TypedFunction>,
     plan: Arc<zil_ir::FunctionPlan>,
     span_sensitive: bool,
+    input_nodes: usize,
 }
 struct Encoded {
     input: Arc<[u8]>,
@@ -178,6 +181,207 @@ fn template_eq(
 fn put_blob(output: &mut Writer, bytes: &[u8]) -> Option<()> {
     output.number(bytes.len())?;
     output.put(bytes)
+}
+
+// Optional cache work has one current bounded balance. It never replenishes
+// the Analyze ledger or reports a language diagnostic; exhaustion skips save.
+struct Fuel(usize);
+impl Fuel {
+    fn spend(&mut self, amount: usize) -> Option<()> {
+        self.0 = self.0.checked_sub(amount)?;
+        Some(())
+    }
+}
+struct Representative {
+    input: Arc<TypedFunction>,
+    plan: Arc<zil_ir::FunctionPlan>,
+    sensitive: bool,
+    input_work: usize,
+    plan_work: usize,
+}
+const MAX_BUCKET: usize = 16;
+
+// The selector never authorizes an alias. Unsupported/rich data is simply not
+// indexed. All varying fields in the closed, non-sensitive vocabulary are
+// hashed explicitly; only outer ID/name and diagnostic spans are omitted.
+fn semantic_selector(
+    function: &TypedFunction,
+    random: &RandomState,
+    fuel: &mut Fuel,
+) -> Option<(u64, usize)> {
+    use zil_ir::{CallKind, InstructionKind as I, Terminator, Type};
+    let TypedFunction {
+        storage_life,
+        call_kind,
+        reference_return_bound,
+        callable_return_contract,
+        callable_contract,
+        protocol_contract,
+        id: _,
+        name: _,
+        foreign,
+        environment,
+        parameters,
+        return_type,
+        result_mode,
+        locals,
+        values,
+        blocks,
+        entry,
+        span: _,
+    } = function;
+    if *call_kind != CallKind::Direct
+        || storage_life.is_some()
+        || reference_return_bound.is_some()
+        || callable_return_contract.is_some()
+        || callable_contract.is_some()
+        || protocol_contract.is_some()
+        || foreign.is_some()
+        || environment.is_some()
+    {
+        return None;
+    }
+    fn primitive(ty: &Type) -> bool {
+        matches!(
+            ty,
+            Type::Unit
+                | Type::Bool
+                | Type::I8
+                | Type::I16
+                | Type::I32
+                | Type::I64
+                | Type::Isize
+                | Type::U8
+                | Type::U16
+                | Type::U32
+                | Type::U64
+                | Type::Usize
+                | Type::F32
+                | Type::F64
+        )
+    }
+    let before = fuel.0;
+    fuel.spend(parameters.len().checked_add(1)?)?;
+    if !primitive(return_type) {
+        return None;
+    }
+    let mut hash = random.build_hasher();
+    parameters.hash(&mut hash);
+    return_type.hash(&mut hash);
+    result_mode.hash(&mut hash);
+    entry.hash(&mut hash);
+    locals.len().hash(&mut hash);
+    for local in locals {
+        fuel.spend(local.name.len().checked_add(1)?)?;
+        if !primitive(&local.ty) {
+            return None;
+        }
+        local.id.hash(&mut hash);
+        local.name.hash(&mut hash);
+        local.ty.hash(&mut hash);
+        local.mutable.hash(&mut hash);
+    }
+    values.len().hash(&mut hash);
+    for ty in values {
+        fuel.spend(1)?;
+        if !primitive(ty) {
+            return None;
+        }
+        ty.hash(&mut hash);
+    }
+    blocks.len().hash(&mut hash);
+    for block in blocks {
+        fuel.spend(1)?;
+        block.id.hash(&mut hash);
+        std::mem::discriminant(&block.terminator).hash(&mut hash);
+        match block.terminator {
+            Terminator::Return(value) => value.hash(&mut hash),
+            Terminator::Jump(target) => target.hash(&mut hash),
+            Terminator::Branch {
+                condition,
+                then_block,
+                else_block,
+            } => (condition, then_block, else_block).hash(&mut hash),
+            Terminator::Trap | Terminator::Unreachable => {}
+        }
+        block.instructions.len().hash(&mut hash);
+        for instruction in &block.instructions {
+            fuel.spend(1)?;
+            instruction.result.hash(&mut hash);
+            std::mem::discriminant(&instruction.kind).hash(&mut hash);
+            match &instruction.kind {
+                I::Constant(value) if primitive(&value.ty()) => value.hash(&mut hash),
+                I::Load(id) | I::StorageLive(id) | I::StorageDead(id) => id.hash(&mut hash),
+                I::Store { local, value } => (local, value).hash(&mut hash),
+                I::Unary { op, operand } => (op, operand).hash(&mut hash),
+                I::Binary { op, left, right } => (op, left, right).hash(&mut hash),
+                I::ConvertInteger { value, target } | I::ConvertNumber { value, target }
+                    if primitive(target) =>
+                {
+                    (value, target).hash(&mut hash)
+                }
+                I::Call {
+                    function,
+                    arguments,
+                } => {
+                    fuel.spend(arguments.len())?;
+                    (function, arguments).hash(&mut hash);
+                }
+                I::ScopeEnter { scope } => scope.hash(&mut hash),
+                I::ScopeExit { scope, kind } => (scope, kind).hash(&mut hash),
+                _ => return None,
+            }
+        }
+    }
+    Some((hash.finish(), before - fuel.0))
+}
+fn plan_work(plan: &zil_ir::FunctionPlan, fuel: &mut Fuel) -> Option<usize> {
+    let mut work = plan
+        .blocks
+        .len()
+        .checked_add(plan.holds.len())?
+        .checked_add(1)?;
+    fuel.spend(work)?;
+    for block in &plan.blocks {
+        let count = block
+            .initialized_in
+            .len()
+            .checked_add(block.initialized_out.len())?;
+        fuel.spend(count)?;
+        work = work.checked_add(count)?;
+    }
+    for hold in &plan.holds {
+        fuel.spend(hold.roots.len())?;
+        work = work.checked_add(hold.roots.len())?;
+    }
+    Some(work)
+}
+fn same_representative(
+    old: &Representative,
+    function: &TypedFunction,
+    plan: &zil_ir::FunctionPlan,
+    sensitive: bool,
+    input_work: usize,
+    plan_work: usize,
+    fuel: &mut Fuel,
+) -> Option<bool> {
+    // Reserve both sides, including the eligibility walks inside same_template,
+    // before exact comparison. Even deliberately colliding buckets stay bounded.
+    let body = old
+        .input_work
+        .checked_add(input_work)?
+        .checked_add(old.input_work.min(input_work))?;
+    fuel.spend(body.checked_add(old.plan_work)?.checked_add(plan_work)?)?;
+    Some(
+        old.sensitive == sensitive
+            && (if sensitive {
+                old.input.as_ref() == function
+            } else {
+                RawAnalysisBase::same_template(&old.input, function)
+            })
+            && old.plan.blocks == plan.blocks
+            && old.plan.holds == plan.holds,
+    )
 }
 
 pub(crate) fn load(
@@ -320,27 +524,54 @@ fn decode(
             input: function,
             plan,
             span_sensitive,
+            input_nodes: encoding.node_cost(),
         });
     }
     let mut expanded = Vec::with_capacity(rows.len());
-    for (index, (template, costs)) in rows.into_iter().enumerate() {
-        let template = &templates[template];
+    for (index, (template_index, costs)) in rows.into_iter().enumerate() {
+        if options.cancellation.is_cancelled() {
+            return None;
+        }
+        let template = &templates[template_index];
         let current = &program.module.functions[index];
-        let mut function = template.input.as_ref().clone();
-        if template.span_sensitive {
+        let function = if template.span_sensitive {
             // Foreign/unsafe rows keep their actual original outer identity and
             // all diagnostic placement. Relocation is a current changed input.
-            if function.id != current.id || function.name != current.name {
+            if template.input.id != current.id || template.input.name != current.name {
                 return None;
             }
+            template.input.clone()
         } else {
-            function.id = current.id;
-            function.name = current.name.clone();
-        }
+            // A private current Types binding plus complete old/current raw
+            // fragment equality establishes this CURRENT semantic body. Adopt
+            // its real owner so Analyze need not rediscover equality for every
+            // alias. Diagnostic spans are ignored only in this non-sensitive
+            // domain; every callee ID, header and body field still binds.
+            let bound = products
+                .get(&current.id)
+                .and_then(|product| {
+                    product.canonical_encoding(current, limits, limits.max_source_bytes)
+                })
+                .and_then(|encoding| {
+                    encoding.reuse_decoded_scalar_header(
+                        encoded[template_index].input.clone(),
+                        limits,
+                        template.input_nodes,
+                    )
+                });
+            if bound.is_some() && RawAnalysisBase::same_template_headers(&template.input, current) {
+                program.module.functions.owner(index)?.clone()
+            } else {
+                let mut function = template.input.as_ref().clone();
+                function.id = current.id;
+                function.name = current.name.clone();
+                Arc::new(function)
+            }
+        };
         let mut plan = template.plan.as_ref().clone();
         plan.function = current.id;
         expanded.push(RawAnalysisRow {
-            input: Arc::new(function),
+            input: function,
             plan: Arc::new(plan),
             costs,
         });
@@ -392,9 +623,13 @@ fn save_inner(
     output.put(MAGIC)?;
     put_blob(&mut output, &raw.context)?;
     output.put(&u64::try_from(raw.global_cost).ok()?.to_le_bytes())?;
-    // Build actual immutable representative pairs, never fingerprint classes.
-    let mut representatives = Vec::<(Arc<TypedFunction>, Arc<zil_ir::FunctionPlan>)>::new();
+    // Owners accelerate actual sharing; semantic selectors also find cold
+    // separately allocated equal bodies. Only complete body/plan Eq aliases.
+    let mut representatives = Vec::<Representative>::new();
     let mut buckets = HashMap::<Owners, Vec<usize>>::new();
+    let mut semantic = HashMap::<u64, Vec<usize>>::new();
+    let random = RandomState::new();
+    let mut fuel = Fuel(options.limits.max_analysis_steps);
     let mut aliases = Vec::with_capacity(raw.rows.len());
     let mut sensitivities = HashMap::new();
     let mut comparisons = HashMap::new();
@@ -410,43 +645,83 @@ fn save_inner(
             .entry((owners(source), source.foreign.is_some()))
             .or_insert_with(|| RawAnalysisBase::span_sensitive(source))
             .as_ref()?;
+        let (selector, input_work) = if sensitive {
+            (None, 0)
+        } else {
+            let (selector, work) = semantic_selector(source, &random, &mut fuel)?;
+            // Complete canonical/current equality remains required below.
+            fuel.spend(work)?;
+            (Some(selector), work)
+        };
+        let plan_work = plan_work(&row.plan, &mut fuel)?;
         let function = (!sensitive)
             .then(|| products.get(&source.id)?.canonical_function(source))
             .flatten()
             .filter(|canonical| template_eq(&mut comparisons, source, canonical))
             .unwrap_or_else(|| row.input.clone());
         let owner = owners(&function);
-        let representative = buckets.get(&owner).and_then(|bucket| {
-            bucket.iter().copied().find(|&index| {
-                let (old, plan) = &representatives[index];
-                // Sensitive rows retain all original diagnostic positions/identity.
-                (if sensitive {
-                    old.as_ref() == function.as_ref()
-                } else {
-                    template_eq(&mut comparisons, old, &function)
-                }) && plan.blocks == row.plan.blocks
-                    && plan.holds == row.plan.holds
-            })
-        });
+        let mut representative = None;
+        // Context requires distinct outer FunctionIds, so sensitive full-Eq
+        // rows cannot alias another row. Keep their full original raw input.
+        if let Some(selector) = selector {
+            for bucket in [buckets.get(&owner), semantic.get(&selector)]
+                .into_iter()
+                .flatten()
+            {
+                for &index in bucket.iter().take(MAX_BUCKET) {
+                    if same_representative(
+                        &representatives[index],
+                        &function,
+                        &row.plan,
+                        sensitive,
+                        input_work,
+                        plan_work,
+                        &mut fuel,
+                    )? {
+                        representative = Some(index);
+                        break;
+                    }
+                }
+                if representative.is_some() {
+                    break;
+                }
+            }
+        }
         let representative = if let Some(index) = representative {
             index
         } else {
             let next = representatives.len();
-            representatives.push((function, row.plan.clone()));
-            buckets.entry(owner).or_default().push(next);
+            representatives.push(Representative {
+                input: function,
+                plan: row.plan.clone(),
+                sensitive,
+                input_work,
+                plan_work,
+            });
+            if let Some(selector) = selector {
+                let bucket = semantic.entry(selector).or_default();
+                if bucket.len() < MAX_BUCKET {
+                    bucket.push(next);
+                }
+            }
             next
         };
+        if !sensitive {
+            let bucket = buckets.entry(owner).or_default();
+            if bucket.len() < MAX_BUCKET && !bucket.contains(&representative) {
+                bucket.push(representative);
+            }
+        }
         aliases.push(representative);
     }
     output.number(representatives.len())?;
     let mut nodes = options.limits.max_nodes.min(1_000_000);
-    for (function, plan) in &representatives {
+    for representative in &representatives {
+        let function = &representative.input;
+        let plan = &representative.plan;
         let index = plan.function.0 as usize;
         let source = program.module.functions.get(index)?;
-        let sensitive = *sensitivities
-            .get(&(owners(source), source.foreign.is_some()))?
-            .as_ref()?;
-        let encoding = if sensitive {
+        let encoding = if representative.sensitive {
             None
         } else {
             publication

@@ -107,6 +107,297 @@ fn payload(manifest: &Path) -> Vec<u8> {
     .unwrap()
 }
 
+fn physical_counts(bytes: &[u8]) -> (usize, usize) {
+    let mut input = Input {
+        bytes,
+        nodes: usize::MAX,
+    };
+    assert_eq!(input.take(8).unwrap(), MAGIC);
+    input.blob().unwrap();
+    input.cost().unwrap();
+    let templates = input.word().unwrap();
+    for _ in 0..templates {
+        input.blob().unwrap();
+        input.blob().unwrap();
+    }
+    (templates, input.word().unwrap())
+}
+fn many_body_source(case: &Case, count: usize, changed: bool) -> ProjectSources {
+    use std::fmt::Write;
+    let mut left = String::new();
+    for id in 0..count {
+        let value = if changed && id == 0 { 8 } else { 7 };
+        writeln!(&mut left, "fn h{id:03}(x:i32)->i32{{return x+{value};}}").unwrap();
+    }
+    left.push_str("pub fn value()->i32{return ");
+    for id in 0..count {
+        if id != 0 {
+            left.push('+');
+        }
+        write!(&mut left, "h{id:03}(1)").unwrap();
+    }
+    left.push_str(";}\n");
+    case.project_text(&left)
+}
+
+#[test]
+fn cold_separate_source_bodies_publish_shared_templates_and_restart_current_owners() {
+    const COUNT: usize = 128;
+    let case = Case::new();
+    let options = case.options();
+    let project = many_body_source(&case, COUNT, false);
+    let mut cold = CompilationSession::default();
+    success(&cold.compile_project(&project, &options));
+    let original = typed(&cold);
+    let bodies = original
+        .module
+        .functions
+        .iter()
+        .filter(|function| function.parameters.len() == 1)
+        .map(owners)
+        .collect::<std::collections::HashSet<_>>();
+    assert_eq!(
+        bodies.len(),
+        COUNT,
+        "real cold Source bodies must be separately allocated"
+    );
+    let manifest = case.manifest(&options);
+    let bytes = payload(&manifest);
+    let (templates, logical) = physical_counts(&bytes);
+    assert_eq!(logical, original.module.functions.len());
+    assert!(
+        templates < logical / 8,
+        "{templates} physical templates for {logical} actual functions"
+    );
+    assert!(bytes.len() <= options.limits.max_source_bytes.min(MAXIMUM));
+    let context = RawAnalysisBase::context_for(&original, &options.limits).unwrap();
+    let decoded = decode(&bytes, &context, &options, &original, &[]).unwrap();
+    let plans = decoded
+        .rows
+        .iter()
+        .map(|row| {
+            (
+                std::ptr::from_ref(&*row.plan.blocks) as usize,
+                std::ptr::from_ref(&*row.plan.holds) as usize,
+            )
+        })
+        .collect::<std::collections::HashSet<_>>();
+    assert!(
+        plans.len() <= templates,
+        "each raw plan template is decoded once"
+    );
+    drop(decoded);
+    drop(original);
+    drop(cold);
+
+    // No unchanged warm-up occurs between dropping the producer and this edit.
+    let current = many_body_source(&case, COUNT, true);
+    let mut restarted = CompilationSession::default();
+    let report = restarted.compile_project(&current, &options);
+    success(&report);
+    reference(&current, &options, &report);
+    let stats = report.initialization_work.unwrap();
+    assert_eq!(stats.raw_functions_restored, logical - 1);
+    assert_eq!(stats.product_function_queries_executed, 1);
+    assert_eq!(stats.product_admission_functions_checked, 1);
+    assert!(stats.product_semantic_body_comparisons <= 1, "{stats:?}");
+
+    let program = typed(&restarted);
+    let context = RawAnalysisBase::context_for(&program, &options.limits).unwrap();
+    let restored = decode(
+        &bytes,
+        &context,
+        &options,
+        &program,
+        restarted.function_types.last_products(),
+    )
+    .unwrap();
+    let adopted = restored
+        .rows
+        .iter()
+        .enumerate()
+        .filter(|(index, row)| {
+            Arc::ptr_eq(&row.input, program.module.functions.owner(*index).unwrap())
+        })
+        .count();
+    assert_eq!(
+        adopted,
+        logical - 1,
+        "only complete current raw associations can adopt a strong owner"
+    );
+    let mut analyzer = zil_analyze::AnalysisSession::default();
+    let candidate = analyzer
+        .analyze_product_with_raw(&program, &options.limits, Some(&restored))
+        .unwrap();
+    let mut expected = zil_analyze::analyze_program(&program, &options.limits).unwrap();
+    expected.module_fingerprint = program.module.structural_fingerprint();
+    assert_eq!(candidate.as_ref(), &expected);
+    let next_bytes = payload(&manifest);
+    let (next_templates, next_logical) = physical_counts(&next_bytes);
+    assert_eq!(next_logical, logical);
+    assert!(next_templates <= templates + 1);
+    let selected = fs::read(&manifest).unwrap();
+    let raw = analyzer.raw_product_for(&program, &candidate).unwrap();
+    let mut original_analyzer = zil_analyze::AnalysisSession::default();
+    let original_candidate = original_analyzer
+        .analyze_product(&program, &options.limits)
+        .unwrap();
+    let original_fees = original_analyzer
+        .raw_product_for(&program, &original_candidate)
+        .unwrap();
+    assert_eq!(raw.global_cost, original_fees.global_cost);
+    assert_eq!(
+        raw.rows.iter().map(|row| row.costs).collect::<Vec<_>>(),
+        original_fees
+            .rows
+            .iter()
+            .map(|row| row.costs)
+            .collect::<Vec<_>>(),
+        "all five original per-function fees survive aliases"
+    );
+    let plan = Plan::project(&current.modules[0], &current.modules, &options).unwrap();
+    let mut bounded = options.clone();
+    bounded.limits.max_source_bytes = next_bytes.len() - 1;
+    let mut bounded_raw = raw.clone();
+    bounded_raw.context = RawAnalysisBase::context_for(&program, &bounded.limits).unwrap();
+    assert!(
+        save_inner(
+            &bounded,
+            &plan,
+            &program,
+            &bounded_raw,
+            &restarted.semantic_publication,
+            restarted.function_types.last_products()
+        )
+        .is_none()
+    );
+    assert_eq!(fs::read(&manifest).unwrap(), selected);
+    assert_eq!(
+        fs::read_dir(manifest.parent().unwrap())
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "raw"))
+            .count(),
+        1
+    );
+    assert!(
+        !fs::read_dir(manifest.parent().unwrap())
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|entry| entry.file_name().to_string_lossy().ends_with(".tmp"))
+    );
+}
+
+#[test]
+fn semantic_buckets_require_complete_body_plan_and_sensitive_equality() {
+    let case = Case::new();
+    let options = case.options();
+    let project = many_body_source(&case, 2, false);
+    let mut producer = CompilationSession::default();
+    success(&producer.compile_project(&project, &options));
+    let program = typed(&producer);
+    let context = RawAnalysisBase::context_for(&program, &options.limits).unwrap();
+    let raw = decode(
+        &payload(&case.manifest(&options)),
+        &context,
+        &options,
+        &program,
+        &[],
+    )
+    .unwrap();
+    let rows = raw
+        .rows
+        .iter()
+        .filter(|row| row.input.parameters.len() == 1)
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 2);
+    let random = RandomState::new();
+    let mut fuel = Fuel(options.limits.max_analysis_steps);
+    let (a, work) = semantic_selector(&rows[0].input, &random, &mut fuel).unwrap();
+    let (b, other_work) = semantic_selector(&rows[1].input, &random, &mut fuel).unwrap();
+    assert_eq!(
+        a, b,
+        "outer identity and diagnostic placement do not split selectors"
+    );
+    let plan_work = plan_work(&rows[0].plan, &mut fuel).unwrap();
+    let old = Representative {
+        input: rows[0].input.clone(),
+        plan: rows[0].plan.clone(),
+        sensitive: false,
+        input_work: work,
+        plan_work,
+    };
+    assert_eq!(
+        same_representative(
+            &old,
+            &rows[1].input,
+            &rows[1].plan,
+            false,
+            other_work,
+            plan_work,
+            &mut fuel
+        ),
+        Some(true)
+    );
+    let mut wrong_plan = (*rows[1].plan).clone();
+    wrong_plan.blocks[0].initialized_out.clear();
+    if wrong_plan.blocks == rows[1].plan.blocks {
+        wrong_plan.blocks[0]
+            .initialized_out
+            .push(zil_ir::LocalId(99));
+    }
+    assert_eq!(
+        same_representative(
+            &old,
+            &rows[1].input,
+            &wrong_plan,
+            false,
+            other_work,
+            plan_work,
+            &mut fuel
+        ),
+        Some(false)
+    );
+    let mut wrong_input = (*rows[1].input).clone();
+    wrong_input.entry = zil_ir::BlockId(99);
+    assert_eq!(
+        same_representative(
+            &old,
+            &wrong_input,
+            &rows[1].plan,
+            false,
+            other_work,
+            plan_work,
+            &mut fuel
+        ),
+        Some(false)
+    );
+    assert_eq!(
+        same_representative(
+            &old,
+            &rows[1].input,
+            &rows[1].plan,
+            true,
+            other_work,
+            plan_work,
+            &mut fuel
+        ),
+        Some(false)
+    );
+    assert!(
+        same_representative(
+            &old,
+            &rows[1].input,
+            &rows[1].plan,
+            false,
+            other_work,
+            plan_work,
+            &mut Fuel(0)
+        )
+        .is_none()
+    );
+}
+
 #[test]
 fn source_restart_private_edit_restores_raw_analyze_and_current_verify() {
     let case = Case::new();
