@@ -146,6 +146,7 @@ struct Walk<'a, 'b, 'l> {
     early_cleanup: Cleanup,
     early_body_cleanup: Cleanup,
     prepared: Cleanup,
+    prepared_values: Vec<Value<'a>>,
     bodies: &'b mut [bool],
     budget: &'b mut Budget<'l>,
 }
@@ -308,6 +309,34 @@ impl<'a> Walk<'a, '_, '_> {
             _ => None,
         })
     }
+    fn borrowed_place(
+        &mut self,
+        owner: usize,
+        env: &Env<'a>,
+        expression: &'a SemanticOriginalExpr,
+        depth: usize,
+    ) -> R<Option<Place<'a>>> {
+        self.budget.node(expression.span, depth)?;
+        match &expression.kind {
+            CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => {
+                self.borrowed_place(owner, env, inner, depth + 1)
+            }
+            CoreExprKind::Name(name) => {
+                for (index, (binding, _)) in env.iter().enumerate().rev() {
+                    self.budget.text(name, expression.span)?;
+                    if *binding == name {
+                        return Ok(Some(Place {
+                            owner,
+                            index,
+                            fields: Vec::new(),
+                        }));
+                    }
+                }
+                Ok(None)
+            }
+            _ => self.place(owner, env, expression, depth + 1),
+        }
+    }
     fn place_value_mut<'c>(
         &mut self,
         owner: usize,
@@ -357,18 +386,18 @@ impl<'a> Walk<'a, '_, '_> {
         Ok(Some(value))
     }
     fn invalidate_value(
-        &mut self,
+        budget: &mut Budget<'_>,
         value: &mut Value<'a>,
         place: &Place<'a>,
         depth: usize,
     ) -> R<()> {
-        self.budget.node(Span::default(), depth)?;
+        budget.node(Span::default(), depth)?;
         match value {
             Value::Poll(old) if old.owner == place.owner && old.index == place.index => {
                 let mut overlaps = true;
                 for (a, b) in old.fields.iter().zip(&place.fields) {
-                    self.budget.text(a, Span::default())?;
-                    self.budget.text(b, Span::default())?;
+                    budget.text(a, Span::default())?;
+                    budget.text(b, Span::default())?;
                     overlaps &= a == b;
                 }
                 if overlaps {
@@ -377,24 +406,73 @@ impl<'a> Walk<'a, '_, '_> {
             }
             Value::Tuple(values) | Value::Alternatives(values) => {
                 for value in values {
-                    self.invalidate_value(value, place, depth + 1)?;
+                    Self::invalidate_value(budget, value, place, depth + 1)?;
                 }
             }
             Value::Record(values) => {
                 for (_, value) in values {
-                    self.invalidate_value(value, place, depth + 1)?;
+                    Self::invalidate_value(budget, value, place, depth + 1)?;
                 }
             }
-            Value::Error { value, .. } => self.invalidate_value(value, place, depth + 1)?,
+            Value::Error { value, .. } => Self::invalidate_value(budget, value, place, depth + 1)?,
             _ => {}
         }
         Ok(())
     }
     fn invalidate(&mut self, env: &mut Env<'a>, place: &Place<'a>, depth: usize) -> R<()> {
         for (_, value) in env {
-            self.invalidate_value(value, place, depth + 1)?;
+            Self::invalidate_value(self.budget, value, place, depth + 1)?;
+        }
+        // Earlier fields/arguments are real operands even before they have a
+        // lexical binding. A later operand cannot revive their old Poll fact.
+        for value in &mut self.prepared_values {
+            Self::invalidate_value(self.budget, value, place, depth + 1)?;
         }
         Ok(())
+    }
+    fn forget_mutated(budget: &mut Budget<'_>, value: &mut Value<'a>, depth: usize) -> R<()> {
+        budget.node(Span::default(), depth)?;
+        match value {
+            Value::SettledTask => *value = Value::Task,
+            Value::Callable {
+                cleanup, initial, ..
+            } => *cleanup |= *initial,
+            Value::Tuple(values) | Value::Alternatives(values) => {
+                for value in values {
+                    Self::forget_mutated(budget, value, depth + 1)?;
+                }
+            }
+            Value::Record(values) => {
+                for (_, value) in values {
+                    Self::forget_mutated(budget, value, depth + 1)?;
+                }
+            }
+            Value::Error { value, .. } => Self::forget_mutated(budget, value, depth + 1)?,
+            // An arbitrary write may replace a pointer or a poll value; its
+            // prior provenance is not a relation of the replacement.
+            Value::Poll(_) | Value::View { .. } | Value::Function(_) => *value = Value::Plain,
+            _ => {}
+        }
+        Ok(())
+    }
+    fn park(&mut self, value: Value<'a>, owned: bool, span: Span, depth: usize) -> R<()> {
+        if owned {
+            let cleanup = self.pending(&value, depth + 1)?;
+            self.prepared |= cleanup;
+        }
+        self.budget
+            .lineage_push(&mut self.prepared_values, value, span)
+    }
+    fn unpark(&mut self, base: usize, span: Span) -> R<Vec<Value<'a>>> {
+        // split_off allocates the result while the caller's outer operand
+        // frame remains in place. Its storage is charged before allocation.
+        let bytes = self
+            .prepared_values
+            .len()
+            .saturating_sub(base)
+            .saturating_mul(std::mem::size_of::<Value<'a>>());
+        self.budget.lineage_bytes(bytes, span)?;
+        Ok(self.prepared_values.split_off(base))
     }
     fn refine_ready(
         &mut self,
@@ -1361,6 +1439,7 @@ impl<'a> Walk<'a, '_, '_> {
         let early = std::mem::replace(&mut self.early_cleanup, Cleanup::NONE);
         let early_body = std::mem::replace(&mut self.early_body_cleanup, Cleanup::NONE);
         let prepared = std::mem::replace(&mut self.prepared, Cleanup::NONE);
+        let operands = std::mem::take(&mut self.prepared_values);
         let mut env = Vec::new();
         for slot in &definition.environment {
             if let SemanticActualRecipe::Type(
@@ -1403,6 +1482,10 @@ impl<'a> Walk<'a, '_, '_> {
         self.early_cleanup = early;
         self.early_body_cleanup = early_body;
         self.prepared = prepared;
+        self.budget.drop_lineage_vec(
+            std::mem::replace(&mut self.prepared_values, operands),
+            Span::default(),
+        )?;
         Ok(flow)
     }
     fn function_result(&mut self, owner: usize, depth: usize) -> R<Value<'a>> {
@@ -1543,7 +1626,7 @@ impl<'a> Walk<'a, '_, '_> {
             E::Unary {
                 op: op @ (UnaryOp::Borrow | UnaryOp::BorrowMut),
                 operand,
-            } => match self.place(owner, env, operand, depth + 1)? {
+            } => match self.borrowed_place(owner, env, operand, depth + 1)? {
                 Some(place) => Value::View {
                     place,
                     mutable: *op == UnaryOp::BorrowMut,
@@ -1557,11 +1640,15 @@ impl<'a> Walk<'a, '_, '_> {
                 Value::Plain
             }
             E::Tuple(fields) | E::Array(fields) => {
-                let mut values = Vec::new();
+                let base = self.prepared_values.len();
+                let prepared = self.prepared;
                 for field in fields {
                     let value = self.expr(owner, env, field, depth + 1)?;
-                    self.budget.lineage_push(&mut values, value, field.span)?;
+                    self.transfer(owner, env, field, &value, depth + 1)?;
+                    self.park(value, true, field.span, depth + 1)?;
                 }
+                let values = self.unpark(base, expression.span)?;
+                self.prepared = prepared;
                 Value::Tuple(values)
             }
             E::Member { object, member, .. } => {
@@ -1586,9 +1673,17 @@ impl<'a> Walk<'a, '_, '_> {
                 }
             }
             E::Record { fields, .. } | E::RecordConstructor { fields, .. } => {
-                let mut values = Vec::new();
-                for (name, field) in fields {
+                let base = self.prepared_values.len();
+                let prepared = self.prepared;
+                for (_, field) in fields {
                     let value = self.expr(owner, env, field, depth + 1)?;
+                    self.transfer(owner, env, field, &value, depth + 1)?;
+                    self.park(value, true, field.span, depth + 1)?;
+                }
+                let operands = self.unpark(base, expression.span)?;
+                self.prepared = prepared;
+                let mut values = Vec::new();
+                for ((name, field), value) in fields.iter().zip(operands) {
                     self.budget
                         .lineage_push(&mut values, (name.as_str(), value), field.span)?;
                 }
@@ -1634,21 +1729,23 @@ impl<'a> Walk<'a, '_, '_> {
                     None
                 };
                 let saved_prepared = self.prepared;
-                if matches!(
+                let base = self.prepared_values.len();
+                let consuming = matches!(
                     &callable,
                     Value::Callable {
                         kind: CallableKind::FnOnce,
                         ..
                     }
-                ) {
+                );
+                if consuming {
                     self.take(owner, env, callee, depth + 1)?;
-                    let cleanup = self.pending(&callable, depth + 1)?;
-                    self.prepared |= cleanup;
-                } else if position.is_none() {
-                    let cleanup = self.pending(&callable, depth + 1)?;
-                    self.prepared |= cleanup;
                 }
-                let mut inputs = Vec::new();
+                self.park(
+                    callable,
+                    consuming || position.is_none(),
+                    callee.span,
+                    depth + 1,
+                )?;
                 let mut mutated = Vec::new();
                 for (ordinal, argument) in arguments.iter().enumerate() {
                     let value = self.expr(owner, env, argument, depth + 1)?;
@@ -1661,7 +1758,7 @@ impl<'a> Walk<'a, '_, '_> {
                         self.budget
                             .lineage_push(&mut mutated, place, argument.span)?;
                     }
-                    let parameters = match &callable {
+                    let parameters = match &self.prepared_values[base] {
                         Value::Callable { signature, .. } => Some(signature.parameters.as_slice()),
                         Value::Function(index) => signature(self.definitions[*index])
                             .map(|signature| signature.parameters.as_slice()),
@@ -1673,7 +1770,7 @@ impl<'a> Walk<'a, '_, '_> {
                         if matches!(primitive, Some("task_create" | "task_create_owned"))
                             && ordinal != 0
                         {
-                            match inputs.first() {
+                            match self.prepared_values.get(base + 1) {
                                 Some(Value::Function(index)) => signature(self.definitions[*index])
                                     .and_then(|signature| signature.parameters.get(ordinal - 1)),
                                 _ => None,
@@ -1681,36 +1778,44 @@ impl<'a> Walk<'a, '_, '_> {
                         } else {
                             parameters.and_then(|parameters| parameters.get(ordinal))
                         };
-                    if let Some(parameter) = parameter {
-                        if !matches!(
+                    let owned = parameter.is_some_and(|parameter| {
+                        !matches!(
                             parameter.ty,
                             SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
-                        ) {
-                            self.transfer(owner, env, argument, &value, depth + 1)?;
-                            let cleanup = self.pending(&value, depth + 1)?;
-                            self.prepared |= cleanup;
-                        }
+                        )
+                    });
+                    if owned {
+                        self.transfer(owner, env, argument, &value, depth + 1)?;
                     }
-                    self.budget
-                        .lineage_push(&mut inputs, value, argument.span)?;
+                    self.park(value, owned, argument.span, depth + 1)?;
                 }
-                self.prepared = saved_prepared;
                 for place in mutated {
                     self.invalidate(env, &place, depth + 1)?;
                     if primitive.is_none() {
                         if let Some(value) = self.place_value_mut(owner, env, &place, depth + 1)? {
-                            match value {
-                                Value::SettledTask => *value = Value::Task,
-                                Value::Callable {
-                                    cleanup, initial, ..
-                                } => *cleanup |= *initial,
-                                _ => {}
-                            }
+                            Self::forget_mutated(self.budget, value, depth + 1)?;
                         }
                     }
                 }
                 if let Some(place) = &primitive_place {
                     self.invalidate(env, place, depth + 1)?;
+                }
+                let mut operands = self.unpark(base, expression.span)?.into_iter();
+                let mut callable = operands.next().expect("prepared original callee");
+                let mut inputs = Vec::new();
+                for value in operands {
+                    self.budget
+                        .lineage_push(&mut inputs, value, expression.span)?;
+                }
+                self.prepared = saved_prepared;
+                // A stored non-consuming receiver is read after all argument
+                // effects. Its pre-argument clone cannot supply later state.
+                if !consuming {
+                    if let Some(place) = &position {
+                        if let Some(current) = self.place_value_mut(owner, env, place, depth + 1)? {
+                            callable = self.copy(current, depth + 1)?;
+                        }
+                    }
                 }
                 if matches!(primitive, Some("task_yield" | "task_await")) {
                     self.execution = true;
@@ -1962,6 +2067,7 @@ impl<'a> Walk<'a, '_, '_> {
                 let early = std::mem::replace(&mut self.early_cleanup, Cleanup::NONE);
                 let early_body = std::mem::replace(&mut self.early_body_cleanup, Cleanup::NONE);
                 let prepared = std::mem::replace(&mut self.prepared, Cleanup::NONE);
+                let operands = std::mem::take(&mut self.prepared_values);
                 let mut flow = self.block(child, &mut captured, body, depth + 1)?;
                 flow.cleanup |= self.early_cleanup;
                 flow.body_cleanup |= self.early_body_cleanup;
@@ -1984,6 +2090,10 @@ impl<'a> Walk<'a, '_, '_> {
                 self.early_cleanup = early;
                 self.early_body_cleanup = early_body;
                 self.prepared = prepared;
+                self.budget.drop_lineage_vec(
+                    std::mem::replace(&mut self.prepared_values, operands),
+                    expression.span,
+                )?;
                 Value::Callable {
                     definition: Some(child),
                     scope: child,
@@ -2376,7 +2486,7 @@ impl<'a> Walk<'a, '_, '_> {
                     self.transfer(owner, env, expression, &value, depth + 1)?;
                     if let Some(place) = self.place(owner, env, target, depth + 1)? {
                         self.invalidate(env, &place, depth + 1)?;
-                        self.invalidate_value(&mut value, &place, depth + 1)?;
+                        Self::invalidate_value(self.budget, &mut value, &place, depth + 1)?;
                         if let Some(old) = self.place_value_mut(owner, env, &place, depth + 1)? {
                             output.drop_value(self.pending(old, depth + 1)?);
                             *old = value;
@@ -2674,6 +2784,7 @@ fn propose_inner(
                 early_cleanup: Cleanup::NONE,
                 early_body_cleanup: Cleanup::NONE,
                 prepared: Cleanup::NONE,
+                prepared_values: Vec::new(),
                 bodies: &mut bodies,
                 budget: &mut *budget,
             };
@@ -2681,9 +2792,12 @@ fn propose_inner(
             opaque_bounds(&definition.requirements, &mut bounds, walk.budget, 0)?;
             walk.budget.identity_work(bounds.len(), Span::default())?;
             let once = bounds.iter().any(|(kind, _)| *kind == CallableKind::FnOnce);
-            if bounds.is_empty() {
+            if bounds.len() != 1 {
+                // Body cleanup belongs to every original Defined function,
+                // even when no unique opaque callable prototype can be read.
+                // Scan here once in its Gamma, not once per actual call site.
                 walk.function_flow(index, 0)?;
-                false
+                once
             } else {
                 let value = walk.function_result(index, 0)?;
                 once && matches!(

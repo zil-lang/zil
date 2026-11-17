@@ -2830,12 +2830,36 @@ fn stale(give task:Task<i32>)->i32{
  match result{Poll.Pending()=>{return 0;},Poll.Ready(_)=>{return 1;}}
 }
 fn complete_only(give task:Task<i32>)->i32{task_poll(&mut task);return 0;}
+fn aggregate_stale(give task:Task<i32>)->i32 {
+ let pair=(task_poll_close(&mut task),alter(&mut task));
+ match pair.0{Poll.Pending()=>{return 0;},Poll.Ready(_)=>{return 1;}}
+}
+fn mutate_pair(pair:&mut (Managed<Task<i32>>,)){}
+fn aggregate_mutation(give task:Task<i32>)->i32 {
+ loop{match task_poll_close(&mut task){Poll.Pending()=>{continue;},Poll.Ready(_)=>{break;}}}
+ var pair=(give task,);mutate_pair(&mut pair);return 0;
+}
 fn main(){}
 "#);
         assert_eq!(signature(function(&module,"closed")).unwrap().call_kind, CallKind::Direct);
-        for name in ["stale", "complete_only"] {
+        for name in ["stale", "complete_only", "aggregate_stale", "aggregate_mutation"] {
             assert_eq!(signature(function(&module,name)).unwrap().call_kind, CallKind::Suspend, "{name}");
         }
+    }
+
+    #[test]
+    fn prepared_fields_transfer_owners_and_keep_error_cleanup() {
+        let module = original_module(r#"
+fn fallible()->i32!i32{return 0;}
+fn staged(give task:Task<i32>)->i32!(Managed<Task<i32>>,i32){return (give task,fallible()?);}
+fn moved<F:FnOnce()->i32>(original:F)->impl FnOnce()->i32{
+ return move()=>{let pair=(original,);return pair.0();};
+}
+fn main(){}
+"#);
+        assert_eq!(signature(function(&module,"staged")).unwrap().call_kind,CallKind::Suspend);
+        let mut uppers=Vec::new();callable_uppers(&function(&module,"moved").requirements,&mut uppers);
+        assert_eq!(uppers,[CallKind::Direct]);
     }
 
 }
