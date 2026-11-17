@@ -5,6 +5,7 @@ use crate::semantic::value::{Class, Value};
 
 pub(super) struct Slot {
     function: FunctionId,
+    instance: SemanticInstanceId,
     local: LocalId,
     live: (BlockId, usize),
     store: (BlockId, usize),
@@ -185,6 +186,7 @@ impl Check<'_, '_> {
             }
             selected = Some(Slot {
                 function: function.id,
+                instance: instance.id,
                 local,
                 live: (block, live),
                 store: (block, store),
@@ -208,8 +210,10 @@ impl Check<'_, '_> {
         depth: usize,
     ) -> CompileResult<Value> {
         b.spend(1, WORK)?;
-        if function.id != slot.function {
-            return Err(fail("persistent slot read changes its actual function"));
+        if function.id != slot.function || instance.id != slot.instance {
+            return Err(fail(
+                "persistent slot read changes its exact original function world",
+            ));
         }
         if depth > b.partial_depth {
             return Err(unknown("persistent slot exceeds its finite value ancestry"));
@@ -241,6 +245,12 @@ impl Check<'_, '_> {
                         if *element != 0 {
                             return Err(fail("persistent slot write selects another element"));
                         }
+                        operations::available_before(
+                            function,
+                            (block, index, SemanticSiteEdge::Before),
+                            *value,
+                            b,
+                        )?;
                         source = Some(*value);
                         break;
                     }
@@ -317,13 +327,16 @@ impl Check<'_, '_> {
     /// phantom rows. This creates no access, provenance, epoch or cleanup fact.
     pub(super) fn persistent_slot_array_value(
         &self,
+        instance: &SemanticInstance,
         function: &TypedFunction,
         slot: &Slot,
         child: &Value,
         b: &mut Budget,
     ) -> CompileResult<Value> {
-        if function.id != slot.function {
-            return Err(fail("persistent shell changes its actual function"));
+        if function.id != slot.function || instance.id != slot.instance {
+            return Err(fail(
+                "persistent shell changes its exact original function world",
+            ));
         }
         if !child.equal_paid(&slot.logical, b)?
             || !child.life.slots.is_empty()
