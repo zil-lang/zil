@@ -154,6 +154,15 @@ pub(super) fn add_definitions(
     definitions: &mut Vec<ResourceDefinition>,
     left: &mut usize,
 ) -> R<()> {
+    add_definitions_recording(functions, definitions, left, None)
+}
+pub(super) fn add_definitions_recording(
+    functions: &[TypedFunction],
+    definitions: &mut Vec<ResourceDefinition>,
+    left: &mut usize,
+    mut observations: Option<&mut push::PostObservations>,
+) -> R<()> {
+    let before = *left;
     let mut found = BTreeMap::new();
     let spend = |left: &mut usize, n| -> R<()> {
         *left = left.checked_sub(n).ok_or_else(|| {
@@ -166,6 +175,7 @@ pub(super) fn add_definitions(
         Ok(())
     };
     for f in functions {
+        let function_before = *left;
         spend(
             left,
             f.values
@@ -243,6 +253,14 @@ pub(super) fn add_definitions(
                 }
             }
         }
+        if let Some(observations) = &mut observations {
+            observations.record(
+                push::PostPass::Registration,
+                f.id,
+                function_before - *left,
+                0,
+            );
+        }
     }
     spend(left, found.len().saturating_mul(32))?;
     for ((asynchronous, id), payload) in found {
@@ -259,6 +277,9 @@ pub(super) fn add_definitions(
             payload,
             teardown: None,
         })
+    }
+    if let Some(observations) = observations {
+        observations.finish(push::PostPass::Registration, before - *left, 0);
     }
     Ok(())
 }

@@ -1,32 +1,32 @@
 //! Bounded raw scalar machine values. No model parser or validation receipts.
 use super::{FunctionBatch, m};
 
-pub(super) const MAX_BYTES: usize = 16 * 1024 * 1024;
+pub(crate) const MAX_BYTES: usize = 16 * 1024 * 1024;
 const MAX_DEPTH: usize = 32;
 
-pub(super) struct Writer(pub(super) Vec<u8>, usize);
+pub(crate) struct Writer(pub(crate) Vec<u8>, usize);
 impl Writer {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::bounded(MAX_BYTES)
     }
-    pub(super) fn bounded(maximum: usize) -> Self {
+    pub(crate) fn bounded(maximum: usize) -> Self {
         Self(Vec::new(), maximum.min(MAX_BYTES))
     }
-    pub(super) fn put(&mut self, bytes: &[u8]) -> Option<()> {
+    pub(crate) fn put(&mut self, bytes: &[u8]) -> Option<()> {
         if self.0.len().checked_add(bytes.len())? > self.1 {
             return None;
         }
         self.0.extend_from_slice(bytes);
         Some(())
     }
-    pub(super) fn word(&mut self, n: usize) -> Option<()> {
+    pub(crate) fn word(&mut self, n: usize) -> Option<()> {
         self.put(&u32::try_from(n).ok()?.to_le_bytes())
     }
-    pub(super) fn blob(&mut self, bytes: &[u8]) -> Option<()> {
+    pub(crate) fn blob(&mut self, bytes: &[u8]) -> Option<()> {
         self.word(bytes.len())?;
         self.put(bytes)
     }
-    pub(super) fn text(&mut self, text: &str) -> Option<()> {
+    pub(crate) fn text(&mut self, text: &str) -> Option<()> {
         self.blob(text.as_bytes())
     }
     fn tag(&mut self, tag: u8) -> Option<()> {
@@ -242,27 +242,27 @@ impl Writer {
     }
 }
 
-pub(super) struct Reader<'a> {
+pub(crate) struct Reader<'a> {
     bytes: &'a [u8],
-    pub(super) nodes: usize,
+    pub(crate) nodes: usize,
 }
 impl<'a> Reader<'a> {
-    pub(super) fn new(bytes: &'a [u8], nodes: usize) -> Option<Self> {
+    pub(crate) fn new(bytes: &'a [u8], nodes: usize) -> Option<Self> {
         (bytes.len() <= MAX_BYTES).then_some(Self { bytes, nodes })
     }
     fn node(&mut self) -> Option<()> {
         self.nodes = self.nodes.checked_sub(1)?;
         Some(())
     }
-    pub(super) fn take(&mut self, count: usize) -> Option<&'a [u8]> {
+    pub(crate) fn take(&mut self, count: usize) -> Option<&'a [u8]> {
         let (value, rest) = self.bytes.split_at_checked(count)?;
         self.bytes = rest;
         Some(value)
     }
-    pub(super) fn word(&mut self) -> Option<usize> {
+    pub(crate) fn word(&mut self) -> Option<usize> {
         Some(u32::from_le_bytes(self.take(4)?.try_into().ok()?) as usize)
     }
-    pub(super) fn count(&mut self) -> Option<usize> {
+    pub(crate) fn count(&mut self) -> Option<usize> {
         let count = self.word()?;
         if count > self.nodes || count > self.bytes.len() {
             return None;
@@ -270,11 +270,11 @@ impl<'a> Reader<'a> {
         self.nodes -= count;
         Some(count)
     }
-    pub(super) fn blob(&mut self) -> Option<&'a [u8]> {
+    pub(crate) fn blob(&mut self) -> Option<&'a [u8]> {
         let n = self.word()?;
         self.take(n)
     }
-    fn text(&mut self) -> Option<String> {
+    pub(crate) fn text(&mut self) -> Option<String> {
         self.node()?;
         Some(std::str::from_utf8(self.blob()?).ok()?.to_owned())
     }
@@ -295,7 +295,7 @@ impl<'a> Reader<'a> {
             None
         })
     }
-    pub(super) fn finish(&self) -> bool {
+    pub(crate) fn finish(&self) -> bool {
         self.bytes.is_empty()
     }
     // Option's fallible collector hides its exact lower size hint. Reserve the
@@ -467,11 +467,11 @@ impl<'a> Reader<'a> {
 }
 
 #[cfg(test)]
-pub(super) fn encode(batch: &FunctionBatch) -> Option<Vec<u8>> {
+pub(crate) fn encode(batch: &FunctionBatch) -> Option<Vec<u8>> {
     encode_bounded(batch, MAX_BYTES)
 }
 
-pub(super) fn encode_bounded(batch: &FunctionBatch, maximum: usize) -> Option<Vec<u8>> {
+pub(crate) fn encode_bounded(batch: &FunctionBatch, maximum: usize) -> Option<Vec<u8>> {
     if !batch.task_machines.is_empty() || !batch.foreign_adapters.is_empty() {
         return None;
     }
@@ -526,7 +526,7 @@ pub(super) fn encode_bounded(batch: &FunctionBatch, maximum: usize) -> Option<Ve
     Some(out.0)
 }
 
-pub(super) fn decode(
+pub(crate) fn decode(
     bytes: &[u8],
     limits: &zil_base::Limits,
     remaining: &mut usize,
@@ -612,5 +612,117 @@ pub(super) fn decode(
         intrinsics,
         task_machines: vec![],
         foreign_adapters: std::collections::BTreeSet::new(),
+    })
+}
+
+/// Raw scalar model value; never a preflight receipt. Unlike emission batches,
+/// this also represents declarations and the planner's internal definitions.
+pub(crate) fn encode_function(function: &m::Function) -> Option<Vec<u8>> {
+    let mut out = Writer::new();
+    out.put(b"ZILFUN01")?;
+    out.text(&function.name)?;
+    out.word(match function.linkage {
+        m::Linkage::External => 0,
+        m::Linkage::Internal => 1,
+        m::Linkage::Private => 2,
+        m::Linkage::AvailableExternally => 3,
+    })?;
+    out.ty(&function.signature.result, 0)?;
+    out.attrs(&function.signature.result_attrs)?;
+    out.word(function.signature.params.len())?;
+    for param in &function.signature.params {
+        out.ty(&param.ty, 0)?;
+        out.optional_text(&param.name)?;
+        out.attrs(&param.attrs)?;
+    }
+    out.tag(u8::from(function.signature.variadic))?;
+    out.attrs(&function.attrs)?;
+    out.tag(u8::from(function.blocks.is_some()))?;
+    if let Some(blocks) = &function.blocks {
+        out.word(blocks.len())?;
+        for block in blocks {
+            out.text(&block.name)?;
+            out.word(block.instructions.len())?;
+            for inst in &block.instructions {
+                out.optional_text(&inst.result)?;
+                out.op(&inst.op)?;
+            }
+        }
+    }
+    Some(out.0)
+}
+
+pub(crate) fn decode_function(
+    bytes: &[u8],
+    limits: &zil_base::Limits,
+    remaining: &mut usize,
+) -> Option<m::Function> {
+    let mut input = Reader::new(bytes, *remaining)?;
+    if input.take(8)? != b"ZILFUN01" {
+        return None;
+    }
+    let name = input.text()?;
+    let linkage = match input.word()? {
+        0 => m::Linkage::External,
+        1 => m::Linkage::Internal,
+        2 => m::Linkage::Private,
+        3 => m::Linkage::AvailableExternally,
+        _ => return None,
+    };
+    let result = input.ty(0)?;
+    let result_attrs = input.attrs()?;
+    let count = input.count()?;
+    if count > limits.max_locals {
+        return None;
+    }
+    let params = input.list(count, |input| {
+        Some(m::Param {
+            ty: input.ty(0)?,
+            name: input.optional_text()?,
+            attrs: input.attrs()?,
+        })
+    })?;
+    let variadic = input.boolean()?;
+    let attrs = input.attrs()?;
+    let blocks = if input.boolean()? {
+        let count = input.count()?;
+        if count > limits.max_blocks {
+            return None;
+        }
+        let mut blocks = Vec::with_capacity(count.min(4096));
+        let mut instructions = limits.max_instructions;
+        for _ in 0..count {
+            let name = input.text()?;
+            let count = input.count()?;
+            instructions = instructions.checked_sub(count)?;
+            blocks.push(m::Block {
+                name,
+                instructions: input.list(count, |input| {
+                    Some(m::Inst {
+                        result: input.optional_text()?,
+                        op: input.op()?,
+                    })
+                })?,
+            });
+        }
+        Some(blocks.into())
+    } else {
+        None
+    };
+    if !input.finish() {
+        return None;
+    }
+    *remaining = input.nodes;
+    Some(m::Function {
+        name,
+        linkage,
+        signature: m::Signature {
+            result,
+            result_attrs,
+            params,
+            variadic,
+        },
+        attrs,
+        blocks,
     })
 }

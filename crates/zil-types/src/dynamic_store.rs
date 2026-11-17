@@ -565,6 +565,26 @@ pub(super) fn add_definitions(
     limits: &Limits,
     remaining: &mut usize,
 ) -> R<()> {
+    add_definitions_recording(
+        functions,
+        definitions,
+        closures,
+        bound_elements,
+        limits,
+        remaining,
+        None,
+    )
+}
+pub(super) fn add_definitions_recording(
+    functions: &[TypedFunction],
+    definitions: &mut Vec<ResourceDefinition>,
+    closures: &[ClosureDefinition],
+    bound_elements: &[(Type, Span)],
+    limits: &Limits,
+    remaining: &mut usize,
+    mut observations: Option<&mut push::PostObservations>,
+) -> R<()> {
+    let shared_before = *remaining;
     let mut work = limits.max_analysis_steps;
     let exhausted = || {
         Diagnostic::limit(
@@ -575,6 +595,7 @@ pub(super) fn add_definitions(
     };
     let mut found = BTreeMap::<String, Type>::new();
     for function in functions {
+        let before = (work, *remaining);
         let roots = function
             .values
             .len()
@@ -683,6 +704,14 @@ pub(super) fn add_definitions(
                 }
             }
         }
+        if let Some(observations) = &mut observations {
+            observations.record(
+                push::PostPass::Stores,
+                function.id,
+                before.1 - *remaining,
+                before.0 - work,
+            );
+        }
     }
     // A complete ordinary StoreElement binding is an untrusted qualification
     // constraint even when its body only transfers T and never makes a Store.
@@ -742,6 +771,13 @@ pub(super) fn add_definitions(
             },
             teardown: None,
         });
+    }
+    if let Some(observations) = observations {
+        observations.finish(
+            push::PostPass::Stores,
+            shared_before - *remaining,
+            limits.max_analysis_steps - work,
+        );
     }
     Ok(())
 }

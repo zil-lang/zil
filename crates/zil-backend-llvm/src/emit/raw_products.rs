@@ -19,6 +19,7 @@ pub(crate) struct Pending {
     manifest: String,
     bytes: Vec<u8>,
     maximum: usize,
+    companions: Vec<Pending>,
 }
 impl Pending {
     /// Manifest is replaced last, only after enclosing native publication.
@@ -31,7 +32,11 @@ impl Pending {
             return;
         }
         self.directory = root.join(namespace);
+        let companions = std::mem::take(&mut self.companions);
         let _ = self.store();
+        for pending in companions {
+            pending.commit(root);
+        }
     }
     fn store(self) -> Option<()> {
         if !private_directory(&self.directory, true) {
@@ -90,6 +95,7 @@ pub(crate) struct Request {
     decoded: BTreeMap<usize, Option<(TypedFunction, FunctionBatch)>>,
     accepted: BTreeMap<FunctionId, (usize, FunctionBatch)>,
     decode_nodes: usize,
+    products: Vec<Pending>,
     current: Vec<RawRecord>,
     current_aliases: BTreeMap<FunctionId, usize>,
     owners: std::collections::HashMap<scalar_bodies::Key, usize>,
@@ -142,6 +148,7 @@ impl Request {
             decoded: BTreeMap::new(),
             accepted: BTreeMap::new(),
             decode_nodes: 0,
+            products: vec![],
             current: vec![],
             current_aliases: BTreeMap::new(),
             owners: Default::default(),
@@ -452,6 +459,66 @@ impl Request {
         self.current_aliases.insert(function.id, index);
         Some(())
     }
+    /// Auxiliary raw machine products share the exact current semantic context,
+    /// installed compiler/LLVM identity and success-only publication transaction.
+    /// One epoch per product, bounded in aggregate, with no persisted authority.
+    pub(crate) fn product(&self, name: &str) -> Option<Vec<u8>> {
+        if !self.enabled || !private_directory(&self.directory, false) {
+            return None;
+        }
+        let header = read(&self.directory.join(format!("{name}.manifest")), 44)?;
+        let mut input = Reader::new(&header, 8)?;
+        if input.take(8)? != b"ZILRAM01" {
+            return None;
+        }
+        let digest = Fingerprint(input.take(32)?.try_into().ok()?);
+        let length = input.word()?;
+        if !input.finish() || length > self.maximum {
+            return None;
+        }
+        let bytes = read(
+            &self.directory.join(format!("{}.raw", digest.to_hex())),
+            self.maximum,
+        )?;
+        if bytes.len() != length || Fingerprint::of(&bytes) != digest {
+            return None;
+        }
+        let mut input = Reader::new(&bytes, 8)?;
+        if input.take(8)? != b"ZILRAP01" || input.blob()? != self.context {
+            return None;
+        }
+        let product = input.blob()?.to_vec();
+        input.finish().then_some(product)
+    }
+    pub(crate) fn stage_product(&mut self, name: &str, bytes: Vec<u8>) {
+        let _ = self.stage_product_inner(name, bytes);
+    }
+    fn stage_product_inner(&mut self, name: &str, bytes: Vec<u8>) -> Option<()> {
+        if !self.enabled
+            || self
+                .products
+                .iter()
+                .any(|p| p.manifest == format!("{name}.manifest"))
+        {
+            return None;
+        }
+        let used = self
+            .products
+            .iter()
+            .try_fold(0usize, |sum, p| sum.checked_add(p.bytes.len()))?;
+        let mut out = Writer::bounded(self.maximum.checked_sub(used)?);
+        out.put(b"ZILRAP01")?;
+        out.blob(&self.context)?;
+        out.blob(&bytes)?;
+        self.products.push(Pending {
+            directory: self.directory.clone(),
+            manifest: format!("{name}.manifest"),
+            bytes: out.0,
+            maximum: self.maximum,
+            companions: vec![],
+        });
+        Some(())
+    }
     pub(crate) fn pending(self) -> Option<Pending> {
         if !self.enabled || self.current.is_empty() {
             return None;
@@ -475,6 +542,7 @@ impl Request {
             manifest: self.manifest,
             bytes: out.0,
             maximum: self.maximum,
+            companions: self.products,
         })
     }
 }

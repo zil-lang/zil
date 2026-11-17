@@ -1,6 +1,7 @@
 //! Reuse actual partition items after their CURRENT layout roles are checked.
 //! Raw observations and the completed layout remain bounded by this product's
 //! lifetime. They are not a verification receipt or persisted machine authority.
+mod recovery;
 use super::{CallImportPolicy, direct_calls, layout};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, OnceLock};
@@ -151,7 +152,7 @@ impl Materialization {
         count: usize,
         classes: &BTreeSet<String>,
     ) -> Self {
-        if self.grouping.get().is_none() && self.graph.is_some() {
+        if self.graph.is_some() {
             self.grouping_input = Some(Arc::new(GroupingInput {
                 lir: zil_ir::LirModule {
                     schema_version: lir.schema_version,

@@ -404,6 +404,7 @@ pub(crate) struct ClassPartition {
     pub(crate) materialization: Option<Materialization>,
     pub(crate) layout_key: Option<String>,
     pub(crate) reused_layout: bool,
+    pub(crate) reused_units: usize,
 }
 
 pub(crate) fn partition_classes_reusing(
@@ -517,6 +518,7 @@ pub(crate) fn partition_classes_reusing_with_policy(
     {
         let source = module.clone();
         let (units, reused) = cached.replay_observed(module, previous, observed.as_ref());
+        let reused_units = previous.map_or(0, |old| old.count_reused_units(&units));
         let materialization = Materialization::completed_with_graph(
             source,
             &cached,
@@ -549,6 +551,7 @@ pub(crate) fn partition_classes_reusing_with_policy(
             materialization: Some(materialization),
             layout_key,
             reused_layout: !planned_current,
+            reused_units,
         });
     }
     let source = module.clone();
@@ -600,6 +603,7 @@ pub(crate) fn partition_classes_reusing_with_policy(
         materialization,
         layout_key,
         reused_layout: false,
+        reused_units: 0,
     })
 }
 

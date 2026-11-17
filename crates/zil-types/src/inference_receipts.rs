@@ -19,12 +19,14 @@ pub struct RawInferenceStats {
     pub dependency_bodies_reused: usize,
     pub name_bodies_observed: usize,
     pub dependency_bodies_observed: usize,
+    /// Current raw visitor projections, including a fresh process's full pass.
+    pub body_inputs_produced: usize,
 }
 
 impl RawInferenceStats {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"full_runs\":{},\"sparse_batches\":{},\"replay_fallbacks\":{},\"closure_bodies_checked\":{},\"closure_bodies_reused\":{},\"name_functions_checked\":{},\"name_functions_reused\":{},\"dependency_bodies_checked\":{},\"dependency_bodies_reused\":{},\"name_bodies_observed\":{},\"dependency_bodies_observed\":{}}}",
+            "{{\"full_runs\":{},\"sparse_batches\":{},\"replay_fallbacks\":{},\"closure_bodies_checked\":{},\"closure_bodies_reused\":{},\"name_functions_checked\":{},\"name_functions_reused\":{},\"dependency_bodies_checked\":{},\"dependency_bodies_reused\":{},\"name_bodies_observed\":{},\"dependency_bodies_observed\":{},\"body_inputs_produced\":{}}}",
             self.full_runs,
             self.sparse_batches,
             self.replay_fallbacks,
@@ -36,6 +38,7 @@ impl RawInferenceStats {
             self.dependency_bodies_reused,
             self.name_bodies_observed,
             self.dependency_bodies_observed,
+            self.body_inputs_produced,
         )
     }
 }
@@ -52,6 +55,10 @@ impl RawInferenceSession {
     }
     pub fn checkpoint_for(&self, program: &Arc<CoreProgram>) -> Option<Self> {
         Arc::ptr_eq(&self.current.as_ref()?.program, program).then(|| self.clone())
+    }
+    pub(super) fn inputs_for(&self, program: &Arc<CoreProgram>) -> Option<CurrentInputs> {
+        let current = self.current.as_ref()?;
+        Arc::ptr_eq(&current.program, program).then(|| CurrentInputs(current.clone()))
     }
     pub(super) fn infer<'a>(
         &mut self,
@@ -113,6 +120,7 @@ struct Row {
     closure: VisitFee,
     names: usize,
     dependencies: usize,
+    input: Option<Arc<inference::BodyInput>>,
 }
 #[derive(Clone, Debug)]
 struct Context {
@@ -122,6 +130,35 @@ struct Context {
     limits: Limits,
     offsets: Arc<[usize]>,
     rows: PersistentVec<Row>,
+}
+
+/// Successful observations of the exact current immutable Core. The persistent
+/// function cache contains only raw outputs, never this owner or its read set.
+#[derive(Clone, Debug)]
+pub(super) struct CurrentInputs(Arc<Context>);
+impl CurrentInputs {
+    pub fn matches(&self, program: &CoreProgram, limits: &Limits) -> bool {
+        std::ptr::eq(self.0.program.as_ref(), program) && &self.0.limits == limits
+    }
+    pub fn body(&self, index: usize) -> Option<&inference::BodyInput> {
+        self.0.rows.get(index)?.input.as_deref()
+    }
+    pub fn names(&self, limits: &Limits) -> Option<Vec<usize>> {
+        if limits != &self.0.limits {
+            return None;
+        }
+        let mut total = 0usize;
+        let mut costs = Vec::with_capacity(self.0.rows.len());
+        for index in 0..self.0.rows.len() {
+            let cost = self.0.rows.get(index)?.names;
+            total = total.checked_add(cost)?;
+            if total > limits.max_nodes {
+                return None;
+            }
+            costs.push(cost);
+        }
+        Some(costs)
+    }
 }
 
 pub(super) struct Work {
@@ -162,6 +199,7 @@ impl Work {
                     closure: VisitFee::default(),
                     names: 0,
                     dependencies: 0,
+                    input: None,
                 });
             }
         }
@@ -271,6 +309,12 @@ impl Work {
     pub fn record_closure(&mut self, index: usize, fee: VisitFee) {
         if let Some(row) = self.rows.get_mut(index) {
             row.closure = fee;
+        }
+    }
+    pub fn record_input(&mut self, index: usize, input: Option<inference::BodyInput>) {
+        self.stats.body_inputs_produced += usize::from(input.is_some());
+        if let Some(row) = self.rows.get_mut(index) {
+            row.input = input.map(Arc::new);
         }
     }
     pub fn names_fee(&mut self, index: usize) -> Option<usize> {

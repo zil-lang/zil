@@ -15,8 +15,25 @@ pub(crate) mod analyze_recovery;
 mod items;
 #[path = "packed_items.rs"]
 pub(crate) mod packed;
+pub(super) use items::PreparedSegments;
 pub(super) use items::SemanticPublicationSession;
 pub use items::SemanticPublicationStats;
+
+/// At most one bounded, owned preparation per compilation. Dropping a failed
+/// attempt joins its worker as well; no work survives the compiler request.
+pub(super) struct PreparationJob(Option<std::thread::JoinHandle<Option<PreparedSegments>>>);
+impl PreparationJob {
+    pub(super) fn finish(mut self) -> Option<PreparedSegments> {
+        self.0.take()?.join().ok().flatten()
+    }
+}
+impl Drop for PreparationJob {
+    fn drop(&mut self) {
+        if let Some(worker) = self.0.take() {
+            let _ = worker.join();
+        }
+    }
+}
 
 static COMPILER: OnceLock<Option<Fingerprint>> = OnceLock::new();
 
@@ -30,6 +47,50 @@ pub(super) struct Store {
 }
 
 impl Store {
+    pub(super) fn save_prepared(
+        &self,
+        prepared: PreparedSegments,
+        options: &CompileOptions,
+        plan: &artifacts::ArtifactPlan,
+        publication: &mut SemanticPublicationSession,
+    ) -> Option<SemanticPublicationStats> {
+        self.commit_segments(prepared, options, plan, publication)
+    }
+
+    pub(super) fn prepare_publication(
+        &self,
+        publication: SemanticPublicationSession,
+        typed: Arc<TypedProgram>,
+        candidate: Arc<CandidatePlan>,
+        products: Vec<zil_types::FunctionProduct>,
+        options: &CompileOptions,
+    ) -> Option<PreparationJob> {
+        if !self.segmented || !options.push_reuse || options.cancellation.is_cancelled() {
+            return None;
+        }
+        let limits = options.limits.clone();
+        let profile = options.profile_compilation;
+        let cancellation = options.cancellation.clone();
+        let worker = std::thread::Builder::new()
+            .name("zil-cache-prepare".into())
+            .spawn(move || {
+                if cancellation.is_cancelled() {
+                    return None;
+                }
+                let prepared = publication.prepare_segments(
+                    &typed,
+                    &candidate,
+                    &limits,
+                    true,
+                    (!products.is_empty()).then_some(products.as_slice()),
+                    profile,
+                );
+                (!cancellation.is_cancelled()).then_some(prepared).flatten()
+            })
+            .ok()?;
+        Some(PreparationJob(Some(worker)))
+    }
+
     pub(super) fn new(options: &CompileOptions, identity: &QueryKey) -> Option<Self> {
         if options.stop_after < Stage::Verify
             || options.emit_dir.is_some()

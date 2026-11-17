@@ -22,7 +22,7 @@ mod owned_sums;
 mod packages;
 mod parallel_lowering;
 mod partial_places;
-mod raw_codec;
+pub(crate) mod raw_codec;
 pub(crate) mod raw_products;
 mod registration;
 mod replacements;

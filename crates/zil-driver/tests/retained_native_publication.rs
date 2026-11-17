@@ -482,6 +482,66 @@ fn stable_class_layout_receipt_survives_edits_partition_and_final_artifact_reuse
 
 #[test]
 #[ignore = "requires an explicitly installed native link profile; run with ZIL_TEST_NATIVE_LINK_PROFILE"]
+fn prepared_semantic_encoding_does_not_publish_after_current_verify_cancellation() {
+    let profile = PathBuf::from(std::env::var_os("ZIL_TEST_NATIVE_LINK_PROFILE").unwrap());
+    let case = Case::new();
+    let mut options = case.options(profile);
+    options.cache_dir = None;
+    options.emit_dir = None;
+    options.semantic_cache = Some(case.0.join("semantic"));
+    let token = options.cancellation.clone();
+    let mut cancelled_after_verify = false;
+    let report = CompilationSession::default().compile_project_with_observer(
+        &case.project(),
+        &options,
+        &mut |event| {
+            if event.phase == Phase::Lower {
+                cancelled_after_verify = true;
+                token.cancel();
+            }
+        },
+    );
+    assert!(cancelled_after_verify);
+    assert_eq!(report.verification_runs, 1);
+    assert_eq!(
+        report.status,
+        ResultCategory::Cancelled,
+        "{}",
+        report.to_json()
+    );
+    // This request completed current Verify and launched its encoding worker,
+    // then failed before codegen. No successful manifest may have appeared.
+    fn candidate_count(root: &Path) -> usize {
+        fs::read_dir(root).map_or(0, |entries| {
+            entries
+                .map(|entry| {
+                    let path = entry.unwrap().path();
+                    if path.is_dir() {
+                        candidate_count(&path)
+                    } else {
+                        usize::from(
+                            path.extension()
+                                .is_some_and(|extension| extension == "candidate"),
+                        )
+                    }
+                })
+                .sum()
+        })
+    }
+    assert_eq!(candidate_count(options.semantic_cache.as_ref().unwrap()), 0);
+    assert!(!case.0.join("program").exists());
+    options.cancellation = Default::default();
+    let recovered = case.compile(
+        &mut CompilationSession::default(),
+        &options,
+        "prepared-cancel-retry",
+    );
+    successful(&recovered, 42);
+    assert!(candidate_count(options.semantic_cache.as_ref().unwrap()) > 0);
+}
+
+#[test]
+#[ignore = "requires an explicitly installed native link profile; run with ZIL_TEST_NATIVE_LINK_PROFILE"]
 fn cold_build_seeds_raw_machine_products_before_restart_first_edit() {
     let profile = PathBuf::from(std::env::var_os("ZIL_TEST_NATIVE_LINK_PROFILE").unwrap());
     let case = Case::new();

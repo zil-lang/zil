@@ -15,6 +15,7 @@ pub struct InferredProgram<'a> {
     // result crosses inference/shared/driver closure return slots even when
     // push reuse is off; None must remain a single pointer with no allocation.
     inference_stats: Option<Box<RawInferenceStats>>,
+    raw_inputs: Option<inference_receipts::CurrentInputs>,
 }
 impl InferredProgram<'_> {
     pub fn program(&self) -> &CoreProgram {
@@ -38,6 +39,7 @@ impl InferredProgram<'_> {
             core,
             unchanged_limits: unchanged.then_some(self.limits),
             producer: unchanged.then(|| self.producer.cloned()).flatten(),
+            raw_inputs: unchanged.then_some(self.raw_inputs).flatten(),
         }
     }
     /// CT still executes its complete ordered traversal and charges all current
@@ -50,6 +52,7 @@ impl InferredProgram<'_> {
             unchanged_limits: unchanged.then_some(self.limits),
             // A materialized evaluation result has no producer identity proof.
             producer: None,
+            raw_inputs: None,
         }
     }
 }
@@ -61,6 +64,7 @@ pub struct PreparedProgram {
     core: Arc<CoreProgram>,
     unchanged_limits: Option<Limits>,
     producer: Option<zil_expand::ProducedProgram>,
+    raw_inputs: Option<inference_receipts::CurrentInputs>,
 }
 impl PreparedProgram {
     pub(super) fn identity_inference(&self, limits: &Limits) -> bool {
@@ -71,6 +75,14 @@ impl PreparedProgram {
     }
     pub(super) fn produced(&self) -> Option<&zil_expand::ProducedProgram> {
         self.producer.as_ref()
+    }
+    pub(super) fn current_inputs(
+        &self,
+        limits: &Limits,
+    ) -> Option<&inference_receipts::CurrentInputs> {
+        self.raw_inputs
+            .as_ref()
+            .filter(|inputs| inputs.matches(&self.core, limits))
     }
 
     pub(super) fn function_input_revision(
@@ -100,6 +112,7 @@ pub fn infer_program_for_ct<'a>(
         shared: None,
         producer: None,
         inference_stats: None,
+        raw_inputs: None,
     })
 }
 
@@ -138,6 +151,7 @@ pub fn infer_produced_program_for_ct_with_session<'a>(
         shared: Some(program.program()),
         producer: Some(program),
         inference_stats: Some(Box::new(stats)),
+        raw_inputs: session.inputs_for(program.program()),
     })
 }
 

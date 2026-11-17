@@ -12,6 +12,9 @@ use std::rc::Rc;
 #[path = "inference_observation.rs"]
 mod observation;
 pub(super) use observation::BodyObservation;
+#[path = "inference_projection.rs"]
+mod projection;
+pub(super) use projection::BodyInput;
 
 struct Budget<'a> {
     limits: &'a Limits,
@@ -492,7 +495,13 @@ fn infer_program_visiting<'a>(
                 observations.push(None);
                 false
             } else {
-                budget.observation = observe.then(BodyObservation::default);
+                budget.observation = observe.then(|| {
+                    if receipts.is_some() {
+                        BodyObservation::with_projection(function.span)
+                    } else {
+                        BodyObservation::default()
+                    }
+                });
                 let before = (budget.work, budget.nodes);
                 let found =
                     contains_closure(&function.body, 0, &mut budget).map_err(|e| vec![e])?;
@@ -503,6 +512,13 @@ fn infer_program_visiting<'a>(
                             work: before.0 - budget.work,
                             nodes: before.1 - budget.nodes,
                         },
+                    );
+                    receipts.record_input(
+                        function_index,
+                        budget
+                            .observation
+                            .as_mut()
+                            .and_then(BodyObservation::take_input),
                     );
                 }
                 observations.push(budget.observation.take());
@@ -1304,7 +1320,7 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
 }
 fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) -> R<bool> {
     if let Some(body) = &mut budget.observation {
-        body.block(depth);
+        body.block(block, depth);
     }
     budget.node(depth, block.span)?;
     let mut found = false;

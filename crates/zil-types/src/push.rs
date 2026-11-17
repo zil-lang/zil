@@ -19,11 +19,13 @@ pub struct TypesPushStats {
     pub receipt_tree_updates: usize,
     pub signature_updates: usize,
     pub signature_readers_checked: usize,
+    pub post_functions_observed: usize,
+    pub post_functions_rechecked: usize,
 }
 impl TypesPushStats {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"context_rebuilds\":{},\"sparse_batches\":{},\"body_checks\":{},\"position_rebindings\":{},\"retained_functions\":{},\"receipt_tree_updates\":{},\"signature_updates\":{},\"signature_readers_checked\":{}}}",
+            "{{\"context_rebuilds\":{},\"sparse_batches\":{},\"body_checks\":{},\"position_rebindings\":{},\"retained_functions\":{},\"receipt_tree_updates\":{},\"signature_updates\":{},\"signature_readers_checked\":{},\"post_functions_observed\":{},\"post_functions_rechecked\":{}}}",
             self.context_rebuilds,
             self.sparse_batches,
             self.body_checks,
@@ -31,7 +33,9 @@ impl TypesPushStats {
             self.retained_functions,
             self.receipt_tree_updates,
             self.signature_updates,
-            self.signature_readers_checked
+            self.signature_readers_checked,
+            self.post_functions_observed,
+            self.post_functions_rechecked,
         )
     }
 }
@@ -158,6 +162,10 @@ impl TypesPushSession {
         // Read these counters only after a real successful cache rebuild;
         // try_sparse never reinterprets the prior FunctionSession's stats.
         let function_work = functions.as_ref().map(|functions| functions.last_stats());
+        let post_functions_observed = recording
+            .post
+            .as_ref()
+            .map_or(0, |post| post.observed_functions());
         let program = adopt_output_anchor(Arc::new(result), anchor);
         let context = prepared
             .produced()
@@ -192,6 +200,7 @@ impl TypesPushSession {
         let update = TypedUpdate {
             stats: TypesPushStats {
                 context_rebuilds: 1,
+                post_functions_observed,
                 body_checks: function_work.map_or(program.module.functions.len(), |work| {
                     work.executed_functions
                 }),
@@ -346,6 +355,7 @@ impl TypesPushSession {
                 }
                 row.cfg = state.accounting();
                 row.post = PostReceipt::check(&typed, limits)?;
+                stats.post_functions_rechecked += 1;
                 row.visibility = instruction_count(&typed)?;
                 let observed = observed.into_inner();
                 if observed != *old.observed {
@@ -745,6 +755,7 @@ pub(super) struct Recording {
     pub(super) signature_costs: BTreeMap<FunctionId, usize>,
     pub(super) interface_costs: BTreeMap<ModuleId, usize>,
     pub(super) project_work: usize,
+    pub(super) post: Option<PostObservations>,
     rows: Vec<Row>,
 }
 impl Recording {
@@ -805,6 +816,10 @@ impl Recording {
         {
             return None;
         }
+        let post = self.post.take()?.receipts(&program.module.functions)?;
+        if post.len() != self.rows.len() {
+            return None;
+        }
         for (index, ((row, names), shapes)) in self
             .rows
             .iter_mut()
@@ -827,7 +842,7 @@ impl Recording {
             );
             row.names = *names;
             row.shape = *shapes;
-            row.post = PostReceipt::check(function, limits)?;
+            row.post = *post.get(index)?;
             row.visibility = instruction_count(function)?;
         }
         let tables = self.tables.take()?;
@@ -914,11 +929,114 @@ struct Row {
     visibility: usize,
     post: PostReceipt,
 }
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct PostReceipt {
     shared: usize,
     bytes: usize,
     stores: usize,
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum PostPass {
+    Tasks = 0,
+    Registration = 1,
+    Bytes = 2,
+    Stores = 3,
+}
+
+/// Observations of the original ordered resource consumers. Each independent
+/// ledger must reconcile with its actual whole-pass charge, and every current
+/// function must occur exactly once. Unknown/non-additive work declines the
+/// push context; it never changes a checker result or grants Verify authority.
+pub(super) struct PostObservations {
+    rows: Vec<[Option<(usize, usize)>; 4]>,
+    scopes: Vec<Option<PostScope>>,
+    complete: [bool; 4],
+    valid: bool,
+}
+struct PostScope {
+    values: SharedVec<Type>,
+    locals: SharedVec<LocalDecl>,
+    result: Type,
+}
+impl PostObservations {
+    pub fn new(functions: &[TypedFunction]) -> Self {
+        Self {
+            rows: vec![[None; 4]; functions.len()],
+            scopes: functions
+                .iter()
+                .map(|function| {
+                    primitive(&function.return_type).then(|| PostScope {
+                        values: function.values.clone(),
+                        locals: function.locals.clone(),
+                        result: function.return_type.clone(),
+                    })
+                })
+                .collect(),
+            complete: [false; 4],
+            valid: true,
+        }
+    }
+    pub fn record(&mut self, pass: PostPass, id: FunctionId, shared: usize, local: usize) {
+        let Some(row) = self.rows.get_mut(id.0 as usize) else {
+            self.valid = false;
+            return;
+        };
+        if row[pass as usize].replace((shared, local)).is_some() {
+            self.valid = false;
+        }
+    }
+    pub fn finish(&mut self, pass: PostPass, shared: usize, local: usize) {
+        let total = self.rows.iter().try_fold((0usize, 0usize), |total, row| {
+            let (shared, local) = row[pass as usize]?;
+            Some((total.0.checked_add(shared)?, total.1.checked_add(local)?))
+        });
+        self.complete[pass as usize] = total == Some((shared, local));
+    }
+    pub fn observed_functions(&self) -> usize {
+        if self.valid && self.complete.iter().all(|complete| *complete) {
+            self.rows.len()
+        } else {
+            0
+        }
+    }
+    fn receipts(self, functions: &[TypedFunction]) -> Option<Vec<PostReceipt>> {
+        if !self.valid || self.complete.iter().any(|complete| !complete) {
+            return None;
+        }
+        if self.scopes.len() != functions.len()
+            || !self.scopes.iter().zip(functions).all(|(scope, function)| {
+                scope.as_ref().is_some_and(|scope| {
+                    scope.values.ptr_eq(&function.values)
+                        && scope.locals.ptr_eq(&function.locals)
+                        && scope.result == function.return_type
+                })
+            })
+        {
+            return None;
+        }
+        self.rows
+            .into_iter()
+            .map(|row| {
+                let [
+                    (tasks, tasks_local),
+                    (registration, registration_local),
+                    (bytes_shared, bytes),
+                    (stores_shared, stores),
+                ] = [row[0]?, row[1]?, row[2]?, row[3]?];
+                if tasks_local != 0 || registration_local != 0 || bytes_shared != 0 {
+                    return None;
+                }
+                Some(PostReceipt {
+                    shared: tasks
+                        .checked_add(registration)?
+                        .checked_add(stores_shared)?,
+                    bytes,
+                    stores,
+                })
+            })
+            .collect()
+    }
 }
 impl PostReceipt {
     fn check(function: &TypedFunction, limits: &Limits) -> Option<Self> {
@@ -1123,6 +1241,10 @@ fn instruction_count(f: &TypedFunction) -> Option<usize> {
 }
 mod relative;
 use relative::relative_equal;
+
+#[cfg(test)]
+#[path = "push/post_observations_tests.rs"]
+mod post_observations_tests;
 
 #[cfg(test)]
 mod tests {

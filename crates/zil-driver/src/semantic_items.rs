@@ -75,6 +75,40 @@ struct PreparedPublication {
     memory: Option<Arc<MemoryPublication>>,
 }
 
+/// Pure encoding work. No path is created and no manifest or successful
+/// publication epoch is advanced until the enclosing compilation succeeds.
+pub(crate) struct PreparedSegments {
+    segments: Vec<WireSegment>,
+    encoding: FunctionEncodingStats,
+    publication: PreparedPublication,
+    manifest: Vec<u8>,
+    encode_ns: u128,
+}
+
+impl SemanticPublicationSession {
+    pub(crate) fn prepare_segments(
+        &self,
+        typed: &Arc<TypedProgram>,
+        candidate: &CandidatePlan,
+        limits: &Limits,
+        relative_bindings: bool,
+        products: Option<&[zil_types::FunctionProduct]>,
+        profile: bool,
+    ) -> Option<PreparedSegments> {
+        let start = publication_start(profile);
+        let (segments, encoding, publication) =
+            self.prepare_with_products(typed, candidate, limits, relative_bindings, products)?;
+        let manifest = manifest(&segments, &publication.bindings, limits)?;
+        Some(PreparedSegments {
+            segments,
+            encoding,
+            publication,
+            manifest,
+            encode_ns: publication_elapsed(start),
+        })
+    }
+}
+
 /// One current raw encoding epoch, owned by the existing publication/checkpoint.
 /// Disk bytes supply comparison inputs only; current complete values select reuse.
 struct MemoryPublication {
@@ -1291,6 +1325,27 @@ impl Store {
         publication: &mut SemanticPublicationSession,
         products: Option<&[zil_types::FunctionProduct]>,
     ) -> Option<SemanticPublicationStats> {
+        if options.cancellation.is_cancelled() || plan.validate().is_err() {
+            return None;
+        }
+        let prepared = publication.prepare_segments(
+            typed,
+            candidate,
+            &options.limits,
+            options.push_reuse,
+            products,
+            options.profile_compilation,
+        )?;
+        self.commit_segments(prepared, options, plan, publication)
+    }
+
+    pub(super) fn commit_segments(
+        &self,
+        prepared: PreparedSegments,
+        options: &CompileOptions,
+        plan: &artifacts::ArtifactPlan,
+        publication: &mut SemanticPublicationSession,
+    ) -> Option<SemanticPublicationStats> {
         let batch = publication_start(options.profile_compilation);
         if options.cancellation.is_cancelled() || plan.validate().is_err() {
             return None;
@@ -1300,16 +1355,13 @@ impl Store {
             .cache_directory("semantic-packs", &self.root.join("packs-v1"))
             .ok()?;
         let mut guard_ns = publication_elapsed(batch);
-        let encode = publication_start(options.profile_compilation);
-        let (segments, encoding, prepared) = publication.prepare_with_products(
-            typed,
-            candidate,
-            &options.limits,
-            options.push_reuse,
-            products,
-        )?;
-        let manifest = manifest(&segments, &prepared.bindings, &options.limits)?;
-        let encode_ns = publication_elapsed(encode);
+        let PreparedSegments {
+            segments,
+            encoding,
+            publication: prepared,
+            manifest,
+            encode_ns,
+        } = prepared;
         let pin = publication_start(options.profile_compilation);
         if options.cancellation.is_cancelled()
             || guarded.validate().is_err()
@@ -2425,6 +2477,75 @@ mod tests {
         let logical = manifest(&segments, &publication.bindings, &Limits::default()).unwrap();
         let actual = decode_bound(&flatten(&segments), &logical, &Limits::default()).unwrap();
         assert_eq!(actual, ((*moved).clone(), (*plan).clone()));
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn background_encoding_is_unpublished_until_successful_commit() {
+        let directory = directory();
+        let path = directory.join("main.zil");
+        let options = CompileOptions {
+            push_reuse: true,
+            ..Default::default()
+        };
+        let source = SourceUnit::new(FileId(0), ModuleId(0), path.display().to_string(), SOURCE);
+        let artifacts = artifacts::ArtifactPlan::new(&source, &options).unwrap();
+        let store = Store {
+            root: directory.join("semantic-v7-push"),
+            key: Fingerprint::of(b"prepared-success-only"),
+            maximum: options.limits.max_source_bytes,
+            segmented: true,
+            loaded_publication: Default::default(),
+            location_hint_key: None,
+        };
+        let (typed, candidate) = fixture(&path, SOURCE);
+        let candidate = Arc::new(candidate);
+        let mut publication = SemanticPublicationSession::default();
+        let prepare = || {
+            store
+                .prepare_publication(
+                    publication.clone(),
+                    typed.clone(),
+                    candidate.clone(),
+                    Vec::new(),
+                    &options,
+                )
+                .unwrap()
+        };
+        // A native failure drops its job. Drop joins without publishing bytes
+        // or installing the staged binding epoch.
+        drop(prepare());
+        assert!(!store.root.exists());
+        assert!(publication.previous.is_none());
+        let prepared = prepare().finish().unwrap();
+        assert!(!store.root.exists());
+        let mut cancelled = options.clone();
+        cancelled.cancellation = Default::default();
+        cancelled.cancellation.cancel();
+        assert!(
+            store
+                .save_prepared(prepared, &cancelled, &artifacts, &mut publication)
+                .is_none()
+        );
+        assert!(!store.root.exists());
+        assert!(publication.previous.is_none());
+        let prepared = store
+            .prepare_publication(
+                publication.clone(),
+                typed.clone(),
+                candidate.clone(),
+                Vec::new(),
+                &options,
+            )
+            .unwrap()
+            .finish()
+            .unwrap();
+        store
+            .save_prepared(prepared, &options, &artifacts, &mut publication)
+            .unwrap();
+        assert!(publication.checkpoint_for(&typed).is_some());
+        let restored = store.load(&options).unwrap();
+        assert_eq!(restored, ((*typed).clone(), (*candidate).clone()));
         fs::remove_dir_all(directory).unwrap();
     }
 

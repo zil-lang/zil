@@ -581,6 +581,17 @@ pub fn build_view_with_cancellation_and_session(
         }
     }
     let transform_policy = crate::incremental::TransformPolicy::new(options, protected);
+    // Raw products are selected only from the explicit trusted semantic cache.
+    // Decoding checks their raw relations; actual current module preflight and
+    // exact input/header/callee binding remain in the transform below.
+    let restored_classes = (call_classes_enabled
+        && session
+            .as_ref()
+            .and_then(|s| s.transformed.as_ref())
+            .is_none())
+    .then(|| raw_emission.as_ref()?.product("call-classes"))
+    .flatten()
+    .and_then(|bytes| crate::machine_call_classes::Cache::decode_raw(&bytes, verified.limits()));
     let transform_input = session
         .as_ref()
         .and_then(|session| session.lower.identity());
@@ -627,6 +638,9 @@ pub fn build_view_with_cancellation_and_session(
         machine.fingerprint = fingerprint;
         if let Some(session) = session.as_deref_mut() {
             session.summary.reused_machine_transforms = true;
+            // Retain the complete product, including its class cache. Successful
+            // publication consumes it directly; local class_cache belongs only
+            // to fresh transforms or the partition fallback rebuilt below.
             session.transformed = Some(cached);
         }
     } else {
@@ -640,7 +654,8 @@ pub fn build_view_with_cancellation_and_session(
                     .as_ref()
                     .and_then(|s| s.transformed.as_ref())
                     .filter(|old| old.policy == transform_policy)
-                    .and_then(|old| old.class_cache.as_deref());
+                    .and_then(|old| old.class_cache.as_deref())
+                    .or(restored_classes.as_ref());
                 if let Some((stats, mut symbols, cache)) =
                     crate::machine_call_classes::canonicalize_stable_cached(
                         &mut reduced,
@@ -713,7 +728,8 @@ pub fn build_view_with_cancellation_and_session(
                     .as_ref()
                     .and_then(|session| session.transformed.as_ref())
                     .filter(|old| old.policy == transform_policy && old.call_classes_enabled)
-                    .and_then(|old| old.class_cache.as_deref());
+                    .and_then(|old| old.class_cache.as_deref())
+                    .or(restored_classes.as_ref());
                 if let Some((stats, symbols, cache)) = (!collected_closed)
                     .then(|| {
                         crate::machine_call_classes::canonicalize_stable_cached(
@@ -903,6 +919,30 @@ pub fn build_view_with_cancellation_and_session(
             if let Some(functions) = &partition_functions {
                 partition_lir.functions = functions;
             }
+            let imports = if options.bounded_class_imports {
+                crate::machine_cgu::CallImportPolicy::BoundedClasses(
+                    early_closed_graph
+                        .as_ref()
+                        .map(|graph| graph.copy_allowance),
+                )
+            } else {
+                crate::machine_cgu::CallImportPolicy::Complete
+            };
+            let restored_partition = previous
+                .is_none()
+                .then(|| {
+                    let bytes = raw_emission.as_ref()?.product("class-partition")?;
+                    crate::machine_cgu::Materialization::decode_raw(
+                        &bytes,
+                        verified.limits(),
+                        &partition_lir,
+                        options.emit.entry,
+                        options.codegen.units,
+                        imports,
+                    )
+                })
+                .flatten();
+            let previous = previous.or(restored_partition.as_ref());
             if options.bounded_class_imports {
                 // Whole-closure imports make the entry unit contain the whole
                 // reachable program again. A private edit then recompiles that
@@ -1140,9 +1180,11 @@ pub fn build_view_with_cancellation_and_session(
                     materialization: current,
                     layout_key,
                     reused_layout,
+                    reused_units,
                 } = class_plan.expect("complete current class import plan");
                 if let Some(session) = session.as_deref_mut() {
                     session.summary.reused_partition_layout = reused_layout;
+                    session.summary.reused_partition_units = reused_units;
                 }
                 restored_layout_key = layout_key;
                 if let (Some(current), Some(session)) = (current.as_ref(), session.as_deref_mut()) {
@@ -1601,6 +1643,7 @@ pub fn build_view_with_cancellation_and_session(
         session.final_product = Some(product);
         session.summary.reused_link = true;
         session.remember_machine_products();
+        stage_machine_products(raw_emission.as_mut(), session);
         session.lower.pending_raw_emission = raw_emission.take().and_then(|raw| raw.pending());
         codegen.final_artifact = Some(crate::FinalArtifactSummary {
             reused_program: true,
@@ -2006,6 +2049,7 @@ pub fn build_view_with_cancellation_and_session(
     let artifact_reuse = final_product.as_ref().map(|product| product.token(None));
     timings.link_execution_ns += crate::object_cache::elapsed_ns(capture_started);
     if let Some(session) = session {
+        stage_machine_products(raw_emission.as_mut(), session);
         session.lower.pending_raw_emission = raw_emission.take().and_then(|raw| raw.pending());
         // Attach only a complete successful chain to the existing lower LRU.
         // Failed/cancelled builds never publish this historical association.
@@ -2943,5 +2987,37 @@ mod native_history_cache_tests {
             .is_err()
         );
         assert_eq!(history, checkpoint);
+    }
+}
+
+/// Capture only completed successful producer products. The existing Driver
+/// commit hook publishes these together with raw emission after native success.
+fn stage_machine_products(
+    raw: Option<&mut crate::emit::raw_products::Request>,
+    session: &crate::BackendSession,
+) {
+    let Some(raw) = raw else {
+        return;
+    };
+    // Equal resident products have already been published by their successful
+    // producer. Avoid re-encoding the entire inventory on unchanged requests.
+    if session.summary.reused_machine_transforms && session.summary.reused_partition {
+        return;
+    }
+    if let Some(bytes) = session
+        .transformed
+        .as_ref()
+        .and_then(|product| product.class_cache.as_ref())
+        .and_then(|cache| cache.encode_raw())
+    {
+        raw.stage_product("call-classes", bytes);
+    }
+    if let Some(bytes) = session
+        .partition
+        .as_ref()
+        .and_then(|product| product.materialization.as_ref())
+        .and_then(|product| product.encode_raw())
+    {
+        raw.stage_product("class-partition", bytes);
     }
 }

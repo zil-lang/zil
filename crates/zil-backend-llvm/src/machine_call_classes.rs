@@ -5,6 +5,7 @@
 //! This is not an interposition-safe optimization for open modules. Names only
 //! restrict the candidate domain; complete Function equality authorizes a class.
 //! Definitions, linkage, attributes, local names and all address uses survive.
+mod recovery;
 use std::collections::{BTreeSet, HashMap};
 use zil_llvm_api::model::{Arg, Block, Function, Item, Linkage, Module, Op, SharedVec, Ty, Val};
 
@@ -487,6 +488,10 @@ fn canonicalize_inner(
     // fixed for this entire computation. A transform that splits a SharedVec
     // creates another owner and misses, even when the contents happen to equal.
     let mut body_inputs: HashMap<*const Vec<Block>, Vec<usize>> = HashMap::new();
+    // Both inventories retain strong immutable block owners for this entire
+    // request. Cross-process codecs rebuild different Arcs; compare each owner
+    // pair in full once, while every row still binds its COMPLETE own header.
+    let mut equal_bodies: HashMap<(*const Vec<Block>, *const Vec<Block>), bool> = HashMap::new();
     let mut input_owners = Vec::with_capacity(count);
     for (index, function) in functions.iter().enumerate() {
         if cancelled() {
@@ -494,7 +499,19 @@ fn canonicalize_inner(
         }
         let old = previous
             .and_then(|old| old.functions.get(index))
-            .filter(|old| old.input == **function);
+            .filter(|old| {
+                if old.input.name != function.name || !same_class_header(&old.input, function) {
+                    return false;
+                }
+                match (&old.input.blocks, &function.blocks) {
+                    (None, None) => true,
+                    (Some(a), Some(b)) if a.ptr_eq(b) => true,
+                    (Some(a), Some(b)) => *equal_bodies
+                        .entry((std::ptr::from_ref(&**a), std::ptr::from_ref(&**b)))
+                        .or_insert_with(|| a == b),
+                    _ => false,
+                }
+            });
         let owner = body_owner(function);
         let candidates = owner.and_then(|owner| body_inputs.get(&owner));
         let body = candidates.and_then(|candidates| {

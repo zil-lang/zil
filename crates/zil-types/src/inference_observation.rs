@@ -10,8 +10,18 @@ pub(crate) struct BodyObservation {
     complex: bool,
     reserved: bool,
     factory: bool,
+    projection: Option<projection::Projection>,
 }
 impl BodyObservation {
+    pub fn with_projection(origin: Span) -> Self {
+        Self {
+            projection: Some(projection::Projection::new(origin)),
+            ..Self::default()
+        }
+    }
+    pub fn take_input(&mut self) -> Option<BodyInput> {
+        self.projection.take()?.finish()
+    }
     fn visit(&mut self, depth: usize) {
         self.max_depth = self.max_depth.max(depth);
         if let Some(visits) = self.visits.checked_add(1) {
@@ -20,11 +30,17 @@ impl BodyObservation {
             self.complex = true;
         }
     }
-    pub fn block(&mut self, depth: usize) {
+    pub fn block(&mut self, block: &CoreBlock, depth: usize) {
         self.visit(depth);
+        if let Some(projection) = &mut self.projection {
+            projection.block(block);
+        }
     }
     pub fn statement(&mut self, statement: &CoreStatement, depth: usize) {
         self.visit(depth);
+        if let Some(projection) = &mut self.projection {
+            projection.statement(statement);
+        }
         match &statement.kind {
             CoreStatementKind::Binding { name, .. } => {
                 self.reserved |= !names::plain_binding_name(name);
@@ -60,6 +76,9 @@ impl BodyObservation {
         factories: &BTreeSet<String>,
     ) {
         self.visit(depth);
+        if let Some(projection) = &mut self.projection {
+            projection.expression(expression);
+        }
         match &expression.kind {
             CoreExprKind::Call { callee, .. } => {
                 // A superset of actual factory dependencies: shadowing, aliases

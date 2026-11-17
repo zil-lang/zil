@@ -375,6 +375,16 @@ pub(super) fn add_definition(
     left: &mut usize,
     limits: &Limits,
 ) -> R<bool> {
+    add_definition_recording(functions, definitions, left, limits, None)
+}
+pub(super) fn add_definition_recording(
+    functions: &[TypedFunction],
+    definitions: &mut Vec<ResourceDefinition>,
+    left: &mut usize,
+    limits: &Limits,
+    mut observations: Option<&mut push::PostObservations>,
+) -> R<bool> {
+    let before = *left;
     let mut has_mutex = false;
     let mut pending = Vec::new();
     for f in functions {
@@ -386,6 +396,9 @@ pub(super) fn add_definition(
         *left = left.checked_sub(n).ok_or_else(|| {
             Diagnostic::limit(Phase::Types, "task resource scan budget exceeded", None)
         })?;
+        if let Some(observations) = &mut observations {
+            observations.record(push::PostPass::Tasks, f.id, n, 0);
+        }
         pending.extend(
             f.values
                 .iter()
@@ -484,6 +497,9 @@ pub(super) fn add_definition(
             _ => {}
         }
         pending.extend(children);
+    }
+    if let Some(observations) = observations {
+        observations.finish(push::PostPass::Tasks, before - *left, 0);
     }
     Ok(has_mutex)
 }

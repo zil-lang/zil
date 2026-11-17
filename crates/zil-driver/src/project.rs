@@ -1681,7 +1681,39 @@ impl CompilationSession {
         if options.stop_after == Stage::Types {
             return Ok(());
         }
-        let result = self.finish_typed(
+        let mut preparation_seed = (options.push_reuse
+            && semantic.is_some()
+            && options.stop_after == Stage::Build)
+            .then(|| {
+                (
+                    self.semantic_publication.clone(),
+                    if report
+                        .types_push_work
+                        .as_ref()
+                        .is_some_and(|work| work.context_rebuilds != 0)
+                    {
+                        self.function_types.last_products().to_vec()
+                    } else {
+                        Vec::new()
+                    },
+                )
+            });
+        let mut preparation_job = None;
+        let mut prepare = |program: &Arc<zil_ir::TypedProgram>,
+                           candidate: &Arc<zil_ir::CandidatePlan>| {
+            if let Some((publication, products)) = preparation_seed.take()
+                && let Some(store) = &semantic
+            {
+                preparation_job = store.prepare_publication(
+                    publication,
+                    program.clone(),
+                    candidate.clone(),
+                    products,
+                    options,
+                );
+            }
+        };
+        let result = self.finish_typed_preparing(
             options,
             report,
             observer,
@@ -1689,7 +1721,14 @@ impl CompilationSession {
             typed_snapshot.clone(),
             artifacts.clone(),
             stable_source.as_ref(),
+            Some(&mut prepare),
         );
+        // Always join, including native errors and cancellation. Only success
+        // below can commit the prepared bytes or advance a publication epoch.
+        let wait = cost_start(options.profile_compilation);
+        let preparation_started = preparation_job.is_some();
+        let prepared_publication = preparation_job.and_then(|job| job.finish());
+        report.record_driver_cost("semantic_publication_wait", wait);
         if result.is_ok()
             && output_anchor
                 .as_ref()
@@ -1732,7 +1771,18 @@ impl CompilationSession {
             } else {
                 None
             };
-            let publication = if let Some(products) = products {
+            let publication = if let Some(prepared) = prepared_publication {
+                store.save_prepared(
+                    prepared,
+                    options,
+                    &artifacts,
+                    &mut self.semantic_publication,
+                )
+            } else if preparation_started {
+                // Unsupported/over-budget optional encoding was already
+                // attempted. Do not repeat it serially after codegen.
+                None
+            } else if let Some(products) = products {
                 store.save_with_products(
                     typed.program(),
                     &candidate,

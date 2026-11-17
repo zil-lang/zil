@@ -147,14 +147,23 @@ pub(super) fn check_resolved_program_recording(
     // Preserve the single-module entry's lexical diagnostic precedence across
     // the entire bounded input graph. Unsupported aggregate/trait headers must
     // not conceal a receiver error in this module or a later dependency.
-    names::check_modules_recording(
-        program.modules.iter().map(|m| m.core.as_ref()),
-        limits,
-        recording
-            .as_deref_mut()
-            .map(|recording| &mut recording.names),
-    )
-    .map_err(|e| vec![e])?;
+    if let Some(costs) = reuse
+        .as_deref_mut()
+        .and_then(|reuse| reuse.current_names(program, limits))
+    {
+        if let Some(recording) = &mut recording {
+            recording.names = costs;
+        }
+    } else {
+        names::check_modules_recording(
+            program.modules.iter().map(|m| m.core.as_ref()),
+            limits,
+            recording
+                .as_deref_mut()
+                .map(|recording| &mut recording.names),
+        )
+        .map_err(|e| vec![e])?;
+    }
     let mut closure_state = closures::State::new(count, limits);
     let mut life_declarations = Vec::new();
     let mut life_instances = Vec::new();
@@ -604,18 +613,34 @@ pub(super) fn check_resolved_program_recording(
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
-    tasks::add_definition(&functions, &mut resources, &mut remaining, limits)
+    let mut post = recording
+        .as_ref()
+        .map(|_| push::PostObservations::new(&functions));
+    tasks::add_definition_recording(
+        &functions,
+        &mut resources,
+        &mut remaining,
+        limits,
+        post.as_mut(),
+    )
+    .map_err(|e| vec![e])?;
+    registration::add_definitions_recording(
+        &functions,
+        &mut resources,
+        &mut remaining,
+        post.as_mut(),
+    )
+    .map_err(|e| vec![e])?;
+    byte_buffer::add_definition_recording(&functions, &mut resources, limits, post.as_mut())
         .map_err(|e| vec![e])?;
-    registration::add_definitions(&functions, &mut resources, &mut remaining)
-        .map_err(|e| vec![e])?;
-    byte_buffer::add_definition(&functions, &mut resources, limits).map_err(|e| vec![e])?;
-    dynamic_store::add_definitions(
+    dynamic_store::add_definitions_recording(
         &functions,
         &mut resources,
         &closures,
         &bound_elements,
         limits,
         &mut remaining,
+        post.as_mut(),
     )
     .map_err(|e| vec![e])?;
     let mut module = TypedModule {
@@ -649,6 +674,7 @@ pub(super) fn check_resolved_program_recording(
     }
     if let Some(recording) = &mut recording {
         recording.remaining = remaining;
+        recording.post = post;
     }
     Ok(TypedProgram {
         task_interfaces,

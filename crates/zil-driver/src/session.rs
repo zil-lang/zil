@@ -16,6 +16,8 @@ use zil_db::{
 use zil_ir::{CandidatePlan, CoreModule, Type, TypedModule, TypedProgram};
 use zil_syntax::ParseResult;
 
+pub(super) type PublicationHook<'a> = dyn FnMut(&Arc<TypedProgram>, &Arc<CandidatePlan>) + 'a;
+
 fn trusted_emission_namespace(
     options: &CompileOptions,
     artifacts: &ArtifactPlan,
@@ -1246,6 +1248,30 @@ impl CompilationSession {
         artifacts: ArtifactPlan,
         stable_source: Option<&super::stable_source_identity::SourceIdentities>,
     ) -> CompileResult<()> {
+        self.finish_typed_preparing(
+            options,
+            report,
+            observer,
+            typed,
+            typed_snapshot,
+            artifacts,
+            stable_source,
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn finish_typed_preparing(
+        &mut self,
+        options: &CompileOptions,
+        report: &mut CompileReport,
+        observer: &mut dyn FnMut(&QueryEvent),
+        typed: TypedInput,
+        typed_snapshot: Arc<QuerySnapshot>,
+        artifacts: ArtifactPlan,
+        stable_source: Option<&super::stable_source_identity::SourceIdentities>,
+        publication_hook: Option<&mut PublicationHook<'_>>,
+    ) -> CompileResult<()> {
         let checkpoint =
             (options.push_reuse && options.semantic_cache.is_some()).then(|| self.analysis.clone());
         let result = self.finish_typed_inner(
@@ -1256,6 +1282,7 @@ impl CompilationSession {
             typed_snapshot,
             artifacts,
             stable_source,
+            publication_hook,
         );
         if result.is_err()
             && let Some(checkpoint) = checkpoint
@@ -1275,6 +1302,7 @@ impl CompilationSession {
         typed_snapshot: Arc<QuerySnapshot>,
         artifacts: ArtifactPlan,
         stable_source: Option<&super::stable_source_identity::SourceIdentities>,
+        publication_hook: Option<&mut PublicationHook<'_>>,
     ) -> CompileResult<()> {
         // Types and Analyze depend on the same complete request identity. The
         // cached raw result is still independently checked below on every call.
@@ -1396,7 +1424,7 @@ impl CompilationSession {
         report.verification_runs += 1;
         let verify_start = Instant::now();
         let mut verification = options.reuse_producers().then(|| self.verification.clone());
-        let verified = typed.verify(candidate, options, verification.as_mut());
+        let verified = typed.verify(candidate.clone(), options, verification.as_mut());
         report.verification_work = verification.as_ref().map(zil_verify::VerifySession::stats);
         report.record_phase_time(Phase::Verify, verify_start);
         event(Phase::Verify, QueryDisposition::Executed, report, observer);
@@ -1428,6 +1456,12 @@ impl CompilationSession {
         })?;
         if options.stop_after == Stage::Verify {
             return Ok(());
+        }
+        if options.stop_after == Stage::Build
+            && let Some(hook) = publication_hook
+            && let TypedInput::Program(program) | TypedInput::CachedProgram(program, _) = &typed
+        {
+            hook(program, &candidate);
         }
         let lower_start = Instant::now();
         let mut lowering = options.push_reuse.then(|| self.lowering.clone());

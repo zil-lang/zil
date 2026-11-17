@@ -56,6 +56,14 @@ pub(super) fn add_definition(
     definitions: &mut Vec<ResourceDefinition>,
     limits: &Limits,
 ) -> R<()> {
+    add_definition_recording(functions, definitions, limits, None)
+}
+pub(super) fn add_definition_recording(
+    functions: &[TypedFunction],
+    definitions: &mut Vec<ResourceDefinition>,
+    limits: &Limits,
+    mut observations: Option<&mut push::PostObservations>,
+) -> R<()> {
     let mut work = limits.max_analysis_steps;
     let limit = || {
         Diagnostic::limit(
@@ -65,6 +73,7 @@ pub(super) fn add_definition(
         )
     };
     for function in functions {
+        let before = work;
         // Reserve roots first and child visits before growing the worklist.
         // An error result can be the only mention of its Package's byte owner.
         let amount = function
@@ -111,6 +120,9 @@ pub(super) fn add_definition(
                 }
             }
         }
+        if let Some(observations) = &mut observations {
+            observations.record(push::PostPass::Bytes, function.id, 0, before - work);
+        }
         if !found {
             continue;
         }
@@ -122,6 +134,9 @@ pub(super) fn add_definition(
             teardown: None,
         });
         break;
+    }
+    if let Some(observations) = observations {
+        observations.finish(push::PostPass::Bytes, 0, limits.max_analysis_steps - work);
     }
     Ok(())
 }

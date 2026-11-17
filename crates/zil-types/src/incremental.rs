@@ -274,6 +274,10 @@ pub struct FunctionStats {
     pub executed_functions: usize,
     pub body_key_executions: usize,
     pub body_key_reuses: usize,
+    /// Body projections obtained by the current bounded inference visitor,
+    /// including the first request of a brand new process. Not disk receipts.
+    pub body_key_current_projections: usize,
+    pub names_current_replays: usize,
     pub core_function_eq_comparisons: usize,
     pub body_key_visited_nodes: usize,
     pub graph_edges: usize,
@@ -305,7 +309,7 @@ impl FunctionStats {
             self.inventory_functions_visited,
         );
         format!(
-            "{{{},\"reused_functions\":{},\"restored_reused_functions\":{},\"cfg_same_span_reuses\":{},\"cfg_relocated_functions\":{},\"executed_functions\":{},\"body_key_executions\":{},\"body_key_reuses\":{},\"core_function_eq_comparisons\":{},\"body_key_visited_nodes\":{},\"context_modules_visited\":{},\"context_declarations_hashed\":{},\"context_imports_hashed\":{},\"graph_edges\":{},\"graph\":{{\"executed\":{},\"edge_reads\":{},\"notifications\":{},\"enqueues\":{},\"deduplicated\":{},\"reused_bonds\":{},\"new_bonds\":{},\"removed_bonds\":{},\"rank_visits\":{},\"input_updates\":{},\"retained_nodes\":{},\"retained_edges\":{},\"inventory_visits\":{},\"equal_results\":{},\"changed_results\":{},\"cycle_check_edges\":{},\"validation_edge_reads\":{},\"rank_edge_reads\":{}}}}}",
+            "{{{},\"reused_functions\":{},\"restored_reused_functions\":{},\"cfg_same_span_reuses\":{},\"cfg_relocated_functions\":{},\"executed_functions\":{},\"body_key_executions\":{},\"body_key_reuses\":{},\"body_key_current_projections\":{},\"names_current_replays\":{},\"core_function_eq_comparisons\":{},\"body_key_visited_nodes\":{},\"context_modules_visited\":{},\"context_declarations_hashed\":{},\"context_imports_hashed\":{},\"graph_edges\":{},\"graph\":{{\"executed\":{},\"edge_reads\":{},\"notifications\":{},\"enqueues\":{},\"deduplicated\":{},\"reused_bonds\":{},\"new_bonds\":{},\"removed_bonds\":{},\"rank_visits\":{},\"input_updates\":{},\"retained_nodes\":{},\"retained_edges\":{},\"inventory_visits\":{},\"equal_results\":{},\"changed_results\":{},\"cycle_check_edges\":{},\"validation_edge_reads\":{},\"rank_edge_reads\":{}}}}}",
             timings,
             self.reused_functions,
             self.restored_reused_functions,
@@ -314,6 +318,8 @@ impl FunctionStats {
             self.executed_functions,
             self.body_key_executions,
             self.body_key_reuses,
+            self.body_key_current_projections,
+            self.names_current_replays,
             self.core_function_eq_comparisons,
             self.body_key_visited_nodes,
             self.context_modules_visited,
@@ -632,6 +638,9 @@ impl FunctionSession {
             signature_reads: (recording.is_some() && graph_eligible).then(BTreeMap::new),
             bindings: &mut bindings,
             reused_ids: BTreeSet::new(),
+            current_inputs: graph_eligible
+                .then(|| prepared.current_inputs(limits))
+                .flatten(),
             reactive: owners.filter(|_| graph).map(|owners| ReactiveRequest {
                 state: &mut self.projections,
                 owners,
@@ -925,8 +934,24 @@ pub(super) struct Reuse<'a> {
     reused_ids: BTreeSet<FunctionId>,
     reactive: Option<ReactiveRequest<'a>>,
     producer: Option<ProducerRequest<'a>>,
+    current_inputs: Option<&'a inference_receipts::CurrentInputs>,
 }
 impl Reuse<'_> {
+    /// Inference already ran Names with its independent node ledger on this
+    /// exact raw Core. Reuse the actual successful visits, never Typed output
+    /// or a persisted fee/read-set claim. Changed shape owners use the visitor.
+    pub(super) fn current_names(
+        &mut self,
+        program: &CoreProgram,
+        limits: &Limits,
+    ) -> Option<Vec<usize>> {
+        let inputs = self
+            .current_inputs
+            .filter(|inputs| inputs.matches(program, limits))?;
+        let costs = inputs.names(limits)?;
+        self.stats.names_current_replays += costs.len();
+        Some(costs)
+    }
     pub(super) fn start_cost(&self) -> Option<Instant> {
         start_cost(self.stats.cost_profiled)
     }
@@ -944,7 +969,15 @@ impl Reuse<'_> {
         limits: &Limits,
     ) {
         if let Some(reads) = &mut self.signature_reads {
-            self.keys = keys_recording(program, tables, target, limits, self.stats, Some(reads));
+            self.keys = keys_recording(
+                program,
+                tables,
+                target,
+                limits,
+                self.stats,
+                Some(reads),
+                self.current_inputs,
+            );
             return;
         }
         if let Some(request) = &mut self.producer {
@@ -953,7 +986,15 @@ impl Reuse<'_> {
         }
         self.keys = match &mut self.reactive {
             Some(request) => request.keys(program, tables, target, limits, self.stats),
-            None => keys(program, tables, target, limits, self.stats),
+            None => keys_recording(
+                program,
+                tables,
+                target,
+                limits,
+                self.stats,
+                None,
+                self.current_inputs,
+            ),
         };
     }
     pub(super) fn signature_reads(
@@ -1537,7 +1578,7 @@ impl ReactiveRequest<'_> {
     }
 }
 
-fn scalar(ty: &Type) -> bool {
+pub(super) fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
         Type::Unit
@@ -1608,7 +1649,7 @@ fn keys(
     limits: &Limits,
     stats: &mut FunctionStats,
 ) -> Option<FunctionFingerprints> {
-    keys_recording(program, tables, target, limits, stats, None)
+    keys_recording(program, tables, target, limits, stats, None, None)
 }
 
 fn keys_recording(
@@ -1618,25 +1659,44 @@ fn keys_recording(
     limits: &Limits,
     stats: &mut FunctionStats,
     mut reads: Option<&mut SignatureReads>,
+    inputs: Option<&inference_receipts::CurrentInputs>,
 ) -> Option<FunctionFingerprints> {
     let context = key_context(program, tables, target, limits, stats)?;
     let started = start_cost(stats.cost_profiled);
     let body_key_before = stats.body_key_ns;
     let mut keys = BTreeMap::new();
+    let inputs = inputs.filter(|inputs| inputs.matches(program, limits));
+    let mut index = 0usize;
     for module in &program.modules {
         for function in &module.core.functions {
             stats.inventory_functions_visited += 1;
             let mut observed = BTreeSet::new();
-            let mut observe = |module, name: &str| {
-                observed.insert(tables.get(&module)?.get(name)?.id?);
-                Some(())
-            };
-            let observe: SignatureObserver<'_> = if reads.is_some() {
-                Some(&mut observe)
+            let projection_started = start_cost(stats.cost_profiled);
+            let projected = inputs
+                .and_then(|inputs| inputs.body(index))
+                .and_then(|input| {
+                    current_input_key(module, function, tables, &context, input, &mut observed)
+                });
+            let projection_ns = elapsed_cost(projection_started);
+            stats.body_key_ns += projection_ns;
+            stats.evaluator_ns += projection_ns;
+            index += 1;
+            let key = if let Some(key) = projected {
+                stats.body_key_current_projections += 1;
+                Some(key)
             } else {
-                None
+                observed.clear();
+                let mut observe = |module, name: &str| {
+                    observed.insert(tables.get(&module)?.get(name)?.id?);
+                    Some(())
+                };
+                let observe: SignatureObserver<'_> = if reads.is_some() {
+                    Some(&mut observe)
+                } else {
+                    None
+                };
+                function_key(module, function, tables, &context, limits, stats, observe)
             };
-            let key = function_key(module, function, tables, &context, limits, stats, observe);
             if let Some(key) = key {
                 if let Some(reads) = &mut reads {
                     reads.insert((module.core.module_id, function.name.clone()), observed);
@@ -1647,6 +1707,73 @@ fn keys_recording(
     }
     stats.inventory_ns += elapsed_cost(started).saturating_sub(stats.body_key_ns - body_key_before);
     Some(keys)
+}
+
+#[cfg(test)]
+#[path = "restart_inputs_tests.rs"]
+mod restart_inputs_tests;
+
+// Fold current declaration facets into an actual current body projection. A
+// missing name/alias, foreign target or unobserved shape takes the historical
+// BodyKey path. No serialized read set participates in this reconstruction.
+fn current_input_key(
+    module: &ProgramModule,
+    function: &CoreFunction,
+    tables: &BTreeMap<ModuleId, BTreeMap<String, Signature>>,
+    context: &KeyContext,
+    input: &inference::BodyInput,
+    observed: &mut BTreeSet<FunctionId>,
+) -> Option<Fingerprint> {
+    if !worthwhile(function) {
+        return None;
+    }
+    let mut hash = FingerprintBuilder::new();
+    hash.update(b"ZIL-FUNCTION-CURRENT-BODY-1\0");
+    hash.update(&context.fingerprint.0);
+    hash.update(
+        &context
+            .declarations
+            .get(&module.core.module_id)?
+            .get(&function.name)?
+            .0,
+    );
+    module.core.module_id.hash(&mut hash);
+    function.name.hash(&mut hash);
+    let origin = function.span;
+    origin.end.checked_sub(origin.start)?.hash(&mut hash);
+    for parameter in &function.parameters {
+        let span = parameter.span;
+        if span.file != origin.file
+            || span.start < origin.start
+            || span.end > origin.end
+            || span.start > span.end
+        {
+            return None;
+        }
+        (span.start - origin.start, span.end - origin.start).hash(&mut hash);
+    }
+    hash.update(&input.digest.0);
+    input.calls.len().hash(&mut hash);
+    for (alias, name) in &input.calls {
+        let callee_module = if let Some(alias) = alias {
+            module
+                .imports
+                .iter()
+                .find(|import| &import.alias == alias)?
+                .module
+        } else {
+            module.core.module_id
+        };
+        let signature = tables.get(&callee_module)?.get(name)?;
+        if signature.foreign {
+            return None;
+        }
+        observed.insert(signature.id?);
+        callee_module.hash(&mut hash);
+        name.hash(&mut hash);
+        hash.update(&context.declarations.get(&callee_module)?.get(name)?.0);
+    }
+    Some(hash.digest())
 }
 
 struct KeyContext {

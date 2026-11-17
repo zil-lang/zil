@@ -330,6 +330,83 @@ impl Grouping {
     }
 }
 
+impl Grouping {
+    pub(super) fn encode_source(&self, out: &mut crate::emit::raw_codec::Writer) -> Option<()> {
+        out.word(self.source.len())?;
+        for source in &self.source {
+            out.word(source.id.0 as usize)?;
+            out.text(&source.name)?;
+            out.word(usize::from(source.foreign))?;
+            out.word(source.file.0 as usize)?;
+            out.word(source.blocks.len())?;
+            for &count in &source.blocks {
+                out.word(count)?;
+            }
+            out.word(source.calls.len())?;
+            for &(block, instruction, id) in &source.calls {
+                out.word(block)?;
+                out.word(instruction)?;
+                out.word(id.0 as usize)?;
+            }
+        }
+        Some(())
+    }
+    pub(super) fn decode_source(
+        &mut self,
+        input: &mut crate::emit::raw_codec::Reader<'_>,
+    ) -> Option<()> {
+        let count = input.count()?;
+        if count > MAX_ITEMS {
+            return None;
+        }
+        let mut source = Vec::with_capacity(count.min(4096));
+        let mut ids = BTreeSet::new();
+        for _ in 0..count {
+            let id = zil_ir::FunctionId(input.word()? as u32);
+            if !ids.insert(id) {
+                return None;
+            }
+            let name = input.text()?;
+            let foreign = match input.word()? {
+                0 => false,
+                1 => true,
+                _ => return None,
+            };
+            let file = zil_base::FileId(input.word()? as u32);
+            let n = input.count()?;
+            let mut blocks = Vec::with_capacity(n.min(4096));
+            for _ in 0..n {
+                blocks.push(input.word()?);
+            }
+            let n = input.count()?;
+            let mut calls = Vec::with_capacity(n.min(4096));
+            for _ in 0..n {
+                let block = input.word()?;
+                let instruction = input.word()?;
+                let id = zil_ir::FunctionId(input.word()? as u32);
+                if blocks.get(block).is_none_or(|&count| instruction >= count)
+                    || calls
+                        .last()
+                        .is_some_and(|&(b, i, _)| (b, i) >= (block, instruction))
+                {
+                    return None;
+                }
+                calls.push((block, instruction, id));
+            }
+            source.push(SourceGrouping {
+                id,
+                name,
+                foreign,
+                file,
+                blocks,
+                calls,
+            });
+        }
+        self.source = source;
+        Some(())
+    }
+}
+
 const MAGIC: &[u8; 8] = b"ZILCGU01";
 const DIRECTORY: &str = "partition-layout-v1";
 pub(crate) const MAX_ITEMS: usize = 262_144;
@@ -883,7 +960,7 @@ impl Layout {
         )
     }
 
-    fn encode(&self) -> Option<Vec<u8>> {
+    pub(super) fn encode(&self) -> Option<Vec<u8>> {
         if !(2..=MAX_UNITS).contains(&self.units.len()) {
             return None;
         }
@@ -921,7 +998,7 @@ impl Layout {
         Some(bytes)
     }
 
-    fn decode(bytes: &[u8]) -> Option<Self> {
+    pub(super) fn decode(bytes: &[u8]) -> Option<Self> {
         if bytes.len() > MAX_BYTES {
             return None;
         }

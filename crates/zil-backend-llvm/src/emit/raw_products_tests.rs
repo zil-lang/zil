@@ -34,6 +34,7 @@ fn request(root: &Path) -> Request {
         decoded: BTreeMap::new(),
         accepted: BTreeMap::new(),
         decode_nodes: 0,
+        products: vec![],
         current: vec![],
         current_aliases: BTreeMap::new(),
         owners: Default::default(),
@@ -125,6 +126,9 @@ fn fixture(edit: bool) -> VerifiedModule {
         closures: vec![],
         unsupported: vec![],
     };
+    checked(module)
+}
+fn checked(module: TypedModule) -> VerifiedModule {
     let mut plan = CandidatePlan::empty_for(&module);
     plan.functions = module
         .functions
@@ -707,4 +711,159 @@ fn scalar_raw_codec_roundtrips_every_supported_field_and_refuses_truncation_and_
     };
     function.signature.result = m::Ty::F64;
     assert!(raw_codec::encode(&unsupported).is_none());
+}
+
+fn chain_fixture(edit: bool) -> VerifiedModule {
+    let mut module = fixture(edit).module().clone();
+    for id in 6..12 {
+        module.functions[id].blocks[0].instructions[2].kind = InstructionKind::Call {
+            function: FunctionId((id % 3) as u32),
+            arguments: vec![ValueId(0)],
+        };
+    }
+    checked(module)
+}
+fn classes(
+    verified: &VerifiedModule,
+    source: &LirModule,
+    request: &mut Request,
+    previous: Option<&crate::machine_call_classes::Cache>,
+) -> (
+    m::Module,
+    BTreeSet<String>,
+    crate::machine_call_classes::Cache,
+) {
+    let mut checker = crate::machine_preflight::CurrentPreflight::default();
+    request.use_preflight(checker.body_session());
+    let mut machine = lower(verified, source, Some(request)).unwrap().0;
+    checker.check(&machine).unwrap(); // COMPLETE current unpruned model.
+    let (_, symbols, cache) = crate::machine_call_classes::canonicalize_stable_cached(
+        &mut machine,
+        &BTreeSet::new(),
+        &|| false,
+        previous,
+    )
+    .unwrap();
+    assert!(!symbols.is_empty());
+    (machine, symbols, cache)
+}
+
+#[test]
+fn cold_publish_exit_first_edit_restores_classes_and_actual_partition_consumers() {
+    let directory = Directory::new();
+    {
+        let verified = chain_fixture(false);
+        let source = lir(&verified);
+        let mut cold = request(&directory.0);
+        let (machine, symbols, cache) = classes(&verified, &source, &mut cold, None);
+        let partition = crate::machine_cgu::partition_classes_reusing_with_policy(
+            machine,
+            &source.as_view(),
+            EntryPoint::None,
+            4,
+            &symbols,
+            None,
+            None,
+            crate::machine_cgu::CallImportPolicy::BoundedClasses(None),
+        )
+        .unwrap();
+        cold.stage_product("call-classes", cache.encode_raw().unwrap());
+        cold.stage_product(
+            "class-partition",
+            partition.materialization.unwrap().encode_raw().unwrap(),
+        );
+        // Nothing exists until the enclosing native publication succeeds.
+        assert!(!cold.directory.exists());
+        cold.pending().unwrap().commit(&directory.0);
+    }
+    // New Verify, raw models, immutable owners and Request. No warm request.
+    let verified = chain_fixture(true);
+    let source = lir(&verified);
+    let mut restarted = request(&directory.0);
+    let original = lower(&verified, &source, Some(&mut restarted)).unwrap().0;
+    let cache = crate::machine_call_classes::Cache::decode_raw(
+        &restarted.product("call-classes").unwrap(),
+        verified.limits(),
+    )
+    .unwrap();
+    let (actual, symbols, reused) = classes(&verified, &source, &mut restarted, Some(&cache));
+    let mut expected = original;
+    crate::machine_call_classes::canonicalize_stable_cached(
+        &mut expected,
+        &BTreeSet::new(),
+        &|| false,
+        None,
+    )
+    .unwrap();
+    assert_eq!(actual, expected);
+    assert!(reused.reused_keys > 0);
+    assert!(
+        reused.rebuilt_keys > 0,
+        "the actual changed input must miss"
+    );
+    let policy = crate::machine_cgu::CallImportPolicy::BoundedClasses(None);
+    let old = crate::machine_cgu::Materialization::decode_raw(
+        &restarted.product("class-partition").unwrap(),
+        verified.limits(),
+        &source.as_view(),
+        EntryPoint::None,
+        4,
+        policy,
+    )
+    .unwrap();
+    let partition = crate::machine_cgu::partition_classes_reusing_with_policy(
+        actual,
+        &source.as_view(),
+        EntryPoint::None,
+        4,
+        &symbols,
+        None,
+        Some(&old),
+        policy,
+    )
+    .unwrap();
+    let product = partition.materialization.unwrap();
+    assert!(
+        product.reused_items > 0,
+        "actual CGU values must consume restored items"
+    );
+    assert!(
+        product.constructed_items > 0,
+        "the edited body cannot reuse stale bytes"
+    );
+    for unit in partition.plan.units {
+        zil_llvm_api::validate_module(&unit).unwrap();
+    }
+    // The adapted successful epoch can itself be published, avoiding a history
+    // chain that silently keeps consuming the original cold input forever.
+    assert!(product.encode_raw().is_some());
+}
+
+#[test]
+fn auxiliary_products_require_context_integrity_and_successful_publication() {
+    let directory = Directory::new();
+    let verified = fixture(false);
+    let source = lir(&verified);
+    let mut cancelled = request(&directory.0);
+    lower(&verified, &source, Some(&mut cancelled)).unwrap();
+    cancelled.stage_product("call-classes", vec![1, 2, 3]);
+    drop(cancelled.pending()); // Failed/cancelled enclosing transaction.
+    assert!(!directory.0.join("test-installed-identity").exists());
+    let mut cold = request(&directory.0);
+    lower(&verified, &source, Some(&mut cold)).unwrap();
+    cold.stage_product("call-classes", vec![1, 2, 3]);
+    cold.pending().unwrap().commit(&directory.0);
+    let mut restarted = request(&directory.0);
+    lower(&verified, &source, Some(&mut restarted)).unwrap();
+    assert_eq!(restarted.product("call-classes"), Some(vec![1, 2, 3]));
+    restarted.context.push(42);
+    assert!(restarted.product("call-classes").is_none());
+    restarted.context.pop();
+    let manifest = read(&restarted.directory.join("call-classes.manifest"), 44).unwrap();
+    let digest = Fingerprint(manifest[8..40].try_into().unwrap());
+    let path = restarted.directory.join(format!("{}.raw", digest.to_hex()));
+    let mut bytes = read(&path, MAX_BYTES).unwrap();
+    *bytes.last_mut().unwrap() ^= 1;
+    fs::write(path, bytes).unwrap();
+    assert!(restarted.product("call-classes").is_none());
 }
