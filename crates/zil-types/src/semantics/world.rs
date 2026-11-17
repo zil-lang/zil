@@ -29,6 +29,8 @@ mod intrinsics;
 mod methods;
 #[path = "world_places.rs"]
 mod places;
+#[path = "world_occurrences.rs"]
+mod occurrences;
 #[path = "world_persistent_slots.rs"]
 mod persistent_slots;
 #[path = "world_projection.rs"]

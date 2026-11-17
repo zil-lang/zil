@@ -710,7 +710,7 @@ pub(super) fn capture(
         let value = super::super::headers::original_capture_value(
             world.program, &world.view, world.ledger, instance, index, ty,
             world.limits, world.left,
-        )?.ok_or_else(|| pending("compound Static capture lacks its complete original creator value"))?;
+        )?;
         return Ok(std::rc::Rc::new(value));
     }
     let base = StorageBase::Capture(index);

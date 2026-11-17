@@ -547,18 +547,23 @@ fn checked_call_source(
     if !matches!(recipe.kind, SemanticSiteRecipeKind::OriginalCall) {
         return Err(bad("returned source is not its original Call occurrence"));
     }
-    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-        return Err(bad("returned source has no complete original node directory"));
-    };
-    world.pay(site_nodes.len().saturating_add(world.program.sites.len()))?;
-    if !site_nodes.iter().any(|row| row.site == site && row.node == SemanticOriginalNode::Expression(node))
-        || !world.program.sites.iter().any(|row| row.instance == instance.id && row.recipe == site
-            && matches!(row.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After }
-                if actual == block && instruction as usize == index)
-            && matches!(row.action, SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. }
-                | SemanticSiteAction::CallableCall { .. }))
-    { return Err(bad("returned source changes its exact actual original call boundary")); }
+    let program = world.program;
+    world.pay(program.sites.len())?;
+    let mut candidates = program.sites.iter().filter(|row| row.instance == instance.id
+        && row.recipe == site
+        && matches!(row.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After }
+            if actual == block && instruction as usize == index)
+        && matches!(row.action, SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. }
+            | SemanticSiteAction::CallableCall { .. }));
+    let selected = candidates.next().ok_or_else(|| bad("returned source has no exact actual original Call"))?;
+    if candidates.next().is_some() {
+        return Err(bad("returned source repeats its exact actual original Call"));
+    }
+    if occurrences::node(world, original, selected)? != Some(node)
+        || occurrences::site_value(world, instance, original, selected)?.is_none()
+    { return Err(bad("returned source changes its exact actual expression occurrence")); }
     Ok(())
+
 }
 fn trace(
     world: &mut World<'_, '_>,
@@ -697,21 +702,7 @@ fn trace_steps(
                     return Err(bad("call result loan changes its original root expression"));
                 }
                 let (_, block, index) = producer(world, function, value)?;
-                let recipe = world.original_recipe(original, *site)?;
-                if !matches!(recipe.kind, SemanticSiteRecipeKind::OriginalCall) {
-                    return Err(bad("call result loan is not an original Call"));
-                }
-                let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body
-                else {
-                    return Err(bad("call result loan has no original body"));
-                };
-                world.pay(site_nodes.len().saturating_add(world.program.sites.len()))?;
-                if !site_nodes.iter().any(|row| row.site == *site && row.node == SemanticOriginalNode::Expression(step.node))
-                    || !world.program.sites.iter().any(|row| row.instance == instance.id && row.recipe == *site
-                        && matches!(row.at, SemanticSiteAddress::Typed { block: actual, instruction, edge: SemanticSiteEdge::After } if actual == block && instruction as usize == index)
-                        && matches!(row.action, SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. } | SemanticSiteAction::CallableCall { .. })) {
-                    return Err(bad("borrowed call result is not its exact checked original call result"));
-                }
+                checked_call_source(world, instance, original, step.node, *site, block, index)?;
                 // This value was produced by the independently checked actual
                 // invocation. Never select one input as an alias for its result.
                 world.get(values, value)?;
@@ -1220,22 +1211,7 @@ pub(super) fn call_result(
             return Ok(None);
         }
     }
-    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-        return Ok(None);
-    };
-    world.pay(site_nodes.len())?;
-    let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
-    let Some(node) = nodes.next() else {
-        return Ok(None);
-    };
-    if nodes.next().is_some() {
-        return Err(bad(
-            "call loan has ambiguous original occurrence correspondence",
-        ));
-    }
-    let SemanticOriginalNode::Expression(node) = node.node else {
-        return Ok(None);
-    };
+    let Some(node) = occurrences::node(world, original, site)? else { return Ok(None); };
     {
         let ledger = world.ledger;
         let proof = ledger.original.borrow();
@@ -1247,22 +1223,8 @@ pub(super) fn call_result(
             return Ok(None);
         }
     }
-    let SemanticSiteAddress::Typed {
-        block,
-        instruction,
-        edge: SemanticSiteEdge::After,
-    } = site.at
-    else {
-        return Err(bad("call loan is not its actual post-result boundary"));
-    };
-    world.pay(function.blocks.len())?;
-    let operand = function
-        .blocks
-        .iter()
-        .find(|row| row.id == block)
-        .and_then(|row| row.instructions.get(instruction as usize))
-        .and_then(|op| op.result)
-        .ok_or_else(|| bad("call loan has no exact emitted result SSA"))?;
+    let operand = occurrences::site_value(world, instance, original, site)?
+        .ok_or_else(|| bad("call loan has no exact emitted result occurrence"))?;
     let actual = world.get(values, operand)?;
     let expected = world.physical_type(
         instance.id,
@@ -1543,104 +1505,15 @@ pub(super) fn return_view(
         {
             return Ok(false);
         }
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-            return Err(bad("result view has no original expression directory"));
-        };
         let mut selected = None;
         for site in sites {
             world.pay(1)?;
-            let call_result = matches!(site.action,
-                SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. }
-                    | SemanticSiteAction::CallableCall { .. });
-            if !call_result && !matches!(site.action, SemanticSiteAction::TypeUse {
-                subject: SemanticOperand::Value(value), ..
-            } if value == operand)
-            {
-                continue;
-            }
-            world.pay(site_nodes.len())?;
-            let mut nodes = site_nodes.iter().filter(|row| row.site == site.recipe);
-            let Some(row) = nodes.next() else {
-                continue;
-            };
-            if nodes.next().is_some() {
-                return Err(bad(
-                    "result view changes its exact original expression occurrence",
-                ));
-            }
-            let SemanticOriginalNode::Expression(node) = row.node else {
-                continue;
-            };
+            let Some(node) = occurrences::node(world, original, site)? else { continue; };
             world.pay(index::search(proof.return_borrows.len()))?;
-            let Some(role) = proof.return_borrows.get(&(original.id, node)) else {
-                continue;
-            };
-            let frame = ledger
-                .frames
-                .get(&function.id)
-                .ok_or_else(|| bad("result view has no exact actual emission owner"))?;
-            // Original nodes are local to their immutable definition; the
-            // emitter keys are actual Core mints. The existing relocated
-            // TypeUse is the bridge between them, at the real end boundary
-            // selected by lower::site, not by numeric NodeId equality.
-            let SemanticSiteAddress::Typed { block, instruction, edge } = site.at else {
-                return Err(bad("result view has no relocated actual expression boundary"));
-            };
-            if call_result {
-                if edge != SemanticSiteEdge::After {
-                    return Err(bad("returned call view is not its real post-result boundary"));
-                }
-                world.pay(function.blocks.len())?;
-                let actual_result = function.blocks.iter().find(|row| row.id == block)
-                    .and_then(|row| row.instructions.get(instruction as usize))
-                    .and_then(|operation| operation.result);
-                if actual_result != Some(operand) { continue; }
-                // This same OriginalCall recipe and actual opcode must already
-                // be the exact producer of the returned SSA, not a second
-                // TypeUse manufactured for its lifetime adapter.
-                checked_call_source(world, instance, original, node, site.recipe,
-                    block, instruction as usize)?;
-            } else if edge != SemanticSiteEdge::Before {
-                return Err(bad("result view changes its original type-use boundary"));
-            }
-            world.pay(index::search(world.index.expressions.len()))?;
-            let emitted = world
-                .index
-                .expressions
-                .get(&(function.id, operand))
-                .ok_or_else(|| bad("result view loses its actual expression emission"))?;
-            index::pay(world.left, emitted.len())?;
-            let emitted = emitted.clone();
-            let mut reaches_boundary = false;
-            for mint in &emitted {
-                world.pay(index::search(frame.expressions.len()).saturating_add(1))?;
-                let expression = frame
-                    .expressions
-                    .get(mint)
-                    .ok_or_else(|| bad("result view changes its actual emitter index"))?;
-                world.pay(expression.instructions.len())?;
-                let boundary = if call_result {
-                    expression.instructions.iter().any(|point|
-                        point.block == block && point.instruction == instruction as usize)
-                        && expression.end.is_some_and(|end| end.block == block
-                            && end.instruction > instruction as usize)
-                } else {
-                    expression.end.is_some_and(|end|
-                        end.block == block && end.instruction == instruction as usize)
-                };
-                if expression.value == Some(operand) && boundary {
-                    reaches_boundary = true;
-                }
-            }
-            if !reaches_boundary {
-                return Err(bad(
-                    "result view changes its relocated expression boundary or actual SSA",
-                ));
-            }
+            let Some(role) = proof.return_borrows.get(&(original.id, node)) else { continue; };
+            if occurrences::site_value(world, instance, original, site)? != Some(operand) { continue; }
             if selected.replace((node, role)).is_some_and(|(previous, _)| previous != node) {
-                return Err(bad(
-                    "result SSA has several original result-loan occurrences",
-                ));
+                return Err(bad("result SSA has several original result-loan occurrences"));
             }
         }
         let Some((node, role)) = selected else {
@@ -2043,58 +1916,8 @@ fn original_read_value(
     original: &SemanticDefinition,
     node: NodeId,
 ) -> R<Option<ValueId>> {
-    let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &original.body else {
-        return Ok(None);
-    };
-    world.pay(site_nodes.len())?;
-    let recipes = site_nodes
-        .iter()
-        .filter(|row| row.node == SemanticOriginalNode::Expression(node))
-        .map(|row| row.site)
-        .collect::<Vec<_>>();
-    world.pay(
-        recipes
-            .len()
-            .saturating_add(index::search(world.index.sites.len())),
-    )?;
-    let Some(offsets) = world.index.sites.get(&instance.id) else {
-        return Ok(None);
-    };
-    index::pay(world.left, offsets.len())?;
-    let offsets = offsets.clone();
-    let program = world.program;
-    let mut selected = None;
-    for offset in offsets {
-        world.pay(recipes.len().saturating_add(1))?;
-        let site = &program.sites[offset];
-        if site.instance != instance.id || !recipes.contains(&site.recipe) {
-            continue;
-        }
-        let value = match site.action {
-            SemanticSiteAction::TypeUse { subject: SemanticOperand::Value(value), .. } => value,
-            SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::Call { .. }
-            | SemanticSiteAction::CallableCall { .. } => {
-                let SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After } = site.at else {
-                    return Err(bad("original source call is not its real result boundary"));
-                };
-                let SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function)) = instance.target else {
-                    return Err(bad("original source call has no actual function"));
-                };
-                let function = world.function(function)?;
-                world.pay(function.blocks.len())?;
-                let value = function.blocks.iter().find(|row| row.id == block)
-                    .and_then(|row| row.instructions.get(instruction as usize)).and_then(|op| op.result)
-                    .ok_or_else(|| bad("original source call has no actual result SSA"))?;
-                checked_call_source(world, instance, original, node, site.recipe, block, instruction as usize)?;
-                value
-            }
-            _ => continue,
-        };
-        if selected.replace(value).is_some_and(|old| old != value) {
-            return Err(bad("one original loan read has different actual SSA mints"));
-        }
-    }
-    Ok(selected)
+    occurrences::expression_value(world, instance, original, node)
+
 }
 
 /// A mutable pointer's complete original source union is not the pointer
@@ -2138,7 +1961,17 @@ fn local_read_sources(
         if seen.len() > world.limits.max_nodes {
             return Err(Diagnostic::limit(Phase::Types, "local loan reaching-copy node limit exceeded", None));
         }
-        world.get(values, value)?;
+        // This finite predecessor traversal visits historical stores on all
+        // incoming paths, including a backedge that has not executed in this
+        // particular whole-state. Such SSA mints need not dominate the current
+        // point. Authenticate their actual producer/type structurally, and
+        // consume current permission only at the grounded source trace below.
+        let ty = function.values.get(value.0 as usize)
+            .ok_or_else(|| bad("local loan historical source has no actual SSA type"))?;
+        inference::charge_type_snapshot(ty, Span::default(), world.limits, world.left, 1)?;
+        if !matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+            return Err(bad("local loan copy graph changes its actual address carrier"));
+        }
         if let Some((_, root, steps)) = sources.iter().find(|(source, _, _)| *source == value) {
             trace_steps(world, instance, original, function, *root, steps, Cursor::Value(value),
                 values, locals, implicit, return_boundary, depth + 1)?;

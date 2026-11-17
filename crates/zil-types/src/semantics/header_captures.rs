@@ -3,6 +3,19 @@
 use super::*;
 #[path = "header_capture_uses.rs"]
 mod first_use;
+use super::super::materialize::Formation;
+
+/// Formation is a query over exact actual closure identities. A pending
+/// dependency is never a complete directory with an empty class domain.
+pub(in crate::semantics) enum HeaderFormation {
+    Complete {
+        header: StorageLifeContract,
+        embedding: Vec<SemanticHeaderBinding>,
+        values: Vec<(StorageBase, SemanticTypeValue)>,
+    },
+    NotReady { dependencies: BTreeSet<ClosureId> },
+}
+
 
 pub(in crate::semantics) fn populate(
     program: &mut SemanticModule,
@@ -82,12 +95,12 @@ pub(in crate::semantics) fn populate(
                 continue;
             }
             for (capture, ordinal, actual_ty) in captures {
-                let Some(value) = capture_value(
+                let value = match capture_value(
                     program, &view, ledger, instance, original, recipes, ordinal, &actual_ty,
                     limits, left,
-                )?
-                else {
-                    continue;
+                )? {
+                    Formation::Complete(value) => value,
+                    Formation::NotReady { .. } => return Err(bad("capture domain reads an unsealed actual child header")),
                 };
                 capture_coordinates(&value, &mut domains, left)?;
                 let mut bindings = Vec::new();
@@ -412,8 +425,8 @@ fn operand_type(
     ledger: &super::super::emission::Ledger, instance: &SemanticInstance,
     base: &str, recipe: &SemanticTypeRecipe, hint: Option<&Type>,
     limits: &Limits, left: &mut usize,
-) -> R<SemanticTypeValue> {
-    match super::super::materialize::type_in_view(program, module, ledger,
+) -> R<Formation<SemanticTypeValue>> {
+    match super::super::materialize::form_type_in_view(program, module, ledger,
         instance.id, recipe, hint, limits, left)
     {
         Ok(value) => Ok(value),
@@ -442,13 +455,16 @@ fn capture_value(
     actual_ty: &Type,
     limits: &Limits,
     left: &mut usize,
-) -> R<Option<SemanticTypeValue>> {
+) -> R<Formation<SemanticTypeValue>> {
     let expected = SemanticTypeRecipe::Environment {
         scope: SemanticScopeRef::Ancestor(0),
         ordinal,
     };
-    let value = operand_type(program, module, ledger, instance,
-        "capture environment", &expected, None, limits, left)?;
+    let value = match operand_type(program, module, ledger, instance,
+        "capture environment", &expected, None, limits, left)? {
+        Formation::Complete(value) => value,
+        Formation::NotReady { dependencies } => return Ok(Formation::NotReady { dependencies }),
+    };
     let SemanticTypeValue::Resolved {
         ty: original_ty, ..
     } = &value
@@ -522,7 +538,7 @@ fn capture_value(
             }),
             inner: Box::new(expected),
         };
-        super::super::materialize::type_in_view(
+        return super::super::materialize::form_type_in_view(
             program,
             module,
             ledger,
@@ -531,14 +547,21 @@ fn capture_value(
             Some(actual_ty),
             limits,
             left,
-        )?
+        );
+    } else if let Type::Managed(inner) = actual_ty
+        && inner.as_ref() == original_ty
+    {
+        // The exact creator selected an owning carrier of this logical
+        // environment value. Transport its entire child domain; owning the
+        // carrier itself contributes no borrowed outer occurrence.
+        let recipe = SemanticTypeRecipe::Managed(Box::new(expected));
+        return super::super::materialize::form_type_in_view(program, module, ledger,
+            instance.id, &recipe, Some(actual_ty), limits, left);
     } else {
-        // Managed capture modes have independent actual outer roles;
-        // their owner is still sealed by the environment, and carries
-        // no borrowed header rows through this whole-value path.
-        return Ok(None);
+        return Err(Diagnostic::unsupported(Phase::Types,
+            "capture representation has no complete original environment transport", None));
     };
-    Ok(Some(value))
+    Ok(Formation::Complete(value))
 }
 
 /// Read the already checked complete source value for one actual capture.
@@ -552,7 +575,7 @@ pub(in crate::semantics) fn original_capture_value(
     actual_ty: &Type,
     limits: &Limits,
     left: &mut usize,
-) -> R<Option<SemanticTypeValue>> {
+) -> R<SemanticTypeValue> {
     let environment = instance.environment.as_ref().ok_or_else(|| bad("capture value has no original environment"))?;
     let SemanticClosureTarget::Typed(id) = environment.closure else {
         return Err(bad("capture value retains an unbound Core creator"));
@@ -570,7 +593,10 @@ pub(in crate::semantics) fn original_capture_value(
     let (SemanticDefinitionBody::Function { sites, .. } | SemanticDefinitionBody::FunctionWithBody { sites, .. }) = &original.body else {
         return Err(bad("capture value has no original code body"));
     };
-    capture_value(program, module, ledger, instance, original, sites, *ordinal, actual_ty, limits, left)
+    match capture_value(program, module, ledger, instance, original, sites, *ordinal, actual_ty, limits, left)? {
+        Formation::Complete(value) => Ok(value),
+        Formation::NotReady { .. } => Err(bad("capture query reached an unsealed actual child header")),
+    }
 }
 
 /// Relate each original environment slot to the actual lexical selection made
@@ -975,8 +1001,15 @@ pub(in crate::semantics) fn complete_emitted_headers(
     limits: &Limits,
     left: &mut usize,
 ) -> R<()> {
-    let mut changes = Vec::new();
-    for instance in &program.instances {
+    let mut complete = BTreeSet::new();
+    loop {
+    let mut pending = Vec::new();
+    let mut progress = false;
+    pay(left, program.instances.len())?;
+    for position in 0..program.instances.len() {
+        let instance = &program.instances[position];
+        pay(left, complete.len().saturating_add(1).ilog2() as usize + 1)?;
+        if complete.contains(&instance.id) { continue; }
         pay(left, 1)?;
         let Some(environment) = &instance.environment else {
             continue;
@@ -999,6 +1032,7 @@ pub(in crate::semantics) fn complete_emitted_headers(
             .ok_or_else(|| bad("closure directory completion has no actual definition"))?;
         let early = ledger.formed_headers.get(&id);
         if definition.storage_life.is_some() && early.is_none() {
+            complete.insert(instance.id);
             continue;
         }
         let entry = module
@@ -1012,23 +1046,15 @@ pub(in crate::semantics) fn complete_emitted_headers(
             ));
         }
         let view = super::super::materialize::ActualDirectory::from_module(module);
-        let Some((directory, mapping, values)) = form_emitted_header(
-            program,
-            &view,
-            ledger,
-            instance,
-            id,
-            crate::FunctionRef::from(entry),
-            limits,
-            left,
-        )?
-        else {
-            if early.is_some() {
-                return Err(bad(
-                    "early actual Task closure directory has no complete finish reconstruction",
-                ));
+        let (directory, mapping, values) = match form_emitted_header(
+            program, &view, ledger, instance, id, crate::FunctionRef::from(entry), limits, left,
+        )? {
+            HeaderFormation::Complete { header, embedding, values } => (header, embedding, values),
+            HeaderFormation::NotReady { dependencies } => {
+                pay(left, dependencies.len().saturating_add(1))?;
+                pending.push((instance.id, id, dependencies));
+                continue;
             }
-            continue;
         };
         if let Some((expected, embedding, proposed_values)) = early {
             crate::borrowed_fp::charge_contract(expected, |work| pay(left, work), 2)?;
@@ -1051,9 +1077,11 @@ pub(in crate::semantics) fn complete_emitted_headers(
                 ));
             }
         }
-        changes.push((instance.id, id, entry.id, directory, mapping));
-    }
-    for (instance, closure, entry, header, embedding) in changes {
+        let (instance, closure, entry, header, embedding) =
+            (instance.id, id, entry.id, directory, mapping);
+        // Publish this complete candidate immediately inside the sole finish
+        // transaction. Later candidates may read it; no Typed program escapes
+        // until every actual dependency and original proof has been sealed.
         crate::borrowed_fp::charge_contract(&header, |work| pay(left, work), 2)?;
         pay(
             left,
@@ -1081,8 +1109,21 @@ pub(in crate::semantics) fn complete_emitted_headers(
             .find(|row| row.id == instance)
             .ok_or_else(|| bad("completed closure instance disappeared"))?
             .header_embedding = embedding;
+        complete.insert(instance);
+        progress = true;
     }
-    Ok(())
+    if pending.is_empty() { return Ok(()); }
+    if !progress {
+        let mut diagnostic = Diagnostic::unsupported(Phase::Types,
+            "closure declaration directory has unresolved actual header dependencies", None);
+        for (instance, closure, dependencies) in pending {
+            let detail = format!("pending original instance {instance:?}, actual closure {closure:?}, requires complete headers {dependencies:?}");
+            pay(left, detail.len())?;
+            diagnostic.notes.push(detail);
+        }
+        return Err(diagnostic);
+    }
+    }
 }
 
 /// Complete invocation images for a directory that was emitted before its
@@ -1428,17 +1469,10 @@ pub(in crate::semantics) fn form_emitted_header(
     entry: crate::FunctionRef<'_>,
     limits: &Limits,
     left: &mut usize,
-) -> R<
-    Option<(
-        StorageLifeContract,
-        Vec<SemanticHeaderBinding>,
-        Vec<(StorageBase, SemanticTypeValue)>,
-    )>,
-> {
-    let Some(values) =
-        emitted_operands(program, module, ledger, instance, id, entry, limits, left)?
-    else {
-        return Ok(None);
+) -> R<HeaderFormation> {
+    let values = match emitted_operands(program, module, ledger, instance, id, entry, limits, left)? {
+        Formation::Complete(values) => values,
+        Formation::NotReady { dependencies } => return Ok(HeaderFormation::NotReady { dependencies }),
     };
     let mut bindings = Vec::new();
     let mut classes = Vec::new();
@@ -1497,7 +1531,7 @@ pub(in crate::semantics) fn form_emitted_header(
             actual.actual = existing.actual.clone();
         }
     }
-    Ok(Some((directory, mapping, values)))
+    Ok(HeaderFormation::Complete { header: directory, embedding: mapping, values })
 }
 
 /// Interpret original operands without deriving or renumbering an actual
@@ -1512,7 +1546,7 @@ fn emitted_operands(
     entry: crate::FunctionRef<'_>,
     limits: &Limits,
     left: &mut usize,
-) -> R<Option<Vec<(StorageBase, SemanticTypeValue)>>> {
+) -> R<Formation<Vec<(StorageBase, SemanticTypeValue)>>> {
     let original = program
         .definitions
         .iter()
@@ -1539,19 +1573,14 @@ fn emitted_operands(
     }
     let captures = creator_captures(program, module, ledger, instance, id, limits, left)?;
     let mut values = Vec::new();
-    let mut complete = true;
     for (capture, ordinal, actual_ty) in captures {
-        let Some(value) = capture_value(
+        let value = match capture_value(
             program, module, ledger, instance, original, recipes, ordinal, &actual_ty, limits, left,
-        )?
-        else {
-            complete = false;
-            break;
+        )? {
+            Formation::Complete(value) => value,
+            Formation::NotReady { dependencies } => return Ok(Formation::NotReady { dependencies }),
         };
         values.push((StorageBase::Capture(capture), value));
-    }
-    if !complete {
-        return Ok(None);
     }
     for (ordinal, local) in entry.parameters.iter().enumerate() {
         pay(left, 1)?;
@@ -1564,8 +1593,11 @@ fn emitted_operands(
             scope: SemanticScopeRef::Ancestor(0),
             source: SemanticOriginalTypeSource::Parameter(ordinal as u32),
         };
-        let value = operand_type(program, module, ledger, instance,
-            "parameter", &recipe, Some(actual), limits, left)?;
+        let value = match operand_type(program, module, ledger, instance,
+            "parameter", &recipe, Some(actual), limits, left)? {
+            Formation::Complete(value) => value,
+            Formation::NotReady { dependencies } => return Ok(Formation::NotReady { dependencies }),
+        };
         if !matches!(&value, SemanticTypeValue::Resolved { ty, .. } if ty == actual) {
             return Err(bad(
                 "closure directory completion changes an original parameter type",
@@ -1577,15 +1609,18 @@ fn emitted_operands(
         scope: SemanticScopeRef::Ancestor(0),
         source: SemanticOriginalTypeSource::Result,
     };
-    let value = operand_type(program, module, ledger, instance,
-        "result", &recipe, Some(entry.result()?), limits, left)?;
+    let value = match operand_type(program, module, ledger, instance,
+        "result", &recipe, Some(entry.result()?), limits, left)? {
+        Formation::Complete(value) => value,
+        Formation::NotReady { dependencies } => return Ok(Formation::NotReady { dependencies }),
+    };
     if !matches!(&value, SemanticTypeValue::Resolved { ty, .. } if ty == entry.result()?) {
         return Err(bad(
             "closure directory completion changes its original result type",
         ));
     }
     values.push((StorageBase::Result, value));
-    Ok(Some(values))
+    Ok(Formation::Complete(values))
 }
 
 fn complete_rows<F: FnMut(&SemanticClassExpr, &SemanticClassExpr, &mut usize) -> R<bool>>(

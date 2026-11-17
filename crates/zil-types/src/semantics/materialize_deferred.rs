@@ -218,6 +218,7 @@ pub(crate) fn populate(
             left,
             active: BTreeSet::new(),
             invocation_probe: None,
+        pending_header: None,
         };
         eval.fee(program.instances.len().saturating_add(program.sites.len()))?;
         for instance in &program.instances {

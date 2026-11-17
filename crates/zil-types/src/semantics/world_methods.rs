@@ -811,7 +811,6 @@ pub(super) fn callable(
             scheme.callee_node,
             raw_value,
             values,
-            locals,
         )?;
         world.same(instance.id, closure_value, &expected, implicit)?;
     } else {

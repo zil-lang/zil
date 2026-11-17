@@ -5148,8 +5148,15 @@ impl<'a> Check<'a, '_> {
                                 source: SemanticOriginalTypeSource::Result,
                             })) {
                             Some(copy_recipe(result, self.limits, self.left)?)
+                        } else if matches!(result, SemanticTypeRecipe::OriginalType {
+                            scope: SemanticScopeRef::Ancestor(0),
+                            source: SemanticOriginalTypeSource::Result,
+                        }) {
+                            // An inferred declaration has no result goal until
+                            // its real returns have supplied their equations.
+                            None
                         } else {
-                            self.resolve(owner, result, depth + 1).ok()
+                            Some(self.resolve(owner, result, depth + 1)?)
                         };
                         // A receiver is a boundary upper, never a replacement
                         // for the original borrow expression's own sigma.

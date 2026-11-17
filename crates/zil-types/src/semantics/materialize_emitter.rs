@@ -824,11 +824,12 @@ fn emitter_directory<'m>(
             let Some(function) = directory.function(entry) else {
                 continue;
             };
-            let Some((header, embedding, values)) = super::super::headers::form_emitted_header(
+            let (header, embedding, values) = match super::super::headers::form_emitted_header(
                 program, &directory, ledger, instance, closure, function, limits, left,
-            )?
-            else {
-                continue;
+            )? {
+                super::super::headers::HeaderFormation::Complete { header, embedding, values } =>
+                    (header, embedding, values),
+                super::super::headers::HeaderFormation::NotReady { .. } => continue,
             };
             borrowed_fp::charge_contract(&header, |work| fee(left, work), 2)?;
             for row in &embedding {
@@ -938,6 +939,7 @@ pub(crate) fn prepare_task(
         left,
         active: BTreeSet::new(),
         invocation_probe: None,
+        pending_header: None,
     };
     let (shape, bindings, inputs) = eval.task_inputs(
         scheme.instance,
@@ -1195,6 +1197,7 @@ pub(crate) fn prepare_poll(
         left,
         active: BTreeSet::new(),
         invocation_probe: None,
+        pending_header: None,
     };
     let mut child = eval.type_domain(scope, &recipe, Some(result), 0)?;
     if close {

@@ -221,6 +221,7 @@ struct Eval<'a, 'm, 'b> {
     left: &'b mut usize,
     active: BTreeSet<(SemanticInstanceId, u32)>,
     invocation_probe: Option<(SemanticInstanceId, u32)>,
+    pending_header: Option<ClosureId>,
 }
 impl<'a, 'm> Eval<'a, 'm, '_> {
     #[track_caller]
@@ -1713,10 +1714,13 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 if children.next().is_some() {
                     return Err(bad("closure recipe has ambiguous actual child worlds"));
                 }
-                let life = closure
-                    .storage_life
-                    .as_ref()
-                    .ok_or_else(|| unknown(&format!("whole closure type has an unknown actual domain: instance {scope:?}, definition {definition:?}, child {:?}, actual closure {id:?}, entry {:?}", child.id, closure.function)))?;
+                let Some(life) = closure.storage_life.as_ref() else {
+                    // Only the formation query interprets this exact missing
+                    // declaration dependency as NotReady. Ordinary semantic
+                    // readers still fail and cannot observe an empty domain.
+                    self.pending_header = Some(*id);
+                    return Err(unknown(&format!("whole closure type requires a complete actual header: instance {scope:?}, definition {definition:?}, child {:?}, actual closure {id:?}, entry {:?}", child.id, closure.function)));
+                };
                 self.fee(life.fixed_binder_count as usize + child.header_embedding.len())?;
                 let mut images = vec![None; life.fixed_binder_count as usize];
                 for row in &child.header_embedding {
@@ -2205,6 +2209,7 @@ pub(super) fn program(
         left,
         active: BTreeSet::new(),
         invocation_probe: None,
+        pending_header: None,
     };
     eval.rows(program.instances.len())?;
     eval.rows(program.sites.len())?;
@@ -2436,8 +2441,35 @@ pub(super) fn type_at(
         left,
         active: BTreeSet::new(),
         invocation_probe: None,
+        pending_header: None,
     }
     .ty(scope, recipe, hint, 0)
+}
+
+pub(super) enum Formation<T> {
+    Complete(T),
+    NotReady { dependencies: BTreeSet<ClosureId> },
+}
+
+/// A header formation request may depend on an exact still-unformed child.
+/// All other errors retain their original diagnostic and fail the request.
+pub(super) fn form_type_in_view(
+    program: &SemanticModule, module: &ActualDirectory<'_>, ledger: &Ledger,
+    scope: SemanticInstanceId, recipe: &SemanticTypeRecipe, hint: Option<&Type>,
+    limits: &Limits, left: &mut usize,
+) -> R<Formation<SemanticTypeValue>> {
+    let mut eval = Eval { input: program, module, ledger, limits, left,
+        active: BTreeSet::new(), invocation_probe: None, pending_header: None };
+    let result = eval.ty(scope, recipe, hint, 0);
+    match (result, eval.pending_header) {
+        (Ok(value), None) => Ok(Formation::Complete(value)),
+        (Err(_), Some(id)) => {
+            eval.fee(1)?;
+            Ok(Formation::NotReady { dependencies: BTreeSet::from([id]) })
+        }
+        (Err(diagnostic), None) => Err(diagnostic),
+        (Ok(_), Some(_)) => Err(bad("complete type formation retained a pending actual header")),
+    }
 }
 
 pub(super) fn type_in_view(
@@ -2458,6 +2490,7 @@ pub(super) fn type_in_view(
         left,
         active: BTreeSet::new(),
         invocation_probe: None,
+        pending_header: None,
     }
     .ty(scope, recipe, hint, 0)
 }
@@ -2484,6 +2517,7 @@ pub(super) fn symbolic_in_view(
             left,
             active: BTreeSet::new(),
             invocation_probe: None,
+        pending_header: None,
         }
         .original_type(scope, *selector, source, 0)
     } else {
@@ -2527,6 +2561,7 @@ pub(super) fn actual_in_view(
         left,
         active: BTreeSet::new(),
         invocation_probe: None,
+        pending_header: None,
     }
     .recipe_actual(scope, recipe, 0)
 }
@@ -2549,6 +2584,7 @@ pub(super) fn parent_actuals_in_view(
         left,
         active: BTreeSet::new(),
         invocation_probe: None,
+        pending_header: None,
     }
     .parent_actuals(caller, call, holder)
 }
@@ -2570,6 +2606,7 @@ pub(super) fn class_at(
         left,
         active: BTreeSet::new(),
         invocation_probe: None,
+        pending_header: None,
     }
     .life(scope, recipe)
 }
@@ -2591,6 +2628,7 @@ pub(super) fn class_in_view(
         left,
         active: BTreeSet::new(),
         invocation_probe: None,
+        pending_header: None,
     }
     .life(scope, recipe)
 }

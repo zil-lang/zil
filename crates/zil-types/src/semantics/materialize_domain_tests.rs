@@ -71,6 +71,7 @@ fn evaluate(recipe: SemanticTypeRecipe) -> SemanticTypeValue {
         left: &mut left,
         active: BTreeSet::new(),
         invocation_probe: None,
+        pending_header: None,
     }
     .ty(scope, &recipe, None, 0)
     .unwrap()
