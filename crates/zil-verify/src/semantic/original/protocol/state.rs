@@ -76,6 +76,16 @@ pub(super) enum Value {
     },
 }
 impl Value {
+    // Tags are immutable enum data. Only phase/generation observations are
+    // forgotten, including observations nested in a real product value.
+    fn forget_observations(&mut self,root:Option<&Place>){
+        match self{
+            Self::Poll{relations,..}=>relations.retain(|row|root.is_some_and(|root|&row.root!=root)),
+            Self::Product(fields)=>for(_,value)in fields{value.forget_observations(root);},
+            Self::FallibleTaskOwned(inputs,_)=>for value in inputs{value.forget_observations(root);},
+            _=>{},
+        }
+    }
     fn width(&self) -> usize {
         match self {
             Self::Owner { root, .. } => place_width(root),
@@ -148,21 +158,12 @@ impl State {
             self.width()
                 .saturating_mul(place_width(root).saturating_add(1)),
         )?;
-        for value in self.values.values_mut() {
-            if matches!(value,Value::Poll{relations,..}if relations.iter().any(|row|&row.root==root))
-            {
-                *value = Value::Plain;
-            }
-        }
+        for value in self.values.values_mut() { value.forget_observations(Some(root)); }
         Ok(())
     }
     pub(super) fn strip_observations(&mut self, b: &mut Budget) -> Check<()> {
         b.spend(self.width())?;
-        for value in self.values.values_mut() {
-            if matches!(value, Value::Poll { .. }) {
-                *value = Value::Plain;
-            }
-        }
+        for value in self.values.values_mut() { value.forget_observations(None); }
         Ok(())
     }
     pub(super) fn owner(&self, root: &Place, b: &mut Budget) -> Check<&Owner> {
@@ -283,6 +284,30 @@ impl Engine<'_> {
         owner.generation = generation;
         Ok(generation)
     }
+    /// The same tag/state join is used for expression results and stored Poll
+    /// locals. Each feasible tag retains only its corresponding owner phases.
+    pub(super) fn join_poll_values(&self,left:&State,a:&Value,right:&State,z:&Value,merged:&State,b:&mut Budget)->Check<Value>{
+        b.spend(1)?;
+        if let(Value::Product(lhs),Value::Product(rhs))=(a,z){
+            if lhs.len()!=rhs.len(){return union_value(a,z,b);}
+            let mut fields=Vec::new();for((name,a),(other,z))in lhs.iter().zip(rhs){b.spend(name.len().saturating_add(other.len()).saturating_add(1))?;if name!=other{return Err(bad("Poll product join changes a complete field identity"));}fields.push((name.clone(),self.join_poll_values(left,a,right,z,merged,b)?));}return Ok(Value::Product(fields));
+        }
+        if !matches!((a,z),(Value::Poll{..},Value::Poll{..})){return union_value(a,z,b);}
+        let mut pending=Vec::new();let mut ready=Vec::new();
+        for(state,value)in [(left,a),(right,z)]{
+            for(exit,out)in [(ProtocolExit::PollPending,&mut pending),(ProtocolExit::PollReady,&mut ready)]{
+                let mut branch=state.copy(b)?;if branch.refine(value,exit,b)?{out.push(branch);}
+            }
+        }
+        let tag=match(pending.is_empty(),ready.is_empty()){(false,true)=>Some(ProtocolExit::PollPending),(true,false)=>Some(ProtocolExit::PollReady),(false,false)=>None,_=>return Err(bad("Poll join has no feasible original returned tag"))};
+        b.spend(merged.width())?;let mut relations=Vec::new();
+        for(root,owner)in &merged.owners{
+            let mut low=0;let mut high=0;
+            for(branches,out)in [(&pending,&mut low),(&ready,&mut high)]{b.spend(branches.len())?;for branch in branches{*out|=branch.owners.get(root).map_or(DEAD,|owner|owner.states);}}
+            if low!=owner.states||high!=owner.states{b.spend(place_width(root).saturating_add(3))?;relations.push(Conditional{root:root.clone(),generation:owner.generation,pending:low,ready:high});}
+        }
+        Ok(Value::Poll{relations,tag})
+    }
     pub(super) fn join(&mut self, left: &State, right: &State, b: &mut Budget) -> Check<State> {
         b.spend(left.width().saturating_add(right.width()).saturating_mul(3))?;
         let mut result = left.copy(b)?;
@@ -320,25 +345,21 @@ impl Engine<'_> {
                 owner.generation = self.generation(b)?;
             }
         }
-        for (key, value) in &mut result.values {
-            *value = match right.values.get(key) {
-                Some(other) => union_value(value, other, b)?,
-                None => union_value(value,&Value::Plain,b)?,
-            };
+        let mut values=BTreeMap::new();
+        let count=left.values.len().saturating_add(right.values.len());b.spend(count.saturating_mul(count.checked_ilog2().map_or(1,|n|n as usize+1)))?;
+        for(key,value)in &left.values{
+            let joined=match right.values.get(key){Some(other)=>self.join_poll_values(left,value,right,other,&result,b)?,None=>union_value(value,&Value::Plain,b)?};
+            key.charge_clone(b)?;values.insert(key.clone(),joined);
         }
-        for(key,value)in &right.values {
-            if !result.values.contains_key(key) {
-                let joined=union_value(&Value::Plain,value,b)?;
-                result.values.insert(key.clone(),joined);
-            }
+        for(key,value)in &right.values{
+            if !values.contains_key(key){let joined=union_value(&Value::Plain,value,b)?;key.charge_clone(b)?;values.insert(key.clone(),joined);}
         }
-        // Keeping a relation requires the exact generation on every path.
-        for value in result.values.values_mut() {
-            if matches!(value,Value::Poll{relations,..}if relations.iter().any(|row|result.owners.get(&row.root).is_none_or(|owner|owner.generation!=row.generation)))
-            {
-                *value = Value::Plain;
-            }
-        }
+        result.values=values;
+        // Invalidate only stale phase relations. The immutable actual enum
+        // tag is data, never a replacement occupant's Closed witness.
+        for value in result.values.values_mut(){if let Value::Poll{relations,..}=value{
+            relations.retain(|row|result.owners.get(&row.root).is_some_and(|owner|owner.generation==row.generation));
+        }}
         Ok(result)
     }
     pub(super) fn merge(
@@ -418,6 +439,47 @@ impl Engine<'_> {
 #[cfg(test)]
 mod source_tests{
     use super::*;
+    #[test]
+    fn canonical_pending_and_poll_close_phi_keep_only_feasible_ready_phases(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);
+        let(module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let index=index::build(&module,&mut b).unwrap();let definition=index.definitions.keys().next().copied().unwrap();let original=CheckedOriginal::default();
+        let mut births=tasks::SynchronousBirths::default();let summaries=BTreeMap::new();
+        let mut engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:5,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),retiring_captures:BTreeSet::new(),capture_exits:vec![],capture_inputs:BTreeMap::new(),synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),callable_targets:BTreeMap::new(),creation_shapes:BTreeMap::new()};
+        let root=root_place(&Binder::Parameter{definition,ordinal:0});let local=Binder::Local{definition,node:NodeId(8),name:"observed".into()};
+        let pending=Value::Poll{relations:vec![],tag:Some(ProtocolExit::PollPending)};
+        let mut wait=State::default();wait.owners.insert(root.clone(),Owner{states:LIVE,generation:1,task:true,owned:true,sources:unknown_sources()});wait.values.insert(local.clone(),pending.clone());
+        let mut closing=wait.copy(&mut b).unwrap();let generation=engine.update(&mut closing,&root,CLOSING|CLOSED,&mut b).unwrap();
+        let observed=Value::Poll{relations:vec![Conditional{root:root.clone(),generation,pending:CLOSING,ready:CLOSED}],tag:None};closing.values.insert(local.clone(),observed.clone());
+        let merged=engine.join(&wait,&closing,&mut b).unwrap();
+        for value in [merged.values[&local].clone(),engine.join_poll_values(&wait,&pending,&closing,&observed,&merged,&mut b).unwrap()]{
+            let mut ready=merged.copy(&mut b).unwrap();assert!(ready.refine(&value,ProtocolExit::PollReady,&mut b).unwrap());assert_eq!(ready.owner(&root,&mut b).unwrap().states,CLOSED);
+            let mut pending=merged.copy(&mut b).unwrap();assert!(pending.refine(&value,ProtocolExit::PollPending,&mut b).unwrap());assert_eq!(pending.owner(&root,&mut b).unwrap().states,LIVE,"waiting forever never claims Closed");
+            assert_eq!(ready.owner(&root,&mut b).unwrap().sources,unknown_sources(),"tag refinement does not erase universal source obligations");
+            engine.update(&mut ready,&root,OPEN,&mut b).unwrap();assert!(ready.refine(&value,ProtocolExit::PollReady,&mut b).is_err(),"a replacement cannot reuse the old Ready generation");
+            let saved=ready.values[&local].clone();assert!(ready.refine(&saved,ProtocolExit::PollReady,&mut b).unwrap());assert_eq!(ready.owner(&root,&mut b).unwrap().states,OPEN,"stored data tag survives invalidation without becoming a Closed witness");
+        }
+        let ready_tag=Value::Poll{relations:vec![],tag:Some(ProtocolExit::PollReady)};let mut ordinary=wait.copy(&mut b).unwrap();assert!(ordinary.refine(&ready_tag,ProtocolExit::PollReady,&mut b).unwrap());assert_eq!(ordinary.owner(&root,&mut b).unwrap().states,LIVE,"literal Ready is not evidence of task_poll_close");
+        assert!(!ordinary.refine(&pending,ProtocolExit::PollReady,&mut b).unwrap());
+        let nested=Value::Product(vec![("tag".into(),observed)]);closing.values.insert(local.clone(),nested);closing.invalidate(&root,&mut b).unwrap();
+        let Value::Product(fields)=&closing.values[&local]else{unreachable!()};let Value::Poll{relations,..}=&fields[0].1 else{unreachable!()};assert!(relations.is_empty());
+    }
+    #[test]
+    fn poll_tags_require_the_canonical_original_nominal_and_complete_actuals(){
+        let limits=Limits::default();let mut b=Budget::new(&limits);
+        let(mut module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+        let program=module.semantic.as_mut().unwrap();let mut poll=program.definitions[0].clone();let max=program.definitions.iter().map(|row|row.id.index).max().unwrap();poll.id.index=max+1;poll.kind=SemanticDefinitionKind::Nominal;poll.parent=None;poll.parameters=vec![SemanticFormal::Type{requirements:vec![]}];poll.requirements.clear();poll.environment.clear();poll.implicit_lifetimes.clear();
+        poll.body=SemanticDefinitionBody::Nominal{declaration:zil_ir::builtin_life::POLL,kind:LifeNominalKind::Enum,body:SemanticNominalBody::Enum{variants:vec![SemanticVariantRecipe{name:"Pending".into(),fields:vec![]},SemanticVariantRecipe{name:"Ready".into(),fields:vec![SemanticTypeRecipe::Formal(SemanticFormalRef{scope:SemanticScopeRef::Ancestor(0),ordinal:0})]}]}};
+        let poll_id=poll.id;program.definitions.push(poll);
+        let index=index::build(&module,&mut b).unwrap();let definition=index.definitions.keys().next().copied().unwrap();let original=CheckedOriginal::default();let mut births=tasks::SynchronousBirths::default();let summaries=BTreeMap::new();
+        let engine=Engine{original:&original,module:&module,index:&index,current:definition,contracts:vec![],inputs:BTreeMap::new(),poll:false,next:5,closed_tasks:BTreeSet::new(),async_tasks:BTreeSet::new(),retiring_captures:BTreeSet::new(),capture_exits:vec![],capture_inputs:BTreeMap::new(),synchronous_births:&mut births,result_sources_by_function:&summaries,returned_sources:None,fallible_task_result:false,error_unwind:vec![],task_loop_keys:vec![],result_shapes:BTreeMap::new(),callable_roles:BTreeMap::new(),callable_targets:BTreeMap::new(),creation_shapes:BTreeMap::new()};
+        let arguments=vec![Arg::Type(Ty::Atom(Type::Unit))];let ty=Ty::Nominal(poll_id,arguments.clone());let mut constructor=VariantConstruction{definition:poll_id,variant:0,actuals:arguments};
+        assert_eq!(engine.poll_constructor_tag(&constructor,&ty,&mut b).unwrap(),Some((ProtocolExit::PollPending,0)));constructor.variant=1;assert_eq!(engine.poll_constructor_tag(&constructor,&ty,&mut b).unwrap(),Some((ProtocolExit::PollReady,1)));
+        constructor.variant=2;assert!(engine.poll_constructor_tag(&constructor,&ty,&mut b).is_err());constructor.variant=0;constructor.actuals=vec![Arg::Type(Ty::Atom(Type::I32))];assert!(engine.poll_constructor_tag(&constructor,&ty,&mut b).is_err());
+        constructor.actuals=vec![Arg::Type(Ty::Atom(Type::Unit))];constructor.definition=definition;assert!(engine.poll_constructor_tag(&constructor,&ty,&mut b).is_err());
+        assert_eq!(engine.poll_constructor_tag(&constructor,&Ty::Atom(Type::I32),&mut b).unwrap(),None);
+        assert_eq!(engine.poll_constructor_tag(&constructor,&Ty::Nominal(poll_id,vec![Arg::Type(Ty::Atom(Type::I32))]),&mut b).unwrap(),None,"other Poll payloads carry no Task-close protocol relation");
+    }
     #[test]
     fn consuming_direct_proof_keeps_every_original_capture_exit_generation(){
         let limits=Limits::default();let mut b=Budget::new(&limits);

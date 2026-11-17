@@ -859,11 +859,7 @@ fn borrowed_envelope(
         || (!parameter && f.callable_contract.is_some())
         || f.result_mode != PassingMode::Infer
         || c.closure != id
-        || if parameter {
-            !closures::supports(definition.kind, c.kind)
-        } else {
-            c.kind != definition.kind
-        }
+        || !closures::supports(definition.kind, c.kind)
         || c.lending_captures != definition.lending_captures
     {
         return Err(invalid(

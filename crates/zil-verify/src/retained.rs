@@ -299,10 +299,10 @@ pub(super) fn check_claim(
     // The concrete entry signature is independently checked by check_definitions.
     // Returning its self-contained environment does not narrow its data slots.
     owned_callbacks::signature(module, d, budget)?;
-    if c.closure != id || c.kind != d.kind {
+    if c.closure != id || !closures::supports(d.kind, c.kind) {
         return Err(bad(
             f,
-            "returned environment identity or exact callable kind disagrees",
+            "returned environment identity or required callable capability disagrees",
         ));
     }
     if c.lending_captures != d.lending_captures {
@@ -519,7 +519,7 @@ fn check_parameter_claim(
         || role.closure != id
         || role.cleanup != CallableCleanup::Returned
         || claim.closure != id
-        || claim.kind != role.kind
+        || !closures::supports(role.kind, claim.kind)
         || !closures::supports(definition.kind, role.kind)
         || claim.lending_captures != definition.lending_captures
     {

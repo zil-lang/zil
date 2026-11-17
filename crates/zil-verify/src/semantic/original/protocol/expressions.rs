@@ -197,7 +197,7 @@ impl Engine<'_> {
                 let mut no = state.copy(b)?;
                 let c = self.expression(else_value, &mut no, depth + 1, b)?;
                 *state = self.join(&yes, &no, b)?;
-                union_value(&a, &c, b)
+                self.join_poll_values(&yes,&a,&no,&c,state,b)
             }
             Tuple(fields) | Array(fields) => {
                 let array = matches!(node.kind, Array(_));
@@ -241,6 +241,10 @@ impl Engine<'_> {
                 Ok(Value::Product(values))
             }
             Member { object, member, .. } => {
+                if let Some((tag,arity))=self.poll_formation(node,b)?{
+                    if arity!=0{return Err(bad("a payload Poll constructor cannot become a nullary value"));}
+                    return Ok(Value::Poll{relations:vec![],tag:Some(tag)});
+                }
                 let value = self.expression(object, state, depth + 1, b)?;
                 match value {
                     Value::Product(fields) => fields
@@ -373,7 +377,8 @@ impl Engine<'_> {
                     || self
                         .original
                         .call_targets
-                        .contains_key(&(self.current, site)))
+                        .contains_key(&(self.current, site))
+                    || self.original.constructors.contains_key(&(self.current,site)))
             {
                 if selected.replace(site).is_some() {
                     return Err(bad(
@@ -384,6 +389,19 @@ impl Engine<'_> {
         }
         Ok(selected)
     }
+    fn poll_formation(&self,node:&SemanticOriginalExpr,b:&mut Budget)->Check<Option<(ProtocolExit,usize)>>{
+        let Some(site)=self.site(node,b)?else{return Ok(None);};
+        let Some(construction)=self.original.constructors.get(&(self.current,site))else{return Ok(None);};
+        let Some(ty)=self.original.expressions.get(&(self.current,node.id))else{return Err(bad("original Poll formation has no complete source expression type"));};
+        self.poll_constructor_tag(construction,ty,b)
+    }
+    pub(super) fn poll_constructor_tag(&self,construction:&VariantConstruction,ty:&Ty,b:&mut Budget)->Check<Option<(ProtocolExit,usize)>>{
+        if !self.poll_type(ty,b)?{return Ok(None);}
+        let ty=self.original.resolved(ty,b)?;
+        let Ty::Nominal(definition,arguments)=ty else{unreachable!()};
+        if construction.definition!=definition||!self.original.same_arguments_readonly(&construction.actuals,&arguments,b)?{return Err(bad("canonical Poll constructor changes its complete original declaration/argument identity"));}
+        Ok(Some(match construction.variant{0=>(ProtocolExit::PollPending,0),1=>(ProtocolExit::PollReady,1),_=>return Err(bad("canonical Poll constructor has no such complete payload arm"))}))
+    }
     fn call(
         &mut self,
         node: &SemanticOriginalExpr,
@@ -393,6 +411,12 @@ impl Engine<'_> {
         b: &mut Budget,
     ) -> Check<Value> {
         let site = self.site(node, b)?;
+        if let Some((tag,arity))=self.poll_formation(node,b)?{
+            if values.len()!=arity||values.iter().any(tasks::owner_value){return Err(bad("canonical unit Poll formation changes its complete payload responsibility"));}
+            // Forming an enum tag invokes no user code and changes no owner.
+            // Ready is data, not a Closed witness for any captured Task.
+            return Ok(Value::Poll{relations:vec![],tag:Some(tag)});
+        }
         if let Some(use_) =
             site.and_then(|site| self.original.intrinsic_calls.get(&(self.current, site)))
         {

@@ -148,17 +148,20 @@ impl CheckedOriginal {
     pub(super) fn same_argument(&mut self,left:&Arg,right:&Arg,b:&mut Budget)->Check<()>{match(left,right){(Arg::Type(left),Arg::Type(right))=>self.unify(left,right,b),(Arg::Life(left),Arg::Life(right))=>self.unify_life(left,right,b),_ if left==right=>Ok(()),_=>Err(bad("original Call argument differs from its solved symbolic identity/carrier"))}}
     pub(super) fn callable_premise(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Prototype>>{
         if let Ty::Opaque(owner,arguments)=self.resolved(ty,b)?{return self.opaque_callable(module,context,owner,&arguments,active,b);}
+        self.lexical_callable_premise(module,context,ty,env,false,active,b)
+    }
+    fn lexical_callable_premise(&mut self,module:&TypedModule,context:&CheckedContext,ty:&Ty,env:&Env,consuming:bool,active:&mut ActiveQueries,b:&mut Budget)->Check<Option<Prototype>>{
         let mut result=None;
         for(index,frame)in env.lexical.iter().enumerate(){
             let definition=context.definition(module,frame.definition,b)?;
             let mut lexical=self.copy_environment(env,b)?;lexical.lexical.drain(..index);
-            for requirement in &definition.requirements{self.callable_premise_row(module,context,requirement,ty,&lexical,&[],&mut result,active,b)?;}
-            for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{for requirement in requirements{self.callable_premise_row(module,context,requirement,ty,&lexical,&[],&mut result,active,b)?;}}}
+            for requirement in &definition.requirements{self.callable_premise_row(module,context,requirement,ty,&lexical,&[],consuming,&mut result,active,b)?;}
+            for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{for requirement in requirements{self.callable_premise_row(module,context,requirement,ty,&lexical,&[],consuming,&mut result,active,b)?;}}}
         }
         Ok(result)
     }
     #[allow(clippy::too_many_arguments)]
-    fn callable_premise_row(&mut self,module:&TypedModule,context:&CheckedContext,requirement:&SemanticRequirementRecipe,ty:&Ty,env:&Env,quantifiers:&[Vec<Life>],result:&mut Option<Prototype>,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{
+    fn callable_premise_row(&mut self,module:&TypedModule,context:&CheckedContext,requirement:&SemanticRequirementRecipe,ty:&Ty,env:&Env,quantifiers:&[Vec<Life>],consuming:bool,result:&mut Option<Prototype>,active:&mut ActiveQueries,b:&mut Budget)->Check<()>{
         let token=active.fresh(b)?;
         active.with_query(DependencyKey{kind:QueryKind::Requirement,token},b,|active,b|{
             match requirement{
@@ -173,9 +176,12 @@ impl CheckedOriginal {
                         let frame=(0..*lifetimes).map(|index|Life::Bound(token,index)).collect::<Vec<_>>();
                         selected.bounds.insert(0,frame.clone());owned.push(frame);
                     }
-                    for row in requirements{self.callable_premise_row(module,context,row,ty,&selected,&owned,result,active,b)?;}
+                    for row in requirements{self.callable_premise_row(module,context,row,ty,&selected,&owned,consuming,result,active,b)?;}
                 },
                 SemanticRequirementRecipe::Callable{ty:receiver,signature,kind}=>{
+                    // A nonconsuming invocation bound says nothing about the
+                    // remaining environment after a consuming operation.
+                    if consuming&&*kind!=CallableKind::FnOnce{return Ok(());}
                     let receiver=self.ty(module,context,receiver,env,active,b)?;
                     if !self.same(&receiver,ty,b)?{return Ok(());}
                     let mut prototype=self.callable_signature(module,context,signature,*kind,env,active,b)?;
@@ -321,6 +327,7 @@ impl CheckedOriginal{
             actual.call_kind=CallKind::Suspend;
         }
 
+        let needs_consuming_premise=kind==CallableKind::FnOnce&&wanted.call_kind==CallKind::Direct&&actual.callable_kind!=Some(CallableKind::FnOnce);
         // Universal elimination instantiates only this source code scheme's
         // private roles. A source's elided Invocation and a target's outer
         // ForAll need not put equivalent quantifiers in the same code field.
@@ -334,8 +341,8 @@ impl CheckedOriginal{
         }
         let mut actual=self.normalize_original_type(module,context,&actual.result,caller,active,b)?;
         self.adapt_receiver_result_goal(module,context,&receiver,kind,&wanted,&mut actual,active,b)?;
-        let wanted=self.normalize_original_type(module,context,&wanted.result,caller,active,b)?;
-        self.callable_goal_type(&actual,&wanted,&flexible,b).map_err(|error|error.with_note(format!("Callable source receiver {:?}; target lexical frames {:?}; caller lexical frames {:?}",receiver,target.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>(),caller.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>())))?;
+        let wanted_result=self.normalize_original_type(module,context,&wanted.result,caller,active,b)?;
+        self.callable_goal_type(&actual,&wanted_result,&flexible,b).map_err(|error|error.with_note(format!("Callable source receiver {:?}; target lexical frames {:?}; caller lexical frames {:?}",receiver,target.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>(),caller.lexical.iter().map(|frame|(frame.definition,&frame.actuals,&frame.environment)).collect::<Vec<_>>())))?;
         if kind==CallableKind::FnOnce&&signature.call_kind==CallKind::Direct{
             // An opaque Fn/FnMut source may be used through FnOnce without
             // exposing more of its public interface. Its concrete provider
@@ -352,6 +359,14 @@ impl CheckedOriginal{
             if let Some((owner,receiver,creator))=provider{
                 if self.direct_consuming_goals.len()>=b.limits.max_nodes{return Err(limit("original Direct consuming goal inventory exceeded"));}
                 self.direct_consuming_goals.push((owner,receiver,creator));
+            }else if needs_consuming_premise&&!self.sync_drop(module,context,&receiver,caller,active,b)?{
+                let premise=self.lexical_callable_premise(module,context,&receiver,caller,true,active,b)?.ok_or_else(||bad("original consuming Direct adaptation lacks its complete consuming premise or synchronous environment retirement"))?;
+                // Keep the full original binder tree and compare the actual
+                // P/R roles with the wanted contract; a FnOnce word or CE is
+                // not a substitute for its consuming ABI and signature.
+                let(premise,roles)=self.callable_goal_source(&premise,&wanted,None,None,b)?;
+                for(source,target)in premise.parameters.iter().zip(&wanted.parameters){let source=self.normalize_original_type(module,context,source,caller,active,b)?;let target=self.normalize_original_type(module,context,target,caller,active,b)?;self.callable_goal_type(&source,&target,&roles,b)?;}
+                let source=self.normalize_original_type(module,context,&premise.result,caller,active,b)?;let target=self.normalize_original_type(module,context,&wanted.result,caller,active,b)?;self.callable_goal_type(&source,&target,&roles,b)?;
             }
         }
         Ok(())
@@ -532,5 +547,31 @@ impl CheckedOriginal{
             }
             if !sources.is_empty(){b.spend(sources.len())?;self.call_type_sources.insert((owner,site,ordinal as u32),sources);}
         }Ok(())
+    }
+}
+
+#[cfg(test)]
+mod consuming_premise_tests{
+    use super::*;
+    #[test]
+    fn abstract_nonconsuming_bound_does_not_supply_direct_environment_retirement(){
+        let limits=Limits::default();
+        for scenario in 0..6{
+            let mut b=Budget::new(&limits);let(mut module,_)=zil_ir::wire::decode_module_candidate(include_bytes!("../fixtures/ordinary-identity-complete-head.wire"),&limits).unwrap();
+            let row=module.semantic.as_mut().unwrap().definitions.iter_mut().find(|row|row.kind==SemanticDefinitionKind::Function).unwrap();let owner=row.id;row.parameters=vec![SemanticFormal::Type{requirements:vec![]}];row.requirements.clear();
+            let receiver=SemanticTypeRecipe::Formal(SemanticFormalRef{scope:SemanticScopeRef::Ancestor(0),ordinal:0});
+            let signature=SemanticSignatureRecipe{parameters:vec![],result:SemanticTypeRecipe::Atom(Type::I32),result_mode:PassingMode::Infer,call_kind:CallKind::Direct,bound_lifetimes:0,invocation_lifetimes:0};
+            let requirement=|kind,signature|SemanticRequirementRecipe::Callable{ty:receiver.clone(),kind,signature:Box::new(signature)};
+            row.requirements.push(requirement(if scenario==3{CallableKind::FnOnce}else{CallableKind::FnMut},signature.clone()));
+            if matches!(scenario,1|2|5){let mut once=signature.clone();if scenario==2{once.call_kind=CallKind::Suspend;}if scenario==5{once.result=SemanticTypeRecipe::Atom(Type::U32);}row.requirements.push(SemanticRequirementRecipe::ForAll{lifetimes:0,requirements:vec![requirement(CallableKind::FnOnce,once)]});}
+            if scenario==4{row.requirements.push(SemanticRequirementRecipe::Structural{ty:receiver.clone(),bound:DynStructuralBound::SyncDrop});}
+            // This fixture checks declaration Γ, not an executable instance;
+            // no concrete caller is added to complete an abstract premise.
+            let context=CheckedContext::definition_catalogue(&module,None,&mut b).unwrap();let mut checked=CheckedOriginal::default();checked.current=Some(owner);
+            let env=Env{lexical:vec![Frame{definition:owner,actuals:vec![Arg::Type(Ty::Variable(owner,0))],environment:vec![]}],bounds:vec![],invocation:vec![],self_type:None};let mut active=ActiveQueries::new();
+            let result=checked.callable_goal(&module,&context,&receiver,&signature,CallableKind::FnOnce,&env,&env,&mut active,&mut b);
+            if matches!(scenario,1|3|4){result.unwrap_or_else(|error|panic!("scenario {scenario}: {error:?}"));}else{assert!(result.is_err(),"scenario {scenario} has no exact consuming Direct contract");}
+            assert!(checked.direct_consuming_goals.is_empty(),"abstract Γ is not proved by a selected concrete closure world");
+        }
     }
 }

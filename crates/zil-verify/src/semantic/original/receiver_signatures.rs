@@ -40,24 +40,33 @@ impl CheckedOriginal{
         }}
     }
     pub(super) fn receiver_source_life(&self,owner:SemanticDefinitionId,life:&Life,seen:&mut BTreeSet<Life>,b:&mut Budget)->Check<bool>{
-        let life=self.resolved_life(life,b)?;b.spend(seen.len().checked_ilog2().map_or(1,|n|n as usize+1))?;
-        if life==Life::Static{return Ok(true);}if !seen.insert(life.clone()){return Ok(false);}
-        if self.receiver_physical_source(owner,&life,b)?{return Ok(true);}
-        if let Life::Local(definition,node)=life{
-            if definition!=owner{return Ok(false);}
-            if self.receiver_borrows.contains(&(owner,node)){return Ok(true);}
-            if let Some(parent)=self.borrow_parents.get(&(owner,node)){return self.receiver_source_life(owner,parent,seen,b);}
+        // A contextual result/local may be an upper for several distinct σ.
+        // Even a real capture anchor must retain every incoming source; the
+        // first capture is not evidence for a different branch's stack view.
+        let root=self.resolved_life(life,b)?;let mut pending=vec![root.clone()];
+        let mut graph:BTreeMap<Life,(bool,BTreeSet<Life>)>=BTreeMap::new();
+        let flows=self.outer_flows.get(&owner).map(Vec::as_slice).unwrap_or(&[]);
+        while let Some(life)=pending.pop(){
+            b.spend(graph.len().checked_ilog2().map_or(1,|n|n as usize+1))?;
+            if graph.contains_key(&life){continue;}
+            if graph.len()>=b.limits.max_nodes{return Err(limit("Receiver result source inventory exceeded"));}
+            let anchor=life==Life::Static||self.receiver_physical_source(owner,&life,b)?||matches!(life,Life::Local(definition,node)if definition==owner&&self.receiver_borrows.contains(&(owner,node)));
+            let mut sources=BTreeSet::new();
+            if let Life::Local(definition,node)=&life{if *definition==owner{if let Some(parent)=self.borrow_parents.get(&(owner,*node)){sources.insert(self.resolved_life(parent,b)?);}}}
+            if let Life::CallRegion(id)=&life{if let Some((definition,_,_,rows))=self.call_regions.get(id){if *definition==owner{b.spend(rows.len())?;for row in rows{sources.insert(self.resolved_life(row,b)?);}}}}
+            if let Some(rows)=self.local_outer_sources(&life,b)?{b.spend(rows.len())?;for row in rows{sources.insert(self.resolved_life(&row,b)?);}}
+            b.spend(flows.len())?;
+            for(source,target)in flows{if self.resolved_life(target,b)?==life{let source=self.resolved_life(source,b)?;if source!=life{sources.insert(source);}}}
+            sources.remove(&life);
+            if !anchor&&sources.is_empty(){return Ok(false);}
+            b.spend(sources.len().saturating_mul(2).saturating_add(1))?;pending.extend(sources.iter().cloned());graph.insert(life,(anchor,sources));
         }
-        if let Life::CallRegion(id)=life{
-            let Some((definition,_,_,sources))=self.call_regions.get(&id)else{return Ok(false);};
-            if *definition!=owner||sources.is_empty(){return Ok(false);}
-            for source in sources{b.spend(seen.len())?;if !self.receiver_source_life(owner,source,&mut seen.clone(),b)?{return Ok(false);}}return Ok(true);
-        }
-        if let Some(sources)=self.local_outer_sources(&life,b)?{
-            if sources.is_empty(){return Ok(false);}
-            for source in sources{b.spend(seen.len())?;if !self.receiver_source_life(owner,&source,&mut seen.clone(),b)?{return Ok(false);}}return Ok(true);
-        }
-        Ok(false)
+        // Every reachable dependency must reach an actual capture/static root.
+        // This admits a rooted directed cycle, but not a rootless SCC attached
+        // to one safe alternative. No equality is introduced by this closure.
+        b.spend(graph.len())?;let mut grounded:BTreeSet<Life>=graph.iter().filter_map(|(life,(anchor,_))|anchor.then_some(life.clone())).collect();
+        loop{let mut changed=false;for(life,(_,sources))in &graph{b.spend(sources.len().saturating_add(1))?;if !grounded.contains(life)&&sources.iter().any(|source|grounded.contains(source)){b.spend(1)?;grounded.insert(life.clone());changed=true;}}if !changed{break;}}
+        b.spend(graph.len().saturating_add(grounded.len()))?;seen.extend(graph.keys().cloned());Ok(grounded.len()==graph.len())
     }
     pub(super) fn receiver_physical_source(&self,owner:SemanticDefinitionId,life:&Life,b:&mut Budget)->Check<bool>{
         // A physical captured Address keeps its stronger original σ. Desc,
@@ -150,6 +159,22 @@ mod tests{
         let mut suspended=signature.clone();suspended.call_kind=CallKind::Suspend;assert!(checked.callable_signature(&module,&context,&suspended,CallableKind::Fn,&env,&mut active,&mut b).is_err());
         let inside=recipe(receiver(receiver(SemanticTypeRecipe::Atom(Type::I32))));assert!(checked.callable_signature(&module,&context,&inside,CallableKind::Fn,&env,&mut active,&mut b).is_err(),"a subject role does not enter a referent");
         let code=SemanticTypeRecipe::Code{kind:SemanticCodeKind::FunctionPointer,signature:Box::new(signature)};assert!(checked.ty(&module,&context,&code,&env,&mut active,&mut b).is_err());
+    }
+    #[test]
+    fn receiver_join_proves_all_directed_sources_without_equating_branch_windows(){
+        let mut checked=CheckedOriginal::default();let mut b=Budget::new(&Limits::default());let owner=SemanticDefinitionId{module:zil_base::ModuleId(0),index:0};
+        let first=Life::Local(owner,NodeId(1));let second=Life::Local(owner,NodeId(2));let alias=Life::Local(owner,NodeId(3));let stack=Life::Local(owner,NodeId(4));
+        checked.receiver_borrows.extend([(owner,NodeId(1)),(owner,NodeId(2))]);
+        checked.borrow_parents.insert((owner,NodeId(3)),first.clone());
+        checked.outer_flows.insert(owner,vec![(second.clone(),alias.clone())]);
+        assert!(checked.receiver_source_life(owner,&alias,&mut BTreeSet::new(),&mut b).unwrap(),"both original return/call sources belong to the same real environment");
+        assert!(!checked.same_life(&first,&second,&mut b).unwrap(),"the two actual borrow σ stay distinct");
+        checked.outer_flows.get_mut(&owner).unwrap().push((stack.clone(),first.clone()));
+        assert!(!checked.receiver_source_life(owner,&alias,&mut BTreeSet::new(),&mut b).unwrap(),"a capture anchor cannot hide another branch's local stack source");
+        checked.outer_flows.insert(owner,vec![(second.clone(),alias.clone()),(alias.clone(),first.clone())]);
+        assert!(checked.receiver_source_life(owner,&alias,&mut BTreeSet::new(),&mut b).unwrap(),"a directed cycle still has real capture roots");
+        let cycle=Life::Local(owner,NodeId(5));checked.outer_flows.get_mut(&owner).unwrap().extend([(cycle.clone(),stack.clone()),(stack.clone(),cycle),(stack,alias.clone())]);
+        assert!(!checked.receiver_source_life(owner,&alias,&mut BTreeSet::new(),&mut b).unwrap(),"a separate rootless component cannot borrow the safe branch's anchor");
     }
     #[test]
     fn receiver_source_requires_every_real_capture_anchor_without_lifetime_equality(){

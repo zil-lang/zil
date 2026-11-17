@@ -426,7 +426,7 @@ fn owning_factory_raw_and_wire_require_exact_return_contract() {
         let mut m = base.clone();
         let c = m.functions[4].callable_return_contract.as_mut().unwrap();
         match mutation {
-            0 => c.kind = CallableKind::FnOnce,
+            0 => c.kind = CallableKind::FunctionPointer,
             1 => c.cleanup.clear(),
             2 => c.cleanup.push(0),
             3 => c.hold.push(0),
@@ -569,6 +569,27 @@ fn owning_factory_raw_and_wire_direct_store_companion_cannot_hide_another_callba
         result.unwrap();
     }
     reject_both(&store_companion(true), "E-UNSUPPORTED");
+}
+
+#[test]
+fn factory_envelope_can_promise_a_weaker_kind_without_changing_the_actual_entry(){
+    for(actual,wanted)in [(CallableKind::Fn,CallableKind::FnMut),(CallableKind::Fn,CallableKind::FnOnce),(CallableKind::FnMut,CallableKind::FnOnce)]{
+        let mut module=fixture(actual,1);
+        module.functions[2].callable_return_contract.as_mut().unwrap().kind=wanted;
+        let main=&mut module.functions[0];
+        let at=main.blocks[0].instructions.iter().position(|row|matches!(row.kind,InstructionKind::CallClosureShared{..}|InstructionKind::CallClosureMut{..})).unwrap();
+        if wanted==CallableKind::FnOnce{
+            let callee=main.blocks[0].instructions[at].result.unwrap();let result=ValueId(main.values.len()as u32);main.values.push(main.values[callee.0 as usize].clone());main.values[callee.0 as usize]=Type::Closure(ClosureId(0));let span=main.span;
+            main.blocks[0].instructions.insert(at,op(Some(callee),InstructionKind::TakeLocal(LocalId(0)),span));
+            main.blocks[0].instructions[at+1]=op(Some(result),InstructionKind::CallClosureOnce{callee,arguments:vec![]},span);main.blocks[0].terminator=Terminator::Return(Some(result));
+        }else{main.blocks[0].instructions[at].kind=InstructionKind::CallClosureMut{callee:LocalId(0),arguments:vec![]};}
+
+        for result in both(&module){result.unwrap();}
+        let mut wrong_identity=module.clone();wrong_identity.functions[2].callable_return_contract.as_mut().unwrap().closure=ClosureId(1);
+        assert!(both(&wrong_identity).into_iter().all(|result|result.is_err()),"a supported public kind never changes actual environment identity");
+    }
+    let mut stronger=fixture(CallableKind::FnMut,1);stronger.functions[2].callable_return_contract.as_mut().unwrap().kind=CallableKind::Fn;
+    assert!(both(&stronger).into_iter().all(|result|result.is_err()),"FnMut cannot promise the stronger shared invocation role");
 }
 
 #[test]
