@@ -138,6 +138,100 @@ impl Ledger {
         Ok(())
     }
 }
+/// The actual header's lexical scope includes input elision domains after
+/// the named declaration lives. Only named lives have a full generic ordinal;
+/// anonymous inputs keep their occurrence/binder identity without a new formal.
+fn lexical_source_inverse(
+    function: &Function,
+    scope: &[String],
+    candidate: Option<&crate::stored_types::SignatureCandidate>,
+    budget: &mut Budget<'_>,
+) -> R<Vec<Option<u32>>> {
+    let mut declared = Vec::new();
+    for (ordinal, parameter) in function.generics.iter().enumerate() {
+        budget.node(parameter.span, 0)?;
+        if !matches!(parameter.kind, GenericParamKind::Lifetime) {
+            continue;
+        }
+        let name = scope.get(declared.len()).ok_or_else(|| {
+            unavailable(
+                function.span,
+                "source helper lost a declared lifetime in its actual lexical scope",
+            )
+        })?;
+        budget.text(name, function.span)?;
+        budget.text(&parameter.name, parameter.span)?;
+        if name != &parameter.name {
+            return Err(unavailable(
+                function.span,
+                "source helper declared lifetime order differs from its actual header",
+            ));
+        }
+        declared.push(ordinal as u32);
+    }
+    if scope.len() > declared.len() {
+        let candidate = candidate.ok_or_else(|| {
+            unavailable(
+                function.span,
+                "source helper implicit input scope has no actual header candidate",
+            )
+        })?;
+        budget.identity_work(
+            candidate.source_scope.len().saturating_add(scope.len()),
+            function.span,
+        )?;
+        for name in candidate.source_scope.iter().chain(scope) {
+            budget.text(name, function.span)?;
+        }
+        if candidate.source_scope.as_slice() != scope {
+            return Err(unavailable(
+                function.span,
+                "source helper implicit input scope belongs to another actual header",
+            ));
+        }
+        for input in &candidate.source_inputs {
+            budget.identity_work(input.path.len().saturating_add(2), function.span)?;
+            if (input.binder as usize) < declared.len()
+                || (input.binder as usize) >= scope.len()
+                || (input.parameter as usize) >= function.params.len()
+            {
+                return Err(unavailable(
+                    function.span,
+                    "source helper implicit input inverse leaves its actual occurrence domain",
+                ));
+            }
+        }
+        for binder in declared.len()..scope.len() {
+            budget.identity_work(
+                candidate.source_inputs.len().saturating_add(1),
+                function.span,
+            )?;
+            if candidate
+                .source_inputs
+                .iter()
+                .filter(|input| input.binder as usize == binder)
+                .count()
+                != 1
+            {
+                return Err(unavailable(
+                    function.span,
+                    "source helper implicit input class lacks its unique actual occurrence",
+                ));
+            }
+        }
+    }
+    budget.identity_work(scope.len(), function.span)?;
+    budget.lineage_bytes(
+        scope
+            .len()
+            .saturating_mul(std::mem::size_of::<Option<u32>>()),
+        function.span,
+    )?;
+    Ok((0..scope.len())
+        .map(|lexical| declared.get(lexical).copied())
+        .collect())
+}
+
 impl Engine<'_> {
     /// Called only at the first real stored-header preparation, while both the
     /// actual source bound and the complete declaration order remain available.
@@ -256,14 +350,10 @@ impl Engine<'_> {
             compiler: false,
         };
         let mut parameters = Vec::new();
-        let mut life_ordinals = Vec::new();
-        for (index, parameter) in function.generics.iter().enumerate() {
+        for parameter in &function.generics {
             self.budget.node(parameter.span, 0)?;
             parameters.push(match &parameter.kind {
-                GenericParamKind::Lifetime => {
-                    life_ordinals.push(index as u32);
-                    LifeParameterKind::Lifetime
-                }
+                GenericParamKind::Lifetime => LifeParameterKind::Lifetime,
                 GenericParamKind::Type(_) => LifeParameterKind::Type,
                 GenericParamKind::Const(ty) => {
                     LifeParameterKind::Const(self.products.storage.pointer_parameter_type(
@@ -275,14 +365,15 @@ impl Engine<'_> {
                 }
             });
         }
-        if life_ordinals.len() != self.life_scope.len() {
-            return Err(unavailable(
-                function.span,
-                "source helper lexical scope lost its full ordinal inverse",
-            ));
-        }
-        let source_of =
-            |life: crate::stored_types::LexicalLife| life_ordinals.get(life.0 as usize).copied();
+        let lexical_sources = lexical_source_inverse(
+            function,
+            &self.life_scope,
+            self.signature_candidate.as_ref(),
+            &mut self.budget,
+        )?;
+        let source_of = |life: crate::stored_types::LexicalLife| {
+            lexical_sources.get(life.0 as usize).copied().flatten()
+        };
         let mut inputs = Vec::new();
         self.budget.identity_work(
             header.bindings.len().saturating_add(header.classes.len()),
@@ -383,8 +474,12 @@ impl Engine<'_> {
         }
         let (life, bound_fixed, _) = crate::stored_types::contract_with_sources(
             occurrences,
-            (0..self.life_scope.len())
-                .map(|index| crate::stored_types::LexicalLife(index as u32))
+            lexical_sources
+                .iter()
+                .enumerate()
+                .filter_map(|(lexical, source)| {
+                    source.map(|_| crate::stored_types::LexicalLife(lexical as u32))
+                })
                 .collect(),
             &mut self.budget,
             bound.span,
@@ -573,6 +668,30 @@ mod tests {
         );
         assert_eq!(context.generic_parameter, 2);
         assert_eq!(context.inputs.len(), 3);
+        assert_eq!(
+            context.parameters,
+            [
+                LifeParameterKind::Lifetime,
+                LifeParameterKind::Lifetime,
+                LifeParameterKind::Type
+            ]
+        );
+        assert_eq!(
+            context
+                .inputs
+                .iter()
+                .map(|input| (input.parameter, input.source_parameter))
+                .collect::<Vec<_>>(),
+            [(0, None), (1, Some(0)), (2, Some(1))]
+        );
+        assert_ne!(
+            context.inputs[0].header_binder,
+            context.inputs[1].header_binder
+        );
+        assert_ne!(
+            context.inputs[0].header_binder,
+            context.inputs[2].header_binder
+        );
     }
     #[test]
     fn stored_roles_preserve_the_same_complete_source_bound_as_direct_inputs() {
@@ -607,5 +726,192 @@ mod tests {
             assert_eq!(life.bindings[0].binder, StorageBinder::Fixed(0));
             assert_eq!(binding.fields, [ordinal as u32 + 1]);
         }
+    }
+    #[test]
+    fn callback_invocation_and_anonymous_header_inputs_keep_separate_domains() {
+        let module = expanded(
+            "fn apply<life a,F:Fn(&i32,&'a i32)->i32>(callback:&F,data:&'a i32,other:&i32)->i32{return callback(other,data)}",
+        );
+        let function = module
+            .functions
+            .iter()
+            .find(|function| function.name == "apply")
+            .unwrap();
+        let [bound] = function.callable_parameters.as_slice() else {
+            panic!("one actual role");
+        };
+        let life = bound.life.as_ref().unwrap();
+        assert_eq!(
+            (life.fixed_binder_count, life.invocation_binder_count),
+            (1, 1)
+        );
+        assert_eq!(
+            life.bindings
+                .iter()
+                .map(|row| (row.position.base, row.binder))
+                .collect::<Vec<_>>(),
+            [
+                (StorageBase::Parameter(0), StorageBinder::Invocation(0)),
+                (StorageBase::Parameter(1), StorageBinder::Fixed(0)),
+            ]
+        );
+        let context = bound.source_life.as_ref().unwrap();
+        assert_eq!(
+            context.parameters,
+            [LifeParameterKind::Lifetime, LifeParameterKind::Type]
+        );
+        assert_eq!(context.generic_parameter, 1);
+        assert_eq!(
+            context.named_fixed,
+            [CoreClosureNamedFixed {
+                fixed: 0,
+                parameter: 0
+            }]
+        );
+        assert_eq!(
+            context
+                .inputs
+                .iter()
+                .map(|input| (input.parameter, input.source_parameter))
+                .collect::<Vec<_>>(),
+            [(0, None), (1, Some(0)), (2, None)]
+        );
+        assert_ne!(
+            context.inputs[0].header_binder,
+            context.inputs[2].header_binder
+        );
+    }
+
+    #[test]
+    fn lexical_inverse_requires_the_actual_elided_occurrence_and_mixed_declaration_order() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "inverse.zil",
+            "fn apply<life a,life b,F:Fn(&'a i32,&'b i32)->i32>(callback:&F,a:&'a i32,b:&'b i32)->i32{return callback(a,b)}",
+        );
+        let module = zil_syntax::parse(&source).into_result().unwrap();
+        let ItemKind::Function(function) = &module.items[0].kind else {
+            panic!("source function");
+        };
+        let scope = vec!["a".into(), "b".into(), "$input_life_0_2".into()];
+        let mut candidate = crate::stored_types::SignatureCandidate::default();
+        candidate.source_scope = scope.clone();
+        candidate
+            .source_inputs
+            .push(crate::stored_types::SourceInputLife {
+                parameter: 0,
+                path: vec![],
+                binder: 2,
+            });
+        let limits = Limits::default();
+        assert_eq!(
+            lexical_source_inverse(
+                function,
+                &scope,
+                Some(&candidate),
+                &mut Budget::new(&limits)
+            )
+            .unwrap(),
+            [Some(0), Some(1), None]
+        );
+        let mut paid_budget = Budget::new(&limits);
+        lexical_source_inverse(function, &scope, Some(&candidate), &mut paid_budget).unwrap();
+        let paid = limits.max_analysis_steps - paid_budget.remaining_limits().max_analysis_steps;
+        assert!(paid > 0);
+        for _ in 0..2 {
+            let exact = Limits {
+                max_analysis_steps: paid,
+                ..limits.clone()
+            };
+            let mut exact_budget = Budget::new(&exact);
+            assert_eq!(
+                lexical_source_inverse(function, &scope, Some(&candidate), &mut exact_budget)
+                    .unwrap(),
+                [Some(0), Some(1), None]
+            );
+            assert_eq!(exact_budget.remaining_limits().max_analysis_steps, 0);
+            let short = Limits {
+                max_analysis_steps: paid - 1,
+                ..limits.clone()
+            };
+            assert_eq!(
+                lexical_source_inverse(
+                    function,
+                    &scope,
+                    Some(&candidate),
+                    &mut Budget::new(&short)
+                )
+                .unwrap_err()
+                .category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+        }
+        assert!(lexical_source_inverse(function, &scope, None, &mut Budget::new(&limits)).is_err());
+        candidate.source_inputs[0].parameter = 3;
+        assert!(
+            lexical_source_inverse(
+                function,
+                &scope,
+                Some(&candidate),
+                &mut Budget::new(&limits)
+            )
+            .is_err()
+        );
+        candidate.source_inputs.clear();
+        assert!(
+            lexical_source_inverse(
+                function,
+                &scope,
+                Some(&candidate),
+                &mut Budget::new(&limits)
+            )
+            .is_err()
+        );
+        candidate
+            .source_inputs
+            .push(crate::stored_types::SourceInputLife {
+                parameter: 0,
+                path: vec![],
+                binder: 2,
+            });
+        candidate
+            .source_inputs
+            .push(crate::stored_types::SourceInputLife {
+                parameter: 0,
+                path: vec![],
+                binder: 2,
+            });
+        assert!(
+            lexical_source_inverse(
+                function,
+                &scope,
+                Some(&candidate),
+                &mut Budget::new(&limits)
+            )
+            .is_err()
+        );
+        candidate.source_inputs.pop();
+        candidate.source_scope[2] = "$other_header".into();
+        assert!(
+            lexical_source_inverse(
+                function,
+                &scope,
+                Some(&candidate),
+                &mut Budget::new(&limits)
+            )
+            .is_err()
+        );
+        let swapped = vec!["b".into(), "a".into(), "$input_life_0_2".into()];
+        candidate.source_scope = swapped.clone();
+        assert!(
+            lexical_source_inverse(
+                function,
+                &swapped,
+                Some(&candidate),
+                &mut Budget::new(&limits)
+            )
+            .is_err()
+        );
     }
 }
